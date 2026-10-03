@@ -9,8 +9,6 @@
 #include "heap.h"
 #include "memory_counters.h"
 
-#include <new>
-
 namespace sgcl::detail {
     // Per-thread cache of pages taken from the heap 8 at a time (one heap
     // mutex per 512 KB). Not a whole 2 MB chunk: a thread that takes all 32
@@ -30,26 +28,24 @@ namespace sgcl::detail {
         }
 
         // One page from the cache, the cache refilled from the heap when
-        // empty. The collector is woken by the allocation that crosses the
-        // wake rule: a cycle once the pages allocated since the last one
-        // reach a quarter of what the last one left in use (at least 1 MB),
-        // or when the heap is near its ceiling.
-        void* alloc() {
-            auto since = MemoryCounters::add_alloc(1);
+        // empty. When the heap refuses (the commit limit, or out of address
+        // space), a full collection and one more try; the program ends when
+        // that fails too (heap.h: out_of_managed_memory, DESIGN 356): one of
+        // the two places memory can run out, so that nothing above checks.
+        // The collector is woken by the allocation that crosses the wake rule:
+        // a cycle once the pages allocated since the last one reach a
+        // quarter of what the last one left in use (at least 1 MB), or
+        // when the heap is near its ceiling.
+        void* alloc() noexcept {
             auto& heap = Heap::instance();
-            bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64 || heap.under_pressure();
             if (!_count) {
                 _count = heap.alloc_pages(_cache, CacheSize);
-                if (!_count) {
-                    // at the commit limit (or out of address space): a full
-                    // collection may free pages; otherwise give up cleanly
-                    collect_before_bad_alloc();
-                    _count = heap.alloc_pages(_cache, CacheSize);
-                    if (!_count) {
-                        throw bad_alloc();
-                    }
+                if (!_count) [[unlikely]] {
+                    _count = _alloc_after_collection();
                 }
             }
+            auto since = MemoryCounters::add_alloc(1);
+            bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64 || heap.under_pressure();
             auto page = _cache[--_count];
             if (wake) {
                 waking_up_collector();
@@ -58,6 +54,15 @@ namespace sgcl::detail {
         }
 
     private:
+        SGCL_COLD unsigned _alloc_after_collection() noexcept {
+            collect_for_allocation();
+            auto count = Heap::instance().alloc_pages(_cache, CacheSize);
+            if (!count) {
+                out_of_managed_memory();
+            }
+            return count;
+        }
+
         void* _cache[CacheSize];
         unsigned _count = 0;
     };

@@ -161,7 +161,7 @@ namespace sgcl::io::detail {
 
         // The deadline of a direction, time_point{} for none; a change
         // wakes the waits in progress, which look at it again
-        void set_deadline(int dir, time_point t) {
+        void set_deadline(int dir, time_point t) noexcept {
             _deadline[dir].store(_rep(t), std::memory_order_seq_cst);
             _generation.fetch_add(1, std::memory_order_seq_cst);
             _wake_waits();
@@ -284,7 +284,7 @@ namespace sgcl::io::detail {
                 return true;
             }
 
-            WaitResult await_resume() {
+            WaitResult await_resume() noexcept {
                 if (_suspended) {
                     return _d->_result(_p);
                 }
@@ -300,7 +300,7 @@ namespace sgcl::io::detail {
                 _p.dir = dir;
             }
 
-            bool _not_parked(WaitResult r) {
+            bool _not_parked(WaitResult r) noexcept {
                 _suspended = false;
                 _result = r;
                 return false;
@@ -367,7 +367,7 @@ namespace sgcl::io::detail {
             return w;
         }
 
-        WaitResult end_wait(Wait& w) {
+        WaitResult end_wait(Wait& w) noexcept {
             if (!w.channel->closed()) {
                 (void)_take_back(w);   // not woken (the other case won): taken back, or its wake is on the way and closes a channel nobody reads
             }
@@ -432,7 +432,7 @@ namespace sgcl::io::detail {
             return WaitResult::ready;
         }
 
-        bool _take_back(Wait& w) {
+        bool _take_back(Wait& w) noexcept {
             PollSlot& s = *w.parking.slot;
             return w.main ? s.take_back(w.parking.dir) : s.remove(w.parking.dir, w.waiter.get());
         }

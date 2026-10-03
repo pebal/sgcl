@@ -395,7 +395,7 @@ TEST(CodecAllocProbe_Tests, LossyWebpAllocatesNothingPerRow) {
                 }
                 const std::string src = (dir / "lossy.png").string(), out = (dir / "lossy.webp").string();
                 {
-                    auto png = codec::png::encode(picture);
+                    vector<byte> png = codec::png::encode(picture);
                     std::ofstream f(src, std::ios::binary);
                     f.write(reinterpret_cast<const char*>(png.data()), std::streamsize(png.size()));
                 }

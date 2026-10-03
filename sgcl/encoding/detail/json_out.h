@@ -10,6 +10,7 @@
 #include "../error.h"
 #include "../../core/aliases.h"
 #include "../../core/detail/bytes.h"
+#include "../../core/detail/os.h"
 
 #include <cmath>
 #include <cstdint>
@@ -29,6 +30,12 @@ namespace sgcl::encoding::detail {
     // characters a value is made of (a quote, a comma, a colon) and
     // zeroed what it grew by; stringify of ten thousand records spent a
     // fifth of its time there.
+    //
+    // A limit on the length (json::to_string and stringify: a string's)
+    // is weighed where the block grows, the only place the text can pass
+    // it: a growth past it lets the text go and stops the writing
+    // (stopped(), over()), so the appends themselves weigh nothing. The
+    // writing's own mistakes stop it through the same flag (JsonOut::fail).
     class JsonText {
     public:
         const char* data() const noexcept {
@@ -56,7 +63,7 @@ namespace sgcl::encoding::detail {
             return std::string_view(_data.get(), _size);
         }
 
-        void push_back(char c) {
+        void push_back(char c) noexcept {
             if (_size == _capacity) [[unlikely]] {
                 _grow(1);
             }
@@ -65,7 +72,7 @@ namespace sgcl::encoding::detail {
 
         // A few bytes (a number, a key, a word of a string) copied by words
         // that overlap (copy_bytes), not by a call of memcpy
-        void append(const char* p, size_t n) {
+        void append(const char* p, size_t n) noexcept {
             if (n > _capacity - _size) [[unlikely]] {
                 _grow(n);
             }
@@ -78,7 +85,7 @@ namespace sgcl::encoding::detail {
         // copied and tested together, with no branch per byte; false, and
         // nothing written, otherwise — write_string's loop takes it then.
         // The keys and most values of a record are such strings.
-        bool quoted_plain(std::string_view s, bool escape_html) {
+        bool quoted_plain(std::string_view s, bool escape_html) noexcept {
             const size_t n = s.size();
             if (n > 64) {
                 return false;
@@ -112,19 +119,24 @@ namespace sgcl::encoding::detail {
             return true;
         }
 
-        void append(std::string_view s) {
+        void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
-        void append(size_t n, char c) {
+        void append(size_t n, char c) noexcept {
             if (n > _capacity - _size) [[unlikely]] {
                 _grow(n);
             }
+            // memset, not fill_bytes (notes 384, 393): through fill_bytes
+            // json::pretty wrote the three nativejson corpora 1.7-12.6%
+            // faster, but an indentation of 128-256 bytes 4-7% slower with
+            // every block aligned alike: fill_bytes's own path lost to libc there
+            // (before 444; the remaining memsets wait for DESIGN 442)
             std::memset(_data.get() + _size, c, n);
             _size += n;
         }
 
-        JsonText& operator+=(char c) {
+        JsonText& operator+=(char c) noexcept {
             push_back(c);
             return *this;
         }
@@ -144,25 +156,68 @@ namespace sgcl::encoding::detail {
             return std::move(_data);
         }
 
-        JsonText& operator+=(std::string_view s) {
+        // The longest the text may grow; past it the text is let go and
+        // the writing stops
+        void limit(size_t n) noexcept {
+            _limit = n;
+        }
+
+        // Whether the writing stopped: at a mistake of its own (stop()) or
+        // at a growth past the limit (then over() too)
+        bool stopped() const noexcept {
+            return _stopped;
+        }
+
+        void stop() noexcept {
+            _stopped = true;
+        }
+
+        bool over() const noexcept {
+            return _over;
+        }
+
+        JsonText& operator+=(std::string_view s) noexcept {
             append(s);
             return *this;
         }
 
     private:
-        void _grow(size_t n) {
-            size_t capacity = std::max(_capacity * 2, std::max(_size + n, size_t(256)));
+        void _grow(size_t n) noexcept {
+            if (n > _limit - _size) [[unlikely]] {
+                if (_past_limit(n)) {
+                    return;
+                }
+            }
+            // never past the limit, so that no append within the block
+            // passes it unweighed
+            size_t capacity = std::max(std::min(std::max(_capacity * 2, size_t(256)), _limit), _size + n);
             auto more = std::make_unique_for_overwrite<char[]>(capacity);
             if (_size) {
+                // memcpy, not copy_bytes (note 313): a growth, once per
+                // doubling, and copy_bytes inlined here grew _grow by 148
+                // bytes, which moved the writer's hot functions after it
+                // and cost stringify 0.6%
                 std::memcpy(more.get(), _data.get(), _size);
             }
             _data = std::move(more);
             _capacity = capacity;
         }
 
+        // A write of n past the limit: the text is let go and the writing
+        // stops; true when the block holds the write in hand from its start
+        SGCL_COLD bool _past_limit(size_t n) noexcept {
+            _over = true;
+            _stopped = true;
+            _size = 0;
+            return n <= _capacity;
+        }
+
         std::unique_ptr<char[]> _data;
         size_t _size = 0;
         size_t _capacity = 0;
+        size_t _limit = SIZE_MAX;
+        bool _stopped = false;
+        bool _over = false;
     };
 
     // The text of JSON as it is written, piece by piece: the punctuation,
@@ -181,7 +236,7 @@ namespace sgcl::encoding::detail {
         friend class JsonLent;
 
     public:
-        JsonOut(uint8_t indent, bool escape_html, bool newline_after_top = false)
+        JsonOut(uint8_t indent, bool escape_html, bool newline_after_top = false) noexcept
         : _indent(indent), _escape_html(escape_html), _newline_after_top(newline_after_top) {
         }
 
@@ -190,7 +245,7 @@ namespace sgcl::encoding::detail {
         }
 
         bool failed() const noexcept {
-            return _failed;
+            return _text.stopped();
         }
 
         errc code() const noexcept {
@@ -210,19 +265,33 @@ namespace sgcl::encoding::detail {
             return _stack.empty() && _values > 0;
         }
 
-        void fail(errc code, std::string detail) {
-            if (!_failed) {
-                _failed = true;
+        void fail(errc code, std::string detail) noexcept {
+            if (!_text.stopped()) {
+                _text.stop();
                 _code = code;
                 _detail = std::move(detail);
             }
         }
 
-        void set_detail(std::string detail) {
+        void set_detail(std::string detail) noexcept {
             _detail = std::move(detail);
         }
 
-        void begin(bool object) {
+        // The longest text the writing may make: a string's, for
+        // json::to_string and stringify. An indented text grows with the
+        // square of the depth (a value 100000 deep indented by 255 is
+        // 1.3e12 characters), so the writing stops once the text would
+        // grow past it, as at a mistake (weighed where the block grows,
+        // JsonText); too_long() then, with failed() and no code of its own
+        void limit(size_t n) noexcept {
+            _text.limit(n);
+        }
+
+        bool too_long() const noexcept {
+            return _text.over();
+        }
+
+        void begin(bool object) noexcept {
             if (!_before_value()) {
                 return;
             }
@@ -230,8 +299,8 @@ namespace sgcl::encoding::detail {
             _stack.push_back(Level{object, false, false});
         }
 
-        void end(bool object) {
-            if (_failed) {
+        void end(bool object) noexcept {
+            if (_text.stopped()) {
                 return;
             }
             if (_stack.empty() || _stack.back().object != object) {
@@ -251,8 +320,8 @@ namespace sgcl::encoding::detail {
             _value_done();
         }
 
-        void key(std::string_view name) {
-            if (_failed) {
+        void key(std::string_view name) noexcept {
+            if (_text.stopped()) {
                 return;
             }
             if (_stack.empty() || !_stack.back().object || _stack.back().after_key) {
@@ -277,14 +346,14 @@ namespace sgcl::encoding::detail {
             level.after_key = true;
         }
 
-        void null() {
+        void null() noexcept {
             if (_before_value()) {
                 _text += "null";
                 _value_done();
             }
         }
 
-        void boolean(bool b) {
+        void boolean(bool b) noexcept {
             if (_before_value()) {
                 _text += b ? "true" : "false";
                 _value_done();
@@ -292,7 +361,7 @@ namespace sgcl::encoding::detail {
         }
 
         template<class I>
-        void integer(I v) {
+        void integer(I v) noexcept {
             if (_before_value()) {
                 char buf[NumberTextSize];
                 _text.append(buf, integer_text(buf, v));
@@ -303,7 +372,7 @@ namespace sgcl::encoding::detail {
         // A double or a float, each with its own shortest digits; NaN and
         // the infinities are not JSON: unsupported_value
         template<class F>
-        void floating(F v) {
+        void floating(F v) noexcept {
             if (!std::isfinite(v)) {
                 fail(errc::unsupported_value, std::isnan(v) ? "NaN is not a JSON number" : "an infinity is not a JSON number");
                 return;
@@ -317,14 +386,14 @@ namespace sgcl::encoding::detail {
 
         // A number written as its literal, which the caller vouches for
         // (a literal read before)
-        void literal(std::string_view text) {
+        void literal(std::string_view text) noexcept {
             if (_before_value()) {
                 _text.append(text);
                 _value_done();
             }
         }
 
-        void quoted(std::string_view s) {
+        void quoted(std::string_view s) noexcept {
             if (_before_value()) {
                 if (!_text.quoted_plain(s, _escape_html)) {
                     write_string(_text, s, _escape_html);
@@ -340,13 +409,13 @@ namespace sgcl::encoding::detail {
             bool after_key;
         };
 
-        void _newline() {
+        void _newline() noexcept {
             _text += '\n';
             _text.append(_stack.size() * _indent, ' ');
         }
 
-        bool _before_value() {
-            if (_failed) {
+        bool _before_value() noexcept {
+            if (_text.stopped()) {
                 return false;
             }
             if (_stack.empty()) {
@@ -377,7 +446,7 @@ namespace sgcl::encoding::detail {
             return true;
         }
 
-        void _value_done() {
+        void _value_done() noexcept {
             if (_stack.empty()) {
                 ++_values;
                 if (_newline_after_top) {
@@ -393,7 +462,6 @@ namespace sgcl::encoding::detail {
         uint8_t _indent;
         bool _escape_html;
         bool _newline_after_top;
-        bool _failed = false;
         errc _code = errc::syntax;
     };
 

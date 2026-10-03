@@ -244,15 +244,6 @@ namespace sgcl {
             assert(detail::thread_registered());
         }
 
-        // A null without the thread's registration (slice): a null roots
-        // nothing, so the stack it lies on need not be known to the
-        // collector; a value stored later into this word goes through
-        // an assignment, whose caller registers first (slice::operator=)
-        tracked_ptr(std::nullptr_t, detail::unregistered_t) noexcept
-        : _raw_ptr(nullptr) {
-            detail::os::escape(this);
-        }
-
         // The write barrier for the target, on demand: reachable in the
         // current cycle, as a store of this pointer would make it
         void shade() const noexcept {
@@ -270,14 +261,15 @@ namespace sgcl {
         // root are visible where they are paid. The object stays managed:
         // destroyed on a collector thread once nothing reaches it, under
         // the rules of destructors.
-        std::shared_ptr<element_type> to_shared() const;   // below, after detail::SharedHolder
+        std::shared_ptr<element_type> to_shared() const noexcept;   // below, after detail::SharedHolder
 
         // The dynamic type of the object, from its page: is<U>() compares it
-        // with U, as<U>() is the pointer to the object as a U, null when it
-        // is not one, type() the type itself; no virtual functions needed
+        // with U (false for null: no object was created as a U), as<U>() is
+        // the pointer to the object as a U, null when it is not one, type()
+        // the type itself (typeid(T) for null); no virtual functions needed
         template<class U>
         bool is() const noexcept {
-            return type() == typeid(U);
+            return _ptr()->template type_info<detail::NoObject>() == typeid(U);
         }
 
         template<class U>
@@ -305,6 +297,15 @@ namespace sgcl {
         detail::Pointer _raw_ptr;
 
     private:
+        // A null without the thread's registration (slice): a null roots
+        // nothing, so the stack it lies on need not be known to the
+        // collector; a value stored later into this word goes through
+        // an assignment, whose caller registers first (slice::operator=)
+        tracked_ptr(std::nullptr_t, detail::unregistered_t) noexcept
+        : _raw_ptr(nullptr) {
+            detail::os::escape(this);
+        }
+
         // From a raw pointer on a thread known to be registered (the
         // atomics, right after current_thread()): the null store and the
         // escape as in every constructor, the thread-local check skipped.
@@ -356,6 +357,7 @@ namespace sgcl {
         template<class> friend class weak_ptr;
         template<class, size_t> friend class array;
         template<class> friend class dynamic_array;
+        template<class> friend class slice;
         template<class U> friend U* detail::load_plain(const tracked_ptr<U>& p) noexcept;
         template<class> friend class detail::Maker;
     };
@@ -376,7 +378,7 @@ namespace sgcl {
     }
 
     template<class T>
-    std::shared_ptr<T> tracked_ptr<T>::to_shared() const {
+    std::shared_ptr<T> tracked_ptr<T>::to_shared() const noexcept {
         auto p = get();
         if (!p) {
             return std::shared_ptr<T>();
@@ -404,9 +406,17 @@ namespace sgcl {
         return static_cast<Y>(l.get()) <=> static_cast<Y>(r.get());
     }
 
+    // As raw pointers compare: in the common type of the two, so that a
+    // pointer to a base subobject at an offset equals the pointer to its
+    // object, as <=> orders them; two types without one (unrelated
+    // classes) compare their addresses as const void*
     template<class T, class U>
     inline bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return static_cast<const void*>(l.get()) == static_cast<const void*>(r.get());
+        if constexpr (requires { l.get() == r.get(); }) {
+            return l.get() == r.get();
+        } else {
+            return static_cast<const void*>(l.get()) == static_cast<const void*>(r.get());
+        }
     }
 
     template<class T>

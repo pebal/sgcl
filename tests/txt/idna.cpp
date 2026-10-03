@@ -579,3 +579,69 @@ TEST(Idna_Tests, Options) {
     // and a name with nothing right to left in it is not asked at all
     EXPECT_TRUE(txt::idna::to_ascii(string("0a.com")).has_value());
 }
+
+// DESIGN 408: the empty name and label, a lone separator, "xn--" with
+// nothing or ASCII behind it, broken UTF-8, and every error's message
+TEST(Idna_Tests, TheEdges) {
+    using enum txt::idna::error;
+    // Nothing, and nothing but the root
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string())).rule, empty_label);
+    EXPECT_EQ(error_of(txt::idna::to_unicode(string())).rule, empty_label);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("."))).rule, empty_label);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("a..b"))).label, 1u);
+    // Without the length checks the empty name is a name, and a root dot is kept
+    auto loose = txt::idna::options::whatwg();
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string(), loose)), string());
+    EXPECT_EQ(value_of(txt::idna::to_unicode(string("a."), loose)), string("a."));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("\xC3\xA4."), loose)), string("xn--4ca."));
+
+    // "xn--" with nothing behind it, and with a body that is all ASCII
+    EXPECT_EQ(error_of(txt::idna::to_unicode(string("xn--"))).rule, punycode);
+    EXPECT_EQ(error_of(txt::idna::to_unicode(string("xn--abc-"))).rule, punycode);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("a.xn--"))).label, 1u);
+    EXPECT_EQ(value_of(txt::idna::to_unicode(string("XN--4CA"))), string("\xC3\xA4"));   // the prefix in any case
+
+    // Broken UTF-8 is a replacement character, which no name may hold
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("a\xFF.com"))).rule, disallowed);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("a\xFF.com"))).at, 0u);
+    EXPECT_EQ(error_of(txt::idna::to_unicode(string("com.\xC3"))).label, 1u);
+
+    // A label of 63 bytes once encoded passes and one of 64 does not, the
+    // punycode counted and not the Unicode: distinct letters added one at
+    // a time until the encoded label passes 63
+    std::string grown;
+    size_t last_good = 0;
+    for (char32_t c = 0x4E00; ; c += 37) {
+        char buf[utf8::max_width];
+        grown.append(buf, utf8::encode(c, buf));
+        auto made = txt::idna::ascii_form(string(grown.data(), grown.size()));
+        if (made.text.size() > 63) {
+            EXPECT_EQ(made.reason.rule, label_too_long);
+            EXPECT_EQ(made.reason.label, 0u);
+            break;
+        }
+        EXPECT_TRUE(bool(made)) << made.text.view();
+        last_good = made.text.size();
+    }
+    EXPECT_GE(last_good, 58u);
+
+    // The punycode of one label alone at its edges
+    EXPECT_EQ(value_of(txt::punycode::decode(string("a-"))), string("a"));       // basic only, delimiter last
+    EXPECT_EQ(value_of(txt::punycode::decode(string("4CA"))), string("\xC3\xA4"));   // upper case digits
+    EXPECT_EQ(value_of(txt::punycode::decode(string("--"))), string("-"));      // the first is basic
+    EXPECT_FALSE(txt::punycode::decode(string("a-\xC3\xA4")).has_value());
+    EXPECT_EQ(value_of(txt::punycode::encode(string("a"))), string("a-"));
+    EXPECT_EQ(value_of(txt::punycode::encode(string("\xFF"))), value_of(txt::punycode::encode(string("�"))));
+
+    // Every error has a sentence, none of them empty, and the outcome's
+    // bool is the absence of one
+    for (auto e : {none, disallowed, not_normalized, hyphen, label_prefix, label_separator, leading_combining,
+                   joiner, bidi, std3, punycode, empty_label, label_too_long, name_too_long}) {
+        txt::idna::failure f{e};
+        EXPECT_FALSE(f.message().empty()) << int(e);
+        EXPECT_EQ(bool(txt::idna::outcome{string(), f}), e == none);
+    }
+    EXPECT_EQ(txt::idna::failure{}.message(), string("no error"));
+    static_assert(txt::idna::options::standard().check_hyphens && !txt::idna::options::whatwg().check_hyphens);
+    static_assert(!txt::idna::options::whatwg().verify_dns_length);
+}

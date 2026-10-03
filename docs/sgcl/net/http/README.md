@@ -1,146 +1,96 @@
+[sgcl](../../README.md) › [net](../README.md) › http
+
 # sgcl::net::http
 
-What Go has in `net/http` for HTTP/1.1 and HTTP/2: a client with a pool of connections, a server with the routes of Go 1.22's `ServeMux`, the messages both of them handle, headers, statuses and cookies. `#include "sgcl/net/http/http.h"` brings it in; it stands on the rest of [net](../README.md) (connections, [URLs](../url.md)), [async](../../async/README.md) and [io](../../io/README.md). `https://` goes over [TLS 1.3](../tls.md), and HTTP/2 (RFC 9113) comes by ALPN over TLS, or by prior knowledge on a plain port (`h2c`), under the same types and handlers.
-
-## The names
-
 ```cpp
-net::http::download(url, path);              // a file, through a client of the process's; a status but 2xx is an error
-net::http::client web;                       // a pool of connections and the settings: timeouts, tls, dial
-web.get(url);                                // and head(url), post(url, content_type, body), send(request)
-net::http::request req("PUT", url);          // a request built by hand: set_header, set_body
-res.text();                                  // and bytes(), json(), json<T>(), save(path), body()
+#include "sgcl/net/http.h"   // namespace sgcl::net::http
 ```
 
-Everything is in `sgcl::net::http`: [`client`](client.md), [`server`](server.md), [`request`](request.md), [`response`](response.md), [`response_writer`](response_writer.md), [`headers`](headers.md), [`cookie`](cookie.md) and the codes of [`status`](status.md). The errors are the module's, [`net::errc`](../error.md): `invalid_url`, `unsupported_scheme`, `malformed_response`, `header_too_large`, `body_too_large`, `too_many_redirects`, `server_closed`, each in an `io::error` that names the method and the URL (`GET http://x/: connection refused`).
+What Go has in `net/http` for HTTP/1.1 and HTTP/2: a [client](client.md) with a pool of connections, a
+[server](server.md) with the routes of Go 1.22's `ServeMux`, the messages both of them handle ([request](request.md),
+[response](response.md), [response_writer](response_writer.md)), [headers](headers.md), [cookies](cookie.md) and the
+codes of [status](status.md). It stands on the rest of [net](../README.md) (connections, [URLs](../url.md)), on
+[async](../../async/README.md) and on [io](../../io/README.md). `https://` goes over [TLS 1.3](../tls/README.md), and
+HTTP/2 (RFC 9113) comes by ALPN over TLS, or by prior knowledge on a plain port (`h2c`), under the same types and
+handlers.
 
-## Waiting
+The idea it rests on is that an exchange is a task on the scheduler and the program chooses how to wait for it. A
+handler is a plain function of `(request, response_writer)` when it never waits — a write only buffers, and the
+server sends the response whole with its Content-Length when the handler returns — and a task when it reads a body
+or calls another service; a client's call is the task started and waited for on a thread, or awaited in a task. The
+messages are handles, so a request, a response or a writer passed into a task keeps what it needs alive, and the
+bytes of the wire go through one buffer per connection, from which a head is copied once into a string whose slices
+its fields are.
 
-As everywhere in io and net, an operation without a prefix does its work on the calling thread and returns the result, and the form for a task has the prefix `async_` and returns a task: `web.get(url)` and `co_await web.async_get(url)`, `res.text()` and `co_await res.async_text()`, `server.serve(":8080")` and `co_await server.async_serve(":8080")`. The exchange itself always runs on the scheduler, so a synchronous call is the task started and waited for: it is for a thread of the program (`main`), never for a worker. A handler runs on a worker, so a handler that reads a body or waits for anything is a task and uses the `async_` forms.
+Errors are values, an `expected<T, io::error>` ([io::error](../../io/error.md)). The codes of the module are
+[net::errc](../errc.md)'s: `invalid_url`, `unsupported_scheme`, `malformed_response`, `header_too_large`,
+`body_too_large`, `too_many_redirects`, `server_closed`, `invalid_cookie`, `http_status`, each in an `io::error` that
+names the method and the URL (`GET http://x/: connection refused`). A 4xx or a 5xx is a response, not an error.
 
-## Handles
+## The rules
 
-A `client`, a `server`, a `request`, a `response` and a `response_writer` are handles of one word, as a [`net::connection`](../connection.md) is: a copy shares what is inside (the client's pool, the server's routes and connections), and a handle passed by value into a task keeps its object alive. `headers` and `cookie` are values.
+1. As everywhere in io and net, an operation without a prefix does its work on the calling thread and returns the
+   result, and the form for a task has the prefix `async_` and returns a task: `web.get(url)` and `co_await
+   web.async_get(url)`, `res.text()` and `co_await res.async_text()`, `server.serve(":8080")` and `co_await
+   server.async_serve(":8080")`. The exchange itself always runs on the scheduler, so a synchronous call is the task
+   started and waited for: it is for a thread of the program (`main`), never for a worker. A handler runs on a
+   worker, so a handler that reads a body or waits for anything is a task and uses the `async_` forms.
+2. A [request](request.md), a [response](response.md) and a [response_writer](response_writer.md) are handles of one
+   word, a `tracked_ptr` to the message, as a [connection](../connection.md) is: a copy shares the message, and a
+   handle passed by value into a task keeps it alive. A [client](client.md) and a [server](server.md) are a word to
+   what the copies share (the client's pool, the server's routes and connections) and their settings, which are each
+   copy's own. All of them hold a `tracked_ptr`, so they live where one may: on a stack, in a task, in a managed
+   object; in a global or a `std` container, a [rooted](../../core/rooted.md) of them. [headers](headers.md) and
+   [cookie](cookie.md) are values.
+3. The parser is pure: bytes in, a head or a status to refuse it with out. It holds to RFC 9112 and RFC 9110 and
+   refuses everything that has carried request smuggling: a Transfer-Encoding with a Content-Length, a coding other
+   than `chunked`, two different lengths, whitespace before a colon, obs-fold, a bare CR, LF alone inside chunked
+   framing, a length or a chunk size that is not digits or overflows; the whole list is in the
+   [server's rules](server.md#the-head). The tests hold each rule to a vector named by its section, and a mutator
+   runs over valid requests under ASan.
+4. A connection's bytes go through one buffer in front of it, unmanaged memory the connection owns (8 KB, grown for a
+   head that does not fit). A head is copied out into a string of its size, whose slices its fields are, one list of
+   their number; a body is copied out (read whole: into a vector of its declared length, or gathered and copied
+   once), or dropped where it lies when a handler left it. No slice of the buffer leaves it, and it is read only by
+   the connection's reads in the task, never on the pool.
+5. Not in this version: gzip and proxies. The client sends no `Accept-Encoding`.
 
-## The wire
+## Functions
 
-The parser (`detail/parser.h`) is pure: bytes in, a head or a status to refuse it with out. It holds to RFC 9112 and RFC 9110 and refuses everything that has carried request smuggling: a Transfer-Encoding with a Content-Length, a coding other than `chunked`, two different lengths, whitespace before a colon, obs-fold, a bare CR, LF alone inside chunked framing, a length or a chunk size that is not digits or overflows; the list is on the [server](server.md#rules) page. The tests hold each rule to a vector named by its section, and a mutator runs over valid requests under ASan. A connection's bytes go through one buffer in front of it, unmanaged memory the connection owns (8 KB, grown for a head that does not fit): a head is copied out into a string of its size, whose slices its fields are, one list of their number; a body is copied out (read whole: into a vector of its declared length, or gathered and copied once), or dropped where it lies when a handler left it; no slice of the buffer leaves it, and it is read only by the connection's reads in the task, never on the pool.
-
-## Pages
-
-| page | header | what it is |
+| Function | Header | Description |
 |---|---|---|
-| [client](client.md) | `sgcl/net/http/client.h` | `http::client`: `get`, `head`, `post`, `send`, `download`; its pool, redirects, timeouts, `dial` |
-| [server](server.md) | `sgcl/net/http/server.h` | `http::server`: `route` (Go 1.22 patterns), `serve`, `shutdown`, `close`, the limits and timeouts |
-| [request](request.md) | `sgcl/net/http/request.h` | `http::request`: built by a client, received by a handler |
-| [response](response.md) | `sgcl/net/http/response.h` | `http::response`: what a client receives |
-| [response_writer](response_writer.md) | `sgcl/net/http/response_writer.h` | `http::response_writer`: what a handler writes; `flush`, `error`, `redirect`, `hijack` |
-| [headers](headers.md) | `sgcl/net/http/headers.h` | `http::headers`: the fields of a head |
-| [cookie](cookie.md) | `sgcl/net/http/cookie.h` | `http::cookie`: Set-Cookie written and read |
-| [status](status.md) | `sgcl/net/http/status.h` | `http::status::ok`…, `http::reason(code)` |
+| [download, async_download](download.md) | `download.h` | a URL saved to a file through a client of the process's; a status but 2xx is an error |
+| [reason](reason.md) | `status.h` | the reason phrase of a status, `Not Found` for 404 |
+| [serve, async_serve](serve.md) | `serve.h` | the files of a directory over HTTP, in one call |
+| [serve_tls](serve_tls.md) | `serve.h` | one handler over https, the certificate and the key read from their files |
 
-## Examples
+## Classes
 
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-
-using namespace sgcl;
-
-int main() {
-    net::http::client web;
-    net::http::response file = web.download("https://www.apache.org/licenses/LICENSE-2.0.txt", "LICENSE-2.0.txt");
-    println("{}, {} bytes on disk", file.status(), io::stat("LICENSE-2.0.txt")->size);
-
-    net::http::request note("POST", "https://httpbin.org/post");
-    note.set_header("Content-Type", "text/plain");
-    note.set_body("buy milk");
-    net::http::response res = web.send(note);
-    string reply = res.text();
-    println("{}, the note echoed: {}", res.status(), reply.contains("buy milk"));
-}
-```
-
-Output:
-
-```text
-200, 11357 bytes on disk
-200, the note echoed: true
-```
-
-A JSON answer read into a struct of the program's, through its `describe`:
-
-```cpp
-#include "sgcl/encoding/encoding.h"
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-
-using namespace sgcl;
-
-struct echo {
-    string data;
-
-    void describe(encoding::field_list& f) {
-        f.add("data", data);
-    }
-};
-
-int main() {
-    net::http::client web;
-    net::http::response res = web.post("https://httpbin.org/post", "text/plain", "buy milk");
-    echo reply = res.json<echo>();
-    println("{} {}", res.status(), reply.data);
-}
-```
-
-Output:
-
-```text
-200 buy milk
-```
-
-A server with one route, until the program is stopped:
-
-```cpp
-#include "sgcl/net/http/http.h"
-
-using namespace sgcl;
-
-int main() {
-    net::http::server srv;
-    srv.route("GET /hello/{name}", [](net::http::request req, net::http::response_writer w) {
-        w.write("hello, " + req.path_value("name") + "\n");
-    });
-    srv.serve(":8080");
-}
-```
-
-A request to it:
-
-```text
-$ curl http://localhost:8080/hello/world
-hello, world
-```
-
-## SGCL and Go
-
-| Go | sgcl::net::http | note |
+| Class | Header | Description |
 |---|---|---|
-| `http.Get(u)`, `Client.Do(r)` | `client.get(u)`, `client.send(r)`, and `co_await client.async_get(u)`; `download(u, path)` | the pool in the client; the end of a body gives the connection back, with no `Close` |
-| `http.Client{Timeout}`, `Transport{ResponseHeaderTimeout, IdleConnTimeout, MaxIdleConnsPerHost}` | `timeout`, `response_header_timeout`, `idle_timeout`, `max_idle_per_host` | 16 idle a host by default, Go 2 |
-| `CheckRedirect`, `ErrUseLastResponse` | `max_redirects` | 301/302/303 as GET, 307/308 keep the method; credentials do not go to another host |
-| `Transport.DialContext` | `client.dial` | a unix socket, a connection in memory; for https the transport under TLS |
-| `io.ReadAll(resp.Body)` | `res.text()`, `res.bytes()`, `res.body()` | |
-| `resp.StatusCode`, `resp.Header.Get` | `res.status()`, `res.header(n)` | names compared without case, kept as written |
-| `http.ServeMux`, `HandleFunc("GET /x/{id}")`, `r.PathValue` | `server.route("GET /x/{id}", h)`, `req.path_value("id")` | the same syntax and precedence, checked against Go's own mux |
-| `http.ResponseWriter`, `WriteHeader`, `Write`, `Flusher` | `response_writer`, `set_status`, `write`, `async_flush` | `write` only buffers: an exact Content-Length unless flushed |
-| `http.Error`, `http.Redirect`, `Hijacker` | `w.error(code)`, `w.redirect(u)`, `w.hijack()` | |
-| `ListenAndServe`, `Serve`, `Shutdown`, `Close` | `serve(":8080")`, `serve(listener)`, `shutdown()`, `close()` | `async::timeout(s.async_shutdown(), 10s)` for a context's deadline |
-| `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `MaxHeaderBytes` | the fields of the same names | 10 s and 32 KB by default (Go: none and 1 MB) |
-| `http.MaxBytesReader` | `server.max_body_bytes` | 32 MB by default, 413 |
-| `r.Context()` | `req.stop()` | stopped by `close()` and by a failed write |
-| `http.Cookie`, `SetCookie` | `cookie`, `w.add_cookie(c)`, `req.cookie(name)` | no jar; `Expires` by RFC 6265's cookie-date |
-| `http.TimeFormat`, `http.ParseTime` | `headers.set_date(n, t)`, `headers.date(n)` | `time::datetime`, the `time` module's `time::http` |
-| `ListenAndServeTLS`, `Transport` over TLS | `server.serve_tls(address, config)`, `https://` in the client | TLS 1.3 only; ALPN completed as Go completes it |
-| HTTP/2 (`h2`, `h2c`) | `server.http2`, `server.h2c`, `client.http2`, `client.h2c`, `res.proto()` | the same handlers; one connection per origin in the client |
-| gzip, proxies | — | not in this version; the client sends no Accept-Encoding |
+| [client](client.md) | `client.h` | HTTP/1.1 and HTTP/2 with a pool of connections, redirects and timeouts: Go's `http.Client` |
+| [cookie](cookie.md) | `cookie.h` | a cookie, the Set-Cookie field written and read: Go's `http.Cookie` |
+| [headers](headers.md) | `headers.h` | the fields of a head, names compared without case and kept as written |
+| [request](request.md) | `request.h` | a request: made for a client, received by a handler |
+| [response](response.md) | `response.h` | what a client receives: the status, the fields, the body |
+| [response_writer](response_writer.md) | `response_writer.h` | the response a handler writes: Go's `http.ResponseWriter` |
+| [server](server.md) | `server.h` | routes, limits, timeouts, HTTP/2 and shutdown: Go's `http.Server` and `ServeMux` in one |
+
+## Namespaces
+
+| Namespace | Header | Description |
+|---|---|---|
+| [status](status.md) | `status.h` | the status codes of the IANA registry as `int` constants, `status::ok`, `status::not_found`... |
+
+## Objects and types
+
+| Name | Header | Description |
+|---|---|---|
+| `dial_function` | `client.h` | `function<async::task<expected<net::connection, io::error>>(const net::url&, async::stop_token)>`: what makes a client's connections, its member `dial` ([client](client.md)) |
+
+## See also
+
+- [Benchmarks](benchmarks.md): the server under load, HTTP/1.1, https and HTTP/2, against Go's
+- [net](../README.md): the connections and the URLs under it
+- [tls](../tls/README.md): https
+- [The modules](../../README.md)

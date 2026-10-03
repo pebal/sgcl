@@ -177,7 +177,7 @@ namespace sgcl::encoding {
         }
 
         // The first block of the text; a text with none is unexpected_end
-        static expected<pem, error> parse(const string& text) {
+        static expected<pem, error> parse(const string& text) noexcept {
             size_t next = 0;
             auto r = _parse(text, 0, next);
             if (!r) {
@@ -198,7 +198,7 @@ namespace sgcl::encoding {
         }
 
         // Every block of the text, none for a text with none
-        static expected<vector<pem>, error> parse_all(const string& text) {
+        static expected<vector<pem>, error> parse_all(const string& text) noexcept {
             vector<pem> out;
             size_t at = 0;
             for (;;) {
@@ -216,7 +216,7 @@ namespace sgcl::encoding {
         }
 
     private:
-        pem() = default;
+        pem() noexcept = default;
 
         void _check() const {
             if (!detail::pem_label(_type.view())) {
@@ -246,13 +246,13 @@ namespace sgcl::encoding {
             }
         }
 
-        static error _fail(const string& text, errc code, size_t at, const std::string& what) {
+        static error _fail(const string& text, errc code, size_t at, const std::string& what) noexcept {
             return error(code, at, string(what)).locate(text);
         }
 
         // The boundary line at `at`, "-----" + word + label + "-----" and
         // white space: the label, or the error
-        static expected<std::string_view, error> _boundary(const string& text, size_t at, size_t prefix, const char* word) {
+        static expected<std::string_view, error> _boundary(const string& text, size_t at, size_t prefix, const char* word) noexcept {
             auto v = text.view();
             auto line = detail::pem_line(v, at);
             size_t from = at + prefix;

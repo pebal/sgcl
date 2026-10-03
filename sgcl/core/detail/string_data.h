@@ -41,24 +41,14 @@ namespace sgcl::detail {
         std::memset(bytes + sizeof(StringHeader) + s.size() * sizeof(CharT), 0, sizeof(CharT));
     }
 
-    // The object of a size class: the bytes, filled by the constructor,
-    // no zeroing. Never traced (the pointer map is empty, by the
+    // The object of a size class: the bytes, written by StringMaker
+    // (make_slot, make_unfilled_slot), never constructed; the type names
+    // the class's pool (its typeid, its size, its traits: string_class_constants
+    // below). Never traced (the pointer map is empty, by the
     // specialization below): the bytes are characters and nothing else.
     template<size_t Bytes>
     struct StringSlot {
         alignas(4) unsigned char bytes[Bytes];
-
-        template<class CharT>
-        StringSlot(std::basic_string_view<CharT> s) noexcept {
-            string_fill(bytes, s);
-        }
-
-        // The bytes left as they are, for the caller to write in place
-        // (StringMaker::make_bounded): nothing reads them before that
-        struct Unfilled {};
-
-        explicit StringSlot(Unfilled) noexcept {
-        }
     };
 
     template<size_t Bytes>
@@ -100,27 +90,57 @@ namespace sgcl::detail {
         return i;
     }();
 
-    // An object of a size class with its bytes left unwritten, for a
-    // string written in place (StringMaker::make_bounded)
+    // The size classes as data: every class its own pool (its own
+    // Metadata, pages and slab, as a type of its own), described by a row
+    // of constants, its objects made by one function for all classes (a
+    // table of functions per class was ~3.6 KB of code each, all of them
+    // in any program that makes a string). Classes 0..63 are the small
+    // ones ((c + 1) * 4 bytes), the rest string_large_class(c - 64). The
+    // type of a class's objects stays StringSlot<Bytes> for the
+    // statistics and the type's traits (IsStringStorage: is_string).
+    constexpr size_t StringClassCount = StringSmallClasses + StringLargeClasses;
+
+    constexpr size_t string_class_bytes(size_t c) noexcept {
+        return c < StringSmallClasses ? (c + 1) * 4 : string_large_class(c - StringSmallClasses);
+    }
+
     template<size_t Bytes>
-    unique_ptr<void> make_unfilled_string_slot() {
-        return unique_ptr<void>(make_tracked<StringSlot<Bytes>>(typename StringSlot<Bytes>::Unfilled{}));
-    }
-
-    using UnfilledStringSlotFn = unique_ptr<void> (*)();
-
-    template<size_t... Is>
-    constexpr std::array<UnfilledStringSlotFn, sizeof...(Is)> unfilled_small_string_entries(std::index_sequence<Is...>) {
-        return {&make_unfilled_string_slot<(Is + 1) * 4>...};
+    constexpr TypeConstants string_class_constants_of() noexcept {
+        using Info = TypeInfo<StringSlot<Bytes>>;
+        static_assert(Info::Allocator::IsPoolAllocator::value && !Info::MayContainTracked);
+        return Metadata::constants_of<StringSlot<Bytes>>();
     }
 
     template<size_t... Is>
-    constexpr std::array<UnfilledStringSlotFn, sizeof...(Is)> unfilled_large_string_entries(std::index_sequence<Is...>) {
-        return {&make_unfilled_string_slot<string_large_class(Is)>...};
+    constexpr std::array<TypeConstants, sizeof...(Is)> string_class_constants_of(std::index_sequence<Is...>) noexcept {
+        return {string_class_constants_of<string_class_bytes(Is)>()...};
     }
 
-    inline constexpr auto unfilled_small_string_slots = unfilled_small_string_entries(std::make_index_sequence<StringSmallClasses>());
-    inline constexpr auto unfilled_large_string_slots = unfilled_large_string_entries(std::make_index_sequence<StringLargeClasses>());
+    inline constexpr auto string_class_constants = string_class_constants_of(std::make_index_sequence<StringClassCount>());
+
+    // The pools of the classes: per class its number among the allocators
+    // of every thread (thread.h: pool_allocator; 0 until its first use) and
+    // its Metadata, made on the first use of the class on any thread. Both
+    // constinit: no guard and no order of initialization.
+    // Each array on lines of its own, as the buffer classes' (maker.h:
+    // BufferPools): read on every string made, and placed by the linker
+    // next to whatever static comes before or after them, such as the
+    // collector's counters it writes every cycle
+    struct StringPools {
+        alignas(config::cache_line_size) inline static constinit std::atomic<unsigned> slots[StringClassCount] = {};
+        alignas(config::cache_line_size) inline static constinit std::atomic<Metadata*> metadata[StringClassCount] = {};
+
+        static Metadata& metadata_of(unsigned c) noexcept {
+            return Metadata::of_pool(metadata[c], string_class_constants[c]);
+        }
+
+        // A slot of class c, in state UniqueLock (as make_tracked's), its
+        // bytes as the slot's last user left them
+        SGCL_ALWAYS_INLINE static void* alloc(unsigned c) noexcept {
+            auto& a = current_thread().pool_allocator(slots[c], [c]() -> Metadata& { return metadata_of(c); });
+            return MakerBase::allocate(a, 0, [](void*) noexcept {});   // never null: out of memory handled in the allocators
+        }
+    };
 
     // The managed object for a string of `bytes` (header, characters and
     // terminator), from the smallest class that holds it, as the string's
@@ -140,13 +160,22 @@ namespace sgcl::detail {
         // writes straight into the string's word.
         using Slot = unique_ptr<void>;
 
-        template<class CharT, size_t Bytes>
-        static Slot make_slot(std::basic_string_view<CharT> s) {
-            return Slot(make_tracked<StringSlot<Bytes>>(s));
+        // An object of class c holding `s`; one function for all classes
+        template<class CharT>
+        SGCL_NOINLINE static Slot make_slot(unsigned c, std::basic_string_view<CharT> s) noexcept {
+            auto p = StringPools::alloc(c);
+            string_fill((unsigned char*)p, s);
+            return Slot(UniquePtr<void>(p));
+        }
+
+        // An object of class c with its bytes left unwritten, for a string
+        // written in place (make_bounded)
+        SGCL_NOINLINE static Slot make_unfilled_slot(unsigned c) noexcept {
+            return Slot(UniquePtr<void>(StringPools::alloc(c)));
         }
 
         template<class CharT>
-        static Slot make_buffer(std::basic_string_view<CharT> s, size_t bytes) {
+        static Slot make_buffer(std::basic_string_view<CharT> s, size_t bytes) noexcept {
             unique_ptr<StringByte> buffer(Maker<StringByte[]>::make_tracked_data(bytes));
             string_fill(reinterpret_cast<unsigned char*>(buffer.get()), s);
             return Slot(std::move(buffer));
@@ -159,11 +188,11 @@ namespace sgcl::detail {
             }
             const size_t bytes = sizeof(StringHeader) + (s.size() + 1) * sizeof(CharT);
             if (bytes <= 256) {
-                return Word(small_table<CharT>[(bytes - 1) / 4](s));
+                return Word(make_slot<CharT>((unsigned)((bytes - 1) / 4), s));
             }
             for (size_t i = 0; i < StringLargeClasses; ++i) {
                 if (bytes <= string_large_class(i)) {
-                    return Word(large_table<CharT>[i](s));
+                    return Word(make_slot<CharT>((unsigned)(StringSmallClasses + i), s));
                 }
             }
             return Word(make_buffer(s, bytes));
@@ -212,13 +241,13 @@ namespace sgcl::detail {
                 throw length_error("sgcl::basic_string");
             }
             const size_t bytes = sizeof(StringHeader) + (bound + 1) * sizeof(CharT);
-            Slot slot = bytes <= 256 ? unfilled_small_string_slots[(bytes - 1) / 4]() : _unfilled_large(bytes);
+            Slot slot = bytes <= 256 ? make_unfilled_slot((unsigned)((bytes - 1) / 4)) : _unfilled_large(bytes);
             chars = reinterpret_cast<CharT*>(static_cast<unsigned char*>(slot.get()) + sizeof(StringHeader));
             return slot;
         }
 
         template<class CharT>
-        static Word finish(Slot slot, size_t bound, size_t used) {
+        static Word finish(Slot slot, size_t bound, size_t used) noexcept {
             auto* p = static_cast<unsigned char*>(slot.get());
             auto* chars = reinterpret_cast<CharT*>(p + sizeof(StringHeader));
             assert(used <= bound && "a fill wrote past the bound it was given");
@@ -230,7 +259,8 @@ namespace sgcl::detail {
                 // a character that took one): a copy in an object of the
                 // exact class, this one given back whole as it goes (never
                 // a part of it), rather than the slack kept for the
-                // string's life
+                // string's life (make's length check cannot fail: used is
+                // under the bound, which make_unfilled checked)
                 return make(std::basic_string_view<CharT>(chars, used));
             }
             ::new(p) StringHeader{(uint32_t)used, {0}};
@@ -249,33 +279,13 @@ namespace sgcl::detail {
         }
 
     private:
-        static Slot _unfilled_large(size_t bytes) {
+        static Slot _unfilled_large(size_t bytes) noexcept {
             for (size_t i = 0; i < StringLargeClasses; ++i) {
                 if (bytes <= string_large_class(i)) {
-                    return unfilled_large_string_slots[i]();
+                    return make_unfilled_slot((unsigned)(StringSmallClasses + i));
                 }
             }
             return Slot(unique_ptr<StringByte>(Maker<StringByte[]>::make_tracked_data(bytes)));
         }
-
-    private:
-        template<class CharT>
-        using MakeFn = Slot (*)(std::basic_string_view<CharT>);
-
-        template<class CharT, size_t... Is>
-        static constexpr std::array<MakeFn<CharT>, sizeof...(Is)> small_entries(std::index_sequence<Is...>) {
-            return {&make_slot<CharT, (Is + 1) * 4>...};
-        }
-
-        template<class CharT, size_t... Is>
-        static constexpr std::array<MakeFn<CharT>, sizeof...(Is)> large_entries(std::index_sequence<Is...>) {
-            return {&make_slot<CharT, string_large_class(Is)>...};
-        }
-
-        template<class CharT>
-        static constexpr auto small_table = small_entries<CharT>(std::make_index_sequence<StringSmallClasses>());
-
-        template<class CharT>
-        static constexpr auto large_table = large_entries<CharT>(std::make_index_sequence<StringLargeClasses>());
     };
 }

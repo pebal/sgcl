@@ -949,3 +949,66 @@ TEST(Scheduler_Tests, TheSpinsCounterIsMonotonicAndAtItsRate) {
     EXPECT_NEAR(measured / us, 1.0, 0.05) << measured << " us of ticks against " << us << " us";
     EXPECT_EQ(sgcl::detail::ticks_of_microseconds(20), sgcl::detail::ticks_per_second() * 20 / 1'000'000);
 }
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // when the system has no thread to give (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+
+    void refuse_second_thread(unsigned i) {
+        if (i == 1) {
+            refuse_thread(i);
+        }
+    }
+
+    template<class F>
+    bool soon(F&& f) {
+        auto until = std::chrono::steady_clock::now() + 5s;
+        while (!f()) {
+            if (std::chrono::steady_clock::now() > until) {
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
+    }
+}
+
+// A start of the workers that fails part-way: the workers started are
+// joined again and the std::system_error is the caller's; the next start
+// makes the number asked for, no more
+TEST(Scheduler_Tests, AStartThatFailsLeavesNoWorkerBehind) {
+    const unsigned before = sgcl::async::scheduler::workers();
+    sgcl::async::scheduler::stop();
+    sgcl::async::scheduler::set_workers(3);                    // stopped: what the next start takes
+    sgcl::async::detail::scheduler_start_test_hook.store(&refuse_second_thread);
+    EXPECT_THROW((void)sgcl::async::scheduler::workers(), std::system_error);
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_EQ(sgcl::async::scheduler::get_statistics().workers, 0u);   // not running
+    EXPECT_EQ(sgcl::async::scheduler::workers(), 3u);
+    EXPECT_EQ(sgcl::async::spawn(square(5)).wait(), 25);
+    sgcl::async::scheduler::set_workers(before);
+    sgcl::async::scheduler::stop();
+}
+
+// A wake that has to start the workers and cannot: the std::system_error
+// is the waker's, and the task it woke is not lost: queued before the
+// start, it runs when the workers next start
+TEST(Scheduler_Tests, AWakeThatCannotStartTheWorkersLosesNoTask) {
+    sgcl::async::scheduler::stop();
+    sgcl::async::channel<int> ch(1);
+    auto t = [](sgcl::async::channel<int> ch) -> task<int> {
+        co_return *co_await ch.receive();
+    }(ch);
+    t.resume();                                                // by hand, on this thread, to its wait
+    sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    EXPECT_THROW((void)ch.try_send(5), std::system_error);     // delivered; the wake could not start the workers
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_FALSE(t.done());
+    (void)sgcl::async::scheduler::workers();                   // started: the task queued runs
+    ASSERT_TRUE(soon([&] { return t.done(); }));
+    EXPECT_EQ(t.result(), 5);
+    sgcl::async::scheduler::stop();
+}

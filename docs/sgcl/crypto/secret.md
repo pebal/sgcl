@@ -1,78 +1,110 @@
-# sgcl::crypto::secret
+[sgcl](../README.md) › [crypto](README.md)
+
+# sgcl::crypto::secret\<N\>
 
 ```cpp
-#include "sgcl/crypto/secret.h"   // or "sgcl/crypto/crypto.h"
+#include "sgcl/crypto/secret.h"   // or "sgcl/crypto.h"
 
 namespace sgcl::crypto {
-    template<size_t N> class secret;   // N secret bytes, move-only, zeroed when they go
-    class secret_bytes;                // the same for a length known when the program runs
+    template<size_t N>
+    class secret;
 }
 ```
 
-N bytes that are a secret — an ECDH shared secret, a private key's scalar — as the module gives them out: every accessor of private material returns one — the shared secrets of [`x25519`](x25519.md), [`p256`](p256.md) and [`p384`](p384.md) (`secret<32>`, `secret<32>`, `secret<48>`), a private key's `bytes()` (its scalar, or X25519's 32 bytes), [`ed25519`](ed25519.md)'s `seed()` (`secret<32>`) and `bytes()` (`secret<64>`). Public keys stay `array<byte, N>`. The bytes live in the object itself, so they have one place, and that place is cleared when the object goes.
+`sgcl::crypto::secret<N>` is `N` bytes that are a secret, as the module gives them out: an ECDH shared secret, a
+private key's scalar, a seed. Every accessor of private material of a fixed length returns one: the shared secrets of
+[x25519](x25519.md), [p256](p256.md) and [p384](p384.md) (`secret<32>`, `secret<32>`, `secret<48>`), a private key's
+`bytes()` (its scalar, or X25519's 32 bytes), [ed25519](ed25519.md)'s `seed()` (`secret<32>`) and `bytes()`
+(`secret<64>`). Public keys stay `array<byte, N>`. The bytes live in the object itself, with no allocation, so that
+they have one place, and that place is cleared when the object goes.
+
+A program does not make one: there is no public constructor but the move. A secret whose length is known only when
+the program runs, what a key derivation gives or a file holds, is a [secret_bytes](secret_bytes.md). Go has neither:
+its keys and secrets are `[]byte`, left to the garbage collector.
 
 **The implementation has not been through an independent cryptographic audit.**
 
 ## Rules
 
-- **Move-only**: a copy is asked for by name with `clone()`; a move leaves the source zeroed; the destructor zeroes the bytes with stores the compiler cannot drop ([`secure_zero`](secure_zero.md)).
-- **Read in place**: `bytes()` (and the conversion to `slice<const byte>`) gives a slice without an owner over the object's own bytes, valid while the object lives. Every function of the module that takes bytes takes it: `hkdf_sha256::derive(salt, shared, info, 32)`, `hmac_sha256(key)`. Compare two with `==`, which is [`constant_time::equal`](constant_time.md), never with a loop that stops at the first difference.
-- **Where it lives**: on the stack or in a `unique_ptr`, a secret is gone when its scope ends; in a managed object it stays in memory until the cycle that finds the object dead. Copies made of `bytes()` into buffers of the program's own are the program's to clear.
+- **Move-only.** A copy is asked for by name, with [clone](secret/clone.md). A move leaves the source zeroed, and the
+  destructor zeroes the bytes with stores the compiler cannot drop ([secure_zero](secure_zero.md)).
+- **Read in place.** [bytes](secret/bytes.md), and the conversion to `slice<const byte>`, give a slice without an
+  owner over the object's own bytes, valid while the object lives. Every function of the module that takes bytes
+  takes it: `hkdf_sha256::derive(salt, shared, info, 32)`, `hmac_sha256(key)`. Two secrets are compared with `==`,
+  which is [constant_time::equal](constant_time/equal.md), never with a loop that stops at the first difference.
+- **Where it lives.** On the stack or in a `unique_ptr`, a secret is gone when its scope ends. In a managed object it
+  stays in memory until the cycle that finds the object dead, and after it: managed memory is not zeroed when an
+  object dies, and a block the collector frees keeps its bytes until it is given out again. So a secret belongs on
+  the stack or in plain memory. Copies made of its bytes into buffers of the program's own are the program's to
+  clear.
 
-## Members
+## Template parameters
+
+| Parameter | Description |
+|---|---|
+| `N` | the number of bytes |
+
+## Member objects
+
+| Constant | Value | Description |
+|---|---|---|
+| `size` | `N` | the number of bytes, `static constexpr size_t` |
+
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](secret/secret.md) | takes the bytes of another secret over and zeroes them there |
+| `(destructor)` | zeroes the bytes |
+| [operator=](secret/operator_assign.md) | takes the bytes of another secret over and zeroes them there |
+| [clone](secret/clone.md) | a second secret of the same bytes |
+
+#### Element access
+
+| Function | Description |
+|---|---|
+| [bytes, operator slice\<const byte\>](secret/bytes.md) | the bytes, as a slice over the object's own memory |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](secret/operator_cmp.md) | compares two secrets in constant time |
+
+## Example
 
 ```cpp
-static constexpr size_t size = N;
+#include "sgcl/crypto.h"
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
 
-secret(secret&& other) noexcept;              // other zeroed
-secret& operator=(secret&& other) noexcept;
-secret(const secret&) = delete;
-~secret();                                    // the bytes zeroed
-secret clone() const noexcept;
+using namespace sgcl;
 
-slice<const byte> bytes() const noexcept;
-operator slice<const byte>() const noexcept;
+int main() {
+    // RFC 7748 §6.1's keys; a program makes its own with generate()
+    auto alice = crypto::x25519::private_key::from_bytes(
+        encoding::hex::decode("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"));
+    auto bob = crypto::x25519::private_key::from_bytes(
+        encoding::hex::decode("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"));
 
-friend bool operator==(const secret& a, const secret& b) noexcept;   // in constant time
+    crypto::secret<32> shared = alice->shared_secret(bob->public_key()).value();
+    println("{} {}", shared.size, shared == bob->shared_secret(alice->public_key()).value());
+
+    // the secret goes through a key derivation, read in place
+    auto key = crypto::hkdf_sha256::derive("salt", shared, "chat v1 key", 32);
+    println("{}", key.size());
+}
 ```
 
-## secret_bytes
+Output:
 
-```cpp
-class secret_bytes {
-public:
-    static constexpr size_t inline_capacity = 64;
-
-    secret_bytes() noexcept;                      // empty
-    explicit secret_bytes(size_t n);              // n bytes, all zero
-    secret_bytes(secret_bytes&& other) noexcept;  // other left empty
-    secret_bytes& operator=(secret_bytes&& other) noexcept;
-    secret_bytes(const secret_bytes&) = delete;
-    ~secret_bytes();                              // what it held zeroed
-    secret_bytes clone() const;
-
-    slice<const byte> as_slice() const noexcept;
-    slice<byte> as_slice() noexcept;
-    operator slice<const byte>() const noexcept;
-
-    size_t size() const noexcept;
-    bool empty() const noexcept;
-    void resize(size_t n);                        // the prefix kept, the rest zero
-
-    friend bool operator==(const secret_bytes& a, const secret_bytes& b) noexcept;   // in constant time
-};
-
-expected<secret_bytes, io::error> read_secret(const string& path);   // "sgcl/crypto/read_secret.h"
+```text
+32 true
+32
 ```
-
-A secret whose length is known only when the program runs: what [`hkdf`](hkdf.md) and [`pbkdf2`](pbkdf2.md) derive, SHAKE's output ([`sha3`](sha3.md)), a key from [`random::secret`](random.md), a private key's export, a key file read by `read_secret`. The module's rule: a secret is never in managed memory. A plaintext is not a secret of this kind: what an [AEAD](aead.md) opens and what [`rsa`](rsa.md) decrypts is the user's data and comes back as a `vector<byte>` (their `_to` forms write into a buffer of the program's, a `secret_bytes` among them, for a key unwrapped).
-
-- **Where the bytes are.** Up to 64 bytes live in the object itself, so keys of 32, 48 or 64 bytes, derived keys and shared secrets allocate nothing. Past that they live in a block of plain memory (`::operator new`), zeroed before it is freed. A growth zeroes the block it leaves.
-- **Move-only.** A copy is asked for by name with `clone()`; a move leaves the source empty. The destructor zeroes what the object held.
-- **Read and written through `as_slice()`.** It gives a slice without an owner, which every function of the module that takes bytes takes (the conversion to `slice<const byte>` makes that implicit). There is no `push_back` and no `operator[]`: a secret is not a container.
-- **Where it lives.** On the stack or in a `unique_ptr`, its bytes are gone when its scope ends. Inside a managed object, its inline bytes would lie in managed memory until that object is collected, so keep it out of one.
-- **Reading a file.** `read_secret` reads a file (a private key's PEM, a password) straight into a `secret_bytes`, never through a managed buffer; `io::read_file` gives a managed `vector<byte>`.
 
 ## See also
 
-[`p256`](p256.md), [`p384`](p384.md), [`hkdf`](hkdf.md), [`secure_zero`](secure_zero.md), [`constant_time`](constant_time.md).
+- [secret_bytes](secret_bytes.md): a secret of a length known when the program runs
+- [secure_zero](secure_zero.md): zeros the compiler cannot drop, for the program's own buffers
+- [constant_time](constant_time.md): the comparison of secrets

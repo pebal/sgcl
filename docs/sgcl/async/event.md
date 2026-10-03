@@ -1,63 +1,112 @@
+[sgcl](../README.md) › [async](README.md)
+
 # sgcl::async::event
 
 ```cpp
-#include "sgcl/async/event.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/event.h"   // or "sgcl/async.h"
 
-namespace sgcl {
-    class event;   // set once, waited for by any number
+namespace sgcl::async {
+    class event {
+    public:
+        class wait_op;
+
+        friend bool operator==(const event& a, const event& b) noexcept;
+    };
 }
 ```
 
-An event: set once, waited for by any number, and a wait after the set does not wait; a channel closed by `set()`, one of the family the [mutex](mutex.md)'s page describes (each of the five ([mutex](mutex.md), [semaphore](semaphore.md), [event](event.md), [wait_group](wait_group.md), [once](once.md)) a channel of signals under the name of what it does, with the three forms of a wait a [channel](channel.md) has: blocking, for a thread; awaitable, for a task, which holds no thread while it waits; and as a case of a [select](select.md)). A [promise](promise.md) is an event with a value.
+`sgcl::async::event` is set once and waited for by any number of tasks and threads, and a wait after the set does
+not wait. Under it is a channel of signals that [set](event/set.md) closes: Go's idiom of a channel closed to tell
+every receiver at once that something happened, `close(done)`. It is one of the family the [mutex](mutex.md) heads,
+each a channel of signals under the name of what it does, and is waited for as a task is: `e.wait()` on a thread,
+`co_await e` in a task, which holds no thread while it waits, and `e.on_set(f)` as a case of a [select](select.md).
+A [promise](promise.md) is an event with a value.
+
+What the reactor and the timers give is an event too: [readable](readable.md), [writable](writable.md),
+[exited](exited.md), [after](after.md) and [at](at.md) return one, set when the moment comes or when the wait is
+ended with nothing, by a cancel or a stop. A wait woken by such an event looks at its source again.
 
 ## Rules
 
-- A handle: one word, a tracked word to the state, which copies share (`==` says whether two are the same). Made by the constructor; there is no empty event. It lies on a stack, in a task (a parameter by value), in a managed object; in a global or a std container, as a `rooted<async::event>` ([rooted](../core/rooted.md)), the same object reached with `->`. A root is never part of a cycle: never a `rooted` in a managed object or a task's frame ([The rules](../core/README.md#the-rules), 1).
-- Set once: there is no reset. A wait after the set returns at once.
-- An event happens once, and a wait ends when it has happened: after `wait()`, `co_await` or a select's `on_set` case, `is_set()` is true — for the events of the reactor and the timers too.
-- What the [reactor](reactor.md) and the [timers](timer.md) give (`readable`, `writable`, `exited`, `after`, `at`) is an event: `co_await async::readable(fd)` in a task, `async::after(1s).wait()` on a thread, `.on_set(f)` in a select. It is set when the moment comes or when the wait is ended with nothing (a cancel, a stop): a wait woken by it looks at its source again.
+- An event is a handle: one word, a tracked word to its channel, which copies share;
+  [operator==](event/operator_cmp.md) says whether two are the same event. It is made unset by its constructor, and
+  there is no empty event ([README: Handles](README.md#handles)).
+- Set once: there is no reset, and a second [set](event/set.md) does nothing.
+- An event happens once, and a wait ends when it has happened: after [wait](event/wait.md), `co_await` or a select's
+  [on_set](event/on_set.md) case, [is_set](event/is_set.md) is `true`, for the events of the reactor and the timers
+  too.
+- `wait()` is a thread's: a task on a worker writes `co_await e` ([README: The rules](README.md#the-rules), 1).
 
-## Members
+## Member types
 
-```cpp
-event();                                             // not set
-void set() const;  bool is_set() const noexcept;
-void wait() const;                                   // a thread
-wait_op operator co_await() const;                   // co_await e: the task resumed by the set
-template<class F> auto on_set(F f) const;            // a case of a select
-friend bool operator==(const event&, const event&) noexcept;   // the same event
-```
+| Type | Definition |
+|---|---|
+| `wait_op` | the awaiter of `co_await e` ([wait, operator co_await](event/wait.md)) |
 
-```cpp
-async::event ready;
-auto worker = [](async::event ready) -> async::task<> {   // by value: a copy is the same event
-    co_await ready;                // all start together
-};
-ready.set();
-```
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](event/event.md) | constructs an unset event, or a handle of the same event |
+| `(destructor)` | lets go of the handle; the channel is the collector's once no handle holds it |
+| [operator=](event/operator_assign.md) | makes the handle one of another event |
+
+#### Notification
+
+| Function | Description |
+|---|---|
+| [set](event/set.md) | sets the event, waking every waiter |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [is_set](event/is_set.md) | checks whether the event is set |
+
+#### Waiting
+
+| Function | Description |
+|---|---|
+| [wait, operator co_await](event/wait.md) | waits for the set, on a thread or in a task |
+| [on_set](event/on_set.md) | a case of a select: a call once the event is set |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==, operator!=](event/operator_cmp.md) | checks whether two handles are the same event |
+
+## Complexity
+
+A set is the close of the channel, linear in the waiters it wakes. A wait on an event that is set is a look at the
+channel; one that waits registers a waiter on the channel's list.
 
 ## Example
 
-A task waits for the event with no thread held; a wait after the set returns at once:
-
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/io/io.h"
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-async::task<> worker(async::event go) {   // by value: a copy is the same event
-    co_await go;
-    println("started");
+async::task<int> runner(async::event start, int id) {  // by value: a copy is the same event
+    co_await start;  // all start together
+    co_return id * 10;
 }
 
 int main() {
-    async::event go;
-    auto w = async::spawn(worker(go));
-    println("set: {}", go.is_set());
-    go.set();
-    w.wait();
-    go.wait();   // set already
+    async::event start;
+    vector<async::task<int>> runners;
+    for (int id : range(3)) {
+        runners.push_back(async::spawn(runner(start, id)));
+    }
+    println("set: {}", start.is_set());
+    start.set();
+    for (auto& r : runners) {
+        println("{}", r.wait());
+    }
+    println("set: {}", start.is_set());
 }
 ```
 
@@ -65,10 +114,16 @@ Output:
 
 ```text
 set: false
-started
+0
+10
+20
+set: true
 ```
 
 ## See also
 
-- [mutex](mutex.md): the family and its three forms of a wait; [promise](promise.md): an event with a value; [channel](channel.md): what it is made of; [select](select.md): the cases
-- `tests/async/sync.cpp`: every behaviour above, checked.
+- [promise](promise.md): an event with a value
+- [wait_group](wait_group.md): the wait for a count to reach zero
+- [mutex](mutex.md), [semaphore](semaphore.md), [once](once.md): the rest of the family
+- [channel](channel.md): what it is made of; [select](select.md): its case
+- [README: Handles](README.md#handles)

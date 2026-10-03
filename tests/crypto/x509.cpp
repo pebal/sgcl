@@ -815,6 +815,36 @@ TEST(Crypto_X509, TheBoundsOfACertificate) {
     n.subject = names(65);
     expect_malformed(n.build(), "65 attributes in a name");
 
+    // 64 extended key usages and 64 policies, and one more of each (DESIGN 408)
+    auto ekus = [](size_t n) {
+        bytes_t list;
+        for (size_t i = 0; i < n; ++i) {
+            auto o = oid("1.2.3.4." + std::to_string(i + 1));
+            list.insert(list.end(), o.begin(), o.end());
+        }
+        return extension("2.5.29.37", false, der(0x30, list));
+    };
+    h.set_extensions({ekus(64)});
+    auto usages = x509::certificate::parse(view(h.build()));
+    ASSERT_TRUE(usages);
+    EXPECT_EQ(usages->unknown_ext_key_usages().size(), 64u);
+    h.set_extensions({ekus(65)});
+    expect_malformed(h.build(), "65 extended key usages");
+    auto policies = [](size_t n) {
+        bytes_t list;
+        for (size_t i = 0; i < n; ++i) {
+            auto info = seq({oid("1.2.3.5." + std::to_string(i + 1))});
+            list.insert(list.end(), info.begin(), info.end());
+        }
+        return extension("2.5.29.32", false, der(0x30, list));
+    };
+    h.set_extensions({policies(64)});
+    auto p = x509::certificate::parse(view(h.build()));
+    ASSERT_TRUE(p);
+    EXPECT_EQ(p->policies().size(), 64u);
+    h.set_extensions({policies(65)});
+    expect_malformed(h.build(), "65 policies");
+
     // 128 KiB
     hand l;
     auto pad = [](size_t n) {

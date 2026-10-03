@@ -78,7 +78,7 @@ namespace sgcl::io {
         // (done()), a new one made while it may still be read.
         class AsyncStage {
         public:
-            slice<const byte> stage(const slice<const byte>& data) {
+            slice<const byte> stage(const slice<const byte>& data) noexcept {
                 const size_t n = data.size();
                 if (_in_flight || _block.size() < n) {
                     _block = _room(n);
@@ -96,12 +96,12 @@ namespace sgcl::io {
             }
 
             // A managed block of n bytes at least: 8 KB, 32 KB, or a buffer of n
-            static slice<byte> room(size_t n) {
+            static slice<byte> room(size_t n) noexcept {
                 return _room(n);
             }
 
         private:
-            static slice<byte> _room(size_t n) {
+            static slice<byte> _room(size_t n) noexcept {
                 if (n <= config::io_buffer_size) {
                     tracked_ptr b = make_tracked<IoBlock>();
                     return slice<byte>(tracked_ptr<const void>(b), b->data(), b->size());

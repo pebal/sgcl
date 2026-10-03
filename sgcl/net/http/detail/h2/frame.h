@@ -210,7 +210,7 @@ namespace sgcl::net::http::detail::h2 {
     // The frame at the front of `bytes`, its payload checked by §6; a frame
     // longer than max_frame_size is a FRAME_SIZE_ERROR of the connection
     // (§4.2) from its header alone
-    [[nodiscard]] inline expected<Parsed, Error> parse_frame(const uint8_t* bytes, size_t size, uint32_t max_frame_size) {
+    [[nodiscard]] inline expected<Parsed, Error> parse_frame(const uint8_t* bytes, size_t size, uint32_t max_frame_size) noexcept {
         using namespace frame_detail;
         Parsed out;
         if (size < FrameHeaderSize) {
@@ -416,22 +416,22 @@ namespace sgcl::net::http::detail::h2 {
         : _out(&out) {
         }
 
-        void header(uint32_t length, FrameType type, uint8_t flags, uint32_t stream) {
+        void header(uint32_t length, FrameType type, uint8_t flags, uint32_t stream) noexcept {
             header(length, uint8_t(type), flags, stream);
         }
 
-        void header(uint32_t length, uint8_t type, uint8_t flags, uint32_t stream) {
+        void header(uint32_t length, uint8_t type, uint8_t flags, uint32_t stream) noexcept {
             const char h[9] = {char(length >> 16), char(length >> 8), char(length), char(type), char(flags),
                                char((stream >> 24) & 0x7F), char(stream >> 16), char(stream >> 8), char(stream)};
             _out->append(h, 9);
         }
 
-        void data(uint32_t stream, const uint8_t* p, size_t n, bool end_stream) {
+        void data(uint32_t stream, const uint8_t* p, size_t n, bool end_stream) noexcept {
             header(uint32_t(n), FrameType::data, end_stream ? flag::end_stream : 0, stream);
             _append(p, n);
         }
 
-        void headers(uint32_t stream, const uint8_t* block, size_t n, bool end_stream, bool end_headers, const Priority* priority = nullptr) {
+        void headers(uint32_t stream, const uint8_t* block, size_t n, bool end_stream, bool end_headers, const Priority* priority = nullptr) noexcept {
             const uint8_t flags = uint8_t((end_stream ? flag::end_stream : 0) | (end_headers ? flag::end_headers : 0) | (priority ? flag::priority : 0));
             header(uint32_t(n + (priority ? 5 : 0)), FrameType::headers, flags, stream);
             if (priority) {
@@ -440,28 +440,28 @@ namespace sgcl::net::http::detail::h2 {
             _append(block, n);
         }
 
-        void push_promise(uint32_t stream, uint32_t promised, const uint8_t* block, size_t n, bool end_headers) {
+        void push_promise(uint32_t stream, uint32_t promised, const uint8_t* block, size_t n, bool end_headers) noexcept {
             header(uint32_t(4 + n), FrameType::push_promise, end_headers ? flag::end_headers : 0, stream);
             _u32(promised & 0x7FFFFFFFu);
             _append(block, n);
         }
 
-        void continuation(uint32_t stream, const uint8_t* block, size_t n, bool end_headers) {
+        void continuation(uint32_t stream, const uint8_t* block, size_t n, bool end_headers) noexcept {
             header(uint32_t(n), FrameType::continuation, end_headers ? flag::end_headers : 0, stream);
             _append(block, n);
         }
 
-        void priority(uint32_t stream, const Priority& p) {
+        void priority(uint32_t stream, const Priority& p) noexcept {
             header(5, FrameType::priority, 0, stream);
             _priority(p);
         }
 
-        void rst_stream(uint32_t stream, ErrorCode code) {
+        void rst_stream(uint32_t stream, ErrorCode code) noexcept {
             header(4, FrameType::rst_stream, 0, stream);
             _u32(uint32_t(code));
         }
 
-        void settings(const Setting* s, size_t n) {
+        void settings(const Setting* s, size_t n) noexcept {
             header(uint32_t(6 * n), FrameType::settings, 0, 0);
             for (size_t i = 0; i < n; ++i) {
                 _out->push_back(char(s[i].id >> 8));
@@ -470,23 +470,23 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void settings_ack() {
+        void settings_ack() noexcept {
             header(0, FrameType::settings, flag::ack, 0);
         }
 
-        void ping(const uint8_t data[8], bool ack) {
+        void ping(const uint8_t data[8], bool ack) noexcept {
             header(8, FrameType::ping, ack ? flag::ack : 0, 0);
             _append(data, 8);
         }
 
-        void goaway(uint32_t last_stream, ErrorCode code, const uint8_t* debug = nullptr, size_t n = 0) {
+        void goaway(uint32_t last_stream, ErrorCode code, const uint8_t* debug = nullptr, size_t n = 0) noexcept {
             header(uint32_t(8 + n), FrameType::goaway, 0, 0);
             _u32(last_stream & 0x7FFFFFFFu);
             _u32(uint32_t(code));
             _append(debug, n);
         }
 
-        void window_update(uint32_t stream, uint32_t increment) {
+        void window_update(uint32_t stream, uint32_t increment) noexcept {
             header(4, FrameType::window_update, 0, stream);
             _u32(increment & 0x7FFFFFFFu);
         }
@@ -494,18 +494,18 @@ namespace sgcl::net::http::detail::h2 {
     private:
         std::string* _out;
 
-        void _append(const uint8_t* p, size_t n) {
+        void _append(const uint8_t* p, size_t n) noexcept {
             if (n) {
                 _out->append(reinterpret_cast<const char*>(p), n);
             }
         }
 
-        void _priority(const Priority& p) {
+        void _priority(const Priority& p) noexcept {
             _u32((p.exclusive ? 0x80000000u : 0) | (p.depends_on & 0x7FFFFFFFu));
             _out->push_back(char(p.weight));
         }
 
-        void _u32(uint32_t v) {
+        void _u32(uint32_t v) noexcept {
             const char b[4] = {char(v >> 24), char(v >> 16), char(v >> 8), char(v)};
             _out->append(b, 4);
         }

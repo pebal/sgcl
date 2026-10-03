@@ -130,6 +130,105 @@ TEST(Bidi_Tests, EveryCaseOfTheUcdCharacterTest) {
     EXPECT_GT(cases, 30000u);
 }
 
+// Rule P1: a text is cut into paragraphs after every paragraph separator,
+// the separator kept with the paragraph it ends, and each is resolved on
+// its own. The file's cases are single paragraphs, so two of them joined
+// by a separator must come out as each did alone: the first case's levels,
+// then the separator at the first paragraph's level (L1), then the second
+// case's; and the order of the first line, the separator at its end (or
+// at its start when the line runs right to left, the whole line turned
+// round), then the order of the second. The direction of the text is the
+// first paragraph's. The text was taken as one paragraph, and the second
+// case took its direction, its embeddings and its sequences from the first.
+TEST(Bidi_Tests, EveryParagraphIsResolvedOnItsOwn) {
+    size_t cases = 0, failed = 0;
+    const char32_t separators[] = {0x2029, U'\n', U'\r', 0x1C, 0x85};
+    size_t count = std::size(ucd::BidiCases);
+    for (size_t k = 0; k + 2 < count; ++k) {
+        // the case after it asked the same, or the one after that
+        Case a = parse(ucd::BidiCases[k]);
+        size_t next = k + 1;
+        Case b = parse(ucd::BidiCases[next]);
+        if (a.ask != b.ask) {
+            b = parse(ucd::BidiCases[++next]);
+            if (a.ask != b.ask) {
+                continue;
+            }
+        }
+        std::vector<char32_t> points = a.points;
+        points.push_back(separators[k % std::size(separators)]);
+        points.insert(points.end(), b.points.begin(), b.points.end());
+        string text = utf8_of(points);
+        auto at = offsets(text);
+        size_t n = a.points.size();
+
+        std::vector<int> want_levels = a.levels;
+        want_levels.push_back(a.paragraph);
+        want_levels.insert(want_levels.end(), b.levels.begin(), b.levels.end());
+        auto levels = txt::levels(text, a.ask);
+        ASSERT_EQ(levels.size(), want_levels.size());
+        bool same = true;
+        for (size_t i = 0; i < want_levels.size(); ++i) {
+            if (want_levels[i] >= 0 && levels[i] != want_levels[i]) {
+                same = false;
+            }
+        }
+
+        std::vector<size_t> want_order;
+        if (a.paragraph % 2) {
+            want_order.push_back(at[n]);
+        }
+        for (auto i : a.order) {
+            want_order.push_back(at[i]);
+        }
+        if (a.paragraph % 2 == 0) {
+            want_order.push_back(at[n]);
+        }
+        for (auto i : b.order) {
+            want_order.push_back(at[n + 1 + i]);
+        }
+        auto order = txt::visual_order(text, a.ask);
+        same = same && std::vector<size_t>(order.begin(), order.end()) == want_order;
+
+        auto runs = txt::bidi_runs(text, a.ask);
+        same = same && runs.paragraph() == (a.paragraph % 2 ? txt::direction::right_to_left
+                                                            : txt::direction::left_to_right);
+        // no piece holds characters of both paragraphs: none reaches
+        // over the end of the separator
+        size_t boundary = at[n] + utf8::width(points[n]);
+        for (auto r : runs) {
+            size_t from = size_t(r.text.data() - text.data());
+            if (from < boundary && from + r.text.size() > boundary) {
+                same = false;
+            }
+        }
+        if (!same && ++failed <= 5) {
+            ADD_FAILURE() << "akapity: " << ucd::BidiCases[k] << " | " << ucd::BidiCases[next];
+        }
+        ++cases;
+    }
+    EXPECT_EQ(failed, 0u) << failed << " potknięć na " << cases << " przypadkach";
+    EXPECT_GT(cases, 5000u);
+
+    // a paragraph of each direction, decided by its own first strong letter
+    string two = "abc \u05D0\u05D1\u2029\u05D2\u05D3 def";
+    auto levels = txt::levels(two);
+    EXPECT_EQ(txt::paragraph_direction(two), txt::direction::left_to_right);
+    EXPECT_EQ(levels.front(), 0);       // a: the first paragraph runs left to right
+    EXPECT_EQ(levels[7], 1);            // the first letter of the second, which runs right to left
+    EXPECT_EQ(levels.back(), 2);        // f: Latin inside it
+    // CR LF is one separator: the LF ends the right to left paragraph the
+    // CR is in, and does not make one of its own, which would run left
+    // to right, having no letter
+    auto crlf = txt::levels(string("\u05D0\r\n\u05D1"));
+    ASSERT_EQ(crlf.size(), 4u);
+    EXPECT_EQ(crlf[1], 1);
+    EXPECT_EQ(crlf[2], 1);
+    EXPECT_EQ(txt::levels(string("\u05D0\n\n\u05D1"))[2], 0);   // an empty paragraph does
+    // an empty paragraph between two separators
+    EXPECT_EQ(txt::visual_order(string("a\n\nb")).size(), 4u);
+}
+
 TEST(Bidi_Tests, WhatIsDrawnAndInWhatOrder) {
     // The line of the header comment: a Polish label, a Hebrew word, a
     // number and a Latin word
@@ -407,4 +506,131 @@ TEST(Bidi_Tests, TheMirroringOfATextWhoseLevelsAreAlreadyKnown) {
     // and more levels than there are characters is no trouble either
     vector<uint8_t> plenty(100, 1);
     EXPECT_EQ(txt::mirrored(brackets, plenty), string(")a(]b["));
+}
+
+// DESIGN 408: past the code space, the empty text in every direction, one
+// code point, broken UTF-8, embeddings past the depth of 125, unmatched
+// pops and brackets, and the range default-constructed, copied and moved
+TEST(Bidi_Tests, TheEdges) {
+    for (char32_t c : {char32_t(0x110000), char32_t(0xFFFFFFFF), char32_t(0xD800)}) {
+        EXPECT_FALSE(txt::is_mirrored(c)) << std::hex << uint32_t(c);
+        EXPECT_EQ(txt::mirrored_of(c), c);
+    }
+    EXPECT_EQ(txt::bidi_class_of(char32_t(0x10FFFF)), txt::bidi_class_of(char32_t(0x10FFFE)));
+    static_assert(txt::mirrored_of(U'\0') == U'\0' && txt::mirrored_of(U'(') == U')');
+    static_assert(txt::mirrored_of(U'｣') == U'｢');                 // the last pair of the file
+
+    // The empty text, in every direction
+    for (auto d : {txt::direction::automatic, txt::direction::left_to_right, txt::direction::right_to_left}) {
+        EXPECT_TRUE(txt::levels(string(), d).empty());
+        EXPECT_TRUE(txt::visual_order(string(), d).empty());
+        EXPECT_EQ(txt::mirrored(string(), d), string());
+        EXPECT_TRUE(txt::bidi_runs(string(), d).empty());
+    }
+    EXPECT_EQ(txt::bidi_runs(string(), txt::direction::right_to_left).paragraph(), txt::direction::right_to_left);
+    EXPECT_EQ(txt::bidi_runs(string()).paragraph(), txt::direction::left_to_right);
+
+    // One code point, and one forced the other way
+    EXPECT_EQ(txt::levels(string("a")), (vector<uint8_t>{0}));
+    EXPECT_EQ(txt::levels(string("\xD7\x90")), (vector<uint8_t>{1}));
+    EXPECT_EQ(txt::levels(string("a"), txt::direction::right_to_left), (vector<uint8_t>{2}));
+    EXPECT_EQ(txt::visual_order(string("\xD7\x90")), (vector<size_t>{0}));
+    EXPECT_EQ(txt::mirrored(string("("), txt::direction::right_to_left), string(")"));
+
+    // Broken UTF-8: a code point a byte, its position the byte's
+    string broken("\xD7\x90\xFF\xD7\x91");
+    EXPECT_EQ(txt::levels(broken).size(), 3u);
+    auto order = txt::visual_order(broken);
+    EXPECT_EQ(order, (vector<size_t>{3, 2, 0}));
+    size_t bytes = 0;
+    for (auto r : txt::bidi_runs(broken)) {
+        bytes += r.text.size();
+    }
+    EXPECT_EQ(bytes, broken.size());
+    EXPECT_EQ(txt::mirrored(string("\xFF("), txt::direction::right_to_left), string("\xFF)"));
+
+    // Deeper than the 125 levels the standard allows: the extra
+    // embeddings overflow and are ignored, nothing past 125 is reached
+    for (const char* opener : {"‫", "‪", "⁧", "⁦", "‮"}) {
+        std::string deep;
+        for (int i = 0; i < 300; ++i) {
+            deep += opener;
+        }
+        deep += "a\xD7\x90";
+        for (int i = 0; i < 300; ++i) {
+            deep += opener[2] == '\xA7' || opener[2] == '\xA6' ? "⁩" : "‬";
+        }
+        string text(deep.data(), deep.size());
+        auto levels = txt::levels(text);
+        EXPECT_EQ(levels.size(), 602u) << opener;
+        for (auto l : levels) {
+            ASSERT_LE(l, 126) << opener;                               // 125, and one more for a number or a letter on it (I1, I2)
+        }
+        EXPECT_EQ(txt::visual_order(text).size() <= 602u, true);
+        EXPECT_FALSE(txt::bidi_runs(text).empty());
+    }
+
+    // Pops with nothing to pop, and brackets that do not pair
+    string pops("‬⁩a‬⁩");
+    EXPECT_EQ(txt::levels(pops).size(), 5u);
+    EXPECT_EQ(txt::paragraph_direction(pops), txt::direction::left_to_right);
+    std::string brackets(200, '(');
+    brackets += "\xD7\x90";
+    brackets += std::string(200, ']');
+    string unpaired(brackets.data(), brackets.size());
+    EXPECT_EQ(txt::levels(unpaired).size(), 401u);
+    EXPECT_EQ(txt::mirrored(unpaired, txt::direction::right_to_left).size(), unpaired.size());
+
+    // The range default-constructed, copied, moved
+    txt::bidi_runs none;
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(none.count(), 0u);
+    EXPECT_TRUE(none.text().empty());
+    EXPECT_EQ(none.paragraph(), txt::direction::left_to_right);
+    txt::bidi_runs some(string("abc \xD7\x90"));
+    auto copy = some;
+    EXPECT_EQ(copy.count(), some.count());
+    auto moved = std::move(copy);
+    EXPECT_EQ(moved.count(), some.count());
+    (void)copy.count();
+    EXPECT_FALSE(txt::bidi_runs::run{}.right_to_left());
+    const char* null = nullptr;
+    EXPECT_TRUE(txt::bidi_runs(null).empty());
+
+    // mirrored with levels in hand: none, shorter, into itself
+    string self("(a)");
+    EXPECT_EQ(txt::mirrored(self, vector<uint8_t>{}).data(), self.data());
+    EXPECT_EQ(txt::mirrored(self, vector<uint8_t>{1}), string(")a)"));
+    self = txt::mirrored(self, txt::direction::right_to_left);
+    EXPECT_EQ(self, string(")a("));
+}
+
+namespace {
+    // a = std::move(a) without the compiler's warning about it
+    template<class T>
+    void move_into_itself(T& a) {
+        T& same = a;
+        a = std::move(same);
+    }
+}
+
+// Runs moved from are the empty ones, as the ones made with nothing (after
+// DESIGN 429)
+TEST(Bidi_Tests, MovedFromRunsAreTheEmptyOnes) {
+    txt::bidi_runs runs(string("abc \xD7\x90\xD7\x91"), txt::direction::right_to_left);
+    auto moved = std::move(runs);
+    EXPECT_EQ(moved.count(), 2u);
+    EXPECT_EQ(moved.paragraph(), txt::direction::right_to_left);
+    EXPECT_TRUE(runs.empty());                                 // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(runs.count(), 0u);
+    EXPECT_TRUE(runs.text().empty());
+    EXPECT_EQ(runs.paragraph(), txt::direction::left_to_right);
+    EXPECT_TRUE(runs.begin() == runs.end());
+    runs = txt::bidi_runs(string("abc"));
+    EXPECT_EQ(runs.count(), 1u);
+    move_into_itself(runs);
+    EXPECT_EQ(runs.count(), 1u);
+    auto copy = moved;
+    EXPECT_EQ(copy.count(), 2u);
+    EXPECT_EQ(moved.count(), 2u);
 }

@@ -17,6 +17,7 @@
 #include "../image.h"
 #include "../options.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/string.h"
 #include "../../core/vector.h"
 
@@ -92,7 +93,7 @@ namespace sgcl::codec::detail {
         }
 
         // The RIFF header and the chunks before the first image
-        bool start() {
+        bool start() noexcept(NothrowInput<Input>) {
             uint8_t h[12];
             if (!_read(h, 12)) {
                 return false;
@@ -115,7 +116,7 @@ namespace sgcl::codec::detail {
             const uint64_t at = _in.offset() - 8;
             const uint32_t size = le32(c + 4);
             if (tag(c, "VP8X")) {
-                return _vp8x(at, size);
+                return _vp8x(at, size) && (!_animated || _to_anim());
             }
             // the simple format: the image first, its header read now for
             // the size of the canvas
@@ -146,7 +147,7 @@ namespace sgcl::codec::detail {
         }
 
         // The next frame: its headers read, the input at its bitstream
-        Step next(WebpFrame& f) {
+        Step next(WebpFrame& f) noexcept(NothrowInput<Input>) {
             if (_err) {
                 return Step::failed;
             }
@@ -236,21 +237,6 @@ namespace sgcl::codec::detail {
                     _fail(errc::corrupt, at, "webp: a second VP8X chunk");
                     return Step::failed;
                 }
-                if (tag(c, "ANIM")) {
-                    // 6 bytes, the padding byte of one of 5 among them (as
-                    // libwebp reads it)
-                    if (padded < 6) {
-                        _fail(errc::corrupt, at, "webp: an ANIM chunk shorter than 6 bytes");
-                        return Step::failed;
-                    }
-                    uint8_t a[6];
-                    if (!_read(a, 6) || !_skip(padded - 6)) {
-                        return Step::failed;
-                    }
-                    _loops = uint32_t(a[4] | a[5] << 8);
-                    _anim_seen = true;
-                    continue;
-                }
                 if (tag(c, "ANMF")) {
                     if (!_anim_seen) {
                         _fail(errc::corrupt, at, "webp: an ANMF chunk before ANIM");
@@ -262,19 +248,7 @@ namespace sgcl::codec::detail {
                     }
                     return s;
                 }
-                if (tag(c, "ICCP") && _o.metadata && _icc.empty()) {
-                    if (!_metadata(_icc, at, size)) {
-                        return Step::failed;
-                    }
-                    continue;
-                }
-                if (tag(c, "EXIF") && _o.metadata && _exif.empty()) {
-                    if (!_metadata(_exif, at, size)) {
-                        return Step::failed;
-                    }
-                    continue;
-                }
-                if (!_skip_padded(size)) {
+                if (!_side(c, at, size)) {
                     return Step::failed;
                 }
             }
@@ -282,7 +256,7 @@ namespace sgcl::codec::detail {
 
         // The frame's pixels decoded (the VP8L bitstream the input stands
         // at), then what is left of the frame passed over
-        bool decode(const WebpFrame& f) {
+        bool decode(const WebpFrame& f) noexcept(NothrowInput<Input>) {
             _lossy = f.lossy;
             _direct_done = false;
             if (f.lossy) {
@@ -310,7 +284,7 @@ namespace sgcl::codec::detail {
         }
 
         // The frame's bitstream passed over, not decoded
-        bool skip(const WebpFrame& f) {
+        bool skip(const WebpFrame& f) noexcept(NothrowInput<Input>) {
             (void)f;
             return _after_frame();
         }
@@ -381,7 +355,7 @@ namespace sgcl::codec::detail {
             return std::memcmp(c, t, 4) == 0;
         }
 
-        static std::string _name(const uint8_t* c) {
+        static std::string _name(const uint8_t* c) noexcept {
             std::string s;
             for (int i = 0; i < 4; ++i) {
                 s += c[i] >= 0x20 && c[i] < 0x7f ? char(c[i]) : '?';
@@ -389,18 +363,18 @@ namespace sgcl::codec::detail {
             return s;
         }
 
-        bool _fail(errc code, uint64_t at, const std::string& what) {
+        bool _fail(errc code, uint64_t at, const std::string& what) noexcept {
             _err = error(code, at, string(what));
             return false;
         }
 
-        bool _fail_input() {
+        bool _fail_input() noexcept {
             _err = *_in.failure;
             return false;
         }
 
         // Memory knows where its data ends; a stream finds out as it reads
-        bool _have(uint64_t end) {
+        bool _have(uint64_t end) noexcept {
             if constexpr (requires { _in.end; }) {
                 return uint64_t(_in.end - _in.begin) >= end;
             } else {
@@ -417,7 +391,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        bool _read(uint8_t* dst, size_t n) {
+        bool _read(uint8_t* dst, size_t n) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -427,7 +401,7 @@ namespace sgcl::codec::detail {
                 if (!got) {
                     return _fail(errc::unexpected_end, _in.offset(), "webp: the data ends in the middle");
                 }
-                std::memcpy(dst, p, got);
+                sgcl::detail::copy_bytes(dst, p, got);
                 _in.consume(got);
                 dst += got;
                 n -= got;
@@ -442,7 +416,7 @@ namespace sgcl::codec::detail {
         // come, so that a size a header claims past what the stream holds
         // costs 4 MB at most, not the claim
         template<class Buffer>
-        bool _read_into(Buffer& buf, size_t at, size_t n) {
+        bool _read_into(Buffer& buf, size_t at, size_t n) noexcept(NothrowInput<Input>) {
             auto bytes = [&buf] { return reinterpret_cast<uint8_t*>(buf.data()); };
             if constexpr (requires { _in.end; _in.at; }) {
                 if (size_t(_in.end - _in.at) < n) {
@@ -466,7 +440,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        bool _skip(uint64_t n) {
+        bool _skip(uint64_t n) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -482,25 +456,87 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _skip_to(uint64_t offset) {
+        bool _skip_to(uint64_t offset) noexcept(NothrowInput<Input>) {
             return offset <= _in.offset() || _skip(offset - _in.offset());
         }
 
         // The rest of a chunk of `size` bytes, `read` of them taken, and
         // its padding byte
-        bool _skip_padded(uint32_t size, uint32_t read = 0) {
+        bool _skip_padded(uint32_t size, uint32_t read = 0) noexcept(NothrowInput<Input>) {
             return _skip(uint64_t(size) - read + (size & 1));
         }
 
         // A chunk's header, inside the RIFF size
-        bool _chunk_header(uint8_t* c) {
+        bool _chunk_header(uint8_t* c) noexcept(NothrowInput<Input>) {
             if (_riff_end - _in.offset() < 8) {
                 return _fail(errc::corrupt, _in.offset(), "webp: a chunk header past the RIFF size");
             }
             return _read(c, 8);
         }
 
-        bool _vp8x(uint64_t at, uint32_t size) {
+        // A chunk of the extended format's top level that is no image and
+        // no frame, its header read: ANIM, ICCP and EXIF (the first of
+        // each; ICCP and EXIF when the metadata is read) taken, any other
+        // passed over
+        bool _side(const uint8_t* c, uint64_t at, uint32_t size) noexcept(NothrowInput<Input>) {
+            const uint64_t padded = uint64_t(size) + (size & 1);
+            if (tag(c, "ANIM")) {
+                // 6 bytes, the padding byte of one of 5 among them, checked
+                // in a second ANIM too, which is passed over (as libwebp's
+                // demuxer reads them)
+                if (padded < 6) {
+                    return _fail(errc::corrupt, at, "webp: an ANIM chunk shorter than 6 bytes");
+                }
+                if (_anim_seen) {
+                    return _skip_padded(size);
+                }
+                uint8_t a[6];
+                if (!_read(a, 6) || !_skip(padded - 6)) {
+                    return false;
+                }
+                _loops = uint32_t(a[4] | a[5] << 8);
+                _anim_seen = true;
+                return true;
+            }
+            if (tag(c, "ICCP") && _o.metadata && _icc.empty()) {
+                return _metadata(_icc, at, size);
+            }
+            if (tag(c, "EXIF") && _o.metadata && _exif.empty()) {
+                return _metadata(_exif, at, size);
+            }
+            return _skip_padded(size);
+        }
+
+        // An animation's chunks up to ANIM read by start(), so that its
+        // loop count is known before the first frame: the chunks next()
+        // would take before it taken alike (_side), the first image, frame
+        // or VP8X header kept for next(), as a frame keeps the chunk it
+        // stops at
+        bool _to_anim() noexcept(NothrowInput<Input>) {
+            while (!_anim_seen && _in.offset() < _riff_end) {
+                uint8_t c[8];
+                if (!_chunk_header(c)) {
+                    return false;
+                }
+                const uint64_t at = _in.offset() - 8;
+                const uint32_t size = le32(c + 4);
+                if (tag(c, "VP8L") || tag(c, "VP8 ") || tag(c, "ALPH") || tag(c, "VP8X") || tag(c, "ANMF")) {
+                    std::memcpy(_pending, c, 8);
+                    _pending_at = at;
+                    _has_pending = true;
+                    return true;
+                }
+                if (uint64_t(size) + (size & 1) > _riff_end - (at + 8)) {
+                    return _fail(errc::corrupt, at, "webp: a chunk past the RIFF size");
+                }
+                if (!_side(c, at, size)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        bool _vp8x(uint64_t at, uint32_t size) noexcept(NothrowInput<Input>) {
             if (size != 10) {
                 return _fail(errc::corrupt, at, "webp: a VP8X chunk not of 10 bytes");
             }
@@ -526,7 +562,7 @@ namespace sgcl::codec::detail {
         }
 
         // A bitstream chunk's header (VP8L or VP8)
-        bool _bitstream(const uint8_t* c, uint64_t at, uint32_t size, WebpFrame& f) {
+        bool _bitstream(const uint8_t* c, uint64_t at, uint32_t size, WebpFrame& f) noexcept(NothrowInput<Input>) {
             f.x = f.y = 0;
             f.duration = 0;
             f.blend = false;
@@ -584,13 +620,14 @@ namespace sgcl::codec::detail {
         // level, the rest of the ANMF chunk with it (an unknown chunk there
         // is passed over, an image outside ANMF refused). A frame with no
         // image is dropped; one with ALPH and no image refused; the frame's
-        // chunks may not reach past its ANMF chunk. Frames of an ANMF chunk
+        // chunks may not reach past its ANMF chunk and the chunk's padding
+        // byte. Frames of an ANMF chunk
         // in a file not animated are read and dropped. The frame's width
         // and height are its image's; the ANMF chunk's own only bound it as
         // libwebp's demuxer bounds them, their product under 2^32 (its
         // MAX_IMAGE_AREA), a frame claiming more refused (the differential
         // fuzzer's find: tests/codec/fuzz/seeds/webp_decode/regress_anmf_area)
-        Step _anmf(uint64_t at, uint32_t size, WebpFrame& f) {
+        Step _anmf(uint64_t at, uint32_t size, WebpFrame& f) noexcept(NothrowInput<Input>) {
             if (size < 16) {
                 _fail(errc::corrupt, at, "webp: an ANMF chunk shorter than 16 bytes");
                 return Step::failed;
@@ -607,7 +644,10 @@ namespace sgcl::codec::detail {
             const uint32_t duration = le24(a + 12);
             const bool blend = !(a[15] & 2), dispose = a[15] & 1;
             const uint64_t start = _in.offset();
-            const uint64_t payload = uint64_t(size) - 16;
+            // with the ANMF chunk's padding byte, as libwebp's demuxer
+            // bounds the frame: an image of odd size may end in it (the
+            // differential fuzzer's find: regress_anmf_padding)
+            const uint64_t payload = uint64_t(size) + (size & 1) - 16;
             bool alpha = false;
             for (;;) {
                 if (_riff_end - _in.offset() < 8) {
@@ -676,7 +716,7 @@ namespace sgcl::codec::detail {
         // An ALPH chunk's bytes kept for the VP8 image after it (their size
         // the chunk's: the image comes first in memory, its alpha when the
         // image's size is known)
-        bool _read_alph(uint32_t size) {
+        bool _read_alph(uint32_t size) noexcept(NothrowInput<Input>) {
             // with its padding byte, read over (_decode_alpha takes the
             // chunk's own bytes); the buffer grows with the bytes there are
             // (the size is the chunk's claim, bounded by the RIFF size its
@@ -693,7 +733,7 @@ namespace sgcl::codec::detail {
 
         // The VP8 chunk in one piece: memory read in place, a stream's
         // copied into a buffer of the chunk's size
-        bool _decode_lossy(const WebpFrame& f) {
+        bool _decode_lossy(const WebpFrame& f) noexcept(NothrowInput<Input>) {
             // the partitions may run into the padding byte: libwebp gives
             // the chunk with it
             const size_t size = size_t(f.size + (f.size & 1));
@@ -767,7 +807,7 @@ namespace sgcl::codec::detail {
         // past them is refused, WebpDamage::alpha_overrun: libwebp reads on,
         // into the padding in an animation's frame, into what its bit
         // reader holds in a still image.)
-        bool _decode_alpha(uint32_t w, uint32_t h, uint64_t at) {
+        bool _decode_alpha(uint32_t w, uint32_t h, uint64_t at) noexcept {
             const size_t length = _alph_size;
             if (length == 0) {
                 return _fail(errc::corrupt, at, "webp: an empty ALPH chunk");
@@ -785,7 +825,7 @@ namespace sgcl::codec::detail {
                     _damage = WebpDamage::alpha_overrun;
                     return _fail(errc::unexpected_end, at, "webp: raw alpha shorter than the picture");
                 }
-                std::memcpy(a, _alph.data() + 1, n);
+                sgcl::detail::copy_bytes(a, _alph.data() + 1, n);
             } else {
                 MemoryInput in(slice<const byte>(reinterpret_cast<const byte*>(_alph.data() + 1), length - 1));
                 if (!_alpha_vp8l.decode(in, length - 1, w, h, _err, at)) {
@@ -828,7 +868,7 @@ namespace sgcl::codec::detail {
         // After a frame's bitstream: its padding passed over; in an ANMF
         // chunk, the chunk after the image read (an ALPH chunk after the
         // image refused, anything else the top level's)
-        bool _after_frame() {
+        bool _after_frame() noexcept(NothrowInput<Input>) {
             _alph_pending = false;
             if (!_skip_to(_bitstream_end)) {
                 return false;
@@ -853,7 +893,7 @@ namespace sgcl::codec::detail {
             return _skip_to(_frame_end);
         }
 
-        bool _metadata(vector<byte>& out, uint64_t at, uint32_t size) {
+        bool _metadata(vector<byte>& out, uint64_t at, uint32_t size) noexcept(NothrowInput<Input>) {
             if (size > _o.limits.max_metadata) {
                 return _fail(errc::too_large, at, "webp: metadata past limits.max_metadata");
             }
@@ -865,7 +905,7 @@ namespace sgcl::codec::detail {
         }
 
         // The end of the RIFF data: an image was there
-        bool _end() {
+        bool _end() noexcept {
             if (_images == 0) {
                 return _fail(errc::corrupt, _in.offset(), "webp: no image");
             }
@@ -924,14 +964,14 @@ namespace sgcl::codec::detail {
     // written over it replacing its rectangle.
     class WebpCanvas {
     public:
-        void reset(uint32_t width, uint32_t height) {
+        void reset(uint32_t width, uint32_t height) noexcept {
             _width = width;
             _height = height;
             _pixels.assign(size_t(width) * height, 0);
             _has_prev = false;
         }
 
-        void draw(const WebpFrame& f, const uint32_t* src) {
+        void draw(const WebpFrame& f, const uint32_t* src) noexcept {
             if (_has_prev && _prev.dispose) {
                 for (uint32_t y = 0; y < _prev.height; ++y) {
                     std::fill_n(_pixels.data() + size_t(_prev.y + y) * _width + _prev.x, _prev.width, 0u);
@@ -941,7 +981,7 @@ namespace sgcl::codec::detail {
                 uint32_t* dst = _pixels.data() + size_t(f.y + y) * _width + f.x;
                 const uint32_t* row = src + size_t(y) * f.width;
                 if (!f.blend) {
-                    std::memcpy(dst, row, size_t(f.width) * 4);
+                    sgcl::detail::copy_bytes(dst, row, size_t(f.width) * 4);
                 } else {
                     for (uint32_t x = 0; x < f.width; ++x) {
                         dst[x] = blend(row[x], dst[x]);
@@ -991,8 +1031,9 @@ namespace sgcl::codec::detail {
         bool _has_prev = false;
     };
 
-    // ARGB words as an image of the format asked for
-    inline image webp_image(const uint32_t* argb, uint32_t width, uint32_t height, pixel_format out) {
+    // ARGB words as an image of the format asked for (one of the list:
+    // webp_first and webp_frames check it before anything is read)
+    inline image webp_image(const uint32_t* argb, uint32_t width, uint32_t height, pixel_format out) noexcept {
         image im(width, height, out);
         auto& s = ImageAccess::state(im);
         auto* dst = reinterpret_cast<uint8_t*>(s.pixels.data());
@@ -1013,7 +1054,7 @@ namespace sgcl::codec::detail {
 
     // The metadata read, onto the image: EXIF without the "Exif\0\0" some
     // writers put before its TIFF header, and its orientation
-    inline void webp_metadata(image& im, vector<byte>& icc, vector<byte>& exif) {
+    inline void webp_metadata(image& im, vector<byte>& icc, vector<byte>& exif) noexcept {
         auto& s = ImageAccess::state(im);
         if (!exif.empty()) {
             if (exif.size() >= 6 && std::memcmp(exif.data(), "Exif\0\0", 6) == 0) {
@@ -1031,7 +1072,7 @@ namespace sgcl::codec::detail {
     // of the file walked to its end (its frames' headers read, their data
     // passed over), for what libwebp refuses to be refused here too
     template<class Input>
-    expected<image, error> webp_first(Input& in, const decode_options& o) {
+    expected<image, error> webp_first(Input& in, const decode_options& o) noexcept(NothrowInput<Input>) {
         if (o.want && !valid(*o.want)) {
             return unexpected(error(errc::invalid_argument, 0, "webp: the pixel format outside the list"));
         }
@@ -1093,13 +1134,31 @@ namespace sgcl::codec::detail {
         WebpCanvas canvas;
         optional<error> failed;
         bool ended = false;
+        bool reading = false;   // in a read of the stream; still set after one that threw
 
         template<class Source>
-        WebpFrames(const slice<const byte>& d, const Source& source, const decode_options& o)
+        WebpFrames(const slice<const byte>& d, const Source& source, const decode_options& o) noexcept
         : data(d), input(source), options(o), reader(input, options) {
         }
 
-        expected<optional<frame>, error> next() override {
+        // A read of the stream that threw leaves the reader in the middle
+        // of a chunk: the reading stops there, errc::io after it
+        expected<optional<frame>, error> next() noexcept(NothrowInput<Input>) override {
+            if constexpr (NothrowInput<Input>) {
+                return _next();
+            } else {
+                if (reading && !failed) {
+                    failed = error(errc::io, input.offset(), "webp: a read of the stream threw before");
+                }
+                reading = true;
+                auto r = _next();
+                reading = false;
+                return r;
+            }
+        }
+
+    private:
+        expected<optional<frame>, error> _next() noexcept(NothrowInput<Input>) {
             if (failed) {
                 return unexpected(*failed);
             }
@@ -1129,7 +1188,8 @@ namespace sgcl::codec::detail {
     };
 
     template<class Input, class Source>
-    expected<frames, error> webp_frames(const slice<const byte>& data, const Source& source, const decode_options& o) {
+    expected<frames, error> webp_frames(const slice<const byte>& data, const Source& source, const decode_options& o) noexcept(NothrowInput<Input>) {
+
         if (o.want && !valid(*o.want)) {
             return unexpected(error(errc::invalid_argument, 0, "webp: the pixel format outside the list"));
         }

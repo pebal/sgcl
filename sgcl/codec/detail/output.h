@@ -13,17 +13,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace sgcl::codec::detail {
     // Where an encoder's bytes go: put(p, n) false when the sink failed,
-    // the error in failure
+    // the error in failure (where an encoder also puts its refusal of an
+    // image its format cannot hold)
 
     // A managed vector, grown as appending grows it
     struct VectorSink {
         vector<byte>& out;
-        optional<error> failure;   // never set
+        optional<error> failure;   // the encoder's refusal; put never fails
 
-        bool put(const uint8_t* p, size_t n) {
+        bool put(const uint8_t* p, size_t n) noexcept {
             const auto* b = reinterpret_cast<const byte*>(p);
             out.insert(out.end(), b, b + n);
             return true;
@@ -46,4 +48,10 @@ namespace sgcl::codec::detail {
             return true;
         }
     };
+
+    // Whether writing to a sink can throw: a vector's put cannot, a
+    // stream's reaches the program's io::writer
+    template<class Sink>
+    inline constexpr bool NothrowSink = noexcept(std::declval<Sink&>().put(std::declval<const uint8_t*>(), size_t()));
 }
+

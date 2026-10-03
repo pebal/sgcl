@@ -23,8 +23,8 @@ namespace sgcl::concurrent {
     // what the collector guarantees: a node is never reused while a thread
     // holds it, so there is no ABA, no hazard pointer to publish, no epoch
     // to enter and no reclamation scheme of any kind in this file. The
-    // container holds one word, the atomic head; it lives where a
-    // tracked_ptr may (on a stack or inside a managed object). The nodes
+    // container holds the atomic head and a count of the waiting
+    // threads; it lives where a tracked_ptr may (on a stack or inside a managed object). The nodes
     // are managed objects, linked
     // by plain tracked_ptrs: a node's link is written once, before the node
     // is published by the compare-exchange, and read after an acquire load
@@ -33,7 +33,8 @@ namespace sgcl::concurrent {
     // it; the node is garbage from that moment and the collector reclaims
     // it. Every operation is lock-free; push and try_pop are linearizable
     // at their compare-exchange. pop() blocks on an empty stack, on the
-    // atomic's wait, and every push notifies. A failed compare-exchange
+    // atomic's wait, and a push notifies only when a waiter is counted
+    // (the gate on _waiters, explained in emplace). A failed compare-exchange
     // backs off before the retry, exponentially up to config::backoff_max
     // pauses (the backoff stack of Herlihy and Shavit): on one contended
     // word the retries of many threads otherwise cost more than the
@@ -43,7 +44,7 @@ namespace sgcl::concurrent {
     class stack {
         struct Node {
             template<class... A>
-            explicit Node(std::in_place_t, A&&... a)
+            explicit Node(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::in_place, std::forward<A>(a)...) {
             }
 
@@ -59,16 +60,16 @@ namespace sgcl::concurrent {
         stack(const stack&) = delete;
         stack& operator=(const stack&) = delete;
 
-        void push(const T& value) {
+        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace(value);
         }
 
-        void push(T&& value) {
+        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace(std::move(value));
         }
 
         template<class... A>
-        void emplace(A&&... a) {
+        void emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             tracked_ptr<Node> node = make_tracked<Node>(std::in_place, std::forward<A>(a)...);
             node->next = _head.load(std::memory_order_relaxed);
             detail::Backoff backoff;
@@ -89,7 +90,7 @@ namespace sgcl::concurrent {
 
         // The top element, or nothing when the stack is empty at the
         // moment of the load.
-        optional<T> try_pop() {
+        optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             tracked_ptr<Node> node = _head.load(std::memory_order_acquire);
             detail::Backoff backoff;
             while (node && !_head.compare_exchange_weak(node, node->next, std::memory_order_acquire, std::memory_order_acquire)) {
@@ -104,7 +105,7 @@ namespace sgcl::concurrent {
         }
 
         // The top element, waiting for one when the stack is empty
-        T pop() {
+        T pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             for (;;) {
                 if (auto value = try_pop()) {
                     return std::move(*value);

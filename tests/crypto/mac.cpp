@@ -313,6 +313,16 @@ TEST(Crypto_Hkdf, ThePrkIsASecret) {
     }
 }
 
+// pbkdf2<H> takes the digests hmac and hkdf take, by the same requires
+// clause: a type that is not one is no pbkdf2<H> at all (a constraint a
+// requires-expression sees), not a class that fails inside its body
+namespace {
+    template<class H>
+    concept pbkdf2_of = requires { typename crypto::pbkdf2<H>; };
+}
+static_assert(pbkdf2_of<crypto::sha1> && pbkdf2_of<crypto::sha256> && pbkdf2_of<crypto::sha3_512>);
+static_assert(!pbkdf2_of<int> && !pbkdf2_of<crypto::hmac<crypto::sha256>> && !pbkdf2_of<crypto::shake256>);
+
 // RFC 6070 (HMAC-SHA1; the case of 16 777 216 iterations is left to a
 // Release build) and RFC 7914 §11 (HMAC-SHA256)
 TEST(Crypto_Pbkdf2, Rfc6070AndRfc7914) {

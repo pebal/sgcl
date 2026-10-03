@@ -89,7 +89,7 @@ namespace sgcl::slog {
     // the level before).
     class level_var {
     public:
-        explicit level_var(level l = level::info)
+        explicit level_var(level l = level::info) noexcept
         : _s(make_tracked<detail::LevelVarState>(l)) {
         }
 

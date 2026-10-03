@@ -1,7 +1,9 @@
-# sgcl::mixin::enumerable
+[sgcl](../../README.md) › [core](../README.md) › [mixin](README.md)
+
+# sgcl::mixin::enumerable\<Derived\>
 
 ```cpp
-#include "sgcl/core/mixin/enumerable.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
+#include "sgcl/core/mixin/enumerable.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     inline constexpr size_t npos;             // the position that is no position (req.h)
@@ -13,51 +15,78 @@ namespace sgcl {
 }
 ```
 
-`mixin::enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `req::enumerable<R>` is "R carries `mixin::enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `sorted_map`, `immutable::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
+`mixin::enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this,
+where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a
+range of the library: `req::enumerable<R>` is "R carries `mixin::enumerable`" ([the mixins](README.md)). Every
+container that iterates carries it, from `vector` to `sorted_map`, `immutable::list` and `slice`; a class of your
+own does by deriving from it and giving `begin()` and `end()`.
+
+What `std` gives as free algorithms over a pair of iterators (`std::ranges::find`, `count_if`, `min_element`) and
+Go as functions of its `slices` package is here a member of every range: `v.contains(x)`, `v.count_of(pred)`,
+`v.min()`. A search that finds nothing returns `npos`, the position that is no position (`index_of`,
+`last_index_of`, `find_index`), or a null pointer (`find_if`; on a range of values, an empty `optional`).
 
 ## Rules
 
-- A question that compares elements exists only for elements that compare: `contains`, `index_of`, `last_index_of` for `req::equatable` elements (`==`), `min()` and `max()` for `req::comparable` ones (`<`); the forms with a predicate or a comparator ask nothing of the element. On a `vector<T>` whose `T` has neither, `v.exists(pred)` is there and `v.contains(x)` is not.
-- `min` and `max` on an empty range are undefined, as `front()` is; nothing is checked. They return a reference into the range, or a value where the iterator gives values (`range(n)`).
-- A container with a better answer hides the mixin's: `set::contains` by the key, `set::min()` as `*begin()`.
+- A question that compares elements exists only for elements that compare: `contains`, `index_of`,
+  `last_index_of` for `req::equatable` elements (`==`), `min()` and `max()` for `req::comparable` ones (`<`); the
+  forms with a predicate or a comparator ask nothing of the element. On a `vector<T>` whose `T` has neither,
+  `v.exists(pred)` is there and `v.contains(x)` is not.
+- `min` and `max` on an empty range are undefined, as `front()` is; nothing is checked. They return a reference
+  into the range, or a value where the iterator gives values (`range(n)`).
+- A container with a better answer hides the mixin's: `set::contains` by the key, `sorted_set::min()` as
+  `*begin()`.
+- Each member is noexcept as far as what it calls is: the element's `==` or `<`, the function given and its copy.
 - Thread safety is the container's: the members read the elements as the algorithms do.
 
-## Members
+## Template parameters
 
-```cpp
-template<class Pred> size_t find_index(Pred pred) const;   // the position of the first element the predicate accepts, npos when none
-template<class Pred> auto find_if(Pred pred) noexcept;     // a pointer to it, null when none; and const
-template<class Pred> bool exists(Pred pred) const;         // some element satisfies pred
-template<class Pred> bool all(Pred pred) const;            // every element does
-template<class Pred> size_t count_of(Pred pred) const;     // how many do
-template<class F> void for_each(F f);                      // and const
+| Parameter | Description |
+|---|---|
+| `Derived` | The class that carries the mixin and names itself as the argument (`class vector : public mixin::enumerable<vector<T>>`). It gives `begin()` and `end()`, const and not, over its elements. |
 
-bool contains(const auto& value) const;                    // req::equatable elements: anything an element compares with
-size_t index_of(const auto& value) const;                  // the first equal element's position, npos when none
-size_t last_index_of(const auto& value) const;             // the last one's (a walk of the whole range)
+## Member functions
 
-decltype(auto) min() const;  template<class Compare> decltype(auto) min(Compare cmp) const;   // req::comparable elements, or by the comparator
-decltype(auto) max() const;  template<class Compare> decltype(auto) max(Compare cmp) const;
-```
+| Function | Description |
+|---|---|
+| `(constructor)`, `(destructor)` | protected: the mixin exists only as a base |
 
-```cpp
-vector v = {5, 3, 9, 3};
-assert(v.contains(9) && v.index_of(3) == 1 && v.last_index_of(3) == 3 && v.index_of(7) == npos);
-assert(v.find_index([](int x) { return x > 4; }) == 0 && v.exists([](int x) { return x == 9; }) && !v.all([](int x) { return x > 3; }));
-if (int* big = v.find_if([](int x) { return x > 8; })) {
-    *big = 8;
-}
-assert(v.count_of([](int x) { return x == 3; }) == 2 && v.min() == 3 && v.max() == 8);
-struct point { int x, y; };                      // no ==, no <
-vector<point> pts = {{1, 2}, {3, 0}};
-assert(pts.min([](point a, point b) { return a.y < b.y; }).x == 3);   // a comparator asks nothing of point
-```
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [contains](enumerable/contains.md) | checks whether an element is equal to a value |
+| [index_of](enumerable/index_of.md) | the position of the first element equal to a value |
+| [last_index_of](enumerable/last_index_of.md) | the position of the last element equal to a value |
+| [find_if](enumerable/find_if.md) | a pointer to the first element the predicate accepts |
+| [find_index](enumerable/find_index.md) | the position of the first element the predicate accepts |
+
+#### Predicates
+
+| Function | Description |
+|---|---|
+| [exists](enumerable/exists.md) | checks whether the predicate accepts some element |
+| [all](enumerable/all.md) | checks whether the predicate accepts every element |
+| [count_of](enumerable/count_of.md) | the number of elements the predicate accepts |
+
+#### Minimum and maximum
+
+| Function | Description |
+|---|---|
+| [min](enumerable/min.md) | the smallest element |
+| [max](enumerable/max.md) | the largest element |
+
+#### Visiting
+
+| Function | Description |
+|---|---|
+| [for_each](enumerable/for_each.md) | calls a function with every element |
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -70,18 +99,21 @@ size_t count_odd(const req::enumerable auto& r) {
 int main() {
     vector v = {1, 2, 3, 4, 5};
     sorted_set<int> s = {7, 8, 9};
-    println("{} {} {} {}", count_odd(v), count_odd(s), count_odd(v.as_slice(1, 3)), count_odd(range(10)));
-    return 0;
+    println("{} {}", count_odd(v), count_odd(s));
+    println("{} {}", count_odd(v.as_slice(1, 3)), count_odd(range(10)));
 }
 ```
 
 Output:
 
 ```text
-3 2 1 5
+3 2
+1 5
 ```
 
 ## See also
 
-- [the mixins and the requirements](README.md); [mixin::ordered](ordered.md), the questions about the order of the whole range
+- [req::enumerable](../req/enumerable.md): a range of the library: what a function asks for to call these members
+- [the mixins and the requirements](README.md); [mixin::ordered](ordered.md), the questions about the order of
+  the whole range
 - `tests/core/mixin.cpp`

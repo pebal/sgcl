@@ -57,6 +57,9 @@ namespace sgcl::encoding {
         class JsonParser;
 
         template<class T>
+        struct JsonScalar;
+
+        template<class T>
         struct JsonValueWriter;
     }
 
@@ -161,23 +164,25 @@ namespace sgcl::encoding {
             }
         }
 
+        // A float is the number its shortest digits are: json(0.1f) is
+        // 0.1, written "0.1" as a float field is, not the double it widens to
         json(float f) noexcept
-        : json(double(f)) {
+        : json(std::isfinite(f) ? detail::float_as_written(f) : double(f)) {
         }
 
         json(const string& s) noexcept
         : _ptr(s.as_slice().owner()), _tag(Tag::string) {
         }
 
-        json(const char* s)
+        json(const char* s) noexcept
         : json(string(s)) {
         }
 
-        json(const slice<const char>& s)
+        json(const slice<const char>& s) noexcept
         : json(string(s)) {
         }
 
-        static json array(std::initializer_list<json> elements);
+        static json array(std::initializer_list<json> elements) noexcept;
 
         // Any range of values a json is made of
         template<class R>
@@ -185,20 +190,20 @@ namespace sgcl::encoding {
         static json array(const R& elements);
 
         // The members in their order; a key given twice keeps the last value
-        static json object(std::initializer_list<member> members);
+        static json object(std::initializer_list<member> members) noexcept;
 
         // --- reading it in ---
 
         // The one value of the text, with nothing but white space around
-        static expected<json, error> parse(const string& text);
-        static expected<json, error> parse(const string& text, const options& o);
+        static expected<json, error> parse(const string& text) noexcept;
+        static expected<json, error> parse(const string& text, const options& o) noexcept;
 
         // The one value of the stream, to its end; in a task
         // `co_await json::async_parse(in)`
         static expected<json, error> parse(const io::reader& in);
         static expected<json, error> parse(const io::reader& in, const options& o);
-        static async::task<expected<json, error>> async_parse(const io::reader& in);
-        static async::task<expected<json, error>> async_parse(io::reader in, options o);
+        static async::task<expected<json, error>> async_parse(const io::reader& in) noexcept;
+        static async::task<expected<json, error>> async_parse(io::reader in, options o) noexcept;
 
         // --- typed values: a type of fields.h (describe, to_json, to_text) or
         // any the fields may have (a number, a string, a container...) ---
@@ -214,9 +219,9 @@ namespace sgcl::encoding {
         template<class T>
         static expected<T, error> parse(const io::reader& in, const options& o);
         template<class T>
-        static async::task<expected<T, error>> async_parse(const io::reader& in);
+        static async::task<expected<T, error>> async_parse(const io::reader& in) noexcept;
         template<class T>
-        static async::task<expected<T, error>> async_parse(io::reader in, options o);
+        static async::task<expected<T, error>> async_parse(io::reader in, options o) noexcept;
 
         // The text of a T; fails on NaN, a value past its names, nesting
         // past 512 (a cycle), a variant's alternative with no describe()
@@ -233,9 +238,9 @@ namespace sgcl::encoding {
         static expected<json, error> load(const string& path);
         template<class T>
         static expected<T, error> load(const string& path);
-        static async::task<expected<json, error>> async_load(string path);
+        static async::task<expected<json, error>> async_load(string path) noexcept;
         template<class T>
-        static async::task<expected<T, error>> async_load(string path);
+        static async::task<expected<T, error>> async_load(string path) noexcept;
 
         // The text of a T into a file, made or written over, with a new
         // line after it: json::save("config.json", cfg); the value's own
@@ -243,9 +248,9 @@ namespace sgcl::encoding {
         template<class T>
         static expected<void, error> save(const string& path, const T& value);
         template<class T>
-        static async::task<expected<void, error>> async_save(string path, T value);
+        static async::task<expected<void, error>> async_save(string path, T value) noexcept(std::is_nothrow_move_constructible_v<T>);
         expected<void, error> save(const string& path) const;
-        async::task<expected<void, error>> async_save(string path) const;
+        async::task<expected<void, error>> async_save(string path) const noexcept;
 
         // The value of a T, as xml::from makes an element of one: what
         // stringify writes, read back as a value (through the text: a
@@ -360,7 +365,7 @@ namespace sgcl::encoding {
 
         // The literal of a number kept as its text (an integer past uint64,
         // any with keep_number_text); nullopt for any other value
-        optional<string> number_text() const {
+        optional<string> number_text() const noexcept {
             if (_tag != Tag::number_text) {
                 return nullopt;
             }
@@ -413,31 +418,31 @@ namespace sgcl::encoding {
 
         // The value at a JSON Pointer (RFC 6901): "" is this, "/users/0/name"
         // a member of an element of a member; ~0 is '~' and ~1 is '/'
-        optional<json> at_path(const string& pointer) const;
+        optional<json> at_path(const string& pointer) const noexcept;
 
         // --- new versions (this value never changes) ---
 
         // An object with the member added or its value replaced; on a value
         // that is not an object, an object of one member
-        json set(const string& key, const json& value) const;
+        json set(const string& key, const json& value) const noexcept;
 
         // The object without the member (the same value when there is none)
-        json erase(const string& key) const;
+        json erase(const string& key) const noexcept;
 
         // An array with the element replaced; an index past the end is the
         // same value
-        json set(size_t index, const json& value) const;
+        json set(size_t index, const json& value) const noexcept;
 
         // An array with the element at the end; on a value that is not an
         // array, an array of one element
-        json push_back(const json& value) const;
+        json push_back(const json& value) const noexcept;
 
         // The value with the one at the pointer replaced or added: a member
         // set, an element replaced, "-" or the size appending one; members
         // missing on the way are made as objects (null is replaced by one).
         // A pointer that goes through a number, a string or a boolean, or
         // past the end of an array, gives this value unchanged.
-        json set_path(const string& pointer, const json& value) const;
+        json set_path(const string& pointer, const json& value) const noexcept;
 
         // Deep. Numbers by value: two integers exactly, an integer and a
         // double as doubles (1 == 1.0, and an integer past 2^53 equals the
@@ -446,11 +451,11 @@ namespace sgcl::encoding {
         // text by its digits and with anything else as the rest compare.
         // Objects as sets of members: the order does not matter, as it
         // does not in JSON.
-        friend bool operator==(const json& a, const json& b) {
+        friend bool operator==(const json& a, const json& b) noexcept {
             return a._equals(b);
         }
 
-        size_t hash() const;
+        size_t hash() const noexcept;
 
     private:
         friend struct detail::JsonAccess;
@@ -488,7 +493,7 @@ namespace sgcl::encoding {
         const member* _members() const noexcept;
         size_t _find_index(std::string_view key, size_t hash) const noexcept;
         const json& _find(std::string_view key, size_t hash) const noexcept;
-        bool _equals(const json& o) const;
+        bool _equals(const json& o) const noexcept;
 
         static const json& _null() noexcept {
             // never constructed and never written: a zeroed json is null
@@ -539,7 +544,7 @@ namespace sgcl::encoding {
         // A managed buffer of n T's, constructed by the caller; the
         // buffer's owner goes to owner
         template<class T>
-        T* json_buffer(size_t n, tracked_ptr<const void>& owner) {
+        T* json_buffer(size_t n, tracked_ptr<const void>& owner) noexcept {
             auto u = unique_ptr<T>(Maker<T[]>::make_tracked_data(n));
             T* p = u.get();
             owner = tracked_ptr<const void>(std::move(u));
@@ -548,7 +553,7 @@ namespace sgcl::encoding {
 
         // What the parser, the builder and the typed walk make values with
         struct JsonAccess {
-            static json number_text(const string& literal) {
+            static json number_text(const string& literal) noexcept {
                 json j;
                 j._ptr = literal.as_slice().owner();
                 j._tag = json::Tag::number_text;
@@ -560,7 +565,7 @@ namespace sgcl::encoding {
             }
 
             // The values [first, first + n) moved into a new array
-            static json array_of(json* first, size_t n) {
+            static json array_of(json* first, size_t n) noexcept {
                 json j;
                 j._tag = json::Tag::array;
                 j._bits = n;
@@ -575,7 +580,7 @@ namespace sgcl::encoding {
 
             // The members moved into a new object; the keys are all
             // different (the caller made sure)
-            static json object_of(json::member* first, size_t n) {
+            static json object_of(json::member* first, size_t n) noexcept {
                 json j;
                 j._tag = json::Tag::object;
                 j._bits = n;
@@ -616,7 +621,7 @@ namespace sgcl::encoding {
             // index of the first key given twice, or n when every key is
             // different; with keep_last false the members are left as they
             // were and that index is all the caller wants.
-            static size_t distinct(vector<json::member>& ms, size_t from, bool keep_last) {
+            static size_t distinct(vector<json::member>& ms, size_t from, bool keep_last) noexcept {
                 size_t n = ms.size() - from;
                 json::member* m = ms.data() + from;
                 size_t first_dup = NotFoundIndex;
@@ -717,7 +722,7 @@ namespace sgcl::encoding {
             }
 
             // A number, a string, a boolean or null into the text
-            static void write_scalar(JsonOut& out, const json& j) {
+            static void write_scalar(JsonOut& out, const json& j) noexcept {
                 switch (j._tag) {
                     case json::Tag::null:
                         out.null();
@@ -759,7 +764,7 @@ namespace sgcl::encoding {
             friend bool operator==(const NormalDecimal&, const NormalDecimal&) = default;
         };
 
-        inline NormalDecimal normal_decimal(std::string_view lit) {
+        inline NormalDecimal normal_decimal(std::string_view lit) noexcept {
             Decimal d = decimal_of(lit);
             NormalDecimal r;
             std::string all;
@@ -793,7 +798,7 @@ namespace sgcl::encoding {
 
     // --- json: the members defined out of the class ---
 
-    inline json json::array(std::initializer_list<json> elements) {
+    inline json json::array(std::initializer_list<json> elements) noexcept {
         vector<json> v(elements.begin(), elements.end());
         return detail::JsonAccess::array_of(v.data(), v.size());
     }
@@ -808,7 +813,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::array_of(v.data(), v.size());
     }
 
-    inline json json::object(std::initializer_list<member> members) {
+    inline json json::object(std::initializer_list<member> members) noexcept {
         vector<member> v(members.begin(), members.end());
         detail::JsonAccess::distinct(v, 0, true);
         return detail::JsonAccess::object_of(v.data(), v.size());
@@ -924,7 +929,7 @@ namespace sgcl::encoding {
         }
     }
 
-    inline bool json::_equals(const json& o) const {
+    inline bool json::_equals(const json& o) const noexcept {
         // an explicit stack of the pairs still to compare: a value built
         // by hand may be deeper than any stack of calls
         std::vector<pair<const json*, const json*>> todo;
@@ -1015,7 +1020,7 @@ namespace sgcl::encoding {
         return true;
     }
 
-    inline size_t json::hash() const {
+    inline size_t json::hash() const noexcept {
         // numbers hash by their double (equal numbers have equal doubles),
         // an array by its elements in order, an object by the sum of its
         // members' hashes, in any order; iterative, as the comparison is.
@@ -1087,7 +1092,7 @@ namespace sgcl::encoding {
     namespace detail {
         // The error of a text in memory at a byte of it: the detail's words,
         // the offset counted from the start of the whole input
-        inline std::string char_name(const char* p, const char* end) {
+        inline std::string char_name(const char* p, const char* end) noexcept {
             if (p == end) {
                 return "the end of the input";
             }
@@ -1112,7 +1117,7 @@ namespace sgcl::encoding {
             std::string scratch;
             optional<error> failure;
 
-            bool fail(errc code, const char* at, std::string detail) {
+            bool fail(errc code, const char* at, std::string detail) noexcept {
                 if (!failure) {
                     failure = error(code, base + uint64_t(at - begin), string(detail));
                 }
@@ -1128,13 +1133,13 @@ namespace sgcl::encoding {
             }
 
             // The end of the input where a value was wanted
-            bool fail_end(const char* what) {
+            bool fail_end(const char* what) noexcept {
                 return fail(errc::unexpected_end, end, std::string("unexpected end of input, expected ") + what);
             }
 
             // A string at p (the quote): its characters, which are the
             // text's own or the scratch's, valid until the next string
-            bool string_token(std::string_view& out) {
+            bool string_token(std::string_view& out) noexcept {
                 const char* start = ++p;
                 StringScan state;
                 errc code = errc::syntax;
@@ -1146,7 +1151,7 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            bool fail_string(errc code, const char* at) {
+            bool fail_string(errc code, const char* at) noexcept {
                 switch (code) {
                     case errc::unexpected_end:
                         return fail(code, at, "unexpected end of input inside a string");
@@ -1160,7 +1165,7 @@ namespace sgcl::encoding {
             }
 
             // A number at p: its literal, and whether it is an integer's
-            bool number_token(std::string_view& literal, bool& plain) {
+            bool number_token(std::string_view& literal, bool& plain) noexcept {
                 const char* start = p;
                 NumberState s = NumberState::start;
                 plain = true;
@@ -1174,7 +1179,7 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            bool word(std::string_view w) {
+            bool word(std::string_view w) noexcept {
                 if (scan_word(p, end, true, w) != ScanStatus::done) {
                     if (p == end) {
                         return fail(errc::unexpected_end, p, "unexpected end of input inside the literal " + std::string(w));
@@ -1185,7 +1190,7 @@ namespace sgcl::encoding {
             }
 
             // A number's literal out of a double's range
-            bool fail_range(const char* at, std::string_view literal) {
+            bool fail_range(const char* at, std::string_view literal) noexcept {
                 std::string lit(literal.substr(0, 40));
                 if (literal.size() > 40) {
                     lit += "...";
@@ -1228,7 +1233,7 @@ namespace sgcl::encoding {
             bool busy = false;
         };
 
-        inline JsonScratchSlot& json_scratch_slot() {
+        inline JsonScratchSlot& json_scratch_slot() noexcept {
             static thread_local JsonScratchSlot slot;
             return slot;
         }
@@ -1240,7 +1245,7 @@ namespace sgcl::encoding {
         // what makes a key met in the last document free in this one.
         class JsonScratchLease {
         public:
-            JsonScratchLease() {
+            JsonScratchLease() noexcept {
                 auto& slot = json_scratch_slot();
                 if (!slot.busy) {
                     if (!slot.scratch) {
@@ -1534,11 +1539,11 @@ namespace sgcl::encoding {
         };
     }
 
-    inline expected<json, json::error> json::parse(const string& text) {
+    inline expected<json, json::error> json::parse(const string& text) noexcept {
         return parse(text, options());
     }
 
-    inline expected<json, json::error> json::parse(const string& text, const options& o) {
+    inline expected<json, json::error> json::parse(const string& text, const options& o) noexcept {
         detail::JsonParser parser(o);
         auto r = parser.parse(text.data(), text.data() + text.size(), 0, o.max_depth);
         if (!r) {
@@ -1552,7 +1557,7 @@ namespace sgcl::encoding {
     namespace detail {
         // A value into the text: iterative, as the comparison is (a value
         // built by hand may be deeper than a stack of calls)
-        inline void write_json(JsonOut& out, const json& root) {
+        inline void write_json(JsonOut& out, const json& root) noexcept {
             struct Frame {
                 const json* value;
                 size_t next;
@@ -1614,7 +1619,11 @@ namespace sgcl::encoding {
     inline string json::to_string(const style& s) const {
         detail::JsonOut out(s.indent, s.escape_html);
         detail::JsonLent lent(out);   // the thread's block and stack: nothing allocated but the string
+        out.limit(string::max_size());
         detail::write_json(out, *this);
+        if (out.too_long()) {
+            throw length_error("sgcl::encoding::json: a text longer than a string can hold");
+        }
         return string(out.text().view());
     }
 
@@ -1624,7 +1633,7 @@ namespace sgcl::encoding {
         // The tokens of a JSON Pointer (RFC 6901): "" none, "/a/b" two, ~1
         // and ~0 the '/' and the '~' of a key; nullopt for a text that is
         // not a pointer (no leading '/', a '~' followed by anything else)
-        inline optional<std::vector<std::string>> pointer_tokens(std::string_view p) {
+        inline optional<std::vector<std::string>> pointer_tokens(std::string_view p) noexcept {
             std::vector<std::string> out;
             if (p.empty()) {
                 return out;
@@ -1673,7 +1682,7 @@ namespace sgcl::encoding {
         }
     }
 
-    inline optional<json> json::at_path(const string& pointer) const {
+    inline optional<json> json::at_path(const string& pointer) const noexcept {
         auto tokens = detail::pointer_tokens(pointer.view());
         if (!tokens) {
             return nullopt;
@@ -1699,7 +1708,7 @@ namespace sgcl::encoding {
         return *v;
     }
 
-    inline json json::set(const string& key, const json& value) const {
+    inline json json::set(const string& key, const json& value) const noexcept {
         if (!is_object()) {
             member m{key, value};
             return detail::JsonAccess::object_of(&m, 1);
@@ -1714,7 +1723,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::object_of(ms.data(), ms.size());
     }
 
-    inline json json::erase(const string& key) const {
+    inline json json::erase(const string& key) const noexcept {
         size_t at = is_object() ? _find_index(key.view(), key.empty() ? string::hash_of({}) : key.hash()) : NotFound;
         if (at == NotFound) {
             return *this;
@@ -1729,7 +1738,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::object_of(ms.data(), ms.size());
     }
 
-    inline json json::set(size_t index, const json& value) const {
+    inline json json::set(size_t index, const json& value) const noexcept {
         if (!is_array() || index >= _bits) {
             return *this;
         }
@@ -1738,7 +1747,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::array_of(es.data(), es.size());
     }
 
-    inline json json::push_back(const json& value) const {
+    inline json json::push_back(const json& value) const noexcept {
         vector<json> es;
         if (is_array()) {
             es.reserve(_bits + 1);
@@ -1748,7 +1757,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::array_of(es.data(), es.size());
     }
 
-    inline json json::set_path(const string& pointer, const json& value) const {
+    inline json json::set_path(const string& pointer, const json& value) const noexcept {
         auto tokens = detail::pointer_tokens(pointer.view());
         if (!tokens) {
             return *this;
@@ -1821,7 +1830,27 @@ namespace sgcl::encoding {
     // for one thread at a time.
     class json::builder {
     public:
-        builder() = default;
+        builder() noexcept = default;
+
+        builder(const builder&) = default;
+        builder& operator=(const builder&) = default;
+
+        // The builder moved from is empty, as build() leaves it: its kind
+        // goes with its elements, and either kind may begin it again
+        builder(builder&& other) noexcept
+        : _elements(std::move(other._elements)), _members(std::move(other._members)), _mode(other._mode) {
+            other._empty();
+        }
+
+        builder& operator=(builder&& other) noexcept {
+            if (this != &other) {
+                _elements = std::move(other._elements);
+                _members = std::move(other._members);
+                _mode = other._mode;
+                other._empty();
+            }
+            return *this;
+        }
 
         builder& push_back(const json& value) {
             if (_mode == Mode::object) {
@@ -1846,7 +1875,7 @@ namespace sgcl::encoding {
             return _mode == Mode::object ? _members.size() : _elements.size();
         }
 
-        json build() {
+        json build() noexcept {
             json out;
             if (_mode == Mode::object) {
                 detail::JsonAccess::distinct(_members, 0, true);
@@ -1854,13 +1883,17 @@ namespace sgcl::encoding {
             } else {
                 out = detail::JsonAccess::array_of(_elements.data(), _elements.size());
             }
-            _elements.clear();
-            _members.clear();
-            _mode = Mode::none;
+            _empty();
             return out;
         }
 
     private:
+        void _empty() noexcept {
+            _elements.clear();
+            _members.clear();
+            _mode = Mode::none;
+        }
+
         enum class Mode : uint8_t {
             none,
             array,
@@ -1893,7 +1926,7 @@ namespace sgcl::encoding {
             null
         };
 
-        token() = default;
+        token() noexcept = default;
 
         kind type() const noexcept {
             return _kind;
@@ -1950,16 +1983,22 @@ namespace sgcl::encoding {
             return as_double().value_or(fallback);
         }
 
-        // For the reader, which makes a token in place in its optional
-        // (the tag is its own to name): the text's slice built once, not
-        // made and moved twice — each slice holds a tracked_ptr, whose
-        // making asks the thread's registration
+    private:
+        friend class json::reader;
+
+        // The tag of the reader, which makes a token in place in its
+        // optional: the text's slice built once, not made and moved twice
+        // (each slice holds a tracked_ptr, whose making asks the thread's
+        // registration). Private, and so the two constructors below: they
+        // are public only for std::optional to reach them in place, and
+        // nothing outside the reader can name their first parameter.
         struct Made {
         private:
             friend class json::reader;
-            Made() = default;
+            Made() noexcept = default;
         };
 
+    public:
         token(Made, kind k, const tracked_ptr<const void>& owner, const char* p, size_t n) noexcept
         : _kind(k), _text(owner, p, n) {
         }
@@ -1969,7 +2008,6 @@ namespace sgcl::encoding {
         }
 
     private:
-        friend class json::reader;
 
         token(kind k, const slice<const char>& text) noexcept
         : _kind(k), _text(text) {
@@ -1988,11 +2026,11 @@ namespace sgcl::encoding {
         // copied into a byte buffer.
         class KeySeen {
         public:
-            void open() {
+            void open() noexcept {
                 _levels.push_back(Level{_entries.size(), _bytes.size(), {}});
             }
 
-            void close() {
+            void close() noexcept {
                 auto& l = _levels.back();
                 _entries.resize(l.first);
                 _bytes.truncate(l.bytes);
@@ -2002,7 +2040,7 @@ namespace sgcl::encoding {
             // false: the key was met before in the object open last. The
             // characters compared while the object is small; past that,
             // the keyed hash of each key, and a table
-            bool insert(std::string_view key) {
+            bool insert(std::string_view key) noexcept {
                 auto& l = _levels.back();
                 size_t count = _entries.size() - l.first;
                 size_t h = 0;
@@ -2056,7 +2094,7 @@ namespace sgcl::encoding {
                 return _bytes.view().substr(_entries[i].offset, _entries[i].size);
             }
 
-            void _place(Level& l, size_t i) {
+            void _place(Level& l, size_t i) noexcept {
                 size_t mask = l.table.size() - 1;
                 size_t s = _entries[i].hash & mask;
                 while (l.table[s]) {
@@ -2065,7 +2103,7 @@ namespace sgcl::encoding {
                 l.table[s] = uint32_t(i - l.first + 1);
             }
 
-            void _rebuild(Level& l, size_t size) {
+            void _rebuild(Level& l, size_t size) noexcept {
                 l.table.assign(size, 0);
                 for (size_t i = l.first; i < _entries.size(); ++i) {
                     _place(l, i);
@@ -2099,22 +2137,22 @@ namespace sgcl::encoding {
     // block that is too small grows).
     class json::reader {
     public:
-        explicit reader(const string& text)
+        explicit reader(const string& text) noexcept
         : reader(text, options()) {
         }
 
-        reader(const string& text, const options& o)
+        reader(const string& text, const options& o) noexcept
         : _text(text), _options(o), _eof(true) {
             _owner = text.as_slice().owner();
             _d = text.data();
             _n = text.size();
         }
 
-        explicit reader(const io::reader& in)
+        explicit reader(const io::reader& in) noexcept
         : reader(in, options()) {
         }
 
-        reader(const io::reader& in, const options& o)
+        reader(const io::reader& in, const options& o) noexcept
         : _in(in), _options(o) {
         }
 
@@ -2136,6 +2174,8 @@ namespace sgcl::encoding {
         }
 
     private:
+        friend class json;
+
         enum class Expect : uint8_t {
             top,           // a value, or the end of the input
             value,         // a value (after ',' in an array, after ':')
@@ -2163,7 +2203,7 @@ namespace sgcl::encoding {
 
         // --- the step every method is made of ---
 
-        Step _step() {
+        Step _step() noexcept {
             if (_error) {
                 return Step::failed;
             }
@@ -2256,7 +2296,7 @@ namespace sgcl::encoding {
             }
         }
 
-        std::string _expected() const {
+        std::string _expected() const noexcept {
             switch (_expect) {
                 case Expect::after_value: return _stack.back() ? "',' or '}'" : "',' or ']'";
                 case Expect::colon: return "':'";
@@ -2267,7 +2307,7 @@ namespace sgcl::encoding {
             }
         }
 
-        void _begin(Pending p) {
+        void _begin(Pending p) noexcept {
             _pending = p;
             _tok_pos = _pos + (p == Pending::string || p == Pending::key ? 1 : 0);
             _sscan = {};
@@ -2275,7 +2315,7 @@ namespace sgcl::encoding {
             _plain = true;
         }
 
-        void _token(token::kind k, size_t from, size_t n, bool scratch = false) {
+        void _token(token::kind k, size_t from, size_t n, bool scratch = false) noexcept {
             _kind = k;
             _text_from = from;
             _text_size = n;
@@ -2286,7 +2326,7 @@ namespace sgcl::encoding {
             _expect = _stack.empty() ? Expect::top : Expect::after_value;
         }
 
-        Step _close(bool object) {
+        Step _close(bool object) noexcept {
             _token(object ? token::kind::end_object : token::kind::end_array, _pos, 1);
             ++_pos;
             _stack.pop_back();
@@ -2298,7 +2338,7 @@ namespace sgcl::encoding {
         }
 
         // A token cut by the end of the data, gone on with
-        Step _resume() {
+        Step _resume() noexcept {
             const char* end = _d + _n;
             switch (_pending) {
                 case Pending::string:
@@ -2383,7 +2423,7 @@ namespace sgcl::encoding {
             }
         }
 
-        Step _fail_string(errc code, size_t at) {
+        Step _fail_string(errc code, size_t at) noexcept {
             switch (code) {
                 case errc::unexpected_end:
                     return _fail(code, at, "unexpected end of input inside a string");
@@ -2396,14 +2436,28 @@ namespace sgcl::encoding {
             }
         }
 
-        Step _fail(errc code, size_t at, std::string detail) {
+        Step _fail(errc code, size_t at, std::string detail) noexcept {
             _set_error(error(code, _base + at, string(detail)), at);
             return Step::failed;
         }
 
+        // For json::parse of a stream: what follows its value (read: a
+        // value was read), or no value at all, in the words and with the
+        // place the parse of a text gives
+        const error& _whole_error(bool read) noexcept {
+            if (!_error) {
+                if (read) {
+                    _fail(errc::syntax, _pos, "invalid character " + detail::char_name(_d + _pos, _d + _n) + " after the value");
+                } else {
+                    _fail(errc::unexpected_end, _pos, "unexpected end of input, expected a value");
+                }
+            }
+            return *_error;
+        }
+
         // The error, with the line and the column of the byte at of the
         // data: the lines of the blocks let go were counted when they went
-        void _set_error(error e, size_t at) {
+        void _set_error(error e, size_t at) noexcept {
             if (_error) {
                 return;
             }
@@ -2414,7 +2468,7 @@ namespace sgcl::encoding {
             _error = std::move(e);
         }
 
-        optional<token> _result(Step s) {
+        optional<token> _result(Step s) noexcept {
             if (s != Step::token) {
                 return nullopt;
             }
@@ -2435,7 +2489,7 @@ namespace sgcl::encoding {
         // Room for more of the stream: the bytes before the one the reader
         // is at are let go (their line endings counted), and a block that
         // is full still grows
-        slice<byte> _room() {
+        slice<byte> _room() noexcept {
             if (_pos > 0) {
                 auto gone = std::string_view(_d, _pos);
                 auto nl = gone.rfind('\n');
@@ -2451,7 +2505,7 @@ namespace sgcl::encoding {
                 _ext_pos -= std::min(_ext_pos, _pos);
                 _pos = 0;
             }
-            if (_block.size() >= _options.max_token_size) {   // a token or a value of a stream longer than the bound: memory from the network is not unbounded
+            if (_block.size() > _options.max_token_size) {   // a token or a value of a stream longer than the bound (the block holds it from its first byte): memory from the network is not unbounded
                 _refresh();
                 _set_error(error(errc::out_of_range, _base, string("a token longer than options.max_token_size (" + std::to_string(_options.max_token_size) + " bytes)")), 0);
                 return slice<byte>();
@@ -2463,7 +2517,7 @@ namespace sgcl::encoding {
             return slice<byte>(_block.owner(), reinterpret_cast<byte*>(_block.data() + _block.size()), _block.capacity() - _block.size());
         }
 
-        void _received(const expected<size_t, io::error>& r) {
+        void _received(const expected<size_t, io::error>& r) noexcept {
             if (_error) {
                 return;
             }
@@ -2496,7 +2550,7 @@ namespace sgcl::encoding {
         // To the start of the next value: ',' and ':' passed over. value:
         // _pos is at it; end: the input ended between values; failed: an
         // end of an array or an object is next, or the text is wrong.
-        Step _to_value() {
+        Step _to_value() noexcept {
             if (_error) {
                 return Step::failed;
             }
@@ -2552,7 +2606,7 @@ namespace sgcl::encoding {
         // brackets counted outside strings. token: _ext_end is past it
         // (or at the end of the input, when the value is cut short: the
         // parse says so); more: the block ends inside it.
-        Step _extent() {
+        Step _extent() noexcept {
             if (!_ext_started) {
                 _ext_started = true;
                 char c = _d[_pos];
@@ -2672,7 +2726,7 @@ namespace sgcl::encoding {
         }
 
         // In a task: `co_await r.async_next()`
-        async::task<optional<token>> async_next() {
+        async::task<optional<token>> async_next() noexcept {
             for (;;) {
                 Step s = _step();
                 if (s == Step::more) {
@@ -2702,7 +2756,7 @@ namespace sgcl::encoding {
             }
         }
 
-        async::task<bool> async_more() {
+        async::task<bool> async_more() noexcept {
             for (;;) {
                 if (auto m = _more_step()) {
                     co_return *m;
@@ -2746,7 +2800,7 @@ namespace sgcl::encoding {
             }
         }
 
-        async::task<optional<json>> async_read() {
+        async::task<optional<json>> async_read() noexcept {
             for (;;) {
                 Step s = _to_value();
                 if (s == Step::more) {
@@ -2787,7 +2841,7 @@ namespace sgcl::encoding {
         optional<T> read();
 
         template<class T>
-        async::task<optional<T>> async_read();
+        async::task<optional<T>> async_read() noexcept;
 
         // The next value checked and passed over (a key and its value where
         // a key is next): false at the end of the input or at an error
@@ -2817,7 +2871,7 @@ namespace sgcl::encoding {
             }
         }
 
-        async::task<bool> async_skip() {
+        async::task<bool> async_skip() noexcept {
             size_t depth = 0;
             bool started = false;
             for (;;) {
@@ -2847,7 +2901,7 @@ namespace sgcl::encoding {
 
     private:
         // more: nullopt when the data so far cannot tell
-        optional<bool> _more_step() {
+        optional<bool> _more_step() noexcept {
             if (_error) {
                 return false;
             }
@@ -2871,7 +2925,7 @@ namespace sgcl::encoding {
             return _stack.size() == depth && _kind != token::kind::key;
         }
 
-        bool _skip_start(Step s, size_t& depth) {
+        bool _skip_start(Step s, size_t& depth) noexcept {
             // the first token of the value: an end of an array or an object is not one
             if (_kind == token::kind::end_array || _kind == token::kind::end_object) {
                 _fail(errc::syntax, _pos - 1, "skip() where an array or an object ends");
@@ -2928,36 +2982,24 @@ namespace sgcl::encoding {
         if (v && !r.more() && !r.last_error()) {
             return std::move(*v);
         }
-        if (r.last_error()) {
-            return unexpected<error>(*r.last_error());
-        }
-        if (!v) {
-            return unexpected<error>(error(errc::unexpected_end, r.offset(), "unexpected end of input, expected a value"));
-        }
-        return unexpected<error>(error(errc::syntax, r.offset(), "a character after the value"));
+        return unexpected<error>(r._whole_error(bool(v)));
     }
 
     inline expected<json, json::error> json::parse(const io::reader& in) {
         return parse(in, options());
     }
 
-    inline async::task<expected<json, json::error>> json::async_parse(io::reader in, options o) {
+    inline async::task<expected<json, json::error>> json::async_parse(io::reader in, options o) noexcept {
         reader r(std::move(in), o);
         auto v = co_await r.async_read();
         bool more = v ? co_await r.async_more() : false;
         if (v && !more && !r.last_error()) {
             co_return std::move(*v);
         }
-        if (r.last_error()) {
-            co_return unexpected<error>(*r.last_error());
-        }
-        if (!v) {
-            co_return unexpected<error>(error(errc::unexpected_end, r.offset(), "unexpected end of input, expected a value"));
-        }
-        co_return unexpected<error>(error(errc::syntax, r.offset(), "a character after the value"));
+        co_return unexpected<error>(r._whole_error(bool(v)));
     }
 
-    inline async::task<expected<json, json::error>> json::async_parse(const io::reader& in) {
+    inline async::task<expected<json, json::error>> json::async_parse(const io::reader& in) noexcept {
         return async_parse(in, options());
     }
 
@@ -2974,61 +3016,61 @@ namespace sgcl::encoding {
     // is held in memory.
     class json::writer {
     public:
-        explicit writer(const io::writer& out)
+        explicit writer(const io::writer& out) noexcept
         : writer(out, compact) {
         }
 
-        writer(const io::writer& out, const style& s)
+        writer(const io::writer& out, const style& s) noexcept
         : _out(s.indent, s.escape_html, true), _sink(out), _style(s) {
         }
 
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
 
-        writer& begin_object() {
+        writer& begin_object() noexcept {
             _out.begin(true);
             return *this;
         }
 
-        writer& end_object() {
+        writer& end_object() noexcept {
             _out.end(true);
             return *this;
         }
 
-        writer& begin_array() {
+        writer& begin_array() noexcept {
             _out.begin(false);
             return *this;
         }
 
-        writer& end_array() {
+        writer& end_array() noexcept {
             _out.end(false);
             return *this;
         }
 
-        writer& key(const string& name) {
+        writer& key(const string& name) noexcept {
             _out.key(name.view());
             return *this;
         }
 
         template<size_t N>
-        writer& key(const char (&name)[N]) {
+        writer& key(const char (&name)[N]) noexcept {
             _out.key(std::string_view(name, std::char_traits<char>::length(name)));
             return *this;
         }
 
-        writer& value(std::nullptr_t) {
+        writer& value(std::nullptr_t) noexcept {
             _out.null();
             return *this;
         }
 
-        writer& value(const char* text) {
+        writer& value(const char* text) noexcept {
             _out.quoted(std::string_view(text));
             return *this;
         }
 
         // A json, a boolean, a number, a text (string, slice, std::string)
         template<class T>
-        writer& value(const T& v);
+        writer& value(const T& v) noexcept(detail::JsonScalar<T>::value);
 
         // The text so far to the stream: the first mistake in the structure
         // (an io::error of the encoding category), or the stream's failure
@@ -3040,6 +3082,7 @@ namespace sgcl::encoding {
                 auto w = _sink.write(_pending());
                 if (!w) {
                     _error = w.error();
+                    _stop();
                     return io::detail::fail(w);
                 }
                 _out.text().clear();
@@ -3048,7 +3091,7 @@ namespace sgcl::encoding {
         }
 
         // In a task: `co_await w.async_flush()`
-        async::task<expected<void, io::error>> async_flush() {
+        async::task<expected<void, io::error>> async_flush() noexcept {
             if (auto e = _check()) {
                 co_return io::detail::fail(*e);
             }
@@ -3059,6 +3102,7 @@ namespace sgcl::encoding {
                 _stage.done();
                 if (!w) {
                     _error = w.error();
+                    _stop();
                     co_return io::detail::fail(w);
                 }
                 _out.text().clear();
@@ -3067,7 +3111,7 @@ namespace sgcl::encoding {
         }
 
     private:
-        optional<io::error> _check() {
+        optional<io::error> _check() noexcept {
             if (_error) {
                 return _error;
             }
@@ -3076,6 +3120,15 @@ namespace sgcl::encoding {
                 return _error;
             }
             return nullopt;
+        }
+
+        // The stream failed for good: what was gathered is let go, and the
+        // writing stops as at a mistake, so that nothing more is gathered
+        // for a flush that would never write it
+        void _stop() noexcept {
+            _out.fail(errc::io, "the stream failed");
+            size_t capacity = 0;
+            (void)_out.text().give_back(capacity);
         }
 
         slice<const byte> _pending() const noexcept {
@@ -3106,7 +3159,7 @@ namespace sgcl::encoding {
         struct JsonScalar<T> : std::true_type {};
 
         template<class T>
-        void write_scalar_value(JsonOut& out, const T& v) {
+        void write_scalar_value(JsonOut& out, const T& v) noexcept {
             if constexpr (std::is_same_v<T, json>) {
                 write_json(out, v);
             } else if constexpr (std::is_same_v<T, bool>) {
@@ -3131,7 +3184,7 @@ namespace sgcl::encoding {
 
         template<class T>
         struct JsonValueWriter {
-            static void write(json::writer& w, const T& v) {
+            static void write(json::writer& w, const T& v) noexcept(JsonScalar<T>::value) {
                 if constexpr (JsonScalar<T>::value) {
                     write_scalar_value(w._out, v);
                 } else {
@@ -3142,7 +3195,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    json::writer& json::writer::value(const T& v) {
+    json::writer& json::writer::value(const T& v) noexcept(detail::JsonScalar<T>::value) {
         detail::JsonValueWriter<T>::write(*this, v);
         return *this;
     }
@@ -3151,7 +3204,7 @@ namespace sgcl::encoding {
 
     namespace detail {
         template<class T>
-        json JsonHooks<T>::to_json(const void* p) {
+        json JsonHooks<T>::to_json(const void* p) noexcept(std::is_same_v<T, json>) {
             if constexpr (std::is_same_v<T, json>) {
                 return *static_cast<const json*>(p);
             } else {
@@ -3160,7 +3213,7 @@ namespace sgcl::encoding {
         }
 
         template<class T>
-        bool JsonHooks<T>::from_json(void* p, const json& j) {
+        bool JsonHooks<T>::from_json(void* p, const json& j) noexcept(std::is_same_v<T, json>) {
             if constexpr (std::is_same_v<T, json>) {
                 *static_cast<json*>(p) = j;
                 return true;
@@ -3206,7 +3259,7 @@ namespace sgcl::encoding {
         // is in: a segment a level, the innermost first
         class ErrorPath {
         public:
-            void key(std::string_view k) {
+            void key(std::string_view k) noexcept {
                 std::string e;
                 for (char c : k) {
                     if (c == '~') {
@@ -3220,11 +3273,11 @@ namespace sgcl::encoding {
                 _segments.push_back(std::move(e));
             }
 
-            void index(size_t i) {
+            void index(size_t i) noexcept {
                 _segments.push_back(std::to_string(i));
             }
 
-            string text() const {
+            string text() const noexcept {
                 std::string t;
                 for (auto it = _segments.rbegin(); it != _segments.rend(); ++it) {
                     t += '/';
@@ -3254,7 +3307,7 @@ namespace sgcl::encoding {
 
         // A value of the text checked and passed over: iterative, its keys
         // checked for one given twice as a parse checks them
-        inline bool skip_value(JsonCursor& c, uint32_t max_depth) {
+        inline bool skip_value(JsonCursor& c, uint32_t max_depth) noexcept {
             std::vector<bool> stack;   // the objects (true) and arrays open
             KeySeen keys;
             bool unique = !c.options.allow_duplicate_keys;
@@ -3458,7 +3511,7 @@ namespace sgcl::encoding {
             // The reader's frames of records, one a depth, reused
             std::vector<std::unique_ptr<RecordFrame>> _frames;
 
-            RecordFrame& _frame(uint32_t depth) {
+            RecordFrame& _frame(uint32_t depth) noexcept {
                 while (_frames.size() <= depth) {
                     _frames.push_back(std::make_unique<RecordFrame>());
                 }
@@ -3485,7 +3538,7 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            SGCL_NOINLINE bool _record_end(RecordFrame& r) {
+            SGCL_NOINLINE bool _record_end(RecordFrame& r) noexcept {
                 if (r.unique) {
                     _keys.close();
                 }
@@ -3503,7 +3556,7 @@ namespace sgcl::encoding {
             // A member's key and its colon: 1, a field (r.field); 0, a key
             // no field has (to be skipped); -1, an error (a key given
             // twice, an unknown one refused, the text wrong)
-            SGCL_NOINLINE int _member_key(RecordFrame& r, std::string_view ignore) {
+            SGCL_NOINLINE int _member_key(RecordFrame& r, std::string_view ignore) noexcept {
                 _c.space();
                 if (_c.at_end()) {
                     _c.fail_end("a key");
@@ -3530,6 +3583,7 @@ namespace sgcl::encoding {
                 bool known = f < list.size();
                 if (!known && k != ignore && _c.options.reject_unknown_fields) {
                     _c.fail(errc::unknown_field, at, "unknown field \"" + std::string(k) + "\"");
+                    path.key(k);
                     return -1;
                 }
                 if (!_colon()) {
@@ -3544,7 +3598,7 @@ namespace sgcl::encoding {
             }
 
             // After a member: another member, or the '}' (r.done); false: an error
-            SGCL_NOINLINE bool _member_end(RecordFrame& r) {
+            SGCL_NOINLINE bool _member_end(RecordFrame& r) noexcept {
                 _c.space();
                 if (_c.at_end()) {
                     return _c.fail_end("',' or '}'");
@@ -3626,18 +3680,18 @@ namespace sgcl::encoding {
                 }
             }
 
-            bool _mismatch(const ValueOps* ops) {
+            bool _mismatch(const ValueOps* ops) noexcept {
                 return _c.fail(errc::type_mismatch, _c.p, std::string("expected ") + ops->name + ", found " + found_kind(_c.p, _c.end));
             }
 
-            bool _open(uint32_t depth) {
+            bool _open(uint32_t depth) noexcept {
                 if (depth >= _max) {
                     return _c.fail(errc::depth_limit, _c.p, "nesting deeper than " + std::to_string(_max));
                 }
                 return true;
             }
 
-            bool _colon() {
+            bool _colon() noexcept {
                 _c.space();
                 if (_c.at_end()) {
                     return _c.fail_end("':'");
@@ -4160,12 +4214,12 @@ namespace sgcl::encoding {
             }
 
         private:
-            bool _fail(errc code, std::string detail) {
+            bool _fail(errc code, std::string detail) noexcept {
                 _out.fail(code, std::move(detail));
                 return false;
             }
 
-            bool _open(uint32_t depth) {
+            bool _open(uint32_t depth) noexcept {
                 if (depth >= _max) {
                     return _fail(errc::unsupported_value, "nesting deeper than " + std::to_string(_max) + " (a cycle?)");
                 }
@@ -4489,19 +4543,19 @@ namespace sgcl::encoding {
             const json::options* options = nullptr;
 
         private:
-            bool _fail(errc code, std::string detail) {
+            bool _fail(errc code, std::string detail) noexcept {
                 if (!failure) {
                     failure = error(code, 0, string(detail));
                 }
                 return false;
             }
 
-            bool _mismatch(const ValueOps* ops, const json& j) {
+            bool _mismatch(const ValueOps* ops, const json& j) noexcept {
                 static constexpr const char* Kinds[] = {"null", "a boolean", "a number", "a string", "an array", "an object"};
                 return _fail(errc::type_mismatch, std::string("expected ") + ops->name + ", found " + Kinds[size_t(j.type())]);
             }
 
-            bool _open(uint32_t depth) {
+            bool _open(uint32_t depth) noexcept {
                 if (depth >= _max) {
                     return _fail(errc::depth_limit, "nesting deeper than " + std::to_string(_max));
                 }
@@ -4530,6 +4584,7 @@ namespace sgcl::encoding {
                             return false;
                         }
                     } else if (k != ignore && options && options->reject_unknown_fields) {
+                        path.key(k);
                         return _fail(errc::unknown_field, "unknown field \"" + std::string(k) + "\"");
                     }
                 }
@@ -4617,35 +4672,23 @@ namespace sgcl::encoding {
         if (v && !r.more() && !r.last_error()) {
             return std::move(*v);
         }
-        if (r.last_error()) {
-            return unexpected<error>(*r.last_error());
-        }
-        if (!v) {
-            return unexpected<error>(error(errc::unexpected_end, r.offset(), "unexpected end of input, expected a value"));
-        }
-        return unexpected<error>(error(errc::syntax, r.offset(), "a character after the value"));
+        return unexpected<error>(r._whole_error(bool(v)));
     }
 
     template<class T>
-    async::task<expected<T, json::error>> json::async_parse(const io::reader& in) {
+    async::task<expected<T, json::error>> json::async_parse(const io::reader& in) noexcept {
         return async_parse<T>(in, options());
     }
 
     template<class T>
-    async::task<expected<T, json::error>> json::async_parse(io::reader in, options o) {
+    async::task<expected<T, json::error>> json::async_parse(io::reader in, options o) noexcept {
         reader r(std::move(in), o);
         auto v = co_await r.async_read<T>();
         bool more = v ? co_await r.async_more() : false;
         if (v && !more && !r.last_error()) {
             co_return std::move(*v);
         }
-        if (r.last_error()) {
-            co_return unexpected<error>(*r.last_error());
-        }
-        if (!v) {
-            co_return unexpected<error>(error(errc::unexpected_end, r.offset(), "unexpected end of input, expected a value"));
-        }
-        co_return unexpected<error>(error(errc::syntax, r.offset(), "a character after the value"));
+        co_return unexpected<error>(r._whole_error(bool(v)));
     }
 
     template<class T>
@@ -4666,16 +4709,20 @@ namespace sgcl::encoding {
     expected<string, json::error> json::stringify(const T& value, const style& s) {
         detail::JsonOut out(s.indent, s.escape_html);
         detail::JsonLent lent(out);   // the thread's block and stack: nothing allocated but the string
+        out.limit(string::max_size());
         string path;
         if constexpr (detail::JsonScalar<T>::value) {
             detail::write_scalar_value(out, value);
         } else {
             detail::write_typed(out, value, s, &path);
         }
+        if (out.too_long()) {
+            throw length_error("sgcl::encoding::json: a text longer than a string can hold");
+        }
         if (out.failed()) {
             error e(out.code(), 0, string(out.detail()));
             e.set_path(path);
-            return unexpected<error>(std::move(e));
+            return unexpected<error>(std::move(detail::ErrorAccess::without_place(e)));
         }
         return string(out.text().view());
     }
@@ -4693,7 +4740,7 @@ namespace sgcl::encoding {
         T value{};
         if (!r.value(std::addressof(value), detail::value_ops<T>(), detail::FieldOptions{}, *this, 0)) {
             r.failure->set_path(r.path.text());
-            return unexpected<error>(std::move(*r.failure));
+            return unexpected<error>(std::move(detail::ErrorAccess::without_place(*r.failure)));
         }
         return value;
     }
@@ -4746,7 +4793,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<optional<T>> json::reader::async_read() {
+    async::task<optional<T>> json::reader::async_read() noexcept {
         for (;;) {
             Step s = _to_value();
             if (s == Step::more) {
@@ -4787,7 +4834,7 @@ namespace sgcl::encoding {
     namespace detail {
         // A json's save in a task: the value copied into the frame (a task
         // starts when it is awaited, the object it came from may be gone)
-        inline async::task<expected<void, json::error>> json_save_task(string path, json value) {
+        inline async::task<expected<void, json::error>> json_save_task(string path, json value) noexcept {
             co_return co_await async::spawn_blocking([path, value] { return value.save(path); });
         }
     }
@@ -4801,12 +4848,12 @@ namespace sgcl::encoding {
         return detail::with_file(path, [](const io::reader& in) { return json::parse<T>(in); });
     }
 
-    inline async::task<expected<json, json::error>> json::async_load(string path) {
+    inline async::task<expected<json, json::error>> json::async_load(string path) noexcept {
         co_return co_await async::spawn_blocking([path] { return json::load(path); });
     }
 
     template<class T>
-    async::task<expected<T, json::error>> json::async_load(string path) {
+    async::task<expected<T, json::error>> json::async_load(string path) noexcept {
         co_return co_await async::spawn_blocking([path] { return json::load<T>(path); });
     }
 
@@ -4820,7 +4867,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<expected<void, json::error>> json::async_save(string path, T value) {
+    async::task<expected<void, json::error>> json::async_save(string path, T value) noexcept(std::is_nothrow_move_constructible_v<T>) {
         co_return co_await async::spawn_blocking([path, value] { return json::save(path, value); });
     }
 
@@ -4828,7 +4875,7 @@ namespace sgcl::encoding {
         return detail::save_text(path, to_string());
     }
 
-    inline async::task<expected<void, json::error>> json::async_save(string path) const {
+    inline async::task<expected<void, json::error>> json::async_save(string path) const noexcept {
         return detail::json_save_task(std::move(path), *this);
     }
 }

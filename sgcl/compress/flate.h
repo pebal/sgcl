@@ -27,19 +27,19 @@ namespace sgcl::compress {
         class writer;
         class reader;
 
-        static vector<byte> compress(const slice<const byte>& data) {
+        static vector<byte> compress(const slice<const byte>& data) noexcept {
             return compress(data, options{});
         }
 
-        static vector<byte> compress(const slice<const byte>& data, const options& o) {
+        static vector<byte> compress(const slice<const byte>& data, const options& o) noexcept {
             return detail::compress_all(detail::bytes(data), data.size(), o.level.value(), detail::FlateFormat(), o.dictionary);
         }
 
-        static vector<byte> compress(const string& text) {
+        static vector<byte> compress(const string& text) noexcept {
             return compress(io::detail::bytes_of(text), options{});
         }
 
-        static vector<byte> compress(const string& text, const options& o) {
+        static vector<byte> compress(const string& text, const options& o) noexcept {
             return compress(io::detail::bytes_of(text), o);
         }
 
@@ -47,29 +47,29 @@ namespace sgcl::compress {
         // bytes as the string's overload takes them (an exact match, else
         // the two conversions, to a string and to bytes, tie)
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text) {
+        static vector<byte> compress(const T& text) noexcept {
             return compress(slice<const byte>(text), options{});
         }
 
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text, const options& o) {
+        static vector<byte> compress(const T& text, const options& o) noexcept {
             return compress(slice<const byte>(text), o);
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
             return decompress(data, options{}, limits{});
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) noexcept {
             return decompress(data, options{}, l);
         }
 
         // With the dictionary it was compressed with
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const options& o) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const options& o) noexcept {
             return decompress(data, o, limits{});
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const options& o, const limits& l) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const options& o, const limits& l) noexcept {
             return detail::decompress_all(detail::bytes(data), data.size(), l, detail::FlateFormat(), o.dictionary);
         }
     };
@@ -79,11 +79,17 @@ namespace sgcl::compress {
     class flate::writer final
     : public detail::DeflateWriter<detail::FlateFormat> {
     public:
-        explicit writer(const io::writer& out)
+        writer(writer&&) noexcept = default;   // the other left closed (detail/stream.h)
+
+        writer& operator=(writer&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
+
+        explicit writer(const io::writer& out) noexcept
         : writer(out, options{}) {
         }
 
-        writer(const io::writer& out, const options& o)
+        writer(const io::writer& out, const options& o) noexcept
         : DeflateWriter(out, o.level.value(), detail::FlateFormat(), o.dictionary) {
         }
     };
@@ -94,11 +100,17 @@ namespace sgcl::compress {
     class flate::reader final
     : public detail::InflateReader<detail::FlateFormat> {
     public:
-        explicit reader(const io::reader& in)
+        reader(reader&&) noexcept = default;   // the other left closed (detail/stream.h)
+
+        reader& operator=(reader&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
+
+        explicit reader(const io::reader& in) noexcept
         : InflateReader(in, {}) {
         }
 
-        reader(const io::reader& in, const options& o)
+        reader(const io::reader& in, const options& o) noexcept
         : InflateReader(in, o.dictionary) {
         }
     };

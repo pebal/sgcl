@@ -88,7 +88,7 @@ namespace tls_roundtrip {
                 break;
             case tls::ExtensionType::application_layer_protocol_negotiation:
                 take(tls::read_protocols(e.body), [&](auto& l) {
-                    std::vector<tls::Bytes> names(l.begin(), l.end());
+                    std::vector<tls::Bytes> names(l.begin(), l.end());   // lint-handles: ok slices over unmanaged bytes, no owner
                     tls::write_protocols(w, names);
                 });
                 break;
@@ -186,7 +186,7 @@ namespace tls_roundtrip {
                 if (!m) {
                     return std::string("Certificate refused: ") + m.error().what;
                 }
-                std::vector<tls::CertificateEntry> entries(m->begin(), m->end());
+                std::vector<tls::CertificateEntry> entries(m->begin(), m->end());   // lint-handles: ok slices over unmanaged bytes, no owner
                 tls::write_certificate(w, m->context, entries);
                 break;
             }

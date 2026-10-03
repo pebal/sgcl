@@ -87,17 +87,17 @@ namespace {
             return txt::collator(txt::locale("pl"));
         }
         if (!std::strcmp(op, "numeric")) {
-            return txt::collator(txt::options{.numeric = true});
+            return txt::collator(txt::collator::options{.numeric = true});
         }
         if (!std::strcmp(op, "shifted")) {
-            return txt::collator(txt::options{.punctuation = txt::punctuation::shifted});
+            return txt::collator(txt::collator::options{.punctuation = txt::punctuation::shifted});
         }
         if (!std::strcmp(op, "case")) {
-            return txt::collator(txt::options{.case_order = txt::case_order::upper_first,
+            return txt::collator(txt::collator::options{.case_order = txt::case_order::upper_first,
                                               .case_level = true});
         }
         if (!std::strcmp(op, "backwards")) {
-            return txt::collator(txt::options{.backwards = true});
+            return txt::collator(txt::collator::options{.backwards = true});
         }
         return txt::collator();
     }
@@ -168,7 +168,7 @@ namespace {
         string pattern("KOTA");
         // at primary strength, which is what a search box asks for: the
         // case and the accents are not differences
-        txt::collator c{txt::options{.strength = txt::strength::primary}};
+        txt::collator c{txt::collator::options{.strength = txt::strength::primary}};
         found = pass(op, c, text, pattern);
         size_t passes = 0;
         auto t0 = bench::Clock::now();

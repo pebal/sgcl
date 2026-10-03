@@ -14,14 +14,14 @@
 namespace sgcl::mixin {
     // comparable<Derived>: two values of Derived are ordered
     // lexicographically by their elements (what <=> is on the standard
-    // sequences and the ordered associative containers), and the
-    // declaration that they are: req::comparable<R> is "R carries
-    // comparable" (or, for a value that is not the library's, "R has
-    // <=> or <"). The operator exists only for elements that are ordered
-    // (req::comparable): by their <=>, or by a weak ordering built from
-    // their < (synth_three_way, as the standard does). Carried beside
+    // sequences and the ordered associative containers), so that Derived
+    // is req::comparable when its elements are. The operator exists only
+    // for elements that are ordered (req::comparable): by their <=>, or
+    // by a weak ordering built from their < (synth_three_way, as the
+    // standard does). Carried beside
     // mixin::equatable, which gives ==; a container whose iteration order is
-    // not a value (set) does not carry this one.
+    // not a value (set) does not carry this one. Not noexcept, for the
+    // reason mixin::equatable's == is not.
     template<class Derived>
     class comparable {
     public:

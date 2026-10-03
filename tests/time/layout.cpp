@@ -305,7 +305,7 @@ TEST(Layout_Tests, WrittenAndReadBack) {
     std::mt19937_64 rng(7);
     sgcl::vector<zone> zones = {zone::utc(), load("Europe/Warsaw"), load("America/St_Johns"), load("Asia/Kathmandu"), zone::fixed(-(9h + 30min))};
     for (int i = 0; i < 5000; ++i) {
-        int64_t ns = int64_t(rng() % 18000000000000000000ull) - int64_t(9000000000000000000);   // 1684 to 2255
+        int64_t ns = int64_t(rng() % 18000000000000000000ull - 9000000000000000000ull);   // modular: no signed overflow   // 1684 to 2255
         datetime t = datetime::from_unix_nano(ns, zones[i % zones.size()]);
         if (t.offset().nanoseconds() % 60000000000 != 0) {
             // An offset with seconds (a local mean time of the past) is

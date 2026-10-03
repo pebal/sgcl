@@ -132,3 +132,69 @@ TEST(Percent_Tests, WhatwgSets) {
     EXPECT_EQ(*txt::percent::decode(txt::percent::encode(tricky, w::component)), tricky);
     EXPECT_NE(*txt::percent::decode(txt::percent::encode(tricky, w::path)), tricky);
 }
+
+// DESIGN 408: nothing, one byte, every byte, escapes at the very ends, and
+// the sets at their limits
+TEST(Percent_Tests, TheEdgesOfTheEscaping) {
+    using txt::percent_set;
+    // Empty: nothing to escape, nothing to decode
+    EXPECT_EQ(txt::percent::encode(string()), string());
+    EXPECT_EQ(value_of(txt::percent::decode(string())), string());
+    EXPECT_EQ(txt::percent::encode(string(), percent_set{}), string());
+
+    // Nothing escaped and no escape: the same object comes back
+    string plain("abc");
+    EXPECT_EQ(txt::percent::encode(plain).data(), plain.data());
+    EXPECT_EQ(value_of(txt::percent::decode(plain)).data(), plain.data());
+
+    // Every byte, through the empty set (everything escaped) and back
+    std::string all;
+    for (int b = 0; b < 256; ++b) {
+        all.push_back(char(b));
+    }
+    string bytes(all.data(), all.size());
+    string escaped = txt::percent::encode(bytes, percent_set{});
+    EXPECT_EQ(escaped.size(), 3 * 256u);
+    EXPECT_EQ(escaped.view().substr(0, 6), "%00%01");
+    EXPECT_EQ(escaped.view().substr(escaped.size() - 3), "%FF");
+    EXPECT_EQ(value_of(txt::percent::decode(escaped)), bytes);
+    EXPECT_EQ(value_of(txt::percent::decode(txt::percent::encode(bytes))), bytes);
+    EXPECT_EQ(value_of(txt::percent::decode(string("%00"))), string(1, '\0'));
+
+    // An escape cut at the end after good ones, and a '%' right after one
+    EXPECT_FALSE(txt::percent::decode(string("%41%")).has_value());
+    EXPECT_FALSE(txt::percent::decode(string("%41%4")).has_value());
+    EXPECT_FALSE(txt::percent::decode(string("%%41")).has_value());
+    EXPECT_FALSE(txt::percent::decode(string("% 41")).has_value());
+    EXPECT_FALSE(txt::percent::decode(string("%\xC3\xBC")).has_value());
+    EXPECT_EQ(value_of(txt::percent::decode(string("%41"))), string("A"));     // one escape and nothing else
+    EXPECT_EQ(value_of(txt::percent::decode(string("%2541"))), string("%41"));  // decoded once, not twice
+    EXPECT_EQ(value_of(txt::percent::decode(string("+"))), string("+"));
+
+    // The sets: a null pointer and the empty text are the empty set, bytes
+    // above ASCII are ignored, and the operators at their identities
+    EXPECT_EQ(percent_set(nullptr), percent_set{});
+    EXPECT_EQ(percent_set(""), percent_set{});
+    EXPECT_EQ(percent_set("\xC3\xBC"), percent_set{});
+    EXPECT_EQ(percent_set("a\xFF" "b"), percent_set("ab"));
+    EXPECT_FALSE(percent_set{}.holds('\0'));
+    EXPECT_FALSE(txt::percent::whatwg::c0.holds('\x7F'));
+    EXPECT_FALSE(txt::percent::whatwg::c0.holds(char(0xFF)));
+    EXPECT_TRUE(percent_set("\x7F").holds('\x7F'));                           // the last bit of the mask
+    EXPECT_TRUE(percent_set("\x01").holds('\x01'));
+    EXPECT_FALSE(percent_set("\x01").holds('\x41'));                          // 0x01 and 0x41 differ by the half
+    auto& u = txt::percent::unreserved;
+    EXPECT_EQ(u | u, u);
+    EXPECT_EQ(u - u, percent_set{});
+    EXPECT_EQ(u - percent_set{}, u);
+    EXPECT_EQ(percent_set{} - u, percent_set{});
+    EXPECT_EQ(u | percent_set{}, u);
+    EXPECT_NE(u, txt::percent::sub_delims);
+
+    // The text escaped into itself
+    string self("a b");
+    self = txt::percent::encode(self);
+    EXPECT_EQ(self, string("a%20b"));
+    self = value_of(txt::percent::decode(self));
+    EXPECT_EQ(self, string("a b"));
+}

@@ -53,9 +53,10 @@ namespace sgcl::net::tls {
     // did not verify (512 + its x509::reason: "tls: certificate signed by
     // unknown authority"; the alert sent for it follows from the reason),
     // and an alert the server sent before its hello (1024 + its number:
-    // "tls: the server closed the handshake before its hello (no TLS
-    // 1.3?)", what a server without TLS 1.3 answers a hello of 1.3 alone
-    // with, a close_notify among them).
+    // "remote error: tls: no application protocol, before the server's
+    // hello"; a close_notify or a protocol_version there, what a server
+    // without TLS 1.3 answers a hello of 1.3 alone with, adds "(no TLS
+    // 1.3?)").
     // `e.code() == tls::alert::decode_error` asks for an alert of this
     // side; alert_of, is_remote and certificate_reason take any of them
     // apart.
@@ -123,16 +124,17 @@ namespace sgcl::net::tls {
                 return "tls";
             }
 
-            std::string message(int c) const override {
-                if (c >= 1024) {
-                    return "tls: the server closed the handshake before its hello (no TLS 1.3?)";
-                }
-                if (c >= 512) {
+            std::string message(int c) const noexcept override {
+                if (c >= 512 && c < 1024) {
                     return std::string("tls: ") + reason_text(c - 512);
                 }
-                const char* t = alert_text(c & 0xFF);
-                std::string text = t ? t : "alert(" + std::to_string(c & 0xFF) + ")";
-                return (c >= 256 ? "remote error: tls: " : "tls: ") + text;
+                const int a = c & 0xFF;
+                const char* t = alert_text(a);
+                std::string text = (c >= 256 ? "remote error: tls: " : "tls: ") + (t ? std::string(t) : "alert(" + std::to_string(a) + ")");
+                if (c >= 1024) {
+                    text += a == 0 || a == 70 ? ", before the server's hello (no TLS 1.3?)" : ", before the server's hello";
+                }
+                return text;
             }
         };
     }
@@ -169,20 +171,21 @@ namespace sgcl::net::tls {
     }
 
     namespace detail {
-        inline io::error local_error(AlertDescription d, const string& op, const string& what) {
+        inline io::error local_error(AlertDescription d, const string& op, const string& what) noexcept {
             return io::error(error_code(int(d), category()), op, what);
         }
 
-        inline io::error remote_error(AlertDescription d, const string& op, const string& what) {
+        inline io::error remote_error(AlertDescription d, const string& op, const string& what) noexcept {
             return io::error(error_code(256 + int(d), category()), op, what);
         }
 
-        // An alert of the server before its hello: a server without TLS 1.3
-        inline io::error before_hello_error(AlertDescription d, const string& op, const string& what) {
+        // An alert of the server before its hello (in the clear; a server
+        // without TLS 1.3 among the senders)
+        inline io::error before_hello_error(AlertDescription d, const string& op, const string& what) noexcept {
             return io::error(error_code(1024 + int(d), category()), op, what);
         }
 
-        inline io::error certificate_error(crypto::x509::reason r, const string& op, const string& what) {
+        inline io::error certificate_error(crypto::x509::reason r, const string& op, const string& what) noexcept {
             return io::error(error_code(512 + int(r), category()), op, what);
         }
     }

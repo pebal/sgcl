@@ -1,107 +1,125 @@
+[sgcl](../README.md) › [math](README.md)
+
 # sgcl::math::rational
 
 ```cpp
-#include "sgcl/math/rational.h"   // or "sgcl/math/math.h"
+#include "sgcl/math/rational.h"   // or "sgcl/math.h"
 
 namespace sgcl::math {
     class rational;
 }
 ```
 
-`math::rational` is a fraction of two [`big_integer`](big_integer.md)s, always in lowest terms: what Go's `math/big.Rat` is, with the manners of a number. The arithmetic is exact — a third three times is one, and no sum of fractions ever loses a digit — and a `big_integer` or any whole number of the language goes where a `rational` is wanted, so `r * 2`, `r < 1` and `r == big_integer(5)` are written as they read.
+`sgcl::math::rational` is a fraction of two [big_integer](big_integer.md)s, always in lowest terms: what Go's `math/big.Rat`
+is, with the manners of a number. The arithmetic is exact — a third three times is one, and no sum of fractions ever
+loses a digit — and a `big_integer` or any whole number of the language goes where a `rational` is wanted, so
+`r * 2`, `r < 1` and `r == big_integer(5)` are written as they read. The standard library has nothing of the kind:
+`std::ratio` is a fraction of the compiler's, fixed at compile time.
 
-```cpp
-using namespace sgcl;
-
-math::rational third(1, 3);
-math::rational sum = third + third + third;       // 1
-string s = (third * 2).to_decimal(4);              // "0.6667"
-bool exact = math::rational(0.1) != math::rational(1, 10);   // true: 0.1 is not a tenth
-```
+Go's `big.Rat` is a pointer whose methods write the result into a receiver (`z.Add(x, y)`); a `rational` is a value
+and its operators make a new one: `third * 2 + 1`. Go's `SetString` is [parse](rational/parse.md), `FloatString` is
+[to_decimal](rational/to_decimal.md) and `Float64` is [to_double](rational/to_double.md); `{:.5f}` of
+[txt::format](../txt/format.md) writes the decimal. A sum and a product take the common factors out as Knuth does
+(TAOCP vol. 2, 4.5.1), from the gcd of the denominators first, rather than reducing the whole product.
 
 ## Rules
 
-- **Lowest terms, always.** The numerator carries the sign, the denominator is above zero and has no factor in common with it — `rational(6, -4)` is `-3/2` — so each value has one form, equality compares the parts and the hash is the parts'. Sums and products take the common factors out the way Knuth does (TAOCP vol. 2, 4.5.1): the gcd of the denominators first, then only of what can still be common, so the gcds are of the small numbers rather than of the products.
-- **A value, like `big_integer`.** Two `big_integer`s: a copy is four words, the objects are shared and never changed, and a `rational` lives where a `tracked_ptr` may — on a stack, in a managed object, in a container of the library.
-- **Exact from a double.** Every finite `double` is a fraction whose denominator is a power of two, and `rational(double)` is that fraction: `rational(0.1)` is `3602879701896397/36028797018963968`. The text `"0.1"` is a tenth. The constructor from a `double` is `explicit`; `long double` and `bool` are refused, as for `big_integer`.
-- **Rounded once, on the way out.** `to_double` is the nearest double to the exact value, a tie to the even one — not the quotient of the parts' doubles, which rounds three times and overflows for long parts; `to_decimal` rounds half away from zero, as Go's `FloatString`.
-- **An error of the program throws.** A denominator of zero, the inverse of zero, a division by zero, zero to a negative power, NaN or an infinity made into a fraction are `domain_error`.
-- **An error of data does not.** `parse` of text that is not a fraction is an [`expected`](../core/expected.md) whose [`parse_error`](big_integer.md) has `offset()` and `message()`; a denominator of zero in the text is such an error, and so is an exponent past a million (`"1e9999999"`), since a dozen bytes would otherwise ask for megabytes.
+- **Lowest terms, always.** The numerator carries the sign, the denominator is above zero and has no factor in
+  common with it — `rational(6, -4)` is `-3/2` — so each value has one form, equality compares the parts and the
+  hash is the parts'.
+- **A value, like `big_integer`.** Two `big_integer`s: a copy is four words, the objects are shared and never
+  changed, and a `rational` lives where a `tracked_ptr` may — on a stack, in a managed object, in a container of
+  the library.
+- **Exact from a double.** Every finite `double` is a fraction whose denominator is a power of two, and
+  `rational(double)` is that fraction: `rational(0.1)` is `3602879701896397/36028797018963968`. The text `"0.1"` is
+  a tenth. The constructor from a `double` is `explicit`; `long double` and `bool` are refused, as for
+  `big_integer`.
+- **Rounded once, on the way out.** [to_double](rational/to_double.md) is the nearest double to the exact value, a
+  tie to the even one — not the quotient of the parts' doubles, which rounds three times and overflows for long
+  parts; [to_decimal](rational/to_decimal.md) rounds half away from zero, as Go's `FloatString`.
+- **An error of the program throws.** A denominator of zero, the inverse of zero, a division by zero, zero to a
+  negative power, NaN or an infinity made into a fraction are `domain_error`.
+- **An error of data does not.** [parse](rational/parse.md) of text that is not a fraction is an
+  [expected](../core/expected.md) whose [parse_error](parse_error.md) has the offset and the message; a
+  denominator of zero in the text is such an error, and so is an exponent past a million (`"1e9999999"`), since a
+  dozen bytes would otherwise ask for megabytes. A fraction the program itself writes is constructed,
+  `math::rational rate("0.075")`, and a wrong one throws.
 
-## Members
+## Member functions
 
-### Construction
+| Function | Description |
+|---|---|
+| [(constructor)](rational/rational.md) | constructs a fraction: zero, a whole number, two parts, a double exactly, a text |
+| `(destructor)` | drops the two parts; their objects are left to the collector |
+| [operator=](rational/operator_assign.md) | assigns another fraction |
+
+#### Parts
+
+| Function | Description |
+|---|---|
+| [numerator](rational/numerator.md) | the numerator, with the sign |
+| [denominator](rational/denominator.md) | the denominator, above zero |
+
+#### Arithmetic
+
+| Function | Description |
+|---|---|
+| [operator+=, operator-=, operator\*=, operator/=, operator-](rational/operator_arith.md) | the compound assignments and the negation |
+| [abs](rational/abs.md) | the absolute value |
+| [inverse](rational/inverse.md) | one over the fraction |
+| [pow](rational/pow.md) | the fraction to a whole power, a negative one too |
+| [floor](rational/floor.md) | the largest whole number not above |
+| [ceil](rational/ceil.md) | the smallest whole number not below |
+
+#### Conversions
+
+| Function | Description |
+|---|---|
+| [to_string](rational/to_string.md) | the fraction as `"3/4"`, a whole number as `"-5"` |
+| [to_decimal](rational/to_decimal.md) | the decimal with a number of places, half away from zero |
+| [to_double](rational/to_double.md) | the nearest double, a tie to the even one |
+| [parse](rational/parse.md) | reads a fraction or a decimal (static) |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator+, operator-, operator\*, operator/](rational/operator_arith.md) | the arithmetic of two fractions, exact |
+| [operator==, operator\<=\>](rational/operator_cmp.md) | compare two fractions |
+| [operator\<\<](rational/to_string.md) | writes `to_string()` to a stream |
+| [format_value](rational/format_value.md) | writes the fraction for [txt::format](../txt/format.md), `{}` or `{:.5f}` |
+
+## Specializations
 
 ```cpp
-rational() noexcept;                                          // 0
-template<std::integral T> rational(T value);                  // implicit: n/1
-rational(big_integer value) noexcept;                         // implicit: n/1
-rational(big_integer numerator, big_integer denominator);     // reduced; 0 → domain_error
-explicit rational(double value);                              // exactly; NaN, ±∞ → domain_error
-template<std::same_as<bool> B> rational(B) = delete;         // a bool alone: a pointer is not taken for one
-explicit rational(long double) = delete;
+template<>
+struct std::hash<sgcl::math::rational>;
 
-static expected<rational, parse_error> parse(const string& text);
-explicit rational(const string& text);                        // a literal: parse(text), or bad_expected_access<parse_error> with its message (DESIGN 234)
+template<>
+struct sgcl::txt::formatter<sgcl::math::rational>;
 ```
 
-`parse` reads a fraction — `"3/4"`, `"-5"`, `"+0/7"`, digits, a slash and digits, the sign in front and none in the denominator — or a decimal: `"-0.125"`, `".5"`, `"7."`, `"1.5e-3"`, `"2E10"`, digits with a point (either side may be empty, not both) and an exponent of at most a million either way. Nothing else: no space, no `_`, no `inf` or `nan`. The error's `offset()` is the byte where reading stopped, the first digit of a denominator of zero, or the first byte after the `e` of an exponent too large. A fraction the program itself writes is constructed from the same text, `math::rational rate("0.075")`, which throws `parse`'s error as `bad_expected_access<parse_error>`; text from outside is parsed. The literal `0` still goes to the constructor from a number.
+`std::hash` hashes the two parts, mixed: equal fractions have one form in lowest terms and so one hash, and a `map`
+or a `set` is keyed by fractions. The formatter tells [txt::format](../txt/format.md) which specifications a
+fraction takes — no type or `f`, and a precision — so that a literal pattern is checked where it is compiled; the
+writing is [format_value](rational/format_value.md)'s.
 
-### Parts
+## Complexity
 
-```cpp
-const big_integer& numerator() const noexcept;               // with the sign
-const big_integer& denominator() const noexcept;             // above zero, in lowest terms with the numerator
-```
-
-### Arithmetic and order
-
-```cpp
-friend rational operator+(const rational&, const rational&);  // and -, *, / (by zero → domain_error)
-rational operator-() const;
-rational& operator+=(const rational&);                        // and -=, *=, /=
-friend bool operator==(const rational&, const rational&) noexcept;
-friend std::strong_ordering operator<=>(const rational&, const rational&);
-
-rational abs() const;
-rational inverse() const;                                     // 1/x; of zero → domain_error
-rational pow(int64_t exponent) const;                         // a negative exponent allowed; 0^0 == 1
-big_integer floor() const;
-big_integer ceil() const;
-```
-
-The operators are hidden friends taking two `rational`s, and a whole number or a `big_integer` on either side is converted, so `1 - third`, `third * 3 == 1` and `big_integer(6) > r` need no second set. `pow` raises the parts each (a power of a fraction in lowest terms is in lowest terms); `floor` and `ceil` are the whole numbers below and above, `floor(-7/2) == -4`.
-
-### Conversions
-
-```cpp
-string to_string() const;                                     // "3/4", "-5" for a whole number
-string to_decimal(size_t places) const;                       // "0.667"; half away from zero
-double to_double() const;                                     // nearest, a tie to even
-```
-
-`to_decimal` writes `places` digits after the point, rounded to the nearest with a half away from zero — `2/3` to three places is `"0.667"`, `-1/8` to two `"-0.13"`, `1/2` to none `"1"`; a negative value that rounds to zero keeps its minus (`"-0.00"`), as `printf` does, and no places means no point. `to_double` goes past the largest double to an infinity and below the smallest subnormal to a zero, each of the sign; it is not `noexcept`, since the division of long parts allocates.
-
-### Text, hashing, streams
-
-```cpp
-void format_value(txt::format_sink&, const rational&, const txt::format_spec&);   // found by txt::format
-std::ostream& operator<<(std::ostream&, const rational&);                         // to_string()
-template<> struct std::hash<rational>;
-```
-
-[`txt::format`](../txt/format.md) writes `{}` as `to_string` (`"3/4"`) and `{:f}`, `{:.5f}` or `{:.5}` as `to_decimal` with that many places, six when none is given as for a `double`; `+` and a space for the sign of a value not negative, and the width, fill and alignment of any number, right by default, the zeros of `{:08.3f}` after the sign. Any other type — `{:x}`, `{:d}` — is an error of the compiler in a literal pattern and `nullopt` from a runtime one.
-
-## What it costs
-
-A sum or a product is a few multiplications and one or two gcds of the parts; a whole number plus a whole number (both denominators 1) is the `big_integer` sum and nothing more. The parts grow as the arithmetic asks — the harmonic sum of the first *n* terms has a denominator of about *n* · log₂ e bits — and nothing is ever rounded away; where a bound on the size is wanted, round with `to_decimal` or `floor` and go on from that.
+A sum or a product is a few multiplications and one or two gcds of the parts; a whole number plus a whole number
+(both denominators 1) is the `big_integer` sum and nothing more. The gcds are of the smaller numbers: a sum takes
+the gcd of the two denominators and then only of what can still be common, a product the gcds across the two
+fractions before it multiplies, so neither ever takes the gcd of a whole product. The parts grow as the arithmetic
+asks — the harmonic sum of the first *n* terms has a denominator of about *n* · log₂ e bits — and nothing is ever
+rounded away; where a bound on the size is wanted, round with [to_decimal](rational/to_decimal.md) or
+[floor](rational/floor.md) and go on from that.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
-#include "sgcl/math/math.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
+#include "sgcl/math.h"
 
 using namespace sgcl;
 
@@ -110,20 +128,20 @@ int main() {
     math::rational third(1, 3);
     println(third + third + third == 1);
     math::rational sum;
-    for (auto k : range(1, 11)) {
+    for (int k : range(1, 11)) {
         sum += math::rational(1, k);
     }
     println("{} = {}", sum.to_string(), sum.to_decimal(6));
 
     // 0.1 as a double is not a tenth; as text it is
     println(math::rational(0.1).to_string());
-    math::rational tenth("0.1");                               // a literal: constructed
+    math::rational tenth("0.1");  // a literal: constructed
     println("{} {}", tenth.to_string(), math::rational(0.1) == tenth);
 
     // Rounded once, from the exact value
     println("{:.3f} {} {}", math::rational(-1, 8), (third * 2).to_double(), third.pow(-2));
 
-    auto bad = math::rational::parse("3/0");                   // text that may be wrong: parsed
+    auto bad = math::rational::parse("3/0");  // text that may be wrong: parsed
     println(bad.error().message());
 }
 ```
@@ -141,4 +159,8 @@ a denominator of zero at byte 2
 
 ## See also
 
-[`big_integer`](big_integer.md), the parts and `parse_error`; [`txt::format`](../txt/format.md); the module's [README](README.md), with the table of SGCL against Go.
+- [big_integer](big_integer.md): the parts, and the whole numbers a fraction takes
+- [parse_error](parse_error.md): why a text is not a fraction
+- [txt::format](../txt/format.md): `{}` and `{:.5f}` of a fraction
+- [Benchmarks: rational](benchmarks.md#rational)
+- [README: math](README.md)

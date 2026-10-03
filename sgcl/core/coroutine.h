@@ -76,7 +76,11 @@ namespace sgcl {
     // buffer, as a container's pointer does; the handle's address is four
     // words further (detail::handle_of).
     struct managed_frame {
-        static void* operator new(size_t size) {
+        // One word of the frame's buffer: what `self` points at, and the
+        // type the library's queues and waiters hold a frame by
+        using word = detail::FrameWord;
+
+        static void* operator new(size_t size) noexcept {
             auto words = (size + sizeof(detail::FrameWord) - 1) / sizeof(detail::FrameWord);
             return detail::Maker<detail::FrameWord[]>::make_tracked_data(words + detail::FrameHeaderWords).release() + detail::FrameHeaderWords;
         }
@@ -88,7 +92,7 @@ namespace sgcl {
             }
         }
 
-        tracked_ptr<detail::FrameWord> self;
+        tracked_ptr<word> self;
     };
 
     namespace detail {
@@ -118,7 +122,7 @@ namespace sgcl {
 
         frame_ptr() noexcept = default;
 
-        explicit frame_ptr(handle_type h)
+        explicit frame_ptr(handle_type h) noexcept
         : _frame(_take(detail::frame_of_handle(h.address())))
         , _handle(h) {
             h.promise().self = _frame.ptr();
@@ -141,7 +145,7 @@ namespace sgcl {
         frame_ptr(const frame_ptr&) = delete;
         frame_ptr& operator=(const frame_ptr&) = delete;
 
-        ~frame_ptr() {
+        ~frame_ptr() noexcept {
             destroy();
         }
 
@@ -155,7 +159,7 @@ namespace sgcl {
             return _handle;
         }
 
-        Promise& promise() const {
+        Promise& promise() const noexcept {
             return _handle.promise();
         }
 
@@ -189,7 +193,7 @@ namespace sgcl {
         // The frame, from the state operator new left it in (owned by a
         // unique_ptr) to a tracked one: the same path a container's buffer
         // takes (vector.h: _allocate)
-        static tracked_ptr<detail::FrameWord> _take(detail::FrameWord* frame) {
+        static tracked_ptr<detail::FrameWord> _take(detail::FrameWord* frame) noexcept {
             return unique_ptr<detail::FrameWord>(detail::UniquePtr<detail::FrameWord>(frame));
         }
 

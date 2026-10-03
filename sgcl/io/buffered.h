@@ -24,8 +24,9 @@ namespace sgcl::io {
     // config::io_buffer_size of them on a page; the buffered reader hands out lines
     // and prefixes as slices of that block (slice.h): nothing allocated
     // per line, and the slice holds the block, so a line kept past the
-    // next read stays valid — on the old block, which the reader has let
-    // go of by then, alive for as long as the slice is.
+    // next read is never freed memory; but the reader reuses the block
+    // for the next lines, so its characters are those of a later line by
+    // then: a line kept across reads is copied first (`string(line)`).
 
     namespace detail {
         // A buffered reader's state with its block in unmanaged memory (below)
@@ -45,7 +46,9 @@ namespace sgcl::io {
     // assembled in a vector the reader owns, and the slice is of that
     // vector's buffer, held likewise; set_max_line bounds it (none by
     // default: a file is trusted; a reader over a socket sets one), a
-    // longer line being errc::line_too_long. The line comes without its
+    // longer line being errc::line_too_long, skipped whole: the next read
+    // starts after its delimiter, which the reader reads on to, dropping
+    // what it reads, when it has not come yet. The line comes without its
     // "\n" (and "\r\n"); read_until's token keeps its delimiter, as Go's
     // ReadString does, so that "a,b," is told from "a,b"; the last token
     // of a stream that does not end in one is a token too (without it);
@@ -57,7 +60,7 @@ namespace sgcl::io {
     namespace detail {
     class BufferedReaderState final {
     public:
-        explicit BufferedReaderState(const io::reader& r)
+        explicit BufferedReaderState(const io::reader& r) noexcept
         : _reader(r), _block(make_tracked<detail::IoBlock>()), _data(_block->data()) {
         }
 
@@ -65,7 +68,7 @@ namespace sgcl::io {
         // that copies each token out before the next read and hands no
         // slice on (a connection's read_line, net/connection.h): the slices
         // it returns hold nothing, and are the caller's to drop in time
-        BufferedReaderState(const io::reader& r, detail::UnmanagedBlock)
+        BufferedReaderState(const io::reader& r, detail::UnmanagedBlock) noexcept
         : _reader(r), _unmanaged(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _data(_unmanaged.get()) {
         }
 
@@ -94,7 +97,7 @@ namespace sgcl::io {
             return _take(out);
         }
 
-        async::task<expected<size_t, error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, error>> async_read(slice<byte> out) noexcept {
             if (out.empty()) {
                 co_return 0;
             }
@@ -118,7 +121,7 @@ namespace sgcl::io {
             return _block_read_until(delimiter, true);
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) {
+        async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) noexcept {
             return _co_read_until(delimiter, true);
         }
 
@@ -127,7 +130,7 @@ namespace sgcl::io {
             return _block_read_line();
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_line() {
+        async::task<expected<optional<slice<const char>>, error>> async_read_line() noexcept {
             return _co_read_line();
         }
 
@@ -186,7 +189,7 @@ namespace sgcl::io {
         }
 
         // The longest line read_line, read_until and lines accept, in
-        // bytes; 0 for no bound
+        // bytes; 0 for no bound. A longer one is line_too_long, skipped
         void set_max_line(size_t n) noexcept {
             _max_line = n;
         }
@@ -198,7 +201,7 @@ namespace sgcl::io {
         // The lines of the stream as a range: `for (auto line : r.lines())`;
         // the generator ends at the end of the stream or on an error, which
         // last_error() holds afterwards (Scanner.Err())
-        generator<slice<const char>> lines() {
+        generator<slice<const char>> lines() noexcept {
             _error = nullopt;
             for (;;) {
                 auto r = _block_read_line();
@@ -214,7 +217,7 @@ namespace sgcl::io {
         }
 
         // The same for a task: `while (auto line = co_await g.next())`
-        async::generator<slice<const char>> async_lines() {
+        async::generator<slice<const char>> async_lines() noexcept {
             _error = nullopt;
             for (;;) {
                 auto r = co_await _co_read_line();
@@ -246,7 +249,7 @@ namespace sgcl::io {
             return _reader.close();
         }
 
-        async::task<expected<void, error>> async_close() {
+        async::task<expected<void, error>> async_close() noexcept {
             _drop();
             return _reader.async_close();
         }
@@ -267,7 +270,7 @@ namespace sgcl::io {
             return r;
         }
 
-        async::task<expected<size_t, error>> _async_fill() {
+        async::task<expected<size_t, error>> _async_fill() noexcept {
             _begin = _end = 0;
             auto r = co_await _reader.async_read(_block_room(0));
             if (r) {
@@ -278,7 +281,7 @@ namespace sgcl::io {
 
         // A read into the room behind the unread bytes, which are moved
         // to the front first; a full block is spilled into _long
-        void _make_room() {
+        void _make_room() noexcept {
             if (_end == config::io_buffer_size) {
                 if (_begin == 0) {
                     _long.insert(_long.end(), _data, _data + _end);
@@ -300,7 +303,7 @@ namespace sgcl::io {
             return r;
         }
 
-        async::task<expected<size_t, error>> _async_fill_tail() {
+        async::task<expected<size_t, error>> _async_fill_tail() noexcept {
             _make_room();
             auto r = co_await _reader.async_read(_block_room(_end));
             if (r) {
@@ -337,8 +340,9 @@ namespace sgcl::io {
 
         // The delimiter searched for among the unread bytes: the token
         // consumed (with what _long holds before it; with the delimiter
-        // when `keep`), or nullopt to read more, or line_too_long
-        expected<optional<slice<const char>>, error> _find(char delimiter, bool keep) {
+        // when `keep`), or nullopt to read more, or line_too_long for a
+        // token past the bound, consumed with its delimiter
+        expected<optional<slice<const char>>, error> _find(char delimiter, bool keep) noexcept {
             auto first = _data + _begin;
             auto last = _data + _end;
             auto p = static_cast<const byte*>(std::memchr(first, delimiter, last - first));
@@ -357,14 +361,61 @@ namespace sgcl::io {
                 }
                 return optional<slice<const char>>(_long_text());
             }
-            if (_max_line && _long.size() + buffered() > _max_line) {
-                return detail::fail(error(errc::line_too_long, "read_line"));
-            }
             return optional<slice<const char>>();
         }
 
+        // Whether the token so far, its delimiter not found yet, is past
+        // the bound already
+        bool _past_max_line() const noexcept {
+            return _max_line && _long.size() + buffered() > _max_line;
+        }
+
+        // The unread bytes up to the delimiter dropped, and it with them:
+        // true when it was there
+        bool _skip_to(char delimiter) noexcept {
+            auto first = _data + _begin;
+            auto p = static_cast<const byte*>(std::memchr(first, delimiter, _end - _begin));
+            if (p) {
+                _begin += (p - first) + 1;
+                return true;
+            }
+            _begin = _end;
+            return false;
+        }
+
+        // A token past the bound whose delimiter is not buffered: what is
+        // buffered dropped, and the stream read on, its bytes dropped too,
+        // to the delimiter (or to the end of the stream), so that the next
+        // read starts after the token; then line_too_long, or the error of
+        // a read on the way
+        expected<optional<slice<const char>>, error> _block_skip_token(char delimiter) {
+            _drop();
+            for (;;) {
+                auto r = _fill();
+                if (!r) {
+                    return detail::fail(r);
+                }
+                if (*r == 0 || _skip_to(delimiter)) {
+                    return detail::fail(error(errc::line_too_long, "read_line"));
+                }
+            }
+        }
+
+        async::task<expected<optional<slice<const char>>, error>> _co_skip_token(char delimiter) noexcept {
+            _drop();
+            for (;;) {
+                auto r = co_await _async_fill();
+                if (!r) {
+                    co_return detail::fail(r);
+                }
+                if (*r == 0 || _skip_to(delimiter)) {
+                    co_return detail::fail(error(errc::line_too_long, "read_line"));
+                }
+            }
+        }
+
         // The end of the stream: what remains is the last token, or nothing
-        optional<slice<const char>> _rest() {
+        optional<slice<const char>> _rest() noexcept {
             if (_long.empty()) {
                 if (buffered() == 0) {
                     return nullopt;
@@ -379,7 +430,7 @@ namespace sgcl::io {
         }
 
         // A token up to '\n', the '\n' left out, as a line: without its '\r'
-        static expected<optional<slice<const char>>, error> _line(expected<optional<slice<const char>>, error> r) {
+        static expected<optional<slice<const char>>, error> _line(expected<optional<slice<const char>>, error> r) noexcept {
             if (r && *r && !(*r)->empty() && (*r)->back() == '\r') {
                 (*r)->remove_suffix(1);
             }
@@ -406,6 +457,9 @@ namespace sgcl::io {
                 if (*found) {
                     return **found;
                 }
+                if (_past_max_line()) {
+                    return _block_skip_token(delimiter);
+                }
                 auto r = _fill_tail();
                 if (!r) {
                     return detail::fail(r);
@@ -416,7 +470,7 @@ namespace sgcl::io {
             }
         }
 
-        async::task<expected<optional<slice<const char>>, error>> _co_read_until(char delimiter, bool keep)  {
+        async::task<expected<optional<slice<const char>>, error>> _co_read_until(char delimiter, bool keep) noexcept {
             _long.clear();
             for (;;) {
                 auto found = _find(delimiter, keep);
@@ -425,6 +479,9 @@ namespace sgcl::io {
                 }
                 if (*found) {
                     co_return **found;
+                }
+                if (_past_max_line()) {
+                    co_return co_await _co_skip_token(delimiter);
                 }
                 auto r = co_await _async_fill_tail();
                 if (!r) {
@@ -440,7 +497,7 @@ namespace sgcl::io {
             return _line(_block_read_until('\n', false));
         }
 
-        async::task<expected<optional<slice<const char>>, error>> _co_read_line()  {
+        async::task<expected<optional<slice<const char>>, error>> _co_read_line() noexcept {
             co_return _line(co_await _co_read_until('\n', false));
         }
     };
@@ -458,7 +515,7 @@ namespace sgcl::io {
     public:
         buffered_reader() noexcept = default;
 
-        explicit buffered_reader(const io::reader& r)
+        explicit buffered_reader(const io::reader& r) noexcept
         : _state(make_tracked<detail::BufferedReaderState>(r)) {
         }
 
@@ -466,7 +523,7 @@ namespace sgcl::io {
             return _get().read(out);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const {
+        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept {
             return _get().async_read(out);
         }
 
@@ -475,7 +532,7 @@ namespace sgcl::io {
             return _get().read_until(delimiter);
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) const {
+        async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) const noexcept {
             return _get().async_read_until(delimiter);
         }
 
@@ -484,7 +541,7 @@ namespace sgcl::io {
             return _get().read_line();
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_line() const {
+        async::task<expected<optional<slice<const char>>, error>> async_read_line() const noexcept {
             return _get().async_read_line();
         }
 
@@ -509,7 +566,7 @@ namespace sgcl::io {
         }
 
         // The longest line read_line, read_until and lines accept, in
-        // bytes; 0 for no bound
+        // bytes; 0 for no bound. A longer one is line_too_long, skipped
         void set_max_line(size_t n) const noexcept {
             _get().set_max_line(n);
         }
@@ -521,12 +578,12 @@ namespace sgcl::io {
         // The lines of the stream as a range: `for (auto line : r.lines())`;
         // the generator ends at the end of the stream or on an error, which
         // last_error() holds afterwards (Scanner.Err())
-        generator<slice<const char>> lines() const {
+        generator<slice<const char>> lines() const noexcept {
             return _get().lines();
         }
 
         // The same for a task: `while (auto line = co_await g.next())`
-        async::generator<slice<const char>> async_lines() const {
+        async::generator<slice<const char>> async_lines() const noexcept {
             return _get().async_lines();
         }
 
@@ -544,7 +601,7 @@ namespace sgcl::io {
             return _get().close();
         }
 
-        async::task<expected<void, error>> async_close() const {
+        async::task<expected<void, error>> async_close() const noexcept {
             return _get().async_close();
         }
 
@@ -616,7 +673,7 @@ namespace sgcl::io {
     namespace detail {
     class BufferedWriterState final {
     public:
-        explicit BufferedWriterState(const io::writer& w)
+        explicit BufferedWriterState(const io::writer& w) noexcept
         : _writer(w), _plain(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _data(_plain.get()) {
         }
 
@@ -654,7 +711,7 @@ namespace sgcl::io {
             return data.size();
         }
 
-        async::task<expected<size_t, error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept {
             if (auto e = _check()) {
                 co_return detail::fail(*e);
             }
@@ -688,7 +745,7 @@ namespace sgcl::io {
             return _block_flush();
         }
 
-        async::task<expected<void, error>> async_flush() {
+        async::task<expected<void, error>> async_flush() noexcept {
             return _co_flush();
         }
 
@@ -707,7 +764,7 @@ namespace sgcl::io {
             return _kept();
         }
 
-        async::task<expected<void, error>> async_close() {
+        async::task<expected<void, error>> async_close() noexcept {
             if (_closed) {
                 co_return _kept();
             }
@@ -753,7 +810,7 @@ namespace sgcl::io {
         optional<error> _error;                    // the first error given, kept
 
         // the kept error, or a write after close kept as one: what a write gives at once
-        optional<error> _check() {
+        optional<error> _check() noexcept {
             if (_error) {
                 return _error;
             }
@@ -764,14 +821,14 @@ namespace sgcl::io {
         }
 
         // e kept, unless a failure is kept already; the one kept
-        const error& _failed(const error& e) {
+        const error& _failed(const error& e) noexcept {
             if (!_error) {
                 _error = e;
             }
             return *_error;
         }
 
-        expected<void, error> _kept() const {
+        expected<void, error> _kept() const noexcept {
             if (_error) {
                 return detail::fail(*_error);
             }
@@ -780,7 +837,7 @@ namespace sgcl::io {
 
         // The block moved into managed memory, the bytes in it kept: a
         // task's write is given a slice that holds it
-        void _to_managed() {
+        void _to_managed() noexcept {
             if (!_managed) {
                 _managed = make_tracked<detail::IoBlock>();
                 sgcl::detail::copy_bytes(_managed->data(), _data, _size);
@@ -804,7 +861,7 @@ namespace sgcl::io {
             return {};
         }
 
-        async::task<expected<void, error>> _co_flush()  {
+        async::task<expected<void, error>> _co_flush() noexcept {
             if (_error) {
                 co_return detail::fail(*_error);
             }
@@ -835,7 +892,7 @@ namespace sgcl::io {
 
         buffered_writer() noexcept = default;
 
-        explicit buffered_writer(const io::writer& w)
+        explicit buffered_writer(const io::writer& w) noexcept
         : _state(make_tracked<detail::BufferedWriterState>(w)) {
         }
 
@@ -843,7 +900,7 @@ namespace sgcl::io {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const {
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
             return _get().async_write(data);
         }
 
@@ -852,7 +909,7 @@ namespace sgcl::io {
             return _get().flush();
         }
 
-        async::task<expected<void, error>> async_flush() const {
+        async::task<expected<void, error>> async_flush() const noexcept {
             return _get().async_flush();
         }
 
@@ -863,7 +920,7 @@ namespace sgcl::io {
             return _get().close();
         }
 
-        async::task<expected<void, error>> async_close() const {
+        async::task<expected<void, error>> async_close() const noexcept {
             return _get().async_close();
         }
 

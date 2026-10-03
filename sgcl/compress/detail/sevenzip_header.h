@@ -133,14 +133,14 @@ namespace sgcl::compress::detail {
                 return _n - _at;
             }
 
-            bool fail(errc code, const char* text) {
+            bool fail(errc code, const char* text) noexcept {
                 if (!_error) {
                     _error = error(code, _origin + _at, string(text));
                 }
                 return false;
             }
 
-            bool byte(uint8_t& v) {
+            bool byte(uint8_t& v) noexcept {
                 if (_at >= _n) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -150,7 +150,7 @@ namespace sgcl::compress::detail {
 
             // A number: the leading 1 bits of its first byte count the
             // bytes after it (little-endian), the rest of it is the top
-            bool number(uint64_t& v) {
+            bool number(uint64_t& v) noexcept {
                 uint8_t first;
                 if (!byte(first)) {
                     return false;
@@ -172,7 +172,7 @@ namespace sgcl::compress::detail {
             }
 
             // A count of things of at least `each` bytes: no more than the header can hold
-            bool count(uint64_t& v, size_t each, uint64_t max) {
+            bool count(uint64_t& v, size_t each, uint64_t max) noexcept {
                 if (!number(v)) {
                     return false;
                 }
@@ -182,7 +182,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool u32(uint32_t& v) {
+            bool u32(uint32_t& v) noexcept {
                 if (left() < 4) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -191,7 +191,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool u64(uint64_t& v) {
+            bool u64(uint64_t& v) noexcept {
                 uint32_t a, b;
                 if (!u32(a) || !u32(b)) {
                     return false;
@@ -200,7 +200,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool skip(uint64_t n) {
+            bool skip(uint64_t n) noexcept {
                 if (n > left()) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -208,7 +208,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool expect(uint8_t id) {
+            bool expect(uint8_t id) noexcept {
                 uint8_t b;
                 if (!byte(b)) {
                     return false;
@@ -217,7 +217,7 @@ namespace sgcl::compress::detail {
             }
 
             // n bits, the first in the top bit of the first byte
-            bool bits(size_t n, std::vector<uint8_t>& out) {
+            bool bits(size_t n, std::vector<uint8_t>& out) noexcept {
                 if ((n + 7) / 8 > left()) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -230,7 +230,7 @@ namespace sgcl::compress::detail {
             }
 
             // A byte saying all are there, or a vector of which are
-            bool defined(size_t n, std::vector<uint8_t>& out) {
+            bool defined(size_t n, std::vector<uint8_t>& out) noexcept {
                 uint8_t all;
                 if (!byte(all)) {
                     return false;
@@ -242,7 +242,7 @@ namespace sgcl::compress::detail {
                 return bits(n, out);
             }
 
-            bool digests(size_t n, std::vector<uint8_t>& has, std::vector<uint32_t>& crc) {
+            bool digests(size_t n, std::vector<uint8_t>& has, std::vector<uint32_t>& crc) noexcept {
                 if (!defined(n, has)) {
                     return false;
                 }
@@ -255,7 +255,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool streams(Streams& s) {
+            bool streams(Streams& s) noexcept {
                 uint8_t id;
                 if (!byte(id)) {
                     return false;
@@ -282,7 +282,7 @@ namespace sgcl::compress::detail {
                 return _assign_packs(s);
             }
 
-            bool files(const Streams& s, std::vector<File>& files) {
+            bool files(const Streams& s, std::vector<File>& files) noexcept {
                 uint64_t n;
                 if (!number(n)) {
                     return false;
@@ -387,7 +387,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            bool _pack_info(Streams& s) {
+            bool _pack_info(Streams& s) noexcept {
                 uint64_t n;
                 if (!number(s.pack_pos) || !count(n, 1, MaxStreams * 4096)) {
                     return false;
@@ -419,7 +419,7 @@ namespace sgcl::compress::detail {
                 }
             }
 
-            bool _folder(Folder& f) {
+            bool _folder(Folder& f) noexcept {
                 uint64_t n;
                 if (!count(n, 2, MaxCoders)) {
                     return false;
@@ -518,7 +518,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool _unpack_info(Streams& s) {
+            bool _unpack_info(Streams& s) noexcept {
                 uint64_t n;
                 uint8_t external;
                 if (!expect(kFolder) || !count(n, 3, UINT64_MAX) || !byte(external)) {
@@ -568,7 +568,7 @@ namespace sgcl::compress::detail {
             }
 
             // One substream per folder, the folder's size and CRC
-            void _default_substreams(Streams& s) {
+            void _default_substreams(Streams& s) noexcept {
                 s.sub_sizes.clear();
                 s.sub_has_crc.clear();
                 s.sub_crc.clear();
@@ -580,7 +580,7 @@ namespace sgcl::compress::detail {
                 }
             }
 
-            bool _substreams(Streams& s) {
+            bool _substreams(Streams& s) noexcept {
                 uint8_t id;
                 if (!byte(id)) {
                     return false;
@@ -672,7 +672,7 @@ namespace sgcl::compress::detail {
             }
 
             // Every folder's first packed stream, and where each stream lies
-            bool _assign_packs(Streams& s) {
+            bool _assign_packs(Streams& s) noexcept {
                 size_t next = 0;
                 for (auto& f : s.folders) {
                     f.first_pack = next;
@@ -696,7 +696,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool _names(std::vector<File>& files, size_t end) {
+            bool _names(std::vector<File>& files, size_t end) noexcept {
                 uint8_t external;
                 if (!byte(external)) {
                     return false;
@@ -729,7 +729,7 @@ namespace sgcl::compress::detail {
         };
 
         // UTF-16LE to UTF-8; nullopt for a surrogate without its pair
-        inline optional<std::string> utf16_to_utf8(const std::u16string& s) {
+        inline optional<std::string> utf16_to_utf8(const std::u16string& s) noexcept {
             std::string out;
             out.reserve(s.size());
             for (size_t i = 0; i < s.size(); ++i) {

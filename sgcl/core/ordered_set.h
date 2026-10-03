@@ -10,14 +10,14 @@
 
 namespace sgcl {
     // A hash set iterated in insertion order: Java's LinkedHashSet. The
-    // interface of ordered_set over the same table (detail/hash_table.h),
+    // interface of set over the same table (detail/hash_table.h),
     // with the elements on one more list in the order they were
     // inserted: begin to end walks it, both ways (bidirectional
     // iterators, rbegin), front is the oldest element and back the
     // newest, a copy keeps the order, an erase takes an element out of
     // it, a re-insert of a present element leaves it where it was;
     // to_back and to_front move an element to the end (the start) of the
-    // order. Two words more per node than ordered_set. The set and its
+    // order. Two words more per node than set. The set and its
     // node handles hold tracked pointers: they live on a stack or inside
     // a managed object; an iterator is one raw node pointer and may live
     // anywhere, invalid once its element is erased, as in std.
@@ -27,6 +27,9 @@ namespace sgcl {
     , public mixin::enumerable<ordered_set<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true, true>>;
 
+        static_assert(detail::nothrow_function_object<Hash, const Key&>, "sgcl::ordered_set: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::ordered_set: KeyEqual must be noexcept");
+
     public:
         using key_type = Key;
         using value_type = typename Base::value_type;
@@ -35,6 +38,8 @@ namespace sgcl {
         using const_iterator = typename Base::const_iterator;
         using reverse_iterator = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+        using typename Base::insert_return_type;
 
         using Base::Base;
 

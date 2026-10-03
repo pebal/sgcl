@@ -1,115 +1,127 @@
+[sgcl](../README.md) › [io](README.md)
+
 # sgcl::io::error
 
 ```cpp
-#include "sgcl/io/error.h"   // or "sgcl/io/io.h"
+#include "sgcl/io/error.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    enum class errc;                                      // the module's own codes, one std::error_category
-    const std::error_category& category() noexcept;
-    error_code make_error_code(errc e) noexcept;
-    class error;                                          // code, operation, path
-    error last_error(const string& op, const string& path = {}) noexcept;   // from errno
+    class error;
 }
 ```
 
-What an operation of io reports when it fails, and the shape every operation returns. `error` is a value: the `error_code` (`errno` in the system category, or an `errc` of the module in its own), the operation (`"open"`, `"read"`, `"mkdir"`) and the path or the name of the stream it was on, so that `message()` reads `open log.txt: no such file or directory`, as Go's `*PathError`. The predicates ask the question a caller asks, whatever the category of the code. Every operation returns [`expected<T, error>`](../core/expected.md): the value, or the error; `expected<void, error>` for an operation that returns nothing. The end of a stream is not an error (a read returns 0); only `read_full`, which was promised more, reports `errc::unexpected_eof`.
+`sgcl::io::error` is what an operation of io reports when it fails: the `error_code` (`errno` in the system category,
+or an [errc](errc.md) of the module in its own, [category](category.md)), the operation (`"open"`, `"read"`,
+`"mkdir"`) and the path or the name of the stream it was on, so that [message](error/message.md) reads `open
+log.txt: No such file or directory`, as Go's `*PathError`. The predicates (`is_not_found`, `is_permission`, ...)
+ask the question a caller asks, whatever the category of the code. It is a value: copied, compared by code, held in
+an `expected`.
+
+Every operation of the module returns an [expected](../core/expected.md)`<T, error>`: the value, or the error;
+`expected<void, error>` for an operation that returns nothing. There is no alias: it is the same `expected<T, E>` as
+the whole library's, whose `E` is the error of the call. It is tested with `if (r)`, read with `*r` and `r->`, its
+error with `r.error()`, and passed on in two lines, as Go's three: `if (!r) return unexpected(r.error());`, or a
+chain of `and_then`. The end of a stream is not an error (a read returns 0); only a read that was promised more,
+[read_full](read_full.md) ending part way, reports `errc::unexpected_eof`, with the bytes it got as the error's
+[count](error/count.md).
+
+What differs from `std`: `std::filesystem` throws a `filesystem_error` with the code and the paths, or fills an
+`error_code` given by reference, which carries no path; the error here is the code, the operation and the path in
+one value, returned. A missing file, a reset connection or a full disk is an outcome the code handles where it
+occurs, which a return value states and an exception hides; and in a server a `throw` per dropped connection, a
+microsecond and a lock on the unwinder each, would be the most expensive path of the program.
 
 ## Rules
 
-- An `error` holds two [`string`](../core/string.md)s, so it lives where a `tracked_ptr` may: on a stack, in a managed object, in an `expected` on either. Copied freely, compared by code.
-- Nothing in the module throws; `r.value()` on a failed result throws `bad_expected_access<error>` with the error inside, for the code that wants exceptions.
-- An `error_code` (`sgcl::error_code`, the standard's under the library's name) compares by category as well as value: `e.code() == std::errc::no_such_file_or_directory` (the condition) is the portable test, not `== std::make_error_code(...)`; the predicates do that.
+- An error holds two [string](../core/string.md)s, so it lives where a `tracked_ptr` may: on a stack, in a managed
+  object, in an `expected` on either ([The rules](../core/README.md#the-rules), 1). It is copied freely.
+- Nothing in the module throws its errors: `r.value()` on a failed result throws
+  [bad_expected_access](../core/bad_expected_access.md)`<error>` with the error inside, whose `what()` is the
+  error's message, for the code that wants exceptions.
+- An `error_code` (`sgcl::error_code`, the standard's under the library's name) compares by category as well as
+  value: `e.code() == std::errc::no_such_file_or_directory`, a comparison with the condition, is the portable test,
+  where `== std::make_error_code(...)` compares with the generic category and misses a code of the system one. The
+  predicates do that.
 
-## Members
+## Member functions
 
-### errc
+| Function | Description |
+|---|---|
+| [(constructor)](error/error.md) | constructs an error of a code, an operation, a path and a count |
+| `(destructor)` | drops the two strings |
+| `operator=` | copies or moves another error |
 
-```cpp
-enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long, not_found, exit_status, process_done, wait_delay, unsupported, insecure_path, invalid_argument, help_requested };
-```
+#### Observers
 
-The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given; and, of a child process ([exec](exec.md)), no executable of the name in PATH (`not_found`), a failure status (`exit_status`), a second wait or a signal after the wait (`process_done`), the copying tasks outlasting `wait_delay` (`wait_delay`); and a wait on a descriptor whose number is past the reactor's table, four million numbers (`unsupported`: an operation that would wait fails rather than tries again forever); a name that would leave its directory once joined to it ([`path::under`](path.md), `insecure_path`); and of [flags](flags.md), a command line the flags do not take (`invalid_argument`, "invalid command line", with Go's message as the path) and `-h` (`help_requested`, "help requested": the message is `flag: help requested`, Go's `flag.ErrHelp`). `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
+| Function | Description |
+|---|---|
+| [code](error/code.md) | the `error_code`: `errno` in the system category, or an `errc` |
+| [op](error/op.md) | the operation that failed |
+| [path](error/path.md) | the path or the stream it was on |
+| [count](error/count.md) | the bytes done before the failure: what `read_full` read before the end |
+| [message](error/message.md) | the text: the operation, the path and what the code says |
 
-### error
+#### Predicates
 
-```cpp
-error();
-error(error_code code, const string& op, const string& path = {});
-error(errc e, const string& op, const string& path = {});
-error_code code() const noexcept;
-const string& op() const noexcept;
-const string& path() const noexcept;
-string message() const;                       // "op path: what the code says"
-bool is_not_found() const noexcept;           // ENOENT, errc::not_found (look_path)
-bool is_exists() const noexcept;              // EEXIST
-bool is_permission() const noexcept;          // EACCES, EPERM
-bool is_closed() const noexcept;              // errc::closed, EBADF
-bool is_eof() const noexcept;                 // errc::unexpected_eof
-bool is_interrupted() const noexcept;         // EINTR
-bool is_timeout() const noexcept;             // ETIMEDOUT, EAGAIN, EWOULDBLOCK
-bool is_exit_status() const noexcept;         // errc::exit_status: a child ended with a failure status (exec.md)
-friend bool operator==(const error&, const error&) noexcept;   // by code
-```
+| Function | Description |
+|---|---|
+| [is_not_found](error/is_not_found.md) | checks whether nothing is at the path (`ENOENT`, `errc::not_found`) |
+| [is_exists](error/is_exists.md) | checks whether something is at the path already (`EEXIST`) |
+| [is_permission](error/is_permission.md) | checks whether the operation was not permitted (`EACCES`, `EPERM`) |
+| [is_closed](error/is_closed.md) | checks whether the stream was closed (`errc::closed`, `EBADF`) |
+| [is_eof](error/is_eof.md) | checks whether the stream ended before what was required (`errc::unexpected_eof`) |
+| [is_interrupted](error/is_interrupted.md) | checks whether a signal interrupted the call (`EINTR`) |
+| [is_timeout](error/is_timeout.md) | checks whether the operation ran out of time (`ETIMEDOUT`, `EAGAIN`, `EWOULDBLOCK`) |
+| [is_exit_status](error/is_exit_status.md) | checks whether a child process ended with a failure status (`errc::exit_status`) |
 
-```cpp
-auto config = io::open("config.toml");
-if (!config) {
-    if (config.error().is_not_found()) return defaults();
-    eprintln(config.error().message());   // open config.toml: permission denied
-    return {};
-}
-```
+## Non-member functions
 
-### expected<T, error>
-
-What every operation returns (no alias: the same `expected<T, E>` as the whole library's, whose `E` is the error of the call). The value or the error; tested with `if (r)`, read with `*r` / `r->`, the error with `r.error()`. Propagation is two lines, as Go's three: `if (!r) return unexpected(r.error());`, or a chain of `and_then`.
-
-```cpp
-expected<string, io::error> first_line(const string& path) {
-    auto opened = io::open(path);
-    if (!opened) return unexpected(opened.error());
-    io::buffered_reader lines(opened);
-    auto line = lines.read_line();
-    if (!line) return unexpected(line.error());
-    return *line ? string(**line) : string();   // a copy: the line is the reader's memory
-}
-```
-
-### last_error
-
-```cpp
-error last_error(const string& op, const string& path = {}) noexcept;
-```
-
-`error(error_code(errno, std::system_category()), op, path)`: what a stream of your own returns after a system call failed.
+| Function | Description |
+|---|---|
+| [operator==](error/operator_cmp.md) | compares two errors by their codes |
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-int main() {
-    auto hosts = io::read_text("/etc/hosts");
-    if (!hosts) {
-        eprintln(hosts.error().message());
-        return hosts.error().is_permission() ? 2 : 1;
+expected<string, io::error> first_line(const string& path) {
+    auto opened = io::open(path);
+    if (!opened) {
+        return unexpected(opened.error());
     }
-    println("{} bytes", hosts->size());
-    auto bad = io::open("/nonexistent/file");
-    println("{}: not found? {}", bad.error().message(), bad.error().is_not_found());
+    io::buffered_reader lines(opened);
+    auto line = lines.read_line();
+    if (!line) {
+        return unexpected(line.error());
+    }
+    return *line ? string(**line) : string();  // a copy: the line is the reader's memory
+}
+
+int main() {
+    io::write_file("notes.txt", "first\nsecond\n");
+    println("{}", *first_line("notes.txt"));
+
+    auto missing = first_line("missing.txt");
+    if (!missing) {
+        println("{}; not found: {}", missing.error().message(), missing.error().is_not_found());
+    }
 }
 ```
 
-Sample output:
+Output:
 
 ```text
-213 bytes
-open /nonexistent/file: No such file or directory: not found? true
+first
+open missing.txt: No such file or directory; not found: true
 ```
 
 ## See also
 
-- [expected](../core/expected.md): what every operation returns; [file](file.md), [fs](fs.md): the operations that return one
-- `tests/io/stream.cpp`: `ErrorCarriesOpPathAndCode`.
+- [errc](errc.md): the module's own codes
+- [last_error](last_error.md): an error from `errno`
+- [expected](../core/expected.md), [bad_expected_access](../core/bad_expected_access.md): the result, the exception
+  of `value()`
+- [file](file.md), [stat](stat.md): operations that return one

@@ -51,7 +51,11 @@ namespace sgcl::txt::detail {
             if (p.empty()) {
                 return from <= text.size() ? from : std::string_view::npos;
             }
-            if (p.size() > text.size()) {
+            // A start past the last one that holds the pattern finds
+            // nothing: asked as a difference, since `from + p.size()`
+            // wraps round for a start near npos and the loop would begin
+            // again at the front of the text
+            if (p.size() > text.size() || from > text.size() - p.size()) {
                 return std::string_view::npos;
             }
             // One byte is not a job for a skip table: the loop below

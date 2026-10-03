@@ -33,6 +33,7 @@
 namespace sgcl::async::detail {
     using namespace sgcl::detail;
     void enqueue(tracked_ptr<FrameWord> frame, bool next);   // scheduler.h: the coroutine made ready, to run next on this worker or later
+    void enqueue_quiet(tracked_ptr<FrameWord> frame, bool next) noexcept;   // scheduler.h: the same for a noexcept call; a start of the workers that fails is let go of, the frame queued for the next start
     bool on_worker() noexcept;                                                // scheduler.h: whether this thread is a worker
 
     struct ExecutorQueue;   // scheduler.h: the queue of an executor or a strand (executor.h)
@@ -208,10 +209,11 @@ namespace sgcl::async {
 
     // What becomes of an exception that a task let go of threw and nobody
     // reads: a task started by go(), detached, or whose object was dropped
-    // after it started (a task let go of, DESIGN 302). The handler is
-    // called with it once, on the thread that ends the task (a worker),
-    // that detaches a task already ended, or that destroys the object
-    // holding one (the collector's, for a task in a managed object); it
+    // after it started (a task let go of, DESIGN 302), and the function of
+    // go_blocking (blocking.h). The handler is called with it once, on the
+    // thread that ends the task (a worker), that detaches a task already
+    // ended, or that destroys the object holding one (the collector's, for
+    // a task in a managed object), or on the pool's thread that ran f; it
     // must not throw. The default writes one line to stderr (the type,
     // what(), where the task ended) and calls std::terminate, as an
     // unhandled panic of a goroutine ends a Go program; a handler of the
@@ -293,7 +295,7 @@ namespace sgcl::async {
                         c->done(c);
                         p.continuation_keep = nullptr;
                     } else if (was != Running) {
-                        enqueue(p.continuation_frame, true);
+                        enqueue_quiet(p.continuation_frame, true);   // the end of a task is noexcept and has nobody to tell: an awaiter that cannot start the workers (a task ended by hand, the scheduler stopped) is queued for the next start
                         p.continuation_frame = nullptr;   // not kept: a done task would hold its awaiter's frame (and, through the dead frame's words, what they point at) for as long as the task object lives
                     }
                     // A detached task destroys itself here: its locals and
@@ -371,9 +373,11 @@ namespace sgcl::async {
     // nobody waits for is let go of, go() (spawn and detach): its frame
     // lives while it is queued, waiting or running (the queue, the
     // channel's waiter or the worker hold it) and is the collector's once
-    // it is done. The task object destroys the coroutine when it goes,
-    // so a task spawned must be held or detached: spawn() is nodiscard,
-    // and go() is the spawn whose handle nobody keeps. The frame
+    // it is done. A task object that goes lets go of its task the same
+    // way (DESIGN 302): a started task runs on to its end, and only one
+    // that never started is destroyed with it. spawn() is nodiscard, since
+    // a handle dropped at once is a result nobody reads: go() is the spawn
+    // whose handle nobody keeps. The frame
     // is managed (managed_frame): the task's locals and parameters are
     // roots while it lives. Move-only, one word of frame and one of
     // handle. task<void> for a coroutine that returns nothing.
@@ -386,7 +390,7 @@ namespace sgcl::async {
         struct promise_type : detail::TaskPromiseBase {
             optional<T> value;
 
-            task get_return_object() {
+            task get_return_object() noexcept {
                 return task(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
@@ -394,7 +398,7 @@ namespace sgcl::async {
                 return {};
             }
 
-            void return_value(T v) {
+            void return_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 value.emplace(std::move(v));
             }
         };
@@ -407,8 +411,13 @@ namespace sgcl::async {
                 return _task.done();
             }
 
+            // Not noexcept: the start of a task nobody started may have to
+            // start the workers (the awaiter run by hand, the scheduler
+            // stopped), and a std::system_error then comes out of the
+            // co_await, in the awaiting task; the task started is queued
+            // already, and runs, let go of, at the next start
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) noexcept {
+            bool await_suspend(std::coroutine_handle<P> h) {
                 auto frame = detail::frame_of(h);
                 _task._start(detail::frame_header(frame.get()).executor);   // a task nobody started yet: on the scheduler now, where this one runs
                 return _task._frame.promise().await(h, std::move(frame));
@@ -451,8 +460,9 @@ namespace sgcl::async {
         }
 
         // On the scheduler: queued, run by a worker to its next suspension.
-        // Nodiscard: the task object destroys the coroutine when dropped;
-        // keep it, or go() the task instead
+        // Nodiscard: a handle dropped is a result nobody reads (the task
+        // runs on, let go of: DESIGN 302); keep it, or go() the task
+        // instead
         [[nodiscard]] task& spawn() {
             assert(_frame && !_frame.done() && "a task is spawned once, before it runs");
             [[maybe_unused]] bool first = _start();
@@ -460,8 +470,9 @@ namespace sgcl::async {
             return *this;
         }
 
-        // By hand, on this thread: to its next suspension
-        void resume() {
+        // By hand, on this thread: to its next suspension. Nothing the
+        // body throws leaves it: the promise keeps it for result()
+        void resume() noexcept {
             auto& p = _frame.promise();
             if (!p.started.load(std::memory_order_relaxed)) {   // its first run, by hand: the frame takes the resumer's header (its executor, its task-locals), as a task started on the scheduler does (_start), so that what it starts inherits them and its own waits bring it back where the resumer runs (task_group::go: the runner resumed by hand, the child started from it)
                 if (auto parent = detail::current_frame) {
@@ -523,6 +534,7 @@ namespace sgcl::async {
             _frame.destroy();
         }
 
+    private:
         // What the object's end and a move-assignment over it do (above)
         void _let_go() noexcept {
             if (_frame && _frame.promise().started.load(std::memory_order_acquire)) {
@@ -530,7 +542,6 @@ namespace sgcl::async {
             }
         }
 
-    private:
         // The wait of wait() and result(): the task started if nobody
         // started it, this thread blocked until its end
         void _wait() {
@@ -571,7 +582,7 @@ namespace sgcl::async {
             return _frame.promise();
         }
 
-        explicit task(std::coroutine_handle<promise_type> h)
+        explicit task(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 
@@ -582,7 +593,7 @@ namespace sgcl::async {
     class task<void> {
     public:
         struct promise_type : detail::TaskPromiseBase {
-            task get_return_object() {
+            task get_return_object() noexcept {
                 return task(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
@@ -600,8 +611,13 @@ namespace sgcl::async {
                 return _task.done();
             }
 
+            // Not noexcept: the start of a task nobody started may have to
+            // start the workers (the awaiter run by hand, the scheduler
+            // stopped), and a std::system_error then comes out of the
+            // co_await, in the awaiting task; the task started is queued
+            // already, and runs, let go of, at the next start
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) noexcept {
+            bool await_suspend(std::coroutine_handle<P> h) {
                 auto frame = detail::frame_of(h);
                 _task._start(detail::frame_header(frame.get()).executor);   // a task nobody started yet: on the scheduler now, where this one runs
                 return _task._frame.promise().await(h, std::move(frame));
@@ -650,7 +666,7 @@ namespace sgcl::async {
             return *this;
         }
 
-        void resume() {
+        void resume() noexcept {
             auto& p = _frame.promise();
             if (!p.started.load(std::memory_order_relaxed)) {   // its first run, by hand: the frame takes the resumer's header (task<T>::resume)
                 if (auto parent = detail::current_frame) {
@@ -703,6 +719,7 @@ namespace sgcl::async {
             _frame.destroy();
         }
 
+    private:
         // What the object's end and a move-assignment over it do (task<T>)
         void _let_go() noexcept {
             if (_frame && _frame.promise().started.load(std::memory_order_acquire)) {
@@ -710,7 +727,6 @@ namespace sgcl::async {
             }
         }
 
-    private:
         friend class executor;   // executor.h: its spawn and run_until start the task and await its promise
         friend class strand;
 
@@ -751,7 +767,7 @@ namespace sgcl::async {
             _frame.promise().wait();
         }
 
-        explicit task(std::coroutine_handle<promise_type> h)
+        explicit task(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 
@@ -759,7 +775,7 @@ namespace sgcl::async {
     };
 
     // The task put on the scheduler, for `auto t = spawn(f());`; nodiscard
-    // as the member (the task object dropped destroys the coroutine)
+    // as the member (a task object dropped lets the task run on unread)
     template<class T>
     [[nodiscard]] task<T> spawn(task<T> t) {
         (void)t.spawn();

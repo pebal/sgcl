@@ -30,7 +30,7 @@ namespace sgcl::net::http {
     namespace detail {
         // The client of net::http::download: one for the process, made at the
         // first download (Go's http.DefaultClient)
-        inline const client& default_client_instance() {
+        inline const client& default_client_instance() noexcept {
             static const rooted<client> shared(std::in_place);
             return *shared;
         }
@@ -39,7 +39,7 @@ namespace sgcl::net::http {
         // over path at the end: the bytes written, or the first error (the
         // part removed, the file at path as it was). The buffer is managed:
         // a file's write may run on the blocking pool
-        inline async::task<expected<uint64_t, io::error>> save_body(response r, string path) {
+        inline async::task<expected<uint64_t, io::error>> save_body(response r, string path) noexcept {
             const string part = string::concat(path, ".part");
             auto f = co_await io::async_create(part);
             if (!f) {
@@ -80,7 +80,7 @@ namespace sgcl::net::http {
         }
 
         // GET of url through the client, a 2xx saved to path
-        inline async::task<expected<response, io::error>> download(client c, string url, string path) {
+        inline async::task<expected<response, io::error>> download(client c, string url, string path) noexcept {
             auto r = co_await c.async_get(url);
             if (!r) {
                 co_return r;
@@ -103,7 +103,7 @@ namespace sgcl::net::http {
         return async_download(url, path).wait();
     }
 
-    inline async::task<expected<response, io::error>> client::async_download(string url, string path) const {
+    inline async::task<expected<response, io::error>> client::async_download(string url, string path) const noexcept {
         return detail::download(*this, std::move(url), std::move(path));
     }
 
@@ -116,7 +116,7 @@ namespace sgcl::net::http {
         return detail::default_client_instance().download(url, path);
     }
 
-    inline async::task<expected<response, io::error>> async_download(string url, string path) {
+    inline async::task<expected<response, io::error>> async_download(string url, string path) noexcept {
         return detail::default_client_instance().async_download(std::move(url), std::move(path));
     }
 
@@ -126,7 +126,7 @@ namespace sgcl::net::http {
         return async_json().wait();
     }
 
-    inline async::task<expected<encoding::json, io::error>> response::async_json() const {
+    inline async::task<expected<encoding::json, io::error>> response::async_json() const noexcept {
         auto text = co_await async_text();
         if (!text) {
             co_return unexpected(text.error());
@@ -144,7 +144,7 @@ namespace sgcl::net::http {
     }
 
     template<class T>
-    async::task<expected<T, io::error>> response::async_json() const {
+    async::task<expected<T, io::error>> response::async_json() const noexcept {
         auto text = co_await async_text();
         if (!text) {
             co_return unexpected(text.error());
@@ -160,7 +160,7 @@ namespace sgcl::net::http {
         return async_save(path).wait();
     }
 
-    inline async::task<expected<uint64_t, io::error>> response::async_save(string path) const {
+    inline async::task<expected<uint64_t, io::error>> response::async_save(string path) const noexcept {
         return detail::save_body(*this, std::move(path));
     }
 }

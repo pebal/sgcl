@@ -791,3 +791,17 @@ TEST(Posix_Tests, RandomTextIsReadOrRefusedAndNothingElse) {
     }
     EXPECT_GT(accepted, 100u);
 }
+
+// The constructors that take the library's own tag and data are the
+// library's: a program makes a zone and a datetime by the public ones
+TEST(Zone_Tests, TheLibrarysConstructorsAreNotPublic) {
+    EXPECT_FALSE((std::is_constructible_v<time::zone, time::detail::made_in_place, const time::detail::zone_data&>));
+    EXPECT_FALSE((std::is_constructible_v<time::datetime, time::detail::made_in_place, int64_t, const time::detail::zone_data&>));
+    auto warsaw = time::zone::load("Europe/Warsaw");   // the library still makes them
+    ASSERT_TRUE(warsaw);
+    EXPECT_EQ(warsaw->name(), "Europe/Warsaw");
+    auto parsed = time::datetime::parse("2026-10-02T12:00:00Z", time::rfc3339);
+    ASSERT_TRUE(parsed);
+    EXPECT_EQ(parsed->unix(), 1790942400);
+    EXPECT_EQ(time::zone::fixed(2 * hour).name(), "+02:00");
+}

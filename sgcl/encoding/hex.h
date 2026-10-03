@@ -117,7 +117,7 @@ namespace sgcl::encoding {
 
         // The first character that is not a digit is invalid_character at
         // its offset; an odd length is unexpected_end at the end
-        static expected<vector<byte>, error> decode(const string& text) {
+        static expected<vector<byte>, error> decode(const string& text) noexcept {
             return detail::decode_text(detail::HexLower, text);
         }
 
@@ -143,11 +143,26 @@ namespace sgcl::encoding {
             return detail::decode_to(detail::HexLower, out, text);
         }
 
+        // The same from characters read where they lie, no string made, as
+        // base64's
+        static expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) {
+            return detail::decode_to(detail::HexLower, out, text.data(), text.size());
+        }
+
+        // A literal, a character array, a std::string_view: read where it
+        // lies (an exact match, else the conversions to a string and to a
+        // slice tie)
+        template<sgcl::detail::TextArgument T>
+        static expected<size_t, error> decode_to(const slice<byte>& out, const T& text) {
+            const std::string_view v(text);   // a literal to its first NUL, not past it
+            return decode_to(out, slice<const char>(v.data(), v.size()));
+        }
+
         // A writer that encodes what is written to it into out, in lower
         // case (close() leaves out open), and a reader of the bytes the
         // digits of in decode to, as base64's
-        static encoder encoder_to(const io::writer& out);
-        static decoder decoder_from(const io::reader& in);
+        static encoder encoder_to(const io::writer& out) noexcept;
+        static decoder decoder_from(const io::reader& in) noexcept;
 
         // Go's hex.Dump and hexdump -C without its closing line:
         //
@@ -185,7 +200,7 @@ namespace sgcl::encoding {
         // a line as soon as its sixteen bytes are there; close() writes the
         // line that is short and leaves out open. A failure of out is kept
         // for good: every later write and close reports it
-        static dumper dumper_to(const io::writer& out);
+        static dumper dumper_to(const io::writer& out) noexcept;
     };
 
     // The streams: handles of one word, the state made by encoder_to and
@@ -202,11 +217,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline hex::encoder hex::encoder_to(const io::writer& out) {
+    inline hex::encoder hex::encoder_to(const io::writer& out) noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<4>>>(detail::HexLower, out));
     }
 
-    inline hex::decoder hex::decoder_from(const io::reader& in) {
+    inline hex::decoder hex::decoder_from(const io::reader& in) noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<4>>>(detail::HexLower, in));
     }
 
@@ -219,7 +234,7 @@ namespace sgcl::encoding {
             using io::mixin::writer<HexDumperState>::write;
             using io::mixin::writer<HexDumperState>::async_write;
 
-            explicit HexDumperState(const io::writer& out)
+            explicit HexDumperState(const io::writer& out) noexcept
             : _out(out), _block(make_tracked<CodecBlock>()) {
             }
 
@@ -245,7 +260,7 @@ namespace sgcl::encoding {
                 }
             }
 
-            async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+            async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
                 if (_error) {
                     co_return io::detail::fail(*_error);
                 }
@@ -283,7 +298,7 @@ namespace sgcl::encoding {
                 return {};
             }
 
-            async::task<expected<void, io::error>> async_close() {
+            async::task<expected<void, io::error>> async_close() noexcept {
                 if (_closed || _error) {
                     _closed = true;
                     co_return _error ? expected<void, io::error>(io::detail::fail(*_error)) : expected<void, io::error>();
@@ -358,7 +373,7 @@ namespace sgcl::encoding {
         using WriterHandle::WriterHandle;
     };
 
-    inline hex::dumper hex::dumper_to(const io::writer& out) {
+    inline hex::dumper hex::dumper_to(const io::writer& out) noexcept {
         return detail::CodecAccess::make<dumper>(make_tracked<detail::HexDumperState>(out));
     }
 }

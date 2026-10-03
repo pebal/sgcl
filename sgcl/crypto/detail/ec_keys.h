@@ -21,6 +21,7 @@
 #include "../sha512.h"
 #include "../../core/aliases.h"
 #include "../../core/array.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/expected.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
@@ -129,7 +130,7 @@ namespace sgcl::crypto::detail {
             for (size_t t = 0; t < rlen;) {
                 _mac_v();
                 size_t n = rlen - t < hlen ? rlen - t : hlen;
-                std::memcpy(out + t, _v, n);
+                sgcl::detail::copy_bytes(out + t, _v, n);
                 t += n;
             }
         }
@@ -184,7 +185,7 @@ namespace sgcl::crypto::detail {
             if (len >= size) {
                 std::memcpy(b, digest, size);
             } else if (len != 0) {
-                std::memcpy(b + size - len, digest, len);
+                sgcl::detail::copy_bytes(b + size - len, digest, len);
             }
             return limbs_from_be<C::words>(b);
         }
@@ -331,7 +332,7 @@ namespace sgcl::crypto::detail {
             w.put_unsigned(sig + size, size);
             w.put_unsigned(sig, size);
             w.wrap(der::sequence, 0);
-            std::memcpy(out, w.data(), w.size());
+            sgcl::detail::copy_bytes(out, w.data(), w.size());
             return w.size();
         }
 
@@ -387,11 +388,18 @@ namespace sgcl::crypto::detail {
             pub.fill(0);
         }
 
-        // A key's public point starts with 0x04; a key moved from has none
-        void check() const {
+        // A key's public point starts with 0x04; a key moved from has none.
+        // kind is the type the message names, "private_key" or "ecdh_key"
+        void check(const char* kind) const {
             if (pub[0] == 0) {
-                moved_from("sgcl::crypto: an elliptic-curve key");
+                moved(kind);
             }
+        }
+
+        // Out of the line, so that check stays a load and a branch where
+        // it is inlined
+        [[noreturn]] static void moved(const char* kind) {
+            moved_from((name() + "::" + kind).c_str());
         }
 
         EcKeyCore clone() const noexcept {
@@ -420,15 +428,20 @@ namespace sgcl::crypto::detail {
             limbs_to_be(out, d);
         }
 
-        static std::string prefix() {
-            return std::string("sgcl::crypto::") + (C::size == 32 ? "p256" : "p384") + ": ";
+        // "sgcl::crypto::p256", what every message of the curve starts with
+        static std::string name() noexcept {
+            return std::string("sgcl::crypto::") + (C::size == 32 ? "p256" : "p384");
         }
 
-        static error key_error(errc code, const char* what) {
+        static std::string prefix() noexcept {
+            return name() + ": ";
+        }
+
+        static error key_error(errc code, const char* what) noexcept {
             return error(code, string(prefix() + what));
         }
 
-        static error der_error(errc code, size_t offset, const char* what) {
+        static error der_error(errc code, size_t offset, const char* what) noexcept {
             return error(code, uint64_t(offset), string(prefix() + what));
         }
 
@@ -444,7 +457,7 @@ namespace sgcl::crypto::detail {
             return c;
         }
 
-        static expected<EcKeyCore, error> from_bytes(const slice<const byte>& data) {
+        static expected<EcKeyCore, error> from_bytes(const slice<const byte>& data) noexcept {
             if (data.size() != size) {
                 return unexpected<error>(key_error(errc::invalid_key, C::size == 32 ? "a private key is 32 bytes" : "a private key is 48 bytes"));
             }
@@ -457,7 +470,7 @@ namespace sgcl::crypto::detail {
 
         // The ECPrivateKey of SEC 1 §C.4 at the reader, its curve given by
         // the parameters when they are there (they must be this curve's)
-        static expected<EcKeyCore, error> read_ec_private_key(DerReader& in) {
+        static expected<EcKeyCore, error> read_ec_private_key(DerReader& in) noexcept {
             DerReader seq;
             if (!in.read(der::sequence, seq)) {
                 return unexpected<error>(der_error(errc::malformed, in.offset(), "DER: an ECPrivateKey is a SEQUENCE"));
@@ -505,7 +518,7 @@ namespace sgcl::crypto::detail {
                 return unexpected<error>(der_error(errc::invalid_key, key_offset, "the private scalar is longer than the curve's order"));
             }
             unsigned char b[size] = {};
-            std::memcpy(b + size - kn, kp, kn);
+            sgcl::detail::copy_bytes(b + size - kn, kp, kn);
             EcKeyCore c;
             bool ok = c.set(b);
             secure_zero(b, size);
@@ -515,7 +528,7 @@ namespace sgcl::crypto::detail {
             return c;
         }
 
-        static expected<EcKeyCore, error> from_sec1_der(const slice<const byte>& data) {
+        static expected<EcKeyCore, error> from_sec1_der(const slice<const byte>& data) noexcept {
             DerReader in(bytes(data.data()), data.size());
             auto c = read_ec_private_key(in);
             if (c && !in.empty()) {
@@ -526,7 +539,7 @@ namespace sgcl::crypto::detail {
 
         // The AlgorithmIdentifier { id-ecPublicKey, namedCurve } of this
         // curve: another algorithm or another curve is unsupported
-        static expected<void, error> read_algorithm(DerReader& in) {
+        static expected<void, error> read_algorithm(DerReader& in) noexcept {
             DerReader alg;
             size_t at = in.offset();
             if (!in.read(der::sequence, alg)) {
@@ -555,7 +568,7 @@ namespace sgcl::crypto::detail {
         // PKCS#8 PrivateKeyInfo (RFC 5208), or its version 2
         // OneAsymmetricKey (RFC 5958) with attributes and a public key after
         // the private one, which are skipped
-        static expected<EcKeyCore, error> from_pkcs8_der(const slice<const byte>& data) {
+        static expected<EcKeyCore, error> from_pkcs8_der(const slice<const byte>& data) noexcept {
             DerReader in(bytes(data.data()), data.size());
             DerReader seq;
             if (!in.read(der::sequence, seq) || !in.empty()) {
@@ -623,20 +636,19 @@ namespace sgcl::crypto::detail {
         }
 
         template<size_t Cap>
-        static vector<byte> take(const DerWriter<Cap>& w) {
+        static vector<byte> take(const DerWriter<Cap>& w) noexcept {
             const byte* p = reinterpret_cast<const byte*>(w.data());
             return vector<byte>(p, p + w.size());
         }
 
-        secret_bytes to_sec1_der() const {
-            check();
+        // The key is checked by the caller (a key moved from is refused)
+        secret_bytes to_sec1_der() const noexcept {
             DerWriter<256> w;
             write_ec_private_key(w, true);
             return take_secret(w);
         }
 
-        secret_bytes to_pkcs8_der() const {
-            check();
+        secret_bytes to_pkcs8_der() const noexcept {
             DerWriter<256> w;
             size_t mark = w.size();
             write_ec_private_key(w, false);
@@ -670,7 +682,7 @@ namespace sgcl::crypto::detail {
         // errc::invalid_key for any other length or first byte, the point
         // at infinity (a single 00), a coordinate not below p, a point off
         // the curve, an x with no y on it
-        static expected<EcPublicKey, error> from_bytes(const slice<const byte>& data) {
+        static expected<EcPublicKey, error> from_bytes(const slice<const byte>& data) noexcept {
             const unsigned char* p = detail::bytes(data.data());
             size_t n = data.size();
             using fe = typename E::fe;
@@ -718,7 +730,7 @@ namespace sgcl::crypto::detail {
         // curve: errc::malformed for DER that is not one, errc::unsupported
         // for another algorithm or curve, errc::invalid_key for a point
         // from_bytes refuses
-        static expected<EcPublicKey, error> from_pkix_der(const slice<const byte>& data) {
+        static expected<EcPublicKey, error> from_pkix_der(const slice<const byte>& data) noexcept {
             DerReader in(detail::bytes(data.data()), data.size());
             DerReader seq;
             if (!in.read(der::sequence, seq) || !in.empty()) {
@@ -756,7 +768,7 @@ namespace sgcl::crypto::detail {
 
         // The SubjectPublicKeyInfo, uncompressed point, as Go's
         // x509.MarshalPKIXPublicKey writes it
-        vector<byte> to_pkix_der() const {
+        vector<byte> to_pkix_der() const noexcept {
             DerWriter<160> w;
             w.put(_point.data(), size);
             w.put(0);
@@ -837,17 +849,17 @@ namespace sgcl::crypto::detail {
 
         // A key from its scalar: size bytes, big-endian, in [1, n - 1];
         // errc::invalid_key otherwise
-        static expected<EcdsaPrivateKey, error> from_bytes(const slice<const byte>& scalar) {
+        static expected<EcdsaPrivateKey, error> from_bytes(const slice<const byte>& scalar) noexcept {
             return _wrap(Core::from_bytes(scalar));
         }
 
         // A PKCS#8 PrivateKeyInfo ("PRIVATE KEY" in PEM) of this curve
-        static expected<EcdsaPrivateKey, error> from_pkcs8_der(const slice<const byte>& der) {
+        static expected<EcdsaPrivateKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             return _wrap(Core::from_pkcs8_der(der));
         }
 
         // A SEC 1 ECPrivateKey ("EC PRIVATE KEY" in PEM) of this curve
-        static expected<EcdsaPrivateKey, error> from_sec1_der(const slice<const byte>& der) {
+        static expected<EcdsaPrivateKey, error> from_sec1_der(const slice<const byte>& der) noexcept {
             return _wrap(Core::from_sec1_der(der));
         }
 
@@ -857,26 +869,27 @@ namespace sgcl::crypto::detail {
         EcdsaPrivateKey& operator=(const EcdsaPrivateKey&) = delete;
         ~EcdsaPrivateKey() = default;
 
-        EcdsaPrivateKey clone() const noexcept {
+        EcdsaPrivateKey clone() const {
+            _check();
             return EcdsaPrivateKey(_core.clone());
         }
 
         // The scalar d, size bytes big-endian: a secret
         secret<size> bytes() const {
-            _core.check();
+            _check();
             secret<size> s = SecretAccess::make<size>();
             _core.scalar_bytes(SecretAccess::data(s));
             return s;
         }
 
         EcPublicKey<C> public_key() const {
-            _core.check();
+            _check();
             return EcPublicKey<C>(_core.pub);
         }
 
         // The same scalar as an ECDH key
         EcdhKey<C> to_ecdh() const {
-            _core.check();
+            _check();
             return EcdhKey<C>(_core.clone());
         }
 
@@ -940,12 +953,14 @@ namespace sgcl::crypto::detail {
         // writes it; the bytes hold the secret scalar: a secret_bytes,
         // never managed memory
         secret_bytes to_pkcs8_der() const {
+            _check();
             return _core.to_pkcs8_der();
         }
 
         // SEC 1 ECPrivateKey with the curve and the public key, as Go's
         // x509.MarshalECPrivateKey writes it; a secret_bytes too
         secret_bytes to_sec1_der() const {
+            _check();
             return _core.to_sec1_der();
         }
 
@@ -954,8 +969,8 @@ namespace sgcl::crypto::detail {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<EcdsaPrivateKey, error> from_pem(const slice<const byte>& text) {
-            auto p = detail::read_key_pem(text);
+        static expected<EcdsaPrivateKey, error> from_pem(const slice<const byte>& text) noexcept {
+            auto p = detail::read_key_pem(text, Core::prefix());
             if (!p) {
                 return unexpected<error>(p.error());
             }
@@ -965,7 +980,7 @@ namespace sgcl::crypto::detail {
             if (p->label == "EC PRIVATE KEY") {
                 return from_sec1_der(p->der);
             }
-            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+            return unexpected<error>(Core::key_error(errc::malformed, "PEM: a block of another key's type"));
         }
 
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
@@ -985,8 +1000,12 @@ namespace sgcl::crypto::detail {
         : _core(std::move(core)) {
         }
 
+        void _check() const {
+            _core.check("private_key");
+        }
+
         void _sign(unsigned char* sig, const slice<const byte>& digest, bool deterministic) const {
-            _core.check();
+            _check();
             if (digest.size() == 0) {
                 throw invalid_argument("sgcl::crypto::ecdsa: an empty digest");
             }
@@ -998,21 +1017,21 @@ namespace sgcl::crypto::detail {
         }
 
         void _sign(unsigned char* sig, const slice<const byte>& digest, hash_id id) const {
-            _core.check();
+            _check();
             if (digest.size() != digest_size(id)) {
                 throw invalid_argument("sgcl::crypto::ecdsa: the digest is not of the hash's length");
             }
             Ecdsa<C>::sign_deterministic(sig, _core.d, detail::bytes(digest.data()), digest.size(), id);
         }
 
-        static vector<byte> _der(const unsigned char* sig) {
+        static vector<byte> _der(const unsigned char* sig) noexcept {
             unsigned char der[max_signature_size];
             size_t n = Ecdsa<C>::encode_signature(der, sig);
             const byte* p = reinterpret_cast<const byte*>(der);
             return vector<byte>(p, p + n);
         }
 
-        static expected<EcdsaPrivateKey, error> _wrap(expected<Core, error>&& c) {
+        static expected<EcdsaPrivateKey, error> _wrap(expected<Core, error>&& c) noexcept {
             if (!c) {
                 return unexpected<error>(c.error());
             }
@@ -1036,11 +1055,11 @@ namespace sgcl::crypto::detail {
             return EcdhKey(Core::generate());
         }
 
-        static expected<EcdhKey, error> from_bytes(const slice<const byte>& scalar) {
+        static expected<EcdhKey, error> from_bytes(const slice<const byte>& scalar) noexcept {
             return _wrap(Core::from_bytes(scalar));
         }
 
-        static expected<EcdhKey, error> from_pkcs8_der(const slice<const byte>& der) {
+        static expected<EcdhKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             return _wrap(Core::from_pkcs8_der(der));
         }
 
@@ -1050,19 +1069,20 @@ namespace sgcl::crypto::detail {
         EcdhKey& operator=(const EcdhKey&) = delete;
         ~EcdhKey() = default;
 
-        EcdhKey clone() const noexcept {
+        EcdhKey clone() const {
+            _check();
             return EcdhKey(_core.clone());
         }
 
         secret<size> bytes() const {
-            _core.check();
+            _check();
             secret<size> s = SecretAccess::make<size>();
             _core.scalar_bytes(SecretAccess::data(s));
             return s;
         }
 
         EcPublicKey<C> public_key() const {
-            _core.check();
+            _check();
             return EcPublicKey<C>(_core.pub);
         }
 
@@ -1073,7 +1093,7 @@ namespace sgcl::crypto::detail {
         // product is the identity all the same (which a prime-order curve
         // does not allow for a scalar in range: a key moved from, zeroed)
         expected<secret<size>, error> shared_secret(const EcPublicKey<C>& peer) const {
-            _core.check();
+            _check();
             unsigned char b[size];
             _core.scalar_bytes(b);
             typename E::point p = E::scalar_mult(typename E::point{F::to_mont(limbs_from_be<C::words>(peer._point.data() + 1)), F::to_mont(limbs_from_be<C::words>(peer._point.data() + 1 + size)), F::one()}, b);
@@ -1090,6 +1110,7 @@ namespace sgcl::crypto::detail {
         }
 
         secret_bytes to_pkcs8_der() const {
+            _check();
             return _core.to_pkcs8_der();
         }
 
@@ -1098,15 +1119,15 @@ namespace sgcl::crypto::detail {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<EcdhKey, error> from_pem(const slice<const byte>& text) {
-            auto p = detail::read_key_pem(text);
+        static expected<EcdhKey, error> from_pem(const slice<const byte>& text) noexcept {
+            auto p = detail::read_key_pem(text, Core::prefix());
             if (!p) {
                 return unexpected<error>(p.error());
             }
             if (p->label == "PRIVATE KEY") {
                 return from_pkcs8_der(p->der);
             }
-            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+            return unexpected<error>(Core::key_error(errc::malformed, "PEM: a block of another key's type"));
         }
 
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
@@ -1125,7 +1146,11 @@ namespace sgcl::crypto::detail {
         : _core(std::move(core)) {
         }
 
-        static expected<EcdhKey, error> _wrap(expected<Core, error>&& c) {
+        void _check() const {
+            _core.check("ecdh_key");
+        }
+
+        static expected<EcdhKey, error> _wrap(expected<Core, error>&& c) noexcept {
             if (!c) {
                 return unexpected<error>(c.error());
             }

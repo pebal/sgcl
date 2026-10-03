@@ -407,3 +407,42 @@ TEST(Hpack_Tests, TheEncodersStrategyAndItsRoundTrip) {
         EXPECT_EQ(d2.table().size(), e2.table().size()) << blockno;
     }
 }
+
+// DESIGN 408: a table of 0 and entries at the table's size. A decoder whose
+// SETTINGS_HEADER_TABLE_SIZE is 0 reads a literal with incremental
+// indexing (the entry does not fit: the table stays empty, RFC 7541 §4.4)
+// and refuses an index into the empty table and an update past 0; an entry
+// of exactly the table's size is kept alone, one byte more empties it
+TEST(Hpack_Tests, TableSizeZeroAndEntriesAtTheLimit) {
+    h2::Decoder zero(0);
+    EXPECT_EQ(zero.table().limit(), 0u);
+    auto r = zero.decode(view(bytes({0x40, 0x01, 'a', 0x01, 'b'})), 1 << 20);
+    ASSERT_TRUE(r.has_value());
+    EXPECT_EQ(r->fields.get("a"), "b");
+    EXPECT_EQ(zero.table().count(), 0u);
+    EXPECT_FALSE(zero.decode(view(bytes({0xbe})), 1 << 20).has_value());            // 62: no entry
+    EXPECT_TRUE(zero.decode(view(bytes({0x20, 0x82})), 1 << 20).has_value());       // an update to 0
+    EXPECT_FALSE(zero.decode(view(bytes({0x21})), 1 << 20).has_value());            // to 1: past ours
+    h2::Encoder enc(0);
+    std::string out;
+    enc.encode(out, "x", "y");
+    EXPECT_EQ(enc.table().count(), 0u);
+    EXPECT_EQ(uint8_t(out[0]), 0x00);                                                // without indexing
+    // an entry of exactly 4096 (name 2, value 4062, 32): the whole table
+    h2::Decoder d(4096);
+    ASSERT_TRUE(d.decode(view(bytes({0x40, 0x01, 'a', 0x01, 'b'})), 1 << 20).has_value());
+    auto literal = [](size_t value) {
+        std::string b = "\x40\x02nm";
+        h2::put_integer(b, 0x00, 7, value);
+        return b + std::string(value, 'v');
+    };
+    auto exact = literal(4096 - 32 - 2);
+    ASSERT_TRUE(d.decode(view(exact), 1 << 20).has_value());
+    EXPECT_EQ(d.table().count(), 1u);                               // the older entry evicted
+    EXPECT_EQ(d.table().size(), 4096u);
+    EXPECT_EQ(d.table().entry(1).value.size(), 4096u - 34u);
+    auto past = literal(4096 - 32 - 1);
+    ASSERT_TRUE(d.decode(view(past), 1 << 20).has_value());
+    EXPECT_EQ(d.table().count(), 0u);                               // larger than the table: it empties it
+    EXPECT_EQ(d.table().size(), 0u);
+}

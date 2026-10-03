@@ -400,6 +400,24 @@ TEST(Slog_Tests, MemoryKeepsTheRecordsAsTrees) {
     EXPECT_EQ(mem.size(), 0u);
 }
 
+TEST(Slog_Tests, TheAttributesAreARangeOfTheirOwnName) {
+    // A record and a group's value give their attributes as slog::attrs,
+    // a type a program can name, and not one of detail
+    static_assert(std::is_same_v<decltype(std::declval<const slog::record&>().begin()), slog::attrs::iterator>);
+    static_assert(std::is_same_v<decltype(std::declval<const slog::record&>().end()), slog::attrs::iterator>);
+    static_assert(std::is_same_v<decltype(std::declval<const slog::value&>().as_group()), slog::attrs>);
+    static_assert(std::input_iterator<slog::attrs::iterator>);
+    slog::memory mem;
+    slog::logger(mem).group("g").info("m", "a", 1, "b", 2);
+    slog::attrs group = (*mem.records()[0].begin()).value().as_group();
+    EXPECT_EQ(group.size(), 2u);
+    EXPECT_FALSE(group.empty());
+    slog::attrs none;
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(none.size(), 0u);
+    EXPECT_TRUE(none.begin() == none.end());
+}
+
 TEST(Slog_Tests, AHandlerOfTheProgram) {
     Collect c;
     auto lg = slog::logger(c, slog::level::debug);

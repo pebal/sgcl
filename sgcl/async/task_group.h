@@ -109,9 +109,14 @@ namespace sgcl::async {
         task_group& operator=(const task_group&) = delete;
 
         // The scope ends: children still running are told to stop and
-        // let go of (see above); a group waited for has none
+        // let go of (see above); a group waited for has none. noexcept, as
+        // a destructor is: the stop wakes the children waiting on the
+        // token (a list), and a wake that cannot start the workers throws
+        // nothing in a QuietWakes scope, so that every child is woken; they
+        // run at the next start
         ~task_group() {
             if (_s->running.count() > 0) {
+                detail::QuietWakes quiet;
                 _s->source.request_stop();
             }
         }
@@ -123,7 +128,7 @@ namespace sgcl::async {
         // exception is the group's
         template<class T>
         void go(task<T> t) {
-            task<> runner = detail::run_in_group(std::move(t), _s);   // made before the count: a frame that cannot be made (bad_alloc) leaves the count as it was
+            task<> runner = detail::run_in_group(std::move(t), _s);   // made before the count
             _s->running.add();
             runner.resume();   // to its first suspension: the child put on the scheduler, the runner its continuation; the runner takes this task's header first (task::resume), so the child inherits the executor and the task-locals
             runner.detach();
@@ -166,7 +171,7 @@ namespace sgcl::async {
             _s->rethrow();
         }
 
-        auto operator co_await() {
+        auto operator co_await() noexcept {
             return detail::either([this] { return _co_wait(); }, [this] { wait(); });
         }
 
@@ -174,7 +179,7 @@ namespace sgcl::async {
         // exception, if any, is rethrown by the wait that follows
         // (`g.wait()` returns at once then)
         template<class F>
-        auto on_done(F f) {
+        auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->running.on_done(std::move(f));
         }
 

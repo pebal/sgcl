@@ -7,6 +7,7 @@
 
 #include "../secret.h"
 #include "../secure_zero.h"
+#include "../../core/detail/bytes.h"
 
 #include <cassert>
 #include <cstddef>
@@ -340,8 +341,8 @@ namespace sgcl::crypto::detail {
                 _pos = pos;
                 return false;
             }
-            std::memset(out, 0, size - n);
-            std::memcpy(out + size - n, p, n);
+            sgcl::detail::fill_bytes(out, 0, size - n);
+            sgcl::detail::copy_bytes(out + size - n, p, n);
             return true;
         }
 
@@ -449,7 +450,7 @@ namespace sgcl::crypto::detail {
         void put(const unsigned char* p, size_t n) noexcept {
             assert(_pos >= n && "DerWriter: past its capacity");
             _pos -= n;
-            std::memcpy(_buf + _pos, p, n);
+            sgcl::detail::copy_bytes(_buf + _pos, p, n);
         }
 
         void put(unsigned char b) noexcept {
@@ -497,11 +498,9 @@ namespace sgcl::crypto::detail {
     // a secret_bytes, never managed memory (the writer zeroes its own
     // buffer when it goes)
     template<class W>
-    secret_bytes take_secret(const W& w) {
+    secret_bytes take_secret(const W& w) noexcept {
         secret_bytes out(w.size());
-        if (w.size()) {
-            std::memcpy(out.as_slice().data(), w.data(), w.size());
-        }
+        sgcl::detail::copy_bytes(out.as_slice().data(), w.data(), w.size());
         return out;
     }
 }

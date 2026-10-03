@@ -115,6 +115,40 @@ TEST(StencilTest, ValueHoldsTheSevenShapes) {
     EXPECT_LE(sizeof(txt::value), 32u);
 }
 
+TEST(StencilTest, ACharacterIsNotATruth) {
+    // A char is a byte of UTF-8 and not a small number, and it was not
+    // refused either: it converted to the constructor of bool, so
+    // value('A') held true. It is refused now, and so is a char32_t,
+    // which took the same road; text or a number is written as such
+    static_assert(!std::is_constructible_v<txt::value, char>);
+    static_assert(!std::is_convertible_v<char, txt::value>);
+    static_assert(!std::is_constructible_v<txt::value, char32_t>);
+    static_assert(std::is_constructible_v<txt::value, bool>);
+    static_assert(std::is_constructible_v<txt::value, signed char>);   // a number, written as one
+    EXPECT_EQ(txt::value("A").kind(), txt::value_kind::text);
+    EXPECT_EQ(txt::value(int('A')).kind(), txt::value_kind::integer);
+}
+
+TEST(StencilTest, AnEmptyListIsAList) {
+    // txt::list{} and txt::list() are an empty list, which a template
+    // walks as one and an `if` takes as false; they were nothing
+    EXPECT_EQ(txt::list{}.kind(), txt::value_kind::list);
+    EXPECT_EQ(txt::list().kind(), txt::value_kind::list);
+    EXPECT_EQ(txt::list{}.size(), 0u);
+    EXPECT_FALSE(txt::list{}.is_none());
+    EXPECT_EQ(txt::format("{}", txt::value(txt::list{})), "[]");
+    EXPECT_EQ(render("{{range .}}x{{end}}|{{if .}}yes{{else}}no{{end}}", txt::list{}), "|no");
+}
+
+TEST(StencilTest, AListAndAMappingAreFormattedAsTheyAre) {
+    // format of a txt::object or a txt::list compiles without wrapping it
+    // in a value first: they are values, and written as values are
+    EXPECT_EQ(txt::format("{}", txt::object{{"a", 1}, {"b", "x"}}), txt::format("{}", txt::value(txt::object{{"a", 1}, {"b", "x"}})));
+    EXPECT_EQ(txt::format("{}", txt::list{1, 2}), "[1, 2]");
+    EXPECT_EQ(txt::format("{:>8}", txt::list{1, 2}), "  [1, 2]");
+    EXPECT_TRUE((txt::fits<txt::object, txt::list>(txt::runtime(string("{} {}")))));
+}
+
 TEST(StencilTest, TruthIsTheRuleEveryoneExpects) {
     EXPECT_FALSE(txt::value().truthy());
     EXPECT_FALSE(txt::value(false).truthy());
@@ -1093,4 +1127,222 @@ TEST(StencilTest, ATextInANestedFieldKeepsItsQuotes) {
     auto t = txt::stencil::parse(string("{{ n::>4 }}"));
     ASSERT_TRUE(t);
     EXPECT_EQ(t->render(txt::object{{"n", 7}}), string("7"));
+}
+
+// DESIGN 408: a stencil default-constructed, moved from and made of
+// nothing; the numbers at their limits; values of the wrong kind asked;
+// a function that throws half-way; blocks nested far past any room
+TEST(StencilTest, TheEdges) {
+    // Default and empty: no steps, no text
+    txt::stencil none;
+    EXPECT_EQ(none.steps(), 0u);
+    EXPECT_EQ(none.source(), string());
+    EXPECT_EQ(none.render(txt::value()), string());
+    char room[4];
+    EXPECT_EQ(none.render_to(slice<char>(room, sizeof room), txt::object{{"a", 1}}), 0u);
+    auto empty = txt::stencil::parse(string());
+    ASSERT_TRUE(empty);
+    EXPECT_EQ(empty->render(txt::object{{"a", 1}}), string());
+    EXPECT_EQ(empty->render_to(slice<char>(), txt::value()), 0u);
+    // render_to into no room at all says what the whole takes
+    auto hello = txt::stencil::parse(string("hello {{.}}"));
+    ASSERT_TRUE(hello);
+    EXPECT_EQ(hello->render_to(slice<char>(), txt::value("ada")), 9u);
+    // Moved from: still one to render, whatever it renders
+    auto moved = std::move(*hello);
+    EXPECT_EQ(moved.render(txt::value("ada")), string("hello ada"));
+    (void)hello->render(txt::value("ada"));                  // NOLINT(bugprone-use-after-move)
+    auto copy = moved;
+    EXPECT_EQ(copy.render(txt::value("x")), string("hello x"));
+
+    // The numbers at their limits
+    EXPECT_EQ(render("{{.}}", txt::value(LLONG_MIN)), string("-9223372036854775808"));
+    EXPECT_EQ(render("{{.}}", txt::value(LLONG_MAX)), string("9223372036854775807"));
+    EXPECT_EQ(render("{{.}}", txt::value(INT_MIN)), string("-2147483648"));
+    EXPECT_EQ(render("{{.}}", txt::value(uint32_t(UINT32_MAX))), string("4294967295"));
+    EXPECT_EQ(render("{{.}}", txt::value(uint64_t(LLONG_MAX))), string("9223372036854775807"));
+    // past the widest whole number held: the nearest real, never a wrap into the negative
+    txt::value huge(uint64_t(UINT64_MAX));
+    EXPECT_EQ(huge.kind(), txt::value_kind::real);
+    EXPECT_EQ(huge.to_string(), txt::format("{}", double(UINT64_MAX)));
+    EXPECT_EQ(txt::value(uint64_t(1) << 63).kind(), txt::value_kind::real);
+    EXPECT_EQ(txt::value(uint64_t(LLONG_MAX)).kind(), txt::value_kind::integer);
+    EXPECT_TRUE(huge.truthy());
+    // the reals at theirs: the shapes format gives them
+    for (double d : {0.0, -0.0, std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+                     std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::denorm_min(),
+                     std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest()}) {
+        EXPECT_EQ(txt::value(d).to_string(), txt::format("{}", d)) << d;
+        EXPECT_EQ(render("{{.}}", txt::value(d)), txt::format("{}", d)) << d;
+    }
+    EXPECT_FALSE(txt::value(-0.0).truthy());
+    EXPECT_TRUE(txt::value(std::numeric_limits<double>::quiet_NaN()).truthy());   // not zero
+    EXPECT_TRUE(txt::value(LLONG_MIN).truthy());
+    // {:c} of the whole numbers at the edges of the code space
+    EXPECT_EQ(render("{{.:c}}", txt::value(0x10FFFF)), string("\U0010FFFF"));
+    EXPECT_EQ(render("{{.:c}}", txt::value(0x110000)), string("1114112"));
+    EXPECT_EQ(render("{{.:c}}", txt::value(0xD800)), string("55296"));
+    EXPECT_EQ(render("{{.:c}}", txt::value(-1)), string("-1"));
+    EXPECT_EQ(render("{{.:c}}", txt::value(LLONG_MIN)), string("-9223372036854775808"));
+
+    // Asked of the wrong kind: nothing, never a fault
+    for (const txt::value& v : {txt::value(), txt::value(1), txt::value("text"), txt::value(1.5), txt::value(true)}) {
+        EXPECT_EQ(v.find(string("a")), nullptr);
+        EXPECT_EQ(v.at(0), nullptr);
+        EXPECT_EQ(v.size(), 0u);
+    }
+    txt::list two{1, 2};
+    EXPECT_EQ(two.at(1)->to_string(), string("2"));
+    EXPECT_EQ(two.at(2), nullptr);
+    EXPECT_EQ(two.at(npos), nullptr);
+    EXPECT_EQ(two.find(string("a")), nullptr);
+    EXPECT_EQ(txt::value(txt::object{{"a", 1}}).at(0), nullptr);
+    EXPECT_EQ(txt::value().text(), nullptr);
+    EXPECT_EQ(*txt::value("").text(), string());
+    EXPECT_FALSE(txt::value("").truthy());
+    EXPECT_FALSE(txt::list{}.truthy());
+    EXPECT_FALSE(txt::object{}.truthy());
+    EXPECT_TRUE(txt::value(nullptr).is_none());
+    const char* null = nullptr;
+    EXPECT_EQ(txt::value(null).kind(), txt::value_kind::text);
+    EXPECT_EQ(txt::value(null).to_string(), string());
+    const char stopped[] = {'a', '\0', 'b'};
+    EXPECT_EQ(txt::value(stopped).to_string(), string("a"));
+    // set into a mapping copied: one mapping, seen through both
+    txt::object a{{"x", 1}};
+    txt::object b = a;
+    b.set("y", 2);
+    EXPECT_EQ(a.size(), 2u);
+    a.set("x", 3);                                            // a name set again keeps its place
+    EXPECT_EQ(render("{{range .}}{{.key}}{{end}}", a), string("xy"));
+    EXPECT_EQ(b.find(string("x"))->to_string(), string("3"));
+
+    // A function of the program that throws: the render throws it, and
+    // the stencil and the table answer as before afterwards
+    txt::stencil_functions table;
+    int calls = 0;
+    table.add("boom", [&calls](const txt::value& v, slice<const txt::value>) -> txt::value {
+        if (++calls == 2) {
+            throw std::runtime_error("boom");
+        }
+        return v;
+    });
+    auto t = txt::stencil::parse(string("{{range .}}[{{. | boom}}]{{end}}"), table);
+    ASSERT_TRUE(t);
+    EXPECT_THROW((void)t->render(txt::list{1, 2, 3}), std::runtime_error);
+    char small[2];
+    calls = 0;
+    EXPECT_THROW((void)t->render_to(slice<char>(small, sizeof small), txt::list{1, 2, 3}), std::runtime_error);
+    EXPECT_EQ(t->render(txt::list{4}), string("[4]"));
+    EXPECT_NE(table.find(string("boom")), nullptr);
+    EXPECT_EQ(table.find(string("nobody")), nullptr);
+    EXPECT_EQ(table.find(string()), nullptr);
+    EXPECT_NE(txt::stencil_functions::builtin().find(string("upper")), nullptr);
+    // a function added under a name twice: the last one is called
+    table.add("twice", [](const txt::value&, slice<const txt::value>) { return txt::value(1); });
+    table.add("twice", [](const txt::value&, slice<const txt::value>) { return txt::value(2); });
+    EXPECT_EQ(txt::stencil::parse(string("{{. | twice}}"), table)->render(txt::value()), string("2"));
+
+    // Blocks nested far past any room, and a source of one unclosed one
+    std::string source;
+    for (int i = 0; i < 20000; ++i) {
+        source += "{{if .}}";
+    }
+    source += "x";
+    for (int i = 0; i < 20000; ++i) {
+        source += "{{end}}";
+    }
+    auto deep = txt::stencil::parse(string(source.data(), source.size()));
+    ASSERT_TRUE(deep);
+    EXPECT_EQ(deep->render(txt::value(true)), string("x"));
+    EXPECT_EQ(deep->render(txt::value(false)), string());
+    auto open = txt::stencil::parse(string(source.data(), source.size() - 7));
+    ASSERT_FALSE(open);
+    EXPECT_LE(open.error().offset(), source.size() - 7);
+    // A source cut in every place: refused or read, the place never past the end
+    std::string full = "a {{- if .x -}} {{ .y | default \"z\" :>4 }} {{ else }}{{/* c */}}{{ end }}\n";
+    for (size_t n = 0; n <= full.size(); ++n) {
+        auto cut = txt::stencil::parse(string(full.data(), n));
+        if (!cut) {
+            EXPECT_LE(cut.error().offset(), n) << n;
+            EXPECT_GE(cut.error().line(), 1u);
+            EXPECT_GE(cut.error().column(), 1u);
+            EXPECT_FALSE(cut.error().message().empty());
+        }
+    }
+    // A fill is one code point: refused where it is a byte that is none
+    EXPECT_FALSE(txt::stencil::parse(string("{{ .x:\xC5>5 }}")));
+    EXPECT_EQ(render("{{ .:*>3 }}", txt::value(7)), string("**7"));
+    EXPECT_EQ(render("{{ .:ż^5 }}", txt::value(7)), string("żż7żż"));
+    EXPECT_EQ(render("{{ .:😀<3 }}", txt::value("a")), string("a😀😀"));
+    // Broken UTF-8 in the source's text and in the data is written as it stands
+    EXPECT_EQ(render("\xFF{{.}}\xC3", txt::value("\xE2\x82")), string("\xFF\xE2\x82\xC3"));
+}
+
+// A value that holds itself under two or three names was walked 2^64 or
+// 3^64 times: the depth stopped each path and not the breadth. A value
+// that would be written inside itself is the ellipsis now, a ring cut where
+// it closes; the answer depends on the path alone, so a field that runs off
+// its room and is written again is the same text (after DESIGN 429)
+TEST(StencilTest, ARingOfAnyBreadthStopsAtOnce) {
+    auto timed = [](auto&& work) {
+        auto start = std::chrono::steady_clock::now();
+        work();
+        return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    };
+    for (int breadth : {2, 3}) {
+        txt::object o;
+        o.set("name", "ada");
+        for (int i = 0; i < breadth; ++i) {
+            o.set(string("self") + txt::format("{}", i), o);
+        }
+        string page;
+        double ms = timed([&] { page = render("{{.}}", o); });
+        EXPECT_LT(ms, 2000.0) << breadth;
+        EXPECT_NE(page.view().find("..."), std::string_view::npos);
+        EXPECT_NE(page.view().find("ada"), std::string_view::npos);
+        EXPECT_LT(page.size(), 1024u) << breadth;               // one level, not 3^64 of them
+        // the same in a field wider than the value, written into room that grows
+        EXPECT_EQ(render("{{.:>3000}}", o).size(), 3000u);
+        EXPECT_EQ(render("{{.:2::}}", txt::object{{"in", o}}), render("{{.}}", txt::object{{"in", o}}));
+        EXPECT_EQ(txt::format("{}", txt::value(o)), page);
+        EXPECT_EQ(txt::value(o).to_string(), page);
+        // a list that holds itself through a mapping, a ring of two
+        txt::object holder;
+        vector<txt::value> items;
+        items.push_back(holder);
+        items.push_back(holder);
+        items.push_back(holder);
+        txt::list ring(items);
+        for (int i = 0; i < breadth; ++i) {
+            holder.set(string("l") + txt::format("{}", i), ring);
+        }
+        ms = timed([&] { page = render("{{.}}", ring); });
+        EXPECT_LT(ms, 2000.0) << breadth;
+        EXPECT_NE(page.view().find("..."), std::string_view::npos);
+        EXPECT_LT(page.size(), 1024u) << breadth;
+    }
+
+    // A tree that is deep and holds no ring is written whole up to the
+    // last level the walk allows: sixty-four lists, the top one among them
+    txt::value deep(7);
+    for (int i = 0; i < 64; ++i) {
+        vector<txt::value> one;
+        one.push_back(deep);
+        deep = txt::list(one);
+    }
+    auto whole = render("{{.}}", deep);
+    EXPECT_EQ(whole.view().find("..."), std::string_view::npos);
+    EXPECT_EQ(whole.size(), 64u + 1 + 64u);                          // 64 brackets, the 7, 64 brackets
+    // one level past it is the ellipsis
+    vector<txt::value> one;
+    one.push_back(deep);
+    auto past = render("{{.}}", txt::list(one));
+    EXPECT_NE(past.view().find("..."), std::string_view::npos);
+    // and a value written after a stopped one is written afresh
+    EXPECT_EQ(render("{{.}}", txt::list{1, 2}), string("[1, 2]"));
+    // the same object twice side by side, which is no ring, is written twice
+    txt::object leaf{{"a", 1}};
+    auto twice = txt::object{{"x", leaf}, {"y", leaf}};
+    EXPECT_EQ(render("{{.}}", twice), string("{\"x\": {\"a\": 1}, \"y\": {\"a\": 1}}"));
 }

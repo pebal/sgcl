@@ -101,7 +101,7 @@ namespace sgcl::crypto::detail::rsa_keygen {
     // 2^58 for keys up to 16384 bits) and reduced once
     class Sieve {
     public:
-        Sieve(size_t k, uint64_t e)
+        Sieve(size_t k, uint64_t e) noexcept
         : _pieces(2 * k), _weights((small_prime_count + 1) * 2 * k) {
             for (size_t j = 0; j <= small_prime_count; ++j) {
                 uint64_t s = j < small_prime_count ? small_primes[j] : e;
@@ -155,7 +155,7 @@ namespace sgcl::crypto::detail::rsa_keygen {
     // Whether w (odd, k words, its top two bits set) passes Miller-Rabin
     // with random bases. scratch: many words, see the caller
     template<class Release>
-    bool probably_prime(const word* w, size_t k) {
+    bool probably_prime(const word* w, size_t k) noexcept {
         using namespace bn;
         SecretWords<Release> s(8 * k + 2 + pow_scratch(k) + reduce_scratch(k));
         word* rr = s.data();
@@ -237,7 +237,7 @@ namespace sgcl::crypto::detail::rsa_keygen {
     // A random prime of bits bits (k = ceil(bits / 64) words) into p, with
     // p mod e in *mod_e
     template<class Release>
-    void random_prime(word* p, size_t bits, const Sieve& sieve, uint64_t* mod_e) {
+    void random_prime(word* p, size_t bits, const Sieve& sieve, uint64_t* mod_e) noexcept {
         size_t k = (bits + 63) / 64;
         for (;;) {
             random::fill(slice<byte>(reinterpret_cast<byte*>(p), k * sizeof(word)));

@@ -92,18 +92,6 @@ namespace {
         }
     };
 
-    struct ThrowingLess {
-        // Throws on the countdown-th comparison once armed.
-        inline static int countdown = -1;
-
-        bool operator()(int a, int b) const {
-            if (countdown >= 0 && countdown-- == 0) {
-                throw std::runtime_error("compare");
-            }
-            return a < b;
-        }
-    };
-
     // A key made from an int, counting the conversions: a range of ints
     // inserted converts each element once.
     struct FromInt {
@@ -997,67 +985,6 @@ TEST(SortedMap_Test, HintedInsertion) {
     EXPECT_TRUE(tree_is_valid(g));
 }
 
-TEST(SortedMap_Test, ThrowingComparatorLeavesContainerUnchanged) {
-    sgcl::sorted_map<int, Int, ThrowingLess> m;
-    std::map<int, int> oracle;
-    for (int i = 0; i < 64; ++i) {
-        m.emplace(i * 2, i);
-        oracle.emplace(i * 2, i);
-    }
-    auto check = [&] {
-        EXPECT_TRUE(tree_is_valid(m));
-        EXPECT_EQ(m.size(), oracle.size());
-        EXPECT_EQ(Int::counter, oracle.size());
-        auto it = m.begin();
-        for (auto& [k, v] : oracle) {
-            EXPECT_EQ(it->first, k);
-            EXPECT_EQ(it->second, v);
-            ++it;
-        }
-        EXPECT_EQ(it, m.end());
-    };
-    for (int at : {0, 1, 3, 5}) {
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(m.insert({33, 1}), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        check();
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(m.emplace(35, 1), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        check();
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(m.try_emplace(37, 1), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        check();
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(m[39], std::runtime_error);
-        ThrowingLess::countdown = -1;
-        check();
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(m.emplace_hint(m.find(40), 39, 1), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        check();
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(m.find(41), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        check();
-    }
-    // a throw in the middle of a range insert leaves a valid prefix: the
-    // keys go past the maximum, so each costs the one comparison of an
-    // append, and the fourth throws
-    std::vector<std::pair<int, int>> more = {{201, 1}, {203, 3}, {205, 5}, {207, 7}};
-    ThrowingLess::countdown = 3;
-    EXPECT_THROW(m.insert(more.begin(), more.end()), std::runtime_error);
-    ThrowingLess::countdown = -1;
-    EXPECT_TRUE(tree_is_valid(m));
-    EXPECT_EQ(m.size(), oracle.size() + 3);
-    EXPECT_TRUE(std::ranges::is_sorted(m | std::views::keys));
-    EXPECT_EQ(Int::counter, m.size());
-    m.insert(more.begin(), more.end());
-    EXPECT_EQ(m.size(), oracle.size() + more.size());
-    EXPECT_TRUE(tree_is_valid(m));
-}
-
 TEST(SortedMap_Test, MappedTrackedPointer) {
     sgcl::sorted_map<int, Holder> m;
     off_frame([&] {
@@ -1218,3 +1145,26 @@ TEST(SortedMap_Test, ValueOrWithAFallback) {
     EXPECT_EQ(p.value_or(2, none), none);
     static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
 }
+
+// The comparator is noexcept (a static_assert of the container) and
+// running out of memory ends the program: an insertion throws only what
+// the element's construction throws, the lookups and erasures nothing
+// (DESIGN 356)
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>().emplace(1, 1)));
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>().insert(std::pair<const int, int>(1, 1))));
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>().try_emplace(1, 1)));
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>()[1]));
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>().insert_or_assign(1, 1)));
+static_assert(noexcept(std::declval<const sgcl::sorted_map<int, int>&>().find(1)));
+static_assert(noexcept(std::declval<const sgcl::sorted_map<int, int>&>().lower_bound(1)));
+static_assert(noexcept(std::declval<const sgcl::sorted_map<int, int>&>().equal_range(1)));
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>().erase(1)));
+static_assert(noexcept(std::declval<sgcl::sorted_map<int, int>&>().take(1)));
+static_assert(noexcept(std::declval<sgcl::sorted_set<int>&>().insert(1)));
+static_assert(noexcept(std::declval<sgcl::sorted_multiset<int>&>().emplace(1)));
+static_assert(noexcept(std::declval<sgcl::sorted_multimap<int, int>&>().emplace(1, 1)));
+static_assert(noexcept(sgcl::sorted_map<int, int>(std::less<int>())));
+static_assert(noexcept(std::declval<const sgcl::sorted_map<int, int>&>().key_comp()));
+static_assert(noexcept(std::declval<const sgcl::sorted_map<int, int>&>().value_comp()));
+static_assert(!noexcept(std::declval<sgcl::sorted_map<std::string, int>&>()[std::declval<const std::string&>()]));
+static_assert(noexcept(std::declval<sgcl::sorted_map<std::string, int>&>()[std::string()]));

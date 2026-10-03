@@ -169,8 +169,97 @@ namespace sgcl::encoding::detail {
             && xml_name_start(utf8::decode(s, colon + 1).first);
     }
 
+    // What a writer's name is (xml_qname_kind): a bit each, so that the
+    // usual answer is told by the test of one bit
+    enum XmlNameKind : uint8_t {
+        XmlNameWrong = 0,   // not a QName
+        XmlNamePlain = 1,   // a QName that cannot be of the prefix xmlns
+        XmlNameX = 2        // a QName starting with 'x', to be weighed against section 3
+    };
+
+    // A writer's name (start, attribute): the test of xml_qname, telling
+    // on the way a name starting with 'x' (XmlNameX), which may be of the
+    // prefix xmlns. The first character is taken before the loop: its
+    // test of 'x' is made in the register it was read to, and the rest go
+    // through the test of a NameChar alone
+    inline uint8_t xml_qname_kind(std::string_view s) noexcept {
+        if (s.empty()) {
+            return XmlNameWrong;
+        }
+        const char* p = s.data();
+        const char* e = p + s.size();
+        uint8_t kind = XmlNamePlain;
+        if (uint8_t(*p) < 0x80) {
+            char32_t c = char32_t(uint8_t(*p));
+            if (!xml_name_start(c)) {
+                return XmlNameWrong;
+            }
+            kind = c == 'x' ? XmlNameX : XmlNamePlain;
+            ++p;
+        } else {
+            auto r = xml_rune(p, e);
+            if (!r.width || !xml_name_start(r.c)) {
+                return XmlNameWrong;
+            }
+            p += r.width;
+        }
+        while (p < e) {
+            char32_t c;
+            uint32_t w;
+            if (uint8_t(*p) < 0x80) {
+                c = char32_t(uint8_t(*p));
+                w = 1;
+            } else {
+                auto r = xml_rune(p, e);
+                if (!r.width) {
+                    return XmlNameWrong;
+                }
+                c = r.c;
+                w = r.width;
+            }
+            if (!xml_name_char(c)) {
+                return XmlNameWrong;
+            }
+            p += w;
+        }
+        return xml_qname_of_name(s) ? kind : uint8_t(XmlNameWrong);
+    }
+
     // The two namespaces a document never declares (Namespaces in XML
     // 1.0, section 3)
     inline constexpr std::string_view XmlNamespace = "http://www.w3.org/XML/1998/namespace";
     inline constexpr std::string_view XmlnsNamespace = "http://www.w3.org/2000/xmlns/";
+
+    // What section 3 forbids of a namespace declaration name="uri", in the
+    // words of the error; nullptr for a declaration a document may hold
+    // and for an attribute that is no declaration. The reader, a node made
+    // by hand and the writer hold to the same rule.
+    inline const char* xml_declaration_wrong(std::string_view name, std::string_view uri) noexcept {
+        bool default_declaration = name == "xmlns";
+        if (!default_declaration && !name.starts_with("xmlns:")) {
+            return nullptr;
+        }
+        std::string_view prefix = default_declaration ? std::string_view() : name.substr(6);
+        if (prefix == "xmlns") {
+            return "the prefix xmlns cannot be declared";
+        }
+        if (prefix == "xml" && uri != XmlNamespace) {
+            return "the prefix xml is bound to its own namespace alone";
+        }
+        if (prefix != "xml" && uri == XmlNamespace) {
+            return "only the prefix xml is bound to the XML namespace";
+        }
+        if (uri == XmlnsNamespace) {
+            return "nothing is bound to the xmlns namespace";
+        }
+        if (!default_declaration && uri.empty()) {
+            return "a prefix cannot be undeclared in XML 1.0 (xmlns:p=\"\")";
+        }
+        return nullptr;
+    }
+
+    // An element's name of the prefix xmlns, which no element has (section 3)
+    inline bool xml_xmlns_element(std::string_view qname) noexcept {
+        return qname.starts_with("xmlns:");
+    }
 }

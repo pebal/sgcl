@@ -22,18 +22,18 @@
 
 namespace sgcl::codec {
     namespace detail {
-        inline error unknown_format() {
+        inline error unknown_format() noexcept {
             return error(errc::unsupported, 0, "not an image format the module reads");
         }
 
-        inline error not_animated() {
+        inline error not_animated() noexcept {
             return error(errc::unsupported, 0, "not an animation format the module reads (GIF, WebP)");
         }
     }
 
     // An image in any of the module's formats, told by its signature
     // (sniff): unsupported for anything else
-    inline expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) {
+    inline expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
         auto f = sniff(data);
         if (!f) {
             return unexpected(detail::unknown_format());
@@ -86,7 +86,8 @@ namespace sgcl::codec {
     // Every frame of an animation (GIF, WebP; a still WebP is one frame),
     // told by its signature, read as next() asks; the bytes held while
     // the frames live. Another format is errc::unsupported
-    inline expected<codec::frames, error> decode_frames(const slice<const byte>& data, const decode_options& o = {}) {
+    inline expected<codec::frames, error> decode_frames(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+
         auto f = sniff(data);
         if (f == format::gif) {
             return gif::frames(data, o);

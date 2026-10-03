@@ -14,6 +14,7 @@
 #include "../../compress/level.h"
 #include "../../compress/zlib.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/slice.h"
 #include "../../core/vector.h"
 #include "../../hash/adler32.h"
@@ -28,6 +29,10 @@
 #include <vector>
 
 namespace sgcl::codec::detail {
+    // PNG's four-byte numbers, a chunk's length and a side of IHDR, stop
+    // at 2^31 - 1
+    inline constexpr size_t PngChunkMax = 0x7FFFFFFFu;
+
     // The PNG encoder (PNG 3rd ed.): an image of any pixel format as the
     // PNG type that holds it, 8 or 16 bits a channel (gray, gray with
     // alpha, truecolor, truecolor with alpha; cmyk8 as truecolor, through
@@ -44,12 +49,23 @@ namespace sgcl::codec::detail {
     template<class Sink>
     class PngEncoder {
     public:
-        PngEncoder(const image& im, int level, Sink& sink) noexcept
-        : _im(im), _level(level), _sink(sink) {
+        // most: the largest side and chunk, PngChunkMax but in the tests,
+        // which hold the bounds at small values
+        PngEncoder(const image& im, int level, Sink& sink, size_t most = PngChunkMax) noexcept
+        : _im(im), _level(level), _sink(sink), _most(most) {
         }
 
-        bool run() {
+        // false when the sink failed, or for an image PNG cannot hold (a
+        // side past 2^31 - 1, IHDR's limit), refused before anything is
+        // written: the error in the sink's failure. Metadata a chunk cannot
+        // hold (an EXIF block or a compressed profile past 2^31 - 1 bytes)
+        // is left out, as JPEG leaves out what a segment does not hold
+        bool run() noexcept(NothrowSink<Sink>) {
             const auto& s = ImageAccess::state(_im);
+            if (s.width > _most || s.height > _most) {
+                _sink.failure = error(errc::invalid_argument, 0, "png: a side past 2^31 - 1 pixels, more than IHDR holds");
+                return false;
+            }
             _format = s.format;
             uint8_t color, depth;
             switch (_format) {
@@ -89,11 +105,11 @@ namespace sgcl::codec::detail {
                 body.push_back(0);
                 const auto* zp = reinterpret_cast<const uint8_t*>(z.data());
                 body.insert(body.end(), zp, zp + z.size());
-                if (!_chunk("iCCP", body.data(), body.size())) {
+                if (body.size() <= _most && !_chunk("iCCP", body.data(), body.size())) {
                     return false;
                 }
             }
-            if (!s.exif.empty()) {
+            if (!s.exif.empty() && s.exif.size() <= _most) {
                 if (!_chunk("eXIf", reinterpret_cast<const uint8_t*>(s.exif.data()), s.exif.size())) {
                     return false;
                 }
@@ -107,6 +123,8 @@ namespace sgcl::codec::detail {
             uint8_t* raw = prior + row;
             _best = raw + row;
             _trial = _best + row;
+            // libc's memset, not fill_bytes: three rows may be megabytes,
+            // and a large zero fill is libc's (whole cache lines, DESIGN 393)
             std::memset(_memory.get(), 0, 3 * row);
             // filtered rows: zlib's Z_FILTERED, as libpng has it whenever it filters
             _deflater = std::make_unique<compress::detail::Deflater>(_level, _level != 0);
@@ -169,11 +187,11 @@ namespace sgcl::codec::detail {
             p[3] = uint8_t(v);
         }
 
-        bool _put(const uint8_t* p, size_t n) {
+        bool _put(const uint8_t* p, size_t n) noexcept(NothrowSink<Sink>) {
             return _sink.put(p, n);
         }
 
-        bool _chunk(const char* type, const uint8_t* data, size_t n) {
+        bool _chunk(const char* type, const uint8_t* data, size_t n) noexcept(NothrowSink<Sink>) {
             uint8_t head[8];
             be32(head, uint32_t(n));
             std::memcpy(head + 4, type, 4);
@@ -189,7 +207,7 @@ namespace sgcl::codec::detail {
 
         // A filtered row (its filter byte first) through the zlib stream,
         // the full IDAT chunks it completes out
-        bool _deflate(const uint8_t* filtered, size_t n) {
+        bool _deflate(const uint8_t* filtered, size_t n) noexcept(NothrowSink<Sink>) {
             _adler.update(slice<const byte>(reinterpret_cast<const byte*>(filtered), n));
             _deflater->write(filtered, n, _z);
             while (_z.size() >= IdatSize) {
@@ -214,10 +232,11 @@ namespace sgcl::codec::detail {
 
         // The row with the filter of least score, into _best (its filter
         // byte at [0]); ties to the earlier filter, None first
-        const uint8_t* _filter(const uint8_t* cur, const uint8_t* up) {
+        const uint8_t* _filter(const uint8_t* cur, const uint8_t* up) noexcept {
+
             const size_t n = _rowbytes;
             _best[0] = FilterNone;
-            std::memcpy(_best + 1, cur, n);
+            sgcl::detail::copy_bytes(_best + 1, cur, n);
             if (_level == 0) {
                 return _best;
             }
@@ -237,6 +256,7 @@ namespace sgcl::codec::detail {
         const image& _im;
         int _level;
         Sink& _sink;
+        size_t _most;
         pixel_format _format = pixel_format::rgba8;
         unsigned _bpp = 1;
         size_t _rowbytes = 0;

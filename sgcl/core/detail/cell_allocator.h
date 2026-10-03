@@ -61,5 +61,5 @@ namespace sgcl::detail {
         }
     };
 
-    inline thread_local CellAllocator cell_allocator;
+    inline thread_local CellAllocator cell_allocator SGCL_VISIBLE;   // os.h: SGCL_VISIBLE
 }

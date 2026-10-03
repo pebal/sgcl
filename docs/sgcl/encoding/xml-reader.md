@@ -1,91 +1,98 @@
+[sgcl](../README.md) › [encoding](README.md) › [xml](xml.md)
+
 # sgcl::encoding::xml::reader
 
 ```cpp
-#include "sgcl/encoding/xml.h"   // or "sgcl/encoding/encoding.h"
+#include "sgcl/encoding/xml.h"   // or "sgcl/encoding.h"
 
 namespace sgcl::encoding {
-    class xml::reader;   // the tokens of a document, from a string or a stream
-    class xml::token;    // one of them
+    class xml {
+    public:
+        class reader;
+    };
 }
 ```
 
-A reader of XML a token at a time — Go's `xml.Decoder` — over a document in memory or a stream that brings it a piece at a time. `next()` gives the next token, `peek()` the one `next()` will give, `read()` the next node whole (an element with everything inside it, as a [tree](xml.md)), `skip()` passes over it. Nothing of the document is held but the token being read, so a feed of a million entries is read in the memory of one: peek at each start, `read()` the entries wanted, step over the rest.
+`sgcl::encoding::xml::reader` reads XML a token at a time — Go's `xml.Decoder` — over a document in memory or a
+stream that brings it a piece at a time. [next](xml-reader/next.md) gives the next [token](xml-token.md),
+[peek](xml-reader/peek.md) the one `next()` will give, [read](xml-reader/read.md) the next node whole (an element
+with everything inside it, as a [tree](xml.md), or as a value of a program's type), [skip](xml-reader/skip.md)
+passes over it. Nothing of the document is held but the token being read, so a feed of a million entries is read
+in the memory of one: peek at each start, read the entries wanted, step over the rest.
 
-Everything the [tree](xml.md) says of what is well formed holds here: no DTD, the five entities, the limits of `options` (`max_depth`, `max_token_size`), namespaces, the encodings, the errors with their place.
+Everything the [tree](xml.md#rules) says of what is well formed holds here: no DTD, the five entities, the limits
+of [options](xml-options.md) (`max_depth`, `max_token_size`), namespaces, the encodings, the errors with their
+place.
 
 ## Rules
 
-- **Tokens**: the start of an element (its name, namespace and attributes), its end, a run of text, a comment, a processing instruction, the DOCTYPE declaration. `<a/>` is a start and an end. The XML declaration is an instruction named `xml` (`text()` is `version="1.0" encoding="UTF-8"`), as Go gives it. A CDATA section is text, and the text of an element may come in more than one token: before and after a CDATA section or a comment (Go splits it the same way). White space between elements is text; outside the root, only white space is allowed.
-- **A token is a value**: its names, attributes and text are strings of its own, kept as long as it is — after the reader has moved on, in a container, in another thread. The short strings (names, the white space between elements, short values) are shared across the document: a thousand `<book>` elements hold one `"book"`.
-- **Errors are a state, not a result per call**: `next()` gives `nullopt` at the end of the document and on an error, which `last_error()` then keeps — a loop reads as a loop, as with `buffered_reader::lines()`. After an error every call gives `nullopt` (`false` from `skip()`). The error has the byte of the input, the line, the column in characters and the path of the elements open (`"/feed/entry"`).
-- **`read()` and `skip()`** take the next node: an element whole, a text (the pieces of one text joined), and the comments and instructions a tree keeps. They leave out what a tree leaves out — comments without `options::keep_comments`, white space alone without `options::keep_whitespace` — and the XML and DOCTYPE declarations. At the end tag of the element they are inside they give `nullopt` and `false` and leave the end tag for `next()`, so that `while (auto child = r.read())` goes over the children of the element whose start was the last token.
-- **A stream** is read into a buffer of its own, which grows to hold a token and no more (up to `options::max_token_size`). A token that arrives a byte at a time is followed by a finder that looks at each new byte once for where the token ends, and is read once that end is there: a reader of a slow stream does not read a large token again with every byte that comes, which is quadratic. The stream failing ends the reading after the tokens it brought: `last_error()` has `errc::io` and the stream's own error in `io_error()`.
-- **On a thread and in a task**: `next()`, `peek()`, `read()` and `skip()` read the stream on the thread that calls them; `async_next()`, `async_peek()`, `async_read()` and `async_skip()` give the worker back while the stream waits. A document in memory never waits.
-- **`read<T>()`**: the next element as a value of a program's type ([`xml`](xml.md) says how a type is mapped), `nullopt` where `read()` gives it; an element that is not a `T` — or text where an element was expected — stops the reader, and `last_error()` has the path inside the element and the offset of its start. A document of any length is read a value at a time in the memory of one element.
-- `offset()` is the byte of the input where the next token starts; `depth()` the elements open around it.
-- A reader holds tracked pointers (its buffer, its strings, the stream): it lives where a `tracked_ptr` may. It is moved, not copied.
+- **Errors are a state, not a result per call**: `next()` gives `nullopt` at the end of the document and on an
+  error, which [last_error](xml-reader/last_error.md) then keeps — a loop reads as a loop, as with
+  `buffered_reader::lines()`. After an error every call gives `nullopt` (`false` from `skip()`). The error has the
+  byte of the input, the line, the column in characters and the path of the elements open (`"/feed/entry"`).
+- **`read()` and `skip()` take the next node**: an element whole, a text (the pieces of one text joined), and the
+  comments and instructions a tree keeps. They leave out what a tree leaves out — comments without
+  `options::keep_comments`, white space alone without `options::keep_whitespace` — and the XML and DOCTYPE
+  declarations. At the end tag of the element they are inside they give `nullopt` and `false` and leave the end
+  tag for `next()`, so that `while (auto child = r.read())` goes over the children of the element whose start was
+  the last token.
+- **A stream** is read into a buffer of the reader's own, which grows to hold a token and no more (up to
+  `options::max_token_size`). A token that arrives a byte at a time is followed by a finder that looks at each new
+  byte once for where the token ends, and is read once that end is there: a reader of a slow stream does not read
+  a large token again with every byte that comes, which would be quadratic. The stream failing ends the reading
+  after the tokens it brought: `last_error()` has `errc::io` and the stream's own error in `io_error()`.
+- **On a thread and in a task**: `next()`, `peek()`, `read()` and `skip()` read the stream on the thread that
+  calls them; `async_next()`, `async_peek()`, `async_read()` and `async_skip()` give the worker back while the
+  stream waits. A document in memory never waits.
+- **`read<T>()`** gives the next element as a value of a program's type, mapped as
+  [A program's types](xml.md#a-programs-types) says. An element that is not a `T` — or text where an element was
+  expected — stops the reader, and `last_error()` has the path inside the element and the offset of its start. A
+  document of any length is read a value at a time in the memory of one element.
+- [offset](xml-reader/offset.md) is the byte of the input where the next token starts;
+  [depth](xml-reader/depth.md) the elements open around it.
+- A reader holds tracked pointers (its buffer, its strings, the stream): it lives where a `tracked_ptr` may. It
+  is moved, not copied.
 
-## Members
+### From code written for Go
 
-```cpp
-class xml::reader {
-public:
-    explicit reader(const string& text);
-    reader(const string& text, const options& o);
-    explicit reader(const io::reader& in);
-    reader(const io::reader& in, const options& o);
+| With Go | With sgcl::encoding |
+|---|---|
+| `xml.NewDecoder(r)`, `Token()` | `xml::reader(in)`, `next()`: `nullopt` and `last_error()` in place of `(nil, err)`; `async_next()` in a task. Always strict, no DTD, UTF-16 and the single byte encodings built in |
+| `Decoder.DecodeElement(&v, &start)` | `peek()` then `read<T>()`, or `read()` for a tree |
+| `Decoder.Skip()` | `skip()`: the next node, not the rest of the current element |
+| `Decoder.InputOffset`, `InputPos` | `offset()`; the error's `line()`, `column()` |
+| `Decoder.RawToken` | none: names are always resolved; the prefix stays in the token's `name()` |
 
-    optional<token> next();
-    optional<token> peek();
-    optional<xml> read();
-    bool skip();
+## Member functions
 
-    async::task<optional<token>> async_next();
-    async::task<optional<token>> async_peek();
-    async::task<optional<xml>> async_read();
-    async::task<bool> async_skip();
+| Function | Description |
+|---|---|
+| [(constructor)](xml-reader/xml-reader.md) | a reader of a text or of a stream, or one taken over |
+| `(destructor)` | drops the reader; its buffer and strings are left to the collector |
+| [operator=](xml-reader/operator_assign.md) | takes another reader over |
 
-    template<class T> optional<T> read();                    // the next element as a T
-    template<class T> async::task<optional<T>> async_read();
+#### Reading
 
-    const optional<error>& last_error() const noexcept;
-    uint64_t offset() const noexcept;
-    uint32_t depth() const noexcept;
-};
+| Function | Description |
+|---|---|
+| [next, async_next](xml-reader/next.md) | the next token |
+| [peek, async_peek](xml-reader/peek.md) | the token `next()` gives next, left where it is |
+| [read, async_read](xml-reader/read.md) | the next node whole, or the next element as a value of a program's type |
+| [skip, async_skip](xml-reader/skip.md) | passes over the node `read()` would give |
 
-class xml::token {
-public:
-    enum class kind : uint8_t { start_element, end_element, text, comment, instruction, doctype };
+#### Observers
 
-    kind type() const noexcept;
-    const string& name() const noexcept;            // "svg:rect"; an instruction's target; the DOCTYPE's root
-    const string& local_name() const noexcept;
-    const string& namespace_uri() const noexcept;
-    slice<const xml::attribute> attributes() const noexcept;
-    optional<string> attribute(const string& name) const;   // "id", "xlink:href", "{uri}local"
-    string attribute(const string& name, const string& fallback) const;   // the same, fallback when there is none
-    const string& text() const noexcept;            // text, comment, instruction's data, the DOCTYPE after its keyword
-    bool is_start(const string& name) const noexcept;
-    bool is_end(const string& name) const noexcept;
-};
-```
-
-## SGCL and Go
-
-| Go | SGCL | note |
-|---|---|---|
-| `xml.NewDecoder(r)`, `Token()` | `encoding::xml::reader(in)`, `next()` | `nullopt` and `last_error()` in place of `(nil, err)`; `async_next()` in a task |
-| `StartElement`, `EndElement`, `CharData`, `Comment`, `ProcInst`, `Directive` | `token::kind::start_element`, `end_element`, `text`, `comment`, `instruction`, `doctype` | a token keeps its strings; Go's `CharData` is valid until the next call |
-| `Decoder.DecodeElement(&v, &start)` | `peek()` then `read<T>()` (or `read()`, a tree) | |
-| `Decoder.Skip()` | `skip()` | the next node, not the rest of the current element |
-| `Decoder.InputOffset`, `InputPos` | `offset()`; the error's `line()`, `column()` | |
-| `Decoder.RawToken` | — | names are always resolved; the prefix stays in `name()` |
+| Function | Description |
+|---|---|
+| [last_error](xml-reader/last_error.md) | what stopped the reader |
+| [offset](xml-reader/offset.md) | the byte of the input where the next token starts |
+| [depth](xml-reader/depth.md) | the elements open around the next token |
 
 ## Example
 
 ```cpp
-#include "sgcl/encoding/encoding.h"
-#include "sgcl/io/io.h"
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -143,4 +150,8 @@ Output:
 
 ## See also
 
-[`xml`](xml.md), the tree; [`xml::writer`](xml-writer.md); [`error`](error.md); [`buffered_reader`](../io/buffered.md).
+- [token](xml-token.md): what `next()` gives
+- [xml](xml.md): the tree, and `parse` of a whole document
+- [writer](xml-writer.md): XML onto a stream
+- [error](error.md); [buffered_reader](../io/buffered_reader.md)
+- [sgcl::encoding::xml](xml.md)

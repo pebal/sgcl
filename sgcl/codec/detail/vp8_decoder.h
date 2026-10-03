@@ -970,7 +970,7 @@ namespace sgcl::codec::detail::vp8 {
         // header checked (key frame, version 0..3, shown, the start code, a
         // size of neither side 0), then everything decoded. False with the
         // error; `at` the offset of the chunk, for its messages
-        bool decode(const uint8_t* data, size_t size, uint64_t at, optional<error>& err) {
+        bool decode(const uint8_t* data, size_t size, uint64_t at, optional<error>& err) noexcept {
             _at = at;
             _beyond_encoders = false;
             _damage = Damage::none;
@@ -1064,13 +1064,13 @@ namespace sgcl::codec::detail::vp8 {
             bool inner = false;
         };
 
-        bool _fail(optional<error>& err, errc code, const char* what, Damage damage = Damage::none) {
+        bool _fail(optional<error>& err, errc code, const char* what, Damage damage = Damage::none) noexcept {
             err = error(code, _at, string(what));
             _damage = damage;
             return false;
         }
 
-        bool _header(const uint8_t* data, size_t size, optional<error>& err) {
+        bool _header(const uint8_t* data, size_t size, optional<error>& err) noexcept {
             if (size < 10) {
                 return _fail(err, errc::unexpected_end, "webp: a VP8 chunk shorter than its header");
             }
@@ -1096,7 +1096,12 @@ namespace sgcl::codec::detail::vp8 {
             std::memset(_seg_quant, 0, sizeof _seg_quant);
             std::memset(_seg_filter, 0, sizeof _seg_filter);
             std::memset(_seg_probs, 255, sizeof _seg_probs);
-            _seg_absolute = false;
+            // segmentation on with no segment data (no encoder writes it):
+            // the segments' values are absolute zeros, as libwebp and Go
+            // take them; RFC 6386's reference decoder clears the mode on a
+            // key frame to deltas, which leaves the frame's values (the
+            // module's planes are libwebp's and Go's, webp.md)
+            _seg_absolute = true;
             if (_segmentation) {
                 _update_map = b.literal(1);
                 const bool update_data = b.literal(1);
@@ -1199,7 +1204,7 @@ namespace sgcl::codec::detail::vp8 {
             return true;
         }
 
-        void _modes(MbInfo& m, uint8_t* above, uint8_t* left) {
+        void _modes(MbInfo& m, uint8_t* above, uint8_t* left) noexcept {
             BoolDecoder& b = _part0;
             m.segment = _update_map ? uint8_t(b.tree(SegmentTree, _seg_probs)) : 0;
             m.skip = _skip_prob_used ? b.bit(_skip_prob) : false;
@@ -1233,7 +1238,7 @@ namespace sgcl::codec::detail::vp8 {
         // 2, 3 or 4, p[6] a category of 1–2 or 3–6, p[7] CAT1 or CAT2, p[8]
         // 3–4 or 5–6, p[9] and p[10] which; each category's extra bits by
         // its probabilities (Pcats) after it
-        int _block(BoolDecoder& b, int plane, int ctx, int first, const int16_t* dq, int16_t* out) {
+        int _block(BoolDecoder& b, int plane, int ctx, int first, const int16_t* dq, int16_t* out) noexcept {
             const uint8_t(*probs)[3][11] = _probs[plane];
             bool prev_zero = false;
             int i = first;
@@ -1291,7 +1296,7 @@ namespace sgcl::codec::detail::vp8 {
         // end past 1 is a token read past its first position; at or below
         // 1 only its coefficient 0 can be set. The Y2 block, once gone into
         // the Y blocks' DCs, is zero again.
-        bool _residue(BoolDecoder& b, const MbInfo& m, uint8_t* above, uint8_t* left, int16_t (*coeffs)[16], uint8_t* kinds) {
+        bool _residue(BoolDecoder& b, const MbInfo& m, uint8_t* above, uint8_t* left, int16_t (*coeffs)[16], uint8_t* kinds) noexcept {
             const Segment& q = _segments[m.segment];
             int first = 0;
             int plane = 3;
@@ -1341,7 +1346,7 @@ namespace sgcl::codec::detail::vp8 {
         // RFC 6386 gives them. The side a constant, so that the rows'
         // copies and fills are plain moves
         template<int N>
-        static void _predict_block(uint8_t mode, uint8_t* dst, ptrdiff_t stride, const uint8_t* A, const uint8_t* L, bool top, bool leftmost) {
+        static void _predict_block(uint8_t mode, uint8_t* dst, ptrdiff_t stride, const uint8_t* A, const uint8_t* L, bool top, bool leftmost) noexcept {
             static_assert(N == 16 || N == 8);
             constexpr int n = N;
             switch (mode) {
@@ -1390,7 +1395,7 @@ namespace sgcl::codec::detail::vp8 {
 
         // §12.3: a 4x4 subblock's prediction; A[-1] is P, A[0..7] above
         // and above-right, L[0..3] to the left
-        static void _predict_sub(uint8_t mode, uint8_t* B, ptrdiff_t stride, const uint8_t* A, const uint8_t* L) {
+        static void _predict_sub(uint8_t mode, uint8_t* B, ptrdiff_t stride, const uint8_t* A, const uint8_t* L) noexcept {
             auto avg3 = [](int x, int y, int z) { return uint8_t((x + y + y + z + 2) >> 2); };
             auto avg2 = [](int x, int y) { return uint8_t((x + y + 1) >> 1); };
             // E: L[3], L[2], L[1], L[0], P, A[0..3]
@@ -1507,7 +1512,7 @@ namespace sgcl::codec::detail::vp8 {
             }
         }
 
-        void _reconstruct(int mx, int my, const MbInfo& m, int16_t (*coeffs)[16], const uint8_t* kinds) {
+        void _reconstruct(int mx, int my, const MbInfo& m, int16_t (*coeffs)[16], const uint8_t* kinds) noexcept {
             const bool top = my == 0, leftmost = mx == 0;
             // luma: the row above (P, 16, and 4 above-right) and the column to the left
             const size_t ys = y_stride();
@@ -1652,7 +1657,7 @@ namespace sgcl::codec::detail::vp8 {
 
         // §15: every macroblock in raster order: its left edge, its inner
         // vertical edges, its top edge, its inner horizontal edges
-        void _loop_filter() {
+        void _loop_filter() noexcept {
             if (_level == 0) {
                 return;
             }
@@ -1732,7 +1737,8 @@ namespace sgcl::codec::detail::vp8 {
             }
         }
 
-        bool _frame(optional<error>& err) {
+        bool _frame(optional<error>& err) noexcept {
+
             const size_t ys = y_stride(), cs = uv_stride();
             _y.assign(ys * _mbh * 16, 0);
             _u.assign(cs * _mbh * 8, 0);

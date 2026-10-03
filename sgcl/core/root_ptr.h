@@ -239,9 +239,16 @@ namespace sgcl {
         return !l;
     }
 
+    // In the common type of the two pointers, as == compares them: a root
+    // of a base at an offset orders equal to the root of its object; two
+    // types without one as const void*
     template<class T, class U>
     std::strong_ordering operator<=>(const root_ptr<T>& l, const root_ptr<U>& r) noexcept {
-        return std::compare_three_way()(static_cast<const void*>(l.get()), static_cast<const void*>(r.get()));
+        if constexpr (requires { std::compare_three_way()(l.get(), r.get()); }) {
+            return std::compare_three_way()(l.get(), r.get());
+        } else {
+            return std::compare_three_way()(static_cast<const void*>(l.get()), static_cast<const void*>(r.get()));
+        }
     }
 
     template<class T>

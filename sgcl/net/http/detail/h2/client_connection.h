@@ -57,7 +57,7 @@ namespace sgcl::net::http::detail::h2 {
         // before the server's SETTINGS come (Go: initialMaxConcurrentStreams)
         uint32_t initial_concurrent_streams = 100;
 
-        ClientSettings() {
+        ClientSettings() noexcept {
             initial_window = 1u << 20;         // 1 MB
             connection_window = 16u << 20;     // 16 MB
             max_header_list_size = 1u << 20;   // the client's max_response_header_bytes
@@ -74,7 +74,7 @@ namespace sgcl::net::http::detail::h2 {
 
         static constexpr bool reads_preface = false;
 
-        ClientConnection(Events& events, const ClientSettings& settings = ClientSettings())
+        ClientConnection(Events& events, const ClientSettings& settings = ClientSettings()) noexcept
         : Base(events, settings, std::max(1u, settings.max_concurrent_streams))
         , _max_streams(std::max(1u, settings.max_concurrent_streams))
         , _initial_streams(std::max(1u, std::min(settings.initial_concurrent_streams, _max_streams))) {
@@ -83,7 +83,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // The client's preface (§3.4): the 24 bytes, our SETTINGS
         // (ENABLE_PUSH = 0 first), the connection's window raised to ours
-        void start(int64_t now) {
+        void start(int64_t now) noexcept {
             this->_out.append(Preface, PrefaceSize);
             Setting s[6];
             size_t n = 0;
@@ -106,7 +106,7 @@ namespace sgcl::net::http::detail::h2 {
         // the connection failed). A refused block was not written: the
         // encoder's table has gone on without the peer's, so the transport
         // encodes only once it knows can_open()
-        uint32_t open_stream(const uint8_t* block, size_t n, bool end_stream) {
+        uint32_t open_stream(const uint8_t* block, size_t n, bool end_stream) noexcept {
             if (!can_open()) {
                 return 0;
             }
@@ -217,7 +217,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The server opens no stream: never called (_peer_opens refuses first)
-        expected<void, Error> _block_new(uint32_t, Block&&, bool, bool) {
+        expected<void, Error> _block_new(uint32_t, Block&&, bool, bool) noexcept {
             return unexpected(connection_error(ErrorCode::protocol_error, "HEADERS on a stream the server may not open"));
         }
 
@@ -268,7 +268,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // :status when it leads the block and is three digits, else 0 (the
         // transport's verdict then)
-        static int _status(const Block& block) {
+        static int _status(const Block& block) noexcept {
             auto& fields = HeadersAccess::fields(block.fields);
             if (fields.empty() || fields[0].first.view() != ":status") {
                 return 0;
@@ -287,7 +287,7 @@ namespace sgcl::net::http::detail::h2 {
             return n;
         }
 
-        static bool _pseudo(const Block& block) {
+        static bool _pseudo(const Block& block) noexcept {
             for (auto& f : HeadersAccess::fields(block.fields)) {
                 if (!f.first.view().empty() && f.first.view()[0] == ':') {
                     return true;

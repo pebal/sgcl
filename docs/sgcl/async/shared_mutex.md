@@ -1,116 +1,140 @@
+[sgcl](../README.md) › [async](README.md)
+
 # sgcl::async::shared_mutex
 
 ```cpp
-#include "sgcl/async/shared_mutex.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/shared_mutex.h"   // or "sgcl/async.h"
 
-namespace sgcl {
-    class shared_mutex;   // any number of readers, or one writer
+namespace sgcl::async {
+    class shared_mutex {
+    public:
+        class shared_guard;
+        class guard;
+
+        template<bool Shared, bool Scoped>
+        class lock_op;
+    };
 }
 ```
 
-Go's `sync.RWMutex` and Java's `ReentrantReadWriteLock`: any number of readers at once, or one writer, for tasks and threads alike. It is not a channel under a name, as the [mutex](mutex.md) and its family are: a reader takes the lock by adding one to a word and gives it back by subtracting one, so that readers, the common case, never meet a channel, and the channels are for the waits. The word holds the count of the readers holding or waiting and, in its low bit, whether a writer holds or waits; a writer sets the bit and waits for the readers counted before it to leave (the last of them sends it a signal on a channel of one), a reader that finds the bit set waits for that writer to leave (on a channel closed by the writer's unlock; the writer's generation, in the high half of the word, tells the reader its writer is gone even when the next one has taken its place). Writers are served one at a time through a [mutex](mutex.md). The preference is Go's: a writer waiting blocks the readers that arrive after it, so that a stream of readers cannot starve it, and the readers it held back get in before the next writer, because they are counted and the next writer waits for them, so that a stream of writers cannot starve them. Measured once (Apple M-series, release): a `lock_shared` and `unlock_shared` pair on one task 13 ns, on four tasks at once 51 ns (the word bouncing between the workers); the channel-built `mutex`'s `lock` and `unlock` pair 87 ns on one task, 393 ns on four contending (a receive and a send through the ring, and a waiter each time at four). The waits have the blocking form and the awaitable one, with a guard each (`shared_guard`, `guard`); no select case, since a select waits on channels and this lock is a word.
+`sgcl::async::shared_mutex` lets any number of readers in at once, or one writer, for tasks and threads alike: Go's
+`sync.RWMutex`, Java's `ReentrantReadWriteLock`, `std::shared_mutex` with a wait that holds no thread. It is not a
+channel under a name, as the [mutex](mutex.md) and its family are: a reader takes the lock by adding one to a word
+and gives it back by subtracting one, so that readers, the common case, never meet a channel; the channels are for
+the waits.
+
+The word holds the count of the readers that hold or wait for the lock and, in its low bit, whether a writer holds
+or waits for it. A writer sets the bit and waits for the readers counted before it to leave; the last of them sends
+it a signal on a channel of one. A reader that finds the bit set waits for that writer to leave, on a channel the
+writer's unlock closes; the writer's generation, in the high half of the word, tells such a reader that its writer
+is gone even when the next one has taken its place, and that next writer counted the reader and waits for it.
+Writers are served one at a time through a mutex of the module.
+
+The preference is Go's: a writer waiting blocks the readers that arrive after it, so that a stream of readers cannot
+starve it, and the readers it held back get in before the next writer, because they are counted and the next writer
+waits for them, so that a stream of writers cannot starve them.
 
 ## Rules
 
-- It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
-- Not recursive either way: a reader that takes the lock again while a writer waits deadlocks (the writer blocks new readers, Go's rule), a writer that takes it again deadlocks on itself.
-- `std::shared_lock<sgcl::async::shared_mutex>` and `std::lock_guard<sgcl::async::shared_mutex>` work for a thread; `co_await m.scoped_lock_shared()` and `co_await m.scoped_lock()` for a task. Up to 2<sup>31</sup> readers at once.
+- A shared mutex is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed
+  object ([The rules](../core/README.md#the-rules), 1), and is neither copied nor moved. Tasks reach it through the
+  object that holds it.
+- Not recursive either way: a reader that takes the lock again while a writer waits waits for ever (the writer
+  blocks new readers, Go's rule), and a writer that takes it again waits for itself.
+- A thread locks with the standard's Lockable members, through `std::shared_lock<sgcl::async::shared_mutex>` for a
+  reader and `std::lock_guard` or `std::unique_lock` for the writer; a task locks with
+  `co_await m.scoped_lock_shared()` and `co_await m.scoped_lock()`, which hold no thread while they wait.
+- Fewer than 2^31 readers hold or wait for the lock at once: the count has 31 bits.
+- The lock is a word, not a channel, so it has no case of a [select](select.md).
 
-## Members
+## Member types
 
-```cpp
-void lock_shared();  bool try_lock_shared() noexcept;  void unlock_shared();   // a reader
-void lock();  bool try_lock();  void unlock();                                  // the writer
-auto scoped_lock_shared() noexcept;             // co_await: a reader, locked
-auto scoped_lock_shared() noexcept;      // co_await: a shared_guard that unlocks when destroyed
-auto scoped_lock() noexcept;                    // co_await: the writer, locked
-auto scoped_lock() noexcept;             // co_await: a guard
-class shared_guard;  class guard;
-```
+| Type | Definition |
+|---|---|
+| `shared_guard` | a reader's lock held for a scope ([shared_guard](shared_mutex-shared_guard.md)) |
+| `guard` | the writer's lock held for a scope ([guard](shared_mutex-guard.md)) |
+| `lock_op<Shared, Scoped>` | the awaiter that `co_await` of [scoped_lock](shared_mutex/scoped_lock.md) and [scoped_lock_shared](shared_mutex/scoped_lock_shared.md) makes in a task |
 
-```cpp
-async::shared_mutex table;
-auto read = [](async::shared_mutex& table) -> async::task<> {
-    auto guard = co_await table.scoped_lock_shared();   // with the other readers
-};
-auto write = [](async::shared_mutex& table) -> async::task<> {
-    auto guard = co_await table.scoped_lock();          // alone
-};
-```
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](shared_mutex/shared_mutex.md) | constructs an unlocked shared mutex |
+| `(destructor)` | destroys the shared mutex, which must not be locked |
+
+#### Exclusive locking
+
+| Function | Description |
+|---|---|
+| [lock](shared_mutex/lock.md) | locks the mutex for the writer, blocking the thread |
+| [try_lock](shared_mutex/try_lock.md) | locks the mutex for the writer when nobody holds it, without waiting |
+| [unlock](shared_mutex/unlock.md) | unlocks the writer's lock |
+| [scoped_lock](shared_mutex/scoped_lock.md) | locks the mutex for the writer for a scope, waiting in a task or on a thread |
+
+#### Shared locking
+
+| Function | Description |
+|---|---|
+| [lock_shared](shared_mutex/lock_shared.md) | locks the mutex for a reader, blocking the thread |
+| [try_lock_shared](shared_mutex/try_lock_shared.md) | locks the mutex for a reader when no writer holds or waits, without waiting |
+| [unlock_shared](shared_mutex/unlock_shared.md) | unlocks a reader's lock |
+| [scoped_lock_shared](shared_mutex/scoped_lock_shared.md) | locks the mutex for a reader for a scope, waiting in a task or on a thread |
+
+## Complexity
+
+A reader's lock and unlock are one atomic add and one atomic subtract on the word, a few times less than the
+channel-built [mutex](mutex.md)'s receive and send through its ring; an awaited lock that does not wait allocates
+nothing. A writer takes the writers' mutex and sets the bit; a wait, a reader's or the writer's, is a channel's
+receive, and per round of readers held back by a writer one channel of signals is made.
 
 ## Example
 
-A table read by four tasks and grown by one, the readers' results handed to the main thread through a queue under a [mutex](mutex.md) with a [condition_variable](condition_variable.md).
-
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
-#include <mutex>
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// A table read by many tasks and grown by one, under a shared_mutex; the
-// readers' results handed to the main thread through a queue under a
-// mutex with a condition variable. Every wait of a task is a co_await.
 struct Table {
     async::shared_mutex lock;
-    vector<int> squares;   // guarded by lock
+    vector<int> squares;  // guarded by lock
 };
 
-struct Results {
-    async::mutex lock;
-    async::condition_variable ready;
-    vector<long> queue;    // guarded by lock
-    int pending = 0;             // guarded by lock
-};
-
-async::task<> reader(tracked_ptr<Table> table, tracked_ptr<Results> results, int rounds) {
-    long consistent = 0;
-    for (int round : range(rounds)) {
-        (void)round;
-        auto guard = co_await table->lock.scoped_lock_shared();   // any number of readers at once, never with the writer
+async::task<int> reader(tracked_ptr<Table> table) {
+    int consistent = 0;
+    for (int round : range(100)) {
+        auto guard = co_await table->lock.scoped_lock_shared();  // with the other readers
         bool ok = true;
         for (size_t i : range(table->squares.size())) {
-            ok = ok && table->squares[i] == (int)((i + 1) * (i + 1));
+            ok = ok && table->squares[i] == int((i + 1) * (i + 1));
         }
         consistent += ok;
-        co_await async::yield();
     }
-    auto guard = co_await results->lock.scoped_lock();
-    results->queue.push_back(consistent);
-    --results->pending;
-    results->ready.notify_one();
+    co_return consistent;
 }
 
-async::task<> writer(tracked_ptr<Table> table, int rounds) {
-    for (int i : range(rounds)) {
-        auto guard = co_await table->lock.scoped_lock();         // alone: the readers wait, and new ones queue behind it
-        table->squares.push_back((i + 1) * (i + 1));
-        co_await async::yield();
+async::task<> writer(tracked_ptr<Table> table) {
+    for (int i : range(1, 101)) {
+        auto guard = co_await table->lock.scoped_lock();  // alone
+        table->squares.push_back(i * i);
     }
 }
 
 int main() {
     tracked_ptr table = make_tracked<Table>();
-    tracked_ptr results = make_tracked<Results>();
-    results->pending = 4;
-    for (int i : range(4)) {
-        (void)i;
-        async::go(reader(table, results, 100));
+    async::task<> w = async::spawn(writer(table));
+    vector<async::task<int>> readers;
+    for (int r : range(4)) {
+        readers.push_back(async::spawn(reader(table)));
     }
-    async::task<> w = async::spawn(writer(table, 100));
-    long total = 0;
-    std::unique_lock lock(results->lock);                                  // this thread: the standard's lock over the module's mutex
-    results->ready.wait(lock, [&] { return results->pending == 0; });     // the predicate, checked under the mutex before each wait
-    for (long consistent : results->queue) {
-        total += consistent;
+    int total = 0;
+    for (auto& r : readers) {
+        total += r.wait();
     }
-    lock.unlock();
     w.wait();
     println("{} squares, the last {}", table->squares.size(), table->squares.back());
-    println("{} readers, {} consistent looks at the table", results->queue.size(), total);
-    async::scheduler::stop();
+    println("{} consistent looks of 400", total);
 }
 ```
 
@@ -118,10 +142,14 @@ Output:
 
 ```text
 100 squares, the last 10000
-4 readers, 400 consistent looks at the table
+400 consistent looks of 400
 ```
 
 ## See also
 
-- [mutex](mutex.md): one holder at a time, what the writers queue on; [condition_variable](condition_variable.md): a wait under the mutex; [copy_on_write](../concurrent/copy_on_write.md): a value read by many and replaced whole, without a lock; [channel](channel.md): the waits
-- `tests/async/shared_mutex.cpp`: every behaviour above, checked.
+- [shared_mutex::shared_guard](shared_mutex-shared_guard.md), [shared_mutex::guard](shared_mutex-guard.md): the
+  locks held for a scope
+- [mutex](mutex.md): one holder at a time, what the writers queue on
+- [condition_variable](condition_variable.md): a wait under a mutex
+- [copy_on_write](../concurrent/copy_on_write.md): a value read by many and replaced whole, without a lock
+- [channel](channel.md): the waits

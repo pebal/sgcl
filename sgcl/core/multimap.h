@@ -24,6 +24,9 @@ namespace sgcl {
     , public mixin::lookup<multimap<Key, T, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, false>>;
 
+        static_assert(detail::nothrow_function_object<Hash, const Key&>, "sgcl::multimap: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::multimap: KeyEqual must be noexcept");
+
     public:
         using key_type = Key;
         using mapped_type = T;

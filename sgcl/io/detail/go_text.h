@@ -319,7 +319,7 @@ namespace sgcl::io::detail {
     // f, in the exponent form when the exponent is under -4 or 21 and
     // over (6 and over for the shortest form, Go's rule); "+Inf", "-Inf",
     // "NaN"
-    inline std::string go_format_float(double f) {
+    inline std::string go_format_float(double f) noexcept {
         if (std::isnan(f)) {
             return "NaN";
         }
@@ -358,7 +358,7 @@ namespace sgcl::io::detail {
     // strconv.Quote: in double quotes, a byte of no valid sequence as
     // \xhh, what IsPrint refuses escaped (\a \b \f \n \r \t \v, \xhh
     // under the space and for DEL, \uhhhh, \Uhhhhhhhh)
-    inline void go_quote(std::string& out, std::string_view s) {
+    inline void go_quote(std::string& out, std::string_view s) noexcept {
         static constexpr char Hex[] = "0123456789abcdef";
         out += '"';
         size_t i = 0;

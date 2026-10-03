@@ -57,8 +57,14 @@ namespace sgcl::io {
             return r == GoNumber::range ? "value out of range" : "parse error";
         }
 
+        // A variable of the types the flags read themselves: their text
+        // read and written without a throw (a type's own parse and
+        // to_string are the program's)
         template<class T>
-        std::string flag_set(void* target, std::string_view text) {
+        inline constexpr bool BuiltinFlag = std::is_arithmetic_v<T> || std::is_same_v<T, string> || std::is_same_v<T, duration>;
+
+        template<class T>
+        std::string flag_set(void* target, std::string_view text) noexcept(BuiltinFlag<T>) {
             T& v = *static_cast<T*>(target);
             if constexpr (std::is_same_v<T, bool>) {
                 bool b;
@@ -110,7 +116,7 @@ namespace sgcl::io {
         }
 
         template<class T>
-        std::string flag_text(const T& v) {
+        std::string flag_text(const T& v) noexcept(BuiltinFlag<T>) {
             if constexpr (std::is_same_v<T, bool>) {
                 return v ? "true" : "false";
             } else if constexpr (std::is_integral_v<T>) {
@@ -185,9 +191,9 @@ namespace sgcl::io {
     // common set is copied and extended per command.
     class flags {
     public:
-        flags() = default;
+        flags() noexcept = default;
 
-        explicit flags(const string& description)
+        explicit flags(const string& description) noexcept
         : _description(description) {
         }
 
@@ -204,7 +210,7 @@ namespace sgcl::io {
 
         // The arguments after the flags, into the vector, in order; the
         // usage lists them last, as "name..."
-        void positional(const string& name, vector<string>& target, const string& help) {
+        void positional(const string& name, vector<string>& target, const string& help) noexcept {
             _positional(name, target, help);
         }
 
@@ -253,7 +259,7 @@ namespace sgcl::io {
         // The usage parse prints: "Usage of <program>:", the description,
         // then the flags as Go's PrintDefaults writes them, and the
         // positional arguments last
-        string usage() const {
+        string usage() const noexcept {
             auto a = io::args();
             return string(_usage(a.empty() ? std::string("program") : std::string(a[0].data(), a[0].size())));
         }
@@ -284,7 +290,7 @@ namespace sgcl::io {
             _last = node;
         }
 
-        void _positional(const string& name, vector<string>& target, const string& help) {
+        void _positional(const string& name, vector<string>& target, const string& help) noexcept {
             _pos_name = name;
             _pos_help = help;
             _pos_target = &target;
@@ -381,7 +387,7 @@ namespace sgcl::io {
         // tab for a one-letter bool, else on the next after four spaces and
         // a tab; a name in backquotes in the help as the type; the default
         // unless it is the type's zero, a string's quoted), the positional
-        std::string _usage(const std::string& program) const {
+        std::string _usage(const std::string& program) const noexcept {
             std::string out = "Usage of " + program + ":\n";
             if (!_description.empty()) {
                 out.append(_description.data(), _description.size());

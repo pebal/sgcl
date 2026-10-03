@@ -108,7 +108,7 @@ namespace sgcl::io::detail {
         // The writes of a writable shared region given to the file and
         // waited for (msync MS_SYNC; FlushViewOfFile and FlushFileBuffers);
         // nothing to do for a region read only, private, or empty
-        expected<void, error> flush() {
+        expected<void, error> flush() noexcept {
             std::lock_guard lock(_mutex);
             if (_closed.load(std::memory_order_relaxed)) {
                 return fail(error(errc::closed, "flush", _name));
@@ -129,7 +129,7 @@ namespace sgcl::io::detail {
         }
 
         // The file (the object) given back now; a second close does nothing
-        expected<void, error> close() {
+        expected<void, error> close() noexcept {
             std::lock_guard lock(_mutex);
             if (_closed.load(std::memory_order_relaxed)) {
                 return {};
@@ -152,7 +152,7 @@ namespace sgcl::io::detail {
         }
 
 #if defined(_WIN32)
-        static error windows_error(const string& op, const string& name) {
+        static error windows_error(const string& op, const string& name) noexcept {
             return error(error_code(int(win::GetLastError()), std::system_category()), op, name);
         }
 #endif

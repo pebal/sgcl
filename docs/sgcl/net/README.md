@@ -1,63 +1,107 @@
+[sgcl](../README.md) › net
+
 # sgcl::net
 
-What Go has in `net`, `net/netip` and `net/url`: IP addresses and networks as values, TCP and unix stream sockets, UDP, the system's resolver, and URLs by the WHATWG URL Standard. `#include "sgcl/net/net.h"` brings the module in; it depends on [`core`](../core/README.md), [`containers`](../core/README.md), [`async`](../async/README.md) (the reactor, the timers, the blocking pool, `select` and the stop tokens carry it) and [`io`](../io/README.md) (its errors and streams); the index of the whole interface is [`docs/sgcl/`](../README.md). This is stages 1a to 1c of the module; HTTP/1.1 is [`net::http`](http/README.md) (`#include "sgcl/net/http/http.h"`), TLS 1.3 is [`net::tls`](tls.md) (`#include "sgcl/net/tls.h"`, on [`crypto`](../crypto/README.md)), and HTTP/2 comes after it. [`net::url`](url.md) needs neither the reactor nor sockets: `#include "sgcl/net/url.h"` alone brings only it (and [`txt`](../txt/README.md)'s IDNA and escaping).
+```cpp
+#include "sgcl/net.h"   // namespace sgcl::net
+```
 
-## The names
+What Go has in `net`, `net/netip` and `net/url`: IP addresses and networks as values, TCP and unix stream sockets,
+UDP, the system's resolver, and URLs by the WHATWG URL Standard; HTTP/1.1 and HTTP/2 in [net::http](http/README.md)
+(`#include "sgcl/net/http.h"`), TLS 1.3 in [net::tls](tls/README.md) (`#include "sgcl/net/tls.h"`, on
+[crypto](../crypto/README.md)). The module depends on [core](../core/README.md), on [async](../async/README.md), whose
+reactor, timers, blocking pool, `select` and stop tokens carry it, and on [io](../io/README.md), whose errors and
+streams it uses: a [connection](connection.md) is a stream of io as it is, so `io::copy`, a
+[buffered_reader](../io/buffered_reader.md) and every function over a reader or a writer take it.
 
-The module is the namespace `sgcl::net`, as every module but core is: the protocols [`net::tcp`](socket.md), [`net::udp`](socket.md), [`net::unix_domain`](socket.md) and [`net::dns`](dns.md), the address types [`net::ip_address`](ip.md), [`net::ip_network`](ip.md) and [`net::endpoint`](ip.md), and the general types a connection is held by, [`net::connection`](connection.md), `net::listener`, `net::udp::socket`, `net::udp::datagram`, with the codes of [`net::errc`](error.md). After `using namespace sgcl::net;` a program writes `tcp::connect(...)`.
+The idea it rests on is that a connection is a handle and an address is a value. A [connection](connection.md), a
+[listener](listener.md) and a [udp::socket](udp-socket.md) are handles of one word, a `tracked_ptr` to the object
+inside, as a [string](../core/string.md) is: a copy is the same connection, as a `*net.TCPConn` is in Go, and a
+handle passed into a task by value keeps the connection alive for as long as the task runs. An
+[ip_address](ip_address.md) is thirty-two bytes, trivially copyable: nothing is allocated to parse, copy or compare
+one. The protocols that make the handles — [tcp](tcp.md), [udp](udp.md), [unix_domain](unix_domain.md) — and the
+resolver, [dns](dns.md), are classes of static functions: `net::tcp::connect(...)`, `net::dns::lookup(...)`.
 
-## Waiting
+Errors are values. Everything returns an `expected<T, io::error>` ([io::error](../io/error.md)): the value, or the
+code, the operation and what it was on, so that `message()` reads
+`read tcp 127.0.0.1:50000->127.0.0.1:8080: Operation timed out`. Nothing in the data path throws; an exception is a
+broken contract only (a zone of more than fifteen bytes, a prefix length out of range).
 
-Every call that may wait for the network has two forms, as every call of io has ([stream](../io/stream.md)): `c.read(b)` on a thread, which blocks it, or `co_await c.async_read(b)` in a task, which gives the worker back while it waits. `net::tcp::connect(name)` resolves the name and races the addresses on the scheduler, so on a worker it is only awaited; `connect(endpoint)` and `net::unix_domain::connect` have a blocking form with no race and serve anywhere.
+## The rules
 
-## Handles
+1. The names of the module are qualified, `net::tcp::connect`, `net::ip_address`: `net` is a namespace of its own, as
+   every module but core has.
+2. Every call that may wait for the network has two forms, as every call of io has
+   ([The rules](../io/README.md#the-rules)): `c.read(b)` on a thread, which blocks it, or `co_await c.async_read(b)`
+   in a task, which gives the worker back while it waits. [tcp::connect](tcp/connect.md) of a name resolves it and
+   races the addresses on the scheduler, so on a worker it is only awaited; `connect` of an endpoint and
+   [unix_domain::connect](unix_domain/connect.md) have a blocking form with no race and serve anywhere.
+3. A handle holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global
+   or a `std` container, a [rooted](../core/rooted.md) of it ([The rules](../core/README.md#the-rules), 1). A result
+   reads `c->read(b)` on the `expected` and `c.read(b)` once unwrapped, never `(*c)->read(b)`.
+4. The codes are `errno` values in the system category, the module's own in [category](category.md) ([errc](errc.md):
+   `invalid_address`, `host_not_found`, `no_suitable_address`, and those of HTTP), the resolver's `EAI_*` in
+   [lookup_category](lookup_category.md), and io's `errc::closed` for an operation on a connection the program
+   closed. A deadline that passed is `ETIMEDOUT`, so `e.is_timeout()` answers; a stop token's stop is `ECANCELED`.
+5. A connection's descriptor is closed by `close()` or, failing that, by the object's destructor on the collector's
+   thread after the sweep that finds it dead. `close()` from another task is the way to cancel: the reads, writes and
+   accepts in progress end with `io::errc::closed`. It is safe against the race of a close with an operation in
+   progress: every operation holds the descriptor while it runs, and the `::close` is made by the last of them to let
+   go, so an operation never lands on a number the kernel has given to another socket meanwhile.
+6. A write to a connection the peer closed is an error, `EPIPE`, never a `SIGPIPE` (`SO_NOSIGPIPE`, `MSG_NOSIGNAL`).
+   Every socket is close-on-exec.
+7. `sgcl/net/url.h` alone brings [url](url.md) and [query_params](query_params.md) without the reactor or the
+   sockets.
 
-A [`net::connection`](connection.md), a `net::listener` and a `net::udp::socket` are handles of one word, a `tracked_ptr` to the object inside, as a [`string`](../core/string.md) is: a copy is the same connection (as a `*net.TCPConn` in Go), a handle passed into a task by value keeps the connection alive for as long as the task runs, and a result reads `c->read(b)` on the `expected` and `c.read(b)` once unwrapped, never `(*c)->read(b)`. The addresses are plain values: an [`ip_address`](ip.md) is thirty-two bytes, trivially copyable, nothing allocated to parse, copy or compare one.
+## Functions
 
-## Errors
-
-Everything returns an [`expected<T, io::error>`](../io/error.md): the value, or an `io::error` with the code, the operation and what it was on, so that `message()` reads `dial tcp 127.0.0.1:1: Connection refused` or `read tcp 127.0.0.1:50000->127.0.0.1:8080: Operation timed out`. The codes are `errno` values in the system category, the module's own in [`net::category()`](error.md) (`invalid_address`, `host_not_found`, `no_suitable_address`), the resolver's `EAI_*` in `net::lookup_category()`, and io's `errc::closed` for an operation on a connection closed by the program. A deadline that passed is `ETIMEDOUT`, so `e.is_timeout()` answers; a stop token's stop is `ECANCELED`. Nothing in the data path throws; an exception is a broken contract only (a zone of more than fifteen bytes, a prefix length out of range).
-
-## Lifetime and closing
-
-A connection's descriptor is closed by `close()` or, failing that, by the object's destructor on the collector's thread after the sweep that finds it dead. `close()` from another task is the way to cancel: the reads, writes and accepts in progress end with `io::errc::closed`. It is safe against the race of a close with an operation in progress: every operation holds the descriptor while it runs, and the `::close` is made by the last of them to let go, so an operation never lands on a number the kernel has given to another socket meanwhile (`io/detail/descriptor.h`). A write to a connection the peer closed is an error, `EPIPE`, never a `SIGPIPE` (`SO_NOSIGPIPE`, `MSG_NOSIGNAL`). Every socket is close-on-exec.
-
-## Pages
-
-| page | header | what it is |
+| Function | Header | Description |
 |---|---|---|
-| [error](error.md) | `sgcl/net/error.h` | `net::errc` (the module's own codes), `net::category()`, `net::lookup_category()` (the `EAI_*` codes) |
-| [ip](ip.md) | `sgcl/net/ip.h` | `ip_address` (IPv4, IPv6, the zone; RFC 4291 in, RFC 5952 out; the predicates), `ip_network` (CIDR), `net::endpoint` (address and port) |
-| [connection](connection.md) | `sgcl/net/connection.h` | `net::connection` (read, write, lines, copy, half-close, deadlines, the io view, `in_memory`), `net::listener`, `net::udp::socket`, `net::udp::datagram` |
-| [socket](socket.md) | `sgcl/net/socket.h` | `tcp` (connect with happy eyeballs, listen), `udp` (bind, connect), `unix_domain` (connect, listen), `net::reuse_port` |
-| [url](url.md) | `sgcl/net/url.h` | `net::url` (the WHATWG URL Standard: parse, resolve, the parts, the setters as `with_*`, the origin), `net::query_params` (`application/x-www-form-urlencoded`) |
-| [http](http/README.md) | `sgcl/net/http/http.h` | HTTP/1.1: `net::http::client` (a pool, redirects), `net::http::server` (Go 1.22 routes, limits, shutdown), the messages, headers, cookies, statuses |
-| [tls](tls.md) | `sgcl/net/tls.h`, `sgcl/net/tls/error.h` | TLS 1.3: `net::tls::connect` and `net::tls::client` (the handshake before the connection, X25519MLKEM768 first), `net::tls::config`, `net::tls::identity`, `net::tls::state_of`; the alerts and certificate failures as `io::error`s of the category `"tls"` |
-| [dns](dns.md) | `sgcl/net/dns.h` | `net::dns::lookup`, `net::dns::reverse_lookup` and their `async_` forms, on the system's resolver |
+| [category](category.md) | `error.h` | the error category of `errc`, named `"net"` |
+| [lookup_category](lookup_category.md) | `error.h` | the error category of the resolver's `EAI_*` codes |
+| [make_error_code](make_error_code.md) | `error.h` | an `errc` as an `error_code` |
 
-## SGCL and Go
+## Classes
 
-| Go | sgcl | note |
+| Class | Header | Description |
 |---|---|---|
-| `netip.Addr`, `ParseAddr`, `AddrFrom4`, `AddrFrom16` | `ip_address`, `net::ip_address::parse`, `net::ip_address::v4`, `net::ip_address::v6` | 32 bytes against 24: the zone lives in the value (at most 15 bytes), not behind a pointer to an interned string |
-| `Addr.String`, `Is4`, `Is6`, `Is4In6`, `Unmap`, `Next`, `Prev`, `Zone`, `WithZone` | `to_string`, `is_v4`, `is_v6`, `is_v4_mapped`, `unmap`, `next`, `prev`, `zone`, `with_zone` | the text of RFC 5952, byte for byte Go's |
-| `IsLoopback`, `IsPrivate`, `IsUnspecified`, `IsMulticast`, `IsLinkLocalUnicast`, `IsGlobalUnicast` | `is_loopback`, `is_private`, `is_unspecified`, `is_multicast`, `is_link_local`, `is_global_unicast` | `::%en0` is unspecified here (Go compares the zone too) |
-| `netip.AddrPort`, `ParseAddrPort`, `netip.Prefix`, `ParsePrefix`, `Masked`, `Contains`, `Overlaps` | `net::endpoint`, `endpoint::parse`, `ip_network`, `net::ip_network::parse`, `masked`, `contains`, `overlaps` | `net::ip_network(a, 33)` throws; Go's `PrefixFrom` returns an invalid prefix |
-| `net.Dial("tcp", a)`, `DialTimeout`, `DialContext` | `net::tcp::connect(a)`, `net::tcp::connect(a, 5s)`, `net::tcp::connect(a, token)`, and the `async_` forms | happy eyeballs as RFC 8305 has it: the families in turns, 250 ms apart |
-| `net.Listen("tcp", a)`, `Accept`, `Close` | `net::tcp::listen(a)`, `l.accept()`, `l.accept()`, `l.close()` | a pause from 5 ms to 1 s when the descriptors run out, as Go's server; `net::reuse_port` for `SO_REUSEPORT` |
-| `net.Conn`, `Read`, `Write`, `Close`, `CloseWrite`, `LocalAddr`, `RemoteAddr` | `net::connection`, `read`, `write`, `close`, `close_write`, `local_endpoint`, `remote_endpoint` | a handle of one word; each wait with its `async_` form |
-| `SetDeadline`, `SetReadDeadline`, `SetWriteDeadline` | `set_deadline`, `set_read_deadline`, `set_write_deadline` | on the module's clock, so a test moves them with `manual_clock` |
-| `SetNoDelay`, `SetKeepAlive`, `SetKeepAlivePeriod` | `set_no_delay`, `set_keep_alive(idle)` | the defaults are Go's: no Nagle, probes after 15 s |
-| `io.ReadFull`, `io.ReadAll`, `io.Copy(c, c)` | `c.read_full(b)`, `c.read_all()`, `c.copy_to(c)` | |
-| `bufio.NewReader(c).ReadString('\n')` | `c.read_line()` | an 8 KB buffer at the first line; lines bounded to 64 KB by default |
-| a `net.Conn` as an `io.ReadWriteCloser` | `c` | the connection is a stream as it is: `buffered_reader`, `io::copy` take it |
-| `net.Pipe` | `net::connection::in_memory()` | with deadlines and `close_write` |
-| `net.ListenPacket("udp")`, `ReadFrom`, `WriteTo`, `net.Dial("udp")` | `net::udp::bind`, `receive_from`, `send_to`, `net::udp::connect`, `receive`, `send` | `datagram::truncated` says a datagram was cut to the buffer |
-| `net.Dial("unix", p)`, `net.Listen("unix", p)` | `net::unix_domain::connect(p)`, `net::unix_domain::listen(p)` | the listener's close removes its file, as in Go |
-| `net.LookupHost`, `LookupIP`, `LookupAddr` | `net::dns::lookup(h)`, `net::dns::reverse_lookup(ip)` | the system's resolver (`getaddrinfo`), its async form on the blocking pool; MX, SRV, TXT later |
-| `net.ErrClosed`, `os.ErrDeadlineExceeded`, `*net.DNSError` | `io::errc::closed`, `ETIMEDOUT` (`is_timeout()`), `net::errc::host_not_found` and the `EAI_*` codes | one `io::error` for all |
-| `ctx` of a `DialContext` or a lookup | a `stop_token` | `ECANCELED` when it stops |
-| `url.Parse`, `URL.ResolveReference`, `URL.String` | `net::url::parse(s)`, `u.resolve(ref)` or `net::url::parse(ref, base)`, `u.to_string()` | the WHATWG URL Standard, not RFC 3986: IDNA hosts, `\` as `/`, the path resolved, `0x7f.1` an address; the whole of its test data passes |
-| `URL.Scheme`, `User`, `Host`, `Hostname()`, `Port()`, `EscapedPath()`, `RawQuery`, `Fragment` | `scheme()`, `username()`/`password()`, `host()` and `port()`, `hostname()`, `port()`, `path()`, `query()`, `fragment()` | `host()` without the port; the parts escaped, as the URL writes them |
-| setting a field of `url.URL` | `with_scheme`, `with_host`, `with_port`, `with_path`, `with_query`, `with_fragment`, `with_username`, `with_password` | the standard's setters, each a new `url`; `nullopt` where the standard refuses, so a `url` is always a URL |
-| `url.Values`, `ParseQuery`, `Values.Encode`, `Get`, `Add`, `Set`, `Del` | `net::query_params`, `parse`, `to_string`, `get`, `add`, `set`, `erase` | a list in the order given (Go's is a map and `Encode` sorts); `parse` never fails, a space is `+` |
+| [connection](connection.md) | `connection.h` | a stream connection, TCP, unix, TLS or in memory: Go's `net.Conn` |
+| [dns](dns.md) | `dns.h` | names to addresses and back, through the system's resolver |
+| [endpoint](endpoint.md) | `ip.h` | an IP address and a port, `[::1]:443`: Go's `netip.AddrPort` |
+| [ip_address](ip_address.md) | `ip.h` | an IPv4 or IPv6 address with its zone, a 32-byte value: RFC 4291 in, RFC 5952 out, the predicates |
+| [ip_network](ip_network.md) | `ip.h` | an address and a prefix length, `10.0.0.0/8`: Go's `netip.Prefix` |
+| [listener](listener.md) | `connection.h` | what accepts connections: Go's `net.Listener` |
+| [query_params](query_params.md) | `url.h` | `application/x-www-form-urlencoded`: name and value pairs in their order |
+| [tcp](tcp.md) | `socket.h` | TCP: connect with happy eyeballs, listen |
+| [udp](udp.md) | `socket.h` | UDP: bind, connect |
+| [udp::datagram](udp-datagram.md) | `socket.h` | what one receive of a UDP socket gives: the size, the sender, whether it was cut |
+| [udp::socket](udp-socket.md) | `socket.h` | a UDP socket: Go's `net.UDPConn` |
+| [unix_domain](unix_domain.md) | `socket.h` | unix stream sockets: connect, listen |
+| [url](url.md) | `url.h` | a URL by the WHATWG URL Standard: parse, resolve, the parts, the setters as `with_*`, the origin |
+
+## Enumerations
+
+| Enumeration | Header | Description |
+|---|---|---|
+| [errc](errc.md) | `error.h` | the module's own error codes |
+
+## Objects and types
+
+| Name | Header | Description |
+|---|---|---|
+| `reuse_port` | `socket.h` | `inline constexpr reuse_port_t reuse_port{};`: the flag of a listener shared with other processes, `tcp::listen(":8080", net::reuse_port)` in each, `SO_REUSEPORT` ([tcp::listen](tcp/listen.md)) |
+| `reuse_port_t` | `socket.h` | the type of `reuse_port`, a tag with an explicit default constructor |
+
+## Namespaces
+
+| Namespace | Header | Description |
+|---|---|---|
+| [http](http/README.md) | `http.h` (`http/http.h`) | HTTP/1.1 and HTTP/2: a client with a pool, a server with routes, the messages, headers, cookies, statuses |
+| [tls](tls/README.md) | `tls.h`, `tls/error.h` | TLS 1.3 over the module's connections, both sides: connect, listen, the config, the identity, the state; the alerts and certificate failures as errors of the category `"tls"` |
+
+## See also
+
+- [Benchmarks](benchmarks.md): the single operations against Go
+- [io](../io/README.md): the streams a connection is one of
+- [async](../async/README.md): the reactor and the timers under the waits
+- [The modules](../README.md)

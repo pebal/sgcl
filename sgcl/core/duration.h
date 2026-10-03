@@ -29,7 +29,7 @@ namespace sgcl {
         , _offset(offset) {
         }
 
-        string message() const {
+        string message() const noexcept {
             return string(_reason);
         }
 
@@ -117,7 +117,7 @@ namespace sgcl {
         // A fraction is taken exactly and truncated to the nanosecond.
         // Nothing else is accepted: no spaces, no days (a day of a
         // calendar is 23, 24 or 25 hours: that is a date's add_days).
-        static expected<duration, duration_error> parse(const string& text);
+        static expected<duration, duration_error> parse(const string& text) noexcept;
 
         // The duration a literal in the program spells: parse's value, or
         // bad_expected_access<duration_error> with parse's message. Input
@@ -192,7 +192,7 @@ namespace sgcl {
         // units down from the hour, the leading ones that are zero left
         // out, the seconds with their fraction; a duration under a second
         // in the largest unit that makes its first digit non-zero
-        string to_string() const;
+        string to_string() const noexcept;
 
         // The arithmetic, saturated at the ends of the range
         friend constexpr duration operator+(duration a, duration b) noexcept {
@@ -287,17 +287,17 @@ namespace sgcl {
         // of async read as never, where chrono's own + would overflow
         // into the past and fire at once
         template<class Clock, class D>
-        friend constexpr auto operator+(const std::chrono::time_point<Clock, D>& t, duration d) {
+        friend constexpr auto operator+(const std::chrono::time_point<Clock, D>& t, duration d) noexcept(std::is_arithmetic_v<typename D::rep>) {
             return _moved(t, d, false);
         }
 
         template<class Clock, class D>
-        friend constexpr auto operator+(duration d, const std::chrono::time_point<Clock, D>& t) {
+        friend constexpr auto operator+(duration d, const std::chrono::time_point<Clock, D>& t) noexcept(std::is_arithmetic_v<typename D::rep>) {
             return _moved(t, d, false);
         }
 
         template<class Clock, class D>
-        friend constexpr auto operator-(const std::chrono::time_point<Clock, D>& t, duration d) {
+        friend constexpr auto operator-(const std::chrono::time_point<Clock, D>& t, duration d) noexcept(std::is_arithmetic_v<typename D::rep>) {
             return _moved(t, d, true);
         }
 
@@ -374,7 +374,7 @@ namespace sgcl {
         // ends of that unit's 64-bit count; a point of a floating or an
         // unsigned count is moved by chrono's own arithmetic
         template<class Clock, class D>
-        static constexpr auto _moved(const std::chrono::time_point<Clock, D>& t, duration d, bool subtract) {
+        static constexpr auto _moved(const std::chrono::time_point<Clock, D>& t, duration d, bool subtract) noexcept(std::is_arithmetic_v<typename D::rep>) {
             using Common = std::common_type_t<D, std::chrono::nanoseconds>;
             using Rep = typename Common::rep;
             using Result = std::chrono::time_point<Clock, Common>;
@@ -479,7 +479,7 @@ namespace sgcl {
         }
     }
 
-    inline string duration::to_string() const {
+    inline string duration::to_string() const noexcept {
         if (_ns == 0) {
             return "0s";
         }
@@ -517,7 +517,7 @@ namespace sgcl {
         return string(text, static_cast<size_t>(out - text));
     }
 
-    inline expected<duration, duration_error> duration::parse(const string& text) {
+    inline expected<duration, duration_error> duration::parse(const string& text) noexcept {
         constexpr uint64_t Limit = uint64_t(1) << 63;   // the magnitude of the smallest duration
         const char* s = text.data();
         size_t n = text.size();

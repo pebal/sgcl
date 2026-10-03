@@ -7,8 +7,9 @@
 #   tools/tls_server_identities.sh > tests/net/tls_server_identities.h
 #
 # ed25519, P-256 and P-384 for "example.test", RSA 2048 for "example.test"
-# and "*.example.test", and a second P-256 for "other.test" (the choice by
-# SNI). Valid from 2026 for 100 years.
+# and "*.example.test", a second P-256 for "other.test" (the choice by
+# SNI), and RSA 1024 for "example.test" (too small for RSA-PSS under
+# SHA-512). Valid from 2026 for 100 years.
 set -e
 openssl=${OPENSSL:-/opt/homebrew/opt/openssl@3/bin/openssl}
 dir=$(mktemp -d)
@@ -40,6 +41,7 @@ make p256 EC "-pkeyopt ec_paramgen_curve:P-256" "example.test"
 make p384 EC "-pkeyopt ec_paramgen_curve:P-384" "example.test"
 make rsa RSA "-pkeyopt rsa_keygen_bits:2048" "example.test,*.example.test"
 make other EC "-pkeyopt ec_paramgen_curve:P-256" "other.test"
+make rsa1024 RSA "-pkeyopt rsa_keygen_bits:1024" "example.test"
 cat <<'EOF'
     };
 }

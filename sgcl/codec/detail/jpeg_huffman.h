@@ -7,6 +7,7 @@
 
 #include "../error.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -62,7 +63,7 @@ namespace sgcl::codec::detail {
             if (total > 256) {
                 return false;
             }
-            std::memcpy(symbols, values, total);
+            sgcl::detail::copy_bytes(symbols, values, total);
             if (dc) {
                 for (unsigned i = 0; i < total; ++i) {
                     if (symbols[i] > 15) {

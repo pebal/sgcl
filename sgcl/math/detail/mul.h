@@ -93,7 +93,7 @@ namespace sgcl::math::detail {
             std::swap(xn, yn);
         }
         sub(r, x, xn, y, yn);
-        std::memset(r + xn, 0, (n - xn) * sizeof(Limb));
+        sgcl::detail::fill_bytes(r + xn, 0, (n - xn) * sizeof(Limb));
         return swapped;
     }
 
@@ -119,7 +119,7 @@ namespace sgcl::math::detail {
             } else {
                 assert(!carry);
             }
-            std::memset(r + xn, 0, (n - xn) * sizeof(Limb));
+            sgcl::detail::fill_bytes(r + xn, 0, (n - xn) * sizeof(Limb));
             return xn && xneg && normalized(r, xn);
         }
         int c = compare(x, xn, y, yn);
@@ -129,7 +129,7 @@ namespace sgcl::math::detail {
             xneg = yneg;
         }
         sub(r, x, xn, y, yn);
-        std::memset(r + xn, 0, (n - xn) * sizeof(Limb));
+        sgcl::detail::fill_bytes(r + xn, 0, (n - xn) * sizeof(Limb));
         return c != 0 && xneg;
     }
 
@@ -173,7 +173,7 @@ namespace sgcl::math::detail {
             // r[done .. done + bn) holds the top of what is there so far;
             // above it nothing has been written yet
             Limb carry = add_n(r + done, r + done, t, bn);
-            std::memcpy(r + done + bn, t + bn, len * sizeof(Limb));
+            sgcl::detail::copy_bytes(r + done + bn, t + bn, len * sizeof(Limb));
             carry = add_1_in(r + done + bn, len, carry);
             assert(!carry);
             done += len;
@@ -196,7 +196,7 @@ namespace sgcl::math::detail {
         mul_rec(r, a, m, b, m, arena);
         mul_rec(r + 2 * m, a + m, an - m, b + m, bn - m, arena);
         mul_rec(t, da, m, db, m, arena);
-        std::memcpy(mid, r, 2 * m * sizeof(Limb));
+        sgcl::detail::copy_bytes(mid, r, 2 * m * sizeof(Limb));
         mid[2 * m] = add_in(mid, 2 * m, r + 2 * m, n - 2 * m);
         if (na == nb) {
             mid[2 * m] += add_n(mid, mid, t, 2 * m);
@@ -218,7 +218,7 @@ namespace sgcl::math::detail {
         sqr_rec(r + 2 * m, a + m, n - m, arena);
         sqr_rec(t, da, m, arena);
         // 2·a0·a1 = a0² + a1² - (a0 - a1)²
-        std::memcpy(mid, r, 2 * m * sizeof(Limb));
+        sgcl::detail::copy_bytes(mid, r, 2 * m * sizeof(Limb));
         mid[2 * m] = add_in(mid, 2 * m, r + 2 * m, 2 * n - 2 * m);
         mid[2 * m] -= sub_n(mid, mid, t, 2 * m);
         Limb carry = add_in(r + m, 2 * n - m, mid, normalized(mid, 2 * m + 1));
@@ -308,7 +308,7 @@ namespace sgcl::math::detail {
         Limb* wm2 = arena.take(w);
         mul_rec(r, a, k, b, k, arena);
         mul_rec(r + 4 * k, a + 2 * k, an - 2 * k, b + 2 * k, bn - 2 * k, arena);
-        std::memset(r + 2 * k, 0, 2 * k * sizeof(Limb));
+        sgcl::detail::fill_bytes(r + 2 * k, 0, 2 * k * sizeof(Limb));
         mul_rec(w1, pa.at1, l, pb.at1, l, arena);
         mul_rec(wm1, pa.at_minus1, l, pb.at_minus1, l, arena);
         mul_rec(wm2, pa.at_minus2, l, pb.at_minus2, l, arena);
@@ -328,7 +328,7 @@ namespace sgcl::math::detail {
         Limb* wm2 = arena.take(w);
         sqr_rec(r, a, k, arena);
         sqr_rec(r + 4 * k, a + 2 * k, an - 2 * k, arena);
-        std::memset(r + 2 * k, 0, 2 * k * sizeof(Limb));
+        sgcl::detail::fill_bytes(r + 2 * k, 0, 2 * k * sizeof(Limb));
         sqr_rec(w1, pa.at1, l, arena);
         sqr_rec(wm1, pa.at_minus1, l, arena);
         sqr_rec(wm2, pa.at_minus2, l, arena);
@@ -369,7 +369,7 @@ namespace sgcl::math::detail {
             std::swap(an, bn);
         }
         if (!bn) {
-            std::memset(r, 0, an * sizeof(Limb));
+            sgcl::detail::fill_bytes(r, 0, an * sizeof(Limb));
             return;
         }
         if (a == b && an == bn) {
@@ -388,7 +388,7 @@ namespace sgcl::math::detail {
 
     // The same with its own working memory; the same operand twice is
     // squared
-    inline void mul(Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) {
+    inline void mul(Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
         bool square = a == b && an == bn;
         if (square ? an < thresholds.square_karatsuba : std::min(an, bn) < thresholds.karatsuba) {
             if (square) {

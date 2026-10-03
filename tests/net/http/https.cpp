@@ -676,7 +676,7 @@ TEST(HttpHttps_Tests, APooledConnectionTheServerClosedIsDialedAgain) {
     net::listener listener = *l;
     const uint16_t port = listener.local_endpoint().port();
     std::atomic<int> accepted{0};
-    std::thread serving([listener, &accepted] {
+    std::thread serving([&listener, &accepted] {   // the handle stays on this stack: a thread's closure is not managed memory
         for (;;) {
             auto c = listener.accept();
             if (!c) {

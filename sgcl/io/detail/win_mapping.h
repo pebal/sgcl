@@ -84,7 +84,7 @@ namespace sgcl::io::detail::win {
     // A UTF-8 text as the wide text the W functions take, NUL-terminated;
     // empty for a text that is not UTF-8
     template<class Wide>
-    Wide wide(const char* text, int bytes) {
+    Wide wide(const char* text, int bytes) noexcept {
         Wide w;
         if (bytes == 0) {
             return w;

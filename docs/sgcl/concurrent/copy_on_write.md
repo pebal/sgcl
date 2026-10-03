@@ -1,152 +1,152 @@
-# sgcl::concurrent::copy_on_write
+[sgcl](../README.md) › [concurrent](README.md)
+
+# sgcl::concurrent::copy_on_write\<T\>
 
 ```cpp
-#include "sgcl/concurrent/copy_on_write.h"   // or "sgcl/concurrent/concurrent.h"
+#include "sgcl/concurrent/copy_on_write.h"   // or "sgcl/concurrent.h"
 
-namespace sgcl {
+namespace sgcl::concurrent {
     template<class T>
     class copy_on_write;
 }
 ```
 
-`sgcl::concurrent::copy_on_write<T>` holds a value read by many threads and replaced by few, whole: the copy-on-write of Java's `CopyOnWriteArrayList`, for any copyable `T`. The value lives in a managed object of its own and is never modified there. A reader loads the pointer, one atomic load, and has an immutable snapshot that stays what it is, and alive, for as long as the reader holds it; a writer copies the value, changes the copy and swings the pointer with a compare-exchange, and the value it replaced is garbage once the last snapshot of it is dropped. No lock on either side, no reference count on the snapshot, no reader ever waits and no writer ever waits for a reader: what an RCU, or a `shared_ptr` swapped under a lock, is built to approximate, in three words of code, because the collector answers the one question those exist for, when the old value may be freed ([README: Lock-free containers](README.md#lock-free-containers)). Configuration, routing tables, lists of listeners, anything read on every request and changed once in a while.
+`sgcl::concurrent::copy_on_write<T>` holds a value read by many threads and replaced by few, whole: the
+copy-on-write of Java's `CopyOnWriteArrayList`, for any copyable `T`. The value lives in a managed object of its
+own and is never modified there. A reader loads the pointer, one atomic load, and has an immutable snapshot that
+stays what it is, and alive, for as long as the reader holds it; a writer copies the value, changes the copy and
+swings the pointer with a compare-exchange, and the value it replaced is garbage once the last snapshot of it is
+dropped.
+
+No lock on either side, no reference count on the snapshot, no reader ever waits and no writer ever waits for a
+reader: what an RCU, or a `shared_ptr` swapped under a lock, is built to approximate, because the collector
+answers the one question those exist for, when the old value may be freed
+([README: Lock-free containers](README.md#lock-free-containers)). Configuration, routing tables, lists of
+listeners, anything read on every request and changed once in a while; the versions of the
+[immutable](../immutable/README.md) containers are published to other threads this way.
 
 ## Rules
 
-- The container is one word, the atomic pointer. `sgcl::concurrent::copy_on_write` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1). A snapshot is a `tracked_ptr<const T>` and lives where one may.
-- `load` is one atomic load, wait-free. `store` and `update` are lock-free: a writer that loses the exchange to another writer copies again, so `update`'s function may run more than once, on copies nobody else sees. Writers are meant to be rare next to readers; with many concurrent writers of a large value a mutex around them serializes the copies cheaper.
-- `T` is copied on every `update` and constructed on every `store`: the cost of a write is the copy. A snapshot is never modified: `T` is reached as `const` through it.
+- The container is one word, the atomic pointer. It lives where a `tracked_ptr` may: on a thread's stack or inside
+  a managed object ([The rules](../core/README.md#the-rules), 1). A snapshot is a `tracked_ptr<const T>` and lives
+  where one may.
+- Every member function may be called from any thread at any time. `load` is one atomic load, wait-free. `store`,
+  `operator=`, `update` and `compare_exchange` are lock-free: a writer that loses the exchange to another writer
+  copies again, so `update`'s function may run more than once, on copies nobody else sees. Writers are meant to be
+  rare next to readers; with many concurrent writers of a large value a mutex around them serializes the copies
+  cheaper.
+- `T` is copied on every `update` and constructed on every `store`: the cost of a write is the copy. A snapshot is
+  never modified: `T` is reached as `const` through it.
 - A value's destructor runs when the collector reclaims it, once no snapshot holds it.
 - Non-copyable, non-movable: a shared value has one place.
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `T` | The type of the value: any copy-constructible object type (a `static_assert` says so). |
 
-```cpp
-using value_type = T;
-using snapshot = tracked_ptr<const T>;   // tracked_ptr<const T>, tracked_ptr<const T> for copy_on_write
-```
+## Member types
 
-### Constructors
+| Type | Definition |
+|---|---|
+| `value_type` | `T` |
+| `snapshot` | `tracked_ptr<const T>`: the value, immutable and held alive |
 
-```cpp
-copy_on_write();                                              // T()
-explicit copy_on_write(const T& value);
-explicit copy_on_write(T&& value);
-template<class... A> explicit copy_on_write(std::in_place_t, A&&... a);
-copy_on_write(const copy_on_write&) = delete;
-```
+## Member functions
 
-```cpp
-concurrent::copy_on_write<Config> config(std::in_place, "localhost", 8080);   // a global: 
-concurrent::copy_on_write<vector<tracked_ptr<Listener>>> listeners;
-```
+| Function | Description |
+|---|---|
+| [(constructor)](copy_on_write/copy_on_write.md) | constructs the first value |
+| `(destructor)` | leaves the value to the collector, which destroys it once no snapshot holds it |
+| [operator=](copy_on_write/operator_assign.md) | replaces the value, whole |
 
-### load
+#### Reads
 
-```cpp
-snapshot load() const noexcept;
-operator snapshot() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [load, operator snapshot](copy_on_write/load.md) | a snapshot of the current value: one atomic load |
 
-The current value: one atomic load. The snapshot holds the value alive and unchanged for as long as it exists, whatever the writers do meanwhile. The conversion to `snapshot` is the same load, implicit, so a `copy_on_write` goes where a snapshot is wanted: `tracked_ptr<const T> c = config;`.
+#### Writes
 
-```cpp
-auto c = config.load();
-connect(c->host, c->port);        // the same value in both, whoever stores meanwhile
-```
+| Function | Description |
+|---|---|
+| [store](copy_on_write/store.md) | replaces the value, whole |
+| [update](copy_on_write/update.md) | changes a copy of the value and swings it in |
+| [compare_exchange](copy_on_write/compare_exchange.md) | replaces the value if it is still the one a snapshot holds |
 
-### store, operator=
+## Deduction guides
 
 ```cpp
-void store(const T& value);
-void store(T&& value);
-copy_on_write& operator=(const T& value);
-copy_on_write& operator=(T&& value);
+template<class T>
+copy_on_write(T) -> copy_on_write<T>;
 ```
 
-Replaces the value, whole.
+## Complexity
 
-### update
+- `load`: constant, one atomic load.
+- `store`, `operator=`, `compare_exchange`: the construction of one `T` and one exchange.
+- `update`: the copy of the value and the call of the function, once per attempt; an attempt is lost only to
+  another writer.
 
-```cpp
-template<class F> snapshot update(F&& f);
-```
-
-Changes the value: `f(T&)` on a copy of the current one, which then replaces it with a compare-exchange; when another writer got in between, the copy is made and `f` called again, after the backoff of the [stack](stack.md) (sixteen writers at one value: 500 to 600 ns per update without it, 20 with, measured), so `f` should be a pure change of its argument. Returns a snapshot of the value installed.
-
-```cpp
-listeners.update([&](auto& v) { v.push_back(listener); });
-auto after = config.update([](Config& c) { ++c.generation; });
-```
-
-### compare_exchange
-
-```cpp
-bool compare_exchange(snapshot& expected, const T& desired);
-bool compare_exchange(snapshot& expected, T&& desired);
-```
-
-Replaces the value with `desired` if the current one is still the one `expected` is a snapshot of, returning `true`; otherwise leaves it and sets `expected` to the current snapshot, returning `false`. `update` written out, for a change decided by the caller.
+A read across fifteen readers costs 3 ns while a writer replaces the value as fast as it can, against 30 for an
+atomic `shared_ptr` and 89 under a `std::shared_mutex`
+([Benchmarks: Concurrent containers](benchmarks.md#concurrent-containers)).
 
 ## Example
 
 ```cpp
-#include "sgcl/concurrent/concurrent.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/concurrent.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// A routing table read on every request by many threads and replaced
-// by one: readers take a snapshot and never see a half-changed table,
-// the writer never waits for a reader, and no reader waits for anything
 struct Route {
     int prefix, next_hop;
 };
 
 int main() {
-    concurrent::copy_on_write<vector<Route>> table(vector<Route>{{1, 10}, {2, 20}});
+    concurrent::copy_on_write table(vector<Route>{{1, 10}, {2, 20}});
     atomic stop = false;
     atomic<long> lookups = 0, inconsistent = 0;
     vector<thread> readers;
     for (int r : range(8)) {
         readers.emplace_back([&] {
             while (!stop) {
-                auto t = table.load();  // one load: the table as it was, for as long as t lives
+                auto t = table.load();  // the table as it was, for as long as t lives
                 int hops = 0;
                 for (auto& route : *t) {
                     hops += route.next_hop;
                 }
-                // 10 + 20 + ... : whole or nothing
-                inconsistent += hops != 10 * int(t->size()) * (int(t->size()) + 1) / 2;
+                int n = int(t->size());
+                inconsistent += hops != 10 * n * (n + 1) / 2;  // whole or nothing
                 ++lookups;
             }
         });
     }
     for (int i : range(3, 101)) {
-        // a copy with one more route, swapped in
-        table.update([i](auto& t) { t.push_back({i, 10 * i}); });
+        table.update([i](vector<Route>& t) { t.push_back({i, 10 * i}); });
     }
     stop = true;
     for (auto& r : readers) {
         r.join();
     }
-    println("{} lookups, {} inconsistent, {} routes", lookups.load(), inconsistent.load(),
-            table.load()->size());
-    return inconsistent == 0 && table.load()->size() == 100 ? 0 : 1;
+    println("{} lookups, {} inconsistent", lookups.load(), inconsistent.load());
+    println("{} routes", table.load()->size());
 }
 ```
 
 Sample output:
 
 ```text
-3179 lookups, 0 inconsistent, 100 routes
+3179 lookups, 0 inconsistent
+100 routes
 ```
 
 ## See also
 
-- [atomic](../core/atomic.md), what the pointer is; [vector](../core/vector.md) and the other containers as values
-- [concurrent::sorted_map](sorted_map.md), [concurrent::sorted_map](sorted_map.md) for a value changed in place by many threads
-- [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)
+- [atomic](../core/atomic.md): what the pointer is; a `tracked_ptr` or a handle replaced whole needs no copy
+- [map](map.md), [sorted_map](sorted_map.md): values changed in place by many threads, by key
+- [cache](cache.md): values looked up by key, bounded
+- [README: Lock-free containers](README.md#lock-free-containers)

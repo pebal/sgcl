@@ -348,6 +348,19 @@ TEST(Regex_Tests, WhatElseIsRefused) {
     }
 }
 
+TEST(Regex_Tests, ACountWithItsBoundsReversedSaysSo) {
+    // {2,1} is a count, written the wrong way round: the message names
+    // that, where it used to call the brace "not a count"
+    for (const char* p : {"a{2,1}", "a{3,2}", "(ab){1000,999}"}) {
+        auto re = txt::regex::compile(of(p));
+        ASSERT_FALSE(re.has_value()) << p;
+        std::string message(re.error().message().view());
+        EXPECT_NE(message.find("reversed"), std::string::npos) << p << " -> " << message;
+        EXPECT_EQ(message.find("not a count"), std::string::npos) << p << " -> " << message;
+        EXPECT_EQ(re.error().offset(), std::string_view(p).find('{')) << p;
+    }
+}
+
 TEST(Regex_Tests, APatternThatIsALiteralIsReadByTheCompiler) {
     // no compile(), no optional: the compiler has already read it
     txt::regex re("(?<n>\\d+)\\s*(?i:kg)");
@@ -985,4 +998,312 @@ TEST(Regex_Tests, TheFoldFixDoesNotBluntTheOrdinaryPattern) {
     EXPECT_TRUE(wide.may_begin_with(0xE2));      // U+212A begins with this
     // and a pattern with no folding at all is untouched
     EXPECT_EQ(lead_bytes(program_of("zyzykot")), 1u);
+}
+
+// Found by tests/txt/fuzz/regex_fuzz.cpp: find from a byte inside a code
+// point searched from there, reading the rest of the character as a
+// broken one of its own, so an empty pattern matched between the two
+// bytes of "\u0174" and '.' took its second byte. The walk is over code
+// points and a match never begins inside one: the search starts at the
+// next. A byte that is not part of a whole character (ill-formed UTF-8)
+// is one of its own, as everywhere in the engine, and a search may start
+// on it
+TEST(Regex_Tests, ASearchFromInsideACodePointStartsAtTheNext) {
+    string text = of("\u0174w\U0001F600x");    // 2 + 1 + 4 + 1 bytes
+    auto empty = compiled("");
+    auto any = compiled(".");
+    struct Case { size_t from; size_t at; };
+    for (Case c : {Case{1, 2}, Case{2, 2}, Case{4, 7}, Case{5, 7}, Case{6, 7}, Case{7, 7}}) {
+        auto m = empty.find(text, c.from);
+        ASSERT_TRUE(m.has_value()) << c.from;
+        EXPECT_EQ(m->begin_at(), c.at) << c.from;
+        auto one = any.find(text, c.from);
+        ASSERT_TRUE(one.has_value()) << c.from;
+        EXPECT_EQ(one->begin_at(), c.at) << c.from;
+    }
+    EXPECT_EQ(any.find(text, 1)->end_at(), 3u);              // 'w', not the half of the letter
+    // ill-formed: a lone continuation byte, a lead byte cut short
+    string broken = of("a\x80\xC5" "b");
+    EXPECT_EQ(empty.find(broken, 1)->begin_at(), 1u);
+    EXPECT_EQ(empty.find(broken, 2)->begin_at(), 2u);
+    EXPECT_EQ(any.find(broken, 2)->end_at(), 3u);
+}
+
+// The boundaries of find from a place (DESIGN 408)
+TEST(Regex_Tests, ASearchFromAPlaceAtItsBoundaries) {
+    auto empty = compiled("");
+    auto any = compiled(".");
+    // the empty text: a search from its end finds the empty match, one
+    // past it nothing
+    EXPECT_EQ(empty.find(string(), 0)->begin_at(), 0u);
+    EXPECT_FALSE(empty.find(string(), 1).has_value());
+    EXPECT_FALSE(any.find(string(), 0).has_value());
+    // one code point of four bytes: every byte inside it starts at its end
+    string one = of("\U0001F600");
+    for (size_t from : {1u, 2u, 3u, 4u}) {
+        EXPECT_EQ(empty.find(one, from)->begin_at(), 4u) << from;
+        EXPECT_FALSE(any.find(one, from).has_value()) << from;
+    }
+    EXPECT_EQ(any.find(one, 0)->end_at(), 4u);
+    // the limits of the place
+    EXPECT_FALSE(empty.find(one, 5).has_value());
+    EXPECT_FALSE(empty.find(one, size_t(-1)).has_value());
+    // out of the specification: a sequence cut short at the end, and a
+    // lead byte with no continuation, are bytes of their own
+    string cut = of("a\xF0\x9F");
+    EXPECT_EQ(any.find(cut, 1)->begin_at(), 1u);
+    EXPECT_EQ(any.find(cut, 2)->begin_at(), 2u);
+    EXPECT_EQ(empty.find(cut, 3)->begin_at(), 3u);
+    // a slice that begins inside a code point: the place is the slice's,
+    // and nothing before the slice is read to place it
+    string whole = of("\u0174w");
+    auto tail = whole.as_slice().subslice(1, 2);
+    EXPECT_EQ(any.find(tail, 0)->end_at(), 1u);              // the lone continuation byte
+    EXPECT_EQ(any.find(tail, 1)->begin_at(), 1u);
+    // the text the pattern itself is written in
+    auto self = compiled("\u0174|.");                      // C5 B4 | .
+    EXPECT_EQ(self.find(self.pattern(), 1)->begin_at(), 2u);
+    // a regex moved from is still one to ask, as a copy is
+    auto from = compiled("w");
+    auto to = std::move(from);
+    EXPECT_EQ(to.find(whole, 1)->begin_at(), 2u);
+    EXPECT_EQ(from.find(whole, 1)->begin_at(), 2u);   // NOLINT(bugprone-use-after-move)
+}
+
+// Found by tests/txt/fuzz/regex_fuzz.cpp: "�|x" over "\xFF" was a full
+// match and contained no match. The walk reads a byte of an ill-formed
+// sequence as U+FFFD, as Go's regexp does, so a U+FFFD in the pattern
+// (written so, or as a byte that is not UTF-8) matches it; the shortcuts
+// that skip the text by its bytes — the run every match must contain, the
+// bytes a match can begin with — took U+FFFD for its three bytes EF BF BD
+// and passed over every ill-formed byte. Every road now agrees
+TEST(Regex_Tests, AnIllFormedByteIsTheReplacementCharacterOnEveryRoad) {
+    struct Case { const char* pattern; const char* text; size_t count; };
+    const Case cases[] = {
+        {"�", "\xFF", 1},
+        {"�", "a\xFF", 1},
+        {"�|x", "\xFF", 1},
+        {"\xFF", "\xFF", 1},                       // a pattern byte that is not UTF-8
+        {"\xA0|\xFF\xFF", "\xFF\xFF", 2},
+        {"\\x{FFFD}", "\xE2\x82", 2},              // a sequence cut short: a byte at a time
+        {"a�" "b", "xa\x80" "b", 1},
+        {"�+", "\x80\x81�", 1},
+        {"�", "�", 1},                   // and the character itself, as before
+    };
+    for (const auto& c : cases) {
+        auto re = compiled(c.pattern);
+        string text = of(c.text);
+        EXPECT_EQ(re.count(text), c.count) << c.pattern;
+        EXPECT_TRUE(re.contains(text)) << c.pattern;
+        EXPECT_TRUE(re.find(text).has_value()) << c.pattern;
+    }
+    EXPECT_TRUE(compiled("�").full_match(of("\xFF")));
+    EXPECT_TRUE(compiled("�|x").full_match(of("\xFF")));
+    EXPECT_TRUE(compiled("�{2}").full_match(of("\xE2\x82")));
+    EXPECT_EQ(compiled("�").replace(of("a\xFF" "b\xC5"), of("?")).view(), "a?b?");
+    EXPECT_EQ(compiled("�").split(of("a\xFF" "b")).size(), 2u);
+    // what holds no U+FFFD still passes ill-formed bytes over
+    EXPECT_FALSE(compiled("a").contains(of("\xFF")));
+    EXPECT_EQ(compiled("ab").count(of("\xFF" "ab\x80" "ab")), 2u);
+}
+
+// The boundaries of U+FFFD against ill-formed bytes (DESIGN 408)
+TEST(Regex_Tests, TheReplacementCharacterAtItsBoundaries) {
+    auto re = compiled("�");
+    // nothing, and a pattern that may take nothing
+    EXPECT_FALSE(re.contains(string()));
+    EXPECT_EQ(compiled("�?").count(of("\xFF")), 2u);   // the byte, then the empty end
+    // the longest run: ten thousand ill-formed bytes, each its own match,
+    // and one match of them all
+    std::string bytes(10000, '\xFF');
+    EXPECT_EQ(re.count(of(bytes)), 10000u);
+    EXPECT_TRUE(compiled("�+").full_match(of(bytes)));
+    EXPECT_LT(milliseconds([&] { (void)re.count(of(bytes)); }), 200.0);
+    // literals on either side keep their run of bytes
+    EXPECT_TRUE(compiled("abc�def").contains(of("xxabc\x80" "def")));
+    EXPECT_FALSE(compiled("abc�def").contains(of("xxabc\x80" "deg")));
+    // the pattern over the text it is written in: a byte that is not UTF-8
+    auto self = compiled("\xFF");
+    EXPECT_EQ(self.count(self.pattern()), 1u);
+    // a slice that cuts a character: the bytes left of it are ill-formed
+    string whole = of("żż");
+    EXPECT_EQ(re.count(whole.as_slice().subslice(1, 3)), 1u);   // the lone continuation of the first
+    EXPECT_EQ(re.count(whole.as_slice().subslice(0, 3)), 1u);   // the lead of the second, cut short
+    // a regex moved from still agrees
+    auto from = compiled("�|x");
+    auto to = std::move(from);
+    EXPECT_TRUE(to.contains(of("\xFF")));
+    EXPECT_TRUE(from.contains(of("\xFF")));   // NOLINT(bugprone-use-after-move)
+}
+
+// DESIGN 408: the engine's limits at their edge and one past it, a default
+// match and range, the groups at their count and one past it, the empty
+// text through every operation, and the iterator copied and moved from
+TEST(Regex_Tests, TheEdges) {
+    // Limits: {1000} and 250 groups and 200 levels compile, one more does not
+    EXPECT_TRUE(txt::regex::compile(of("a{1000}")).has_value());
+    EXPECT_TRUE(txt::regex::compile(of("a{0,1000}")).has_value());
+    EXPECT_FALSE(txt::regex::compile(of("a{0,1001}")).has_value());
+    std::string groups;
+    for (int i = 0; i < 250; ++i) {
+        groups += "()";
+    }
+    EXPECT_TRUE(txt::regex::compile(of(groups)).has_value());
+    EXPECT_FALSE(txt::regex::compile(of(groups + "()")).has_value());
+    EXPECT_TRUE(txt::regex::compile(of(groups + "(?:)")).has_value());     // a group that does not capture is not counted
+    auto deep = [](size_t n) { return std::string(n, '(') + "a" + std::string(n, ')'); };
+    EXPECT_TRUE(txt::regex::compile(of(deep(200))).has_value());
+    EXPECT_FALSE(txt::regex::compile(of(deep(201))).has_value());
+    auto refused = txt::regex::compile(of(std::string(100000, '(')));
+    ASSERT_FALSE(refused.has_value());
+    EXPECT_LT(refused.error().offset(), 100000u);
+    auto brackets = txt::regex::compile(of(std::string(100000, '[')));
+    EXPECT_FALSE(brackets.has_value());
+    // A pattern cut in every place it can be cut is refused or read, never more
+    std::string full = "(?<name>a[b-d]{2,3}|\\p{L}+?)\\b(?i:x)";
+    for (size_t n = 0; n <= full.size(); ++n) {
+        auto re = txt::regex::compile(of(full.substr(0, n)));
+        if (!re) {
+            EXPECT_LE(re.error().offset(), n) << n;
+        }
+    }
+
+    // A default match: no text, no groups, no names
+    txt::match none;
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(none.begin_at(), 0u);
+    EXPECT_EQ(none.text().size(), 0u);
+    EXPECT_EQ(none.group_count(), 0u);
+    EXPECT_EQ(none.group(0)->size(), 0u);
+    EXPECT_FALSE(none.group(1).has_value());
+    EXPECT_FALSE(none.group("x").has_value());
+    EXPECT_EQ(none[7].size(), 0u);
+
+    // The groups at their count and one past it, one that took no part,
+    // and a name nobody gave
+    auto re = compiled("(a)|(?<b>b)");
+    auto m = re.find(of("a"));
+    ASSERT_TRUE(m);
+    EXPECT_EQ(m->group_count(), 2u);
+    EXPECT_EQ(piece_of(*m->group(1)), "a");
+    EXPECT_FALSE(m->group(2).has_value());                   // took no part
+    EXPECT_FALSE(m->group(3).has_value());                   // past the count
+    EXPECT_FALSE(m->group(npos).has_value());
+    EXPECT_FALSE(m->group("c").has_value());
+    EXPECT_FALSE(m->group("").has_value());
+    EXPECT_EQ((*m)[2].size(), 0u);
+    EXPECT_EQ(re.group_index(of("b")), 2u);
+    EXPECT_FALSE(re.group_index(of("a")).has_value());
+    EXPECT_FALSE(re.group_index(string()).has_value());
+    // more groups than the inline room of a match: copied and assigned whole
+    std::string twelve;
+    for (int i = 0; i < 12; ++i) {
+        twelve += "(.)";
+    }
+    auto wide = compiled(twelve);
+    auto hit = wide.find(of("abcdefghijkl"));
+    ASSERT_TRUE(hit);
+    txt::match copy = *hit;
+    txt::match assigned;
+    assigned = copy;
+    assigned = assigned;                                      // NOLINT: assigned to itself
+    EXPECT_EQ(piece_of(*assigned.group(12)), "l");
+    EXPECT_EQ(piece_of(*copy.group(1)), "a");
+    txt::match moved = std::move(copy);
+    EXPECT_EQ(piece_of(*moved.group(12)), "l");
+
+    // The empty text through every operation
+    auto any = compiled("x*");
+    string empty;
+    EXPECT_TRUE(any.full_match(empty));
+    EXPECT_TRUE(any.contains(empty));
+    EXPECT_EQ(any.count(empty), 1u);
+    EXPECT_EQ(piece_of(any.replace(empty, of("-")).as_slice()), "-");
+    EXPECT_EQ(piece_of(any.replace_first(empty, of("-")).as_slice()), "-");
+    EXPECT_EQ(any.split(empty).size(), 2u);
+    EXPECT_FALSE(compiled("x").full_match(empty));
+    EXPECT_EQ(compiled("x").split(empty).size(), 1u);
+    EXPECT_EQ(compiled("x").count(empty), 0u);
+    // split's limit at its ends: 1 is the whole text, 2 one cut
+    auto comma = compiled(",");
+    EXPECT_EQ(comma.split(of("a,b,c"), 1).size(), 1u);
+    EXPECT_EQ(comma.split(of("a,b,c"), 2).size(), 2u);
+    EXPECT_EQ(piece_of(comma.split(of("a,b,c"), 2)[1]), "b,c");
+    EXPECT_EQ(comma.split(of(",,"), 0).size(), 3u);
+    // the replacement's escapes at the end of the text
+    auto b = compiled("(b)");
+    EXPECT_EQ(piece_of(b.replace(of("b"), of("$")).as_slice()), "$");
+    EXPECT_EQ(piece_of(b.replace(of("b"), of("${")).as_slice()), "${");
+    EXPECT_EQ(piece_of(b.replace(of("b"), of("${1")).as_slice()), "${1");
+    EXPECT_EQ(piece_of(b.replace(of("b"), of("${}")).as_slice()), "");
+    EXPECT_EQ(piece_of(b.replace(of("b"), of("$$")).as_slice()), "$");
+    EXPECT_EQ(piece_of(b.replace(of("b"), string()).as_slice()), "");
+
+    // The range: default, copied, moved from; its iterator too
+    txt::regex_matches nothing;
+    EXPECT_TRUE(nothing.empty());
+    EXPECT_EQ(nothing.count(), 0u);
+    EXPECT_TRUE(nothing.begin() == nothing.end());
+    EXPECT_TRUE(txt::regex_matches::iterator() == txt::regex_matches::iterator());
+    string text = of("a1b22c333");
+    auto digits = compiled("[0-9]+");
+    auto all = digits.all(text);
+    auto all_copy = all;
+    EXPECT_EQ(all_copy.count(), 3u);
+    auto it = all.begin();
+    auto it_copy = it;
+    ++it;
+    EXPECT_EQ(piece_of(it_copy->text()), "1");               // a copy walks on its own
+    EXPECT_EQ(piece_of(it->text()), "22");
+    ++it_copy;
+    EXPECT_TRUE(it_copy == it);
+    auto it_moved = std::move(it);
+    EXPECT_EQ(piece_of(it_moved->text()), "22");
+    ++it_moved;
+    EXPECT_EQ(piece_of(it_moved->text()), "333");
+    ++it;                                                     // NOLINT(bugprone-use-after-move): still one to step
+    EXPECT_EQ(piece_of(it->text()), "333");
+    ++it;
+    EXPECT_TRUE(it == all.end());
+    // a regex the range came from may go; the range holds its program
+    txt::regex_matches kept;
+    {
+        auto temporary = compiled("[a-z]");
+        kept = temporary.all(text);
+    }
+    EXPECT_EQ(kept.count(), 3u);
+}
+
+namespace {
+    // a = std::move(a) without the compiler's warning about it
+    template<class T>
+    void move_into_itself(T& a) {
+        T& same = a;
+        a = std::move(same);
+    }
+}
+
+// A range of matches moved from is the empty one, as the one made with
+// nothing (after DESIGN 429); the regex itself is a handle, and a regex
+// moved from is still the pattern
+TEST(Regex_Tests, AMovedFromRangeIsTheEmptyOne) {
+    auto digits = compiled("[0-9]");
+    string text = of("a1b2");
+    auto all = digits.all(text);
+    auto moved = std::move(all);
+    EXPECT_EQ(moved.count(), 2u);
+    EXPECT_TRUE(all.empty());                                  // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(all.count(), 0u);
+    EXPECT_TRUE(all.text().empty());
+    EXPECT_TRUE(all.begin() == all.end());
+    all = digits.all(of("123"));
+    EXPECT_EQ(all.count(), 3u);
+    move_into_itself(all);
+    EXPECT_EQ(all.count(), 3u);
+    txt::regex_matches assigned;
+    assigned = std::move(moved);
+    EXPECT_EQ(assigned.count(), 2u);
+    EXPECT_TRUE(moved.empty());                                // NOLINT(bugprone-use-after-move)
+    auto copy = assigned;
+    EXPECT_EQ(copy.count(), 2u);
 }

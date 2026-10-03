@@ -55,7 +55,7 @@ namespace sgcl::net {
             uint16_t port = 0;
         };
 
-        inline expected<Target, io::error> parse_target(const string& address, const char* op) {
+        inline expected<Target, io::error> parse_target(const string& address, const char* op) noexcept {
             auto hp = split_host_port(std::string_view(address.data(), address.size()));
             if (!hp) {
                 return fail(net_error(errc::invalid_address, op, address));
@@ -70,7 +70,7 @@ namespace sgcl::net {
         // RFC 8305 §4: the addresses of the two families taken in turns,
         // the first family the first address's, each family in the
         // resolver's order
-        inline vector<endpoint> interleave(const vector<ip_address>& addresses, uint16_t port) {
+        inline vector<endpoint> interleave(const vector<ip_address>& addresses, uint16_t port) noexcept {
             vector<endpoint> first, second, out;
             for (auto& a : addresses) {
                 bool same = a.unmap().is_v4() == addresses.front().unmap().is_v4();
@@ -115,7 +115,7 @@ namespace sgcl::net {
             bool pending = false;
         };
 
-        inline expected<Connecting, io::error> start_connect(const endpoint& to, const char* op) {
+        inline expected<Connecting, io::error> start_connect(const endpoint& to, const char* op) noexcept {
             int family = family_of(to);
             SockAddr sa;
             if (!to_sockaddr(to, family, sa)) {
@@ -138,14 +138,19 @@ namespace sgcl::net {
             return c;
         }
 
-        inline expected<connection, io::error> finish_connect(Connecting& c, int e, const char* op, const endpoint& to) {
+        inline expected<connection, io::error> finish_connect(Connecting& c, int e, const char* op, const endpoint& to) noexcept {
             if (e != 0) {
                 (void)c.conn->close();
                 return fail(system_error(e, op, to.to_string()));
             }
             c.conn->set_local(local_of(c.conn->fd()));
+            if (to.address().has_zone() || to.address().is_v4_mapped()) {   // the peer as the system names it, as an accepted connection has it: the zone by its name ("%1" is "%lo0"), the IPv4 address unmapped
+                if (auto peer = remote_of(c.conn->fd()); peer.is_valid()) {
+                    c.conn->set_remote(peer);
+                }
+            }
             tune_tcp(c.conn->fd());
-            return connection(tracked_ptr<ConnImpl>(c.conn));
+            return ConnectionAccess::make(tracked_ptr<ConnImpl>(c.conn));
         }
 
         // One TCP connection to the endpoint, on this thread
@@ -159,7 +164,7 @@ namespace sgcl::net {
 
         // The same from a task; the stop ends it with ECANCELED and
         // closes the socket
-        inline async::task<expected<connection, io::error>> _co_dial_tcp(endpoint to, async::stop_token stop)  {
+        inline async::task<expected<connection, io::error>> _co_dial_tcp(endpoint to, async::stop_token stop) noexcept {
             auto c = start_connect(to, "dial tcp");
             if (!c) {
                 co_return fail(c);
@@ -181,7 +186,7 @@ namespace sgcl::net {
         };
 
         struct Race {
-            explicit Race(size_t n)
+            explicit Race(size_t n) noexcept
             : results(n) {
             }
 
@@ -190,7 +195,7 @@ namespace sgcl::net {
             bool over = false;
         };
 
-        inline async::task<void> race_attempt(tracked_ptr<Race> race, size_t index, endpoint to, async::stop_token stop, DialOne dial) {
+        inline async::task<void> race_attempt(tracked_ptr<Race> race, size_t index, endpoint to, async::stop_token stop, DialOne dial) noexcept {
             auto r = co_await dial(to, stop);
             connection late = r ? *r : connection();
             {
@@ -222,7 +227,7 @@ namespace sgcl::net {
 
         // One attempt's failure as a part of the race's error: where it went
         // and why, without the operation ("[::1]:80: Connection refused")
-        inline std::string attempt_failure(const io::error& e) {
+        inline std::string attempt_failure(const io::error& e) noexcept {
             std::string s(e.path().view());
             if (!s.empty()) {
                 s += ": ";
@@ -237,7 +242,7 @@ namespace sgcl::net {
         // address is told from one whose every address failed:
         //   dial tcp localhost:80 (every address failed: [::1]:80: Connection refused; 127.0.0.1:80: Connection refused): Connection refused
         //   dial tcp localhost:80 (its only address: [::1]:80: Connection refused): Connection refused
-        inline io::error every_attempt_failed(const vector<optional<io::error>>& failures, const string& what) {
+        inline io::error every_attempt_failed(const vector<optional<io::error>>& failures, const string& what) noexcept {
             std::string path(what.view());
             path += failures.size() == 1 ? " (its only address: " : " (every address failed: ";
             error_code code;
@@ -258,7 +263,7 @@ namespace sgcl::net {
             return io::error(code, string("dial tcp"), string(path));
         }
 
-        inline async::task<expected<connection, io::error>> dial_race(vector<endpoint> targets, async::stop_token stop, time_point deadline, std::chrono::nanoseconds delay, DialOne dial, string what) {
+        inline async::task<expected<connection, io::error>> dial_race(vector<endpoint> targets, async::stop_token stop, time_point deadline, std::chrono::nanoseconds delay, DialOne dial, string what) noexcept {
             deadline = no_deadline_at_max(deadline);
             size_t n = targets.size();
             if (n == 0) {
@@ -266,6 +271,9 @@ namespace sgcl::net {
             }
             if (stop.stop_requested()) {
                 co_return fail(system_error(ECANCELED, "dial tcp", what));
+            }
+            if (deadline != time_point() && sgcl::clock::now() >= deadline) {   // passed before the start: no attempt, as no read starts past its deadline
+                co_return fail(system_error(ETIMEDOUT, "dial tcp", what));
             }
             if (n == 1 && !stop.stop_possible() && deadline == time_point()) {
                 auto only = co_await dial(targets[0], stop);   // nothing to race
@@ -341,7 +349,7 @@ namespace sgcl::net {
         // "host:port" dialed: the name looked up (the stop and the
         // deadline apply to the lookup too), the addresses raced; an
         // empty host is this machine
-        inline async::task<expected<connection, io::error>> dial(string address, async::stop_token stop, time_point deadline) {
+        inline async::task<expected<connection, io::error>> dial(string address, async::stop_token stop, time_point deadline) noexcept {
             auto t = parse_target(address, "dial tcp");
             if (!t) {
                 co_return fail(t);
@@ -364,7 +372,7 @@ namespace sgcl::net {
         // is every address of both families (the IPv6 wildcard with
         // IPV6_V6ONLY off: dual stack, as Go); a name, its first IPv4
         // address, else its first
-        inline expected<endpoint, io::error> pick_local(const Target& t, const vector<ip_address>& found) {
+        inline expected<endpoint, io::error> pick_local(const Target& t, const vector<ip_address>& found) noexcept {
             if (t.host.empty()) {
                 return endpoint(ip_address::any_v6(), t.port);
             }
@@ -378,7 +386,7 @@ namespace sgcl::net {
 
         // A socket bound to the endpoint (and listening, for a stream);
         // the IPv6 wildcard falls back to IPv4 on a system without IPv6
-        inline expected<int, io::error> bind_socket(const endpoint& at, int type, bool reuse_port, const char* op, const string& what) {
+        inline expected<int, io::error> bind_socket(const endpoint& at, int type, bool reuse_port, const char* op, const string& what) noexcept {
             int family = family_of(at);
             endpoint e = at;
             int s = open_socket(family, type);
@@ -413,7 +421,7 @@ namespace sgcl::net {
             return s;
         }
 
-        inline expected<listener, io::error> listen_tcp(const string& address, const vector<ip_address>& found, const Target& t, bool reuse_port) {
+        inline expected<listener, io::error> listen_tcp(const string& address, const vector<ip_address>& found, const Target& t, bool reuse_port) noexcept {
             auto at = pick_local(t, found);
             if (!at) {
                 return fail(at);
@@ -422,53 +430,20 @@ namespace sgcl::net {
             if (!s) {
                 return fail(s);
             }
-            return listener(make_tracked<ListenerImpl>(*s, true, local_of(*s), string(), false));
-        }
-
-        inline expected<UdpSocket, io::error> bind_udp(const string& address, const vector<ip_address>& found, const Target& t) {
-            auto at = pick_local(t, found);
-            if (!at) {
-                return fail(at);
-            }
-            auto s = bind_socket(*at, SOCK_DGRAM, false, "bind udp", address);
-            if (!s) {
-                return fail(s);
-            }
-            SockAddr self;
-            ::getsockname(*s, self.get(), &self.size);
-            return UdpSocket(make_tracked<UdpImpl>(*s, self.family(), from_sockaddr(self.get()), endpoint()));
-        }
-
-        inline expected<UdpSocket, io::error> connect_udp(const string& address, const vector<ip_address>& found, uint16_t port) {
-            endpoint to(found.front(), port);
-            int family = family_of(to);
-            SockAddr sa;
-            if (!to_sockaddr(to, family, sa)) {
-                return fail(net_error(errc::invalid_address, "dial udp", address));
-            }
-            int s = open_socket(family, SOCK_DGRAM);
-            if (s < 0) {
-                return fail(system_error(errno, "dial udp", address));
-            }
-            if (::connect(s, sa.get(), sa.size) != 0) {
-                int e = errno;
-                ::close(s);
-                return fail(system_error(e, "dial udp", address));
-            }
-            return UdpSocket(make_tracked<UdpImpl>(s, family, local_of(s), to));
+            return ListenerAccess::make(make_tracked<ListenerImpl>(*s, true, local_of(*s), string(), false));
         }
 
         // The addresses of a target's host for a listener or a UDP
         // socket: none needed for an empty host, the host itself when
         // it is numeric, the resolver's otherwise
-        inline expected<vector<ip_address>, io::error> local_addresses(const Target& t) {
+        inline expected<vector<ip_address>, io::error> local_addresses(const Target& t) noexcept {
             if (t.host.empty()) {
                 return vector<ip_address>();
             }
             return dns::lookup(t.host);
         }
 
-        inline async::task<expected<vector<ip_address>, io::error>> _co_local_addresses(Target t)  {
+        inline async::task<expected<vector<ip_address>, io::error>> _co_local_addresses(Target t) noexcept {
             if (t.host.empty()) {
                 co_return vector<ip_address>();
             }
@@ -476,7 +451,7 @@ namespace sgcl::net {
         }
 
         // A unix socket at the path: dialed, or bound and listening
-        inline expected<listener, io::error> listen_unix(const string& path) {
+        inline expected<listener, io::error> listen_unix(const string& path) noexcept {
             SockAddr sa;
             if (!unix_sockaddr(path, sa)) {
                 return fail(net_error(errc::invalid_address, "listen unix", path));
@@ -490,10 +465,10 @@ namespace sgcl::net {
                 ::close(s);
                 return fail(system_error(e, "listen unix", path));
             }
-            return listener(make_tracked<ListenerImpl>(s, false, endpoint(), path, true));
+            return ListenerAccess::make(make_tracked<ListenerImpl>(s, false, endpoint(), path, true));
         }
 
-        inline expected<Connecting, io::error> start_connect_unix(const string& path) {
+        inline expected<Connecting, io::error> start_connect_unix(const string& path) noexcept {
             SockAddr sa;
             if (!unix_sockaddr(path, sa)) {
                 return fail(net_error(errc::invalid_address, "dial unix", path));
@@ -515,12 +490,12 @@ namespace sgcl::net {
             return c;
         }
 
-        inline expected<connection, io::error> finish_connect_unix(Connecting& c, int e, const string& path) {
+        inline expected<connection, io::error> finish_connect_unix(Connecting& c, int e, const string& path) noexcept {
             if (e != 0) {
                 (void)c.conn->close();
                 return fail(system_error(e, "dial unix", path));
             }
-            return connection(tracked_ptr<ConnImpl>(c.conn));
+            return ConnectionAccess::make(tracked_ptr<ConnImpl>(c.conn));
         }
     }
 
@@ -551,7 +526,7 @@ namespace sgcl::net {
             return _block_connect(address);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& address) {
+        static async::task<expected<net::connection, io::error>> async_connect(const string& address) noexcept {
             return _co_connect(address);
         }
 
@@ -561,7 +536,7 @@ namespace sgcl::net {
             return _block_connect(address, stop);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& address, async::stop_token stop) {
+        static async::task<expected<net::connection, io::error>> async_connect(const string& address, async::stop_token stop) noexcept {
             return _co_connect(address, stop);
         }
 
@@ -570,7 +545,7 @@ namespace sgcl::net {
             return _block_connect(address, timeout);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& address, duration timeout) {
+        static async::task<expected<net::connection, io::error>> async_connect(const string& address, duration timeout) noexcept {
             return _co_connect(address, timeout);
         }
 
@@ -580,30 +555,30 @@ namespace sgcl::net {
             return _block_connect(to);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const net::endpoint& to) {
+        static async::task<expected<net::connection, io::error>> async_connect(const net::endpoint& to) noexcept {
             return _co_connect(to);
         }
 
         // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-        static expected<net::listener, io::error> listen(const string& address) {
+        static expected<net::listener, io::error> listen(const string& address) noexcept {
             return _block_listen(address);
         }
 
-        static async::task<expected<net::listener, io::error>> async_listen(const string& address) {
+        static async::task<expected<net::listener, io::error>> async_listen(const string& address) noexcept {
             return _co_listen(address);
         }
 
         // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-        static expected<net::listener, io::error> listen(const string& address, net::reuse_port_t flag) {
+        static expected<net::listener, io::error> listen(const string& address, net::reuse_port_t flag) noexcept {
             return _block_listen(address, flag);
         }
 
-        static async::task<expected<net::listener, io::error>> async_listen(const string& address, net::reuse_port_t flag) {
+        static async::task<expected<net::listener, io::error>> async_listen(const string& address, net::reuse_port_t flag) noexcept {
             return _co_listen(address, flag);
         }
 
     private:
-        static expected<net::listener, io::error> _listen(const string& address, bool reuse_port) {
+        static expected<net::listener, io::error> _listen(const string& address, bool reuse_port) noexcept {
             auto t = net::detail::parse_target(address, "listen tcp");
             if (!t) {
                 return net::detail::fail(t);
@@ -615,7 +590,7 @@ namespace sgcl::net {
             return net::detail::listen_tcp(address, *found, *t, reuse_port);
         }
 
-        static async::task<expected<net::listener, io::error>> _async_listen(string address, bool reuse_port) {
+        static async::task<expected<net::listener, io::error>> _async_listen(string address, bool reuse_port) noexcept {
             auto t = net::detail::parse_target(address, "listen tcp");
             if (!t) {
                 co_return net::detail::fail(t);
@@ -644,38 +619,46 @@ namespace sgcl::net {
             return net::detail::dial_tcp(to);
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& address)  {
+        static async::task<expected<net::connection, io::error>> _co_connect(const string& address) noexcept {
             return net::detail::dial(address, async::stop_token(), time_point());
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& address, async::stop_token stop)  {
+        static async::task<expected<net::connection, io::error>> _co_connect(const string& address, async::stop_token stop) noexcept {
             return net::detail::dial(address, std::move(stop), time_point());
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& address, duration timeout)  {
+        static async::task<expected<net::connection, io::error>> _co_connect(const string& address, duration timeout) noexcept {
             return net::detail::dial(address, async::stop_token(), sgcl::clock::now() + timeout);   // saturates: duration::max() is time_point::max(), no deadline
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const net::endpoint& to)  {
+        static async::task<expected<net::connection, io::error>> _co_connect(const net::endpoint& to) noexcept {
             return net::detail::_co_dial_tcp(to, async::stop_token());
         }
 
-        static expected<net::listener, io::error> _block_listen(const string& address)  {
+        static expected<net::listener, io::error> _block_listen(const string& address) noexcept {
             return _listen(address, false);
         }
 
-        static expected<net::listener, io::error> _block_listen(const string& address, net::reuse_port_t)  {
+        static expected<net::listener, io::error> _block_listen(const string& address, net::reuse_port_t) noexcept {
             return _listen(address, true);
         }
 
-        static async::task<expected<net::listener, io::error>> _co_listen(const string& address)  {
+        static async::task<expected<net::listener, io::error>> _co_listen(const string& address) noexcept {
             return _async_listen(address, false);
         }
 
-        static async::task<expected<net::listener, io::error>> _co_listen(const string& address, net::reuse_port_t)  {
+        static async::task<expected<net::listener, io::error>> _co_listen(const string& address, net::reuse_port_t) noexcept {
             return _async_listen(address, true);
         }
     };
+
+    namespace detail {
+        class UdpImpl;
+
+        // The module's way to make a udp::socket over its object, never a
+        // public constructor
+        struct UdpAccess;
+    }
 
     // UDP: bind takes an address to receive on (":5353" every address of
     // both families, as tcp::listen); connect fixes the peer, so that send
@@ -683,89 +666,519 @@ namespace sgcl::net {
     // dropped by the system. Neither waits on the network: the async forms
     // differ only in the lookup of a name.
     struct udp {
-        // The socket bind and connect give, and what one receive gives
-        using socket = detail::UdpSocket;
-        using datagram = detail::Datagram;
+        // A datagram received: how many bytes the buffer got, from whom,
+        // and whether the datagram was longer than the buffer and cut
+        // (MSG_TRUNC)
+        struct datagram {
+            size_t size = 0;
+            endpoint from;
+            bool truncated = false;
+        };
+
+        // A UDP socket (udp::bind, udp::connect): datagrams to and from
+        // any address, or, connected, to and from one. A datagram is sent
+        // whole or not at all; one longer than the buffer is cut, and says
+        // so. A handle of one word, as connection is: copies are the same
+        // socket. (Its members that reach the socket's object are defined
+        // below, after the object.)
+        class socket {
+        public:
+            socket() noexcept = default;   // no socket; an operation on it is a contract violation
+
+            // The next datagram into the buffer: its size, its sender, and
+            // whether it was cut to fit
+            // `receive_from(...)` on this thread, `co_await async_receive_from(...)` in a task
+            expected<datagram, io::error> receive_from(const slice<byte>& buffer) const;
+            async::task<expected<datagram, io::error>> async_receive_from(const slice<byte>& buffer) const noexcept;
+
+            // `send_to(...)` on this thread, `co_await async_send_to(...)` in a task
+            expected<size_t, io::error> send_to(const slice<const byte>& data, const endpoint& to) const;
+            async::task<expected<size_t, io::error>> async_send_to(const slice<const byte>& data, const endpoint& to) const noexcept;
+
+            // A socket from udp::connect: to and from its one peer
+            // `receive(...)` on this thread, `co_await async_receive(...)` in a task
+            expected<size_t, io::error> receive(const slice<byte>& buffer) const;
+            async::task<expected<size_t, io::error>> async_receive(const slice<byte>& buffer) const noexcept;
+
+            // `send(...)` on this thread, `co_await async_send(...)` in a task
+            expected<size_t, io::error> send(const slice<const byte>& data) const;
+            async::task<expected<size_t, io::error>> async_send(const slice<const byte>& data) const noexcept;
+
+            expected<void, io::error> close() const noexcept;
+            bool is_closed() const noexcept;
+            endpoint local_endpoint() const noexcept;
+
+            // The peer of a connected socket, empty otherwise
+            endpoint remote_endpoint() const noexcept;
+
+            void set_deadline(time_point t) const noexcept;
+            void set_read_deadline(time_point t) const noexcept;
+            void set_write_deadline(time_point t) const noexcept;
+            time_point read_deadline() const noexcept;
+            time_point write_deadline() const noexcept;
+
+            explicit operator bool() const noexcept {
+                return (bool)_impl;
+            }
+
+            friend bool operator==(const socket& a, const socket& b) noexcept {
+                return a._impl == b._impl;
+            }
+
+        private:
+            friend struct detail::UdpAccess;
+
+            explicit socket(const tracked_ptr<detail::UdpImpl>& impl) noexcept
+            : _impl(impl) {
+            }
+
+            // The handle's word, for the atomics (core/detail/handle_word.h)
+            friend struct sgcl::detail::HandleWord;
+
+            socket(sgcl::detail::FromWord, const tracked_ptr<detail::UdpImpl>& w) noexcept
+            : _impl(w) {
+            }
+
+            tracked_ptr<detail::UdpImpl>& _handle_word() noexcept {
+                return _impl;
+            }
+
+            const tracked_ptr<detail::UdpImpl>& _handle_word() const noexcept {
+                return _impl;
+            }
+
+            detail::UdpImpl& _get() const noexcept;
+            static async::task<expected<size_t, io::error>> _receive_size(tracked_ptr<detail::UdpImpl> impl, slice<byte> buffer) noexcept;
+
+            tracked_ptr<detail::UdpImpl> _impl;
+        };
 
         // `bind(...)` on this thread, `co_await async_bind(...)` in a task
-        static expected<udp::socket, io::error> bind(const string& address) {
-            return _block_bind(address);
-        }
-
-        static async::task<expected<udp::socket, io::error>> async_bind(const string& address) {
-            return _co_bind(address);
-        }
+        static expected<udp::socket, io::error> bind(const string& address) noexcept;
+        static async::task<expected<udp::socket, io::error>> async_bind(const string& address) noexcept;
 
         // `udp::connect(...)` on this thread, `co_await udp::async_connect(...)` in a task
-        static expected<udp::socket, io::error> connect(const string& address) {
-            return _block_connect(address);
-        }
-
-        static async::task<expected<udp::socket, io::error>> async_connect(const string& address) {
-            return _co_connect(address);
-        }
+        static expected<udp::socket, io::error> connect(const string& address) noexcept;
+        static async::task<expected<udp::socket, io::error>> async_connect(const string& address) noexcept;
 
     private:
-        static async::task<expected<udp::socket, io::error>> _async_bind(string address) {
-            auto t = net::detail::parse_target(address, "bind udp");
-            if (!t) {
-                co_return net::detail::fail(t);
-            }
-            auto found = co_await net::detail::_co_local_addresses(*t);
-            if (!found) {
-                co_return net::detail::fail(found);
-            }
-            co_return net::detail::bind_udp(address, *found, *t);
-        }
-
-        static async::task<expected<udp::socket, io::error>> _async_connect(string address) {
-            auto t = net::detail::parse_target(address, "dial udp");
-            if (!t) {
-                co_return net::detail::fail(t);
-            }
-            expected<vector<ip_address>, io::error> found = vector<ip_address>{ip_address::loopback_v4()};
-            if (!t->host.empty()) {
-                found = co_await dns::async_lookup(t->host);
-            }
-            if (!found) {
-                co_return net::detail::fail(found);
-            }
-            co_return net::detail::connect_udp(address, *found, t->port);
-        }
-
-        // the two halves of the operations above: a thread's and a task's
-        static expected<udp::socket, io::error> _block_bind(const string& address)  {
-            auto t = net::detail::parse_target(address, "bind udp");
-            if (!t) {
-                return net::detail::fail(t);
-            }
-            auto found = net::detail::local_addresses(*t);
-            if (!found) {
-                return net::detail::fail(found);
-            }
-            return net::detail::bind_udp(address, *found, *t);
-        }
-
-        static async::task<expected<udp::socket, io::error>> _co_bind(const string& address)  {
-            return _async_bind(address);
-        }
-
-        static expected<udp::socket, io::error> _block_connect(const string& address) {
-            auto t = net::detail::parse_target(address, "dial udp");
-            if (!t) {
-                return net::detail::fail(t);
-            }
-            auto found = t->host.empty() ? expected<vector<ip_address>, io::error>(vector<ip_address>{ip_address::loopback_v4()}) : dns::lookup(t->host);
-            if (!found) {
-                return net::detail::fail(found);
-            }
-            return net::detail::connect_udp(address, *found, t->port);
-        }
-
-        static async::task<expected<udp::socket, io::error>> _co_connect(const string& address)  {
-            return _async_connect(address);
-        }
+        static async::task<expected<udp::socket, io::error>> _async_bind(string address) noexcept;
+        static async::task<expected<udp::socket, io::error>> _async_connect(string address) noexcept;
     };
+
+    namespace detail {
+        class UdpImpl {
+        public:
+            UdpImpl(int fd, int family, endpoint local, endpoint remote) noexcept
+            : _d(fd)
+            , _local(local)
+            , _remote(remote)
+            , _family(family) {
+            }
+
+            // One datagram: its size in the buffer and its sender
+            // `receive(...)` on this thread, `co_await async_receive(...)` in a task
+            expected<udp::datagram, io::error> receive(const slice<byte>& b) {
+                return _block_receive(b);
+            }
+
+            async::task<expected<udp::datagram, io::error>> async_receive(const slice<byte>& b) noexcept {
+                return _co_receive(b);
+            }
+
+            expected<udp::datagram, io::error> _block_receive(const slice<byte>& b)  {
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("read", describe()));
+                }
+                for (;;) {
+                    if (auto e = _check(Descriptor::Read, "read")) {
+                        return fail(*e);
+                    }
+                    udp::datagram d;
+                    int e = _recv(b, d);
+                    if (e == 0) {
+                        return d;
+                    }
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {
+                        return fail(system_error(e, "read", describe()));
+                    }
+                    auto r = _d.wait(Descriptor::Read);
+                    if (r != WaitResult::ready) {
+                        return fail(wait_error(r, _d, "read", describe()));
+                    }
+                }
+            }
+
+            async::task<expected<udp::datagram, io::error>> _co_receive(slice<byte> b) noexcept {
+                Operation op(_d);
+                if (!op) {
+                    co_return fail(closed_error("read", describe()));
+                }
+                for (;;) {
+                    if (auto e = _check(Descriptor::Read, "read")) {
+                        co_return fail(*e);
+                    }
+                    udp::datagram d;
+                    int e = _recv(b, d);
+                    if (e == 0) {
+                        co_return d;
+                    }
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {
+                        co_return fail(system_error(e, "read", describe()));
+                    }
+                    auto r = co_await _d.async_wait(Descriptor::Read);
+                    if (r != WaitResult::ready) {
+                        co_return fail(wait_error(r, _d, "read", describe()));
+                    }
+                }
+            }
+
+            // One datagram to `to`, or to the connected peer when to is empty
+            expected<size_t, io::error> send(const slice<const byte>& data, const endpoint& to) {
+                SockAddr sa;
+                if (to.is_valid() && !to_sockaddr(to, _family, sa)) {
+                    return fail(_unreachable(to));
+                }
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("write", describe()));
+                }
+                for (;;) {
+                    if (auto e = _check(Descriptor::Write, "write")) {
+                        return fail(*e);
+                    }
+                    _d.prepare(Descriptor::Write);
+                    ssize_t n = to.is_valid() ? ::sendto(_d.fd(), data.data(), data.size(), SendFlags, sa.get(), sa.size) : ::send(_d.fd(), data.data(), data.size(), SendFlags);
+                    if (n >= 0) {
+                        return size_t(n);
+                    }
+                    int e = errno;
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {   // ENOBUFS an error, as in Go: the socket has room, so a wait for writability would spin
+                        return fail(system_error(e, "write", describe()));
+                    }
+                    auto r = _d.wait(Descriptor::Write);
+                    if (r != WaitResult::ready) {
+                        return fail(wait_error(r, _d, "write", describe()));
+                    }
+                }
+            }
+
+            async::task<expected<size_t, io::error>> _co_send(slice<const byte> data, endpoint to) noexcept {
+                SockAddr sa;
+                if (to.is_valid() && !to_sockaddr(to, _family, sa)) {
+                    co_return fail(_unreachable(to));
+                }
+                Operation op(_d);
+                if (!op) {
+                    co_return fail(closed_error("write", describe()));
+                }
+                for (;;) {
+                    if (auto e = _check(Descriptor::Write, "write")) {
+                        co_return fail(*e);
+                    }
+                    _d.prepare(Descriptor::Write);
+                    ssize_t n = to.is_valid() ? ::sendto(_d.fd(), data.data(), data.size(), SendFlags, sa.get(), sa.size) : ::send(_d.fd(), data.data(), data.size(), SendFlags);
+                    if (n >= 0) {
+                        co_return size_t(n);
+                    }
+                    int e = errno;
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {   // ENOBUFS an error, as in Go: the socket has room, so a wait for writability would spin
+                        co_return fail(system_error(e, "write", describe()));
+                    }
+                    auto r = co_await _d.async_wait(Descriptor::Write);
+                    if (r != WaitResult::ready) {
+                        co_return fail(wait_error(r, _d, "write", describe()));
+                    }
+                }
+            }
+
+            expected<void, io::error> close() noexcept {
+                int e = _d.close();
+                if (e) {
+                    return fail(system_error(e, "close", describe()));
+                }
+                return {};
+            }
+
+            bool is_closed() const noexcept {
+                return _d.closing();
+            }
+
+            void set_deadline(int dir, time_point t) noexcept {
+                _d.set_deadline(dir, t);
+            }
+
+            time_point deadline(int dir) const noexcept {
+                return _d.deadline(dir);
+            }
+
+            endpoint local_endpoint() const noexcept {
+                return _local;
+            }
+
+            endpoint remote_endpoint() const noexcept {
+                return _remote;
+            }
+
+            string describe() const noexcept {
+                return _remote.is_valid() ? string("udp ") + _local.to_string() + "->" + _remote.to_string() : string("udp ") + _local.to_string();
+            }
+
+        private:
+            // recvmsg, for the flag that says the datagram was cut: 0 or
+            // errno. An empty buffer reads into a byte of its own: macOS
+            // answers an empty one with 0 and leaves the datagram queued, a
+            // datagram of nothing that is not there; so the datagram is
+            // taken, its size in the buffer 0, truncated when it had bytes
+            int _recv(const slice<byte>& b, udp::datagram& d) noexcept {
+                SockAddr from;
+                byte spare[1];
+                iovec iov;
+                iov.iov_base = b.empty() ? spare : b.data();
+                iov.iov_len = b.empty() ? 1 : b.size();
+                msghdr m = {};
+                m.msg_name = &from.storage;
+                m.msg_namelen = sizeof(from.storage);
+                m.msg_iov = &iov;
+                m.msg_iovlen = 1;
+                _d.prepare(Descriptor::Read);
+                ssize_t n = ::recvmsg(_d.fd(), &m, 0);
+                if (n < 0) {
+                    return errno;
+                }
+                d.size = b.empty() ? 0 : size_t(n);
+                d.truncated = (m.msg_flags & MSG_TRUNC) != 0 || (b.empty() && n > 0);
+                d.from = m.msg_namelen ? from_sockaddr(from.get()) : _remote;
+                return 0;
+            }
+
+            // An address the socket cannot take: EAFNOSUPPORT for an IPv6
+            // one on an IPv4 socket, invalid_address for a zone that names
+            // no interface (as a connect's)
+            io::error _unreachable(const endpoint& to) const noexcept {
+                if (_family == AF_INET && !to.address().unmap().is_v4()) {
+                    return system_error(EAFNOSUPPORT, "write", to.to_string());
+                }
+                return net_error(errc::invalid_address, "write", to.to_string());
+            }
+
+            optional<io::error> _check(int dir, const char* op) const noexcept {
+                if (_d.closing()) {
+                    return closed_error(op, describe());
+                }
+                if (_d.expired(dir)) {
+                    return system_error(ETIMEDOUT, op, describe());
+                }
+                return nullopt;
+            }
+
+            Descriptor _d;
+            endpoint _local;
+            endpoint _remote;
+            int _family;
+        };
+
+        struct UdpAccess {
+            static udp::socket make(const tracked_ptr<UdpImpl>& impl) noexcept {
+                return udp::socket(impl);
+            }
+        };
+
+        inline expected<udp::socket, io::error> bind_udp(const string& address, const vector<ip_address>& found, const Target& t) noexcept {
+            auto at = pick_local(t, found);
+            if (!at) {
+                return fail(at);
+            }
+            auto s = bind_socket(*at, SOCK_DGRAM, false, "bind udp", address);
+            if (!s) {
+                return fail(s);
+            }
+            SockAddr self;
+            ::getsockname(*s, self.get(), &self.size);
+            return UdpAccess::make(make_tracked<UdpImpl>(*s, self.family(), from_sockaddr(self.get()), endpoint()));
+        }
+
+        inline expected<udp::socket, io::error> connect_udp(const string& address, const vector<ip_address>& found, uint16_t port) noexcept {
+            endpoint to(found.front(), port);
+            int family = family_of(to);
+            SockAddr sa;
+            if (!to_sockaddr(to, family, sa)) {
+                return fail(net_error(errc::invalid_address, "dial udp", address));
+            }
+            int s = open_socket(family, SOCK_DGRAM);
+            if (s < 0) {
+                return fail(system_error(errno, "dial udp", address));
+            }
+            if (::connect(s, sa.get(), sa.size) != 0) {
+                int e = errno;
+                ::close(s);
+                return fail(system_error(e, "dial udp", address));
+            }
+            return UdpAccess::make(make_tracked<UdpImpl>(s, family, local_of(s), to));
+        }
+    }
+
+    // --- udp::socket, over its object ---------------------------------------
+
+    inline detail::UdpImpl& udp::socket::_get() const noexcept {
+        assert(_impl && "an empty net::udp::socket");
+        return *_impl;
+    }
+
+    inline expected<udp::datagram, io::error> udp::socket::receive_from(const slice<byte>& buffer) const {
+        return _get()._block_receive(buffer);
+    }
+
+    inline async::task<expected<udp::datagram, io::error>> udp::socket::async_receive_from(const slice<byte>& buffer) const noexcept {
+        return _get()._co_receive(buffer);
+    }
+
+    inline expected<size_t, io::error> udp::socket::send_to(const slice<const byte>& data, const endpoint& to) const {
+        return _get().send(data, to);
+    }
+
+    inline async::task<expected<size_t, io::error>> udp::socket::async_send_to(const slice<const byte>& data, const endpoint& to) const noexcept {
+        return _get()._co_send(data, to);
+    }
+
+    inline expected<size_t, io::error> udp::socket::receive(const slice<byte>& buffer) const {
+        auto d = _get()._block_receive(buffer);
+        if (!d) {
+            return detail::fail(d);
+        }
+        return d->size;
+    }
+
+    inline async::task<expected<size_t, io::error>> udp::socket::async_receive(const slice<byte>& buffer) const noexcept {
+        return _receive_size(_impl, buffer);
+    }
+
+    inline async::task<expected<size_t, io::error>> udp::socket::_receive_size(tracked_ptr<detail::UdpImpl> impl, slice<byte> buffer) noexcept {
+        auto d = co_await impl->async_receive(buffer);
+        if (!d) {
+            co_return detail::fail(d);
+        }
+        co_return d->size;
+    }
+
+    inline expected<size_t, io::error> udp::socket::send(const slice<const byte>& data) const {
+        return _get().send(data, endpoint());
+    }
+
+    inline async::task<expected<size_t, io::error>> udp::socket::async_send(const slice<const byte>& data) const noexcept {
+        return _get()._co_send(data, endpoint());
+    }
+
+    inline expected<void, io::error> udp::socket::close() const noexcept {
+        return _get().close();
+    }
+
+    inline bool udp::socket::is_closed() const noexcept {
+        return _get().is_closed();
+    }
+
+    inline endpoint udp::socket::local_endpoint() const noexcept {
+        return _get().local_endpoint();
+    }
+
+    inline endpoint udp::socket::remote_endpoint() const noexcept {
+        return _get().remote_endpoint();
+    }
+
+    inline void udp::socket::set_deadline(time_point t) const noexcept {
+        _get().set_deadline(detail::Descriptor::Read, t);
+        _get().set_deadline(detail::Descriptor::Write, t);
+    }
+
+    inline void udp::socket::set_read_deadline(time_point t) const noexcept {
+        _get().set_deadline(detail::Descriptor::Read, t);
+    }
+
+    inline void udp::socket::set_write_deadline(time_point t) const noexcept {
+        _get().set_deadline(detail::Descriptor::Write, t);
+    }
+
+    inline time_point udp::socket::read_deadline() const noexcept {
+        return _get().deadline(detail::Descriptor::Read);
+    }
+
+    inline time_point udp::socket::write_deadline() const noexcept {
+        return _get().deadline(detail::Descriptor::Write);
+    }
+
+    // --- udp's functions ------------------------------------------------------
+
+    inline expected<udp::socket, io::error> udp::bind(const string& address) noexcept {
+        auto t = net::detail::parse_target(address, "bind udp");
+        if (!t) {
+            return net::detail::fail(t);
+        }
+        auto found = net::detail::local_addresses(*t);
+        if (!found) {
+            return net::detail::fail(found);
+        }
+        return net::detail::bind_udp(address, *found, *t);
+    }
+
+    inline async::task<expected<udp::socket, io::error>> udp::async_bind(const string& address) noexcept {
+        return _async_bind(address);
+    }
+
+    inline expected<udp::socket, io::error> udp::connect(const string& address) noexcept {
+        auto t = net::detail::parse_target(address, "dial udp");
+        if (!t) {
+            return net::detail::fail(t);
+        }
+        auto found = t->host.empty() ? expected<vector<ip_address>, io::error>(vector<ip_address>{ip_address::loopback_v4()}) : dns::lookup(t->host);
+        if (!found) {
+            return net::detail::fail(found);
+        }
+        return net::detail::connect_udp(address, *found, t->port);
+    }
+
+    inline async::task<expected<udp::socket, io::error>> udp::async_connect(const string& address) noexcept {
+        return _async_connect(address);
+    }
+
+    inline async::task<expected<udp::socket, io::error>> udp::_async_bind(string address) noexcept {
+        auto t = net::detail::parse_target(address, "bind udp");
+        if (!t) {
+            co_return net::detail::fail(t);
+        }
+        auto found = co_await net::detail::_co_local_addresses(*t);
+        if (!found) {
+            co_return net::detail::fail(found);
+        }
+        co_return net::detail::bind_udp(address, *found, *t);
+    }
+
+    inline async::task<expected<udp::socket, io::error>> udp::_async_connect(string address) noexcept {
+        auto t = net::detail::parse_target(address, "dial udp");
+        if (!t) {
+            co_return net::detail::fail(t);
+        }
+        expected<vector<ip_address>, io::error> found = vector<ip_address>{ip_address::loopback_v4()};
+        if (!t->host.empty()) {
+            found = co_await dns::async_lookup(t->host);
+        }
+        if (!found) {
+            co_return net::detail::fail(found);
+        }
+        co_return net::detail::connect_udp(address, *found, t->port);
+    }
 
     // Stream sockets in the file system (AF_UNIX): connect to the path a
     // listener made; listen creates the socket's file (an error when
@@ -779,21 +1192,21 @@ namespace sgcl::net {
             return _block_connect(path);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& path) {
+        static async::task<expected<net::connection, io::error>> async_connect(const string& path) noexcept {
             return _co_connect(path);
         }
 
         // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-        static expected<net::listener, io::error> listen(const string& path) {
+        static expected<net::listener, io::error> listen(const string& path) noexcept {
             return _block_listen(path);
         }
 
-        static async::task<expected<net::listener, io::error>> async_listen(const string& path) {
+        static async::task<expected<net::listener, io::error>> async_listen(const string& path) noexcept {
             return _co_listen(path);
         }
 
     private:
-        static async::task<expected<net::connection, io::error>> _async_connect(string path) {
+        static async::task<expected<net::connection, io::error>> _async_connect(string path) noexcept {
             auto c = net::detail::start_connect_unix(path);
             if (!c) {
                 co_return net::detail::fail(c);
@@ -802,7 +1215,7 @@ namespace sgcl::net {
             co_return net::detail::finish_connect_unix(*c, e, path);
         }
 
-        static async::task<expected<net::listener, io::error>> _async_listen(string path) {
+        static async::task<expected<net::listener, io::error>> _async_listen(string path) noexcept {
             co_return net::detail::listen_unix(path);
         }
 
@@ -815,16 +1228,16 @@ namespace sgcl::net {
             return net::detail::finish_connect_unix(*c, c->pending ? c->conn->connected() : 0, path);
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& path)  {
+        static async::task<expected<net::connection, io::error>> _co_connect(const string& path) noexcept {
             return _async_connect(path);
         }
 
-        static expected<net::listener, io::error> _block_listen(const string& path)  {
+        static expected<net::listener, io::error> _block_listen(const string& path) noexcept {
             return net::detail::listen_unix(path);
         }
 
         // Nothing to wait for: the task form of listen, for symmetry
-        static async::task<expected<net::listener, io::error>> _co_listen(const string& path)  {
+        static async::task<expected<net::listener, io::error>> _co_listen(const string& path) noexcept {
             return _async_listen(path);
         }
     };

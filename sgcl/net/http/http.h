@@ -5,10 +5,10 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-// HTTP/1.1 of the net module (stage 1c): net::http::client with its pool,
-// net::http::server with its routes, the messages (request, response,
-// response_writer), headers, status, cookie; the parser under them is
-// detail/parser.h. TLS, https:// and HTTP/2 come with the next stage.
+// HTTP of the net module, 1.1 and 2, over TCP or TLS (https://):
+// net::http::client with its pool, net::http::server with its routes,
+// the messages (request, response, response_writer), headers, status,
+// cookie, download; the parsers under them are in detail/.
 #include "download.h"
 #include "client.h"
 #include "cookie.h"

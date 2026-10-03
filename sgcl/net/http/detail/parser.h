@@ -155,7 +155,7 @@ namespace sgcl::net::http::detail {
 
     // The field lines of s from `at` to the empty line that ends them,
     // added to h as slices of s: 0, or the status to refuse them with
-    inline int parse_fields(const string& s, size_t at, headers& h, bool strict, size_t& end) {
+    inline int parse_fields(const string& s, size_t at, headers& h, bool strict, size_t& end) noexcept {
         auto v = s.view();
         // room for a field a line, made once: the lines counted first (the
         // empty one that ends them among them), so that the list does not
@@ -217,7 +217,7 @@ namespace sgcl::net::http::detail {
     }
 
     // A request head: the request line and the fields. 0, or the status
-    inline int parse_request_head(const string& s, RequestLine& line, headers& h) {
+    inline int parse_request_head(const string& s, RequestLine& line, headers& h) noexcept {
         auto v = s.view();
         size_t e, next;
         if (!next_line(v, 0, e, next, false)) {
@@ -282,7 +282,7 @@ namespace sgcl::net::http::detail {
     }
 
     // A response head. 0, or 1 for a head that breaks RFC 9112
-    inline int parse_response_head(const string& s, StatusLine& line, headers& h) {
+    inline int parse_response_head(const string& s, StatusLine& line, headers& h) noexcept {
         auto v = s.view();
         size_t e, next;
         if (!next_line(v, 0, e, next, false)) {
@@ -337,6 +337,12 @@ namespace sgcl::net::http::detail {
             for (;;) {
                 auto comma = v.find(',');
                 auto item = trim_ows(v.substr(0, comma));
+                if (item.size() > 19) {
+                    // 1*DIGIT: leading zeros are digits but not of the
+                    // number's 19 (a value of nothing but zeros is 0)
+                    const size_t zeros = item.find_first_not_of('0');
+                    item.remove_prefix(zeros == std::string_view::npos ? item.size() - 1 : zeros);
+                }
                 if (item.empty() || item.size() > 19) {
                     return false;
                 }
@@ -536,7 +542,7 @@ namespace sgcl::net::http::detail {
         : _max_trailer(max_trailer) {
         }
 
-        Step step(std::string_view in, size_t room) {
+        Step step(std::string_view in, size_t room) noexcept {
             Step r;
             size_t i = 0;
             while (i < in.size() && !r.done && !r.error) {
@@ -652,7 +658,7 @@ namespace sgcl::net::http::detail {
         };
 
         // chunk-size [ chunk-ext ] CRLF, the line in _line with its CRLF
-        bool _size_line() {
+        bool _size_line() noexcept {
             std::string_view v(_line);
             if (v.size() < 2 || v[v.size() - 2] != '\r') {
                 return false;
@@ -737,7 +743,7 @@ namespace sgcl::net::http::detail {
             return true;
         }
 
-        bool _parse_trailers() {
+        bool _parse_trailers() noexcept {
             // the section ends in the empty line: fields as a head's, then
             // no framing field among them
             if (_trailer == "\r\n") {
@@ -768,7 +774,7 @@ namespace sgcl::net::http::detail {
     // Everything a server checks of a request's head before a handler
     // sees it: the lines, the framing, Host. 0, or the status to refuse
     // it with (and close)
-    inline int check_request_head(const string& head, RequestLine& line, headers& h, BodyFraming& framing) {
+    inline int check_request_head(const string& head, RequestLine& line, headers& h, BodyFraming& framing) noexcept {
         int refused = parse_request_head(head, line, h);
         if (!refused) {
             refused = request_framing(h, line.minor, framing);

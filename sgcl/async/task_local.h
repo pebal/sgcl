@@ -32,7 +32,7 @@ namespace sgcl::async {
 
         template<class T>
         struct TaskLocalValue : TaskLocals {
-            explicit TaskLocalValue(T v)
+            explicit TaskLocalValue(T v) noexcept(std::is_nothrow_move_constructible_v<T>)
             : value(std::move(v)) {
             }
 
@@ -90,7 +90,7 @@ namespace sgcl::async {
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            bool await_suspend(std::coroutine_handle<P> h) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 auto& header = detail::frame_header(detail::frame_of(h).get());
                 tracked_ptr<detail::TaskLocalValue<T>> node = make_tracked<detail::TaskLocalValue<T>>(std::move(_value));
                 node->key = _key;
@@ -105,7 +105,7 @@ namespace sgcl::async {
         private:
             friend class task_local;
 
-            setter(const void* key, T value)
+            setter(const void* key, T value) noexcept(std::is_nothrow_move_constructible_v<T>)
             : _key(key)
             , _value(std::move(value)) {
             }
@@ -114,13 +114,13 @@ namespace sgcl::async {
             T _value;
         };
 
-        setter set(T value) {
+        setter set(T value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return setter(this, std::move(value));
         }
 
         // The value of the task this thread runs: nullopt when the task
         // never set it and inherited none, and outside a task
-        optional<T> get() const {
+        optional<T> get() const noexcept(std::is_nothrow_copy_constructible_v<T>) {
             if (auto n = detail::find_task_local(this)) {
                 return static_cast<const detail::TaskLocalValue<T>*>(n)->value;
             }
@@ -128,7 +128,7 @@ namespace sgcl::async {
         }
 
         // The value, or the one given when there is none
-        T get_or(T fallback) const {
+        T get_or(T fallback) const noexcept(std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>) {
             if (auto n = detail::find_task_local(this)) {
                 return static_cast<const detail::TaskLocalValue<T>*>(n)->value;
             }

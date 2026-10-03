@@ -46,7 +46,7 @@ namespace sgcl::config {
     // cgroup limit, else physical memory), leaving the rest to everything
     // outside the managed heap. Above heap_pressure_percent of it the collector
     // cycles every pressure_sleep_time and returns every free chunk; at the
-    // limit an allocation forces a collection and, failing that, throws.
+    // limit an allocation forces a collection and, failing that, ends the program (DESIGN 356).
     // SGCL_MEMORY_LIMIT in the environment (detail/env.h) and
     // collector::set_memory_limit() override the default.
     [[maybe_unused]] static constexpr size_t heap_limit_percent = 90;

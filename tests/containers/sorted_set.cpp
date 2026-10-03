@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
+#include "tests/containers/boundary.h"
 
 #include "sgcl/core/sorted_map.h"
 #include "sgcl/core/sorted_multimap.h"
@@ -11,6 +12,7 @@
 #include "sgcl/core/sorted_set.h"
 
 #include <algorithm>
+#include <climits>
 #include <functional>
 #include <map>
 #include <random>
@@ -91,17 +93,6 @@ namespace {
 
         bool operator==(const OnlyLess& other) const noexcept {
             return value == other.value;
-        }
-    };
-
-    struct ThrowingLess {
-        inline static int countdown = -1;
-
-        bool operator()(int a, int b) const {
-            if (countdown >= 0 && countdown-- == 0) {
-                throw std::runtime_error("compare");
-            }
-            return a < b;
         }
     };
 
@@ -394,32 +385,6 @@ TEST(SortedSet_Test, TransparentLookup) {
     auto [first, last] = s.equal_range(banana);
     EXPECT_EQ(*first, "banana");
     EXPECT_EQ(*last, "cherry");
-}
-
-TEST(SortedSet_Test, ThrowingComparator) {
-    sgcl::sorted_set<int, ThrowingLess> s;
-    for (int i = 0; i < 32; ++i) {
-        s.insert(i * 2);
-    }
-    std::vector<int> before = elements_of(s);
-    off_frame([&] {   // nodes built for the failed inserts must not linger in this frame
-    for (int at : {0, 2, 4}) {
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(s.insert(33), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        EXPECT_EQ(elements_of(s), before);
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(s.emplace(35), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        EXPECT_EQ(elements_of(s), before);
-        ThrowingLess::countdown = at;
-        EXPECT_THROW(s.erase(36), std::runtime_error);
-        ThrowingLess::countdown = -1;
-        EXPECT_EQ(elements_of(s), before);
-        EXPECT_TRUE(tree_is_valid(s));
-    }
-    });
-    EXPECT_EQ(collector::get_live_object_count(), 33u);
 }
 
 TEST(SortedSet_Test, ElementsHoldingTrackedPointers) {
@@ -770,4 +735,407 @@ TEST(SortedMultimap_Test, DeductionGuides) {
     static_assert(std::is_same_v<decltype(from_range), sgcl::sorted_multimap<int, double>>);
     EXPECT_EQ(m.count(1), 2u);
     EXPECT_EQ(from_range.size(), 2u);
+}
+
+// The public surface of the trees as std's: the flag the shared tree is
+// built on is not a member of theirs; insert_return_type only where a
+// node handle's insert returns it
+namespace {
+    template<class C>
+    concept HasMultiFlag = requires { C::Multi; } || requires { C::multi; };
+
+    template<class C>
+    concept HasInsertReturnType = requires { typename C::insert_return_type; };
+}
+
+TEST(SortedContainers_Test, PublicSurfaceAsStd) {
+    static_assert(!HasMultiFlag<sgcl::sorted_map<int, int>>);
+    static_assert(!HasMultiFlag<sgcl::sorted_multimap<int, int>>);
+    static_assert(!HasMultiFlag<sgcl::sorted_set<int>>);
+    static_assert(!HasMultiFlag<sgcl::sorted_multiset<int>>);
+    static_assert(HasInsertReturnType<sgcl::sorted_map<int, int>>);
+    static_assert(HasInsertReturnType<sgcl::sorted_set<int>>);
+    static_assert(!HasInsertReturnType<sgcl::sorted_multimap<int, int>>);
+    static_assert(!HasInsertReturnType<sgcl::sorted_multiset<int>>);
+}
+
+// A node handle swaps, as std's do: the member and the free swap found
+// by argument lookup, each handle then owning the other's element
+namespace {
+    template<class H>
+    concept MemberSwap = requires(H& a, H& b) { { a.swap(b) } noexcept; };
+}
+
+TEST(SortedContainers_Test, NodeHandleSwap) {
+    using MapHandle = sgcl::sorted_map<int, std::string>::node_type;
+    using SetHandle = sgcl::sorted_set<int>::node_type;
+    static_assert(MemberSwap<MapHandle>);
+    static_assert(MemberSwap<SetHandle>);
+    static_assert(std::is_nothrow_swappable_v<MapHandle>);
+    static_assert(std::is_nothrow_swappable_v<SetHandle>);
+
+    sgcl::sorted_map<int, std::string> m = {{1, "one"}, {2, "two"}};
+    auto a = m.extract(1);
+    auto b = m.extract(2);
+    a.swap(b);
+    EXPECT_EQ(a.key(), 2);
+    EXPECT_EQ(a.mapped(), "two");
+    EXPECT_EQ(b.key(), 1);
+    swap(a, b);
+    EXPECT_EQ(a.key(), 1);
+    EXPECT_EQ(b.mapped(), "two");
+    MapHandle empty;
+    swap(a, empty);
+    EXPECT_TRUE(a.empty());
+    EXPECT_EQ(empty.key(), 1);
+
+    sgcl::sorted_set<int> s = {5, 6};
+    auto c = s.extract(5);
+    auto d = s.extract(6);
+    swap(c, d);
+    EXPECT_EQ(c.value(), 6);
+    EXPECT_EQ(d.value(), 5);
+    std::ranges::swap(c, d);
+    EXPECT_EQ(c.value(), 5);
+    EXPECT_TRUE(s.insert(std::move(c)).inserted);
+    EXPECT_TRUE(s.contains(5));
+}
+
+// The edges of swap: two empty handles, a moved-from one, a handle with
+// itself (the node stays, the element alive), and the element dying with
+// the handle it ended in
+TEST(SortedContainers_Test, NodeHandleSwapEdges) {
+    using Handle = sgcl::sorted_map<int, Int>::node_type;
+    Handle a;
+    Handle b;
+    a.swap(b);
+    EXPECT_TRUE(a.empty());
+    EXPECT_TRUE(b.empty());
+
+    auto before = Int::counter;
+    {
+        sgcl::sorted_map<int, Int> m = {{1, 10}, {2, 20}};
+        Handle c = m.extract(1);
+        Handle d = std::move(c);                         // c moved from: empty
+        swap(c, d);
+        EXPECT_EQ((int)c.mapped(), 10);
+        EXPECT_TRUE(d.empty());
+        c.swap(c);                                       // with itself: the same node, the element untouched
+        EXPECT_EQ(c.key(), 1);
+        EXPECT_EQ((int)c.mapped(), 10);
+        swap(c, c);
+        EXPECT_EQ((int)c.mapped(), 10);
+        EXPECT_EQ(Int::counter, before + 2);             // both elements alive: one in the map, one in c
+    }
+    EXPECT_EQ(Int::counter, before);                     // each destroyed once, by the map and by the handle
+
+    sgcl::sorted_multiset<int> ms = {3, 3};
+    auto e = ms.extract(ms.begin());
+    sgcl::sorted_multiset<int>::node_type f;
+    e.swap(f);
+    EXPECT_TRUE(e.empty());
+    EXPECT_EQ(f.value(), 3);
+    EXPECT_EQ(ms.insert(std::move(f)), std::next(ms.begin()));   // back in, after the equal one
+}
+
+// erase and extract by a key of another type, where the comparator is
+// transparent, as the lookups and the hash containers' erase and extract
+// (C++23's): none, one or all the equivalent elements; an iterator is
+// still an iterator, never a key
+namespace {
+    struct ThrowingViewLess {
+        using is_transparent = void;
+        bool operator()(const std::string& a, const std::string& b) const noexcept { return a < b; }
+        bool operator()(const std::string& a, std::string_view b) const { return a < b; }
+        bool operator()(std::string_view a, const std::string& b) const { return a < b; }
+    };
+
+    template<class C, class K>
+    concept ErasesBy = requires(C& c, const K& k) { c.erase(k); c.extract(k); };
+}
+
+TEST(SortedContainers_Test, EraseAndExtractByAKeyOfAnotherType) {
+    static_assert(ErasesBy<sgcl::sorted_map<std::string, int, std::less<>>, std::string_view>);
+    static_assert(ErasesBy<sgcl::sorted_multiset<std::string, std::less<>>, const char*>);
+    static_assert(!ErasesBy<sgcl::sorted_map<std::string, int>, std::string_view>);   // std::less<std::string>: no
+    static_assert(!ErasesBy<sgcl::sorted_set<std::string>, std::string_view>);
+
+    sgcl::sorted_map<std::string, int, std::less<>> m = {{"a", 1}, {"b", 2}, {"c", 3}};
+    std::string_view a = "a";
+    static_assert(noexcept(m.erase(a)));
+    EXPECT_EQ(m.erase(a), 1u);
+    EXPECT_EQ(m.erase(a), 0u);                           // absent
+    auto nh = m.extract(std::string_view("b"));
+    EXPECT_EQ(nh.key(), "b");
+    EXPECT_EQ(nh.mapped(), 2);
+    EXPECT_TRUE(m.extract(std::string_view("zz")).empty());
+    EXPECT_EQ(m.erase(m.begin()), m.end());              // an iterator, not a key: the last element
+    EXPECT_TRUE(m.empty());
+    EXPECT_EQ(m.erase(a), 0u);                           // an empty tree, no header yet or none left
+    EXPECT_TRUE(m.extract(a).empty());
+    sgcl::sorted_map<std::string, int, std::less<>> never;
+    EXPECT_EQ(never.erase(a), 0u);
+    EXPECT_TRUE(never.extract(a).empty());
+
+    sgcl::sorted_multimap<std::string, int, std::less<>> mm = {{"x", 1}, {"x", 2}, {"y", 3}};
+    EXPECT_EQ(mm.erase(std::string_view("x")), 2u);      // every equivalent element
+    EXPECT_EQ(mm.size(), 1u);
+    sgcl::sorted_multiset<std::string, std::less<>> ms = {"p", "p", "q"};
+    auto one = ms.extract("p");                          // one of the equivalent ones
+    EXPECT_EQ(one.value(), "p");
+    EXPECT_EQ(ms.count("p"), 1u);
+
+    sgcl::sorted_map<std::string, int, ThrowingViewLess> t = {{"k", 1}};
+    std::string_view k = "k";
+    static_assert(!noexcept(t.erase(k)));               // as noexcept as the comparator's calls with the view
+    static_assert(!noexcept(t.extract(k)));
+    std::string key = "k";
+    static_assert(noexcept(t.erase(key)));
+    EXPECT_EQ(t.erase(k), 1u);
+}
+
+// Boundaries (DESIGN 408)
+
+// The keys at the ends of their type: the least and the greatest found,
+// their bounds, min and max, erased; a lookup below the least and above
+// the greatest; max_size the largest difference_type
+TEST(SortedContainers_Test, KeysAtTheEndsOfTheirType) {
+    sgcl::sorted_map<int, int> m = {{INT_MIN, 1}, {0, 2}, {INT_MAX, 3}};
+    EXPECT_EQ(m.max_size(), size_t(PTRDIFF_MAX));
+    EXPECT_EQ(m.begin()->first, INT_MIN);
+    EXPECT_EQ(m.rbegin()->first, INT_MAX);
+    EXPECT_EQ(m.min().first, INT_MIN);
+    EXPECT_EQ(m.max().first, INT_MAX);
+    EXPECT_EQ(m.lower_bound(INT_MIN), m.begin());
+    EXPECT_EQ(m.upper_bound(INT_MAX), m.end());
+    EXPECT_EQ(m.lower_bound(INT_MAX)->second, 3);
+    EXPECT_EQ(m.at(INT_MAX), 3);
+    EXPECT_EQ(m.erase(INT_MIN), 1u);
+    EXPECT_EQ(m.erase(INT_MAX), 1u);
+    EXPECT_EQ(m.size(), 1u);
+    sgcl::sorted_multiset<unsigned> s = {0u, UINT_MAX, UINT_MAX, 0u};
+    EXPECT_EQ(s.count(UINT_MAX), 2u);
+    EXPECT_EQ(s.count(0u), 2u);
+    auto [first, last] = s.equal_range(UINT_MAX);
+    EXPECT_EQ(std::distance(first, last), 2);
+    EXPECT_EQ(last, s.end());
+    EXPECT_EQ(s.lower_bound(1u), first);
+}
+
+namespace {
+    // Every member on a tree without a header (default, moved from): it
+    // works as an empty one, and takes elements again after
+    template<class M, class K, class E>
+    void expect_tree_works_empty(M& m, const K& key, const E& element) {
+        EXPECT_TRUE(m.empty());
+        EXPECT_EQ(m.size(), 0u);
+        EXPECT_EQ(m.begin(), m.end());
+        EXPECT_EQ(m.rbegin(), m.rend());
+        EXPECT_EQ(m.find(key), m.end());
+        EXPECT_FALSE(m.contains(key));
+        EXPECT_EQ(m.count(key), 0u);
+        EXPECT_EQ(m.lower_bound(key), m.end());
+        EXPECT_EQ(m.upper_bound(key), m.end());
+        auto [first, last] = m.equal_range(key);
+        EXPECT_EQ(first, m.end());
+        EXPECT_EQ(last, m.end());
+        EXPECT_EQ(m.erase(key), 0u);
+        EXPECT_EQ(m.erase(m.begin(), m.end()), m.end());
+        EXPECT_TRUE(m.extract(key).empty());
+        EXPECT_EQ(sgcl::erase_if(m, [](auto&) { return true; }), 0u);
+        EXPECT_TRUE(m == M());
+        EXPECT_FALSE(m < M());
+        M copy(m);
+        EXPECT_TRUE(copy.empty());
+        M other;
+        m.swap(other);
+        m.merge(other);
+        other.merge(m);
+        EXPECT_TRUE(m.empty());
+        m.clear();
+        m.insert(m.end(), element);   // the end() of no header as the hint
+        EXPECT_EQ(m.size(), 1u);
+        EXPECT_TRUE(m.contains(key));
+        m.clear();
+        EXPECT_TRUE(m.empty());
+    }
+}
+
+TEST(SortedContainers_Test, MovedFromAndDefaultWorkAsEmpty) {
+    sgcl::sorted_map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+    sgcl::sorted_map<sgcl::string, int> to(std::move(m));
+    EXPECT_EQ(to.size(), 2u);
+    EXPECT_FALSE(m.take("a").has_value());
+    EXPECT_EQ(m.value_or("a", -1), -1);
+    EXPECT_THROW(m.at("a"), std::out_of_range);
+    expect_tree_works_empty(m, sgcl::string("a"), std::pair<const sgcl::string, int>("a", 1));
+    sgcl::sorted_map<sgcl::string, int> assigned = {{"c", 3}};
+    assigned = std::move(to);
+    EXPECT_EQ(assigned.size(), 2u);
+    expect_tree_works_empty(to, sgcl::string("a"), std::pair<const sgcl::string, int>("a", 1));
+    sgcl::sorted_map<int, int> d;
+    expect_tree_works_empty(d, 1, std::pair<const int, int>(1, 1));
+    sgcl::sorted_multimap<int, int> mm = {{1, 1}, {1, 2}};
+    auto mm2 = std::move(mm);
+    expect_tree_works_empty(mm, 1, std::pair<const int, int>(1, 1));
+    sgcl::sorted_set<int> s = {1, 2};
+    auto s2 = std::move(s);
+    expect_tree_works_empty(s, 1, 1);
+    sgcl::sorted_multiset<int> ms = {1, 1};
+    auto ms2 = std::move(ms);
+    expect_tree_works_empty(ms, 1, 1);
+    EXPECT_EQ(ms2.size(), 2u);
+}
+
+namespace {
+    // A tree on both sides: a copy and a move assignment to itself, swap
+    // with itself and a merge of itself change nothing
+    template<class M>
+    void expect_tree_keeps_itself(M m) {
+        const M before = m;
+        auto first = m.begin();
+        auto end = m.end();
+        auto& self = m;
+        m = self;
+        m = std::move(self);
+        m.swap(self);
+        swap(m, self);
+        m.merge(self);
+        m.merge(std::move(self));
+        EXPECT_TRUE(m == before);
+        EXPECT_EQ(m.begin(), first);   // nothing was rebuilt
+        EXPECT_EQ(m.end(), end);
+        EXPECT_TRUE(tree_is_valid(m));
+        EXPECT_TRUE(m == self);
+        EXPECT_FALSE(m < self);
+    }
+}
+
+TEST(SortedContainers_Test, ATreeOnBothSidesKeepsItself) {
+    expect_tree_keeps_itself(sgcl::sorted_map<sgcl::string, int>{{"a", 1}, {"b", 2}, {"c", 3}});
+    expect_tree_keeps_itself(sgcl::sorted_multimap<int, int>{{1, 1}, {1, 2}, {2, 3}});
+    expect_tree_keeps_itself(sgcl::sorted_set<int>{1, 2, 3});
+    expect_tree_keeps_itself(sgcl::sorted_multiset<int>{1, 1, 2});
+    expect_tree_keeps_itself(sgcl::sorted_set<int>());
+}
+
+// The tree's own element, key or value as the argument: an insertion of
+// an element it holds (nothing in a unique tree, a copy beside it in a
+// multi one), with and without a hint; operator[], try_emplace,
+// insert_or_assign of the value under the key; take, extract and erase by
+// the key of the element they take, the multi trees' run whole, with keys
+// a destructor overwrites
+TEST(SortedContainers_Test, TheTreesOwnElementAsTheArgument) {
+    using boundary::Poisoned;
+    sgcl::sorted_map<Poisoned, Poisoned> m;
+    for (int i = 0; i < 8; ++i) {
+        m.emplace(i, i * 10);
+    }
+    auto it = m.find(3);
+    EXPECT_FALSE(m.insert(*it).second);
+    EXPECT_FALSE(m.emplace(*it).second);
+    EXPECT_EQ(m.insert(it, *it), it);
+    EXPECT_EQ(m.emplace_hint(m.end(), *it), it);
+    EXPECT_FALSE(m.try_emplace(it->first, 0).second);
+    EXPECT_EQ(&m[it->first], &it->second);
+    EXPECT_FALSE(m.insert_or_assign(it->first, it->second).second);
+    EXPECT_EQ(it->second, Poisoned(30));
+    EXPECT_EQ(m.erase(m.find(5)->first), 1u);
+    auto taken = m.take(m.find(6)->first);
+    ASSERT_TRUE(taken.has_value());
+    EXPECT_EQ(*taken, Poisoned(60));
+    auto nh = m.extract(m.find(7)->first);
+    ASSERT_FALSE(nh.empty());
+    EXPECT_EQ(nh.key(), Poisoned(7));
+    EXPECT_EQ(m.size(), 5u);
+    EXPECT_TRUE(tree_is_valid(m));
+
+    sgcl::sorted_multimap<Poisoned, int> mm;
+    for (int i = 0; i < 3; ++i) {
+        mm.emplace(1, i);
+        mm.emplace(2, i);
+    }
+    for (int i = 0; i < 10; ++i) {
+        mm.insert(*mm.find(1));
+        mm.insert(mm.begin(), *mm.find(2));
+    }
+    EXPECT_EQ(mm.count(1), 13u);
+    EXPECT_EQ(mm.count(2), 13u);
+    EXPECT_EQ(mm.erase(mm.find(1)->first), 13u);
+    auto run = mm.equal_range(2);
+    EXPECT_EQ(mm.erase(std::next(run.first, 5)->first), 13u);
+    EXPECT_TRUE(mm.empty());
+    sgcl::sorted_multiset<Poisoned> ms = {4, 4, 4, 5};
+    EXPECT_EQ(ms.erase(*std::next(ms.begin())), 3u);
+    EXPECT_EQ(ms.size(), 1u);
+    sgcl::sorted_set<Poisoned> s = {1, 2};
+    EXPECT_EQ(s.erase(*s.begin()), 1u);
+    EXPECT_FALSE(s.insert(*s.begin()).second);
+    EXPECT_EQ(s.size(), 1u);
+    EXPECT_TRUE(tree_is_valid(s));
+}
+
+// One element and empty ranges: an empty range erased at either end, the
+// one element erased by iterator, by key and by range, bounds around it
+TEST(SortedContainers_Test, OneElementAndEmptyRanges) {
+    sgcl::sorted_set<int> s = {5};
+    EXPECT_EQ(s.erase(s.begin(), s.begin()), s.begin());
+    EXPECT_EQ(s.erase(s.end(), s.end()), s.end());
+    EXPECT_EQ(s.lower_bound(4), s.begin());
+    EXPECT_EQ(s.upper_bound(5), s.end());
+    EXPECT_EQ(&s.min(), &s.max());
+    EXPECT_EQ(std::prev(s.end()), s.begin());
+    EXPECT_EQ(s.erase(s.begin()), s.end());
+    EXPECT_TRUE(s.empty());
+    s.insert(5);
+    EXPECT_EQ(s.erase(5), 1u);
+    s.insert(5);
+    EXPECT_EQ(s.erase(s.begin(), s.end()), s.end());
+    EXPECT_TRUE(s.empty());
+    EXPECT_TRUE(tree_is_valid(s));
+    std::vector<int> none;
+    s.insert(none.begin(), none.end());
+    s.insert(std::initializer_list<int>{});
+    EXPECT_TRUE(s.empty());
+}
+
+// The iterators as the pages state them: end() is the header, made by the
+// first insertion (an end() of no header is not end() after it), kept by
+// clear and a copy assignment, taken along by swap and the moves; a move
+// assignment brings the other tree's header. The pages of sorted_set and
+// sorted_multiset said every operator= kept end()
+TEST(SortedContainers_Test, IteratorsAsThePagesStateThem) {
+    sgcl::sorted_set<int> s;
+    auto no_header = s.end();
+    s.insert(1);
+    EXPECT_NE(s.end(), no_header);
+    auto end = s.end();
+    auto one = s.begin();
+    for (int i = 2; i < 100; ++i) {
+        s.insert(i);
+    }
+    s.erase(50);
+    EXPECT_EQ(s.begin(), one);
+    EXPECT_EQ(s.end(), end);
+    s.clear();
+    EXPECT_EQ(s.end(), end);
+    const sgcl::sorted_set<int> copy = {7, 8};
+    s = copy;
+    EXPECT_EQ(s.end(), end);
+    s = {9};
+    EXPECT_EQ(s.end(), end);
+    sgcl::sorted_set<int> other = {3};
+    auto other_end = other.end();
+    s = std::move(other);
+    EXPECT_EQ(s.end(), other_end);
+    EXPECT_NE(s.end(), end);
+    sgcl::sorted_multiset<int> a = {1, 1};
+    sgcl::sorted_multiset<int> b;
+    auto a_first = a.begin();
+    auto a_end = a.end();
+    a.swap(b);
+    EXPECT_EQ(b.begin(), a_first);
+    EXPECT_EQ(b.end(), a_end);
+    sgcl::sorted_multiset<int> moved(std::move(b));
+    EXPECT_EQ(moved.end(), a_end);
 }

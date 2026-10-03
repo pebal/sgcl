@@ -1,7 +1,9 @@
-# sgcl::map
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::map\<Key, T, Hash, KeyEqual\>
 
 ```cpp
-#include "sgcl/core/map.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/map.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
@@ -9,506 +11,253 @@ namespace sgcl {
 }
 ```
 
-`sgcl::map<Key, T, Hash, KeyEqual>` is `std::unordered_map` over managed nodes. The interface is the one of `std::unordered_map`: constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`, `at`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators (`std::ranges` algorithms work), the bucket interface with local iterators, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`. The behaviour is the one of `std::unordered_map` too: unique keys, an element destroyed the moment it is erased, iterators that stay valid across a rehash and until their element is erased.
+`sgcl::map<Key, T, Hash, KeyEqual>` is `std::unordered_map` over managed nodes. The interface is the one of
+`std::unordered_map` — the constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`,
+`at`, `erase`, `extract`, `merge`, node handles, the lookups with a transparent hash and equality, forward
+iterators (`std::ranges` algorithms work), the bucket interface with local iterators, the hash policy, `swap`,
+`==`, the deduction guides, `std::erase_if` — with [take](map/take.md) and the reads of
+[mixin::lookup](mixin/lookup.md) beside it. The behaviour is the one of `std::unordered_map` too: unique keys, an
+element destroyed the moment it is erased, iterators that stay valid across a rehash and until their element is
+erased.
 
-What differs is where the memory lives and a few details of the layout. The map object holds two `tracked_ptr`s (the bucket array, a managed array of node pointers, and a sentinel node that precedes the first element), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live. Every element is a node on the managed heap and the nodes form one chain linked by tracked pointers, as in libstdc++: a bucket points at the node before its first node, so the whole chain is traced from the sentinel, an iterator is one raw node pointer, and an iteration is a load per step. A `map<Key, tracked_ptr<T>>`, or one inside a managed object, is traced like any other managed data, and a cycle through it is collected like any other cycle. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node, so a rehash hashes nothing and a lookup compares hashes before keys. The bucket count is always a power of two (`rehash` and the constructors round up): a key's bucket is its hash xored with a product of the hash's bits above the mask, so that keys below the bucket count keep consecutive buckets, as an integer's hash of itself gives them, and keys a power of two apart (strides, aligned pointers), which the mask alone would put into one bucket, are spread, the table starts with no bucket array at all, and it grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. A lookup, an iteration and an iterator copy read raw pointers only and pay no write barrier; an insertion, an erasure and a rehash store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
+What differs is where the memory lives and a few details of the layout. The map object holds two `tracked_ptr`s
+(the bucket array, a managed array of node pointers, and a sentinel node that precedes the first element), the
+counts, the hasher and the equality, so it lives where a `tracked_ptr` may live. Every element is a node on the
+managed heap and the nodes form one chain linked by tracked pointers, as in libstdc++: a bucket points at the node
+before its first node, so the whole chain is traced from the sentinel, an iterator is one raw node pointer, and an
+iteration is a load per step. A `map<Key, tracked_ptr<T>>`, or one inside a managed object, is traced like any
+other managed data, and a cycle through it is collected like any other cycle. Nothing is freed by hand: an `erase`
+destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached
+in its node, so a rehash hashes nothing and a lookup compares hashes before keys. The bucket count is 0 or a power
+of two: the table starts with no bucket array at all and grows when the size reaches
+`bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least
+([rehash](map/rehash.md), [bucket](map/bucket.md)).
+
+What differs from Go's `map`: the order of iteration is the chain's, not shuffled from one loop to the next, and an
+element has an address: a reference or an iterator to it stays valid until it is erased.
 
 ## Rules
 
-- An `map` holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](README.md#the-rules), 1). The same holds for a node handle (`node_type`), which holds its node through a `tracked_ptr`.
-- The elements may hold tracked pointers (`sgcl::map<int, sgcl::tracked_ptr<T>>`, or a `tracked_ptr` key: `std::hash<sgcl::tracked_ptr<T>>` hashes the address): the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the map is destroyed, exactly as in `std`. The one exception is a map dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread ([README: Threads](../async/README.md#threads)).
-- An iterator, a reference or a pointer to an element is valid while the element is in the map, across insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the map (it follows the node). An iterator to an erased element is invalid as in `std`; it keeps the node's memory mapped but not the element. Iterators are trivially copyable and may live anywhere, a `std::vector<iterator>` included: the map roots every node it links.
-- A `tracked_ptr` may point at an element of the map, or a member of one (a node is a managed object, [The rules](README.md#the-rules), 4); it keeps the node alive, not the element.
-- Thread safety is that of `std::unordered_map`: concurrent readers, or one writer, with the program's own synchronization ([The rules](README.md#the-rules), 6).
+- A map holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc`
+  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1). The same holds for a node handle ([node_type](map-node_type.md)), which
+  holds its node through a `tracked_ptr`.
+- The elements may hold tracked pointers (`sgcl::map<int, sgcl::tracked_ptr<T>>`, or a `tracked_ptr` key:
+  `std::hash<sgcl::tracked_ptr<T>>` hashes the address): the nodes are managed objects, so those pointers are
+  traced.
+- An element is destroyed the moment it is erased, cleared, assigned over, or the map is destroyed, exactly as in
+  `std`. The one exception is a map dying in a sweep, inside a managed object nobody refers to any more: its nodes
+  are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread
+  ([README: Threads](../async/README.md#threads)).
+- An iterator, a reference or a pointer to an element is valid while the element is in the map
+  ([Iterator invalidation](#iterator-invalidation)). Iterators are trivially copyable and may live anywhere, a
+  `std::vector<iterator>` included: the map roots every node it links.
+- A `tracked_ptr` may point at an element of the map, or a member of one (a node is a managed object,
+  [The rules](README.md#the-rules), 4); it keeps the node alive, not the element.
+- Thread safety is that of `std::unordered_map`: concurrent readers, or one writer, with the program's own
+  synchronization ([The rules](README.md#the-rules), 6).
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the keys, hashed by `Hash` and compared by `KeyEqual`. A `tracked_ptr` key is hashed by its address. |
+| `T` | The type of the mapped values. |
+| `Hash` | A function object returning the `size_t` hash of a key. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. With `is_transparent` declared, as by `KeyEqual`, the lookups take a key of another type. |
+| `KeyEqual` | A function object comparing two keys for equality, consistent with `Hash`. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. |
 
-```cpp
-using key_type = Key;
-using mapped_type = T;
-using value_type = std::pair<const Key, T>;
-using hasher = Hash;
-using key_equal = KeyEqual;
-using size_type = size_t;
-using difference_type = ptrdiff_t;
-using reference = value_type&;
-using const_reference = const value_type&;
-using pointer = value_type*;
-using const_pointer = const value_type*;
-using iterator = /* forward, one raw node pointer */;
-using const_iterator = /* forward, one raw node pointer */;
-using local_iterator = /* forward, stops at the end of its bucket */;
-using const_local_iterator = /* forward, stops at the end of its bucket */;
-using node_type = /* the node handle, below */;
-struct insert_return_type { iterator position; bool inserted; node_type node; };
-static constexpr bool unique = true;
-```
+## Member types
 
-`iterator` converts to `const_iterator`, `local_iterator` to `const_local_iterator`, not back. An `iterator` is one word; a local iterator adds the bucket index and the mask.
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `mapped_type` | `T` |
+| `value_type` | `std::pair<const Key, T>` |
+| `hasher` | `Hash` |
+| `key_equal` | `KeyEqual` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `reference` | `value_type&` |
+| `const_reference` | `const value_type&` |
+| `pointer` | `value_type*` |
+| `const_pointer` | `const value_type*` |
+| `iterator` | one raw node pointer in a class of the library, `std::forward_iterator`; converts to `const_iterator` |
+| `const_iterator` | the same over `const value_type` |
+| `local_iterator` | an iterator over the nodes of one bucket, which stops at the end of the bucket: the node pointer, the bucket's index and the mask, `std::forward_iterator`; converts to `const_local_iterator` |
+| `const_local_iterator` | the same over `const value_type` |
+| [node_type](map-node_type.md) | the node handle, the same type as multimap's |
+| `insert_return_type` | `struct { iterator position; bool inserted; node_type node; }`, the result of [insert](map/insert.md) of a node handle |
 
-### Constructors
+## Member functions
 
-```cpp
-map();
-explicit map(size_type bucket_count, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-template<std::input_iterator InputIt>
-map(InputIt first, InputIt last, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-map(std::initializer_list<value_type> ilist, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-map(const map& other);
-map(map&& other);
-```
+| Function | Description |
+|---|---|
+| [(constructor)](map/map.md) | constructs the map |
+| `(destructor)` | destroys the elements, on a stack or inside a managed object destroyed by hand; in a sweep leaves them to the sweep; the nodes, the bucket array and the sentinel are left to the collector |
+| [operator=](map/operator_assign.md) | assigns values to the map |
 
-The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two; 0 means no array yet. The range constructor, given a forward range, sizes the table for the distance first; a key seen twice keeps its first value. An element of the range that is a `std::pair<Key, U>` is hashed and looked up where it is and copied once, into its node (a duplicate copies nothing); an element of any other type is converted to a `value_type` first, once. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. An element constructor or hasher that throws while a constructor runs destroys the elements built so far.
+#### Iterators
 
-```cpp
-map<string, int> ages = {{"ann", 31}, {"bob", 27}};
-map<int, int> sized(100);                                         // 128 buckets, no elements
-vector<pair<int, int>> src = {{2, 20}, {1, 10}};
-map from_range(src.begin(), src.end());                           // deduced: map<int, int>
-map<string, int> taken = std::move(ages);                    // ages is empty now
-```
+| Function | Description |
+|---|---|
+| [begin, cbegin](map/begin.md) | an iterator to the beginning |
+| [end, cend](map/end.md) | an iterator to the end |
 
-### Destructor
+#### Capacity
 
-```cpp
-~map();
-```
+| Function | Description |
+|---|---|
+| [empty](map/empty.md) | checks whether the map is empty |
+| [size](map/size.md) | the number of elements |
+| [max_size](map/max_size.md) | the largest number of elements a map may hold |
 
-Destroys the elements when the map dies on a stack or inside a managed object destroyed by hand. In a sweep (the map inside a dying managed object) it does nothing: the nodes are garbage of the same sweep and destroy their elements when the sweep reaches them. The nodes, the bucket array and the sentinel are reclaimed by the collector in both cases.
+#### Modifiers
 
-### operator=
+| Function | Description |
+|---|---|
+| [clear](map/clear.md) | destroys every element, keeps the buckets |
+| [insert](map/insert.md) | inserts elements or nodes |
+| [insert_or_assign](map/insert_or_assign.md) | inserts an element, or assigns to the value under its key |
+| [emplace](map/emplace.md) | constructs an element in place |
+| [emplace_hint](map/emplace_hint.md) | constructs an element in place, with a hint |
+| [try_emplace](map/try_emplace.md) | constructs an element in place only when the key is absent |
+| [erase](map/erase.md) | erases elements |
+| [take](map/take.md) | moves the value under a key out and erases the element |
+| [swap](map/swap.md) | swaps the contents |
+| [extract](map/extract.md) | unlinks an element into a node handle |
+| [merge](map/merge.md) | relinks the nodes of another map |
 
-```cpp
-map& operator=(const map& other);
-map& operator=(map&& other);
-map& operator=(std::initializer_list<value_type> ilist);
-```
+#### Lookup
 
-Copy assignment builds a copy of `other` and swaps it in (the old elements die when the temporary does); self-assignment is a no-op. Move assignment clears this map, destroying its elements at once, and takes the table over. The list form builds a new table with this map's hasher, equality and `max_load_factor` and swaps it in.
+| Function | Description |
+|---|---|
+| [at](map/at.md) | access the value under a key, with bounds checking |
+| [operator[]](map/operator_at.md) | access the value under a key, inserting one when absent |
+| [count](map/count.md) | the number of elements under a key, 0 or 1 |
+| [find](map/find.md) | an iterator to the element under a key |
+| [contains](map/contains.md) | checks whether the map holds a key |
+| [equal_range](map/equal_range.md) | the range of the elements under a key |
 
-```cpp
-map<int, int> a = {{1, 1}}, b;
-b = a;                       // copies
-b = {{5, 5}, {6, 6}};        // the old elements die here
-a = std::move(b);            // a holds 5 and 6, b is empty
-```
+#### Bucket interface
 
-### Iterators
+| Function | Description |
+|---|---|
+| [begin(size_type), cbegin(size_type)](map/begin.md) | an iterator to the beginning of a bucket |
+| [end(size_type), cend(size_type)](map/end.md) | an iterator to the end of a bucket |
+| [bucket_count](map/bucket_count.md) | the number of buckets |
+| [max_bucket_count](map/max_bucket_count.md) | the largest number of buckets |
+| [bucket_size](map/bucket_size.md) | the number of elements in a bucket |
+| [bucket](map/bucket.md) | the bucket of a key |
 
-```cpp
-iterator begin() noexcept;                const_iterator begin() const noexcept;    const_iterator cbegin() const noexcept;
-iterator end() noexcept;                  const_iterator end() const noexcept;      const_iterator cend() const noexcept;
-```
+#### Hash policy
 
-Forward iterators over one chain of nodes; `end()` is a null iterator. The order is the chain's, bucket by bucket, and changes with a rehash. An iterator is a raw node pointer: copying and advancing it costs a load, never a write barrier, and it may be kept in unmanaged memory for as long as its element is in the map.
+| Function | Description |
+|---|---|
+| [load_factor](map/load_factor.md) | the average number of elements per bucket |
+| [max_load_factor](map/max_load_factor.md) | the load factor the table grows at, read or set |
+| [rehash](map/rehash.md) | sets the number of buckets |
+| [reserve](map/reserve.md) | sets the number of buckets for a number of elements |
 
-```cpp
-map<string, int> m = {{"a", 1}, {"b", 2}};
-int sum = 0;
-for (auto& [key, value] : m) {
-    sum += value;                          // 3, in whichever order
-}
-std::vector<decltype(m)::iterator> kept;   // iterators in unmanaged memory: fine
-kept.push_back(m.find("a"));
-m.rehash(64);                              // kept[0] still points at "a"
-```
+#### Observers
 
-### empty, size, max_size
+| Function | Description |
+|---|---|
+| [hash_function](map/hash_function.md) | a copy of the hash function |
+| [key_eq](map/key_eq.md) | a copy of the equality of the keys |
 
-```cpp
-bool empty() const noexcept;
-size_type size() const noexcept;
-size_type max_size() const noexcept;
-```
+#### From mixin::enumerable
 
-`size()` is a stored count, O(1).
+The questions asked of the elements, the pairs, carried by every container of the library
+([mixin::enumerable](mixin/enumerable.md)); `contains` is the map's own, by the key.
 
-### clear
+| Function | Description |
+|---|---|
+| `index_of` | the position of the first element equal to a pair |
+| `last_index_of` | the position of the last element equal to a pair |
+| `find_if` | a pointer to the first element the predicate accepts |
+| `find_index` | the position of the first element the predicate accepts |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `min`, `max` | the smallest, the largest element |
+| `for_each` | calls a function with every element |
 
-```cpp
-void clear() noexcept;
-```
+#### From mixin::lookup
 
-Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay. The nodes are reclaimed by the collector.
+The reads by the key ([mixin::lookup](mixin/lookup.md)).
 
-```cpp
-map<int, string> m = {{1, "a"}, {2, "b"}};
-auto buckets = m.bucket_count();
-m.clear();                                  // both strings are destroyed here
-bool same = m.bucket_count() == buckets;    // true
-```
+| Function | Description |
+|---|---|
+| `get` | a copy of the value under a key, `nullopt` when absent |
+| `try_get` | a pointer to the value under a key, null when absent |
+| `value_or` | a copy of the value under a key, or a fallback |
+| `contains_key` | checks whether the map holds a key |
+| `keys` | the keys as a range |
+| `values` | the values as a range |
+| `values_of` | the values under a key as a range |
 
-### insert
+## Non-member functions
 
-```cpp
-std::pair<iterator, bool> insert(const value_type& value);
-std::pair<iterator, bool> insert(value_type&& value);
-template<class P> requires std::is_constructible_v<value_type, P&&> std::pair<iterator, bool> insert(P&& value);
-iterator insert(const_iterator hint, const value_type& value);
-iterator insert(const_iterator hint, value_type&& value);
-template<class P> requires std::is_constructible_v<value_type, P&&> iterator insert(const_iterator hint, P&& value);
-template<std::input_iterator InputIt> void insert(InputIt first, InputIt last);
-void insert(std::initializer_list<value_type> ilist);
-insert_return_type insert(node_type&& nh);
-iterator insert(const_iterator hint, node_type&& nh);
-```
+| Function | Description |
+|---|---|
+| [operator==, operator!=](map/operator_cmp.md) | compare the elements, in any order |
+| [swap](map/swap.md) | swaps the contents of two maps |
+| [erase_if](map/erase_if.md) | erases every element satisfying a predicate |
 
-As in `std::unordered_map`: the single-element forms return the element with the key and whether it was inserted; nothing is built when the key is already there (the `P&&` forms go through `emplace`, which builds the element first and destroys it again on a duplicate). The range form reads the key of each element where it is: a `std::pair<Key, U>` is hashed and looked up in the range and copied once, into its node, a duplicate copies nothing; an element of any other type is converted to a `value_type` first, once. The hint is ignored. The table grows before the node is linked when the size has reached the threshold; an existing key never rehashes. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate key the returned `node` (or `nh`, for the hinted form) keeps it and `position` points at the element in the way. An empty handle inserts nothing (`position == end()`, `inserted == false`).
-
-```cpp
-map<string, int> m;
-auto [it, inserted] = m.insert({"a", 1});                          // inserted: true
-inserted = m.insert(std::pair<const char*, int>("a", 2)).second;   // false: "a" stays 1
-m.insert({{"b", 2}, {"c", 3}});
-map<string, int> other = {{"q", 17}};
-auto r = m.insert(other.extract("q"));                             // relinked, no copy: r.inserted is true
-```
-
-### emplace, emplace_hint
-
-```cpp
-template<class... A> std::pair<iterator, bool> emplace(A&&... a);
-template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
-```
-
-Builds the `value_type` from `a...` in a new node before the key is looked up, as in `std`; if the key is already there the new element is destroyed and the existing one returned (the node is garbage for the collector). A single `value_type` argument is inserted without the detour. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the map as it was.
-
-```cpp
-map<string, string> m;
-m.emplace("k", "v");
-m.emplace(std::piecewise_construct, std::forward_as_tuple("p"), std::forward_as_tuple(3, 'x'));   // "p" -> "xxx"
-auto it = m.emplace_hint(m.end(), "z", "last");
-```
-
-### try_emplace
+## Deduction guides
 
 ```cpp
-template<class... A> std::pair<iterator, bool> try_emplace(const key_type& key, A&&... a);
-template<class... A> std::pair<iterator, bool> try_emplace(key_type&& key, A&&... a);
-template<class... A> iterator try_emplace(const_iterator hint, const key_type& key, A&&... a);
-template<class... A> iterator try_emplace(const_iterator hint, key_type&& key, A&&... a);
-```
+template<std::input_iterator InputIt,
+         class Hash = std::hash<
+             std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>,
+         class KeyEqual = std::equal_to<
+             std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
+map(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> map<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
+           typename std::iterator_traits<InputIt>::value_type::second_type, Hash, KeyEqual>;
 
-Looks the key up first and builds the mapped value from `a...` in place only when the key is new: the mapped type need not be movable or copyable, and `a...` are not touched on a duplicate. The hint is ignored.
-
-```cpp
-struct Pinned {
-    int value;
-    explicit Pinned(int v) : value(v) {}
-    Pinned(const Pinned&) = delete;
-    Pinned& operator=(const Pinned&) = delete;
-};
-map<int, Pinned> m;
-m.try_emplace(1, 10);                                       // Pinned(10) built inside the node
-auto [it, fresh] = m.try_emplace(1, 11);                    // fresh: false; no Pinned(11) was built
-m.try_emplace(m.end(), 2, 20);                              // the hinted form returns an iterator
-```
-
-### insert_or_assign
-
-```cpp
-template<class M> std::pair<iterator, bool> insert_or_assign(const key_type& key, M&& obj);
-template<class M> std::pair<iterator, bool> insert_or_assign(key_type&& key, M&& obj);
-template<class M> iterator insert_or_assign(const_iterator hint, const key_type& key, M&& obj);
-template<class M> iterator insert_or_assign(const_iterator hint, key_type&& key, M&& obj);
-```
-
-Inserts `{key, obj}` when the key is new (`true`), otherwise assigns `obj` to the mapped value in place (`false`). The hint is ignored.
-
-```cpp
-map<string, int> m;
-m.insert_or_assign("a", 1);                          // inserted
-auto [it, inserted] = m.insert_or_assign("a", 2);    // assigned: inserted is false, it->second is 2
-```
-
-### at, operator[]
-
-```cpp
-mapped_type& at(const key_type& key);
-const mapped_type& at(const key_type& key) const;
-template<class K> mapped_type& at(const K& key);               // when Hash and KeyEqual are transparent
-template<class K> const mapped_type& at(const K& key) const;   //   "
-mapped_type& operator[](const key_type& key);
-mapped_type& operator[](key_type&& key);
-```
-
-`at` throws `out_of_range` when the key is absent, and takes a `K` for transparent hash and equality. `operator[]` inserts a value-initialized mapped value for a new key (built in place, through `try_emplace`) and returns a reference to it; for a `tracked_ptr` mapped type that is a null pointer.
-
-```cpp
-map<string, int> counts;
-++counts["x"];                       // inserted as 0, now 1
-++counts["x"];                       // 2
-int x = counts.at("x");              // 2
-try { counts.at("y"); } catch (const out_of_range&) { /* absent */ }
-```
-
-### erase
-
-```cpp
-iterator erase(iterator pos);
-iterator erase(const_iterator pos);
-iterator erase(const_iterator first, const_iterator last);
-size_type erase(const key_type& key);
-template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
-```
-
-Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms return 0 or 1. Erasing during an iteration is done as with `std`: `it = m.erase(it)`. The bucket count never shrinks on an erase.
-
-### take
-
-```cpp
-optional<mapped_type> take(const key_type& key);
-template<class K> optional<mapped_type> take(const K& key);   // when Hash and KeyEqual are transparent
-```
-
-The mapped value under the key, moved out, and the element erased; `nullopt` when the key is absent. What Java's `remove(key)` and C#'s `Remove(key, out value)` hand back (`extract` gives the node, `erase` a count).
-
-```cpp
-map<string, int> m = {{"a", 1}};
-optional<int> taken = m.take("a");           // 1, and m is empty
-optional<int> none = m.take("a");            // nullopt
-```
-
-```cpp
-map<int, string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
-m.erase(2);                                        // "b" is destroyed here
-for (auto it = m.begin(); it != m.end();) {
-    it = it->first % 2 ? m.erase(it) : std::next(it);   // 1 and 3 go
-}
-auto rest = m.size();                              // 1: {4, "d"}
-```
-
-### swap
-
-```cpp
-void swap(map& other) noexcept(std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<KeyEqual>);
-friend void swap(map& lhs, map& rhs) noexcept(noexcept(lhs.swap(rhs)));
-```
-
-Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other map.
-
-```cpp
-map<int, int> a = {{1, 1}}, b = {{2, 2}};
-auto it = a.begin();
-swap(a, b);                       // it still points at {1, 1}, which is in b now
-bool moved = it == b.find(1);     // true
-```
-
-### extract
-
-```cpp
-node_type extract(const_iterator pos);
-node_type extract(const key_type& key);
-template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
-```
-
-Unlinks the node and hands it over in a node handle, the element untouched: the handle is the owner now, and destroys the element if it dies unused. The key forms return an empty handle when the key is absent. See [node_type](#node_type-the-node-handle).
-
-```cpp
-map<int, string> m = {{1, "a"}, {2, "b"}};
-auto nh = m.extract(1);           // m holds {2, "b"}; nh holds {1, "a"}
-nh.key() = 7;                     // the key may change outside a map
-m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
-```
-
-### merge
-
-```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any map or multimap<Key, T, H2, E2>
-template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
-```
-
-Relinks the nodes of `source` whose keys are not yet here into this map, rehashing them with this map's hasher; a node whose key is already here stays in `source`. No element is copied or destroyed, and every iterator follows its node. `source` may be a `sgcl::map` or `sgcl::multimap` with the same `Key` and `T` and any hasher and equality; not an [ordered_map](ordered_map.md), whose nodes are of another shape (the call does not compile). Merging a map into itself does nothing.
-
-```cpp
-map<int, int> a = {{1, 1}, {3, 3}};
-multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
-a.merge(b);                       // a: 1 2 3;  b keeps both 3s
-```
-
-### count, find, contains, equal_range
-
-```cpp
-size_type count(const key_type& key) const;
-iterator find(const key_type& key);
-const_iterator find(const key_type& key) const;
-bool contains(const key_type& key) const;
-std::pair<iterator, iterator> equal_range(const key_type& key);
-std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const;
-template<class K> size_type count(const K& key) const;                     // when Hash::is_transparent and KeyEqual::is_transparent
-template<class K> iterator find(const K& key);                              //   "
-template<class K> const_iterator find(const K& key) const;                  //   "
-template<class K> bool contains(const K& key) const;                        //   "
-template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //   "  (and the const form)
-```
-
-O(1) on average, reading raw pointers only; the cached hash is compared before the key. `count` is 0 or 1; `equal_range` is an empty or a one-element range. The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`, and let a `std::string_view` look up a `sgcl::string` key without building one.
-
-```cpp
-map<string, int> m = {{"apple", 1}};   // std::hash and std::equal_to of a string are transparent
-bool has = m.contains("apple");    // no string is built for the literal
-string line = "apple pie";
-string_slice key = line.as_slice(0, 5);   // a piece of another string, a slice holding its object
-auto it = m.find(key);             // it->second == 1, nothing built either
-```
-
-### Bucket interface
-
-```cpp
-size_type bucket_count() const noexcept;
-size_type max_bucket_count() const noexcept;
-size_type bucket_size(size_type n) const;
-size_type bucket(const key_type& key) const;
-template<class K> size_type bucket(const K& key) const;      // when Hash and KeyEqual are transparent
-local_iterator begin(size_type n);              const_local_iterator begin(size_type n) const;   const_local_iterator cbegin(size_type n) const;
-local_iterator end(size_type n);                const_local_iterator end(size_type n) const;     const_local_iterator cend(size_type n) const;
-```
-
-As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash xored with a product of its bits above `bucket_count() - 1` and masked by it (0 while there are no buckets); `bucket_size(n)` walks the bucket. A local iterator walks the nodes of one bucket and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
-
-```cpp
-map<int, int> m = {{1, 1}, {2, 2}, {3, 3}};
-size_t n = m.bucket(2);
-size_t in_bucket = 0;
-for (auto it = m.begin(n); it != m.end(n); ++it) {
-    ++in_bucket;                                  // every element here hashes to bucket n
-}
-bool same = in_bucket == m.bucket_size(n);        // true
-```
-
-### Hash policy
-
-```cpp
-float load_factor() const noexcept;
-float max_load_factor() const noexcept;
-void max_load_factor(float z);
-void rehash(size_type count);
-void reserve(size_type count);
-```
-
-`load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` sets it and takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`: it may shrink the table; `rehash(0)` on an empty table leaves it without buckets. `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, hashing nothing (the hash is cached) and invalidating no iterator.
-
-```cpp
-map<int, int> m;
-m.reserve(1000);                                  // 1024 buckets: no rehash while inserting 1000 elements
-for (int i : range(1000)) {
-    m.emplace(i, i);
-}
-bool fits = m.load_factor() <= m.max_load_factor();   // true
-m.max_load_factor(0.5f);                          // the table grows on the next insertion if overloaded
-m.rehash(8);                                      // 2048 buckets: never below what the elements need
-```
-
-### hash_function, key_eq
-
-```cpp
-hasher hash_function() const;
-key_equal key_eq() const;
-```
-
-Copies of the hasher and the equality.
-
-```cpp
-map<int, int> m;
-bool eq = m.key_eq()(1, 1);                       // true
-size_t h = m.hash_function()(1);
-```
-
-### The mixins
-
-`map` carries [mixin::enumerable](mixin/enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains` its own) and [mixin::lookup](mixin/lookup.md) — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](mixin/README.md)); its `==` is its own, in any order.
-
-```cpp
-map<string, int> ports = {{"http", 80}};
-assert(*ports.get("http") == 80 && ports.value_or("ftp", 21) == 21 && ports.all([](const auto& kv) { return kv.second > 0; }));
-```
-
-### Comparisons
-
-```cpp
-friend bool operator==(const map& lhs, const map& rhs);
-```
-
-Equal sizes and, for every element of `lhs`, an element of `rhs` with an equal key and an equal value (`value_type == value_type`), whatever the bucket counts and orders. `!=` follows; there is no ordering.
-
-```cpp
-map<int, int> a = {{1, 1}, {2, 2}};
-map<int, int> b(1000);
-b.insert({{2, 2}, {1, 1}});
-bool same = a == b;                               // true
-```
-
-### node_type (the node handle)
-
-```cpp
-class node_type {
-public:
-    using key_type = Key;
-    using mapped_type = T;
-    using value_type = std::pair<const Key, T>;
-    node_type() noexcept;
-    node_type(node_type&&) noexcept;
-    node_type& operator=(node_type&&);
-    ~node_type();
-    bool empty() const noexcept;
-    explicit operator bool() const noexcept;
-    key_type& key() const;                 // writable: the node is out of any map
-    mapped_type& mapped() const;
-    void swap(node_type& other) noexcept;
-    friend void swap(node_type& lhs, node_type& rhs) noexcept;
-};
-```
-
-Owns one unlinked node, as `std::unordered_map::node_type` does: movable, not copyable; the element is destroyed when the handle dies without having been inserted (the node's memory is the collector's). The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object, like the map. It is the same handle type as `sgcl::multimap<Key, T>::node_type`.
-
-### erase_if, std::erase_if
-
-```cpp
-namespace sgcl {
-    template<class Key, class T, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(map<Key, T, Hash, KeyEqual>& c, Pred pred);
-}
-namespace std { using sgcl::erase_if; }
-```
-
-Erases every element for which `pred(*it)` is true and returns how many; each erased element is destroyed at once.
-
-```cpp
-map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
-auto n = std::erase_if(m, [](const auto& p) { return p.first % 2 == 0; });   // 2; m holds 1 and 3
-```
-
-### Deduction guides
-
-```cpp
-template<std::input_iterator InputIt, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>   // Key, T from the iterator's pair
-map(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> map<Key, T, Hash, KeyEqual>;
 template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-map(std::initializer_list<std::pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> map<Key, T, Hash, KeyEqual>;
+map(std::initializer_list<pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> map<Key, T, Hash, KeyEqual>;
 ```
 
-From an iterator pair over pairs, or from an initializer list of `std::pair`s (the pairs must be spelled out: nested braces deduce nothing, as with `std`).
+The key and the mapped type are deduced from an iterator pair over pairs, or from an initializer list of
+`pair`s, which must be spelled out: nested braces deduce nothing, as with `std` ([(constructor)](map/map.md)).
 
-```cpp
-vector<pair<string, int>> src = {{"a", 1}};
-map from_range(src.begin(), src.end());      // map<string, int>
-map from_list = {std::pair{1, 2.5}};         // map<int, double>
-```
+## Complexity
+
+- Lookup, insertion and erasure of one element: constant on average, linear in the size when every key falls
+  into one bucket. The cached hash is compared before the key.
+- An insertion that grows the table relinks every node, hashing nothing: amortized constant.
+- Iteration: a load per step. A lookup, an iteration and an iterator copy read raw pointers only and pay no write
+  barrier; an insertion, an erasure and a rehash store tracked pointers and pay the barrier on each link they
+  relink ([README: Containers](README.md#containers)).
+
+## Iterator invalidation
+
+| Operations | Invalidated |
+|---|---|
+| all read-only operations, `insert`, `insert_or_assign`, `emplace`, `emplace_hint`, `try_emplace`, `operator[]`, `rehash`, `reserve`, `max_load_factor`, `swap`, `merge` | never |
+| `erase`, `erase_if`, `take`, `extract` | only those to the erased (taken, extracted) elements |
+| `clear`, `operator=` | all of this map's |
+| a rehash, by `rehash`, `reserve` or an insertion that grows the table | the local iterators |
+
+An iterator follows its node: across a rehash, a `swap`, a `merge` and a move of the map it points at the same
+element, now in whichever map holds the node. An iterator to an erased element is invalid as in `std`; it keeps
+the node's memory mapped but not the element. `end()` is a null iterator and never changes; a local iterator
+holds the bucket and the mask, and a rehash, the growth of an insertion included, invalidates it.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 struct Node {
     int id;
-    tracked_ptr<Node> next;     // a pointer inside an element: traced through the node
+    tracked_ptr<Node> next;  // a pointer inside an element: traced through the node
 };
 
 // The map object lives inside a managed object: its nodes hang off it and
@@ -519,21 +268,22 @@ struct Registry {
 
 int main() {
     println("a registry of nodes, by id");
-    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
+    // after the first line: io's own objects are not the example's
+    auto base = collector::get_live_object_count();
     tracked_ptr registry = make_tracked<Registry>();
     for (int id : range(100)) {
         // operator[] inserts a null tracked_ptr; the object is made afterwards
         registry->by_id[id] = make_tracked<Node>(id);
     }
     registry->by_id[0]->next = registry->by_id[1];
-    registry->by_id[1]->next = registry->by_id[0];             // a cycle: collected like any other
+    registry->by_id[1]->next = registry->by_id[0];  // a cycle: collected like any other
 
     // A map on the stack, keyed by pointer: std::hash<tracked_ptr> hashes the address
     map<tracked_ptr<Node>, string> names;
     names.try_emplace(registry->by_id[0], "zero");
     names.emplace(registry->by_id[1], "one");
     auto one = names.find(registry->by_id[1]);
-    names.rehash(256);                                         // `one` is still valid
+    names.rehash(256);  // `one` is still valid
     println("{} is node {}", one->second, one->first->id);
 
     // Erasing from the registry destroys the tracked_ptr elements at once;
@@ -542,7 +292,8 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    println("{} in the registry, {} live objects", registry->by_id.size(), collector::get_live_object_count() - base);
+    println("{} in the registry, {} live objects", registry->by_id.size(),
+            collector::get_live_object_count() - base);
     return registry->by_id.size() == 2 && names.size() == 2 ? 0 : 1;
 }
 ```
@@ -557,7 +308,9 @@ one is node 1
 
 ## See also
 
-- [multimap](multimap.md) for equal keys, [set](set.md) and [multiset](multiset.md) for keys alone, [sorted_map](sorted_map.md) for an ordered tree
+- [multimap](multimap.md) for equal keys, [set](set.md) and [multiset](multiset.md) for keys alone,
+  [ordered_map](ordered_map.md) for the order of insertion, [sorted_map](sorted_map.md) for an ordered tree
+- [concurrent::map](../concurrent/map.md): the hash map shared by threads
 - [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md)
-- [README: Containers](README.md#containers), [README: The rules](README.md#the-rules), [README: Stack roots](../../garbage_collector/overview.md#stack-roots)
-- `examples/example.cpp`
+- [README: Containers](README.md#containers), [README: The rules](README.md#the-rules),
+  [Stack roots](../../garbage_collector/overview.md#stack-roots)

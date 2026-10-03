@@ -46,7 +46,7 @@ namespace sgcl::crypto {
         // n random bytes that are a secret: a key, a seed. Up to 64 bytes in
         // the secret_bytes itself, past that in plain memory zeroed when it
         // goes, never in managed memory
-        inline secret_bytes secret(size_t n) {
+        inline secret_bytes secret(size_t n) noexcept {
             secret_bytes out(n);
             fill(out.as_slice());
             return out;

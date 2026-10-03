@@ -34,6 +34,7 @@ namespace sgcl::crypto {
             }
             auto r = f->read(out.as_slice().subslice(n));
             if (!r) {
+                (void)f->close();   // now, as after a whole read, not when the collector finds the file dead
                 return unexpected(r.error());
             }
             if (*r == 0) {

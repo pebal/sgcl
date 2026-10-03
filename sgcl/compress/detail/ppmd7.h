@@ -147,7 +147,7 @@ namespace sgcl::compress::detail {
 
     class Ppmd7 {
     public:
-        Ppmd7() {
+        Ppmd7() noexcept {
             for (uint32_t i = 0, k = 0; i < ppmd::Indexes; ++i) {
                 uint32_t step = i >= 12 ? 4 : (i >> 2) + 1;
                 do {
@@ -182,7 +182,7 @@ namespace sgcl::compress::detail {
 
         // The block for a model of `size` bytes (the memory of the
         // properties), kept when a model of the same size had it
-        void allocate(uint32_t size) {
+        void allocate(uint32_t size) noexcept {
             if (!_memory || _size != size) {
                 _align = 4 - (size & 3);
                 // the glue's sentinel node lies just past the model's memory
@@ -191,7 +191,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void init(uint32_t order) {
+        void init(uint32_t order) noexcept {
             _max_order = order;
             _restart();
             _dummy_see.shift = ppmd::PeriodBits;
@@ -201,7 +201,7 @@ namespace sgcl::compress::detail {
 
         // A symbol, or -1 for the end marker, -2 for data the model cannot
         // have made
-        int decode(Ppmd7RangeDecoder& rc) {
+        int decode(Ppmd7RangeDecoder& rc) noexcept {
             int8_t mask[256];
             if (_min->num_stats != 1) {
                 ppmd::State* s = _stats(_min);
@@ -299,7 +299,7 @@ namespace sgcl::compress::detail {
         }
 
         // A symbol, or -1 for the end marker
-        void encode(RangeEncoder& rc, int symbol) {
+        void encode(RangeEncoder& rc, int symbol) noexcept {
             int8_t mask[256];
             if (_min->num_stats != 1) {
                 ppmd::State* s = _stats(_min);
@@ -575,7 +575,7 @@ namespace sgcl::compress::detail {
 
         // --- the model
 
-        void _restart() {
+        void _restart() noexcept {
             ++restarts;
             std::memset(_free, 0, sizeof(_free));
             _text = _base() + _align;
@@ -973,7 +973,7 @@ namespace sgcl::compress::detail {
         const char* error_text = nullptr;
 
         // The model's memory checked by the caller against its limits
-        void reset(uint32_t order, uint32_t memory, uint64_t size) {
+        void reset(uint32_t order, uint32_t memory, uint64_t size) noexcept {
             _model.allocate(memory);
             _model.init(order);
             _size = size;
@@ -1001,7 +1001,7 @@ namespace sgcl::compress::detail {
 
         // Into out[pos, limit), from [in, end): need_input leaves in where
         // it was when fewer than Margin bytes are there and more may come
-        LzmaStatus decode(uint8_t* out, size_t& pos, size_t limit, const uint8_t*& in, const uint8_t* end, bool input_ended) {
+        LzmaStatus decode(uint8_t* out, size_t& pos, size_t limit, const uint8_t*& in, const uint8_t* end, bool input_ended) noexcept {
             if (_failed) {
                 return LzmaStatus::failed;
             }
@@ -1073,7 +1073,7 @@ namespace sgcl::compress::detail {
 
     class Ppmd7Encoder {
     public:
-        explicit Ppmd7Encoder(uint32_t order, uint32_t memory)
+        explicit Ppmd7Encoder(uint32_t order, uint32_t memory) noexcept
         : _rc(_sink), _order(order) {
             _model.allocate(memory);
             _model.init(order);
@@ -1084,12 +1084,12 @@ namespace sgcl::compress::detail {
         }
 
         // A new stream with the same model's memory
-        void restart() {
+        void restart() noexcept {
             _model.init(_order);
             _rc.reset();
         }
 
-        void encode(const uint8_t* p, size_t n, std::vector<uint8_t>& out) {
+        void encode(const uint8_t* p, size_t n, std::vector<uint8_t>& out) noexcept {
             _rc.sink(out);
             for (size_t i = 0; i < n; ++i) {
                 _model.encode(_rc, p[i]);
@@ -1098,7 +1098,7 @@ namespace sgcl::compress::detail {
 
         // The coder's last bytes, the end marker first when asked (7z
         // knows the size and writes none)
-        void finish(std::vector<uint8_t>& out, bool marker = false) {
+        void finish(std::vector<uint8_t>& out, bool marker = false) noexcept {
             _rc.sink(out);
             if (marker) {
                 _model.encode(_rc, -1);

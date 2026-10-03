@@ -1,97 +1,124 @@
+[sgcl](../README.md) › [async](README.md)
+
 # sgcl::async::task_group
 
 ```cpp
-#include "sgcl/async/task_group.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/task_group.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    class task_group;   // a scope that owns the tasks it spawns: waited for as one, stopped as one, the first exception rethrown
+    class task_group;
 }
 ```
 
-Structured concurrency, the way Go's `errgroup` and Kotlin's `coroutineScope` have it: a scope that owns the tasks it spawns. A group is made under a [stop_token](stop_token.md) (`async::task_group g(token)`: the group's own `stop_source` is a child of the token's, stopped with it), `g.go(t)` starts a child on the scheduler and counts it, and the wait for the group is the wait for every child, the three ways everything in this module is waited for: `g.wait()` blocks a thread, `co_await g` suspends a task, `g.on_done(f)` is a case of a [select](select.md). The first child that throws requests the stop of the group, which the others see through `g.token()` and leave; the wait rethrows that first exception once every child has finished, so nothing of the scope runs on past it and no exception is lost. The children report through their own side effects (a channel, an object they were given), as `errgroup`'s do; a result that must come back is [when_all](when.md)'s business.
+`sgcl::async::task_group` is structured concurrency, the way Go's `errgroup` and Kotlin's `coroutineScope` have it,
+and Java's `StructuredTaskScope`: a scope that owns the tasks it starts. A group is made under a
+[stop_token](stop_token.md), `async::task_group g(token)`, and its own [stop_source](stop_source.md) is a child of
+the token's, stopped with it; [go](task_group/go.md) starts a child on the scheduler and counts it, and the wait for
+the group is the wait for every child, the three ways the module waits: `g.wait()` blocks a thread, `co_await g`
+suspends a task, `g.on_done(f)` is a case of a [select](select.md).
 
-The state of a group (its source, the count of the children, the first exception) is a managed object that every child holds through its frame, so the group object itself may go while children run: its destructor requests the stop of the scope and lets the children finish on their own, their frames the collector's once they are done, the way a `coroutineScope` cancelled by its parent ends. That is the fallback, not the way to use it: a scope is waited for, as `errgroup.Wait` is called, and a child stopped this way still refers to whatever the caller gave it (a channel on the caller's stack, say), which must outlive it. Under the group: a [wait_group](wait_group.md) counts the children, a `stop_source` stops them, one word claims the first exception.
+The first child that throws requests the stop of the group, which the others see through
+[token](task_group/token.md) and leave; the wait rethrows that first exception once every child has finished, so
+nothing of the scope runs on past it and no exception is lost. The children report through their own side effects,
+a channel or an object they were given, as `errgroup`'s do; a result that must come back is the business of
+[when_all](when_all.md).
 
-What a child costs: the child's frame and one more, the runner's, a small task that awaits the child, records its exception and counts it off. The runner is run on the calling thread to its first suspension (which puts the child on the scheduler) and let go of, so that the child's finish resumes the runner as its continuation: two frames and two turns of the scheduler per child, what `co_await` of a spawned task costs. Measured once (Apple M-series, release, groups of 1000 children that return at once, 2000 rounds): `go` and `wait` together cost about 1150 ns per child from a thread, where every child goes through the global queue, and about 740 ns per child for a group made inside a task, where the children go on the worker's own ring; a `when_all` over a vector of 1000 tasks spawned from a thread costs about 1000 ns per task, so the group's own share, the runner's frame and the count, is about 150 ns.
+The state of a group, its source, the count of the children and the first exception, is a managed object that every
+child holds through its frame, so the group object itself may go while children run: its destructor requests the
+stop of the scope and lets the children finish on their own, their frames the collector's once they are done, the
+way a `coroutineScope` cancelled by its parent ends. That is the fallback, not the way to use it: a scope is waited
+for, as `errgroup.Wait` is called, and a child stopped this way still refers to whatever the caller gave it, a
+channel on the caller's stack, say, which must outlive it. Under the group, a [wait_group](wait_group.md) counts the
+children, a [stop_source](stop_source.md) stops them, and one word claims the first exception.
 
 ## Rules
 
-- A child is a task nobody spawned, or one spawned already; `go` starts it and the group owns it from then on: the `task` object is consumed, its result, if any, dropped, its exception the group's. A child stops itself when it sees the group's token: a task cannot be stopped from outside. A child inherits the spawning task's [task-locals](task_local.md) and its [executor](executor.md), as a task started by a task does.
-- The first exception is the one rethrown, by every wait that follows (a second `wait()` rethrows it again, as `errgroup.Wait` returns its error again); the others are dropped. A stop is not an error: a group whose children were stopped by `request_stop()` or the parent waits without throwing.
-- `wait()` returns only when every child has finished, exception or not; `wait()` is not called on a worker (it would block it): a task `co_await`s the group.
-- `on_done(f)` is served when the count reaches zero; it is a case for a group that spawned at least one child (a group that never did has no round to close). The exception, if any, is rethrown by the `wait()` that follows, which returns at once.
-- A group lives where a `tracked_ptr` may: on a stack or inside a managed object, and is neither copied nor moved. A group that ends with children running stops them and lets them go (above).
+- A group is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed object
+  ([The rules](../core/README.md#the-rules), 1), and is neither copied nor moved.
+- A child is a task nobody spawned, or one spawned already; `go` starts it and the group owns it from then on: the
+  `task` object is consumed, its result, if any, dropped, its exception the group's. A child inherits the
+  [task-locals](task_local.md) and the [executor](executor.md) of the task that starts it, as a task started by a
+  task does.
+- A child stops itself when it sees the group's token: a task cannot be stopped from outside
+  ([README: The rules](README.md#the-rules), 3).
+- The first exception is the one rethrown, by every wait that follows: a second wait rethrows it again, as
+  `errgroup.Wait` returns its error again; the others are dropped. A stop is not an error: a group whose children
+  were stopped by [request_stop](task_group/request_stop.md) or by the parent waits without throwing.
+- The wait returns only when every child has finished, exception or not. `g.wait()` is a thread's: a task on a
+  worker writes `co_await g` ([README: The rules](README.md#the-rules), 1); debug builds assert.
+- A group that ends with children running stops them and lets them go. Its destructor is noexcept, as every
+  destructor is, and throws nothing: a child whose wake would have to start the scheduler's workers and cannot is
+  queued all the same, every child waiting on the token is woken, and they run when the workers next start.
 
-## Members
+## Member functions
 
-```cpp
-explicit task_group(const async::stop_token& parent = async::stop_token());   // a scope under the token; an empty token: a scope on its own
-~task_group();                                                  // children still running: stopped and let go of
-template<class T> void go(async::task<T> t);                    // a child: started on the scheduler, counted, no handle back (as async::go)
-template<class F> void go(F f);                                 // a coroutine function with captures, uncalled (scheduler.md: spawn)
-async::stop_token token() const noexcept;                              // what the children are given: stopped by the first exception, request_stop, the parent, the group's end
-void request_stop();                                            // the stop of the whole scope, by hand
-bool stop_requested() const noexcept;
-size_t count() const noexcept;                                  // the children not yet finished
-void wait();                                                    // a thread: every child finished, then the first exception rethrown
-auto operator co_await();                                       // a task: co_await g, the same
-template<class F> auto on_done(F f);                            // a case of a select: f() when every child has finished
-```
+| Function | Description |
+|---|---|
+| [(constructor)](task_group/task_group.md) | constructs a scope under a token |
+| `(destructor)` | stops the children still running and lets them go; a group waited for has none |
 
-```cpp
-async::task<> fetch(string url, async::channel<string> out, async::stop_token tok) {
-    co_await async::select(
-        out.on_send(url + ": ok"),                                 // the work, here a send
-        tok.on_stop([] {})                                         // or the stop: another child failed, or the caller gave up
-    );
-}
+#### Operations
 
-async::task<> fetch_all(vector<string> urls, async::channel<string> out, async::stop_token tok) {
-    async::task_group g(tok);                                       // a scope under the caller's token
-    for (auto& url : urls) {
-        g.go(fetch(url, out, g.token()));                       // every child gets the group's token
-    }
-    co_await g;                                       // every child finished; the first exception rethrown
-}
-```
+| Function | Description |
+|---|---|
+| [go](task_group/go.md) | starts a child on the scheduler and counts it |
+| [request_stop](task_group/request_stop.md) | requests the stop of the whole scope |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [token](task_group/token.md) | the token the children are given |
+| [stop_requested](task_group/stop_requested.md) | checks whether the stop of the scope has been requested |
+| [count](task_group/count.md) | the children not yet finished |
+
+#### Waiting
+
+| Function | Description |
+|---|---|
+| [wait, operator co_await](task_group/wait.md) | waits for every child, then rethrows the first exception |
+| [on_done](task_group/on_done.md) | a case of a select: a call once every child has finished |
+
+## Complexity
+
+A child costs its own frame and one more, the runner's: a small task that awaits the child, records its exception
+and counts it off. The runner is run on the calling thread to its first suspension, which puts the child on the
+scheduler, and let go of, so that the child's end resumes the runner as its continuation: two frames and two turns
+of the scheduler per child, what `co_await` of a spawned task costs.
 
 ## Example
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-using namespace std::chrono_literals;
-
-// Eight workers on one scope: seven serve requests until told to stop,
-// one fails after a while. The failure stops the scope, the others leave
-// when their token says so, and the wait gives the exception once every
-// worker has finished: nothing runs on past the scope.
+// Eight workers in one scope: seven serve until told to stop, one fails. The
+// failure stops the scope, the others leave when their token says so, and the
+// wait gives the exception once every worker has finished.
 async::task<int> worker(int id, async::stop_token tok, atomic<int>& left) {
     if (id == 3) {
-        co_await async::sleep(10ms);
+        co_await async::yield();
         throw runtime_error("worker 3 failed");
     }
-    co_await tok.stopped();                                   // the work: here, waiting for the stop
+    co_await tok.stopped();  // the work: here, waiting for the stop
     ++left;
     co_return id;
 }
 
 int main() {
-    atomic<int> left = {0};
+    atomic<int> left = 0;
     async::task_group g;
     for (int id : range(8)) {
-        g.go(worker(id, g.token(), left));                 // a result is dropped: the group reports exceptions only
+        g.go(worker(id, g.token(), left));  // the result is dropped: the group reports exceptions
     }
     try {
         g.wait();
     } catch (const std::exception& e) {
         println("{}, {} left on the stop, {} running", e.what(), left.load(), g.count());
     }
-    return g.stop_requested() && left.load() == 7 ? 0 : 1;
 }
 ```
 
@@ -103,5 +130,8 @@ worker 3 failed, 7 left on the stop, 0 running
 
 ## See also
 
-- [stop_token](stop_token.md): what the children see; [when](when.md): every result back, a race of tasks; [wait_group](wait_group.md): the wait group under it; [timeout](timeout.md): a deadline on one task
-- `tests/async/task_group.cpp`: every behaviour above, checked.
+- [stop_token](stop_token.md): what the children see
+- [when_all](when_all.md), [when_any](when_any.md): every result back, a race of tasks
+- [wait_group](wait_group.md): the count under it
+- [with_timeout](with_timeout.md): a deadline on one task
+- [go](go.md): a task started with nobody to wait for it

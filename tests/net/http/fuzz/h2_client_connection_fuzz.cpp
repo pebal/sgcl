@@ -158,7 +158,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // (the bit is shared with the stream count's, a choice either way)
     const bool in_place = (pick & 0x20) != 0;
     std::string taken_bytes;
-    std::vector<ClientConnection<Sink>::OutPiece> taken_pieces;
+    sgcl::vector<ClientConnection<Sink>::OutPiece> taken_pieces;
     std::string whole;
     auto output = [&]() -> slice<const byte> {
         if (!in_place) {
@@ -169,9 +169,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         size_t at = 0;
         for (auto& q : taken_pieces) {
             check(q.at >= at && q.at <= taken_bytes.size());
-            check(q.p >= payload.data() && q.p + q.n <= payload.data() + payload.size());
+            const uint8_t* qp = reinterpret_cast<const uint8_t*>(q.piece.data());
+            check(!q.piece.owned() && qp >= payload.data() && qp + q.piece.size() <= payload.data() + payload.size());
             whole.append(taken_bytes, at, q.at - at);
-            whole.append(reinterpret_cast<const char*>(q.p), q.n);
+            whole.append(reinterpret_cast<const char*>(qp), q.piece.size());
             at = q.at;
         }
         whole.append(taken_bytes, at, std::string::npos);
@@ -300,7 +301,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             const size_t n = size_t(in.byte()) << 8;
             const int64_t before = m.connection_send_window();
             const size_t k = std::min(n, payload.size());
-            const size_t taken = in_place ? m.send_data_in_place(id, payload.data(), k, (op & 0x40) != 0) : m.send_data(id, payload.data(), k, (op & 0x40) != 0);
+            const size_t taken = in_place ? m.send_data_in_place(id, slice<const byte>(reinterpret_cast<const byte*>(payload.data()), k), (op & 0x40) != 0) : m.send_data(id, payload.data(), k, (op & 0x40) != 0);
             check(int64_t(taken) <= std::max<int64_t>(before, 0));
             break;
         }

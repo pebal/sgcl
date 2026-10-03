@@ -13,12 +13,12 @@ namespace sgcl::time {
     // type of error for the whole module.
     class error {
     public:
-        explicit error(const string& message, size_t offset = 0)
+        explicit error(const string& message, size_t offset = 0) noexcept
         : _message(message)
         , _offset(offset) {
         }
 
-        string message() const {
+        string message() const noexcept {
             return _message;
         }
 

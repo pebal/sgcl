@@ -109,7 +109,7 @@ namespace sgcl {
             }
 
             template<class S>
-            static S finish(Unfilled<S>&& u, size_t used) {
+            static S finish(Unfilled<S>&& u, size_t used) noexcept {
                 if (!u.bound) {
                     return S();
                 }
@@ -157,9 +157,9 @@ namespace sgcl {
         // From an array of characters (a literal): up to its first NUL or
         // its end, whichever comes first — an array filled to the brim has
         // no NUL and is not read past its end. From a pointer (CharT* or
-        // const CharT*, no other pointer converts): up to its NUL. The pair
-        // io's write_text has: the array's overload is the better match,
-        // so an array never decays into the pointer's strlen
+        // const CharT*, no other pointer converts): up to its NUL. Of the
+        // pair, the array's overload is the better match, so an array
+        // never decays into the pointer's strlen
         template<size_t N>
         basic_string(const CharT (&s)[N])
         : basic_string(detail::array_text<CharT, Traits>(s)) {
@@ -336,9 +336,9 @@ namespace sgcl {
         // The pieces between the occurrences of `sep`, in order: an empty
         // piece where two separators meet or one ends the string; the
         // whole string when `sep` does not occur; every character on its
-        // own for an empty `sep`; no piece for an empty string. With
-        // `max_parts`, at most that many, the last holding the rest of the
-        // string; 0 is no limit. A range of views into this string (the
+        // own for an empty `sep` (a code point a piece, as Go's Split with
+        // ""); no piece for an empty string. With `max_parts`, at most that
+        // many, the last holding the rest of the string; 0 is no limit. A range of views into this string (the
         // class `pieces`, below), computed as it is walked: nothing is
         // copied, `for (std::string_view piece : s.split(','))` allocates
         // nothing, and a container of strings is built from it when the
@@ -347,7 +347,7 @@ namespace sgcl {
             return pieces(*this, sep, max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
         }
 
-        pieces split(CharT sep, size_type max_parts = 0) const {
+        pieces split(CharT sep, size_type max_parts = 0) const noexcept {
             return pieces(*this, sep, max_parts);
         }
 
@@ -362,12 +362,14 @@ namespace sgcl {
             return split(view_type(sep), max_parts);
         }
 
-        pieces split(const basic_string& sep, size_type max_parts = 0) const {
+        pieces split(const basic_string& sep, size_type max_parts = 0) const noexcept {
             return pieces(*this, sep, max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
         }
 
-        pieces split(char32_t sep, size_type max_parts = 0) const requires (sizeof(CharT) == 1) {
-            return split(view_type(_encoded_of(sep)), max_parts);
+        // A value that is no code point (a surrogate, past U+10FFFF) occurs
+        // nowhere: the whole string is one piece
+        pieces split(char32_t sep, size_type max_parts = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
+            return utf8::valid(sep) ? split(view_type(_encoded_of(sep)), max_parts) : pieces(*this, basic_string(), 1, pieces::Separator);
         }
 
         pieces split(int, size_type = 0) const = delete;   // 'ż' is an int: write U'ż'
@@ -376,7 +378,7 @@ namespace sgcl {
         // space, tab, newline and the rest of the C locale's six, and the
         // no-break, ideographic and other spaces, unicode::is_space), none
         // empty
-        pieces fields() const {
+        pieces fields() const noexcept {
             return pieces(*this, basic_string(), 0, pieces::Fields);
         }
 
@@ -387,15 +389,42 @@ namespace sgcl {
         static basic_string join(R&& parts, view_type sep) {
             if constexpr(std::ranges::forward_range<R>) {
                 // A range walked twice: the lengths summed, then each part
-                // and separator written once into a string of that size
+                // and separator written once into a string of that size.
+                // The sum may wrap 64 bits only when a part is longer than
+                // max_size() (a view: a lazy range may give one long view
+                // many times over) or there are more than max_size() parts;
+                // below both, max_size() parts of max_size() each fit 64
+                // bits. A part of this string type is never longer, so its
+                // loop only sums and counts; a view's also ORs the lengths,
+                // off the sum's chain. One test after the loop; past any
+                // bound the length is counted again exactly (cold), which
+                // throws only when the result would pass max_size(). A
+                // range that knows its size gives the count itself: with
+                // the count tested, the compiler kept the loop's counter
+                // (one more instruction a part) instead of the distance
+                constexpr bool Bounded = std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<R>>, basic_string>;
                 size_t total = 0;
                 size_t count = 0;
+                [[maybe_unused]] size_t wide = 0;
                 for (auto&& part : parts) {
-                    total += view_type(part).size();
+                    if constexpr (Bounded) {
+                        total += view_type(part).size();
+                    } else {
+                        size_t n = view_type(part).size();
+                        total += n;
+                        wide |= n;
+                    }
                     ++count;
                 }
-                if (count > 1) {
-                    total += (count - 1) * sep.size();
+                if constexpr (std::ranges::sized_range<R>) {
+                    count = size_t(std::ranges::size(parts));
+                }
+                const size_t seps = count > 1 ? count - 1 : 0;
+                if ((Bounded ? count : wide | count) > max_size() || total > max_size() || sep.size() > max_size()
+                    || seps * sep.size() > max_size() - total) [[unlikely]] {
+                    total = _joined_size(parts, sep);
+                } else {
+                    total += seps * sep.size();
                 }
                 return _filled(total, [&](CharT* at) {
                     bool first = true;
@@ -445,7 +474,7 @@ namespace sgcl {
         }
 
         template<std::ranges::input_range R>
-        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type> && (sizeof(CharT) == 1)
+        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type> && (!std::same_as<CharT, char32_t>)
         static basic_string join(R&& parts, char32_t sep) {
             return join(std::forward<R>(parts), view_type(_encoded_of(sep)));
         }
@@ -471,12 +500,12 @@ namespace sgcl {
         // default, unicode::is_space; a set of code points as a
         // std::u32string_view, trim(U"«»")) at both ends, at the start, at
         // the end: the same object when there are none
-        basic_string trim() const {
+        basic_string trim() const noexcept {
             auto from = this->_find_space(0, false);
             return from == npos ? basic_string() : _part(from, this->_end_without_spaces());
         }
 
-        basic_string trim(view_type chars) const {
+        basic_string trim(view_type chars) const noexcept {
             auto v = this->view();
             auto from = v.find_first_not_of(chars);
             if (from == npos) {
@@ -487,75 +516,75 @@ namespace sgcl {
         }
 
         template<size_t N>
-        basic_string trim(const CharT (&chars)[N]) const {
+        basic_string trim(const CharT (&chars)[N]) const noexcept {
             return trim(detail::array_text<CharT, Traits>(chars));
         }
 
-        basic_string trim(std::u32string_view set) const requires (sizeof(CharT) == 1) {
+        basic_string trim(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
             auto from = this->find_first_not_of(set);
             if (from == npos) {
                 return basic_string();
             }
             auto last = this->find_last_not_of(set);
-            return _part(from, last + this->decode(last).second);
+            return _part(from, last + this->_width_at(last));
         }
 
-        basic_string trim_left() const {
+        basic_string trim_left() const noexcept {
             auto from = this->_find_space(0, false);
             return from == npos ? basic_string() : _part(from, size());
         }
 
-        basic_string trim_left(std::u32string_view set) const requires (sizeof(CharT) == 1) {
+        basic_string trim_left(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
             auto from = this->find_first_not_of(set);
             return from == npos ? basic_string() : _part(from, size());
         }
 
-        basic_string trim_left(view_type chars) const {
+        basic_string trim_left(view_type chars) const noexcept {
             auto from = this->view().find_first_not_of(chars);
             return from == npos ? basic_string() : _part(from, size());
         }
 
         template<size_t N>
-        basic_string trim_left(const CharT (&chars)[N]) const {
+        basic_string trim_left(const CharT (&chars)[N]) const noexcept {
             return trim_left(detail::array_text<CharT, Traits>(chars));
         }
 
-        basic_string trim_right() const {
+        basic_string trim_right() const noexcept {
             return _part(0, this->_end_without_spaces());
         }
 
-        basic_string trim_right(std::u32string_view set) const requires (sizeof(CharT) == 1) {
+        basic_string trim_right(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
             auto last = this->find_last_not_of(set);
-            return last == npos ? basic_string() : _part(0, last + this->decode(last).second);
+            return last == npos ? basic_string() : _part(0, last + this->_width_at(last));
         }
 
-        basic_string trim_right(view_type chars) const {
+        basic_string trim_right(view_type chars) const noexcept {
             auto to = this->view().find_last_not_of(chars);
             return to == npos ? basic_string() : _part(0, to + 1);
         }
 
         template<size_t N>
-        basic_string trim_right(const CharT (&chars)[N]) const {
+        basic_string trim_right(const CharT (&chars)[N]) const noexcept {
             return trim_right(detail::array_text<CharT, Traits>(chars));
         }
 
         // Without `prefix` at the start (`suffix` at the end) when it is
         // there; the same object when it is not
-        basic_string trim_prefix(view_type prefix) const {
+        basic_string trim_prefix(view_type prefix) const noexcept {
             return this->starts_with(prefix) ? _part(prefix.size(), size()) : *this;
         }
 
-        basic_string trim_suffix(view_type suffix) const {
+        basic_string trim_suffix(view_type suffix) const noexcept {
             return this->ends_with(suffix) ? _part(0, size() - suffix.size()) : *this;
         }
 
         template<size_t N>
-        basic_string trim_prefix(const CharT (&prefix)[N]) const {
+        basic_string trim_prefix(const CharT (&prefix)[N]) const noexcept {
             return trim_prefix(detail::array_text<CharT, Traits>(prefix));
         }
 
         template<size_t N>
-        basic_string trim_suffix(const CharT (&suffix)[N]) const {
+        basic_string trim_suffix(const CharT (&suffix)[N]) const noexcept {
             return trim_suffix(detail::array_text<CharT, Traits>(suffix));
         }
 
@@ -575,6 +604,13 @@ namespace sgcl {
             size_type hits = 0;
             for (auto k = at; k != npos; k = (count && hits == count) ? npos : v.find(from, k + from.size())) {
                 ++hits;
+            }
+            // Past the maximum when what each occurrence adds, times their
+            // number, passes the room left: checked by a division, as the
+            // product of a long `to` and many occurrences may pass 64 bits
+            // and wrap to a small length
+            if (to.size() > from.size() && hits > (max_size() - v.size()) / (to.size() - from.size())) {
+                throw length_error("sgcl::basic_string::replace");
             }
             const size_type total = v.size() - hits * from.size() + hits * to.size();
             return _filled(total, [&](CharT* out) {
@@ -615,7 +651,12 @@ namespace sgcl {
             return replace(view_type(&from, 1), view_type(&to, 1), count);
         }
 
-        basic_string replace(char32_t from, char32_t to, size_type count = 0) const requires (sizeof(CharT) == 1) {
+        // A `from` that is no code point occurs nowhere (the same object); a
+        // `to` that is none is written as U+FFFD, as utf8::encode writes it
+        basic_string replace(char32_t from, char32_t to, size_type count = 0) const requires (!std::same_as<CharT, char32_t>) {
+            if (!utf8::valid(from)) {
+                return *this;
+            }
             return replace(view_type(_encoded_of(from)), view_type(_encoded_of(to)), count);
         }
 
@@ -650,7 +691,7 @@ namespace sgcl {
                     return _ascii_cased('A', 'Z', 32);
                 }
             }
-            return _cased([](char32_t c) { return unicode::to_lower(c); });
+            return _cased<detail::unicode_tables::ToLower>();
         }
 
         basic_string to_upper() const {
@@ -659,7 +700,7 @@ namespace sgcl {
                     return _ascii_cased('a', 'z', -32);
                 }
             }
-            return _cased([](char32_t c) { return unicode::to_upper(c); });
+            return _cased<detail::unicode_tables::ToUpper>();
         }
 
         void swap(basic_string& o) noexcept {
@@ -739,7 +780,7 @@ namespace sgcl {
         }
 
         // The characters [from, to): the same object for the whole string
-        basic_string _part(size_type from, size_type to) const {
+        basic_string _part(size_type from, size_type to) const noexcept {
             return (from == 0 && to == size()) ? *this : basic_string(this->view().substr(from, to - from));
         }
 
@@ -748,7 +789,7 @@ namespace sgcl {
         // needs no decoding and no table: one pass over the bytes, where
         // the general path below decodes a code point at a time and asks
         // a table about each
-        basic_string _ascii_cased(char lo, char hi, int by) const {
+        basic_string _ascii_cased(char lo, char hi, int by) const noexcept {
             auto v = this->view();
             // Without a branch, because one here costs twelve times what
             // the work does: the letters of a text do not alternate in
@@ -782,11 +823,33 @@ namespace sgcl {
             });
         }
 
-        // The characters mapped one by one (a code point at a time in
-        // UTF-8, a unit in a wide string): the same object when none
-        // changes, else a new string, whose bytes may be more or fewer
+        // The unit at i of a 16-bit text, a surrogate, as the map leaves
+        // it: the same half of the mapped code point when it is a half of
+        // a pair, else itself (a lone surrogate is no code point). Each
+        // half is asked on its own, so the loops over units step by one;
+        // out of line, so that they keep their shape for the plane
         template<class Map>
-        basic_string _cased(Map map) const {
+        SGCL_NOINLINE static CharT _pair_half(Map map, const CharT* u, size_type n, size_type i) noexcept {
+            CharT c = u[i];
+            if (char32_t(c) < 0xDC00) {
+                if (i + 1 < n && (char32_t(u[i + 1]) & 0xFC00) == 0xDC00) {
+                    char32_t m = map(0x10000 + ((char32_t(c) - 0xD800) << 10) + (char32_t(u[i + 1]) - 0xDC00));
+                    return CharT(0xD800 + ((m - 0x10000) >> 10));
+                }
+            } else if (i > 0 && (char32_t(u[i - 1]) & 0xFC00) == 0xD800) {
+                char32_t m = map(0x10000 + ((char32_t(u[i - 1]) - 0xD800) << 10) + (char32_t(c) - 0xDC00));
+                return CharT(0xDC00 + ((m - 0x10000) & 0x3FF));
+            }
+            return c;
+        }
+
+        // The characters mapped a code point at a time by Table (a UTF-8
+        // sequence, a UTF-16 unit or surrogate pair, a unit of a 32-bit
+        // string): the same object when none changes, else a new string,
+        // whose bytes may be more or fewer in UTF-8
+        template<const detail::CaseTable& Table>
+        basic_string _cased() const {
+            auto map = [](char32_t c) { return detail::unicode_mapped(c, Table); };
             auto v = this->view();
             if constexpr (sizeof(CharT) == 1) {
                 auto bytes = this->_bytes();
@@ -828,6 +891,47 @@ namespace sgcl {
                         i += n;
                     }
                 });
+            } else if constexpr (sizeof(CharT) == 2) {
+                // A unit of the Basic Multilingual Plane is its own code
+                // point, mapped as it is; a high surrogate followed by a
+                // low one is a letter past U+FFFF (Deseret, Adlam), mapped
+                // as one. No simple mapping crosses the end of the plane
+                // (the tests ask every code point), so a pair maps to a
+                // pair and the string keeps its size. A lone surrogate is
+                // no code point and maps to itself: left as it is, as an
+                // ill-formed byte of UTF-8.
+                //
+                // One pass: the scan stops at the first unit that changes,
+                // the unchanged start is copied and the mapping goes on
+                // from there. Every unit, ASCII included, maps through the
+                // plane's two-stage table, without a branch; the table
+                // maps no surrogate, so only the test of a surrogate,
+                // which plain text never takes, sends a unit to its pair.
+                // Each half of a pair is its own step (_pair_half, out of
+                // line), so both loops go a unit a turn
+                const CharT* u = v.data();
+                const size_type n = v.size();
+                size_type first = 0;
+                for (; first < n; ++first) {
+                    char32_t c = char32_t(u[first]);
+                    if (detail::unicode_plane_mapped(c, Table) != c) {
+                        break;
+                    }
+                    if ((c & 0xF800) == 0xD800 && _pair_half(map, u, n, first) != CharT(c)) {
+                        break;
+                    }
+                }
+                if (first == n) {
+                    return *this;
+                }
+                return _filled(n, [&](CharT* chars) {
+                    detail::copy_bytes(chars, u, first * sizeof(CharT));
+                    for (size_type i = first; i < n; ++i) {
+                        char32_t c = char32_t(u[i]);
+                        CharT m = CharT(detail::unicode_plane_mapped(c, Table));
+                        chars[i] = (c & 0xF800) == 0xD800 ? _pair_half(map, u, n, i) : m;
+                    }
+                });
             } else {
                 auto changes = [&](CharT c) { return map(char32_t(c)) != char32_t(c); };
                 if (std::find_if(v.begin(), v.end(), changes) == v.end()) {
@@ -841,8 +945,8 @@ namespace sgcl {
             }
         }
 
-        // A code point as the text it is split on or replaced: its bytes
-        static auto _encoded_of(char32_t c) noexcept requires (sizeof(CharT) == 1) {
+        // A code point as the text it is split on or replaced: its units
+        static auto _encoded_of(char32_t c) noexcept requires (!std::same_as<CharT, char32_t>) {
             return typename basic_string::_encoded(c);
         }
 
@@ -879,6 +983,23 @@ namespace sgcl {
             } else {
                 return view_type(a);
             }
+        }
+
+        // The length of join's result counted exactly, a part or separator
+        // at a time against the room left: length_error past max_size()
+        template<class R>
+        SGCL_NOINLINE static size_type _joined_size(R& parts, view_type sep) {
+            size_type total = 0;
+            bool first = true;
+            for (auto&& part : parts) {
+                const size_t n = view_type(part).size();
+                if ((!first && sep.size() > max_size() - total) || n > max_size() - total - (first ? 0 : sep.size())) {
+                    throw length_error("sgcl::basic_string::join");
+                }
+                total += (first ? 0 : sep.size()) + n;
+                first = false;
+            }
+            return total;
         }
 
         // A string written in place (detail::StringAccess::filled, bounded)
@@ -929,8 +1050,6 @@ namespace sgcl {
         using value_type = slice<const CharT>;
         using size_type = size_t;
 
-        enum Mode { Separator, Characters, Fields };
-
         class iterator {
         public:
             using iterator_category = std::forward_iterator_tag;
@@ -949,12 +1068,12 @@ namespace sgcl {
                 return &_piece;
             }
 
-            iterator& operator++() {
+            iterator& operator++() noexcept {
                 _advance();
                 return *this;
             }
 
-            iterator operator++(int) {
+            iterator operator++(int) noexcept {
                 iterator tmp = *this;
                 ++(*this);
                 return tmp;
@@ -971,7 +1090,7 @@ namespace sgcl {
             bool _done = true;         // past the last piece: the end
             value_type _piece;
 
-            iterator(const pieces* owner, size_type start)
+            iterator(const pieces* owner, size_type start) noexcept
             : _owner(owner)
             , _next(start)
             , _done(false) {
@@ -981,7 +1100,7 @@ namespace sgcl {
             // The piece from _next, and _next moved past it and its
             // separator (npos once the last piece is out); the end when
             // there is no piece to give
-            void _advance() {
+            void _advance() noexcept {
                 if (_next == npos) {
                     _done = true;
                     return;
@@ -1008,8 +1127,9 @@ namespace sgcl {
                         _piece = _owner->_text.as_slice(_next);
                         _next = npos;
                     } else {
-                        _piece = _owner->_text.as_slice(_next, 1);
-                        ++_next;
+                        auto width = _owner->_text._width_at(_next);   // a code point: its bytes, a surrogate pair
+                        _piece = _owner->_text.as_slice(_next, width);
+                        _next += width;
                     }
                     ++_count;
                     return;
@@ -1039,7 +1159,7 @@ namespace sgcl {
 
         using const_iterator = iterator;
 
-        iterator begin() const {
+        iterator begin() const noexcept {
             return _text.empty() ? end() : iterator(this, 0);
         }
 
@@ -1047,7 +1167,7 @@ namespace sgcl {
             return iterator();
         }
 
-        bool empty() const {
+        bool empty() const noexcept {
             return begin() == end();
         }
 
@@ -1057,6 +1177,10 @@ namespace sgcl {
         }
 
     private:
+        // How the pieces are found, set by the function that made the range:
+        // split by a separator, by characters (an empty separator), fields
+        enum Mode { Separator, Characters, Fields };
+
         // The characters of a separator kept inline: 16 bytes of them, the
         // separators one writes (", ", "::", "\r\n", a character's
         // encoding) without an object of their own per split
@@ -1069,7 +1193,7 @@ namespace sgcl {
         size_type _max_parts;
         Mode _mode;
 
-        pieces(const basic_string& text, basic_string sep, size_type max_parts, Mode mode)
+        pieces(const basic_string& text, basic_string sep, size_type max_parts, Mode mode) noexcept
         : _text(text)
         , _sep(std::move(sep))
         , _max_parts(max_parts)
@@ -1088,7 +1212,7 @@ namespace sgcl {
             }
         }
 
-        pieces(const basic_string& text, CharT sep, size_type max_parts)
+        pieces(const basic_string& text, CharT sep, size_type max_parts) noexcept
         : _text(text)
         , _sep_chars{sep}
         , _sep_size(1)
@@ -1213,15 +1337,15 @@ namespace sgcl {
     // for a bool; a char as a string of one
     template<class T>
     requires std::is_arithmetic_v<T> && (!std::is_same_v<T, bool>) && (!std::is_same_v<T, char>)
-    string to_string(T v) {
+    string to_string(T v) noexcept {
         return string(std::to_string(v));
     }
 
-    inline string to_string(bool v) {
+    inline string to_string(bool v) noexcept {
         return v ? "true" : "false";
     }
 
-    inline string to_string(char c) {
+    inline string to_string(char c) noexcept {
         return string(1, c);
     }
 
@@ -1245,19 +1369,19 @@ namespace sgcl {
         , _offset(offset) {
         }
 
-        std::errc code() const noexcept {
+        constexpr std::errc code() const noexcept {
             return _reason == reason::out_of_range ? std::errc::result_out_of_range : std::errc::invalid_argument;
         }
 
-        reason why() const noexcept {
+        constexpr reason why() const noexcept {
             return _reason;
         }
 
-        size_t offset() const noexcept {
+        constexpr size_t offset() const noexcept {
             return _offset;
         }
 
-        string message() const {
+        string message() const noexcept {
             switch (_reason) {
                 case reason::empty: return "an empty text";
                 case reason::not_a_number: return "not a number";

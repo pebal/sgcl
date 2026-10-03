@@ -1,108 +1,186 @@
-# sgcl::time::datetime, sgcl::time::now
+[sgcl](../README.md) › [time](README.md)
+
+# sgcl::time::datetime
 
 ```cpp
-#include "sgcl/time/datetime.h"   // or "sgcl/time/time.h"
+#include "sgcl/time/datetime.h"   // or "sgcl/time.h"
 
 namespace sgcl::time {
-    class datetime;                                // an instant and the zone it is seen in
-    datetime now();                                // the system's clock, the local zone
-    inline constexpr earlier_t earlier;            // tags: which of a time shown twice
-    inline constexpr later_t later;
+    class datetime;
 }
 ```
 
-An instant on the time line and the zone it is seen in: Go's `time.Time`. The instant is the nanoseconds since 1970-01-01T00:00:00Z in 64 bits — the years 1677 to 2262, the range and the unit of `std::chrono::system_clock` and of [`io::file_info::modified`](../io/fs.md), which a datetime is made from as it is — and the zone is a [zone](zone.md). Sixteen bytes, the zone a `tracked_ptr` to its data, so a datetime lives where a [string](../core/string.md) does — on a stack, in a managed object, in a container of the library — and is taken as `const datetime&`; Go's is 24, with a monotonic reading inside that this module keeps in a [stopwatch](README.md#stopwatch) of its own.
+`sgcl::time::datetime` is an instant on the time line and the zone it is seen in: Go's `time.Time`. The instant is
+the nanoseconds since 1970-01-01T00:00:00Z in 64 bits — the years 1677 to 2262, the range and the unit of
+`std::chrono::system_clock` and of [io::file_info::modified](../io/file_info.md), which a datetime is made from as it is —
+and the zone is a [zone](zone.md). Sixteen bytes, the zone a `tracked_ptr` to its data, so a datetime lives where a
+[string](../core/string.md) does and is taken as `const datetime&`. Go's is 24 bytes, with a monotonic reading inside
+that this module keeps in a [stopwatch](stopwatch.md) of its own.
 
-The fields — `year()` to `nanosecond()`, `weekday()`, `year_day()`, `iso_week()`, `date()` — are what the zone's clock shows at that instant. `t.in(z)` is the same instant in another zone, `t.utc()` and `t.local()` in UTC and the local one; `t.offset()`, `t.abbreviation()` and `t.is_dst()` are what the zone is then.
+The fields — [year](datetime/year.md) to [nanosecond](datetime/nanosecond.md), [weekday](datetime/weekday.md),
+[year_day](datetime/year_day.md), [iso_week](datetime/iso_week.md), [date](datetime/date.md) — are what the zone's
+clock shows at that instant. [in](datetime/in.md) is the same instant in another zone, [utc](datetime/utc.md) and
+[local](datetime/local.md) in UTC and the local one; [offset](datetime/offset.md),
+[abbreviation](datetime/abbreviation.md) and [is_dst](datetime/is_dst.md) are what the zone is then. Two datetimes
+are equal when they are the same instant, whatever their zones: the same moment in Warsaw and in UTC is equal, and
+they are ordered by the instant. Go's `==` compares the zone too, which is a known trap there (`t.Equal(u)` is what
+Go code means); here `a.zone() == b.zone()` asks the other question.
 
-Two datetimes are equal when they are the same instant, whatever their zones: the same moment in Warsaw and in UTC is equal, and ordered by the instant. Go's `==` compares the zone too, which is a known trap there (`t.Equal(u)` is what Go code means); here `a.zone() == b.zone()` asks the other question.
-
-Two kinds of arithmetic. The exact one is `t + d`, `t - d` and `t2 - t1`, a [duration](../core/duration.md) of nanoseconds: an hour later is 3600 seconds later. The calendar's is `add_days`, `add_months` and `add_years`, which keep the time of the clock: a day later across a change of the clock is 23 or 25 hours later, and a month later from the 31st is the month's last day, as [date](date.md)'s `add_months` cuts it. Both saturate at the ends of the range; Go wraps.
-
-A time of the clock becomes an instant by `date.at(hour, minute, zone)` (Go's `time.Date`), and a change of the clock makes some times of it two instants or none. `at` reads them by the rule Java, JavaScript's Temporal and iCalendar (RFC 5545) call compatible: a time the clock skipped (the hour lost in spring) moves on by the length of the skip, 02:30 on the night Warsaw goes from 02:00 to 03:00 being 03:30; a time it showed twice (the hour repeated in autumn) is the first of the two. The tag `time::earlier` takes the first of a time shown twice and, for a skipped time, the change itself (03:00, the first time of the clock after the skip); `time::later` takes the second and moves a skipped time on; `try_at` is nothing for both. Go does not say which it takes ("not guaranteed"), and takes either by where the time falls against the change read as UTC.
-
-`time::now()` reads the system's clock, in the local zone. While a test has a [manual_clock](../async/manual_clock.md) installed it is the wall time of the install moved on by as much as the manual time has been advanced, so that code which asks for the time — an expiry, a header of HTTP, a log's rotation — is tested with no real waiting, as the timers are.
+Two kinds of arithmetic. The exact one is `t + d`, `t - d` and `t2 - t1`, a [duration](../core/duration.md) of
+nanoseconds: an hour later is 3600 seconds later. The calendar's is [add_days](datetime/add_days.md),
+[add_months](datetime/add_months.md) and [add_years](datetime/add_years.md), which keep the time of the clock: a day
+later across a change of the clock is 23 or 25 hours later, and a month later from the 31st is the month's last day,
+as [date](date/add_months.md)'s `add_months` cuts it. Both saturate at the ends of the range; Go wraps. A time of the
+clock becomes a datetime by a date's [at](date/at.md) (Go's `time.Date`), and the time now is
+[time::now()](now.md).
 
 ## Rules
 
-- The range is 1677-09-21T00:12:43.145224192Z to 2262-04-11T23:47:16.854775807Z. A date beyond it (`date(3000, 1, 1).at(0, 0, z)`), a sum or a difference past it, and `from_unix` of more seconds than it holds give its end; a text of an instant beyond it is refused by `parse`.
-- `unix()`, `unix_milli()`, `unix_micro()` and `nanosecond()` round down: half a second before 1970 is `unix() == -1` and `nanosecond() == 500000000`, 1969-12-31T23:59:59.5Z.
-- A datetime made without a zone (`from_unix(s)`, `datetime(sys_time)`) is in the local zone, as in Go; `datetime()` is 1970-01-01T00:00:00Z in UTC.
-- `truncate(d)` and `round(d)` count steps from Go's zero time, 0001-01-01T00:00:00Z, as Go does — for a step that divides a day the same as counting from midnight UTC, not from the zone's midnight. Half a step rounds up. A step of zero or less leaves the time as it is.
-- `start_of_day()` is the first instant of the datetime's date in its zone: midnight, or where midnight was skipped (America/Santiago in September) the change that skipped it; a date skipped whole (Pacific/Apia's 2011-12-30) starts where the next one does.
-- Hours, minutes and seconds out of their ranges carry, as a date's fields do: `d.at(24, 0, z)` is midnight of the next day, `d.at(0, 0, 86400, z)` too.
-- `to_string()` is RFC 3339 with the fraction of a second only where there is one and `Z` for an offset of zero, Go's `RFC3339Nano`: `2026-09-24T12:41:15.122575+02:00`. An offset with seconds (the local mean times of the 19th century) is written to the minute, as Go writes it; RFC 3339 has no seconds there. The other texts are on the [text](layout.md) page.
+- A datetime is a value of sixteen bytes, the count and the zone's pointer, not trivially copyable: it lives where a
+  `tracked_ptr` may — on a stack, in a managed object, in a container of the library — as a
+  [string](../core/string.md) does, and is taken as `const datetime&`.
+- The range is 1677-09-21T00:12:43.145224192Z to 2262-04-11T23:47:16.854775807Z. A date beyond it
+  (`date(3000, 1, 1).at(0, 0, z)`), a sum or a difference past it, and `from_unix` of more seconds than it holds
+  give its end; a text of an instant beyond it is refused by [parse](datetime/parse.md).
+- `unix()`, `unix_milli()`, `unix_micro()` and `nanosecond()` round down: half a second before 1970 is
+  `unix() == -1` and `nanosecond() == 500000000`, 1969-12-31T23:59:59.5Z.
+- A datetime made without a zone (`from_unix(s)`, `datetime(sys_time)`) is in the local zone, as in Go;
+  `datetime()` is 1970-01-01T00:00:00Z in UTC.
+- `truncate(d)` and `round(d)` count steps from Go's zero time, 0001-01-01T00:00:00Z, as Go does — for a step that
+  divides a day the same as counting from midnight UTC, not from the zone's midnight.
+- `to_string()` is RFC 3339 with the fraction of a second only where there is one, Go's `RFC3339Nano`; the other
+  texts are the [layouts](layout.md) and the [patterns](README.md#patterns) of [format](datetime/format.md).
+- Nothing of a datetime throws but its two constructors from text, a literal the program spells, and a stream's
+  `operator<<`: a text from outside the program is read by [parse](datetime/parse.md), whose error is a value.
 
-## Members
+### A time of the clock skipped or shown twice
 
-```cpp
-constexpr datetime() noexcept;                                          // 1970-01-01T00:00:00Z, UTC
-explicit datetime(std::chrono::sys_time<std::chrono::nanoseconds> t, const time::zone& z = time::zone::local()) noexcept;
-static datetime from_unix(int64_t seconds, const time::zone& z = time::zone::local()) noexcept;
-static datetime from_unix_milli(int64_t milliseconds, const time::zone& z = time::zone::local()) noexcept;
-static datetime from_unix_micro(int64_t microseconds, const time::zone& z = time::zone::local()) noexcept;
-static datetime from_unix_nano(int64_t nanoseconds, const time::zone& z = time::zone::local()) noexcept;
-static expected<datetime, error> parse(const string& text, layout format);                   // layout.md
-static expected<datetime, error> parse(const string& text, const string& pattern, const time::zone& z = time::zone::utc());
-explicit datetime(const string& text, layout format);   // a literal: parse(text, format), or bad_expected_access<time::error> with its message (DESIGN 234)
-explicit datetime(const string& text, const string& pattern, const time::zone& z = time::zone::utc());   // a literal: parse(text, pattern, z), the same
+A change of the clock makes some times of it two instants or none. A date's [at](date/at.md) reads them by the rule
+Java, JavaScript's Temporal and iCalendar (RFC 5545) call compatible: a time the clock skipped (the hour lost in
+spring) moves on by the length of the skip, 02:30 on the night Warsaw goes from 02:00 to 03:00 being 03:30; a time
+it showed twice (the hour repeated in autumn) is the first of the two. The tag `time::earlier`
+([earlier_t](earlier_t.md)) takes the first of a time shown twice and, for a skipped time, the change itself
+(03:00, the first time of the clock after the skip); `time::later` takes the second and moves a skipped time on; a
+date's [try_at](date/try_at.md) is nothing for both. Go does not say which it takes ("not guaranteed"), and takes
+either by where the time falls against the change read as UTC.
 
-int64_t unix() const noexcept;                   // seconds since 1970, rounded down
-int64_t unix_milli() const noexcept;
-int64_t unix_micro() const noexcept;
-int64_t unix_nano() const noexcept;
-std::chrono::sys_time<std::chrono::nanoseconds> to_sys() const noexcept;
+Hours, minutes and seconds out of their ranges carry, as a date's fields do: `d.at(24, 0, z)` is midnight of the next
+day, `d.at(0, 0, 86400, z)` too. The calendar's arithmetic ([add_days](datetime/add_days.md) and the others) and a
+pattern read without an offset ([parse](datetime/parse.md)) read a time of the clock by the same rule.
 
-time::zone zone() const noexcept;
-datetime in(const time::zone& z) const noexcept;        // the same instant in another zone
-datetime utc() const noexcept;
-datetime local() const;
-duration offset() const noexcept;                // +2h
-string abbreviation() const;                     // "CEST"
-bool is_dst() const noexcept;
+### From code written for Go
 
-time::date date() const noexcept;                // of the zone's clock
-int year() const noexcept;
-time::month month() const noexcept;              // january to december; int(...) 1 to 12
-int day() const noexcept;                        // 1 to 31
-int hour() const noexcept;                       // 0 to 23
-int minute() const noexcept;
-int second() const noexcept;
-int nanosecond() const noexcept;                 // 0 to 999999999
-time::weekday weekday() const noexcept;          // Monday 1 to Sunday 7
-int year_day() const noexcept;                   // 1 to 366
-time::iso_week iso_week() const noexcept;
+| With Go | With sgcl::time |
+|---|---|
+| `time.Time` | `datetime`: an instant and a zone, 16 bytes (Go's 24 carry a monotonic reading: here a [stopwatch](stopwatch.md)) |
+| `time.Now()` | [time::now()](now.md): in the local zone, as in Go; it follows a test's `manual_clock` |
+| `time.Date(y, m, d, h, mi, s, ns, loc)` | `date(y, m, d).at(h, mi, s, zone)`: fields out of range carried as in Go; a skipped or repeated time by the compatible rule, `earlier`, `later` or `try_at` (Go: "not guaranteed") |
+| `time.Unix`, `UnixMilli`, `t.Unix()`, `t.UnixNano()` | `from_unix`, `from_unix_milli`, `from_unix_nano`, `unix()`, `unix_milli()`, `unix_nano()` |
+| `t.Year()` … `t.Nanosecond()`, `Weekday`, `YearDay`, `ISOWeek`, `Date`, `Clock` | `year()` … `nanosecond()`, `weekday()`, `year_day()`, `iso_week()`, `date()`; the weekday in ISO's numbering, Monday 1 |
+| `t.In(loc)`, `t.UTC()`, `t.Local()`, `t.Zone()`, `t.IsDST()` | `in(z)`, `utc()`, `local()`, `abbreviation()` and `offset()`, `is_dst()` |
+| `t.Add(d)`, `t.Sub(u)`, `t.AddDate(y, m, d)` | `t + d`, `t - u`, `add_years`, `add_months`, `add_days`: months cut to the month's end (Go carries: 31 January plus a month is 3 March); saturated (Go wraps) |
+| `t.Before`, `t.After`, `t.Equal`, `==` | `<`, `>`, `==`: `==` by the instant; Go's `==` compares the zone too |
+| `t.Truncate(d)`, `t.Round(d)` | `truncate(d)`, `round(d)`: the same steps, from Go's zero time |
+| `t.Format(layout)`, `time.Parse`, `time.ParseInLocation` | `format(pattern)`, `datetime::parse(text, pattern, zone)`: a pattern of `%` (`std::format`'s), not Go's reference time |
 
-datetime add_days(int n) const;                  // the same time of the clock n days on
-datetime add_months(int n) const;                // cut to the month's end
-datetime add_years(int n) const;
-datetime truncate(duration step) const noexcept; // from Go's zero time
-datetime round(duration step) const noexcept;
-datetime start_of_day() const;
+## Member functions
 
-string format(layout format) const;              // t.format(time::http)
-string format(const string& pattern) const;      // t.format("%d.%m.%Y %H:%M")
-string to_string() const;                        // RFC 3339, the fraction where there is one
+| Function | Description |
+|---|---|
+| [(constructor)](datetime/datetime.md) | constructs a datetime: the start of 1970 in UTC, from a `std::chrono` instant, from a literal text |
 
-// t + d, d + t, t - d, t += d, t -= d; t2 - t1 -> duration; == and <=> by the instant; operator<<
+#### Unix time
 
-// On a date (date.md):
-datetime at(int hour, int minute, const zone& z) const;                       // compatible
-datetime at(int hour, int minute, int second, const zone& z) const;
-datetime at(int hour, int minute, const zone& z, earlier_t) const;            // and with seconds
-datetime at(int hour, int minute, const zone& z, later_t) const;              // and with seconds
-optional<datetime> try_at(int hour, int minute, int second, const zone& z) const;
-datetime start_of_day(const zone& z) const;
+| Function | Description |
+|---|---|
+| [from_unix](datetime/from_unix.md) | the datetime of the seconds since 1970 (static) |
+| [from_unix_milli](datetime/from_unix_milli.md) | the datetime of the milliseconds since 1970 (static) |
+| [from_unix_micro](datetime/from_unix_micro.md) | the datetime of the microseconds since 1970 (static) |
+| [from_unix_nano](datetime/from_unix_nano.md) | the datetime of the nanoseconds since 1970 (static) |
+| [unix](datetime/unix.md) | the seconds since 1970, rounded down |
+| [unix_milli](datetime/unix_milli.md) | the milliseconds since 1970, rounded down |
+| [unix_micro](datetime/unix_micro.md) | the microseconds since 1970, rounded down |
+| [unix_nano](datetime/unix_nano.md) | the nanoseconds since 1970 |
+| [to_sys](datetime/to_sys.md) | the instant as a `std::chrono::sys_time` |
 
-datetime now();
-```
+#### Zone
+
+| Function | Description |
+|---|---|
+| [zone](datetime/zone.md) | the zone the instant is seen in |
+| [in](datetime/in.md) | the same instant in another zone |
+| [utc](datetime/utc.md) | the same instant in UTC |
+| [local](datetime/local.md) | the same instant in the local zone |
+| [offset](datetime/offset.md) | the zone's offset from UTC at the instant |
+| [abbreviation](datetime/abbreviation.md) | the zone's abbreviation at the instant |
+| [is_dst](datetime/is_dst.md) | whether the zone is on daylight saving time at the instant |
+
+#### Fields
+
+| Function | Description |
+|---|---|
+| [date](datetime/date.md) | the date of the zone's clock |
+| [year](datetime/year.md) | the year |
+| [month](datetime/month.md) | the month |
+| [day](datetime/day.md) | the day of the month |
+| [hour](datetime/hour.md) | the hour, 0 to 23 |
+| [minute](datetime/minute.md) | the minute, 0 to 59 |
+| [second](datetime/second.md) | the second, 0 to 59 |
+| [nanosecond](datetime/nanosecond.md) | the part of the second, 0 to 999999999 |
+| [weekday](datetime/weekday.md) | the day of the week |
+| [year_day](datetime/year_day.md) | the day of the year, 1 to 366 |
+| [iso_week](datetime/iso_week.md) | the week of ISO 8601 and its year |
+
+#### Calendar
+
+| Function | Description |
+|---|---|
+| [add_days](datetime/add_days.md) | the same time of the clock some days on |
+| [add_months](datetime/add_months.md) | the same time of the clock some months on, cut to the month's end |
+| [add_years](datetime/add_years.md) | the same time of the clock some years on |
+| [start_of_day](datetime/start_of_day.md) | the first instant of the datetime's date in its zone |
+
+#### Rounding
+
+| Function | Description |
+|---|---|
+| [truncate](datetime/truncate.md) | down to a whole number of steps |
+| [round](datetime/round.md) | to the nearest whole number of steps |
+
+#### Text
+
+| Function | Description |
+|---|---|
+| [to_string](datetime/to_string.md) | RFC 3339, with the fraction of a second where there is one |
+| [format](datetime/format.md) | the text by a layout or by a pattern of `%` |
+| [parse](datetime/parse.md) | reads a text by a layout or by a pattern of `%` (static) |
+
+#### Arithmetic
+
+| Function | Description |
+|---|---|
+| [operator+=, operator-=](datetime/operator_arith.md) | moves the instant by a duration, saturated |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator+, operator-](datetime/operator_arith.md) | the instant moved by a duration, and the duration between two instants, saturated |
+| [operator==, operator\<=\>](datetime/operator_cmp.md) | compare two instants, whatever their zones |
+| [operator\<\<](datetime/to_string.md) | writes `to_string()` to a stream |
+
+## Complexity
+
+The instant and the arithmetic of `+` and `-` are constant. What the zone's clock shows — the fields, the offset,
+the calendar's arithmetic, the text — looks the instant up among the zone's changes: logarithmic in their number (a
+binary search), constant in UTC and in a fixed zone.
 
 ## Example
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/io/io.h"
-#include "sgcl/time/time.h"
+#include "sgcl/async.h"
+#include "sgcl/io.h"
+#include "sgcl/time.h"
 
 using namespace sgcl;
 
@@ -113,7 +191,7 @@ int main() {
     // A meeting in New York, seen in Warsaw
     auto meeting = time::date(2026, 10, 30).at(9, 30, new_york);
     println("{} is {} in Warsaw", meeting, meeting.in(warsaw).format("%A %H:%M"));
-    println(meeting == meeting.utc());                               // the same instant
+    println(meeting == meeting.utc());  // the same instant
 
     // A day later is not always 24 hours later
     auto before = time::date(2026, 10, 24).at(12, 0, warsaw);
@@ -142,7 +220,6 @@ int main() {
     auto start = time::now();
     clock.advance(90 * minute);
     println(time::now() - start);
-    return 0;
 }
 ```
 
@@ -163,6 +240,11 @@ true
 ## See also
 
 - [zone](zone.md): the zones a datetime is seen in
-- [text](layout.md): the formats known by name, patterns of `%`, `txt::format` and reading
-- [date](date.md): a date with no time of day, and `at`
-- [time](README.md): the module and the table of Go's names
+- [date](date.md): a date with no time of day, and [at](date/at.md), [try_at](date/try_at.md) that make a datetime
+  of it
+- [now](now.md): the time now
+- [layout](layout.md): the formats known by name; [README: Patterns](README.md#patterns): the patterns of `%`;
+  [README: Formatting with txt](README.md#formatting-with-txt): `txt::format` of a datetime
+- [duration](../core/duration.md): what `t2 - t1` is
+- [stopwatch](stopwatch.md): the time elapsed, on the monotonic clock
+- [time](README.md): the module

@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 #include <atomic>
 #include <thread>
 #include <vector>
@@ -92,8 +94,8 @@ namespace sgcl::detail {
     struct unregistered_t {};
     inline constexpr unregistered_t unregistered;
 
-    void collector_init();
-    Collector& collector_instance();
+    void collector_init() noexcept;
+    Collector& collector_instance() noexcept;
     void terminate_collector() noexcept;
     Thread& current_thread() noexcept;
     void ensure_thread_registered() noexcept;
@@ -145,6 +147,7 @@ namespace sgcl::detail {
         }
         ~BarrierRegion() {
             word->store(word->load(std::memory_order_relaxed) - 1, std::memory_order_release);
+            SGCL_TSAN_RELEASE(word);   // the thread's history, for the scan of its stack (collector.h: _mark_stack_roots)
         }
         BarrierRegion(const BarrierRegion&) = delete;
         BarrierRegion& operator=(const BarrierRegion&) = delete;
@@ -152,5 +155,6 @@ namespace sgcl::detail {
     void waking_up_collector() noexcept;
     void force_short_sleep() noexcept;
     // full collection, waits for the cycle: the allocators' last resort
-    void collect_before_bad_alloc();
+    // before out_of_managed_memory (heap.h)
+    void collect_for_allocation() noexcept;
 }

@@ -68,7 +68,7 @@ namespace sgcl::crypto {
         }
 
         template<class P>
-        inline Encapsulation<P> encapsulation_of(const uint8_t* ek, const Matrix<P>& a, const uint8_t h[32], const uint8_t m[32]) {
+        inline Encapsulation<P> encapsulation_of(const uint8_t* ek, const Matrix<P>& a, const uint8_t h[32], const uint8_t m[32]) noexcept {
             Encapsulation<P> e{SecretAccess::make<32>(), vector<byte>(Sizes<P>::ciphertext)};
             encaps_with_hash<P>(SecretAccess::data(e.shared_key), reinterpret_cast<uint8_t*>(e.ciphertext.data()), ek, a, h, m);
             return e;
@@ -88,7 +88,7 @@ namespace sgcl::crypto {
             }
 
             template<class P, class Self>
-            static Encapsulation<P> encapsulate_with(const EncapsulationKeyOf<P, Self>& ek, const uint8_t m[32]) {
+            static Encapsulation<P> encapsulate_with(const EncapsulationKeyOf<P, Self>& ek, const uint8_t m[32]) noexcept {
                 return encapsulation_of<P>(ek._ek, ek._a, ek._h, m);
             }
         };
@@ -99,21 +99,21 @@ namespace sgcl::crypto {
         public:
             // The key of Sizes<P>::ek bytes; another length, or a
             // coefficient of q or more (§7.2), is errc::invalid_key
-            static expected<Self, error> from_bytes(const slice<const byte>& bytes) {
+            static expected<Self, error> from_bytes(const slice<const byte>& bytes) noexcept {
                 if (!encapsulation_key_valid<P>(bytes_of(bytes), bytes.size())) {
                     return unexpected<error>(error(errc::invalid_key, string(P::name) + string(": an encapsulation key of the wrong length or with a coefficient not below q")));
                 }
                 return Self(Made{}, bytes_of(bytes));
             }
 
-            vector<byte> bytes() const {
+            vector<byte> bytes() const noexcept {
                 vector<byte> v(Sizes<P>::ek);
                 std::memcpy(v.data(), _ek, Sizes<P>::ek);
                 return v;
             }
 
             // A shared key and its ciphertext, from 32 bytes of crypto::random
-            Encapsulation<P> encapsulate() const {
+            Encapsulation<P> encapsulate() const noexcept {
                 uint8_t m[32];
                 random::fill(slice<byte>(reinterpret_cast<byte*>(m), sizeof m));
                 auto e = encapsulation_of<P>(_ek, _a, _h, m);
@@ -155,7 +155,7 @@ namespace sgcl::crypto {
         class DecapsulationKeyOf {
         public:
             // A seed from crypto::random
-            static Self generate() {
+            static Self generate() noexcept {
                 Self k(Made{});
                 random::fill(slice<byte>(reinterpret_cast<byte*>(k._seed), sizeof k._seed));
                 k._expand();
@@ -163,7 +163,7 @@ namespace sgcl::crypto {
             }
 
             // The key of its seed d‖z, 64 bytes; another length is invalid_key
-            static expected<Self, error> from_seed(const slice<const byte>& seed) {
+            static expected<Self, error> from_seed(const slice<const byte>& seed) noexcept {
                 if (seed.size() != 64) {
                     return unexpected<error>(error(errc::invalid_key, string(P::name) + string(": a seed is 64 bytes")));
                 }
@@ -230,8 +230,11 @@ namespace sgcl::crypto {
                 return key;
             }
 
-            // The same key, compared in constant time
-            friend bool operator==(const DecapsulationKeyOf& a, const DecapsulationKeyOf& b) noexcept {
+            // The same key, compared in constant time; a key moved from is
+            // std::logic_error, as everywhere
+            friend bool operator==(const DecapsulationKeyOf& a, const DecapsulationKeyOf& b) {
+                a._check();
+                b._check();
                 return equal_bytes(a._seed, b._seed, 64);
             }
 

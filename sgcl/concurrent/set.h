@@ -15,13 +15,15 @@ namespace sgcl::concurrent {
     // split-ordered list of map
     // (map.h has the account of the algorithm and the
     // rules) with the key as the element. find, contains and count are
-    // wait-free; insert, emplace and erase lock-free and linearizable; the
+    // wait-free once the key's bucket has its dummy node; insert, emplace and erase lock-free and linearizable; the
     // iteration weakly consistent, an iterator holding its node. The
     // elements are const, as in std::unordered_set.
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class set
     : public detail::SplitList<detail::ConcurrentSetTraits<Key, Hash, KeyEqual>> {
         using Base = detail::SplitList<detail::ConcurrentSetTraits<Key, Hash, KeyEqual>>;
+        static_assert(detail::nothrow_function_object<Hash, const Key&>, "sgcl::concurrent::set: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::concurrent::set: KeyEqual must be noexcept");
 
     public:
         using typename Base::value_type;
@@ -31,15 +33,5 @@ namespace sgcl::concurrent {
         using Base::insert;
 
         set() = default;
-
-        // insert(key) looks the key up first and builds nothing when it is
-        // there
-        pair<iterator, bool> insert(const Key& key) {
-            return this->_insert_absent(key, [&] { return this->_make_node(key); });
-        }
-
-        pair<iterator, bool> insert(Key&& key) {
-            return this->_insert_absent(key, [&] { return this->_make_node(std::move(key)); });
-        }
     };
 }

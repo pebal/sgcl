@@ -22,45 +22,80 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace sgcl::net {
-    namespace detail { using namespace sgcl::detail; }
+    namespace detail {
+        using namespace sgcl::detail;
+        struct UrlAccess;
+    }
+
+    class url;
 
     // application/x-www-form-urlencoded (the WHATWG URL Standard, §5): a
     // list of name and value pairs in their order, a name as often as it
     // comes, as the query of a URL and the body of an HTML form carry them.
     // Go's url.Values, JavaScript's URLSearchParams.
     //
-    // parse never fails: a '+' is a space, an escape that is not %XX stays
-    // as it is written, bytes that are not UTF-8 after the unescaping
-    // become U+FFFD, all as the standard says. to_string writes a space as
-    // '+' and escapes everything but the letters, the digits and * - . _
-    // A lookup by name walks the list, as in the standard: a query is a
-    // handful of pairs, and there is no hash to be steered by the sender.
+    // parse reads every text as pairs: a '+' is a space, an escape that is
+    // not %XX stays as it is written, bytes that are not UTF-8 after the
+    // unescaping become U+FFFD, all as the standard says. to_string writes
+    // a space as '+' and escapes everything but the letters, the digits
+    // and * - . _ A lookup by name walks the list, as in the standard: a
+    // query is a handful of pairs, and there is no hash to be steered by
+    // the sender.
+    //
+    // The URL's limit is kept (UrlMaxSize, 512 MiB): parse and first
+    // refuse a text past it, and the length of to_string is tracked, so
+    // that parse, add and set refuse pairs that would be written past it,
+    // net::errc::invalid_url. to_string then never passes it, and nothing
+    // here throws. The one way past it is url::query_params: a URL's query
+    // is within the limit, and its pairs, written by the form's rules,
+    // take at most three times it ('/' escaped), still far below the 4 GiB
+    // of a string; add and set refuse to grow those further.
     class query_params {
     public:
-        query_params() = default;
+        query_params() noexcept = default;
+        query_params(const query_params&) = default;
+        query_params& operator=(const query_params&) = default;
+
+        // A list moved from is empty, the length of its writing with it
+        query_params(query_params&& other) noexcept
+        : _pairs(std::move(other._pairs))
+        , _size(std::exchange(other._size, 0)) {
+        }
+
+        query_params& operator=(query_params&& other) noexcept {
+            if (this != &other) {
+                _pairs = std::move(other._pairs);
+                _size = std::exchange(other._size, 0);
+            }
+            return *this;
+        }
 
         // "a=1&b=2&a=3"; a leading '?' is taken off first, as
-        // URLSearchParams does
-        static query_params parse(const string& text);
+        // URLSearchParams does; invalid_url past the limit
+        static expected<query_params, io::error> parse(const string& text) noexcept;
 
-        // What parse(text).get(name) gives, found in the text: the pairs
+        // What parse(text)->get(name) gives, found in the text: the pairs
         // walked as parse walks them, a name compared as it stands when it
         // has nothing to decode, and only the value found decoded, so that
         // one value costs one string (a request's query(name) parsed every
-        // pair of the query into two strings a call)
-        static string first(const string& text, const string& name);
+        // pair of the query into two strings a call). invalid_url for a
+        // text past the limit; the pairs are not written, so their length
+        // is not looked at
+        static expected<string, io::error> first(const string& text, const string& name) noexcept;
 
-        // The same for a literal in the program (DESIGN 234): nothing to
-        // throw, since parse never fails; parse stays for text from outside
+        // The same for a literal in the program (DESIGN 234): parse's
+        // value, or bad_expected_access<io::error> with parse's message;
+        // parse stays for text from outside
         explicit query_params(const string& text)
-        : query_params(parse(text)) {
+        : query_params(parse(text).value()) {
         }
 
-        // The first value of the name, or "" when there is none (has()
-        // tells the two apart)
-        string get(const string& name) const {
+        // The first value of the name, or "" when there is none
+        // (contains() tells the two apart)
+        string get(const string& name) const noexcept {
             for (auto& p : _pairs) {
                 if (p.first == name) {
                     return p.second;
@@ -70,7 +105,7 @@ namespace sgcl::net {
         }
 
         // Every value of the name, in their order
-        vector<string> get_all(const string& name) const {
+        vector<string> get_all(const string& name) const noexcept {
             vector<string> out;
             for (auto& p : _pairs) {
                 if (p.first == name) {
@@ -80,7 +115,7 @@ namespace sgcl::net {
             return out;
         }
 
-        bool contains(const string& name) const {
+        bool contains(const string& name) const noexcept {
             for (auto& p : _pairs) {
                 if (p.first == name) {
                     return true;
@@ -89,45 +124,17 @@ namespace sgcl::net {
             return false;
         }
 
-        // A pair at the end
-        query_params& add(const string& name, const string& value) {
-            _pairs.push_back(pair<string, string>(name, value));
-            return *this;
-        }
+        // A pair at the end; invalid_url, the list as it was, when the
+        // pairs would be written past the limit
+        expected<void, io::error> add(const string& name, const string& value) noexcept;
 
         // The first pair of the name takes the value and the others of
-        // the name go; a pair at the end when there was none
-        query_params& set(const string& name, const string& value) {
-            bool found = false;
-            vector<pair<string, string>> kept;
-            kept.reserve(_pairs.size() + 1);
-            for (auto& p : _pairs) {
-                if (p.first != name) {
-                    kept.push_back(p);
-                } else if (!found) {
-                    found = true;
-                    kept.push_back(pair<string, string>(name, value));
-                }
-            }
-            if (!found) {
-                kept.push_back(pair<string, string>(name, value));
-            }
-            _pairs = std::move(kept);
-            return *this;
-        }
+        // the name go; a pair at the end when there was none. invalid_url,
+        // the list as it was, when the pairs would be written past the limit
+        expected<void, io::error> set(const string& name, const string& value) noexcept;
 
         // Every pair of the name
-        query_params& erase(const string& name) {
-            vector<pair<string, string>> kept;
-            kept.reserve(_pairs.size());
-            for (auto& p : _pairs) {
-                if (p.first != name) {
-                    kept.push_back(p);
-                }
-            }
-            _pairs = std::move(kept);
-            return *this;
-        }
+        query_params& erase(const string& name) noexcept;
 
         size_t size() const noexcept {
             return _pairs.size();
@@ -146,10 +153,11 @@ namespace sgcl::net {
             return _pairs.end();
         }
 
-        // "a=1&b=x+y"; "" for no pairs
-        string to_string() const;
+        // "a=1&b=x+y"; "" for no pairs. Written once into a string of
+        // the length tracked
+        string to_string() const noexcept;
 
-        bool operator==(const query_params& other) const {
+        bool operator==(const query_params& other) const noexcept {
             if (_pairs.size() != other._pairs.size()) {
                 return false;
             }
@@ -162,12 +170,46 @@ namespace sgcl::net {
         }
 
     private:
+        friend class url;
+        friend struct detail::UrlAccess;
+
+        // The pairs of a text, and the length of their writing, without
+        // the limit: parse checks it, url::query_params need not
+        static query_params _parse(std::string_view text) noexcept;
+
+        // first without the limit: what a request's query(name) calls on
+        // its URL's query, which is within it, so that the request pays
+        // nothing for the refusal it cannot meet
+        static string _first(std::string_view text, std::string_view name) noexcept;
+
         vector<pair<string, string>> _pairs;
+        size_t _size = 0;   // the length of to_string()
     };
 
-    class url;
-
     namespace detail {
+        // The longest URL text the module reads and the longest URL it
+        // makes: 512 MiB. A text past it as the parser reads it (url_input:
+        // tabs and newlines gone, a byte that is not UTF-8 the three of
+        // U+FFFD), or one whose URL would pass it (a byte escaped written
+        // as three), is invalid_url. The parser writes a byte as three at
+        // most and the URL is measured before its string is made: three
+        // times the limit stays below the 4 GiB of a string, so that the
+        // parser, a reference against a base and the setters that can
+        // refuse never throw length_error. A real URL is far shorter:
+        // browsers stop near 2 MB.
+        inline constexpr size_t UrlMaxSize = size_t(512) << 20;
+
+        // The longest host IDNA is given, decoded: 1 MiB. IDNA alone can
+        // grow a text past three times: a code point maps to at most 18
+        // (U+FDFA) and each of those case-folds to at most 3, form C
+        // grows a text at most 3 times, and Punycode writes a code point
+        // above ASCII in at most 11 characters (its delta is below 2^32
+        // and each digit but the last takes a tenth of it at least), with
+        // "xn--" and '-' once a label: under 1800 characters a byte, so
+        // that a host of 1 MiB makes under 2 GiB. A host the DNS takes is
+        // at most 253 bytes.
+        inline constexpr size_t UrlMaxIdnaSize = size_t(1) << 20;
+
         // The URL record of the standard (§4.1), as the parser builds it:
         // plain buffers, which a url is serialized from once. A path that
         // is a list is kept as its serialization ("/a/b", a '/' before
@@ -234,6 +276,15 @@ namespace sgcl::net {
             refused
         };
 
+        // How the one-pass path of url::_parse_common ended: the URL
+        // written, the text left to the parser, or a URL past UrlMaxSize,
+        // which the parser would make as well
+        enum class UrlOnePass : uint8_t {
+            done,
+            parser,
+            too_long
+        };
+
         inline bool url_special(std::string_view scheme) noexcept {
             return scheme == "http" || scheme == "https" || scheme == "ws" || scheme == "wss"
                 || scheme == "ftp" || scheme == "file";
@@ -282,7 +333,7 @@ namespace sgcl::net {
         // A byte kept as it is when the set holds it, %XX otherwise; the
         // UTF-8 percent-encoding of a code point is that of its bytes,
         // each over 0x7F and so always escaped
-        inline void url_escape(std::string& out, char c, const txt::percent_set& keep) {
+        inline void url_escape(std::string& out, char c, const txt::percent_set& keep) noexcept {
             if (keep.holds(c)) {
                 out.push_back(c);
                 return;
@@ -293,7 +344,7 @@ namespace sgcl::net {
             out.push_back(Digits[uint8_t(c) & 15]);
         }
 
-        inline void url_escape(std::string& out, std::string_view s, const txt::percent_set& keep) {
+        inline void url_escape(std::string& out, std::string_view s, const txt::percent_set& keep) noexcept {
             for (char c : s) {
                 url_escape(out, c, keep);
             }
@@ -301,7 +352,7 @@ namespace sgcl::net {
 
         // The standard's percent-decode: %XX to its byte, any other '%'
         // left as it is
-        inline std::string url_unescape(std::string_view s) {
+        inline std::string url_unescape(std::string_view s) noexcept {
             std::string out;
             out.reserve(s.size());
             for (size_t i = 0; i < s.size(); ++i) {
@@ -324,7 +375,7 @@ namespace sgcl::net {
         // U+10FFFF each become one U+FFFD for the longest start of a valid
         // sequence (the "maximal subpart"), the byte that broke it read
         // again as the start of the next
-        inline void url_utf8(std::string_view s, std::string& out) {
+        inline void url_utf8(std::string_view s, std::string& out) noexcept {
             static constexpr std::string_view Replacement = "\xEF\xBF\xBD";
             size_t i = 0;
             while (i < s.size()) {
@@ -433,7 +484,7 @@ namespace sgcl::net {
             bool host[256] = {};
             bool domain[256] = {};
 
-            constexpr UrlForbidden() {
+            constexpr UrlForbidden() noexcept {
                 for (char c : std::string_view("\0\t\n\r #/:<>?@[\\]^|", 17)) {
                     host[uint8_t(c)] = domain[uint8_t(c)] = true;
                 }
@@ -467,7 +518,7 @@ namespace sgcl::net {
             uint8_t kind[256] = {};
             char lower[256] = {};
 
-            constexpr UrlBytes() {
+            constexpr UrlBytes() noexcept {
                 for (int c = 0; c < 256; ++c) {
                     lower[c] = char(c >= 'A' && c <= 'Z' ? c + 32 : c);
                     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
@@ -611,7 +662,7 @@ namespace sgcl::net {
             return out;
         }
 
-        inline void url_write_ipv4(uint32_t v, std::string& out) {
+        inline void url_write_ipv4(uint32_t v, std::string& out) noexcept {
             char text[16];
             out.append(text, url_write_ipv4(v, text));
         }
@@ -777,14 +828,14 @@ namespace sgcl::net {
             return out;
         }
 
-        inline void url_write_ipv6(const uint16_t (&address)[8], std::string& out) {
+        inline void url_write_ipv6(const uint16_t (&address)[8], std::string& out) noexcept {
             char text[48];
             out.append(text, url_write_ipv6(address, text));
         }
 
         // The rest of the host parser over the domain in ASCII: the checks,
         // and an IPv4 address when the domain ends in a number
-        inline bool url_domain_to_host(std::string ascii_domain, std::string& out, HostKind& kind) {
+        inline bool url_domain_to_host(std::string ascii_domain, std::string& out, HostKind& kind) noexcept {
             if (ascii_domain.empty()) {
                 return false;
             }
@@ -810,7 +861,7 @@ namespace sgcl::net {
         }
 
         // §3.5, the host parser: the host serialized and its kind, or false
-        inline bool url_parse_host(std::string_view input, bool opaque, std::string& out, HostKind& kind) {
+        inline bool url_parse_host(std::string_view input, bool opaque, std::string& out, HostKind& kind) noexcept {
             out.clear();
             if (!input.empty() && input.front() == '[') {
                 if (input.back() != ']' || input.size() < 2) {
@@ -855,6 +906,9 @@ namespace sgcl::net {
                     c = url_lower(uint8_t(c));
                 }
             } else {
+                if (domain.size() > UrlMaxIdnaSize) {
+                    return false;
+                }
                 auto r = txt::idna::to_ascii(string(std::string_view(domain)), txt::idna::options::whatwg());
                 if (!r) {
                     return false;
@@ -874,7 +928,7 @@ namespace sgcl::net {
             : _in(input), _base(base), _url(url) {
             }
 
-            UrlStep run(UrlState state, bool override_given) {
+            UrlStep run(UrlState state, bool override_given) noexcept {
                 _override = override_given;
                 _override_state = state;
                 std::string buffer;
@@ -1340,7 +1394,7 @@ namespace sgcl::net {
             // it that the state would take the same way, appended at once;
             // the place of the last, which the loop steps past
             template<class Plain>
-            ptrdiff_t _run(ptrdiff_t p, std::string& out, Plain plain) const {
+            ptrdiff_t _run(ptrdiff_t p, std::string& out, Plain plain) const noexcept {
                 size_t q = size_t(p) + 1;
                 while (q < _in.size() && plain(_in[q])) {
                     ++q;
@@ -1349,7 +1403,7 @@ namespace sgcl::net {
                 return ptrdiff_t(q) - 1;
             }
 
-            void _take_authority(const UrlRecord& from) {
+            void _take_authority(const UrlRecord& from) noexcept {
                 _url.username = from.username;
                 _url.password = from.password;
                 _url.host = from.host;
@@ -1357,19 +1411,19 @@ namespace sgcl::net {
                 _url.port = from.port;
             }
 
-            void _begin_query() {
+            void _begin_query() noexcept {
                 _url.has_query = true;
                 _url.query.clear();
             }
 
-            void _begin_fragment() {
+            void _begin_fragment() noexcept {
                 _url.has_fragment = true;
                 _url.fragment.clear();
             }
 
             // "Shorten url's path": the last segment goes, unless the path is
             // a file URL's drive letter alone
-            void _shorten() {
+            void _shorten() noexcept {
                 if (_url.scheme == "file" && _url.segments() == 1 && url_normalized_drive_letter(_url.first_segment())) {
                     return;
                 }
@@ -1379,7 +1433,7 @@ namespace sgcl::net {
                 }
             }
 
-            bool _set_host(std::string_view buffer, bool opaque) {
+            bool _set_host(std::string_view buffer, bool opaque) noexcept {
                 std::string host;
                 HostKind kind = HostKind::none;
                 if (!url_parse_host(buffer, opaque, host, kind)) {
@@ -1403,7 +1457,7 @@ namespace sgcl::net {
         // U+FFFD, since the standard's input is a string of code points.
         // A view of s itself when there is nothing to remove or replace
         // (nearly always), of storage otherwise
-        inline std::string_view url_input(std::string_view s, bool trim, std::string& storage) {
+        inline std::string_view url_input(std::string_view s, bool trim, std::string& storage) noexcept {
             if (trim) {
                 while (!s.empty() && uint8_t(s.front()) <= 0x20) {
                     s.remove_prefix(1);
@@ -1432,6 +1486,16 @@ namespace sgcl::net {
                 storage = std::move(out);
             }
             return storage;
+        }
+
+        // url_input, or nullopt for a text past UrlMaxSize as the parser
+        // reads it
+        inline optional<std::string_view> url_bounded_input(std::string_view s, bool trim, std::string& storage) noexcept {
+            auto input = url_input(s, trim, storage);
+            if (input.size() > UrlMaxSize) {
+                return nullopt;
+            }
+            return input;
         }
 
         struct UrlAccess;
@@ -1547,8 +1611,9 @@ namespace sgcl::net {
     class url {
     public:
         // A URL: "https://user@example.com:8443/a/b?q=1#top"; for anything
-        // else, a relative reference among it, net::errc::invalid_url
-        static expected<url, io::error> parse(const string& text) {
+        // else, a relative reference among it, net::errc::invalid_url, and
+        // for a text past 512 MiB or a URL that would be (UrlMaxSize)
+        static expected<url, io::error> parse(const string& text) noexcept {
             return _parsed(_parse(text, nullptr), text);
         }
 
@@ -1562,7 +1627,7 @@ namespace sgcl::net {
         }
 
         // A URL or a reference relative to base: "../c", "?q=2", "//host/x"
-        static expected<url, io::error> parse(const string& text, const url& base) {
+        static expected<url, io::error> parse(const string& text, const url& base) noexcept {
             auto b = base._record();
             return _parsed(_parse(text, &b), text);
         }
@@ -1574,15 +1639,15 @@ namespace sgcl::net {
         }
 
         // "https", without the ':'
-        string scheme() const {
+        string scheme() const noexcept {
             return _part(0, _scheme_end);
         }
 
-        string username() const {
+        string username() const noexcept {
             return _part(_username_begin(), _username_end);
         }
 
-        string password() const {
+        string password() const noexcept {
             return _password_end > _username_end ? _part(_username_end + 1, _password_end) : string();
         }
 
@@ -1590,7 +1655,7 @@ namespace sgcl::net {
         // Go's URL.Host have it: "example.com:8443", "[::1]:8080",
         // "xn--bcher-kva.de", "10.0.0.1"; "" when there is none (and for
         // the empty host of "file:///x"). The name alone is hostname()
-        string host() const {
+        string host() const noexcept {
             if (_port < 0) {
                 return _part(_host_begin, _host_end);
             }
@@ -1599,7 +1664,7 @@ namespace sgcl::net {
 
         // The host without the port, and without the brackets of an IPv6
         // address, as Go's Hostname(): "example.com", "::1"
-        string hostname() const {
+        string hostname() const noexcept {
             if (_host_kind == detail::HostKind::ipv6) {
                 return _part(_host_begin + 1, _host_end - 1);
             }
@@ -1612,7 +1677,7 @@ namespace sgcl::net {
 
         // The host when it is an IP address; nullopt for a name, and for
         // the opaque host of a scheme that is not special
-        optional<ip_address> host_address() const {
+        optional<ip_address> host_address() const noexcept {
             if (_host_kind != detail::HostKind::ipv4 && _host_kind != detail::HostKind::ipv6) {
                 return nullopt;
             }
@@ -1640,17 +1705,17 @@ namespace sgcl::net {
 
         // "/a/b%20c", escaped; the whole of what follows the ':' for a URL
         // without a hierarchical path ("mailto:x@example.com": "x@example.com")
-        string path() const {
+        string path() const noexcept {
             return _part(_path_begin, _path_end());
         }
 
         // The query without its '?', escaped; "" when there is none
-        string query() const {
+        string query() const noexcept {
             return has_query() ? _part(_query_begin + 1, _fragment_begin == Npos ? _href.size() : _fragment_begin) : string();
         }
 
         // The fragment without its '#'; "" when there is none
-        string fragment() const {
+        string fragment() const noexcept {
             return has_fragment() ? _part(_fragment_begin + 1, _href.size()) : string();
         }
 
@@ -1669,28 +1734,34 @@ namespace sgcl::net {
 
         // A scheme the standard gives a meaning of its own: http, https,
         // ws, wss, ftp, file
-        bool is_special() const {
+        bool is_special() const noexcept {
             return detail::url_special(_href.view().substr(0, _scheme_end));
         }
 
         // The origin as the standard serializes it: "https://example.com:8443"
         // for http, https, ws, wss and ftp (and a blob: of an http or https
         // URL); "null" for anything else, file included
-        string origin() const;
+        string origin() const noexcept;
 
         // What goes into the request line of HTTP: the path, and "?" and
         // the query when there is one
-        string request_target() const {
+        string request_target() const noexcept {
             return _part(_path_begin, has_fragment() ? _fragment_begin : _href.size());
         }
 
-        // The query's pairs (application/x-www-form-urlencoded)
-        net::query_params query_params() const {
-            return has_query() ? net::query_params::parse(query()) : net::query_params();
+        // The query's pairs (application/x-www-form-urlencoded). Never
+        // refused: the query is within the limit, and its pairs, written,
+        // at most three times it (query_params)
+        net::query_params query_params() const noexcept {
+            if (!has_query()) {
+                return net::query_params();
+            }
+            const uint32_t end = _fragment_begin == Npos ? uint32_t(_href.size()) : _fragment_begin;
+            return net::query_params::_parse(_href.view().substr(_query_begin + 1, end - _query_begin - 1));
         }
 
         // The reference resolved against this URL: parse(reference, *this)
-        expected<url, io::error> resolve(const string& reference) const {
+        expected<url, io::error> resolve(const string& reference) const noexcept {
             return parse(reference, *this);
         }
 
@@ -1701,26 +1772,28 @@ namespace sgcl::net {
         // host that does not parse (or, to with_hostname, is given with a
         // port), credentials
         // or a port for a URL without a host or with file's, a host or a
-        // path for a URL with an opaque path.
-        expected<url, io::error> with_scheme(const string& scheme) const;
-        expected<url, io::error> with_username(const string& username) const;
-        expected<url, io::error> with_password(const string& password) const;
+        // path for a URL with an opaque path; and, as parse, a value past
+        // 512 MiB or a URL that would be, the only refusal of with_query
+        // and with_fragment.
+        expected<url, io::error> with_scheme(const string& scheme) const noexcept;
+        expected<url, io::error> with_username(const string& username) const noexcept;
+        expected<url, io::error> with_password(const string& password) const noexcept;
         // The standard's host setter, the pair of host(): the host and a
         // port when the value has one ("example.com:8080"); with_hostname
         // is its hostname setter, the host alone
-        expected<url, io::error> with_host(const string& host) const;
-        expected<url, io::error> with_hostname(const string& hostname) const;
-        expected<url, io::error> with_port(optional<uint16_t> port) const;   // nullopt removes it
-        expected<url, io::error> with_path(const string& path) const;
+        expected<url, io::error> with_host(const string& host) const noexcept;
+        expected<url, io::error> with_hostname(const string& hostname) const noexcept;
+        expected<url, io::error> with_port(optional<uint16_t> port) const noexcept;   // nullopt removes it
+        expected<url, io::error> with_path(const string& path) const noexcept;
         // A query ("" removes it, a leading '?' is dropped) and a fragment
-        // (likewise with '#'); these always apply
-        url with_query(const string& query) const;
-        url with_query(const net::query_params& params) const;   // empty: no query
-        url with_fragment(const string& fragment) const;
-        url without_fragment() const;
+        // (likewise with '#')
+        expected<url, io::error> with_query(const string& query) const noexcept;
+        expected<url, io::error> with_query(const net::query_params& params) const noexcept;   // empty: no query
+        expected<url, io::error> with_fragment(const string& fragment) const noexcept;
+        url without_fragment() const noexcept;
 
         // The serialization, href
-        string to_string() const {
+        string to_string() const noexcept {
             return _href;
         }
 
@@ -1737,20 +1810,31 @@ namespace sgcl::net {
         friend struct std::hash<url>;
         static constexpr uint32_t Npos = uint32_t(-1);
 
-        url() = default;
+        url() noexcept = default;
 
-        static expected<url, io::error> _parsed(optional<url>&& u, const string& text) {
+        static expected<url, io::error> _parsed(optional<url>&& u, const string& text) noexcept {
             if (u) {
                 return std::move(*u);
             }
             return unexpected(detail::net_error(errc::invalid_url, "parse URL", text));
         }
 
-        static optional<url> _parse(const string& text, const detail::UrlRecord* base, bool one_pass = true) {
+        static optional<url> _parse(const string& text, const detail::UrlRecord* base, bool one_pass = true) noexcept {
             std::string storage;
             auto input = detail::url_input(text.view(), true, storage);
-            if (url u; one_pass && _parse_common(input, u)) {
-                return u;
+            if (one_pass) {
+                url u;
+                switch (_parse_common(input, u)) {
+                    case detail::UrlOnePass::done:
+                        return u;
+                    case detail::UrlOnePass::too_long:
+                        return nullopt;
+                    case detail::UrlOnePass::parser:
+                        break;
+                }
+            }
+            if (input.size() > detail::UrlMaxSize) {
+                return nullopt;   // the one-pass path leaves it here, without a branch of its own
             }
             detail::UrlRecord r;
             if (detail::UrlParser(input, base, r).run(detail::UrlState::scheme_start, false) != detail::UrlStep::ok) {
@@ -1759,9 +1843,9 @@ namespace sgcl::net {
             return _from(r);
         }
 
-        static bool _parse_common(std::string_view in, url& u);
+        static detail::UrlOnePass _parse_common(std::string_view in, url& u) noexcept;
 
-        string _part(size_t from, size_t to) const {
+        string _part(size_t from, size_t to) const noexcept {
             return to > from ? string(_href.view().substr(from, to - from)) : string();
         }
 
@@ -1773,28 +1857,58 @@ namespace sgcl::net {
             return has_query() ? _query_begin : has_fragment() ? _fragment_begin : uint32_t(_href.size());
         }
 
-        // The serializer (§4.5), and where each part landed. Measured
-        // first and written into a buffer on the stack (a heap one past
-        // 256 bytes), from which the string is made: no std::string to
-        // grow or to allocate on the way
-        static url _from(const detail::UrlRecord& r) {
+        // The serializer (§4.5), and where each part landed; nullopt for
+        // a URL past UrlMaxSize
+        static optional<url> _from(const detail::UrlRecord& r) noexcept {
             char port[8];
-            size_t port_size = 0;
+            size_t port_size;
+            const size_t size = _measure(r, port, port_size);
+            if (size > detail::UrlMaxSize) {
+                return nullopt;
+            }
+            return _write(r, size, std::string_view(port, port_size));
+        }
+
+        // The same without the limit, for without_fragment, which never
+        // makes a URL longer
+        static url _from_any(const detail::UrlRecord& r) noexcept {
+            char port[8];
+            size_t port_size;
+            const size_t size = _measure(r, port, port_size);
+            return _write(r, size, std::string_view(port, port_size));
+        }
+
+        // The length of the record's URL, and its port as written (":8080",
+        // nothing for none)
+        static size_t _measure(const detail::UrlRecord& r, char (&port)[8], size_t& port_size) noexcept {
+            port_size = 0;
             if (r.host_kind != detail::HostKind::none && r.port >= 0) {
                 port[0] = ':';
                 port_size = size_t(std::to_chars(port + 1, port + sizeof(port), r.port).ptr - port);
             }
-            const bool credentials = r.includes_credentials();
-            const bool dot = r.host_kind == detail::HostKind::none && !r.opaque_path && r.segments() > 1
-                && r.first_segment().empty();
             size_t size = r.scheme.size() + 1 + r.path.size() + port_size;
             if (r.host_kind != detail::HostKind::none) {
-                size += 2 + r.username.size() + (r.password.empty() ? 0 : 1 + r.password.size()) + (credentials ? 1 : 0)
-                    + r.host.size();
+                size += 2 + r.username.size() + (r.password.empty() ? 0 : 1 + r.password.size())
+                    + (r.includes_credentials() ? 1 : 0) + r.host.size();
             }
-            size += dot ? 2 : 0;
+            size += _dot(r) ? 2 : 0;
             size += r.has_query ? 1 + r.query.size() : 0;
             size += r.has_fragment ? 1 + r.fragment.size() : 0;
+            return size;
+        }
+
+        // A path without a host whose first segment is empty is written
+        // after "/.", so that it does not read as a host
+        static bool _dot(const detail::UrlRecord& r) noexcept {
+            return r.host_kind == detail::HostKind::none && !r.opaque_path && r.segments() > 1 && r.first_segment().empty();
+        }
+
+        // The URL of the record, of the size measured. Written into a
+        // buffer on the stack (a heap one past 256 bytes), from which the
+        // string is made: no std::string to grow or to allocate on the way
+        static url _write(const detail::UrlRecord& r, size_t size, std::string_view port) {
+            const bool credentials = r.includes_credentials();
+            const bool dot = _dot(r);
             char local[256];
             std::string heap;
             char* const begin = size <= sizeof(local) ? local : (heap.resize(size), heap.data());
@@ -1823,7 +1937,7 @@ namespace sgcl::net {
                 u._host_begin = here();
                 put(r.host);
                 u._host_end = here();
-                put(std::string_view(port, port_size));
+                put(port);
             } else {
                 u._username_end = u._password_end = u._host_begin = u._host_end = here();
                 if (dot) {
@@ -1850,7 +1964,7 @@ namespace sgcl::net {
         }
 
         // The record again, for a setter and for a base
-        detail::UrlRecord _record() const {
+        detail::UrlRecord _record() const noexcept {
             detail::UrlRecord r;
             auto v = _href.view();
             r.scheme = std::string(v.substr(0, _scheme_end));
@@ -1905,7 +2019,7 @@ namespace sgcl::net {
             // The host as the URL writes it, the brackets of an IPv6
             // address kept and no port: "[::1]" (WHATWG's hostname), what
             // a dial address and an origin put the port after
-            static string host_as_written(const url& u) {
+            static string host_as_written(const url& u) noexcept {
                 return u._part(u._host_begin, u._host_end);
             }
 
@@ -1919,37 +2033,73 @@ namespace sgcl::net {
             static optional<url> parse_in_one_pass(const string& text) {
                 std::string storage;
                 auto input = url_input(text.view(), true, storage);
-                if (url u; url::_parse_common(input, u)) {
+                if (url u; url::_parse_common(input, u) == UrlOnePass::done) {
                     return u;
                 }
                 return nullopt;
             }
 
-            static UrlRecord record(const url& u) {
+            static UrlRecord record(const url& u) noexcept {
                 return u._record();
             }
 
-            static url make(const UrlRecord& r) {
+            static optional<url> make(const UrlRecord& r) noexcept {
                 return url::_from(r);
             }
 
-            static UrlSetResult run(const url& u, const string& value, UrlState state) {
-                auto r = u._record();
-                std::string storage;
-                auto input = url_input(value.view(), false, storage);
-                auto step = UrlParser(input, nullptr, r).run(state, true);
-                return {url::_from(r), step == UrlStep::ok};
+            // The length query_params tracks, for the tests that hold it
+            // to its writing
+            static size_t written_size(const query_params& q) noexcept {
+                return q._size;
             }
 
-            static UrlSetResult unchanged(const url& u) {
+            // query_params::first of a URL's query, within the limit
+            // (http::request::query)
+            static string query_first(const url& u, const string& name) noexcept {
+                const uint32_t end = u._fragment_begin == url::Npos ? uint32_t(u._href.size()) : u._fragment_begin;
+                return query_params::_first(u._href.view().substr(u._query_begin + 1, end - u._query_begin - 1), name.view());
+            }
+
+            static UrlSetResult unchanged(const url& u) noexcept {
                 return {u, false};
             }
 
-            static UrlSetResult protocol(const url& u, const string& value) {
+            // The URL of the record, whether the value was taken; the URL
+            // as it was, refused, past UrlMaxSize
+            static UrlSetResult made(const url& u, const UrlRecord& r, bool applied) noexcept {
+                char port[8];
+                size_t port_size;
+                const size_t size = url::_measure(r, port, port_size);
+                if (size > UrlMaxSize) {
+                    return unchanged(u);
+                }
+                return {url::_write(r, size, std::string_view(port, port_size)), applied};   // written in place
+            }
+
+            // The setter's value through the parser from the state given;
+            // a value past UrlMaxSize refused
+            static UrlSetResult run(const url& u, const string& value, UrlState state) noexcept {
+                std::string storage;
+                auto input = url_bounded_input(value.view(), false, storage);
+                if (!input) {
+                    return unchanged(u);
+                }
+                auto r = u._record();
+                auto step = UrlParser(*input, nullptr, r).run(state, true);
+                return made(u, r, step == UrlStep::ok);
+            }
+
+            static UrlSetResult protocol(const url& u, const string& value) noexcept {
+                if (value.size() > UrlMaxSize) {
+                    return unchanged(u);
+                }
                 return run(u, value + ":", UrlState::scheme_start);
             }
 
-            static UrlSetResult username(const url& u, const string& value, bool password) {
+            static UrlSetResult username(const url& u, const string& value, bool password) noexcept {
+                if (value.size() > UrlMaxSize) {
+                    return unchanged(u);
+                }
                 auto r = u._record();
                 if (r.cannot_have_credentials()) {
                     return unchanged(u);
@@ -1957,82 +2107,95 @@ namespace sgcl::net {
                 std::string escaped;
                 url_escape(escaped, value.view(), UrlSets::userinfo);
                 (password ? r.password : r.username) = std::move(escaped);
-                return {url::_from(r), true};
+                return made(u, r, true);
             }
 
-            static UrlSetResult host(const url& u, const string& value, bool hostname) {
+            static UrlSetResult host(const url& u, const string& value, bool hostname) noexcept {
                 if (u.has_opaque_path()) {
                     return unchanged(u);
                 }
                 return run(u, value, hostname ? UrlState::hostname : UrlState::host);
             }
 
-            static UrlSetResult port(const url& u, const string& value) {
+            static UrlSetResult port(const url& u, const string& value) noexcept {
                 auto r = u._record();
                 if (r.cannot_have_credentials()) {
                     return unchanged(u);
                 }
                 if (value.empty()) {
                     r.port = -1;
-                    return {url::_from(r), true};
+                    return made(u, r, true);
                 }
                 return run(u, value, UrlState::port);
             }
 
-            static UrlSetResult pathname(const url& u, const string& value) {
+            static UrlSetResult pathname(const url& u, const string& value) noexcept {
                 if (u.has_opaque_path()) {
+                    return unchanged(u);
+                }
+                std::string storage;
+                auto input = url_bounded_input(value.view(), false, storage);
+                if (!input) {
                     return unchanged(u);
                 }
                 auto r = u._record();
                 r.path.clear();
-                std::string storage;
-                auto input = url_input(value.view(), false, storage);
-                auto step = UrlParser(input, nullptr, r).run(UrlState::path_start, true);
-                return {url::_from(r), step == UrlStep::ok};
+                auto step = UrlParser(*input, nullptr, r).run(UrlState::path_start, true);
+                return made(u, r, step == UrlStep::ok);
             }
 
-            static url search(const url& u, const string& value) {
-                auto r = u._record();
+            // The query and the fragment: taken whatever they hold, refused
+            // only past UrlMaxSize
+            static UrlSetResult search(const url& u, const string& value) noexcept {
                 if (value.empty()) {
+                    auto r = u._record();
                     r.has_query = false;
                     r.query.clear();
-                    return url::_from(r);
+                    return made(u, r, true);
                 }
                 auto v = value.view();
                 if (v.front() == '?') {
                     v.remove_prefix(1);
                 }
+                std::string storage;
+                auto input = url_bounded_input(v, false, storage);
+                if (!input) {
+                    return unchanged(u);
+                }
+                auto r = u._record();
                 r.has_query = true;
                 r.query.clear();
-                std::string storage;
-                auto input = url_input(v, false, storage);
-                UrlParser(input, nullptr, r).run(UrlState::query, true);
-                return url::_from(r);
+                UrlParser(*input, nullptr, r).run(UrlState::query, true);
+                return made(u, r, true);
             }
 
-            static url hash(const url& u, const string& value) {
-                auto r = u._record();
+            static UrlSetResult hash(const url& u, const string& value) noexcept {
                 if (value.empty()) {
+                    auto r = u._record();
                     r.has_fragment = false;
                     r.fragment.clear();
-                    return url::_from(r);
+                    return made(u, r, true);
                 }
                 auto v = value.view();
                 if (v.front() == '#') {
                     v.remove_prefix(1);
                 }
+                std::string storage;
+                auto input = url_bounded_input(v, false, storage);
+                if (!input) {
+                    return unchanged(u);
+                }
+                auto r = u._record();
                 r.has_fragment = true;
                 r.fragment.clear();
-                std::string storage;
-                auto input = url_input(v, false, storage);
-                UrlParser(input, nullptr, r).run(UrlState::fragment, true);
-                return url::_from(r);
+                UrlParser(*input, nullptr, r).run(UrlState::fragment, true);
+                return made(u, r, true);
             }
         };
 
         // A setter's result: the new URL, or invalid_url with what was
         // asked, where the standard leaves the URL as it was
-        inline expected<url, io::error> url_applied(const UrlSetResult& r, const char* op, const string& value) {
+        inline expected<url, io::error> url_applied(const UrlSetResult& r, const char* op, const string& value) noexcept {
             if (!r.applied) {
                 return unexpected(net_error(errc::invalid_url, op, value));
             }
@@ -2046,16 +2209,21 @@ namespace sgcl::net {
     // a port, a path, a query and a fragment. The parser's record, its
     // buffer, the second reading of the authority and the copies into the
     // serialization are what made a parse cost four times Go's. Anything
-    // else is left to the parser (false): a scheme that is not special or
-    // is file, slashes other than two, a backslash, a host needing
-    // percent-decoding or IDNA, and every input that fails, so that the
-    // parser alone says why. After "scheme://" a base changes nothing
-    // (§4.4: the special authority states read the same with a base and
-    // without), so this runs with one as well.
-    inline bool url::_parse_common(std::string_view in, url& u) {
+    // else is left to the parser (UrlOnePass::parser): a scheme that is not
+    // special or is file, slashes other than two, a backslash, a host
+    // needing percent-decoding or IDNA, and every input that fails, so that
+    // the parser alone says why. A URL past UrlMaxSize is too_long, the
+    // parser's answer as well, so that it is not made a second time. After
+    // "scheme://" a base changes nothing (§4.4: the special authority
+    // states read the same with a base and without), so this runs with one
+    // as well.
+    inline detail::UrlOnePass url::_parse_common(std::string_view in, url& u) noexcept {
         using namespace detail;
         const auto& bytes = url_bytes;
-        const size_t n = in.size();
+        // A text past the limit is taken as empty and so left to the
+        // parser, which refuses it: a select, not a branch, on the path
+        // of every request (a branch here measured 1 % slower)
+        const size_t n = in.size() <= UrlMaxSize ? in.size() : 0;
         // The scheme: letters only (the special ones are), lowered
         char scheme[6];
         size_t i = 0;
@@ -2064,7 +2232,7 @@ namespace sgcl::net {
             ++i;
         }
         if (i + 3 > n || in[i] != ':' || in[i + 1] != '/' || in[i + 2] != '/') {
-            return false;
+            return UrlOnePass::parser;
         }
         const std::string_view name(scheme, i);
         int32_t default_port;
@@ -2075,7 +2243,7 @@ namespace sgcl::net {
         } else if (name == "ftp") {
             default_port = 21;
         } else {
-            return false;   // file, and every scheme that is not special
+            return UrlOnePass::parser;   // file, and every scheme that is not special
         }
         i += 3;   // a third slash or a backslash leaves the host empty, below, and so to the parser
 
@@ -2117,7 +2285,7 @@ namespace sgcl::net {
                     break;
                 }
                 if (k & UrlBytes::Backslash) {
-                    return false;
+                    return UrlOnePass::parser;
                 }
                 at_sign = end;   // the last: what is before it is the credentials, '@'s escaped
             }
@@ -2155,15 +2323,15 @@ namespace sgcl::net {
                 ++host_end;
             }
             if (host_end == end) {
-                return false;
+                return UrlOnePass::parser;
             }
             uint16_t address[8];
             if (!url_parse_ipv6(in.substr(i + 1, host_end - i - 1), address)) {
-                return false;
+                return UrlOnePass::parser;
             }
             ++host_end;
             if (host_end < end && in[host_end] != ':') {
-                return false;
+                return UrlOnePass::parser;
             }
             at = url_write_ipv6(address, at);
             u._host_kind = HostKind::ipv6;
@@ -2175,7 +2343,7 @@ namespace sgcl::net {
                 *at++ = bytes.lower[c];
             }
             if ((odd & UrlBytes::NotHost) || host_end == i) {
-                return false;
+                return UrlOnePass::parser;
             }
             const std::string_view host(out + u._host_begin, host_end - i);
             u._host_kind = HostKind::domain;
@@ -2185,7 +2353,7 @@ namespace sgcl::net {
             if ((url_hex(uint8_t(last)) >= 0 || last == 'x') && url_ends_in_number(host)) {
                 uint32_t v;
                 if (!url_parse_ipv4(host, v)) {
-                    return false;
+                    return UrlOnePass::parser;
                 }
                 at = url_write_ipv4(v, out + u._host_begin);
                 u._host_kind = HostKind::ipv4;
@@ -2199,11 +2367,11 @@ namespace sgcl::net {
             uint32_t port = 0;
             for (size_t k = host_end + 1; k < end; ++k) {
                 if (!url_digit(uint8_t(in[k]))) {
-                    return false;
+                    return UrlOnePass::parser;
                 }
                 port = port * 10 + uint32_t(in[k] - '0');
                 if (port > 65535) {
-                    return false;
+                    return UrlOnePass::parser;
                 }
             }
             if (end > host_end + 1 && int32_t(port) != default_port) {
@@ -2231,7 +2399,7 @@ namespace sgcl::net {
                 } else if (k & UrlBytes::AuthorityEnd) {
                     break;
                 } else if (k & UrlBytes::Backslash) {
-                    return false;
+                    return UrlOnePass::parser;
                 } else {
                     escape(c, UrlSets::path);
                 }
@@ -2285,64 +2453,71 @@ namespace sgcl::net {
             }
         }
         u._opaque_path = false;
+        if (size_t(at - out) > UrlMaxSize) {
+            return UrlOnePass::too_long;
+        }
         u._href = string(std::string_view(out, here()));
-        return true;
+        return UrlOnePass::done;
     }
 
-    inline expected<url, io::error> url::with_scheme(const string& scheme) const {
+    inline expected<url, io::error> url::with_scheme(const string& scheme) const noexcept {
         return detail::url_applied(detail::UrlAccess::protocol(*this, scheme), "set URL scheme", scheme);
     }
 
-    inline expected<url, io::error> url::with_username(const string& username) const {
+    inline expected<url, io::error> url::with_username(const string& username) const noexcept {
         return detail::url_applied(detail::UrlAccess::username(*this, username, false), "set URL username", username);
     }
 
-    inline expected<url, io::error> url::with_password(const string& password) const {
+    inline expected<url, io::error> url::with_password(const string& password) const noexcept {
         return detail::url_applied(detail::UrlAccess::username(*this, password, true), "set URL password", string());
     }
 
-    inline expected<url, io::error> url::with_host(const string& host) const {
+    inline expected<url, io::error> url::with_host(const string& host) const noexcept {
         return detail::url_applied(detail::UrlAccess::host(*this, host, false), "set URL host", host);
     }
 
-    inline expected<url, io::error> url::with_hostname(const string& hostname) const {
+    inline expected<url, io::error> url::with_hostname(const string& hostname) const noexcept {
         return detail::url_applied(detail::UrlAccess::host(*this, hostname, true), "set URL hostname", hostname);
     }
 
-    inline expected<url, io::error> url::with_port(optional<uint16_t> port) const {
+    inline expected<url, io::error> url::with_port(optional<uint16_t> port) const noexcept {
         return detail::url_applied(detail::UrlAccess::port(*this, port ? string(std::to_string(*port)) : string()), "set URL port", port ? string(std::to_string(*port)) : string());
     }
 
-    inline expected<url, io::error> url::with_path(const string& path) const {
+    inline expected<url, io::error> url::with_path(const string& path) const noexcept {
         return detail::url_applied(detail::UrlAccess::pathname(*this, path), "set URL path", path);
     }
 
-    inline url url::with_query(const string& query) const {
-        return detail::UrlAccess::search(*this, query);
+    inline expected<url, io::error> url::with_query(const string& query) const noexcept {
+        return detail::url_applied(detail::UrlAccess::search(*this, query), "set URL query", query);
     }
 
-    inline url url::with_query(const net::query_params& params) const {
+    inline expected<url, io::error> url::with_query(const net::query_params& params) const noexcept {
         // the URLSearchParams update steps: the serialization, or no
-        // query for an empty one
+        // query for an empty one. Pairs written past the limit (a URL's
+        // query_params may be) are refused before they are written
+        if (params._size > detail::UrlMaxSize) {
+            return unexpected(detail::net_error(errc::invalid_url, "set URL query"));
+        }
         auto r = _record();
         auto s = params.to_string();
         r.has_query = !s.empty();
         r.query.assign(s.data(), s.size());
-        return _from(r);
+        return detail::url_applied(detail::UrlAccess::made(*this, r, true), "set URL query", s);
     }
 
-    inline url url::with_fragment(const string& fragment) const {
-        return detail::UrlAccess::hash(*this, fragment);
+    inline expected<url, io::error> url::with_fragment(const string& fragment) const noexcept {
+        return detail::url_applied(detail::UrlAccess::hash(*this, fragment), "set URL fragment", fragment);
     }
 
-    inline url url::without_fragment() const {
+    inline url url::without_fragment() const noexcept {
         auto r = _record();
         r.has_fragment = false;
         r.fragment.clear();
-        return _from(r);
+        return _from_any(r);   // never longer than the URL itself
     }
 
-    inline string url::origin() const {
+    inline string url::origin() const noexcept {
         auto scheme = _href.view().substr(0, _scheme_end);
         if (scheme == "blob") {
             auto inner = parse(path());
@@ -2367,9 +2542,50 @@ namespace sgcl::net {
         return string("null");
     }
 
-    inline query_params query_params::parse(const string& text) {
+    namespace detail {
+        // The length of a name or a value as query_params::to_string
+        // writes it: a space as '+', a byte the form keeps as itself,
+        // any other as three
+        inline size_t url_form_size(std::string_view s) noexcept {
+            size_t n = s.size();
+            for (char c : s) {
+                n += (UrlSets::form.holds(c) || c == ' ') ? 0 : 2;
+            }
+            return n;
+        }
+
+        // The same written, at `at`; past what it wrote
+        inline char* url_form_write(char* at, std::string_view s) noexcept {
+            static constexpr char Digits[] = "0123456789ABCDEF";
+            for (char c : s) {
+                if (c == ' ') {
+                    *at++ = '+';
+                } else if (UrlSets::form.holds(c)) {
+                    *at++ = c;
+                } else {
+                    at[0] = '%';
+                    at[1] = Digits[uint8_t(c) >> 4];
+                    at[2] = Digits[uint8_t(c) & 15];
+                    at += 3;
+                }
+            }
+            return at;
+        }
+    }
+
+    inline expected<query_params, io::error> query_params::parse(const string& text) noexcept {
+        if (text.size() > detail::UrlMaxSize) {
+            return unexpected(detail::net_error(errc::invalid_url, "parse query", text));
+        }
+        auto out = _parse(text.view());
+        if (out._size > detail::UrlMaxSize) {
+            return unexpected(detail::net_error(errc::invalid_url, "parse query", text));
+        }
+        return out;
+    }
+
+    inline query_params query_params::_parse(std::string_view v) noexcept {
         query_params out;
-        auto v = text.view();
         if (!v.empty() && v.front() == '?') {
             v.remove_prefix(1);
         }
@@ -2393,13 +2609,20 @@ namespace sgcl::net {
             };
             decode(n, name);
             decode(w, value);
+            out._size += (out._pairs.empty() ? 0 : 1) + detail::url_form_size(name) + 1 + detail::url_form_size(value);
             out._pairs.push_back(pair<string, string>(string(std::string_view(name)), string(std::string_view(value))));
         }
         return out;
     }
 
-    inline string query_params::first(const string& text, const string& name) {
-        auto v = text.view();
+    inline expected<string, io::error> query_params::first(const string& text, const string& name) noexcept {
+        if (text.size() > detail::UrlMaxSize) {
+            return unexpected(detail::net_error(errc::invalid_url, "parse query", text));
+        }
+        return _first(text.view(), name.view());
+    }
+
+    inline string query_params::_first(std::string_view v, std::string_view name) noexcept {
         if (!v.empty() && v.front() == '?') {
             v.remove_prefix(1);
         }
@@ -2426,10 +2649,10 @@ namespace sgcl::net {
             auto w = eq == std::string_view::npos ? std::string_view() : piece.substr(eq + 1);
             bool match;
             if (as_is(n)) {
-                match = n == name.view();
+                match = n == name;
             } else {
                 decode(n, decoded);
-                match = std::string_view(decoded) == name.view();
+                match = std::string_view(decoded) == name;
             }
             if (!match) {
                 continue;
@@ -2443,31 +2666,105 @@ namespace sgcl::net {
         return string();
     }
 
-    inline string query_params::to_string() const {
-        std::string s;
+    inline expected<void, io::error> query_params::add(const string& name, const string& value) noexcept {
+        const size_t size = _size + (_pairs.empty() ? 0 : 1) + detail::url_form_size(name.view()) + 1 + detail::url_form_size(value.view());
+        if (size > detail::UrlMaxSize) {
+            return unexpected(detail::net_error(errc::invalid_url, "add query pair", name));
+        }
+        _pairs.push_back(pair<string, string>(name, value));
+        _size = size;
+        return {};
+    }
+
+    inline expected<void, io::error> query_params::set(const string& name, const string& value) noexcept {
+        // The length after: the pairs of the name gone, each with its '&'
+        // (one of them after the last pair, which no pair has, taken back
+        // by counting one for the list that was not empty), and the new
+        // pair with its own
+        const size_t name_size = detail::url_form_size(name.view());
+        size_t gone = 0;
         for (auto& p : _pairs) {
-            if (!s.empty()) {
-                s.push_back('&');
-            }
-            for (char c : p.first.view()) {
-                if (c == ' ') {
-                    s.push_back('+');
-                } else {
-                    detail::url_escape(s, c, detail::UrlSets::form);
-                }
-            }
-            s.push_back('=');
-            for (char c : p.second.view()) {
-                if (c == ' ') {
-                    s.push_back('+');
-                } else {
-                    detail::url_escape(s, c, detail::UrlSets::form);
-                }
+            if (p.first == name) {
+                gone += name_size + 1 + detail::url_form_size(p.second.view()) + 1;
             }
         }
-        return string(std::string_view(s));
+        const size_t size = _size + (_pairs.empty() ? 0 : 1) - gone + name_size + 1 + detail::url_form_size(value.view());
+        if (size > detail::UrlMaxSize) {
+            return unexpected(detail::net_error(errc::invalid_url, "set query pair", name));
+        }
+        bool found = false;
+        vector<pair<string, string>> kept;
+        kept.reserve(_pairs.size() + 1);
+        for (auto& p : _pairs) {
+            if (p.first != name) {
+                kept.push_back(p);
+            } else if (!found) {
+                found = true;
+                kept.push_back(pair<string, string>(name, value));
+            }
+        }
+        if (!found) {
+            kept.push_back(pair<string, string>(name, value));
+        }
+        _pairs = std::move(kept);
+        _size = size;
+        return {};
+    }
+
+    inline query_params& query_params::erase(const string& name) noexcept {
+        // the pairs of the name gone, each with its '&' as in set; a list
+        // left with pairs has one '&' fewer than pairs, as the whole had
+        size_t gone = 0;
+        vector<pair<string, string>> kept;
+        kept.reserve(_pairs.size());
+        for (auto& p : _pairs) {
+            if (p.first != name) {
+                kept.push_back(p);
+            } else {
+                gone += detail::url_form_size(p.first.view()) + 1 + detail::url_form_size(p.second.view()) + 1;
+            }
+        }
+        _size = kept.empty() ? 0 : _size - gone;
+        _pairs = std::move(kept);
+        return *this;
+    }
+
+    inline string query_params::to_string() const noexcept {
+        return sgcl::detail::StringAccess::filled<string>(_size, [this](char* at) {
+            bool first = true;
+            for (auto& p : _pairs) {
+                if (!first) {
+                    *at++ = '&';
+                }
+                first = false;
+                at = detail::url_form_write(at, p.first.view());
+                *at++ = '=';
+                at = detail::url_form_write(at, p.second.view());
+            }
+        });
+    }
+
+    // txt::format and println: {} is to_string(), the URL as the standard
+    // serializes it, in the field's width, fill and alignment as a
+    // string's; nothing allocated
+    inline void format_value(txt::format_sink& out, const url& u, const txt::format_spec& spec) noexcept {
+        txt::write_padded(out, u.to_string().view(), spec);
     }
 }
+
+// Which specifications a url takes, for the pattern checked where it is
+// compiled: none but the width, the fill and the alignment; the writing is
+// format_value's, above
+template<>
+struct sgcl::txt::formatter<sgcl::net::url> {
+    static constexpr bool takes(char type) noexcept {
+        return !type;
+    }
+
+    static constexpr bool takes_precision() noexcept {
+        return false;
+    }
+};
 
 template<>
 struct std::hash<sgcl::net::url> {

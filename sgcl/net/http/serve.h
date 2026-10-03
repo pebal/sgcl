@@ -129,6 +129,12 @@ namespace sgcl::net::http {
                     return;
                 }
             }
+            if (!info->is_regular()) {
+                // a FIFO, a socket, a device: not a file to send (an open
+                // of a FIFO waits for a writer, the worker with it)
+                w.error(status::not_found);
+                return;
+            }
             const int64_t seconds = std::chrono::duration_cast<std::chrono::seconds>(info->modified.time_since_epoch()).count();
             const auto modified = time::datetime::from_unix(seconds, time::zone::utc());
             w.headers().set_date("Last-Modified", modified);
@@ -145,7 +151,7 @@ namespace sgcl::net::http {
             w.write(*file);
         }
 
-        inline server file_server(const string& directory) {
+        inline server file_server(const string& directory) noexcept {
             server srv;
             srv.route("GET /{path...}", [directory](request req, response_writer w) {
                 serve_file(directory, req, w);
@@ -182,7 +188,7 @@ namespace sgcl::net::http {
     // GET and HEAD of /a/b.txt send directory/a/b.txt; a name that would
     // leave the directory (a "..", or "..%2f" before it is unescaped) is 404
     // and nothing is opened; a directory is its index.html (no listing), a
-    // file that is not there 404. Content-Type by the extension,
+    // file that is not there, or is not a regular file (a FIFO), 404. Content-Type by the extension,
     // Last-Modified and 304 for If-Modified-Since, the file sent by
     // sendfile. From a thread of the program; a task writes `co_await
     // net::http::async_serve(address, directory)`
@@ -190,7 +196,7 @@ namespace sgcl::net::http {
         return detail::file_server(directory).serve(address);
     }
 
-    inline async::task<expected<void, io::error>> async_serve(string address, string directory) {
+    inline async::task<expected<void, io::error>> async_serve(string address, string directory) noexcept {
         return detail::file_server(directory).async_serve(address);
     }
 

@@ -128,12 +128,6 @@ namespace sgcl::time {
         // 1970-01-01T00:00:00Z, in UTC
         datetime() noexcept = default;
 
-        // For the library (detail): an instant in a zone given by its data
-        // (null: UTC), made where it goes — the zone's pointer made once
-        datetime(detail::made_in_place, int64_t ns, const detail::zone_data& z) noexcept
-        : _ns(ns), _zone(detail::made_in_place(), z) {
-        }
-
         // An instant of the system clock, and what io::file_info::modified
         // is; in the local zone unless another is given
         explicit datetime(std::chrono::sys_time<std::chrono::nanoseconds> t, const time::zone& z = time::zone::local()) noexcept
@@ -149,14 +143,20 @@ namespace sgcl::time {
             return _of(detail::to_nanos(seconds, 0), z);
         }
 
+        // The part below a second is the count less s · 1000, worked
+        // modulo 2^64: for the least counts the product does not fit 64
+        // bits, but the difference is 0 to 999 and comes out exact, so
+        // nothing is checked and the code is the multiply it always was
         static datetime from_unix_milli(int64_t milliseconds, const time::zone& z = time::zone::local()) noexcept {
             int64_t s = sgcl::time::detail::floor_div(milliseconds, 1000);
-            return _of(detail::to_nanos(s, (milliseconds - s * 1000) * 1000000), z);
+            int64_t rest = int64_t(uint64_t(milliseconds) - uint64_t(s) * 1000);
+            return _of(detail::to_nanos(s, rest * 1000000), z);
         }
 
         static datetime from_unix_micro(int64_t microseconds, const time::zone& z = time::zone::local()) noexcept {
             int64_t s = sgcl::time::detail::floor_div(microseconds, 1000000);
-            return _of(detail::to_nanos(s, (microseconds - s * 1000000) * 1000), z);
+            int64_t rest = int64_t(uint64_t(microseconds) - uint64_t(s) * 1000000);
+            return _of(detail::to_nanos(s, rest * 1000), z);
         }
 
         static datetime from_unix_nano(int64_t nanoseconds, const time::zone& z = time::zone::local()) noexcept {
@@ -169,7 +169,7 @@ namespace sgcl::time {
         // nothing, else in a fixed zone of the offset the text gives; a
         // text that is not one, or an instant outside the years 1677 to
         // 2262, is an error saying why and at which byte
-        static expected<datetime, error> parse(const string& text, layout format);
+        static expected<datetime, error> parse(const string& text, layout format) noexcept;
 
         // A text in a pattern of std::format's specifiers for <chrono>,
         // read as std::chrono::parse reads one: "%d.%m.%Y %H:%M". A date is
@@ -178,7 +178,7 @@ namespace sgcl::time {
         // time is one of the zone given (UTC unless another is), read as
         // date::at reads it — and a %Z naming an abbreviation that zone
         // has there settles a time shown twice ("02:30 CET")
-        static expected<datetime, error> parse(const string& text, const string& pattern, const time::zone& z = time::zone::utc());
+        static expected<datetime, error> parse(const string& text, const string& pattern, const time::zone& z = time::zone::utc()) noexcept;
 
         // The datetime a literal in the program spells, in either of
         // parse's forms: parse's value, or bad_expected_access<time::error>
@@ -226,7 +226,7 @@ namespace sgcl::time {
             return _of(_ns, time::zone::utc());
         }
 
-        datetime local() const {
+        datetime local() const noexcept {
             return _of(_ns, time::zone::local());
         }
 
@@ -235,7 +235,7 @@ namespace sgcl::time {
             return std::chrono::seconds(_offset());
         }
 
-        string abbreviation() const {
+        string abbreviation() const noexcept {
             const auto& z = detail::zone_access::data(_zone);
             return detail::zone_access::abbreviation(z, detail::zone_access::state_at(z, _seconds()));
         }
@@ -301,15 +301,15 @@ namespace sgcl::time {
         // month on from the 31st is the month's last day (2026-01-31 plus
         // one month is 2026-02-28); a time of the clock that the new day
         // does not have is read as date::at reads it
-        datetime add_days(int n) const {
+        datetime add_days(int n) const noexcept {
             return _at_wall(detail::wall_seconds(date().add_days(n), 0, 0, 0) + _second_of_day());
         }
 
-        datetime add_months(int n) const {
+        datetime add_months(int n) const noexcept {
             return _at_wall(detail::wall_seconds(date().add_months(n), 0, 0, 0) + _second_of_day());
         }
 
-        datetime add_years(int n) const {
+        datetime add_years(int n) const noexcept {
             return _at_wall(detail::wall_seconds(date().add_years(n), 0, 0, 0) + _second_of_day());
         }
 
@@ -351,18 +351,18 @@ namespace sgcl::time {
         }
 
         // The first instant of this datetime's date in its zone
-        datetime start_of_day() const;
+        datetime start_of_day() const noexcept;
 
         // The text of the datetime by a format known by name,
         // t.format(time::http), or by a pattern of std::format's
         // specifiers for <chrono>, t.format("%d.%m.%Y %H:%M") (layout.h);
         // a pattern's specifier this does not know is written as it stands
-        string format(layout format) const;
-        string format(const string& pattern) const;
+        string format(layout format) const noexcept;
+        string format(const string& pattern) const noexcept;
 
         // RFC 3339 with the fraction only where there is one:
         // "2026-09-24T12:41:15+02:00", "2026-09-24T10:41:15.5Z"
-        string to_string() const;
+        string to_string() const noexcept;
 
         template<class CharT, class Traits>
         friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const datetime& t) {
@@ -383,8 +383,14 @@ namespace sgcl::time {
             return t + d;
         }
 
+        // Its own subtraction, not t + (-d): the negation of
+        // duration::min() is duration::max(), a nanosecond short
         friend datetime operator-(const datetime& t, duration d) noexcept {
-            return t + (-d);
+            int64_t out;
+            if (__builtin_sub_overflow(t._ns, d.nanoseconds(), &out)) {
+                out = d.nanoseconds() < 0 ? INT64_MAX : INT64_MIN;
+            }
+            return _of(out, t._zone);
         }
 
         friend duration operator-(const datetime& a, const datetime& b) noexcept {
@@ -415,11 +421,18 @@ namespace sgcl::time {
         friend class time::date;
         friend class time::zone;
         friend struct time::detail::layout_writer;
+        friend struct time::detail::zone_access;
 
         // Made with its zone at once: one copy of the zone's pointer, not a
         // null one first and an assignment after
         datetime(int64_t ns, const time::zone& z) noexcept
         : _ns(ns), _zone(z) {
+        }
+
+        // The library's own (detail::zone_access::make_datetime): an
+        // instant in a zone given by its data, the zone's pointer made once
+        datetime(detail::made_in_place, int64_t ns, const detail::zone_data& z) noexcept
+        : _ns(ns), _zone(detail::zone_access::make(z)) {
         }
 
         static datetime _of(int64_t ns, const time::zone& z) noexcept {
@@ -468,8 +481,10 @@ namespace sgcl::time {
                 own += d;
             }
             int64_t shift = int64_t(ZeroToEpoch % (unsigned __int128)d);
-            int64_t r = own + shift;   // both below d, so no overflow of 2^63
-            return r >= d ? r - d : r;
+            // Both below d, which is below 2^63: the sum below 2^64, which an
+            // unsigned word holds and a signed one does not
+            uint64_t r = uint64_t(own) + uint64_t(shift);
+            return int64_t(r >= uint64_t(d) ? r - uint64_t(d) : r);
         }
 
         int64_t _ns = 0;
@@ -492,38 +507,38 @@ namespace sgcl::time {
         }
     }
 
-    inline datetime now() {
-        return datetime(detail::made_in_place(), detail::now_nanos(), detail::local_data());
+    inline datetime now() noexcept {
+        return detail::zone_access::make_datetime<datetime>(detail::now_nanos(), detail::local_data());
     }
 
     //--------------------------------------------------------------------
     // The members of date and zone that are made of datetimes
     //--------------------------------------------------------------------
-    inline datetime date::at(int hour, int minute, const zone& z) const {
+    inline datetime date::at(int hour, int minute, const zone& z) const noexcept {
         return at(hour, minute, 0, z);
     }
 
-    inline datetime date::at(int hour, int minute, int second, const zone& z) const {
+    inline datetime date::at(int hour, int minute, int second, const zone& z) const noexcept {
         return datetime::_of(detail::to_nanos(detail::instant_of(detail::zone_access::data(z), detail::wall_seconds(*this, hour, minute, second), 0), 0), z);
     }
 
-    inline datetime date::at(int hour, int minute, const zone& z, earlier_t) const {
+    inline datetime date::at(int hour, int minute, const zone& z, earlier_t) const noexcept {
         return at(hour, minute, 0, z, earlier);
     }
 
-    inline datetime date::at(int hour, int minute, int second, const zone& z, earlier_t) const {
+    inline datetime date::at(int hour, int minute, int second, const zone& z, earlier_t) const noexcept {
         return datetime::_of(detail::to_nanos(detail::instant_of(detail::zone_access::data(z), detail::wall_seconds(*this, hour, minute, second), 1), 0), z);
     }
 
-    inline datetime date::at(int hour, int minute, const zone& z, later_t) const {
+    inline datetime date::at(int hour, int minute, const zone& z, later_t) const noexcept {
         return at(hour, minute, 0, z, later);
     }
 
-    inline datetime date::at(int hour, int minute, int second, const zone& z, later_t) const {
+    inline datetime date::at(int hour, int minute, int second, const zone& z, later_t) const noexcept {
         return datetime::_of(detail::to_nanos(detail::instant_of(detail::zone_access::data(z), detail::wall_seconds(*this, hour, minute, second), 2), 0), z);
     }
 
-    inline optional<datetime> date::try_at(int hour, int minute, int second, const zone& z) const {
+    inline optional<datetime> date::try_at(int hour, int minute, int second, const zone& z) const noexcept {
         detail::wall_instants r = detail::instants_of(detail::zone_access::data(z), detail::wall_seconds(*this, hour, minute, second));
         if (r.count != 1) {
             return nullopt;
@@ -531,28 +546,28 @@ namespace sgcl::time {
         return datetime::_of(detail::to_nanos(r.first, 0), z);
     }
 
-    inline datetime date::start_of_day(const zone& z) const {
+    inline datetime date::start_of_day(const zone& z) const noexcept {
         return at(0, 0, 0, z, earlier);
     }
 
-    inline datetime datetime::start_of_day() const {
+    inline datetime datetime::start_of_day() const noexcept {
         return date().start_of_day(_zone);
     }
 
-    inline duration zone::offset_at(const datetime& t) const {
+    inline duration zone::offset_at(const datetime& t) const noexcept {
         return std::chrono::seconds(detail::zone_access::offset_at(*this, t._seconds()));
     }
 
-    inline string zone::abbreviation_at(const datetime& t) const {
+    inline string zone::abbreviation_at(const datetime& t) const noexcept {
         const auto& z = detail::zone_access::data(*this);
         return detail::zone_access::abbreviation(z, detail::zone_access::state_at(z, t._seconds()));
     }
 
-    inline bool zone::is_dst_at(const datetime& t) const {
+    inline bool zone::is_dst_at(const datetime& t) const noexcept {
         return detail::zone_access::state_at(detail::zone_access::data(*this), t._seconds()).dst;
     }
 
-    inline optional<datetime> zone::next_transition(const datetime& t) const {
+    inline optional<datetime> zone::next_transition(const datetime& t) const noexcept {
         // A change is on a whole second; t within that second is before it
         auto c = detail::zone_access::next_change(detail::zone_access::data(*this), t._seconds());
         if (!c) {
@@ -565,7 +580,7 @@ namespace sgcl::time {
         return datetime::_of(ns, *this);
     }
 
-    inline optional<datetime> zone::previous_transition(const datetime& t) const {
+    inline optional<datetime> zone::previous_transition(const datetime& t) const noexcept {
         // Strictly before t: a change at t's own second counts when t is
         // past its start
         int64_t s = t._seconds();
@@ -594,7 +609,7 @@ namespace sgcl::time {
         }
     }
 
-    inline string datetime::to_string() const {
+    inline string datetime::to_string() const noexcept {
         char text[40];
         char* out = text;
         time::date d = date();

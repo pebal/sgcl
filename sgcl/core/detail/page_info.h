@@ -36,37 +36,46 @@ namespace sgcl::detail {
             }
         }
 
-        // Headers of this type come from one slab (page.h: Page::release).
-        // Never destroyed: the collector thread and the exiting threads still
-        // return headers while the process runs its static destructors.
+        // Headers of this type come from one slab (page.h: Page::release),
+        // the Metadata's. Never destroyed: the collector thread and the
+        // exiting threads still return headers while the process runs its
+        // static destructors.
         inline static HeaderSlab& header_slab() {
-            static auto slab = new HeaderSlab(HeaderSize);
-            return *slab;
+            return *private_metadata().header_slab;
         }
 
-        // The type's Metadata (metadata.h), made on first use and never
-        // freed: the pages of the type point at it
-        inline static auto& private_metadata() {
-            static auto metadata = new Metadata((std::remove_extent_t<Type>*)0);
-            return *metadata;
+        // The type's record (metadata.h: TypeRecord): its constants, its
+        // number for the allocators and the slots of its Metadata and its
+        // pointer map. constinit, not a function-local static like
+        // array_metadata below: a constant (no guard, no dynamic
+        // initialization), so a global whose initializer creates the first
+        // object of this type in any translation unit finds it whole (the
+        // map once was an inline static vector, unordered with the globals
+        // of other translation units: pull request #13).
+        inline static constinit TypeRecord record = {.constants = Metadata::constants_of<Type>(),
+                                                     .may_contain_tracked = MayContainTracked<Type>::value,
+                                                     .conservative = Conservative<Type>::value};
+
+        // The type's Metadata (metadata.h), made on first use from the
+        // type's constants (data, no code per type) and never freed: the
+        // pages of the type point at it. One function for every type
+        // (Metadata::of_type), given the record.
+        inline static Metadata& private_metadata() {
+            return Metadata::of_type(PageInfo<std::remove_extent_t<Type>>::record);
         }
 
         // The ArrayMetadata of buffers of this element type
-        // (array_metadata.h), likewise
+        // (array_metadata.h)
         inline static auto& array_metadata() {
             static auto metadata = new ArrayMetadata((std::remove_extent_t<std::conditional_t<std::is_void_v<Type>, char, Type>>*)0);
             return *metadata;
         }
 
-        // A function-local static like its siblings above, not an inline
-        // static data member: the map is a vector, so the member's dynamic
-        // initialization would be unordered with respect to the globals of
-        // other translation units, and a global whose initializer creates
-        // the first object of this type could bind the metadata to a map
-        // not yet constructed (reported in pull request #13).
+        // The type's pointer map, made on first use (ChildPointers::of_type,
+        // one function for every type) and never freed, like the Metadata
+        // that names it
         inline static ChildPointers& child_pointers() {
-            static ChildPointers pointers {MayContainTracked<Type>::value, ObjectSize, typeid(Type), Conservative<Type>::value};
-            return pointers;
+            return ChildPointers::of_type(record);
         }
 
     private:

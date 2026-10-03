@@ -11,6 +11,7 @@
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "../core/unique_ptr.h"
+#include "detail/nothrow_iteration.h"
 
 #include <algorithm>
 #include <cassert>
@@ -36,7 +37,7 @@ namespace sgcl::immutable {
             tracked_ptr<ListCell> next;
 
             template<class... A>
-            static unique_ptr<ListCell> make(const tracked_ptr<ListCell>& next, A&&... a) {
+            static unique_ptr<ListCell> make(const tracked_ptr<ListCell>& next, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
                 return make_tracked<ListCell>(next, std::forward<A>(a)...);
             }
 
@@ -44,7 +45,7 @@ namespace sgcl::immutable {
             friend class sgcl::detail::MakerBase;
 
             template<class... A>
-            explicit ListCell(const tracked_ptr<ListCell>& n, A&&... a)
+            explicit ListCell(const tracked_ptr<ListCell>& n, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::forward<A>(a)...)
             , next(n) {
             }
@@ -82,6 +83,17 @@ namespace sgcl::immutable {
     , public mixin::immutable<list<T>>
     , public mixin::ordered<list<T>> {
         using Cell = detail::ListCell<T>;
+
+        // What a change may throw: the construction of an element (a
+        // copy of every one for reverse). Out of memory ends the program
+        // (make_tracked) and throws nothing.
+        static constexpr bool NothrowCopy = std::is_nothrow_copy_constructible_v<T>;
+
+        // A range read into cells: from the back when the iterator can
+        // step back, else through a buffer the elements are then moved out of
+        template<class It>
+        static constexpr bool NothrowRange = detail::nothrow_iteration<It> && std::is_nothrow_constructible_v<T, std::iter_reference_t<It>>
+            && (std::bidirectional_iterator<It> || std::is_nothrow_move_constructible_v<T>);
 
     public:
         using value_type = T;
@@ -148,7 +160,7 @@ namespace sgcl::immutable {
         // The elements of a range, in its order: the cells made from the
         // back, one allocation each
         template<std::input_iterator InputIt>
-        list(InputIt first, InputIt last) {
+        list(InputIt first, InputIt last) noexcept(NothrowRange<InputIt>) {
             if constexpr(std::bidirectional_iterator<InputIt>) {
                 for (auto it = last; it != first;) {
                     --it;
@@ -162,7 +174,7 @@ namespace sgcl::immutable {
             }
         }
 
-        list(std::initializer_list<T> ilist)
+        list(std::initializer_list<T> ilist) noexcept(NothrowCopy)
         : list(ilist.begin(), ilist.end()) {
         }
 
@@ -170,7 +182,7 @@ namespace sgcl::immutable {
         // containers take one): a list is copied by its own constructor
         template<std::ranges::input_range R>
         requires (!std::is_same_v<std::remove_cvref_t<R>, list>) && std::is_constructible_v<T, std::ranges::range_reference_t<R>>
-        explicit list(R&& r)
+        explicit list(R&& r) noexcept(noexcept(std::ranges::begin(r)) && noexcept(std::ranges::end(r)) && NothrowRange<std::ranges::iterator_t<R>>)
         : list(std::ranges::begin(r), std::ranges::end(r)) {
         }
 
@@ -210,16 +222,16 @@ namespace sgcl::immutable {
         }
 
         // The list with value in front: a new cell, the rest shared
-        list push_front(const T& value) const {
+        list push_front(const T& value) const noexcept(NothrowCopy) {
             return list(_size + 1, Cell::make(_head, value));
         }
 
-        list push_front(T&& value) const {
+        list push_front(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>) {
             return list(_size + 1, Cell::make(_head, std::move(value)));
         }
 
         template<class... A>
-        list emplace_front(A&&... a) const {
+        list emplace_front(A&&... a) const noexcept(std::is_nothrow_constructible_v<T, A...>) {
             return list(_size + 1, Cell::make(_head, std::forward<A>(a)...));
         }
 
@@ -231,7 +243,7 @@ namespace sgcl::immutable {
         }
 
         // The elements in the reverse order: a new chain of every cell
-        list reverse() const {
+        list reverse() const noexcept(NothrowCopy) {
             list r;
             for (auto& v : *this) {
                 r._push(v);
@@ -241,14 +253,14 @@ namespace sgcl::immutable {
 
         // Comparison by the elements, in order; a version and its copy
         // are equal by their chain
-        friend bool operator==(const list& a, const list& b) {
+        friend bool operator==(const list& a, const list& b) requires req::equatable<T> {
             if (a._head == b._head) {
                 return true;
             }
             return a._size == b._size && std::equal(a.begin(), a.end(), b.begin());
         }
 
-        friend bool operator!=(const list& a, const list& b) {
+        friend bool operator!=(const list& a, const list& b) requires req::equatable<T> {
             return !(a == b);
         }
 
@@ -260,7 +272,7 @@ namespace sgcl::immutable {
 
         // A cell in front, on a list nobody else holds (one being built)
         template<class U>
-        void _push(U&& value) {
+        void _push(U&& value) noexcept(std::is_nothrow_constructible_v<T, U&&>) {
             _head = Cell::make(_head, std::forward<U>(value));
             ++_size;
         }

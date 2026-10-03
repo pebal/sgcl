@@ -5,12 +5,14 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "pair_of_key.h"
 #include "../../core/dynamic_array.h"
 #include "../../core/detail/transparent.h"
 #include "../../core/vector.h"
 #include "../../core/aliases.h"
 #include "../../core/config.h"
 #include "../../core/detail/os.h"
+#include "../../core/detail/nothrow_function.h"
 #include "../../core/make_tracked.h"
 #include "../../core/tracked_ptr.h"
 #include "../../core/atomic.h"
@@ -39,6 +41,9 @@ namespace sgcl::concurrent::detail {
         static constexpr bool const_iterators = false;
 
         template<class P>
+        static constexpr bool carries_key = PairOfKey<P, Key>;
+
+        template<class P>
         static const auto& key(const P& p) noexcept {
             return p.first;
         }
@@ -51,6 +56,9 @@ namespace sgcl::concurrent::detail {
         using hasher = Hash;
         using key_equal = KeyEqual;
         static constexpr bool const_iterators = true;
+
+        template<class P>
+        static constexpr bool carries_key = std::is_same_v<P, Key>;
 
         template<class K>
         static const K& key(const K& k) noexcept {
@@ -107,7 +115,7 @@ namespace sgcl::concurrent::detail {
 
         struct Node : NodeBase {
             template<class... A>
-            explicit Node(uint64_t k, A&&... a)
+            explicit Node(uint64_t k, A&&... a) noexcept(std::is_nothrow_constructible_v<Value, A...>)
             : NodeBase(k, Element)
             , value(std::forward<A>(a)...) {
             }
@@ -123,7 +131,7 @@ namespace sgcl::concurrent::detail {
         // copy is initialized again in the new, a second dummy with the
         // same key that the list takes in its stride.
         struct Buckets {
-            explicit Buckets(size_type n)
+            explicit Buckets(size_type n) noexcept
             : slots(n) {
             }
 
@@ -149,6 +157,13 @@ namespace sgcl::concurrent::detail {
         };
 
         static constexpr size_type InitialBuckets = 16;
+
+        // The most buckets an array is made of: the largest power of two
+        // of slots within the bytes of an address space. A count past it
+        // is taken as it, an array the heap refuses, so that the program
+        // ends as at any refused managed allocation (DESIGN 356): rounded
+        // up as it is, its power of two would be undefined
+        static constexpr size_type MaxBuckets = std::bit_floor(size_type(PTRDIFF_MAX) / sizeof(tracked_ptr<NodeBase>));
 
         // The bits of a word in reverse order: one instruction where the
         // compiler has it (rbit on arm64), six swaps elsewhere
@@ -266,16 +281,16 @@ namespace sgcl::concurrent::detail {
         using iterator = Iterator<std::conditional_t<Traits::const_iterators, const value_type, value_type>>;
         using const_iterator = Iterator<const value_type>;
 
-        SplitList()
+        SplitList() noexcept(std::is_nothrow_default_constructible_v<hasher> && std::is_nothrow_default_constructible_v<key_equal> && std::is_nothrow_copy_constructible_v<hasher> && std::is_nothrow_copy_constructible_v<key_equal>)
         : SplitList(InitialBuckets) {
         }
 
-        explicit SplitList(size_type buckets, const hasher& hash = hasher(), const key_equal& equal = key_equal())
+        explicit SplitList(size_type buckets, const hasher& hash = hasher(), const key_equal& equal = key_equal()) noexcept(std::is_nothrow_copy_constructible_v<hasher> && std::is_nothrow_copy_constructible_v<key_equal>)
         : _head(make_tracked<NodeBase>(uint64_t(0), Dummy))
         , _counters(std::make_unique<Counters>())
         , _hash(hash)
         , _equal(equal) {
-            size_type n = std::bit_ceil(std::max<size_type>(buckets, 2));
+            size_type n = std::bit_ceil(std::clamp<size_type>(buckets, 2, MaxBuckets));
             tracked_ptr<Buckets> b = make_tracked<Buckets>(n);
             b->slots[0] = _head;
             _buckets.store(b, std::memory_order_release);
@@ -300,7 +315,7 @@ namespace sgcl::concurrent::detail {
             for (; first != last; ++first) {
                 items.emplace_back(*first);
             }
-            size_type n = std::bit_ceil(std::max<size_type>({buckets, items.size(), 2}));   // as many buckets as the growth would reach: the elements never outnumber them
+            size_type n = std::bit_ceil(std::clamp<size_type>(std::max(buckets, items.size()), 2, MaxBuckets));   // as many buckets as the growth would reach: the elements never outnumber them
             tracked_ptr<Buckets> b = make_tracked<Buckets>(n);
             b->slots[0] = _head;
             _buckets.store(b, std::memory_order_release);
@@ -411,8 +426,10 @@ namespace sgcl::concurrent::detail {
         }
 
         // Buckets for at least `count` elements: the array grown now
-        // rather than by the insertions
-        void reserve(size_type count) {
+        // rather than by the insertions (a count past MaxBuckets as
+        // MaxBuckets: the doublings end at a refused allocation)
+        void reserve(size_type count) noexcept {
+            count = std::min(count, MaxBuckets);
             for (;;) {
                 tracked_ptr<Buckets> b = _buckets.load(std::memory_order_acquire);
                 if (b->slots.size() >= count) {
@@ -422,15 +439,17 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        hasher hash_function() const {
+        hasher hash_function() const noexcept(std::is_nothrow_copy_constructible_v<hasher>) {
             return _hash;
         }
 
-        key_equal key_eq() const {
+        key_equal key_eq() const noexcept(std::is_nothrow_copy_constructible_v<key_equal>) {
             return _equal;
         }
 
-        // Lookup: wait-free. With a key of another type the hash and the
+        // Lookup: wait-free once the key's bucket has its dummy node (the
+        // first lookup in a bucket without one makes it, lock-free:
+        // _bucket_for_lookup). With a key of another type the hash and the
         // equality take (is_transparent: a string_view for a string), no
         // key is built for the search.
         iterator find(const Key& key) noexcept {
@@ -472,29 +491,32 @@ namespace sgcl::concurrent::detail {
         // Insertion: the element and whether it was inserted, or the one
         // already there under the key and false, as std::unordered_map.
         // emplace builds the element first, in a node of its own, and
-        // drops the node when the key turns out to be taken.
+        // drops the node when the key turns out to be taken; insert
+        // searches first and builds the node only for an absent key, so
+        // that an argument whose key is taken is left as it was, as
+        // std::unordered_map leaves it.
         template<class... A>
-        pair<iterator, bool> emplace(A&&... a) {
+        pair<iterator, bool> emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             tracked_ptr<NodeBase> node = make_tracked<Node>(uint64_t(0), std::forward<A>(a)...);
             return _insert(node, _hash(_key(node.get())));
         }
 
-        pair<iterator, bool> insert(const value_type& value) {
-            return emplace(value);
+        pair<iterator, bool> insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
+            return _insert_value(value);
         }
 
-        pair<iterator, bool> insert(value_type&& value) {
-            return emplace(std::move(value));
+        pair<iterator, bool> insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
+            return _insert_value(std::move(value));
         }
 
         template<std::input_iterator InputIt>
         void insert(InputIt first, InputIt last) {
             for (; first != last; ++first) {
-                emplace(*first);
+                _insert_value(*first);
             }
         }
 
-        void insert(std::initializer_list<value_type> ilist) {
+        void insert(std::initializer_list<value_type> ilist) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             insert(ilist.begin(), ilist.end());
         }
 
@@ -502,24 +524,24 @@ namespace sgcl::concurrent::detail {
         // the element the iterator addresses, if it is still there. The
         // node is marked (the linearization point: one thread wins it),
         // then unlinked by a search.
-        size_type erase(const Key& key) {
+        size_type erase(const Key& key) noexcept {
             return _erase_key(key);
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
             && (!std::is_convertible_v<const K&, const_iterator>)
-        size_type erase(const K& key) {
+        size_type erase(const K& key) noexcept {
             return _erase_key(key);
         }
 
-        iterator erase(const_iterator pos) {
+        iterator erase(const_iterator pos) noexcept {
             tracked_ptr<NodeBase> node(pos._node);
             _erase(node, _hash(_key(node.get())));
             return iterator(_next_live(node.get()));
         }
 
         // Erases every element there is at the time of the walk
-        void clear() {
+        void clear() noexcept {
             for (tracked_ptr<NodeBase> node = _next_live(_head.get()); node; node = _next_live(node.get())) {
                 _erase(node, _hash(_key(node.get())));
             }
@@ -527,21 +549,16 @@ namespace sgcl::concurrent::detail {
 
     protected:
         template<class... A>
-        static tracked_ptr<NodeBase> _make_node(A&&... a) {
+        static tracked_ptr<NodeBase> _make_node(A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             return make_tracked<Node>(uint64_t(0), std::forward<A>(a)...);
         }
 
-        static tracked_ptr<NodeBase> _make_marker(tracked_ptr<NodeBase> succ) {
+        static tracked_ptr<NodeBase> _make_marker(tracked_ptr<NodeBase> succ) noexcept {
             return make_tracked<NodeBase>(succ);
         }
 
-        // The wait-free search: from the bucket's dummy along the list
-        // while the split keys are less than the one sought, then through
-        // the elements of the same split key for the key itself, stepping
-        // over erased nodes without touching anything. The element, or
-        // null.
         template<class K>
-        size_type _erase_key(const K& key) {
+        size_type _erase_key(const K& key) noexcept {
             size_t hash = _hash(key);
             tracked_ptr<Buckets> b = _buckets.load(std::memory_order_acquire);
             tracked_ptr<NodeBase> pred, curr;
@@ -559,16 +576,22 @@ namespace sgcl::concurrent::detail {
                     return 0;   // another thread's erasure
                 }
                 if (curr->next.compare_exchange_strong(succ, _make_marker(succ), std::memory_order_acq_rel, std::memory_order_acquire)) {
-                    _count(-1, *b);   // as in _erase: counted off before anything that may throw
+                    _count(-1, *b);   // as in _erase: counted off as soon as the node is erased
                     tracked_ptr<NodeBase> expected = curr;
                     if (!pred->next.compare_exchange_strong(expected, succ, std::memory_order_acq_rel, std::memory_order_relaxed)) {
-                        _find(_bucket(*b, hash & (b->slots.size() - 1)), _element_key(hash), &key, pred, curr);
+                        _find(_bucket_or_parent(*b, hash & (b->slots.size() - 1)), _element_key(hash), &key, pred, curr);   // nothing allocated after the mark (_erase)
                     }
                     return 1;
                 }
             }
         }
 
+        // The search of a lookup: from the bucket's dummy (made first when
+        // the bucket has none, _bucket_for_lookup; wait-free from there)
+        // along the list while the split keys are less than the one
+        // sought, then through the elements of the same split key for the
+        // key itself, stepping over erased nodes without touching them.
+        // The element, or null.
         template<class K>
         tracked_ptr<NodeBase> _search(const K& key) const noexcept {
             size_t hash = _hash(key);
@@ -604,7 +627,7 @@ namespace sgcl::concurrent::detail {
         // search with no key, the dummy of that split key), returning
         // true; or the first node past the split key, returning false.
         template<class K = Key>
-        bool _find(tracked_ptr<NodeBase> start, uint64_t skey, const K* key, tracked_ptr<NodeBase>& pred, tracked_ptr<NodeBase>& curr) {
+        bool _find(tracked_ptr<NodeBase> start, uint64_t skey, const K* key, tracked_ptr<NodeBase>& pred, tracked_ptr<NodeBase>& curr) noexcept {
         retry:
             pred = start;
             curr = pred->next.load(std::memory_order_acquire);
@@ -638,7 +661,7 @@ namespace sgcl::concurrent::detail {
         // after the parent bucket's dummy (made first if need be) and set
         // into the slot with a compare-exchange; another thread's dummy
         // found in either place is taken instead
-        tracked_ptr<NodeBase> _bucket(Buckets& b, size_type i) {
+        tracked_ptr<NodeBase> _bucket(Buckets& b, size_type i) noexcept {
             tracked_ptr<NodeBase> d = atomic_ref(b.slots[i]).load(std::memory_order_acquire);
             if (d) {
                 return d;
@@ -679,22 +702,17 @@ namespace sgcl::concurrent::detail {
         // element or two, once per bucket for the array's life, and the
         // lookups after are the bucket's own. The first lookup in a
         // bucket is lock-free (an allocation and a compare-exchange),
-        // the rest wait-free as before; one that cannot allocate walks
-        // from the ancestor as before.
+        // the rest wait-free as before.
         tracked_ptr<NodeBase> _bucket_for_lookup(Buckets& b, size_type i) const noexcept {
             if (tracked_ptr<NodeBase> d = atomic_ref(b.slots[i]).load(std::memory_order_acquire)) {
                 return d;
             }
-            try {
-                return const_cast<SplitList*>(this)->_bucket(b, i);   // the list's structure, not the elements: constant to the caller
-            } catch (...) {
-                return _bucket_or_parent(b, i);
-            }
+            return const_cast<SplitList*>(this)->_bucket(b, i);   // the list's structure, not the elements: constant to the caller
         }
 
         // The bucket's dummy, or the nearest initialized ancestor's, from
-        // which the walk is only longer: for a lookup that could not
-        // make the dummy
+        // which the walk is only longer: for an erasure, which makes no
+        // dummy (_erase)
         tracked_ptr<NodeBase> _bucket_or_parent(Buckets& b, size_type i) const noexcept {
             for (;;) {
                 tracked_ptr<NodeBase> d = atomic_ref(b.slots[i]).load(std::memory_order_acquire);
@@ -705,15 +723,15 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        // Insertion of a key that may be there (try_emplace, the set's
-        // insert, the weak containers, intern): one search, and the node
+        // Insertion of a key that may be there (try_emplace, insert, the
+        // weak containers, intern): one search, and the node
         // built by `make` only when the key is absent, linked where that
         // search found the key's place. The search is by `key`, of any
         // type the hash and the equality take, until the node exists,
         // and by the node's key after (a lost exchange searches again,
         // and `make` may have moved the key into the node).
         template<class K, class Make>
-        pair<iterator, bool> _insert_absent(const K& key, Make make) {
+        pair<iterator, bool> _insert_absent(const K& key, Make make) noexcept(noexcept(make())) {
             size_t hash = _hash(key);
             uint64_t skey = _element_key(hash);
             tracked_ptr<NodeBase> node;
@@ -736,10 +754,25 @@ namespace sgcl::concurrent::detail {
             }
         }
 
+        // The insertion of one element given whole (insert): an argument
+        // that carries the key as Traits reads it (the element, or for
+        // the map a pair whose first is of the key type) goes through
+        // the search first and is used only for an absent key; any other
+        // is built into a node first, as by emplace, since the key is
+        // known only once the element is
+        template<class P>
+        pair<iterator, bool> _insert_value(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
+            if constexpr (Traits::template carries_key<std::remove_cvref_t<P>>) {
+                return _insert_absent(Traits::key(value), [&] { return _make_node(std::forward<P>(value)); });
+            } else {
+                return emplace(std::forward<P>(value));
+            }
+        }
+
         // Links a node holding the key of hash `hash`: into its bucket's
         // list at the split key, with the compare-exchange that makes it
         // an element of the container
-        pair<iterator, bool> _insert(tracked_ptr<NodeBase> node, size_t hash) {
+        pair<iterator, bool> _insert(tracked_ptr<NodeBase> node, size_t hash) noexcept {
             uint64_t skey = _element_key(hash);
             const Key& key = _key(node.get());
             for (;;) {
@@ -758,7 +791,7 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        bool _erase(tracked_ptr<NodeBase> node, size_t hash) {
+        bool _erase(tracked_ptr<NodeBase> node, size_t hash) noexcept {
             tracked_ptr<NodeBase> succ = node->next.load(std::memory_order_acquire);
             for (;;) {
                 if (succ && succ->kind == Marker) {
@@ -766,9 +799,15 @@ namespace sgcl::concurrent::detail {
                 }
                 if (node->next.compare_exchange_strong(succ, _make_marker(succ), std::memory_order_acq_rel, std::memory_order_acquire)) {
                     tracked_ptr<Buckets> b = _buckets.load(std::memory_order_acquire);
-                    _count(-1, *b);   // counted off as soon as the node is erased: the unlinking below may throw (a bucket's dummy, the key's compare), and the count must not be left one too high
+                    _count(-1, *b);   // counted off as soon as the node is erased
+                    // The unlinking from the dummy of the bucket or of its
+                    // nearest ancestor, never a dummy made here: the array
+                    // may have grown since the element went in, its bucket
+                    // without a dummy in it, and an erasure that has taken
+                    // effect allocates nothing more. The walk from an
+                    // ancestor is only longer.
                     tracked_ptr<NodeBase> pred, curr;
-                    _find(_bucket(*b, hash & (b->slots.size() - 1)), _element_key(hash), &_key(node.get()), pred, curr);
+                    _find(_bucket_or_parent(*b, hash & (b->slots.size() - 1)), _element_key(hash), &_key(node.get()), pred, curr);
                     return true;
                 }
             }
@@ -784,7 +823,7 @@ namespace sgcl::concurrent::detail {
         // next to it, and every slots / 8 insertions overall once it is
         // large (a fixed 64 left a small map with a few hundred elements
         // in sixteen buckets for good)
-        void _count(long delta, Buckets& b) {
+        void _count(long delta, Buckets& b) noexcept {
             static atomic<unsigned> next_stripe = {0};
             thread_local unsigned stripe = next_stripe.fetch_add(1, std::memory_order_relaxed) % Stripes;
             long n = _counters->cell[stripe].n.fetch_add(delta, std::memory_order_relaxed) + delta;
@@ -802,7 +841,7 @@ namespace sgcl::concurrent::detail {
         // since its look, goes on with its insertion (the next look finds
         // the array doubled or doubles it), rather than copying an array
         // of its own to lose the exchange with
-        void _grow(tracked_ptr<Buckets> old) {
+        void _grow(tracked_ptr<Buckets> old) noexcept {
             if (_buckets.load(std::memory_order_acquire) != old || _counters->growing.exchange(true, std::memory_order_acq_rel)) {
                 return;
             }

@@ -17,6 +17,7 @@
 #include <atomic>
 #include <coroutine>
 #include <cstdint>
+#include <system_error>
 #include <type_traits>
 #include <utility>
 
@@ -67,13 +68,15 @@ namespace sgcl::async {
         }
 
     public:
-        shared_mutex() = default;
+        shared_mutex() noexcept = default;
         shared_mutex(const shared_mutex&) = delete;
         shared_mutex& operator=(const shared_mutex&) = delete;
 
         // The readers' lock: counted in, and waiting for the writer to
         // leave when one holds or waits
-        void lock_shared() {
+        // noexcept, as lock(): a round's channel has no sender, the writer
+        // closes it
+        void lock_shared() noexcept {
             uint32_t writer;
             if (!_enter_shared(writer)) {
                 _wait_shared(writer);
@@ -101,7 +104,10 @@ namespace sgcl::async {
 
         // The writer's lock: the writers' mutex, then the bit, then the
         // wait for the readers counted before the bit
-        void lock() {
+        // noexcept: the writers' mutex and the drained channel have no
+        // waiting sender (an unlock_shared's signal is a try_send), so
+        // their receives wake nobody (mutex.h: MutexState::lock)
+        void lock() noexcept {
             _writers.lock();
             if (!_claim()) {
                 (void)_drained.receive().wait();
@@ -148,14 +154,29 @@ namespace sgcl::async {
             shared_guard(const shared_guard&) = delete;
             shared_guard& operator=(const shared_guard&) = delete;
 
+            // noexcept, as a destructor is: the one throw of the unlock,
+            // a start of the workers the wake of a waiting writer could not
+            // make, comes after that writer is queued (mutex::guard), and
+            // is let go of
             ~shared_guard() {
                 if (_m) {
-                    _m->unlock_shared();
+                    try {
+                        _m->unlock_shared();
+                    } catch (const std::system_error&) {
+                    }
                 }
             }
 
+            // The mutex held, as mutex::guard::owner(); by its address, a
+            // shared mutex being an object and not a handle, and null for
+            // an empty guard (moved from or released)
+            shared_mutex* owner() const noexcept {
+                return _m;
+            }
+
             // The mutex let go of by the guard, still locked: the caller
-            // unlocks it (std::unique_lock::release)
+            // unlocks it (std::unique_lock::release); null for an empty
+            // guard
             shared_mutex* release() noexcept {
                 return std::exchange(_m, nullptr);
             }
@@ -177,14 +198,28 @@ namespace sgcl::async {
             guard(const guard&) = delete;
             guard& operator=(const guard&) = delete;
 
+            // noexcept, as a destructor is: the unlock wakes the readers
+            // held back (a list) and the next writer, and a wake that
+            // cannot start the workers throws nothing in a QuietWakes
+            // scope, so that every one of them is woken and the writers'
+            // mutex let go of; the tasks run at the next start
             ~guard() {
                 if (_m) {
+                    detail::QuietWakes quiet;
                     _m->unlock();
                 }
             }
 
+            // The mutex held, as mutex::guard::owner(); by its address, a
+            // shared mutex being an object and not a handle, and null for
+            // an empty guard (moved from or released)
+            shared_mutex* owner() const noexcept {
+                return _m;
+            }
+
             // The mutex let go of by the guard, still locked: the caller
-            // unlocks it (std::unique_lock::release)
+            // unlocks it (std::unique_lock::release); null for an empty
+            // guard
             shared_mutex* release() noexcept {
                 return std::exchange(_m, nullptr);
             }
@@ -199,7 +234,7 @@ namespace sgcl::async {
         template<bool Shared, bool Scoped>
         class lock_op {
         public:
-            bool await_ready() {
+            bool await_ready() noexcept(Shared) {   // the writer's fast path takes the writers' mutex, a channel's receive
                 if constexpr (Shared) {
                     return _m->_enter_shared(_writer);
                 } else {
@@ -245,8 +280,8 @@ namespace sgcl::async {
         // lock_shared() are the standard's, for std::unique_lock and
         // std::shared_lock on a thread): `auto g = co_await m.scoped_lock();`,
         // `co_await m.scoped_lock_shared()`, and `.wait()` on a thread
-        auto scoped_lock_shared() {
-            return operation([this](auto how) {
+        auto scoped_lock_shared() noexcept {
+            return detail::make_operation([this](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return lock_op<true, true>(*this);
                 } else {
@@ -256,8 +291,8 @@ namespace sgcl::async {
             });
         }
 
-        auto scoped_lock() {
-            return operation([this](auto how) {
+        auto scoped_lock() noexcept {
+            return detail::make_operation([this](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return lock_op<false, true>(*this);
                 } else {
@@ -287,7 +322,7 @@ namespace sgcl::async {
         }
 
         // The round the held-back readers wait on: the one there, or a new one
-        tracked_ptr<detail::ChannelState<void>> _round_or_new() {
+        tracked_ptr<detail::ChannelState<void>> _round_or_new() noexcept {
             tracked_ptr<detail::ChannelState<void>> round = _round.load(std::memory_order_acquire);
             while (!round) {
                 if (_round.compare_exchange_strong(round, detail::make_linked_state<void>(), std::memory_order_acq_rel, std::memory_order_acquire)) {
@@ -297,7 +332,7 @@ namespace sgcl::async {
             return round;
         }
 
-        void _wait_shared(uint32_t writer) {
+        void _wait_shared(uint32_t writer) noexcept {
             for (;;) {
                 tracked_ptr<detail::ChannelState<void>> round = _round_or_new();
                 std::atomic_thread_fence(std::memory_order_seq_cst);

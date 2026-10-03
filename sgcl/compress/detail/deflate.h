@@ -37,11 +37,11 @@ namespace sgcl::compress::detail {
 
     // The two ways the encoder puts bytes into its output: a std::vector
     // here, the stream's managed output beside its own type (stream.h)
-    inline void append_bytes(std::vector<uint8_t>& out, const uint8_t* p, size_t n) {
+    inline void append_bytes(std::vector<uint8_t>& out, const uint8_t* p, size_t n) noexcept {
         out.insert(out.end(), p, p + n);
     }
 
-    inline void append_byte(std::vector<uint8_t>& out, uint8_t b) {
+    inline void append_byte(std::vector<uint8_t>& out, uint8_t b) noexcept {
         out.push_back(b);
     }
 
@@ -53,7 +53,7 @@ namespace sgcl::compress::detail {
         : _out(out) {
         }
 
-        void put(uint32_t value, uint32_t count) {
+        void put(uint32_t value, uint32_t count) noexcept {
             _bits |= uint64_t(value) << _count;
             _count += count;
             if (_count >= 32) {
@@ -65,7 +65,7 @@ namespace sgcl::compress::detail {
         }
 
         // To the byte boundary with zero bits
-        void align() {
+        void align() noexcept {
             while (_count > 0) {
                 append_byte(_out, uint8_t(_bits));
                 _bits >>= 8;
@@ -103,7 +103,7 @@ namespace sgcl::compress::detail {
     // lengthening the shortest codes that can take it; symbols of
     // frequency 0 get no code. At least two codes are made when a table
     // has any, so that every code the encoder writes is complete.
-    inline void huffman_lengths(const uint32_t* freq, unsigned count, unsigned max_bits, uint8_t* lengths) {
+    inline void huffman_lengths(const uint32_t* freq, unsigned count, unsigned max_bits, uint8_t* lengths) noexcept {
         std::fill(lengths, lengths + count, uint8_t(0));
         struct Leaf {
             uint32_t freq;
@@ -125,7 +125,7 @@ namespace sgcl::compress::detail {
             lengths[leaves[0].symbol == 0 ? 1 : 0] = 1;
             return;
         }
-        std::sort(leaves, leaves + n, [](const Leaf& a, const Leaf& b) {
+        std::sort(leaves, leaves + n, [](const Leaf& a, const Leaf& b) noexcept {
             return a.freq != b.freq ? a.freq < b.freq : a.symbol < b.symbol;
         });
         // The two-queue construction over the sorted leaves: the internal
@@ -137,7 +137,7 @@ namespace sgcl::compress::detail {
             weight[i] = leaves[i].freq;
         }
         unsigned leaf = 0, node = n, next = n;
-        auto smallest = [&]() {
+        auto smallest = [&]() noexcept {
             if (leaf < n && (node >= next || weight[leaf] <= weight[node])) {
                 return leaf++;
             }
@@ -337,7 +337,7 @@ namespace sgcl::compress::detail {
 
         // level: 0 stores, 1..9, HuffmanOnly; the dictionary's last 32 KB
         // are the history the first matches may reach
-        explicit Deflater(int level, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0)
+        explicit Deflater(int level, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0) noexcept
         : Deflater(level, false, dictionary, dictionary_size) {
         }
 
@@ -345,7 +345,7 @@ namespace sgcl::compress::detail {
         // Z_FILTERED): the chain levels (7 to 9) take no match of 5 bytes or
         // fewer, the bytes going as literals, whose codes such data makes
         // short; the table levels (1 to 6) as without it
-        Deflater(int level, bool filtered, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0)
+        Deflater(int level, bool filtered, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0) noexcept
         : _level(level)
         , _filtered(filtered)
         , _config(level_config(level))
@@ -366,13 +366,47 @@ namespace sgcl::compress::detail {
         }
 
         // Back to the start with the same memory, and a dictionary again
-        void reset(const uint8_t* dictionary, size_t dictionary_size) {
+        void reset(const uint8_t* dictionary, size_t dictionary_size) noexcept {
             reset();
             _seed(dictionary, dictionary_size);
         }
 
+        // Back to the start at another level, for a stream of input_size
+        // bytes, compressed as by one made for it (the one-shot compress's
+        // Deflater, kept by the thread: stream.h). The tables are not
+        // cleared, as reset() does not clear them: every entry, in a table
+        // this level uses or not, is at most the old _offset + _end, and the
+        // positions now begin more than a window past it, out of reach of
+        // every match. They are cleared, and the positions begin at 0, when
+        // the stream could reach the rebase: the rebase moves the chains'
+        // ring by an amount not a multiple of its size, which one made for
+        // the stream would not have met there. A table of another size is
+        // resized, its new part zero; the window only grows (level 0 uses
+        // its first StoredMax).
+        void reset(int level, const uint8_t* dictionary, size_t dictionary_size, uint64_t input_size) noexcept {
+            _reset(std::min<uint64_t>(dictionary_size, WindowSize) + input_size);
+            _level = level;
+            _filtered = false;
+            _config = level_config(level);
+            const size_t window = (level == 0 ? StoredMax : BufferSize) + Slack;
+            if (_window.size() < window) {
+                _window.resize(window);
+            }
+            if (level >= 1) {
+                _head.resize(size_t(1) << _config.hash_bits);
+                if (_config.fast) {
+                    if (_config.long_bits) {
+                        _long.resize(size_t(_config.ways) << _config.long_bits);
+                    }
+                } else {
+                    _prev.resize(WindowSize);
+                }
+            }
+            _seed(dictionary, dictionary_size);
+        }
+
         // The dictionary's last 32 KB as the history, in the tables
-        void _seed(const uint8_t* dictionary, size_t dictionary_size) {
+        void _seed(const uint8_t* dictionary, size_t dictionary_size) noexcept {
             if (dictionary_size && _level != 0) {
                 if (dictionary_size > WindowSize) {
                     dictionary += dictionary_size - WindowSize;
@@ -382,8 +416,8 @@ namespace sgcl::compress::detail {
                 _end = uint32_t(dictionary_size);
                 _pos = _end;
                 _block_start = _end;
-                if (_head.empty()) {
-                    return;   // huffman only: the history is never looked at
+                if (_level == HuffmanOnly) {
+                    return;   // the history is never looked at (a kept Deflater may still hold tables of another level)
                 }
                 for (uint32_t p = 0; p + 8 <= _end; ++p) {
                     _config.fast ? _insert_fast(p) : (void)_insert(p);
@@ -401,10 +435,20 @@ namespace sgcl::compress::detail {
         // more than a window past the last of the old one, so every entry
         // the old stream left is out of reach of every new match (cleared
         // only when the positions come near the rebase)
-        void reset() {
-            if (!_head.empty()) {
+        void reset() noexcept {
+            _reset(0);
+        }
+
+        // reset(), the tables cleared also when the next stream's first
+        // ahead bytes would bring its positions to the rebase; without
+        // tables (level 0, Huffman only) the positions begin at 0, where
+        // tables made for the next level start
+        void _reset(uint64_t ahead) noexcept {
+            if (_head.empty()) {
+                _offset = 0;
+            } else {
                 uint64_t next = uint64_t(_offset) + _end + WindowSize + 1;
-                if (next >= rebase_at) {
+                if (next + ahead >= rebase_at) {
                     std::fill(_head.begin(), _head.end(), 0u);
                     std::fill(_prev.begin(), _prev.end(), 0u);
                     std::fill(_long.begin(), _long.end(), 0u);
@@ -427,7 +471,7 @@ namespace sgcl::compress::detail {
         // Compresses what the window holds of data and appends to out the
         // blocks it completes; the rest waits for more input, flush or finish
         template<class Out>
-        void write(const uint8_t* data, size_t n, Out& out) {
+        void write(const uint8_t* data, size_t n, Out& out) noexcept {
             if (_level == 0) {
                 _write_stored(data, n, out);
                 return;
@@ -449,7 +493,7 @@ namespace sgcl::compress::detail {
         // Everything written so far out, and the output on a byte
         // boundary: a sync flush (an empty stored block after the data)
         template<class Out>
-        void flush(Out& out) {
+        void flush(Out& out) noexcept {
             if (_level != 0) {
                 _compress(true, out);
             }
@@ -472,7 +516,7 @@ namespace sgcl::compress::detail {
 
         // The last block: everything out, the stream ended and aligned
         template<class Out>
-        void finish(Out& out) {
+        void finish(Out& out) noexcept {
             if (_level == 0) {
                 auto w = _writer(out);
                 _stored(true, w, _window.data(), _end);
@@ -595,7 +639,7 @@ namespace sgcl::compress::detail {
             const uint32_t abs = _offset + p;
             const uint32_t max_len = std::min<uint32_t>(MaxMatch, _end - p);
             uint32_t best = 0;
-            auto consider = [&](uint32_t e) {
+            auto consider = [&](uint32_t e) noexcept {
                 if (e == 0) {
                     return;
                 }
@@ -636,13 +680,13 @@ namespace sgcl::compress::detail {
             return best;
         }
 
-        void _literal(uint8_t b) {
+        void _literal(uint8_t b) noexcept {
             _lit.push_back(b);
             _dist.push_back(0);
             ++_lit_freq[b];
         }
 
-        void _match(uint32_t length, uint32_t distance) {
+        void _match(uint32_t length, uint32_t distance) noexcept {
             uint32_t lc = length_code(length);
             _lit.push_back(uint16_t(253 + length));   // 256.. for 3..258: a value of 256 or more is a match
             _dist.push_back(uint16_t(distance));
@@ -657,7 +701,7 @@ namespace sgcl::compress::detail {
         // it is full, and _compress has then matched to within MinLookahead
         // of its end, so what is moved (32 KB and the lookahead) starts past
         // 64 KB less the lookahead
-        void _slide() {
+        void _slide() noexcept {
             const uint32_t keep = std::min(_pos, WindowSize);
             const uint32_t delta = _pos - keep;
             sgcl::detail::copy_bytes(_window.data(), _window.data() + delta, _end - delta);
@@ -680,7 +724,7 @@ namespace sgcl::compress::detail {
         // its end when there is no more input), writing out the blocks
         // that fill up
         template<class Out>
-        void _compress(bool final, Out& out) {
+        void _compress(bool final, Out& out) noexcept {
             uint32_t stop = final ? _end : (_end > MinLookahead ? _end - MinLookahead : 0);
             if (_level == HuffmanOnly) {
                 while (_pos < stop) {
@@ -735,7 +779,7 @@ namespace sgcl::compress::detail {
 
         // The table encoder (levels 1 to 5) from _pos to stop
         template<class Out>
-        void _compress_fast(uint32_t stop, Out& out) {
+        void _compress_fast(uint32_t stop, Out& out) noexcept {
             const uint8_t* w = _window.data();
             while (_pos < stop) {
                 if (_pos + 8 > _end) {
@@ -780,7 +824,7 @@ namespace sgcl::compress::detail {
 
         // A block written out when the symbols fill it
         template<class Out>
-        void _full(Out& out) {
+        void _full(Out& out) noexcept {
             if (_lit.size() >= MaxSymbols) {
                 auto w = _writer(out);
                 _flush_block(false, w);
@@ -792,7 +836,7 @@ namespace sgcl::compress::detail {
         // whole block straight from the input, only a block's remainder
         // kept in the window until the next write, flush or finish
         template<class Out>
-        void _write_stored(const uint8_t* data, size_t n, Out& out) {
+        void _write_stored(const uint8_t* data, size_t n, Out& out) noexcept {
             auto w = _writer(out);
             while (n) {
                 if (_end == 0 && n >= StoredMax) {
@@ -815,7 +859,7 @@ namespace sgcl::compress::detail {
         }
 
         template<class Out>
-        BitWriter<Out> _writer(Out& out) {
+        BitWriter<Out> _writer(Out& out) noexcept {
             BitWriter<Out> w(out);
             w.restore(_bits_value, _bits_count);
             return w;
@@ -830,7 +874,7 @@ namespace sgcl::compress::detail {
         // The block of the symbols gathered (or, at level 0, of the bytes
         // since the block's start), in its shortest form
         template<class Out>
-        void _flush_block(bool last, BitWriter<Out>& w) {
+        void _flush_block(bool last, BitWriter<Out>& w) noexcept {
             // the bytes the block covers: the symbols end where _pos is,
             // less a literal the lazy search still holds back
             uint32_t end = _pos - (_match_available ? 1 : 0);
@@ -978,7 +1022,7 @@ namespace sgcl::compress::detail {
         }
 
         template<class Out>
-        void _symbols(BitWriter<Out>& w, const uint8_t* lit_len, unsigned lit_count, const uint8_t* dist_len, unsigned dist_count) {
+        void _symbols(BitWriter<Out>& w, const uint8_t* lit_len, unsigned lit_count, const uint8_t* dist_len, unsigned dist_count) noexcept {
             uint16_t lit_code[288], dist_code[30];
             canonical_codes(lit_len, lit_count, lit_code);
             canonical_codes(dist_len, dist_count, dist_code);
@@ -1008,7 +1052,7 @@ namespace sgcl::compress::detail {
         // window, or of the input at level 0); the last one marked last
         // when asked (one empty block when n is 0)
         template<class Out>
-        void _stored(bool last, BitWriter<Out>& w, const uint8_t* p, uint32_t n) {
+        void _stored(bool last, BitWriter<Out>& w, const uint8_t* p, uint32_t n) noexcept {
             do {
                 uint32_t len = std::min<uint32_t>(n, 65535);
                 n -= len;

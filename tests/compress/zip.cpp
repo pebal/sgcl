@@ -455,8 +455,8 @@ TEST(Zip_Tests, AFailingSinkIsKeptToTheClose) {
 }
 
 // The caller's errors are the writer's first too, kept as a failure of
-// out is: a write to an entry that was ended, data for a directory, an
-// entry create refuses, a create after close, a comment too long; what
+// out is: data for a directory, an entry create refuses, a create after
+// close, a comment too long; what
 // comes after gives that error at once, writes nothing, and the close
 // gives it
 TEST(Zip_Tests, ACallersErrorIsKeptToTheClose) {
@@ -488,26 +488,6 @@ TEST(Zip_Tests, ACallersErrorIsKeptToTheClose) {
         ASSERT_TRUE(w.last_error());
         EXPECT_TRUE(*w.last_error() == first);
     };
-    {   // a write to an entry that was ended
-        sgcl::io::buffer sink;
-        zip::writer w(sink);
-        auto first = w.create("first.txt");
-        ASSERT_TRUE(first);
-        ASSERT_TRUE(first->write(std::string("one")));
-        auto second = w.create("second.txt");
-        ASSERT_TRUE(second);
-        EXPECT_FALSE(w.last_error());
-        auto stale = first->write(std::string("more"));
-        ASSERT_FALSE(stale);
-        EXPECT_EQ(stale.error().code(), sgcl::io::errc::closed);
-        auto two = second->write(std::string("two"));   // a correct write gives it
-        ASSERT_FALSE(two);
-        EXPECT_TRUE(two.error() == stale.error());
-        ASSERT_TRUE(w.last_error());
-        EXPECT_EQ(w.last_error()->code(), compress::errc::io);
-        EXPECT_TRUE(w.last_error()->io_error()->is_closed());
-        expect_kept(w, sink, *w.last_error());
-    }
     {   // data for a directory
         sgcl::io::buffer sink;
         zip::writer w(sink);
@@ -581,6 +561,50 @@ TEST(Zip_Tests, ACallersErrorIsKeptToTheClose) {
         co_return sink.size() == size ? "ok" : "written after";
     }());
     EXPECT_EQ(t.wait(), "ok");
+    sgcl::async::scheduler::stop();
+}
+
+// A write to an entry that was ended (by the next create, its own close,
+// or the writer's close) fails by itself with io::errc::closed: nothing
+// written, nothing kept, the archive goes on and closes whole
+TEST(Zip_Tests, ALateWriteFailsAlone) {
+    sgcl::io::buffer sink;
+    zip::writer w(sink);
+    auto first = w.create("first.txt");
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(first->write(std::string("one")));
+    auto second = w.create("second.txt");
+    ASSERT_TRUE(second);
+    size_t size = sink.size();
+    auto stale = first->write(std::string("more"));
+    ASSERT_FALSE(stale);
+    EXPECT_TRUE(stale.error().is_closed());
+    EXPECT_EQ(sink.size(), size);
+    EXPECT_FALSE(w.last_error());
+    ASSERT_TRUE(second->write(std::string("two")));
+    ASSERT_TRUE(second->close());
+    auto closed_entry = second->write(std::string("more"));   // after its own close
+    ASSERT_FALSE(closed_entry);
+    EXPECT_TRUE(closed_entry.error().is_closed());
+    auto t = sgcl::async::spawn([](sgcl::io::writer stale) -> sgcl::async::task<bool> {
+        auto r = co_await stale.async_write(std::string("more"));
+        co_return !r && r.error().is_closed();
+    }(*first));
+    EXPECT_TRUE(t.wait());
+    EXPECT_FALSE(w.last_error());
+    EXPECT_FALSE(w.is_closed());
+    ASSERT_TRUE(w.close());
+    EXPECT_TRUE(w.is_closed());
+    auto after = second->write(std::string("more"));   // after the writer's close
+    ASSERT_FALSE(after);
+    EXPECT_TRUE(after.error().is_closed());
+    EXPECT_FALSE(w.last_error());
+    ASSERT_TRUE(w.close());
+    std::string data(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+    auto a = zip::archive::from(bytes(data));
+    ASSERT_TRUE(a);
+    EXPECT_EQ(text(value_of(a->read("first.txt"))), "one");
+    EXPECT_EQ(text(value_of(a->read("second.txt"))), "two");
     sgcl::async::scheduler::stop();
 }
 

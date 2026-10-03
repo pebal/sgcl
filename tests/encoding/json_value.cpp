@@ -297,7 +297,7 @@ TEST(JsonValue_Tests, Text) {
     EXPECT_EQ(doc["b"].to_string(json::pretty), "{\n  \"c\": {},\n  \"d\": []\n}");
     EXPECT_EQ(parsed("[[1]]").to_string({4}), "[\n    [\n        1\n    ]\n]");
     EXPECT_EQ(json().to_string(), "null");
-    EXPECT_EQ(json(0.1f).to_string(), "0.10000000149011612");   // a float in a json is its double
+    EXPECT_EQ(json(0.1f).to_string(), "0.1");   // a float in a json is the number of its shortest digits
 }
 
 // The keys of one parse are made once: a thousand objects with the same

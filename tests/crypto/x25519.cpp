@@ -230,6 +230,13 @@ TEST(Crypto_X25519, AKeyMovedFromIsUsedByNothing) {
     EXPECT_THROW((void)a.bytes(), std::logic_error);
     EXPECT_THROW((void)a.to_pkcs8_der(), std::logic_error);
     EXPECT_TRUE(b.shared_secret(peer).has_value());
+    // clone() and == too: they once gave another key moved from and
+    // compared its zeros
+    EXPECT_THROW((void)a.clone(), std::logic_error);
+    EXPECT_THROW((void)(a == b), std::logic_error);
+    EXPECT_THROW((void)(b == a), std::logic_error);
+    EXPECT_FALSE(noexcept(a.clone()));
+    EXPECT_FALSE(noexcept(a == b));
 }
 
 TEST(Crypto_X25519, DerAgainstOpenSsl) {

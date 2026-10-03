@@ -69,6 +69,37 @@ TEST(Utf8_Tests, DecodeEncodeCountValidate) {
     EXPECT_EQ(std::string_view(out, 3), "€");
 }
 
+// The plane's two-stage tables against the ranges they are built from:
+// every code point maps as the search of the ranges maps it, and to_lower
+// and to_upper answer what they did when ASCII had a rule of its own and
+// the rest of the plane was searched; past U+10FFFF (where the decoder
+// puts an ill-formed byte) nothing changes
+TEST(Utf8_Tests, TheCaseTablesMapAsTheirRanges) {
+    struct Case {
+        const detail::CaseTable* table;
+        char32_t (*name)(char32_t);
+        char32_t ascii_first;
+        int ascii_step;
+    };
+    for (auto [t, name, first, step] : {Case{&detail::unicode_tables::ToLower, [](char32_t c) { return unicode::to_lower(c); }, U'A', 32},
+                                        Case{&detail::unicode_tables::ToUpper, [](char32_t c) { return unicode::to_upper(c); }, U'a', -32}}) {
+        auto searched = [t](char32_t c) {
+            return c < 0x10000 ? detail::unicode_searched(c, t->bmp, t->bmp_size) : detail::unicode_searched(c, t->high, t->high_size);
+        };
+        size_t mapped = 0;
+        for (char32_t c = 0; c <= 0x10FFFF; ++c) {
+            char32_t was = c < 0x80 ? (c - first < 26 ? char32_t(int(c) + step) : c) : searched(c);
+            ASSERT_EQ(detail::unicode_mapped(c, *t), searched(c)) << uint32_t(c);
+            ASSERT_EQ(name(c), was) << uint32_t(c);
+            mapped += was != c;
+        }
+        EXPECT_GT(mapped, 1400u);
+        for (char32_t c : {char32_t(0x110000), char32_t(~0x80u), char32_t(~0xC2u), char32_t(~0xFFu), char32_t(0xFFFFFFFF)}) {
+            EXPECT_EQ(name(c), c) << uint32_t(c);
+        }
+    }
+}
+
 TEST(Utf8_Tests, TheCaseAndSpaceOfACodePoint) {
     static_assert(unicode::to_lower(U'A') == U'a' && unicode::to_upper(U'z') == U'Z' && unicode::to_lower(U'1') == U'1');
     static_assert(unicode::to_lower(U'Ł') == U'ł' && unicode::to_upper(U'ź') == U'Ź' && unicode::to_lower(U'Ó') == U'ó');
@@ -268,4 +299,96 @@ TEST(Utf8_Tests, CountingOverARunOfAscii) {
     EXPECT_EQ(utf8::count("日abcdefghijklmnop"), 17u);
     EXPECT_EQ(utf8::count(std::string(1000, 'a')), 1000u);
     EXPECT_EQ(utf8::count("\xE6\x97"), 2u);      // a truncated sequence is a code point a byte
+}
+
+namespace {
+    template<class S> concept SearchesACodePoint = requires(const S& x) {
+        x.find(U'ż');
+        x.rfind(U'ż');
+        x.contains(U'ż');
+        x.starts_with(U'ż');
+        x.ends_with(U'ż');
+        x.find_first_of(U'ż');
+        x.find_last_of(U'ż');
+        x.find_first_not_of(U'ż');
+        x.find_last_not_of(U'ż');
+        x.find_first_of(U"żó");
+        x.find_last_of(U"żó");
+        x.find_first_not_of(U"żó");
+        x.find_last_not_of(U"żó");
+    };
+}
+
+// A char32_t is a character in every text, as the header says: in a
+// UTF-8 one encoded into bytes, in a UTF-16 one into one unit or a
+// surrogate pair, in a UTF-32 one a unit; a std::u32string_view is a set
+// of characters walked by code points
+TEST(Utf8_Tests, ACharacterIsACodePointInAWideTextToo) {
+    EXPECT_TRUE(SearchesACodePoint<string>);
+    EXPECT_TRUE(SearchesACodePoint<wstring>);
+    EXPECT_TRUE(SearchesACodePoint<u16string>);
+    EXPECT_TRUE(SearchesACodePoint<slice<const char16_t>>);
+    EXPECT_TRUE(SearchesACodePoint<u32string>);
+    u16string u = u"a😀bż";   // a at 0, the pair at 1 and 2, b at 3, ż at 4
+    EXPECT_EQ(u.find(U'😀'), 1u);
+    EXPECT_EQ(u.find(U'ż'), 4u);
+    EXPECT_EQ(u.rfind(U'😀'), 1u);
+    EXPECT_TRUE(u.contains(U'😀') && !u.contains(U'😁'));
+    EXPECT_TRUE(u.starts_with(U'a') && u.ends_with(U'ż') && !u.ends_with(U'b'));
+    EXPECT_TRUE(u16string(u"😀x").starts_with(U'😀'));
+    EXPECT_EQ(u.find_first_of(U'😀'), 1u);
+    EXPECT_EQ(u.find_first_of(U"bż"), 3u);
+    EXPECT_EQ(u.find_last_of(U"a😀"), 1u);
+    EXPECT_EQ(u.find_first_not_of(U"a😀"), 3u);
+    EXPECT_EQ(u.find_last_not_of(U"bż"), 1u);
+    EXPECT_EQ(u.find_last_not_of(U'ż'), 3u);
+    EXPECT_EQ(u.find_last_of(U"😀", 1), 1u);   // the pair begins at the position
+    EXPECT_EQ(u.find_last_not_of(U"😀", 2), 0u);
+    wstring w = L"żółw😀";
+    EXPECT_EQ(w.find(U'ó'), 1u);
+    EXPECT_TRUE(w.contains(U'😀'));
+    EXPECT_EQ(w.find_first_of(U"łw"), 2u);
+    EXPECT_EQ(string("żółw").find_first_of(U'ó'), 2u);
+    EXPECT_EQ(string("żółw").find_last_not_of(U'w'), 4u);
+    slice<const char16_t> part = u.as_slice();
+    EXPECT_EQ(part.find(U'😀'), 1u);
+    EXPECT_TRUE(part.contains(U'😀'));
+    // trim by a set, replace and split by a code point
+    EXPECT_EQ(u16string(u"😀«x»😀").trim(U"«»😀"), u"x");
+    EXPECT_EQ(u16string(u"😀x").trim_left(U"😀"), u"x");
+    EXPECT_EQ(u16string(u"x😀").trim_right(U"😀"), u"x");
+    EXPECT_EQ(part.trim(U"a😀ż").str(), u"b");
+    EXPECT_EQ(u.replace(U'😀', U'-'), u"a-bż");
+    EXPECT_EQ(wstring(L"a·b").replace(U'·', U'😀'), L"a😀b");
+    size_t pieces = 0;
+    for (auto piece : u.split(U'😀')) {
+        pieces += piece.size();
+    }
+    EXPECT_EQ(pieces, 3u);
+    EXPECT_EQ(u16string::join(vector<u16string>{u"a", u"b"}, U'😀'), u"a😀b");
+}
+
+// A backward search from a position starts with the code point that
+// begins at or before it, a code point the position cuts included, as
+// std's start with the character at the position
+TEST(Utf8_Tests, ABackwardSearchFromAPositionTakesTheCodePointAtIt) {
+    string s = "aŁb";   // a at 0, Ł at 1 and 2, b at 3
+    EXPECT_EQ(s.rfind(U'Ł', 1), 1u);
+    EXPECT_EQ(s.find_last_of(U"Ł", 1), 1u);
+    EXPECT_EQ(s.find_last_not_of(U"Ł", 1), 0u);
+    EXPECT_EQ(s.find_last_of(U"Ł", 2), 1u);
+    EXPECT_EQ(s.find_last_not_of(U"Ł", 2), 0u);
+    EXPECT_EQ(s.find_last_of(U"Łb", 0), npos);
+    string emoji = "😀x";   // a sequence of four bytes
+    EXPECT_EQ(emoji.find_last_of(U"😀", 0), 0u);
+    EXPECT_EQ(emoji.find_last_of(U"😀", 2), 0u);
+}
+
+// The code points of a UTF-16 text: a surrogate pair is one
+TEST(Utf8_Tests, TheRunesOfAUtf16TextAreItsCodePoints) {
+    EXPECT_EQ(u16string(u"a😀b").rune_count(), 3u);
+    EXPECT_EQ(u16string(u"😀😀").rune_count(), 2u);
+    EXPECT_EQ(u16string(u"żółw").rune_count(), 4u);
+    EXPECT_EQ(wstring(L"a😀b").rune_count(), 3u);
+    EXPECT_EQ(u32string(U"a😀b").rune_count(), 3u);
 }

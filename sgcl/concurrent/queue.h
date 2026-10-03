@@ -59,7 +59,7 @@ namespace sgcl::concurrent {
             Node() noexcept = default;
 
             template<class... A>
-            explicit Node(std::in_place_t, A&&... a)
+            explicit Node(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::in_place, std::forward<A>(a)...) {
             }
 
@@ -80,7 +80,7 @@ namespace sgcl::concurrent {
 
         // An empty queue: the head and the tail address one node whose
         // element is taken
-        queue()
+        queue() noexcept
         : queue(make_tracked<Node>(typename Node::Taken{})) {
         }
 
@@ -116,16 +116,16 @@ namespace sgcl::concurrent {
         queue(const queue&) = delete;
         queue& operator=(const queue&) = delete;
 
-        void push(const T& value) {
+        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace(value);
         }
 
-        void push(T&& value) {
+        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace(std::move(value));
         }
 
         template<class... A>
-        void emplace(A&&... a) {
+        void emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             tracked_ptr<Node> node = make_tracked<Node>(std::in_place, std::forward<A>(a)...);
             tracked_ptr<Node> tail = _tail.load(std::memory_order_acquire);
             assert(tail && "a queue made unlinked, used before link()");
@@ -239,7 +239,7 @@ namespace sgcl::concurrent {
 
         // The first element, or nothing when the queue is empty at the
         // moment of the walk
-        optional<T> try_pop() {
+        optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             tracked_ptr<Node> last;
             return _pop(last);
         }
@@ -247,7 +247,7 @@ namespace sgcl::concurrent {
         // The first element, waiting for one when the queue is empty:
         // counted as waiting before the last look, so that the push
         // that links after it notifies (emplace)
-        T pop() {
+        T pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             for (;;) {
                 tracked_ptr<Node> last;
                 if (auto value = _pop(last)) {
@@ -296,7 +296,7 @@ namespace sgcl::concurrent {
         // the head swung to it, or past it, once the walk went two nodes
         // or more. `last` is the last node of the list when nothing was
         // found: what pop() waits on.
-        optional<T> _pop(tracked_ptr<Node>& last) {
+        optional<T> _pop(tracked_ptr<Node>& last) noexcept(std::is_nothrow_move_constructible_v<T>) {
         restart:
             tracked_ptr<Node> head = _head.load(std::memory_order_acquire);
             assert(head && "a queue made unlinked, used before link()");

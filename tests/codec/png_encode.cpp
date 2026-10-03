@@ -301,7 +301,7 @@ TEST(CodecPngEncode_Tests, AStreamAndAStreamThatFails) {
     for (auto& b : noise.pixels()) {
         b = byte(rng());
     }
-    auto big = codec::png::encode(noise);
+    vector<byte> big = codec::png::encode(noise);
     EXPECT_GT(big.size(), 3u * 65536);
     EXPECT_TRUE(same(*codec::png::decode(big), noise));
 }

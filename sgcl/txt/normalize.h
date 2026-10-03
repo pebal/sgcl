@@ -162,7 +162,7 @@ namespace sgcl::txt {
         // takes a text apart one combining sequence at a time and never
         // holds more than one
         template<bool Compatibility, class Buffer>
-        void decompose_into(Buffer& out, char32_t c) {
+        void decompose_into(Buffer& out, char32_t c) noexcept(noexcept(out.push_back(c))) {
             if (is_hangul_syllable(c)) {
                 unsigned s = unsigned(c - HangulSBase);
                 out.push_back(HangulLBase + s / HangulNCount);
@@ -200,7 +200,7 @@ namespace sgcl::txt {
         // standard fixes: a stable sort by the combining class, which
         // over runs this short is an insertion sort
         template<class Buffer>
-        void canonical_order(Buffer& buffer, size_t from = 1) {
+        void canonical_order(Buffer& buffer, size_t from = 1) noexcept {
             for (size_t i = from < 1 ? 1 : from; i < buffer.size(); ++i) {
                 uint8_t cc = ccc_fn(buffer[i]);
                 if (cc == 0) {
@@ -224,7 +224,7 @@ namespace sgcl::txt {
         // the last starter, and put back together what is not blocked
         // from it — a character is blocked when something between it and
         // the starter has a combining class of its own that is not lower
-        inline void compose_buffer(code_points& buffer) {
+        inline void compose_buffer(code_points& buffer) noexcept {
             if (buffer.empty()) {
                 return;
             }
@@ -252,12 +252,23 @@ namespace sgcl::txt {
 
         // Whether the text is already in the form, by the quick check
         // properties alone: "no" settles it, "maybe" does not and the
-        // caller has to do the work
-        inline bool quick_check_text(std::string_view text, unsigned form, bool& maybe) {
+        // caller has to do the work.
+        //
+        // An invalid byte is "no". It decodes as U+FFFD, whose own
+        // answer is "yes", and taken that way the byte stayed in a text
+        // the check passed and was replaced in one it did not: the same
+        // byte normalized two ways and called normalized or not by what
+        // stood elsewhere in the text. Now it is in no form, and a text
+        // with one is rebuilt with U+FFFD in its place.
+        inline bool quick_check_text(std::string_view text, unsigned form, bool& maybe) noexcept {
             uint8_t last = 0;
             maybe = false;
+            // gathered without a branch and asked at the end: a branch on
+            // every code point cost the check a tenth of its time
+            bool invalid = false;
             for (size_t i = 0; i < text.size();) {
                 auto [c, n] = utf8::decode(text, i);
+                invalid |= (c == utf8::replacement) & (n == 1);
                 i += n;
                 uint8_t cc = ccc_fn(c);
                 if (last > cc && cc != 0) {
@@ -272,12 +283,28 @@ namespace sgcl::txt {
                 }
                 last = cc;
             }
-            return true;
+            return !invalid;               // not UTF-8: a byte U+FFFD replaces
         }
 
+        // The loop below runs at a speed that depends on where it lands
+        // against a 64-byte boundary: with the same instructions, NFD of a
+        // line measured 6.7% slower when code elsewhere moved it, and the
+        // same with every function aligned to 64. Pinned to the boundary
+        // it does not move with what is built around it; the padding goes
+        // before the loop, which is entered by a jump, so it never runs.
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(clang::code_align)
+#define SGCL_TXT_ALIGN_LOOP [[clang::code_align(64)]]
+#endif
+#endif
+#ifndef SGCL_TXT_ALIGN_LOOP
+#define SGCL_TXT_ALIGN_LOOP
+#endif
+
         template<class Form>
-        void normalized_points(std::string_view text, Form form, code_points& buffer) {
+        void normalized_points(std::string_view text, Form form, code_points& buffer) noexcept {
             buffer.reserve(text.size());
+            SGCL_TXT_ALIGN_LOOP
             for (size_t i = 0; i < text.size();) {
                 auto [c, n] = utf8::decode(text, i);
                 i += n;
@@ -295,7 +322,10 @@ namespace sgcl::txt {
         // through a pointer, not appended one code point at a time: this
         // is the common exit of every normalization, of the full case
         // mappings and of decompose(), and appending cost 1021 ns over
-        // two hundred code points where writing costs 355.
+        // two hundred code points where writing costs 355. Every point
+        // must be a scalar value (one decoded from UTF-8 or out of a
+        // table): the room counts no bytes for any other, and encode
+        // would write three.
         inline string encoded(const code_points& points) {
             size_t bytes = 0;
             for (auto c : points) {
@@ -352,7 +382,7 @@ namespace sgcl::txt {
 
     // Whether two texts are the same text written differently: canonical
     // equivalence, which is what a search and a key of a map want
-    inline bool equal_normalized(const string& a, const string& b) {
+    inline bool equal_normalized(const string& a, const string& b) noexcept {
         if (a == b) {
             return true;
         }
@@ -366,7 +396,7 @@ namespace sgcl::txt {
     // The order of two texts, blind to the way they are written: negative
     // when a comes first, zero when they are the same text. Not a
     // language's order — that is what a collator is for
-    inline int compare_normalized(const string& a, const string& b) {
+    inline int compare_normalized(const string& a, const string& b) noexcept {
         detail::lent<detail::code_points> xs;
         detail::lent<detail::code_points> ys;
         detail::normalized_points(a.view(), nfd, *xs);
@@ -384,7 +414,7 @@ namespace sgcl::txt {
 
     // A hash two texts share when equal_normalized says they are one: the
     // key of a map that must not care which form a name arrived in
-    inline size_t hash_normalized(const string& text) {
+    inline size_t hash_normalized(const string& text) noexcept {
         size_t h = 14695981039346656037ull;
         detail::lent<detail::code_points> points;
         detail::normalized_points(text.view(), nfd, *points);
@@ -402,10 +432,12 @@ namespace sgcl::txt {
     // Hangul syllables included, which compose by arithmetic
     inline constexpr sgcl::detail::code_point_fn<detail::compose_pair> compose {};
 
-    // One code point taken apart as far as it goes, canonically
-    inline string decompose(char32_t c) {
+    // One code point taken apart as far as it goes, canonically. A value
+    // that is no code point (a surrogate, one past U+10FFFF) is the
+    // replacement character, as a text of the module writes one
+    inline string decompose(char32_t c) noexcept {
         detail::lent<detail::code_points> out;
-        detail::decompose_into<false>(*out, c);
+        detail::decompose_into<false>(*out, utf8::valid(c) ? c : utf8::replacement);
         detail::canonical_order(*out);
         return detail::encoded(*out);
     }

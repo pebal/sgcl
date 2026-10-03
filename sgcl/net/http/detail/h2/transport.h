@@ -39,11 +39,11 @@
 // the head) are timers on its stream: past one, the stream is reset
 // (CANCEL) and its reader gets ETIMEDOUT; the connection lives.
 namespace sgcl::net::http::detail::h2 {
-    inline int64_t client_clock_ns() {
+    inline int64_t client_clock_ns() noexcept {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(sgcl::clock::now().time_since_epoch()).count();
     }
 
-    inline io::error timed_out_error(const char* op) {
+    inline io::error timed_out_error(const char* op) noexcept {
         return io::error(error_code(ETIMEDOUT, std::system_category()), op, "HTTP/2 stream");
     }
 
@@ -73,11 +73,11 @@ namespace sgcl::net::http::detail::h2 {
         tracked_ptr<async::detail::Timer> deadline;
         tracked_ptr<async::detail::Timer> head_deadline;
 
-        explicit ClientStream(tracked_ptr<StreamOwner> owner)
+        explicit ClientStream(tracked_ptr<StreamOwner> owner) noexcept
         : StreamState(0, std::move(owner)), headed(1) {
         }
 
-        void cancel_timers() {
+        void cancel_timers() noexcept {
             for (auto* t : {&deadline, &head_deadline}) {
                 if (auto& x = *t) {
                     x->cancelled.store(true, std::memory_order_release);
@@ -97,13 +97,13 @@ namespace sgcl::net::http::detail::h2 {
 
     class ClientH2 final : public StreamOwner {
     public:
-        ClientH2(net::connection c, const TransportSettings& s)
+        ClientH2(net::connection c, const TransportSettings& s) noexcept
         : _c(std::move(c)), _idle_timeout(s.idle_timeout), _m(*this, s.machine), _wake(1) {
             _last_active = client_clock_ns();
         }
 
         // Called once, when the connection leaves service (its pool forgets it)
-        void set_on_closed(function<void()> f) {
+        void set_on_closed(function<void()> f) noexcept {
             _on_closed = std::move(f);
         }
 
@@ -111,7 +111,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A place for one request (a stream it will open); false when the
         // connection takes no more (going away, closed, its streams full)
-        bool reserve() {
+        bool reserve() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             if (_closed || !_m.can_open() || _m.open_streams() + _reserved >= _m.stream_limit()) {
                 return false;
@@ -120,7 +120,7 @@ namespace sgcl::net::http::detail::h2 {
             return true;
         }
 
-        void unreserve() {
+        void unreserve() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             if (_reserved) {
                 --_reserved;
@@ -129,13 +129,13 @@ namespace sgcl::net::http::detail::h2 {
 
         // The server's limit of streams, once its SETTINGS came (0 before):
         // a second connection to the origin starts from it, not from 100
-        uint32_t learned_limit() {
+        uint32_t learned_limit() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _m.peer_settings_received() ? _m.stream_limit() : 0;
         }
 
         // Whether the connection may take requests at all (not going away)
-        bool usable() {
+        bool usable() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return !_closed && !_m.goaway_received() && !_m.failed();
         }
@@ -170,7 +170,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // What became of a request's stream (open while nothing yet)
-        ClientStream::Fate fate_of(const tracked_ptr<ClientStream>& st) {
+        ClientStream::Fate fate_of(const tracked_ptr<ClientStream>& st) noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return st->fate;
         }
@@ -347,11 +347,11 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_goaway(uint32_t, ErrorCode) {
+        void on_goaway(uint32_t, ErrorCode) noexcept {
             _going_away = true;
         }
 
-        void on_ping_ack(const uint8_t*) {
+        void on_ping_ack(const uint8_t*) noexcept {
         }
 
         // --- StreamOwner ---------------------------------------------------------
@@ -377,21 +377,22 @@ namespace sgcl::net::http::detail::h2 {
             return {};
         }
 
-        async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) override {
+        async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) noexcept override {
             return _send_data(tracked_ptr<ClientH2>(this), id, std::move(data), end_stream, false);
         }
 
         // A request's body in memory as DATA in place: the frames' headers
         // in the machine's output, their payloads pieces of `data` where it
         // lies, written by the pump as the pieces of one write (TLS seals
-        // them there). The slice (its owner, the request's string or
-        // vector, never changed) is held until the write that takes them
-        // is done. A short piece is copied, as send_data copies
-        async::task<expected<void, io::error>> send_data_held(uint32_t id, slice<const byte> data, bool end_stream) {
+        // them there). Each piece is a slice of the body's owner (the
+        // request's string or vector, never changed), which it holds until
+        // the write that takes it is done. A short piece is copied, as
+        // send_data copies
+        async::task<expected<void, io::error>> send_data_held(uint32_t id, slice<const byte> data, bool end_stream) noexcept {
             return _send_data(tracked_ptr<ClientH2>(this), id, std::move(data), end_stream, true);
         }
 
-        static async::task<expected<void, io::error>> _send_data(tracked_ptr<ClientH2> h, uint32_t id, slice<const byte> data, bool end_stream, bool in_place) {
+        static async::task<expected<void, io::error>> _send_data(tracked_ptr<ClientH2> h, uint32_t id, slice<const byte> data, bool end_stream, bool in_place) noexcept {
             const uint8_t* p = reinterpret_cast<const uint8_t*>(data.data());
             size_t at = 0;
             for (;;) {
@@ -405,11 +406,7 @@ namespace sgcl::net::http::detail::h2 {
                         dead = true;
                     } else {
                         if (in_place && data.size() - at >= InPlaceMin) {
-                            const size_t k = h->_m.send_data_in_place(id, p + at, data.size() - at, end_stream);
-                            if (k) {
-                                h->_held.push_back(data);   // the owner kept until the pump's write of these pieces is done
-                            }
-                            at += k;
+                            at += h->_m.send_data_in_place(id, data.last(data.size() - at), end_stream);
                         } else {
                             at += h->_m.send_data(id, p + at, data.size() - at, end_stream);
                         }
@@ -487,7 +484,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        size_t streams() {
+        size_t streams() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _streams.size();
         }
@@ -501,9 +498,8 @@ namespace sgcl::net::http::detail::h2 {
         size_t _reserved = 0;
         std::string _block;                  // a field block being encoded (under the lock)
         std::string _send;                   // the output's own bytes, taken by the writer (swapped with the machine's)
-        std::vector<ClientConnection<ClientH2>::OutPiece> _send_pieces;   // the DATA payloads in place among them
+        vector<ClientConnection<ClientH2>::OutPiece> _send_pieces;   // the DATA payloads in place among them, each holding its body
         vector<slice<const byte>> _parts;    // the write's pieces in order (the pump's, kept for its room)
-        vector<slice<const byte>> _held;     // the bodies sent in place, held until the pump's next write is done (under the lock)
 
         // A body's piece shorter than this is copied into the output
         static constexpr size_t InPlaceMin = 512;
@@ -517,7 +513,7 @@ namespace sgcl::net::http::detail::h2 {
         bool _going_away = false;
         bool _write_closed = false;          // the pump's
 
-        tracked_ptr<ClientStream> _find(uint32_t id) {
+        tracked_ptr<ClientStream> _find(uint32_t id) noexcept {
             auto it = _streams.find(id);
             return it == _streams.end() ? tracked_ptr<ClientStream>() : it->second;
         }
@@ -528,14 +524,14 @@ namespace sgcl::net::http::detail::h2 {
 
         // The pieces of the pump's write in order: the output's own bytes up
         // to each payload in place, the payload, and the bytes after the last
-        void _gather() {
+        void _gather() noexcept {
             const byte* bytes = reinterpret_cast<const byte*>(_send.data());
             size_t at = 0;
             for (auto& q : _send_pieces) {
                 if (q.at > at) {
                     _parts.push_back(slice<const byte>(bytes + at, q.at - at));
                 }
-                _parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(q.p), q.n));
+                _parts.push_back(q.piece);
                 at = q.at;
             }
             if (_send.size() > at) {
@@ -545,7 +541,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // Both sides ended: the machine has let the stream go, so does the
         // table (the Body keeps the state for its reader)
-        void _forget_if_done(const tracked_ptr<ClientStream>& st) {
+        void _forget_if_done(const tracked_ptr<ClientStream>& st) noexcept {
             if (st->remote_ended && st->sent_all) {
                 _streams.erase(st->id);
             }
@@ -557,7 +553,7 @@ namespace sgcl::net::http::detail::h2 {
             _forget_if_done(st);
         }
 
-        void _local_end(uint32_t id) {
+        void _local_end(uint32_t id) noexcept {
             if (auto st = _find(id)) {
                 st->sent_all = true;
                 _forget_if_done(st);
@@ -614,7 +610,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The reader: frames fed to the machine until the end
-        static async::task<> _read(tracked_ptr<ClientH2> h) {
+        static async::task<> _read(tracked_ptr<ClientH2> h) noexcept {
             tracked_ptr wire = make_tracked<Wire>(h->_c);
             wire->reserve(size_t(h->_m.limits().max_frame_size) + FrameHeaderSize);
             for (;;) {
@@ -679,19 +675,16 @@ namespace sgcl::net::http::detail::h2 {
         // The one writer: the machine's output, taken under the lock, sent in
         // order. Taken whole: its own bytes swapped out (no copy), the DATA
         // payloads in place as pieces among them, one write of the pieces;
-        // the bodies they lie in held until that write is done
-        static async::task<> _pump(tracked_ptr<ClientH2> h) {
+        // the bodies they lie in held by the pieces until that write is done
+        static async::task<> _pump(tracked_ptr<ClientH2> h) noexcept {
             bool open = true;
             while (open) {
                 open = co_await h->_wake.receive();
                 for (;;) {
                     bool closing = false;
-                    vector<slice<const byte>> held;
                     {
                         std::lock_guard<std::mutex> g(h->_lock);
                         h->_m.take_output(h->_send, h->_send_pieces);
-                        held = std::move(h->_held);
-                        h->_held = vector<slice<const byte>>();
                         closing = h->_closed && h->_streams.empty();
                     }
                     if (h->_send.empty()) {
@@ -715,7 +708,6 @@ namespace sgcl::net::http::detail::h2 {
                         h->_parts.clear();
                         h->_send_pieces.clear();
                     }
-                    held.clear();   // the bodies' bytes written: their owners let go
                     if (!r) {
                         (void)h->_c.close();   // the reader wakes and ends the streams
                         open = false;
@@ -734,7 +726,7 @@ namespace sgcl::net::http::detail::h2 {
         // (serve.h): asleep, it keeps nothing of it alive, and a connection
         // that has ended is garbage at once, not a tick later (with its
         // TLS state, its buffers, the pool it points to)
-        static int64_t _tick_period(duration idle_timeout) {
+        static int64_t _tick_period(duration idle_timeout) noexcept {
             int64_t period = 1'000'000'000;
             if (idle_timeout > duration::zero()) {
                 period = std::min(period, std::max<int64_t>(10'000'000, idle_timeout.nanoseconds() / 4));
@@ -742,7 +734,7 @@ namespace sgcl::net::http::detail::h2 {
             return period;
         }
 
-        static async::task<> _ticker(weak_ptr<ClientH2> weak, int64_t period) {
+        static async::task<> _ticker(weak_ptr<ClientH2> weak, int64_t period) noexcept {
             for (;;) {
                 co_await async::after(std::chrono::nanoseconds(period));
                 tracked_ptr<ClientH2> h = weak.lock();

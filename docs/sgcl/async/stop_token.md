@@ -1,88 +1,87 @@
-# sgcl::async::stop_source, sgcl::async::stop_token
+[sgcl](../README.md) › [async](README.md)
+
+# sgcl::async::stop_token
 
 ```cpp
-#include "sgcl/async/stop_token.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/stop_token.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    class stop_source;   // requests the stop; a child when made from a token
-    class stop_token;    // sees it: a case of a select, an awaitable, a flag
+    class stop_token;
 }
 ```
 
-Cancellation, the way Go's `context` has it, under the names of `std::stop_source` and `std::stop_token`: a source requests the stop, the tokens handed down see it. What makes it fit the rest: a token is a [channel](channel.md) of signals closed when the stop is requested, so that a wait is cancelled the way anything else is waited for — a case of a [select](select.md) (`token.on_stop(f)`) beside the receive it bounds, or `co_await token.stopped()` on its own. A deadline is a timer that requests the stop (`source.stop_after(d)`, or `source.stop_at(t)` at a point; [timer](timer.md)). A source made from a token is a child: it stops when its parent stops and on its own, never the other way round, so that a request handler's source stops with the connection's, which stops with the server's. The parent knows its children through weak pointers: a child that is gone costs nothing, and a thousand children made and dropped leave nothing to walk.
+The side of cancellation a task sees: a [stop_source](stop_source.md) requests the stop, the tokens handed down
+from it see it. It is the standard's `std::stop_token` by name and Go's `context.Context` by use: a task takes a
+token as a parameter, hands it to what it calls, and stops itself when it sees the stop; nothing stops a task from
+outside.
 
-The state is a managed object; a source or a token is one word, copied freely, alive while any copy is, or a timer holds it. Nothing is freed, nothing counted: a token kept in a task's frame, in a managed object or on a stack keeps the state, and a state nobody holds is garbage.
+What makes it fit the rest of the module: a token is a [channel](channel.md) of signals closed when the stop is
+requested, so a wait is cancelled the way anything else is waited for. `token.on_stop(f)` is a case of a
+[select](select.md) beside the receive it bounds; `co_await token.stopped()` waits for the stop alone;
+`token.channel()` is the channel itself, from its receiving end (a [receive_channel](receive_channel.md));
+`token.stop_requested()` is a look, for a loop that computes. Where `std::stop_token` registers callbacks
+(`std::stop_callback`), this one is waited on, so a task waiting for a stop holds no thread, and a stop ends every
+wait on the token at once, in threads and tasks alike.
+
+The state is a managed object, shared with the source and its other tokens; a token is one word, copied freely,
+and keeps the state alive while any copy is. Nothing is freed and nothing counted: a state nobody holds is garbage.
 
 ## Rules
 
-- `request_stop()` closes the token's channel: every wait on it, in a thread or a task, ends at once; the bodies of `on_stop` cases run in their selects; then the children are stopped, in no particular order. A second request is nothing.
-- `stop_requested()` is the channel's `closed()`: a load. A token made by default (`async::stop_token()`) has no source: `stop_possible()` is false and it never stops.
-- A source lives where a `tracked_ptr` may: on a stack or inside a managed object; a token the same. A token handed to a thread's closure goes through a [`root_ptr`](../core/root_ptr.md) or by reference, as any tracked pointer does ([The rules](../core/README.md#the-rules), 1).
-- The stop is a state, not an event: a wait that starts after the stop ends at once, a child made after the stop is stopped at once. A parent keeps a weak entry per child made under it, and drops the entries of children gone as new ones register, so a long-lived source with a child per request holds no more than the live ones. `on_stop`, `stopped()` and `channel()` of an empty token are an error (an assertion in debug builds): `stop_possible()` says.
+- A token lives where a `tracked_ptr` may ([The rules](../core/README.md#the-rules), 1): on a stack, in a task's
+  frame, inside a managed object, in the closure of an `sgcl::thread`; in a global or a std container, a
+  `rooted<async::stop_token>`.
+- The stop is a state, not an event: a wait that starts after the stop ends at once.
+- A token made by default has no source: it never stops, `stop_possible()` is `false`, and `on_stop`, `stopped()`
+  and `channel()` of it are an error (an assertion in debug builds). A function that takes a token it may be given
+  empty looks at `stop_possible()` first.
+- Every member may be called from any thread at any time.
 
-## Members
+## Member functions
 
-### stop_token
+| Function | Description |
+|---|---|
+| [(constructor)](stop_token/stop_token.md) | constructs a token with no source, which never stops |
 
-```cpp
-stop_token() noexcept;                              // no source: never stops
-bool stop_requested() const noexcept;
-bool stop_possible() const noexcept;                // has a source
-async::channel<void> channel() const noexcept;      // the channel closed by the stop: a handle to it
-template<class F> auto on_stop(F f) const;          // a case of a select: f() when stopped
-auto stopped() const;                               // an operation of nothing: co_await token.stopped(), token.stopped().wait()
-bool operator==(const stop_token&, const stop_token&) noexcept;   // the same source
-```
+#### Observers
 
-### stop_source
+| Function | Description |
+|---|---|
+| [stop_requested](stop_token/stop_requested.md) | checks whether the stop has been requested |
+| [stop_possible](stop_token/stop_possible.md) | checks whether the token has a source |
+| [channel](stop_token/channel.md) | the receiving end of the channel the stop closes |
 
-```cpp
-stop_source();
-explicit stop_source(const async::stop_token& parent);     // a child: stopped with the parent
-async::stop_token token() const noexcept;
-bool stop_requested() const noexcept;
-void request_stop();
-void stop_after(duration d);                               // the stop by a timer: a deadline, the children stopped too
-void stop_at(time_point when);                             // the same at a point of the module's clock
-```
+#### Waiting
 
-```cpp
-async::stop_source server;
-async::stop_source connection(server.token());       // stops with the server
-connection.stop_after(30s);                         // or on its own, in 30 s
-async::stop_token tok = connection.token();
-async::channel<int> requests(8);
-bool running = true;
-while (running) {
-    async::select(
-        requests.on_receive([&](int r) { /* serve */ }),
-        tok.on_stop([&] { running = false; })       // the server stopped, or the deadline
-    );
-}
-```
+| Function | Description |
+|---|---|
+| [stopped](stop_token/stopped.md) | waits for the stop |
+| [on_stop](stop_token/on_stop.md) | the stop as a case of a select |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](stop_token/operator_cmp.md) | checks whether two tokens belong to the same source |
 
 ## Example
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-using namespace std::chrono_literals;
-
-// A server with workers: each worker serves requests until its token
-// says stop; the server's source stops them all, a worker's own deadline
-// stops it alone. The tokens live in the tasks' frames, on the managed
-// heap, and the state they share is garbage once the last is gone.
-async::task<int> worker(async::channel<int> requests, async::stop_token tok) {
+// A worker serves requests until its token says stop; the stop is one more
+// case of its select, and the worker waits on both holding no thread
+async::task<int> worker(async::channel<int> requests, async::stop_token token) {
     int served = 0;
     bool running = true;
     while (running) {
         co_await async::select(
             requests.on_receive([&](int) { ++served; }),
-            tok.on_stop([&] { running = false; })
+            token.on_stop([&] { running = false; })
         );
     }
     co_return served;
@@ -90,18 +89,14 @@ async::task<int> worker(async::channel<int> requests, async::stop_token tok) {
 
 int main() {
     async::stop_source server;
-    async::channel<int> requests(8);
-    async::stop_source short_lived(server.token());
-    short_lived.stop_after(20ms);                                   // this worker's deadline
+    async::channel<int> requests;
     auto a = async::spawn(worker(requests, server.token()));
-    auto b = async::spawn(worker(requests, short_lived.token()));
+    auto b = async::spawn(worker(requests, server.token()));
     for (int i : range(10)) {
         requests.send(i).wait();
     }
-    this_thread::sleep_for(50ms);                              // b's deadline passes
-    server.request_stop();                                          // a stops; b already did
+    server.request_stop();
     println("{} served", a.wait() + b.wait());
-    return a.result() + b.result() == 10 ? 0 : 1;
 }
 ```
 
@@ -113,5 +108,8 @@ Output:
 
 ## See also
 
-- [select](select.md): where `on_stop` is a case; [timer](timer.md): the deadline; [channel](channel.md): what a token is
-- `tests/async/stop_token.cpp`: every behaviour above, checked.
+- [stop_source](stop_source.md): the side that requests the stop, a deadline included
+- [select](select.md): where `on_stop` is a case
+- [with_deadline](with_deadline.md): a task raced against a token's stop
+- [task_group](task_group.md): a scope of tasks stopped as one
+- [run](run.md): the program's token, stopped by SIGINT or SIGTERM

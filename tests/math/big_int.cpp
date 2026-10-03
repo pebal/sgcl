@@ -100,7 +100,7 @@ TEST(BigInt_Tests, SixteenBytes) {
     static_assert(std::is_nothrow_constructible_v<big_integer, int>);
     static_assert(std::is_nothrow_constructible_v<big_integer, int64_t>);
     static_assert(std::is_nothrow_constructible_v<big_integer, uint32_t>);
-    static_assert(!std::is_nothrow_constructible_v<big_integer, uint64_t>);   // above INT64_MAX it allocates
+    static_assert(std::is_nothrow_constructible_v<big_integer, uint64_t>);    // above INT64_MAX it allocates, which never throws (DESIGN 356)
     static_assert(!std::is_constructible_v<big_integer, bool>);
     static_assert(!std::is_convertible_v<double, big_integer>);
     SUCCEED();

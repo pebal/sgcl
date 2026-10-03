@@ -6,20 +6,24 @@
 #pragma once
 
 #include "block.h"
+#include "copy.h"
 #include "deflate.h"
 #include "inflate.h"
 #include "../error.h"
 #include "../level.h"
+#include "../limits.h"
 #include "../../async/scheduler.h"
 #include "../../core/aliases.h"
 #include "../../core/expected.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
+#include "../../core/utf8.h"
 #include "../../core/vector.h"
 #include "../../hash/adler32.h"
 #include "../../hash/crc32.h"
 #include "../../io/stream.h"
 #include "../../time/datetime.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -28,36 +32,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-namespace sgcl::compress {
-    // A limit on what a decompression of data in memory makes: data from
-    // outside may decompress a thousand times over (a "bomb"), so the
-    // functions of the module stop at max_size bytes with errc::too_large.
-    // limits{UINT64_MAX} lifts it. A stream has none: its reader decides
-    // how much it reads (io::limit_reader over it). max_memory bounds the
-    // memory a decoder takes because the data asks for it (LZMA's
-    // dictionary, whose size the header gives), in memory and in a
-    // stream alike: more is errc::too_large before anything is allocated.
-    // max_entries bounds the entries an archive's header may list (7z):
-    // its table is made before any entry is read.
-    struct limits {
-        uint64_t max_size = uint64_t(1) << 30;
-        uint64_t max_memory = uint64_t(1) << 30;
-        uint64_t max_entries = 1000000;
-    };
-
-    // gzip's header (RFC 1952): every field optional. The name and the
-    // comment are ISO 8859-1 in the format; a program's are UTF-8 and are
-    // converted both ways, a character past U+00FF being invalid_argument
-    // when written.
-    struct gzip_header {
-        string name;
-        string comment;
-        optional<time::datetime> modified;
-        vector<byte> extra;
-        uint8_t os = 255;   // 255: unknown, as Go writes
-    };
-}
 
 namespace sgcl::compress::detail {
     using namespace sgcl::detail;
@@ -79,7 +53,7 @@ namespace sgcl::compress::detail {
     // let go at the end of its call.
     class LentOutput {
     public:
-        LentOutput() {
+        LentOutput() noexcept {
             auto& k = _kept();
             for (auto& slot : k.slots) {
                 if (!slot.lent) {
@@ -130,13 +104,99 @@ namespace sgcl::compress::detail {
         Slot* _slot = nullptr;
     };
 
-    inline vector<byte> to_vector(const uint8_t* p, size_t n) {
+    // The Deflater of a whole compress in memory, lent by the thread as
+    // LentOutput's room is: kept from one call to the next and reset to the
+    // call's level, so that a small compress does not allocate and clear
+    // its window and tables (some 0.9 MB at level 6) each time. The kept
+    // one holds the largest tables of the levels the thread has used, for
+    // the thread's life. A call made while it is out gets one of its own.
+    // Only for a compress that ends within the call: a stream's Deflater
+    // may live across a suspension or move to another thread.
+    class LentDeflater {
+    public:
+        LentDeflater(int level, const uint8_t* dictionary, size_t dictionary_size, size_t input_size) noexcept {
+            auto& k = _kept();
+            if (k.lent) {
+                _own = std::make_unique<Deflater>(level, dictionary, dictionary_size);
+                _deflater = _own.get();
+                return;
+            }
+            if (k.deflater) {
+                k.deflater->reset(level, dictionary, dictionary_size, input_size);
+            } else {
+                k.deflater = std::make_unique<Deflater>(level, dictionary, dictionary_size);
+            }
+            k.lent = true;
+            _kept_by = &k;
+            _deflater = k.deflater.get();
+        }
+
+        LentDeflater(const LentDeflater&) = delete;
+        LentDeflater& operator=(const LentDeflater&) = delete;
+
+        ~LentDeflater() {
+            if (_kept_by) {
+                _kept_by->lent = false;
+            }
+        }
+
+        Deflater& operator*() const noexcept {
+            return *_deflater;
+        }
+
+        Deflater* operator->() const noexcept {
+            return _deflater;
+        }
+
+        // the thread's own Deflater (not one made because it was out)
+        bool kept() const noexcept {
+            return _kept_by != nullptr;
+        }
+
+    private:
+        struct Kept {
+            std::unique_ptr<Deflater> deflater;
+            bool lent = false;
+        };
+
+        static Kept& _kept() noexcept {
+            thread_local Kept kept;
+            return kept;
+        }
+
+        Deflater* _deflater = nullptr;
+        std::unique_ptr<Deflater> _own;
+        Kept* _kept_by = nullptr;
+    };
+
+    // The move assignment of a reader or a writer of the module: the
+    // object made anew from the other by its move constructor, which
+    // leaves the other closed; a move onto itself changes nothing
+    template<class T>
+    T& move_into(T& to, T&& from) noexcept {
+        static_assert(std::is_final_v<T> && std::is_nothrow_move_constructible_v<T>);
+        if (&to != &from) {
+            to.~T();
+            ::new (static_cast<void*>(std::addressof(to))) T(std::move(from));
+        }
+        return to;
+    }
+
+    // What a reader moved from says to every read: it has no stream (its
+    // stream went with the move), as a closed one; no place in any data
+    inline error moved_from_error(const char* format) noexcept {
+        error e(io::error(io::errc::closed, "read", format), 0);
+        return std::move(ErrorAccess::without_place(e));
+    }
+
+    inline vector<byte> to_vector(const uint8_t* p, size_t n) noexcept {
         auto b = reinterpret_cast<const byte*>(p);
         return vector<byte>(b, b + n);
     }
 
     // ISO 8859-1 to UTF-8, and back (nullopt for a character past U+00FF
-    // or text that is not UTF-8)
+    // or text that is not UTF-8). The first may throw: more than 2 GiB of
+    // ISO 8859-1 is a text past string's 4 GiB (length_error)
     inline string latin1_to_utf8(const uint8_t* p, size_t n) {
         std::string s;
         s.reserve(n);
@@ -151,7 +211,7 @@ namespace sgcl::compress::detail {
         return string(s);
     }
 
-    inline optional<std::string> utf8_to_latin1(const string& text) {
+    inline optional<std::string> utf8_to_latin1(const string& text) noexcept {
         std::string s;
         auto v = text.view();
         for (size_t i = 0; i < v.size(); ++i) {
@@ -172,14 +232,39 @@ namespace sgcl::compress::detail {
         return s;
     }
 
+    // A name or a comment of gzip's header as written: ISO 8859-1, as the
+    // format has it (RFC 1952, 2.3.1), where every character fits and the
+    // bytes cannot be taken for UTF-8 when read; else the text's own bytes,
+    // as gzip(1) writes a file's name — UTF-8 past U+00FF, and a name that
+    // is not UTF-8 as it is. Read (gzip_text), bytes that are UTF-8 are
+    // taken as they are and others as ISO 8859-1, so whatever a program
+    // writes reads back the same: é is E9, which is not UTF-8; Ã© would be
+    // C3 A9, which is (é), so it goes as its UTF-8, C3 83 C2 A9
+    inline std::string gzip_text_bytes(const string& text) noexcept {
+        auto latin1 = utf8_to_latin1(text);
+        if (latin1 && !utf8::valid(*latin1)) {
+            return std::move(*latin1);
+        }
+        return std::string(text.view());   // ASCII, or the UTF-8 (or other) bytes
+    }
+
+    // May throw as latin1_to_utf8 does
+    inline string gzip_text(const uint8_t* p, size_t n) {
+        std::string_view v(reinterpret_cast<const char*>(p), n);
+        if (utf8::valid(v)) {
+            return string(v);
+        }
+        return latin1_to_utf8(p, n);
+    }
+
     template<class Out>
-    void put_le32(Out& out, uint32_t v) {
+    void put_le32(Out& out, uint32_t v) noexcept {
         uint8_t b[4] = {uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16), uint8_t(v >> 24)};
         out.insert(out.end(), b, b + 4);
     }
 
     template<class Out>
-    void put_be32(Out& out, uint32_t v) {
+    void put_be32(Out& out, uint32_t v) noexcept {
         uint8_t b[4] = {uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v)};
         out.insert(out.end(), b, b + 4);
     }
@@ -212,27 +297,31 @@ namespace sgcl::compress::detail {
         }
     };
 
-    // The three wrappings of DEFLATE: what goes before the data and after
-    // it, and the checksum between. A format is a value the stream keeps:
+    // The three wrappings of DEFLATE (gzip's GzipFormat in gzip.h): what
+    // goes before the data and after it, and the checksum between. A
+    // format is a value the stream keeps:
     //   name                       "gzip", for the messages
-    //   start(out) / finish(out)   the writer's header and trailer
+    //   start(out) / finish(out)   the writer's header and trailer; start gives what
+    //                              is wrong with a header it cannot write (nullptr: written)
+    //   refuses                    whether start may refuse a header
     //   header(p, n) / trailer(p, n)   the reader's, parsed from the bytes there are
     //   update(p, n)               the checksum over the data
     //   members                    whether another member may follow the trailer
     struct FlateFormat {
         static constexpr const char* name = "flate";
         static constexpr bool members = false;
+        static constexpr bool refuses = false;
 
         template<class Out>
-        optional<error> start(Out&, int) {
-            return nullopt;
+        const char* start(Out&, int) noexcept {
+            return nullptr;
         }
 
         void update(const uint8_t*, size_t) noexcept {
         }
 
         template<class Out>
-        void finish(Out&) {
+        void finish(Out&) noexcept {
         }
 
         Parsed header(const uint8_t*, size_t) noexcept {
@@ -250,11 +339,12 @@ namespace sgcl::compress::detail {
     struct ZlibFormat {
         static constexpr const char* name = "zlib";
         static constexpr bool members = false;
+        static constexpr bool refuses = false;
         optional<uint32_t> dictionary_id;   // of the dictionary given (the writer's), or the one the stream asks for (the reader's)
         hash::adler32 sum;
 
         template<class Out>
-        optional<error> start(Out& out, int lvl) {
+        const char* start(Out& out, int lvl) noexcept {
             // CMF: deflate, a window of 32 KB; FLG: the level's hint, FDICT, the check bits
             uint8_t cmf = 0x78;
             uint8_t hint = lvl == level::store || lvl == level::huffman_only || lvl == level::fastest ? 0 : lvl < level::standard ? 1 : lvl == level::standard ? 2 : 3;
@@ -268,7 +358,7 @@ namespace sgcl::compress::detail {
             if (dictionary_id) {
                 put_be32(out, *dictionary_id);
             }
-            return nullopt;
+            return nullptr;
         }
 
         void update(const uint8_t* p, size_t n) noexcept {
@@ -276,7 +366,7 @@ namespace sgcl::compress::detail {
         }
 
         template<class Out>
-        void finish(Out& out) {
+        void finish(Out& out) noexcept {
             put_be32(out, sum.value());
         }
 
@@ -317,148 +407,6 @@ namespace sgcl::compress::detail {
         }
     };
 
-    struct GzipFormat {
-        static constexpr const char* name = "gzip";
-        static constexpr bool members = true;
-        static constexpr size_t MaxHeader = size_t(1) << 20;
-        gzip_header head;
-        hash::crc32 sum;
-        uint32_t size = 0;
-
-        template<class Out>
-        optional<error> start(Out& out, int lvl) {
-            auto name = utf8_to_latin1(head.name);
-            auto comment = utf8_to_latin1(head.comment);
-            if (!name || !comment) {
-                return error(errc::invalid_argument, 0, "gzip: a header string with a character past U+00FF, which ISO 8859-1 cannot write");
-            }
-            if (name->find('\0') != std::string::npos || comment->find('\0') != std::string::npos) {
-                return error(errc::invalid_argument, 0, "gzip: a header string with a NUL");
-            }
-            if (head.extra.size() > 65535) {
-                return error(errc::invalid_argument, 0, "gzip: extra field longer than 65535 bytes");
-            }
-            uint8_t flags = 0;
-            if (!head.extra.empty()) flags |= 4;
-            if (!name->empty()) flags |= 8;
-            if (!comment->empty()) flags |= 16;
-            out.push_back(0x1F);
-            out.push_back(0x8B);
-            out.push_back(8);
-            out.push_back(flags);
-            int64_t t = head.modified ? head.modified->unix() : 0;
-            put_le32(out, t > 0 && t <= int64_t(UINT32_MAX) ? uint32_t(t) : 0);
-            out.push_back(lvl == level::smallest ? 2 : lvl == level::fastest ? 4 : 0);
-            out.push_back(head.os);
-            if (flags & 4) {
-                out.push_back(uint8_t(head.extra.size()));
-                out.push_back(uint8_t(head.extra.size() >> 8));
-                auto e = reinterpret_cast<const uint8_t*>(head.extra.data());
-                out.insert(out.end(), e, e + head.extra.size());
-            }
-            if (flags & 8) {
-                out.insert(out.end(), name->begin(), name->end());
-                out.push_back(0);
-            }
-            if (flags & 16) {
-                out.insert(out.end(), comment->begin(), comment->end());
-                out.push_back(0);
-            }
-            return nullopt;
-        }
-
-        void update(const uint8_t* p, size_t n) noexcept {
-            sum.update(slice<const byte>(reinterpret_cast<const byte*>(p), n));
-            size += uint32_t(n);
-        }
-
-        template<class Out>
-        void finish(Out& out) {
-            put_le32(out, sum.value());
-            put_le32(out, size);
-        }
-
-        Parsed header(const uint8_t* p, size_t n) {
-            if (n < 10) {
-                return Parsed::need();
-            }
-            if (p[0] != 0x1F || p[1] != 0x8B) {
-                return Parsed::fail(errc::invalid_header, "gzip: not a gzip stream");
-            }
-            if (p[2] != 8) {
-                return Parsed::fail(errc::unsupported, "gzip: compression method other than deflate");
-            }
-            uint8_t flags = p[3];
-            if (flags & 0xE0) {
-                return Parsed::fail(errc::invalid_header, "gzip: reserved header flags set");
-            }
-            size_t at = 10;
-            gzip_header h;
-            uint32_t mtime = le32(p + 4);
-            if (mtime) {
-                h.modified = time::datetime::from_unix(int64_t(mtime), time::zone::utc());
-            }
-            h.os = p[9];
-            if (flags & 4) {
-                if (n < at + 2) {
-                    return n >= MaxHeader ? Parsed::fail(errc::too_large, "gzip: header longer than 1 MiB") : Parsed::need();
-                }
-                size_t xlen = size_t(p[at]) | size_t(p[at + 1]) << 8;
-                at += 2;
-                if (n < at + xlen) {
-                    return Parsed::need();
-                }
-                h.extra = to_vector(p + at, xlen);
-                at += xlen;
-            }
-            for (int field = 0; field < 2; ++field) {
-                if (!(flags & (field == 0 ? 8 : 16))) {
-                    continue;
-                }
-                auto end = static_cast<const uint8_t*>(std::memchr(p + at, 0, n - at));
-                if (!end) {
-                    return n >= MaxHeader ? Parsed::fail(errc::too_large, "gzip: header longer than 1 MiB") : Parsed::need();
-                }
-                auto text = latin1_to_utf8(p + at, size_t(end - (p + at)));
-                (field == 0 ? h.name : h.comment) = text;
-                at = size_t(end - p) + 1;
-            }
-            if (flags & 2) {
-                if (n < at + 2) {
-                    return Parsed::need();
-                }
-                // the header's CRC-16: the low half of the CRC-32 of the header before it
-                uint16_t want = uint16_t(p[at] | p[at + 1] << 8);
-                if (uint16_t(hash::crc32::of(slice<const byte>(reinterpret_cast<const byte*>(p), at))) != want) {
-                    return Parsed::fail(errc::checksum, "gzip: header CRC-16 mismatch");
-                }
-                at += 2;
-            }
-            head = h;
-            sum = hash::crc32();
-            size = 0;
-            return Parsed::done(at);
-        }
-
-        Parsed trailer(const uint8_t* p, size_t n) noexcept {
-            if (n < 8) {
-                return Parsed::need();
-            }
-            if (le32(p) != sum.value()) {
-                return Parsed::fail(errc::checksum, "gzip: CRC-32 mismatch");
-            }
-            if (le32(p + 4) != size) {
-                return Parsed::fail(errc::corrupt, "gzip: length in the trailer does not match the data");
-            }
-            return Parsed::done(8);
-        }
-
-        void reset() noexcept {
-            sum = hash::crc32();
-            size = 0;
-        }
-    };
-
     // The compressing half of a stream: what is written is compressed,
     // in pieces of 64 KB of input, and what the pieces make is written to
     // out as it comes. The task's forms yield between the pieces, so that
@@ -478,7 +426,7 @@ namespace sgcl::compress::detail {
 
     public:
 
-        DeflateWriter(const io::writer& out, int level, const Format& format, const slice<const byte>& dictionary)
+        DeflateWriter(const io::writer& out, int level, const Format& format, const slice<const byte>& dictionary) noexcept
         : _out(out)
         , _format(format)
         , _level(level)
@@ -488,8 +436,30 @@ namespace sgcl::compress::detail {
 
         DeflateWriter(const DeflateWriter&) = delete;
         DeflateWriter& operator=(const DeflateWriter&) = delete;
-        DeflateWriter(DeflateWriter&&) noexcept = default;
-        DeflateWriter& operator=(DeflateWriter&&) noexcept = default;
+
+        // The other left closed, its stream and its encoder gone with the
+        // move (its settings kept: the format, the level, the dictionary):
+        // its writes give io::errc::closed, its close does nothing, and a
+        // reset gives it a new stream. The derived class assigns through
+        // move_into.
+        DeflateWriter(DeflateWriter&& o) noexcept
+        : _out(std::move(o._out))
+        , _format(o._format)
+        , _level(o._level)
+        , _dictionary(o._dictionary)
+        , _deflater(std::move(o._deflater))
+        , _pending(std::move(o._pending))
+        , _error(std::move(o._error))
+        , _started(o._started)
+        , _closed(o._closed) {
+            o._out = io::writer();
+            o._pending = ManagedOutput();
+            o._error = nullopt;
+            o._started = true;
+            o._closed = true;
+        }
+
+        DeflateWriter& operator=(DeflateWriter&&) = delete;
 
         expected<size_t, io::error> write(const slice<const byte>& data) {
             if (auto e = _check("write")) {
@@ -510,7 +480,7 @@ namespace sgcl::compress::detail {
             return data.size();
         }
 
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
             if (auto e = _check("write")) {
                 co_return io::detail::fail(*e);
             }
@@ -543,7 +513,7 @@ namespace sgcl::compress::detail {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_flush() {
+        async::task<expected<void, io::error>> async_flush() noexcept {
             if (auto e = _check("flush")) {
                 co_return io::detail::fail(*e);
             }
@@ -571,7 +541,7 @@ namespace sgcl::compress::detail {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             if (_closed && !_error) {
                 co_return expected<void, io::error>();
             }
@@ -602,9 +572,13 @@ namespace sgcl::compress::detail {
 
         // A new stream into out with the same settings: the encoder's
         // memory kept, nothing of the old stream carried over
-        void reset(const io::writer& out) {
+        void reset(const io::writer& out) noexcept {
             _out = out;
-            _deflater->reset(_dictionary.data(), _dictionary.size());
+            if (_deflater) {
+                _deflater->reset(_dictionary.data(), _dictionary.size());
+            } else {
+                _deflater = std::make_unique<Deflater>(_level, _dictionary.data(), _dictionary.size());   // moved from: its encoder went with the move
+            }
             _format.reset();
             _pending.clear();
             _started = false;
@@ -619,7 +593,7 @@ namespace sgcl::compress::detail {
 
     private:
         // the header before the first bytes, and the errors that stop everything
-        optional<io::error> _check(const char* op) {
+        optional<io::error> _check(const char* op) noexcept {
             if (_error) {
                 return _error;
             }
@@ -629,8 +603,10 @@ namespace sgcl::compress::detail {
             }
             if (!_started) {
                 _started = true;
-                if (auto e = _format.start(_pending, _level)) {
-                    _error = io::error(make_error_code(e->code()), op, Format::name);
+                if (auto wrong = _format.start(_pending, _level)) {
+                    // what is wrong with the header in the place of the format's name:
+                    // "write gzip: a name with a NUL: invalid argument"
+                    _error = io::error(make_error_code(errc::invalid_argument), op, string(wrong));
                     return _error;
                 }
             }
@@ -650,7 +626,7 @@ namespace sgcl::compress::detail {
             return nullopt;
         }
 
-        async::task<optional<io::error>> _async_drain() {
+        async::task<optional<io::error>> _async_drain() noexcept {
             if (_pending.empty()) {
                 co_return nullopt;
             }
@@ -691,7 +667,7 @@ namespace sgcl::compress::detail {
 
     public:
 
-        InflateReader(const io::reader& in, const slice<const byte>& dictionary, bool single_member = false)
+        InflateReader(const io::reader& in, const slice<const byte>& dictionary, bool single_member = false) noexcept
         : _in(in)
         , _dictionary(bytes(dictionary), bytes(dictionary) + dictionary.size())
         , _state(std::make_unique<InflateState>())
@@ -703,8 +679,40 @@ namespace sgcl::compress::detail {
 
         InflateReader(const InflateReader&) = delete;
         InflateReader& operator=(const InflateReader&) = delete;
-        InflateReader(InflateReader&&) noexcept = default;
-        InflateReader& operator=(InflateReader&&) noexcept = default;
+
+        // The other left without a stream, its decoder and its buffers gone
+        // with the move (its dictionary kept): its reads give
+        // io::errc::closed, its close closes nothing, and a reset gives it a
+        // new stream. The derived class assigns through move_into.
+        InflateReader(InflateReader&& o) noexcept
+        : _in(std::move(o._in))
+        , _format(std::move(o._format))
+        , _dictionary(o._dictionary)
+        , _state(std::move(o._state))
+        , _window(std::move(o._window))
+        , _history(o._history)
+        , _wide(o._wide)
+        , _input(std::move(o._input))
+        , _pos(o._pos)
+        , _from(o._from)
+        , _in_begin(o._in_begin)
+        , _in_end(o._in_end)
+        , _consumed(o._consumed)
+        , _single(o._single)
+        , _source_ended(o._source_ended)
+        , _ended(o._ended)
+        , _phase(o._phase)
+        , _error(std::move(o._error))
+        , _since_yield(o._since_yield) {
+            o._in = io::reader();
+            o._input = InputBuffer<InputBytes>(InputBytes);
+            o._window = std::vector<uint8_t>();
+            o._pos = o._from = o._in_begin = o._in_end = 0;
+            o._ended = true;
+            o._error = moved_from_error(Format::name);
+        }
+
+        InflateReader& operator=(InflateReader&&) = delete;
 
         expected<size_t, io::error> read(const slice<byte>& out) {
             for (;;) {
@@ -725,7 +733,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             for (;;) {
                 if (size_t n = _hand_out(out)) {
                     // decoding is work, not a wait: every 64 KB handed out
@@ -757,7 +765,7 @@ namespace sgcl::compress::detail {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
@@ -766,8 +774,13 @@ namespace sgcl::compress::detail {
         }
 
         // A new stream from in: the decoder's memory kept
-        void reset(const io::reader& in) {
+        void reset(const io::reader& in) noexcept {
             _in = in;
+            if (!_state) {
+                // moved from: the decoder and the window went with the move
+                _state = std::make_unique<InflateState>();
+                _window.assign(2 * _history + MaxMatch + 8, 0);
+            }
             _state->reset();
             _format.reset();
             _pos = _from = 0;
@@ -795,7 +808,7 @@ namespace sgcl::compress::detail {
             return &_format;
         }
 
-        async::task<expected<Format*, error>> _async_header_now() {
+        async::task<expected<Format*, error>> _async_header_now() noexcept {
             while (_phase == Phase::header && !_error) {
                 if (_advance()) {
                     if (auto e = co_await _async_fill()) {
@@ -829,7 +842,7 @@ namespace sgcl::compress::detail {
             return _consumed + _in_begin;
         }
 
-        void _fail(errc code, const char* text) {
+        void _fail(errc code, const char* text) noexcept {
             _error = error(code, _offset(), text ? string(text) : string());
         }
 
@@ -837,14 +850,14 @@ namespace sgcl::compress::detail {
         size_t _hand_out(const slice<byte>& out) noexcept {
             size_t n = std::min(out.size(), _pos - _from);
             if (n) {
-                std::memcpy(out.data(), _window.data() + _from, n);
+                copy_out(out.data(), _window.data() + _from, n);
                 _from += n;
             }
             return n;
         }
 
         // Works on the input held; true when it needs more of it
-        bool _advance() {
+        bool _advance() noexcept {
             const uint8_t* base = _input.data();
             for (;;) {
                 switch (_phase) {
@@ -876,7 +889,7 @@ namespace sgcl::compress::detail {
                         if (_pos + MaxMatch + 8 > window_bytes) {
                             // everything handed out: the last 32 KB (Deflate64's 64 KB) stay as the history
                             size_t keep = std::min<size_t>(_pos, _history);
-                            std::memmove(_window.data(), _window.data() + _pos - keep, keep);
+                            sgcl::detail::move_bytes(_window.data(), _window.data() + _pos - keep, keep);
                             _pos = _from = keep;
                         }
                         const uint8_t* in = base + _in_begin;
@@ -948,7 +961,7 @@ namespace sgcl::compress::detail {
 
         // The data of a member starts: a zlib stream that asks for a
         // dictionary gets the one given, when it is that one
-        bool _start_data() {
+        bool _start_data() noexcept {
             // a member's history is its own: none carried from the one before
             // (whose bytes were all handed out before its trailer led here)
             _pos = _from = 0;
@@ -976,15 +989,15 @@ namespace sgcl::compress::detail {
 
         void _preload() noexcept {
             size_t n = std::min<size_t>(_dictionary.size(), WindowSize);
-            std::memcpy(_window.data(), _dictionary.data() + _dictionary.size() - n, n);
+            sgcl::detail::copy_bytes(_window.data(), _dictionary.data() + _dictionary.size() - n, n);
             _pos = _from = n;
         }
 
         // room for more input: what is left moved to the front, the buffer
         // grown when a header needs more than it holds
-        size_t _make_room() {
+        size_t _make_room() noexcept {
             if (_in_begin) {
-                std::memmove(_input.data(), _input.data() + _in_begin, _in_end - _in_begin);
+                sgcl::detail::move_bytes(_input.data(), _input.data() + _in_begin, _in_end - _in_begin);
                 _consumed += _in_begin;
                 _in_end -= _in_begin;
                 _in_begin = 0;
@@ -1001,14 +1014,14 @@ namespace sgcl::compress::detail {
             return _took(r);
         }
 
-        async::task<optional<io::error>> _async_fill() {
+        async::task<optional<io::error>> _async_fill() noexcept {
             _input.to_managed(_in_end);   // the read may run on the pool: into managed memory, which the slice holds
             size_t room = _make_room();
             auto r = co_await _in.async_read(_input.room(_in_end, room));
             co_return _took(r);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r) {
+        optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _offset());
                 return r.error();
@@ -1042,15 +1055,15 @@ namespace sgcl::compress::detail {
         size_t _since_yield = 0;   // bytes handed out by the task's reads since it last let the worker go
 
         template<class F>
-        friend void size_input(InflateReader<F>& r, size_t n);
+        friend void size_input(InflateReader<F>& r, size_t n) noexcept;
         template<class F>
-        friend void use_deflate64(InflateReader<F>& r);
+        friend void use_deflate64(InflateReader<F>& r) noexcept;
     };
 
     // Before the first read: the data is Deflate64 (a zip entry of method
     // 9), its window twice 64 KB
     template<class F>
-    void use_deflate64(InflateReader<F>& r) {
+    void use_deflate64(InflateReader<F>& r) noexcept {
         r._wide = true;
         r._history = Window64Size;
         r._window.assign(2 * Window64Size + MaxMatch + 8, 0);
@@ -1060,25 +1073,30 @@ namespace sgcl::compress::detail {
     // compressed size in the block that holds it, when less than 16 KB), so
     // that a small entry's reader makes no more (block.h: managed_bytes)
     template<class F>
-    void size_input(InflateReader<F>& r, size_t n) {
+    void size_input(InflateReader<F>& r, size_t n) noexcept {
         r._input.resize(n, 0);
     }
 
-    // The whole of data compressed, in memory
+    // The whole of data compressed, in memory; only a gzip header can be
+    // refused (std::invalid_argument)
     template<class Format>
-    vector<byte> compress_all(const uint8_t* p, size_t n, int level, Format format, const slice<const byte>& dictionary) {
+    vector<byte> compress_all(const uint8_t* p, size_t n, int level, Format format, const slice<const byte>& dictionary) noexcept(!Format::refuses) {
         LentOutput lent;   // the thread's room, kept from call to call
         std::vector<uint8_t>& out = lent.out();
         out.reserve(n / 2 + 64);
-        // a header the format cannot write (a gzip name past ISO 8859-1)
-        // is the program's mistake here: compress returns no error
-        if (auto e = format.start(out, level)) {
-            throw std::invalid_argument(std::string("compress: ") + std::string(e->message().view()));
+        // a header the format cannot write (a NUL in a gzip name)
+        // is the program's mistake here: compress returns no error. Only
+        // gzip's can be refused; flate's and zlib's start never fails
+        auto wrong = format.start(out, level);
+        if constexpr (Format::refuses) {
+            if (wrong) {
+                throw std::invalid_argument(std::string("compress::") + wrong);
+            }
         }
         format.update(p, n);
-        Deflater d(level, bytes(dictionary), dictionary.size());
-        d.write(p, n, out);
-        d.finish(out);
+        LentDeflater d(level, bytes(dictionary), dictionary.size(), n);
+        d->write(p, n, out);
+        d->finish(out);
         format.finish(out);
         return to_vector(out.data(), out.size());
     }
@@ -1087,7 +1105,7 @@ namespace sgcl::compress::detail {
     // stream one after another, straight into the vector returned; the
     // limit checked as the output grows
     template<class Format>
-    expected<vector<byte>, error> decompress_all(const uint8_t* p, size_t n, const limits& l, Format format, const slice<const byte>& dictionary, size_t size_hint = 0) {
+    expected<vector<byte>, error> decompress_all(const uint8_t* p, size_t n, const limits& l, Format format, const slice<const byte>& dictionary, size_t size_hint = 0) noexcept(noexcept(format.header(p, n))) {
         // a dictionary lies in front of the output as its history: room for
         // it past what the limit counts
         const size_t history_room = std::min<size_t>(dictionary.size(), WindowSize);
@@ -1137,7 +1155,7 @@ namespace sgcl::compress::detail {
             }
             if (preset) {
                 history = history_room;
-                std::memcpy(out() + total, bytes(dictionary) + dictionary.size() - history, history);
+                sgcl::detail::copy_bytes(out() + total, bytes(dictionary) + dictionary.size() - history, history);
                 total += history;
             }
             state->reset();
@@ -1163,7 +1181,7 @@ namespace sgcl::compress::detail {
                 result.resize(capacity);
             }
             if (history) {
-                std::memmove(out() + member_start, out() + member_start + history, total - member_start - history);
+                sgcl::detail::move_bytes(out() + member_start, out() + member_start + history, total - member_start - history);
                 total -= history;
             }
             if (total > l.max_size) {

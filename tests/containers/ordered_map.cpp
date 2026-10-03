@@ -14,6 +14,7 @@
 #include "sgcl/core/ordered_set.h"
 #include "sgcl/core/map.h"
 #include "sgcl/core/multimap.h"
+#include "sgcl/core/multiset.h"
 #include "sgcl/core/set.h"
 #include "sgcl/core/string.h"
 
@@ -441,4 +442,263 @@ TEST(OrderedMap_Test, CountFollowsNoOrderAlongTheChain) {
         auto [first, last] = s.equal_range(k);
         EXPECT_EQ(size_t(std::distance(first, last)), want) << k;
     }
+}
+
+// A merge into an ordered table appends the source's nodes in the source's
+// order, the order of its insertions, as a walk of it gives them
+TEST(OrderedSet_Test, AMergeAppendsInTheSourcesOrder) {
+    sgcl::ordered_set<int> from = {5, 1, 9, 3, 7, 2, 8};
+    sgcl::ordered_set<int> into = {4};
+    into.merge(from);
+    std::vector<int> order(into.begin(), into.end());
+    EXPECT_EQ(order, (std::vector<int>{4, 5, 1, 9, 3, 7, 2, 8}));
+    EXPECT_TRUE(from.empty());
+    sgcl::ordered_map<int, int> m = {{3, 0}};
+    sgcl::ordered_map<int, int> n = {{9, 1}, {3, 1}, {1, 1}, {7, 1}};
+    m.merge(n);
+    std::vector<int> keys;
+    for (auto& [k, v] : m) {
+        keys.push_back(k);
+    }
+    EXPECT_EQ(keys, (std::vector<int>{3, 9, 1, 7}));
+    EXPECT_EQ(n.size(), 1u);   // the taken key stays behind
+}
+
+namespace {
+    // A predicate with both forms: erase_if of a set must take the const one
+    struct BothForms {
+        bool operator()(std::string&) const noexcept { return true; }
+        bool operator()(const std::string&) const noexcept { return false; }
+    };
+}
+
+// erase_if of a set gives the predicate the key as const, as its
+// iterators do: a key changed in place would no longer hash to its bucket
+TEST(OrderedSet_Test, EraseIfGivesASetsKeyAsConst) {
+    sgcl::ordered_set<std::string> ordered = {"a", "b"};
+    EXPECT_EQ(erase_if(ordered, BothForms()), 0u);
+    sgcl::set<std::string> plain = {"a", "b"};
+    EXPECT_EQ(erase_if(plain, BothForms()), 0u);
+    sgcl::multiset<std::string> multi = {"a", "a"};
+    EXPECT_EQ(erase_if(multi, BothForms()), 0u);
+    sgcl::ordered_map<std::string, int> map = {{"a", 1}};
+    EXPECT_EQ(erase_if(map, [](std::pair<const std::string, int>& e) { return ++e.second == 2; }), 1u);   // a map's value may change
+}
+
+// The public surface of the hash containers as std's: the flag the shared
+// table is built on is not a member of theirs, and insert_return_type is
+// declared where a node handle's insert returns it, the containers of
+// unique keys (std::unordered_multimap has none either)
+namespace {
+    template<class C>
+    concept HasUniqueFlag = requires { C::unique; };
+
+    template<class C>
+    concept HasInsertReturnType = requires { typename C::insert_return_type; };
+}
+
+TEST(HashContainers_Test, PublicSurfaceAsStd) {
+    static_assert(!HasUniqueFlag<sgcl::map<int, int>>);
+    static_assert(!HasUniqueFlag<sgcl::multimap<int, int>>);
+    static_assert(!HasUniqueFlag<sgcl::set<int>>);
+    static_assert(!HasUniqueFlag<sgcl::multiset<int>>);
+    static_assert(!HasUniqueFlag<sgcl::ordered_map<int, int>>);
+    static_assert(!HasUniqueFlag<sgcl::ordered_set<int>>);
+    static_assert(HasInsertReturnType<sgcl::map<int, int>>);
+    static_assert(HasInsertReturnType<sgcl::set<int>>);
+    static_assert(HasInsertReturnType<sgcl::ordered_map<int, int>>);
+    static_assert(HasInsertReturnType<sgcl::ordered_set<int>>);
+    static_assert(!HasInsertReturnType<sgcl::multimap<int, int>>);
+    static_assert(!HasInsertReturnType<sgcl::multiset<int>>);
+
+    sgcl::map<int, int> m = {{1, 10}};
+    sgcl::multimap<int, int> mm = {{1, 10}};
+    static_assert(std::is_same_v<decltype(m.insert(m.extract(1))), sgcl::map<int, int>::insert_return_type>);
+    static_assert(std::is_same_v<decltype(mm.insert(mm.extract(1))), sgcl::multimap<int, int>::iterator>);
+    auto result = m.insert(m.extract(1));
+    EXPECT_TRUE(result.inserted);
+    EXPECT_EQ(result.position->second, 10);
+    EXPECT_TRUE(result.node.empty());
+}
+
+// A map's node handle has a key and a mapped value, a set's a value, as
+// std's: no member of the other kind, no void mapped_type, and mapped()
+// a plain function (one class for both showed through)
+namespace {
+    template<class H>
+    concept MapHandleShape = requires(H& h) {
+        typename H::key_type;
+        typename H::mapped_type;
+        &H::key;
+        &H::mapped;
+        h.swap(h);
+    } && !requires(H& h) { typename H::value_type; } && !requires(H& h) { h.value(); };
+
+    template<class H>
+    concept SetHandleShape = requires(H& h) {
+        typename H::value_type;
+        &H::value;
+        h.swap(h);
+    } && !requires { typename H::mapped_type; } && !requires { typename H::key_type; }
+      && !requires(H& h) { h.key(); } && !requires(H& h) { h.mapped(); };
+}
+
+TEST(HashContainers_Test, NodeHandleShapeAsStd) {
+    static_assert(MapHandleShape<sgcl::map<int, std::string>::node_type>);
+    static_assert(MapHandleShape<sgcl::ordered_map<int, std::string>::node_type>);
+    static_assert(SetHandleShape<sgcl::set<int>::node_type>);
+    static_assert(SetHandleShape<sgcl::ordered_set<int>::node_type>);
+    static_assert(std::is_same_v<sgcl::map<int, std::string>::node_type::mapped_type, std::string>);
+    static_assert(std::is_same_v<sgcl::set<std::string>::node_type::value_type, std::string>);
+    static_assert(std::is_same_v<sgcl::map<int, int>::node_type, sgcl::multimap<int, int>::node_type>);
+    static_assert(std::is_same_v<sgcl::set<int>::node_type, sgcl::multiset<int>::node_type>);
+    static_assert(std::is_nothrow_move_constructible_v<sgcl::set<int>::node_type>);
+    static_assert(!std::is_copy_constructible_v<sgcl::map<int, int>::node_type>);
+}
+
+// The edges of a hash node handle: default-constructed and moved-from
+// handles are empty, swap of two empty ones and of a handle with itself,
+// a key changed out of the table hashed anew, every element destroyed once
+TEST(HashContainers_Test, NodeHandleEdges) {
+    using Handle = sgcl::map<int, Int>::node_type;
+    Handle a;
+    Handle b;
+    EXPECT_TRUE(a.empty());
+    EXPECT_FALSE(bool(a));
+    a.swap(b);
+    swap(a, b);
+    EXPECT_TRUE(a.empty() && b.empty());
+
+    auto before = Int::counter;
+    {
+        sgcl::map<int, Int> m = {{1, 10}, {2, 20}};
+        Handle c = m.extract(1);
+        Handle d = std::move(c);
+        EXPECT_TRUE(c.empty());
+        EXPECT_EQ((int)d.mapped(), 10);
+        d.swap(d);
+        swap(d, d);
+        EXPECT_EQ(d.key(), 1);
+        EXPECT_EQ((int)d.mapped(), 10);
+        d.key() = 7;                                     // out of the table the key may change
+        EXPECT_TRUE(m.insert(std::move(d)).inserted);
+        EXPECT_EQ((int)m.at(7), 10);
+        EXPECT_FALSE(m.contains(1));
+        Handle e = m.extract(2);
+        e = Handle();                                    // the element dies with the handle's assignment
+        EXPECT_EQ(Int::counter, before + 1);
+    }
+    EXPECT_EQ(Int::counter, before);
+
+    sgcl::ordered_set<std::string> s = {"a", "b"};
+    auto f = s.extract("a");
+    sgcl::ordered_set<std::string>::node_type g;
+    swap(f, g);
+    EXPECT_TRUE(f.empty());
+    g.value() = "c";
+    s.insert(std::move(g));
+    EXPECT_EQ(std::vector<std::string>(s.begin(), s.end()), (std::vector<std::string>{"b", "c"}));
+}
+
+// merge takes the nodes of a table whose node handle is this one's, as
+// std's: a map from a map or a multimap of the same Key and T, a set from
+// a set or a multiset of the same Key, whatever the hash; not a set of
+// pairs from a map, whose elements have the same type
+namespace {
+    struct PairHash {
+        size_t operator()(const std::pair<const int, int>& p) const noexcept {
+            return std::hash<int>{}(p.first) ^ std::hash<int>{}(p.second);
+        }
+    };
+
+    struct ModHash {
+        size_t operator()(int x) const noexcept {
+            return size_t(x % 3);
+        }
+    };
+
+    // A transparent lookup whose hash of a view is noexcept and whose
+    // equality with one is not: bucket() calls the hash alone
+    struct ViewHash {
+        using is_transparent = void;
+        size_t operator()(std::string_view s) const noexcept { return std::hash<std::string_view>{}(s); }
+    };
+
+    struct ViewEqual {
+        using is_transparent = void;
+        bool operator()(const std::string& a, const std::string& b) const noexcept { return a == b; }
+        bool operator()(const std::string& a, std::string_view b) const { return a == b; }
+        bool operator()(std::string_view a, const std::string& b) const { return a == b; }
+    };
+}
+
+TEST(HashContainers_Test, MergeTakesTheSameKindOfNodes) {
+    using PairSet = sgcl::set<std::pair<const int, int>, PairHash>;
+    static_assert(!Merges<PairSet, sgcl::map<int, int>>);
+    static_assert(!Merges<sgcl::map<int, int>, PairSet>);
+    static_assert(!Merges<sgcl::map<int, int>, sgcl::map<int, long>>);
+    static_assert(!Merges<sgcl::map<int, int>, sgcl::ordered_map<int, int>>);
+    static_assert(Merges<sgcl::map<int, int>, sgcl::multimap<int, int, ModHash>>);
+    static_assert(Merges<sgcl::multiset<int>, sgcl::set<int, ModHash>>);
+    static_assert(Merges<sgcl::ordered_set<int>, sgcl::ordered_set<int, ModHash>>);
+
+    sgcl::map<int, int> m = {{1, 1}};
+    sgcl::multimap<int, int, ModHash> mm = {{1, 2}, {2, 2}, {2, 3}};
+    m.merge(mm);                                         // one 2 comes over; 1 and the other 2 stay
+    EXPECT_EQ(m.size(), 2u);
+    EXPECT_EQ(mm.size(), 2u);
+    m.merge(m);                                          // itself: nothing moves
+    EXPECT_EQ(m.size(), 2u);
+    sgcl::multimap<int, int, ModHash> empty;
+    m.merge(empty);
+    EXPECT_EQ(m.size(), 2u);
+    empty.merge(m);                                      // into an empty table, which has no buckets yet
+    EXPECT_TRUE(m.empty());
+    EXPECT_EQ(empty.size(), 2u);
+}
+
+TEST(HashContainers_Test, BucketOfAViewCallsTheHashAlone) {
+    sgcl::map<std::string, int, ViewHash, ViewEqual> m = {{"a", 1}};
+    std::string_view a = "a";
+    static_assert(noexcept(m.bucket(a)));
+    static_assert(!noexcept(m.find(a)));
+    EXPECT_EQ(m.bucket(a), m.bucket(std::string("a")));
+}
+
+// The reads of mixin::lookup are as noexcept as the map's find with that
+// key: by the key type always, by a view only when the hash and the
+// equality take one without throwing (they called a throwing equality
+// inside noexcept, which ended the program)
+TEST(HashContainers_Test, LookupReadsAsNoexceptAsFind) {
+    sgcl::map<std::string, int, ViewHash, ViewEqual> m = {{"a", 1}};
+    std::string_view a = "a";
+    std::string key = "a";
+    static_assert(!noexcept(m.try_get(a)));
+    static_assert(!noexcept(std::as_const(m).try_get(a)));
+    static_assert(!noexcept(m.contains_key(a)));
+    static_assert(!noexcept(m.get(a)));
+    static_assert(!noexcept(m.value_or(a, 0)));
+    static_assert(noexcept(m.try_get(key)));
+    static_assert(noexcept(std::as_const(m).try_get(key)));
+    static_assert(noexcept(m.contains_key(key)));
+    static_assert(noexcept(m.get(key)));
+    static_assert(noexcept(m.value_or(key, 0)));
+    sgcl::multimap<std::string, int, ViewHash, ViewEqual> mm = {{"a", 1}, {"a", 2}};
+    static_assert(!noexcept(mm.values_of(a)));
+    static_assert(noexcept(mm.values_of(key)));
+
+    EXPECT_EQ(*m.try_get(a), 1);
+    EXPECT_EQ(m.get(a), 1);
+    EXPECT_TRUE(m.contains_key(a));
+    std::string_view absent = "zz";
+    EXPECT_EQ(m.try_get(absent), nullptr);
+    EXPECT_FALSE(m.get(absent).has_value());
+    EXPECT_EQ(m.value_or(absent, 7), 7);
+    EXPECT_FALSE(m.contains_key(absent));
+    EXPECT_EQ(std::ranges::distance(mm.values_of(a)), 2);
+    EXPECT_TRUE(std::ranges::empty(mm.values_of(absent)));
+    sgcl::map<std::string, int, ViewHash, ViewEqual> empty;  // no buckets yet
+    EXPECT_EQ(empty.try_get(a), nullptr);
+    EXPECT_FALSE(empty.contains_key(key));
+    EXPECT_EQ(empty.value_or(a, -1), -1);
 }

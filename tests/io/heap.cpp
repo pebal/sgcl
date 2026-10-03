@@ -18,9 +18,37 @@
 
 #include <array>
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <typeinfo>
+
+// A realloc the test can make fail: this binary's own calls (the library's
+// headers are compiled into it) go to this definition, which passes them to
+// the system's until refuse_realloc is set. Only where the binary may define
+// it: macOS (its own calls bind to its own symbol) without a sanitizer,
+// which replaces the allocator itself.
+#if defined(__APPLE__) && defined(__has_feature)
+#if !__has_feature(address_sanitizer) && !__has_feature(thread_sanitizer)
+#define SGCL_TEST_REFUSED_REALLOC 1
+#endif
+#endif
+#if defined(SGCL_TEST_REFUSED_REALLOC)
+#include <dlfcn.h>
+
+namespace {
+    std::atomic<bool> refuse_realloc = {false};
+}
+
+extern "C" void* realloc(void* p, size_t n) {
+    using Fn = void* (*)(void*, size_t);
+    static const Fn system = reinterpret_cast<Fn>(dlsym(RTLD_NEXT, "realloc"));
+    if (refuse_realloc.load(std::memory_order_relaxed)) {
+        return nullptr;
+    }
+    return system(p, n);
+}
+#endif
 
 using namespace sgcl::async;
 
@@ -154,6 +182,68 @@ TEST(IoHeap_Tests, ReadAllGrowsNoManagedBuffer) {
     EXPECT_EQ(v->size(), 100u * 1024);
     EXPECT_EQ(v->capacity(), one_vector_of(v->size()));
     EXPECT_LE(during, before);   // LE: a buffer of an earlier test may die meanwhile
+}
+
+// The growth of the gathered bytes cannot throw: a failed realloc ends the
+// program, as running out of managed memory does (DESIGN 391), so read_all
+// of a stream whose read cannot throw cannot throw either. It threw
+// bad_alloc.
+TEST(IoHeap_Tests, GatheringCannotThrow) {
+    struct Quiet {
+        size_t size;
+        size_t done = 0;
+
+        expected<size_t, io::error> read(const slice<byte>& out) noexcept {
+            size_t k = std::min(out.size(), size - done);
+            std::memset(out.data(), 'x', k);
+            done += k;
+            return k;
+        }
+    };
+    io::detail::Gathered all;
+    static_assert(noexcept(all.room()));
+    Quiet r{100 * 1024};
+    static_assert(noexcept(io::read_all(r)));
+    auto v = io::read_all(r);
+    ASSERT_TRUE(v);
+    EXPECT_EQ(v->size(), 100u * 1024);
+    // the boundaries: nothing to read, and exactly the first block
+    Quiet none{0};
+    auto empty = io::read_all(none);
+    ASSERT_TRUE(empty);
+    EXPECT_TRUE(empty->empty());
+    Quiet block{config::io_buffer_size};
+    auto one = io::read_all(block);
+    ASSERT_TRUE(one);
+    EXPECT_EQ(one->size(), config::io_buffer_size);
+}
+
+// A growth the system refuses half-way through the reads ends the program
+// with one line naming it, as running out of managed memory does
+TEST(IoHeap_Tests, GatheringRefusedHalfWayEnds) {
+#if !defined(SGCL_TEST_REFUSED_REALLOC)
+    GTEST_SKIP() << "realloc can be refused only on macOS without a sanitizer";
+#else
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    struct Refusing {
+        size_t done = 0;
+
+        // the first block is given, then the system refuses the second
+        expected<size_t, io::error> read(const slice<byte>& out) noexcept {
+            if (done) {
+                refuse_realloc = true;
+            }
+            std::memset(out.data(), 'x', out.size());
+            done += out.size();
+            return out.size();
+        }
+    };
+    EXPECT_DEATH({
+        Refusing r;
+        auto v = io::read_all(r);
+        std::fprintf(stderr, "read %zu bytes\n", v ? v->size() : 0);
+    }, "sgcl: out of memory: a buffer of gathered bytes of [0-9]+ bytes was refused");
+#endif
 }
 
 TEST(IoHeap_Tests, AsyncReadAllHandsThePoolAnOwnedBlock) {

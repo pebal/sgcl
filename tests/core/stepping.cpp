@@ -638,6 +638,28 @@ INSTANTIATE_TEST_SUITE_P(Helpers, Stepping, testing::Values(0u, 2u), [](const te
     return info.param ? "TwoHelpers" : "Alone";
 });
 
+// `released` is the end of a cycle, its statistics included: a stepper
+// standing there reads the cycle it has just let through, so helpers(n)
+// set at one `released` shows at the next (the statistics were stored
+// after the gate, a cycle late: two finish_cycle calls to see one)
+TEST(SteppingStatistics, AtReleasedTheCycleIsCounted) {
+    collector::stepper s;
+    s.finish_cycle();
+    auto cycles = collector::get_statistics().cycles;
+    s.helpers(1);
+    s.finish_cycle();
+    auto stats = collector::get_statistics();
+    EXPECT_EQ(stats.cycles, cycles + 1);
+    EXPECT_EQ(stats.last_helpers_used, 1u);
+    s.helpers(2);
+    s.finish_cycle();
+    stats = collector::get_statistics();
+    EXPECT_EQ(stats.cycles, cycles + 2);
+    EXPECT_EQ(stats.last_helpers_used, std::min(2u, stats.helper_threads));
+    EXPECT_GE(stats.last_helpers_used, 1u);
+    s.helpers(0);
+}
+
 // A stepper made right after the previous one (collector.h: step_end,
 // step_begin, _gate). Two things went wrong here once: step_end lowered
 // _stepping and returned before the collector had woken and re-read the

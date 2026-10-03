@@ -17,6 +17,25 @@
 
 #include <vector>
 
+// Running out of memory ends the program: an insertion throws only what
+// the element's construction, copy or move throws (DESIGN 356)
+namespace {
+    struct ThrowingCopy {
+        ThrowingCopy() = default;
+        ThrowingCopy(const ThrowingCopy&) {}
+        ThrowingCopy& operator=(const ThrowingCopy&) { return *this; }
+    };
+}
+static_assert(noexcept(std::declval<sgcl::vector<int>&>().push_back(1)));
+static_assert(noexcept(std::declval<sgcl::vector<int>&>().emplace_back()));
+static_assert(noexcept(std::declval<sgcl::vector<int>&>().insert(std::declval<sgcl::vector<int>&>().cbegin(), 1)));
+static_assert(noexcept(std::declval<sgcl::vector<int>&>().erase(std::declval<sgcl::vector<int>&>().cbegin())));
+static_assert(noexcept(std::declval<sgcl::vector<int>&>().shrink_to_fit()));
+static_assert(noexcept(std::declval<sgcl::vector<std::string>&>().push_back(std::string())));
+static_assert(!noexcept(std::declval<sgcl::vector<std::string>&>().push_back(std::declval<const std::string&>())));
+static_assert(!noexcept(std::declval<sgcl::vector<ThrowingCopy>&>().push_back(ThrowingCopy())));   // moved by its throwing copy
+static_assert(!noexcept(std::declval<sgcl::vector<int>&>().reserve(1)));   // length_error for a size past max_size
+
 TEST(Vector_Test, DefaultConstructorEmpty) {
     sgcl::vector<Int> vec;
     EXPECT_EQ(collector::get_live_object_count(), 0u);
@@ -685,6 +704,42 @@ TEST(Vector_Test, RangeInsertInPlaceAndReallocating) {
     EXPECT_EQ(v[0], "p");
     EXPECT_EQ(v[1], "q");
     EXPECT_EQ(v.size(), 13u);
+}
+
+// An append of plain elements from contiguous memory within the capacity
+// (one copy, the count raised once): every length across the copy's
+// thresholds, from a pointer and from std::vector's iterators, the
+// vector's own elements appended to itself, and the position returned
+TEST(Vector_Test, PlainAppendWithinCapacity) {
+    for (size_t n : {size_t(1), size_t(7), size_t(31), size_t(32), size_t(64), size_t(65), size_t(4095), size_t(4096), size_t(5000)}) {
+        std::vector<std::byte> src(n);
+        for (size_t i = 0; i < n; ++i) {
+            src[i] = std::byte(i * 131 + 7);
+        }
+        sgcl::vector<std::byte> v;
+        v.reserve(3 * n + 3);
+        v.push_back(std::byte(1));
+        auto capacity = v.capacity();
+        auto it = v.insert(v.end(), src.data(), src.data() + n);
+        EXPECT_EQ(it, v.begin() + 1);
+        it = v.insert(v.end(), src.begin(), src.end());
+        EXPECT_EQ(it, v.begin() + 1 + n);
+        ASSERT_EQ(v.size(), 1 + 2 * n);
+        EXPECT_EQ(v.capacity(), capacity);   // in place
+        EXPECT_EQ(v[0], std::byte(1));
+        EXPECT_EQ(std::memcmp(v.data() + 1, src.data(), n), 0);
+        EXPECT_EQ(std::memcmp(v.data() + 1 + n, src.data(), n), 0);
+        v.resize(1 + n);
+        v.insert(v.end(), v.data() + 1, v.data() + 1 + n);   // its own elements
+        ASSERT_EQ(v.size(), 1 + 2 * n);
+        EXPECT_EQ(std::memcmp(v.data() + 1 + n, src.data(), n), 0);
+        EXPECT_EQ(v.capacity(), capacity);
+    }
+    sgcl::vector<int> w{1, 2};
+    w.reserve(8);
+    std::vector<int> more{3, 4, 5};
+    EXPECT_EQ(w.insert(w.end(), more.begin(), more.end()), w.begin() + 2);
+    EXPECT_EQ(std::vector<int>(w.begin(), w.end()), (std::vector<int>{1, 2, 3, 4, 5}));
 }
 
 TEST(Vector_Test, ArgumentsAliasingAnElement) {
@@ -1417,4 +1472,246 @@ TEST(Vector_Tests, CountResizeAndEmplaceValueInitializeAfterReuse) {
         EXPECT_EQ(e.count, 0);
         EXPECT_TRUE(e.name.empty());
     }
+}
+
+// Boundaries (DESIGN 408)
+
+namespace {
+    struct Three {
+        char bytes[3] = {};
+    };
+}
+
+// max_size() is the most elements whose bytes a difference_type holds; a
+// count past it is length_error before anything changes (SIZE_MAX, one
+// past, through every member that takes a count), and a count within it
+// that no memory holds ends the program as a refused managed allocation
+TEST(Vector_Test, CountsAtTheLimits) {
+    EXPECT_EQ(sgcl::vector<char>().max_size(), size_t(PTRDIFF_MAX));
+    EXPECT_EQ(sgcl::vector<int>().max_size(), size_t(PTRDIFF_MAX) / 4);
+    EXPECT_EQ(sgcl::vector<Three>().max_size(), size_t(PTRDIFF_MAX) / 3);
+    sgcl::vector<int> v = {1, 2, 3};
+    const auto data = v.data();
+    for (size_t count : {v.max_size() + 1, SIZE_MAX / 4 + 1, SIZE_MAX}) {
+        EXPECT_THROW(v.reserve(count), std::length_error);
+        EXPECT_THROW(v.resize(count), std::length_error);
+        EXPECT_THROW(v.resize(count, 7), std::length_error);
+        EXPECT_THROW(v.assign(count, 7), std::length_error);
+        EXPECT_THROW(v.insert(v.begin(), count, 7), std::length_error);
+        EXPECT_THROW((void)sgcl::vector<int>(count), std::length_error);
+        EXPECT_THROW((void)sgcl::vector<int>(count, 7), std::length_error);
+    }
+    EXPECT_THROW(v.insert(v.end(), v.max_size() - 2, 7), std::length_error);   // one past with the three there
+    EXPECT_EQ(v.size(), 3u);
+    EXPECT_EQ(v.data(), data);
+    EXPECT_EQ(v[2], 3);
+    EXPECT_THROW(v.at(SIZE_MAX), std::out_of_range);
+    EXPECT_THROW(v.at(3), std::out_of_range);
+    EXPECT_THROW(v.as_slice(4), std::out_of_range);
+    EXPECT_EQ(v.as_slice(3).size(), 0u);
+    EXPECT_EQ(v.as_slice(1, SIZE_MAX).size(), 2u);
+    EXPECT_EQ(v.as_slice(3, SIZE_MAX).size(), 0u);
+    EXPECT_EQ(v.as_slice(0, 0).size(), 0u);
+}
+
+TEST(Vector_Test, ACountNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    auto reserve = [] {
+        sgcl::vector<char> v;
+        v.reserve(v.max_size());
+    };
+    auto construct = [] {
+        sgcl::vector<int> v(sgcl::vector<int>().max_size());
+    };
+    auto resize = [] {
+        sgcl::vector<Three> v(1);
+        v.resize(v.max_size());
+    };
+    EXPECT_DEATH(reserve(), "sgcl: out of managed memory");
+    EXPECT_DEATH(construct(), "sgcl: out of managed memory");
+    EXPECT_DEATH(resize(), "sgcl: out of managed memory");
+}
+
+namespace {
+    // Every member on an empty vector without a buffer (default or moved
+    // from): it works as an empty one, and takes elements again after
+    template<class T>
+    void expect_vector_works_empty(sgcl::vector<T>& v, const T& value) {
+        EXPECT_TRUE(v.empty());
+        EXPECT_EQ(v.size(), 0u);
+        EXPECT_EQ(v.capacity(), 0u);
+        EXPECT_EQ(v.data(), nullptr);
+        EXPECT_EQ(v.begin(), v.end());
+        EXPECT_EQ(v.rbegin(), v.rend());
+        EXPECT_EQ(v.as_slice().size(), 0u);
+        EXPECT_EQ(v.as_slice(0).size(), 0u);
+        EXPECT_THROW(v.at(0), std::out_of_range);
+        EXPECT_EQ(v.erase(v.begin(), v.end()), v.end());
+        EXPECT_EQ(sgcl::erase(v, value), 0u);
+        EXPECT_EQ(sgcl::erase_if(v, [](const T&) { return true; }), 0u);
+        EXPECT_TRUE(v == sgcl::vector<T>());
+        EXPECT_FALSE(v < sgcl::vector<T>());
+        v.clear();
+        v.shrink_to_fit();
+        v.resize(0);
+        v.reserve(0);
+        v.assign(0, value);
+        v.insert(v.begin(), 0, value);
+        EXPECT_EQ(v.capacity(), 0u);
+        sgcl::vector<T> copy(v);
+        EXPECT_TRUE(copy.empty());
+        sgcl::vector<T> other = {value};
+        v.swap(other);
+        v.swap(other);
+        EXPECT_TRUE(v.empty());
+        v.push_back(value);
+        EXPECT_EQ(v.size(), 1u);
+        EXPECT_EQ(v.front(), value);
+        v.pop_back();
+        EXPECT_TRUE(v.empty());
+    }
+}
+
+TEST(Vector_Test, MovedFromAndDefaultWorkAsEmpty) {
+    sgcl::vector<std::string> v = {"a", "b"};
+    sgcl::vector<std::string> to(std::move(v));
+    EXPECT_EQ(to.size(), 2u);
+    expect_vector_works_empty(v, std::string("x"));
+    sgcl::vector<std::string> assigned = {"c"};
+    assigned = std::move(to);
+    EXPECT_EQ(assigned.size(), 2u);
+    expect_vector_works_empty(to, std::string("y"));
+    sgcl::vector<int> d;
+    expect_vector_works_empty(d, 1);
+    sgcl::vector<int> empty_list = {};
+    expect_vector_works_empty(empty_list, 1);
+    sgcl::vector<int> none(0);
+    expect_vector_works_empty(none, 1);
+    sgcl::vector<int> none_of(0, 5);
+    expect_vector_works_empty(none_of, 1);
+}
+
+// The vector on both sides: a copy and a move assignment to itself, swap
+// with itself keep the elements and the buffer
+TEST(Vector_Test, AVectorOnBothSidesKeepsItself) {
+    sgcl::vector<std::string> v = {"one long enough for the heap", "two", "three"};
+    const auto before = v;
+    const auto data = v.data();
+    auto& self = v;
+    v = self;
+    EXPECT_EQ(v, before);
+    EXPECT_EQ(v.data(), data);
+    v = std::move(self);
+    EXPECT_EQ(v, before);
+    EXPECT_EQ(v.data(), data);
+    v.swap(self);
+    swap(v, self);
+    EXPECT_EQ(v, before);
+    EXPECT_EQ(v.data(), data);
+    EXPECT_TRUE(v == self);
+    EXPECT_FALSE(v < self);
+    EXPECT_TRUE((v <=> self) == 0);
+}
+
+// erase(v, value) with an element of v as the value: std::remove moved the
+// elements down over the one the value referred to, and compared the rest
+// with what had been moved there (erase(v, v[0]) of {1, 2, 1, 3, 1} took one
+// element and left 2, 1, 3, 1). The element is now taken out of the
+// comparison first; a move-only element too
+TEST(Vector_Test, EraseOfAValueThatIsAnElement) {
+    sgcl::vector<int> v = {1, 2, 1, 3, 1};
+    EXPECT_EQ(sgcl::erase(v, v[0]), 3u);
+    EXPECT_EQ(v, (sgcl::vector<int>{2, 3}));
+    sgcl::vector<std::string> s = {"x", "long enough for the heap", "y", "long enough for the heap", "z"};
+    EXPECT_EQ(std::erase(s, s[3]), 2u);   // the second of two, after the first was erased
+    EXPECT_EQ(s, (sgcl::vector<std::string>{"x", "y", "z"}));
+    EXPECT_EQ(sgcl::erase(s, s.back()), 1u);
+    EXPECT_EQ(s, (sgcl::vector<std::string>{"x", "y"}));
+    sgcl::vector<std::unique_ptr<int>> u;
+    u.push_back(nullptr);
+    u.push_back(std::make_unique<int>(1));
+    u.push_back(nullptr);
+    EXPECT_EQ(sgcl::erase(u, u[2]), 2u);
+    ASSERT_EQ(u.size(), 1u);
+    EXPECT_EQ(*u[0], 1);
+    sgcl::vector<int> one = {4};
+    EXPECT_EQ(sgcl::erase(one, one[0]), 1u);
+    EXPECT_TRUE(one.empty());
+}
+
+// The vector's own element as the argument of what may reallocate: resize
+// to more copies of an element, push_back of an element moved out of the
+// vector itself (the element left moved from), at and within the capacity
+TEST(Vector_Test, ItsOwnElementAcrossAGrowth) {
+    sgcl::vector<std::string> v = {"long enough to live on the heap"};
+    v.shrink_to_fit();
+    v.resize(5, v[0]);
+    EXPECT_EQ(v.size(), 5u);
+    EXPECT_EQ(v[4], "long enough to live on the heap");
+    v.reserve(16);
+    v.resize(8, v[4]);
+    EXPECT_EQ(v[7], "long enough to live on the heap");
+    sgcl::vector<std::string> m = {"moved along"};
+    m.shrink_to_fit();
+    m.push_back(std::move(m[0]));   // growth: the new element first, from the old buffer
+    EXPECT_EQ(m[1], "moved along");
+    m.push_back(std::move(m[1]));   // within or past the capacity, the same
+    EXPECT_EQ(m[2], "moved along");
+    m.emplace(m.begin(), std::move(m[2]));
+    EXPECT_EQ(m[0], "moved along");
+}
+
+// One element and empty ranges: an insertion of nothing at either end
+// returns its position, emplace at end() of an empty vector, an erasure
+// of the one element, and pop_back to empty keeping the buffer
+TEST(Vector_Test, OneElementAndEmptyRanges) {
+    sgcl::vector<int> v;
+    EXPECT_EQ(v.emplace(v.end(), 9), v.begin());
+    EXPECT_EQ(v.size(), 1u);
+    std::vector<int> none;
+    EXPECT_EQ(v.insert(v.begin(), none.begin(), none.end()), v.begin());
+    EXPECT_EQ(v.insert(v.end(), none.begin(), none.end()), v.end());
+    EXPECT_EQ(v.insert(v.end(), 0, 1), v.end());
+    EXPECT_EQ(v.insert(v.begin(), std::initializer_list<int>{}), v.begin());
+    EXPECT_EQ(v.erase(v.end()), v.end());   // end() is no element: nothing erased
+    EXPECT_EQ(v.size(), 1u);
+    auto capacity = v.capacity();
+    EXPECT_EQ(v.erase(v.begin()), v.end());
+    EXPECT_TRUE(v.empty());
+    EXPECT_EQ(v.capacity(), capacity);
+    v.push_back(1);
+    v.pop_back();
+    EXPECT_TRUE(v.empty());
+    EXPECT_EQ(v.capacity(), capacity);
+}
+
+// The iterators as the page states them: within the capacity a push_back
+// and an insertion keep those before the point; reserve that does not
+// reallocate keeps all; swap keeps them, now into the other
+// vector; a slice keeps reading the old elements after a reallocation
+TEST(Vector_Test, IteratorsAsThePageStatesThem) {
+    sgcl::vector<int> v;
+    v.reserve(8);
+    v = {1, 2, 3};
+    ASSERT_GE(v.capacity(), 8u);
+    auto first = v.begin();
+    auto second = v.begin() + 1;
+    v.push_back(4);
+    v.insert(v.begin() + 2, 9);
+    EXPECT_EQ(v.begin(), first);
+    EXPECT_EQ(*second, 2);
+    v.reserve(v.capacity());
+    v.reserve(0);
+    EXPECT_EQ(v.begin(), first);
+    auto slice = v.as_slice();
+    v.resize(v.capacity() + 1);
+    EXPECT_NE(v.begin(), first);   // reallocated
+    EXPECT_EQ(slice.size(), 5u);
+    EXPECT_EQ(slice[4], 4);
+    sgcl::vector<int> exact = {1, 2};
+    sgcl::vector<int> other;
+    auto it = exact.begin();
+    exact.swap(other);
+    EXPECT_EQ(it, other.begin());
+    EXPECT_TRUE(exact.empty());
 }

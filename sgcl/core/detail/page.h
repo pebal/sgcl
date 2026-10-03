@@ -30,11 +30,19 @@ namespace sgcl::detail {
         };
 
         // The header lives outside its page: `data` is the first byte of the
-        // page (or of the page range of a large object) in the heap.
+        // page (or of the page range of a large object) in the heap. The
+        // template only finds the type's metadata; the header is built out
+        // of line from it, once for every type (a constructor per type was
+        // ~850 bytes of code each, 99 KB in a program of 117 managed types;
+        // it runs once per page, off the allocation's fast path).
         template<class T>
         Page(T* data) noexcept
-        : metadata(&Info<T>::private_metadata())
-        , data((uintptr_t)data)
+        : Page(&Info<T>::private_metadata(), (uintptr_t)data) {
+        }
+
+        SGCL_NOINLINE Page(Metadata* metadata, uintptr_t data) noexcept
+        : metadata(metadata)
+        , data(data)
         // A page with a single object (large objects included) maps every
         // interior pointer to index 0: multiplier 0 does that for free.
         , multiplier(metadata->object_count == 1 ? 0 : (1ull << 32 | 0x10000) / metadata->object_size)
@@ -44,7 +52,7 @@ namespace sgcl::detail {
         , is_root_holder(metadata->is_root_holder)
         , flags_ptr((Flags*)((uintptr_t)states() + ((sizeof(std::atomic<State>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1)))) {
             assert(metadata != nullptr);
-            assert(data != nullptr);
+            assert(data != 0);
             std::memset(this->states(), State::Reserved, object_count);
             std::memset(this->flags(), 0, sizeof(Flags) * this->flags_count());
             set_all_free();
@@ -235,8 +243,11 @@ namespace sgcl::detail {
                 // unconditional store from every thread copying a pointer to
                 // the same page keeps those lines bouncing between cores. A
                 // skipped flag store only delays the collector's look at an
-                // already reachable object by a cycle (the collector clears
-                // the flag with an acq_rel exchange), never its safety.
+                // already reachable object by a cycle, never its safety:
+                // a skip on a state already current is covered by the
+                // barrier that stored it, and the barrier that stores a
+                // state looks at the flag again in its slow path, ordered
+                // after the store (_set_reachable_slow).
                 // Two hot paths: a copy of a pointer to an object whose
                 // state is current (the first test), and to one still
                 // Fresh, made since the last cycle (the second test, taken
@@ -253,7 +264,7 @@ namespace sgcl::detail {
                 assert(!is_unique_state(old) && "an object leaves its unique_ptr through store_released, never through this barrier");
                 if (old != wanted) [[unlikely]] {
                     if (old != State(wanted | State::Fresh)) {
-                        _set_reachable_slow(state);
+                        _set_reachable_slow(page, state);
                     }
                 }
                 if (!page->state_updated.load(std::memory_order_relaxed)) {
@@ -268,10 +279,24 @@ namespace sgcl::detail {
         // code cost the fast path half a nanosecond): the store in a
         // region, with the epoch read again behind its fence (types.h:
         // BarrierRegion), since a thread preempted here across the flip
-        // stored the old parity after the cycle's passes
-        SGCL_NOINLINE static void _set_reachable_slow(std::atomic<State>& state) noexcept {
+        // stored the old parity after the cycle's passes.
+        //   The store and the look at the page's flag are seq_cst, a
+        // Dekker pair with the registration, which lowers the flag
+        // (collector.h: _register_page) and then reads the states behind
+        // a seq_cst fence (the pass over all of them at the start of the
+        // marking): either that pass sees this state, or this load sees
+        // the flag lowered and raises it, and the later passes look at
+        // the page. With a relaxed store and load, a flag read up from
+        // before the registration could skip the raise of a state the
+        // pass did not see: the object then marked by nothing, swept
+        // while held. Once per object per cycle (stlr and ldar on arm64,
+        // an xchg on x86); the fast path above is unchanged.
+        SGCL_NOINLINE static void _set_reachable_slow(Page* page, std::atomic<State>& state) noexcept {
             BarrierRegion region;
-            state.store(reachable_state_in_region(), std::memory_order_relaxed);
+            state.store(reachable_state_in_region(), std::memory_order_seq_cst);
+            if (!page->state_updated.load(std::memory_order_seq_cst)) {
+                page->state_updated.store(true, std::memory_order_release);
+            }
         }
 
         // The write barrier of an object released from its unique_ptr
@@ -321,6 +346,22 @@ namespace sgcl::detail {
             return {page, &state, parity};
         }
 
+        // The flag here is not the Dekker pair of the reachable barrier's
+        // slow path (_set_reachable_slow): the release store and the
+        // relaxed look are enough, since no pass needs the flag to find a
+        // released object. A registration that reads UniqueLock or
+        // Releasing queues the object as a root (collector.h:
+        // _register_page); one that reads the released state registers it
+        // and the pass over all the states reads that state again; an
+        // object registered by an earlier cycle is a root or current in
+        // whatever that pass reads, since nothing but an allocation makes
+        // an object unique; an unregistered one is not swept, and
+        // _register_late raises the flag itself for the ones it registers.
+        // What the flag does here is the retire (Page::retire): a raise
+        // skipped on a flag read up from before the registration leaves a
+        // state of this parity unretired, and a dead object lives one
+        // cycle longer, till the parity turns. A seq_cst pair would cost
+        // every release from a unique_ptr (make_tracked): not worth it.
         static void set_state_released(const Release& r) noexcept {
             auto wanted = reachable_state();
             r.state->store((r.parity ^ wanted) & State::Parity ? wanted : State(wanted | State::Fresh), std::memory_order_release);

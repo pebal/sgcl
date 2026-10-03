@@ -76,6 +76,8 @@ TEST(IoStream_Tests, ErrorCarriesOpPathAndCode) {
     EXPECT_TRUE(eof.is_eof());
     EXPECT_EQ(eof.code().category().name(), std::string_view("io"));
     EXPECT_EQ(std::string_view(eof.message()), "read: unexpected end of stream");
+    EXPECT_EQ(std::string_view(error(errc::invalid_path, "", "x").message()), "x: invalid path");   // no operation: no space before the path
+    EXPECT_EQ(std::string_view(error(errc::invalid_path, "").message()), "invalid path");
     EXPECT_TRUE(error(errc::closed, "x").is_closed());
     EXPECT_TRUE(error(std::make_error_code(std::errc::operation_would_block), "x").is_timeout());
 }
@@ -203,6 +205,10 @@ TEST(IoStream_Tests, WriteByteOnAThreadAndInATask) {
     sgcl::async::scheduler::stop();
 }
 
+// Go's ReadFull: the buffer filled, its size; the stream ending part way,
+// errc::unexpected_eof with the bytes read (the error's count, Go's n);
+// ending before the first byte, the end of the stream, a read of 0 (Go's
+// io.EOF), which a loop over records ends on
 TEST(IoStream_Tests, ReadFullAndUnexpectedEof) {
     sgcl::tracked_ptr d = make_tracked<dribble>("abcdefgh", 3);
     byte out[6];
@@ -213,10 +219,26 @@ TEST(IoStream_Tests, ReadFullAndUnexpectedEof) {
     r = d->read_full(out);   // two bytes left, six asked
     ASSERT_FALSE(r);
     EXPECT_TRUE(r.error().is_eof());
-    r = d->read_full(out);   // nothing left: fewer than asked too, as Go's ReadFull (io.EOF there)
-    ASSERT_FALSE(r);
-    EXPECT_TRUE(r.error().is_eof());
+    EXPECT_EQ(r.error().code(), errc::unexpected_eof);
+    EXPECT_EQ(r.error().count(), 2u);
+    EXPECT_EQ(as_text(std::span<const byte>(out, 2)), "gh");
+    EXPECT_EQ(value_of(d->read_full(out)), 0u);   // nothing left: the end
     EXPECT_EQ(value_of(d->read_full(slice<byte>())), 0u);   // nothing asked, nothing missing
+    EXPECT_EQ(error(errc::closed, "read").count(), 0u);
+
+    sgcl::tracked_ptr records = make_tracked<dribble>("aabbcc", 4);
+    std::string seen;
+    for (;;) {
+        byte rec[2];
+        auto n = io::read_full(*records, rec);
+        ASSERT_TRUE(n);
+        if (*n == 0) {
+            break;
+        }
+        seen += as_text(std::span<const byte>(rec, 2));
+        seen += '|';
+    }
+    EXPECT_EQ(seen, "aa|bb|cc|");
 }
 
 TEST(IoStream_Tests, ReadAllGrowsPastTheFirstBlock) {
@@ -293,8 +315,12 @@ TEST(IoStream_Tests, AsyncFormsOnTheScheduler) {
         byte out[4];
         sgcl::tracked_ptr d2 = make_tracked<dribble>("xy", 1);
         auto full = co_await d2->async_read_full(out);
-        if (full || !full.error().is_eof()) {
-            co_return "read_full should fail";
+        if (full || !full.error().is_eof() || full.error().count() != 2) {
+            co_return "read_full should fail after 2 bytes";
+        }
+        auto end = co_await d2->async_read_full(out);
+        if (!end || *end != 0) {
+            co_return "read_full at the end should be 0";
         }
         co_return all->str();
     }());
@@ -389,6 +415,37 @@ TEST(IoStream_Tests, HandlesAndTheHalfTheyMake) {
     EXPECT_EQ(out.fd(), 1);
     EXPECT_EQ(io::stdout.fd(), 1);
     sgcl::async::scheduler::stop();
+}
+
+// Every async form of the module's streams is noexcept: a task is made
+// without a throw, what its body throws is the task's
+static_assert(noexcept(std::declval<const io::reader&>().async_read(std::declval<const slice<byte>&>())));
+static_assert(noexcept(std::declval<const io::reader&>().async_close()));
+static_assert(noexcept(std::declval<const io::writer&>().async_write(std::declval<const slice<const byte>&>())));
+static_assert(noexcept(std::declval<const io::writer&>().async_close()));
+static_assert(noexcept(std::declval<const io::buffered_reader&>().async_close()));
+static_assert(noexcept(std::declval<const io::buffered_writer&>().async_close()));
+
+// A null pointer makes an empty handle, as an empty one does: a pointer to
+// a library's handle (whose state it would read) and to any other stream,
+// a tracked_ptr, a root_ptr and an lvalue unique_ptr from make_tracked
+TEST(IoStream_Tests, ANullPointerMakesAnEmptyHandle) {
+    auto empty = [](const reader& r, const writer& w) {
+        return !r && !w && r.fd() == -1 && w.fd() == -1 && r.close() && w.close() && !r.has_read() && !w.has_write();
+    };
+    sgcl::tracked_ptr<buffer> none;
+    EXPECT_TRUE(empty(none, none));
+    EXPECT_TRUE(empty(sgcl::tracked_ptr<buffer>(), sgcl::tracked_ptr<buffer>()));
+    sgcl::root_ptr<buffer> rooted;
+    EXPECT_TRUE(empty(rooted, rooted));
+    decltype(make_tracked<buffer>()) unique;
+    EXPECT_TRUE(empty(unique, unique));
+    sgcl::tracked_ptr<io::file> no_file;
+    EXPECT_TRUE(empty(no_file, no_file));
+    decltype(make_tracked<dribble>("", 1)) no_stream;
+    EXPECT_FALSE(reader(no_stream));
+    sgcl::tracked_ptr<dribble> no_tracked;
+    EXPECT_FALSE(reader(no_tracked));
 }
 
 TEST(IoStream_Tests, TransformReaderInBothForms) {

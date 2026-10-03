@@ -1,41 +1,77 @@
-# sgcl::optional, pair, tuple, error_code, byte, exceptions
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::optional\<T\>, pair\<T1, T2\>, tuple\<Ts...\>, error_code, byte, this_thread, the exceptions
 
 ```cpp
-#include "sgcl/core/aliases.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/aliases.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     using std::optional;  using std::nullopt;  using std::nullopt_t;  using std::make_optional;
     using std::pair;      using std::make_pair;
     using std::tuple;     using std::make_tuple;  using std::tie;  using std::forward_as_tuple;
-    using std::tuple_size;  using std::tuple_size_v;  using std::tuple_element;  using std::tuple_element_t;
+    using std::tuple_size;  using std::tuple_size_v;
+    using std::tuple_element;  using std::tuple_element_t;
     using std::error_code;  using std::error_category;  using std::error_condition;
     using std::byte;
     using std::logic_error;  using std::out_of_range;  using std::length_error;
     using std::invalid_argument;  using std::domain_error;  using std::runtime_error;
     using std::bad_alloc;
+    namespace this_thread = std::this_thread;
 }
 ```
 
-The standard types that hold a `tracked_ptr` or a `weak_ptr` correctly as they are, under the library's names so that the safe set is one namespace. Nothing is added and nothing wrapped: `sgcl::optional<T>` is `std::optional<T>`, `sgcl::pair` is `std::pair`, `sgcl::tuple` is `std::tuple`, with their helpers (`make_optional`, `make_pair`, `make_tuple`, `tie`, `forward_as_tuple`, `tuple_size`, `tuple_element`). What makes them safe is their layout: each keeps every value at a fixed offset of its own, one value per place, so a pointer inside never shares its word with data, and the collector's pointer map, built by elimination, finds a pointer or null at that offset in every object and keeps following it ([README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)). `std::variant`, `std::any`, `std::function` and `std::expected` do not lay their contents out that way, and the library has types of its own for them: [variant](variant.md), [any](any.md), [function](function.md), [expected](expected.md). Nothing here for `std::shared_ptr` and `std::weak_ptr`: a managed object is held by a `tracked_ptr`, and shared from unmanaged memory through `tracked_ptr::to_shared()`.
+The standard types that hold a `tracked_ptr` or a `weak_ptr` correctly as they are, under the library's names so
+that the safe set is one namespace. Nothing is added and nothing wrapped: `sgcl::optional<T>` is `std::optional<T>`,
+`sgcl::pair` is `std::pair`, `sgcl::tuple` is `std::tuple`, with their helpers (`make_optional`, `make_pair`,
+`make_tuple`, `tie`, `forward_as_tuple`, `tuple_size`, `tuple_element`). What makes them safe is their layout: each
+keeps every value at a fixed offset of its own, one value per place, so a pointer inside never shares its word with
+data, and the collector's pointer map, built by elimination, finds a pointer or null at that offset in every object
+and keeps following it ([Pointer maps](../../garbage_collector/overview.md#pointer-maps)). `std::variant`,
+`std::any`, `std::function` and `std::expected` do not lay their contents out that way, and the library has types
+of its own for them: [variant](variant.md), [any](any.md), [function](function.md), [expected](expected.md).
+Nothing here for `std::shared_ptr` and `std::weak_ptr`: a managed object is held by a `tracked_ptr`, and shared from
+unmanaged memory through `tracked_ptr::to_shared()`.
 
-Where the library hands one back: `optional<T>` from [channel](../async/channel.md)'s `receive` and `try_receive` (empty once the channel is closed and drained), from `try_pop` of [concurrent::queue](../concurrent/queue.md) and [concurrent::stack](../concurrent/stack.md), and from `co_await g.next()` of an [async::generator](../async/coroutine.md) (empty at the end); `pair` is what the maps hold; `tuple` is what [when_all](../async/when.md) returns.
+Where the library hands one back: `optional<T>` from [channel](../async/channel.md)'s `receive` and `try_receive`
+(empty once the channel is closed and drained), from `try_pop` of [concurrent::queue](../concurrent/queue.md) and
+[concurrent::stack](../concurrent/stack.md), and from `co_await g.next()` of an `async::generator`
+([task](../async/task.md); empty at the end); `pair` is what the maps hold; `tuple` is what
+[when_all](../async/when_all.md) returns.
 
-`error_code` (with `error_category` and `error_condition`) is the standard's error code under the library's name, so that the public interface of a module names no `std` type: what an [io::error](../io/error.md) carries — a value of `errno` in the system category, or a code of a category of the module's own — compared with `std::errc` conditions as `std::error_code` is.
+`error_code` (with `error_category` and `error_condition`) is the standard's error code under the library's name, so
+that the public interface of a module names no `std` type: what an [io::error](../io/error.md) carries — a value of
+`errno` in the system category, or a code of a category of the module's own — compared with `std::errc` conditions
+as `std::error_code` is.
 
-`byte` is the standard's `std::byte` under the library's name: the element of every buffer the library hands out or takes, `slice<byte>` to read into and `slice<const byte>` to write from.
+`byte` is the standard's `std::byte` under the library's name: the element of every buffer the library hands out or
+takes, `slice<byte>` to read into and `slice<const byte>` to write from.
 
-The exceptions the library throws have the library's names as well: `out_of_range` (an index outside a container, `at`), `length_error` (a size past a container's or a string's maximum), `invalid_argument` and `domain_error` (an argument outside what a function takes), `logic_error`, `runtime_error`, and `bad_alloc` from a failed allocation. They are the standard's classes, so `catch (const std::out_of_range&)` catches what `sgcl::out_of_range` names.
+`this_thread` is `std::this_thread` under the library's name (`yield`, `sleep_for`, `sleep_until`, `get_id`); the
+thread itself is the library's own, [thread](thread.md), whose callable lives in a managed node.
+
+The exceptions the library throws have the library's names as well: `out_of_range` (an index outside a container,
+`at`), `length_error` (a size past a container's or a string's maximum), `invalid_argument` and `domain_error` (an
+argument outside what a function takes), `logic_error`, `runtime_error`. They are the standard's classes, so
+`catch (const std::out_of_range&)` catches what `sgcl::out_of_range` names. `bad_alloc` has the library's name too,
+but running out of memory is not something the library reports: out of managed memory, the program ends with a
+diagnostic ([collector](collector.md#the-memory-limit)).
 
 ## Rules
 
-- An `optional`, a `pair` or a `tuple` with a `tracked_ptr` inside lives where a `tracked_ptr` may: on a stack or in a managed object, never in unmanaged memory ([README: The rules](README.md#the-rules), 1); with `sgcl::tracked_ptr`s inside, anywhere. It is the pointer's rule, and these types add none.
-- A `tracked_ptr` in an `optional` that is empty is not there: the word holds nothing the collector follows, and the object it held is released with `reset()` or the assignment of `nullopt`, as it would be by a `tracked_ptr` reset.
-- Thread safety is `std`'s: none. A value shared between threads is held by an [atomic](atomic.md) or handed over through a [channel](../async/channel.md).
+- An `optional`, a `pair` or a `tuple` with a `tracked_ptr` inside lives where a `tracked_ptr` may: on a stack or in
+  a managed object, never in unmanaged memory ([README: The rules](README.md#the-rules), 1). It is the pointer's
+  rule, and these types add none.
+- A `tracked_ptr` in an `optional` that is empty is not there: the word holds nothing the collector follows, and the
+  object it held is released with `reset()` or the assignment of `nullopt`, as it would be by a `tracked_ptr` reset.
+- Thread safety is `std`'s: none. A value shared between threads is held by an [atomic](atomic.md) or handed over
+  through a [channel](../async/channel.md).
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
+#include <type_traits>
 
 using namespace sgcl;
 
@@ -44,9 +80,9 @@ struct Node {
     tracked_ptr<Node> next;
 };
 
-// The first node with a value above the limit, or nothing: an optional of
-// a tracked_ptr, the pointer at a fixed offset of its own, so that the
-// node found stays alive as long as the optional holds it.
+// The first node with a value above the limit, or nothing: an optional of a tracked_ptr, the
+// pointer at a fixed offset of its own, so that the node found stays alive while the optional
+// holds it
 optional<tracked_ptr<Node>> first_above(tracked_ptr<Node> n, int limit) {
     for (; n; n = n->next) {
         if (n->value > limit) {
@@ -66,10 +102,10 @@ int main() {
     }
     println("{}", first_above(head, 10).has_value());
 
-    pair<tracked_ptr<Node>, int> counted{head, 3};    // a pointer and a count, each in a word of its own
+    pair<tracked_ptr<Node>, int> counted{head, 3};  // each in a word of its own
     auto [node, count] = counted;
     println("{} {}", node->value, count);
-    return 0;
+    println("{}", std::is_same_v<optional<int>, std::optional<int>>);
 }
 ```
 
@@ -79,10 +115,13 @@ Output:
 5
 false
 1 3
+true
 ```
 
 ## See also
 
-- [variant](variant.md), [any](any.md), [function](function.md), [expected](expected.md): the `std` types that needed a version of their own
-- [tracked_ptr](tracked_ptr.md): the pointer these types hold; [channel](../async/channel.md), [concurrent::queue](../concurrent/queue.md): where an `optional` comes from
-- [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps), [README: The rules](README.md#the-rules)
+- [variant](variant.md), [any](any.md), [function](function.md), [expected](expected.md): the `std` types that
+  needed a version of their own
+- [tracked_ptr](tracked_ptr.md): the pointer these types hold
+- [channel](../async/channel.md), [concurrent::queue](../concurrent/queue.md): where an `optional` comes from
+- [Pointer maps](../../garbage_collector/overview.md#pointer-maps), [README: The rules](README.md#the-rules)

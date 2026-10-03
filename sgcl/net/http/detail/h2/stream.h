@@ -34,7 +34,7 @@ namespace sgcl::net::http::detail::h2 {
     // encoder's table is the connection's; the blocks go in the order they
     // were encoded). Made on the stack by whoever sends: nothing allocated
     struct FieldBlock {
-        virtual void encode(Encoder& e, std::string& out) const = 0;
+        virtual void encode(Encoder& e, std::string& out) const noexcept = 0;
 
     protected:
         ~FieldBlock() = default;
@@ -52,13 +52,13 @@ namespace sgcl::net::http::detail::h2 {
 
         // DATA, as the windows allow: the task ends when the last byte is
         // queued (END_STREAM with it when asked)
-        virtual async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) = 0;
+        virtual async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) noexcept = 0;
 
         // The same for a piece of a body's block (BodyBuffer), which the
         // connection may send in place, not copied: the block stays
         // unchanged until retire() has it and the connection gives it back
         // to the pool. The default copies, as send_data
-        virtual async::task<expected<void, io::error>> send_block(uint32_t id, slice<const byte> data, bool end_stream) {
+        virtual async::task<expected<void, io::error>> send_block(uint32_t id, slice<const byte> data, bool end_stream) noexcept {
             return send_data(id, std::move(data), end_stream);
         }
 
@@ -101,7 +101,7 @@ namespace sgcl::net::http::detail::h2 {
     };
 
     // The error a stream reset gives its reader and writer
-    inline io::error stream_reset_error(const char* op, ErrorCode code) {
+    inline io::error stream_reset_error(const char* op, ErrorCode code) noexcept {
         (void)code;
         return io::error(std::make_error_code(std::errc::connection_reset), op, "HTTP/2 stream");
     }
@@ -121,7 +121,7 @@ namespace sgcl::net::http::detail::h2 {
         tracked_ptr<void> request;          // the server's request (RequestImpl), for a handler that waits its turn
         http::headers trailers;             // set once, with the end
 
-        StreamState(uint32_t id, tracked_ptr<StreamOwner> owner)
+        StreamState(uint32_t id, tracked_ptr<StreamOwner> owner) noexcept
         : id(id), owner(std::move(owner)), readable(1), writable(1) {
         }
 
@@ -172,7 +172,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // Bytes of the body into out, 0 at its end; the window given back
         // for what was taken
-        async::task<expected<size_t, io::error>> read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> read(slice<byte> out) noexcept {
             for (;;) {
                 size_t n = 0;
                 bool ended = false;
@@ -199,7 +199,7 @@ namespace sgcl::net::http::detail::h2 {
         // length met, trailers still to come): nothing more is to come but
         // the end; a byte more is the connection's to judge (§8.1.1), a
         // reset is the error
-        async::task<expected<void, io::error>> wait_end() {
+        async::task<expected<void, io::error>> wait_end() noexcept {
             for (;;) {
                 {
                     std::lock_guard<std::mutex> g(_lock);
@@ -231,12 +231,12 @@ namespace sgcl::net::http::detail::h2 {
             return ended;
         }
 
-        bool ended() const {
+        bool ended() const noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _ended && _data.empty();
         }
 
-        bool was_reset() const {
+        bool was_reset() const noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _reset;
         }

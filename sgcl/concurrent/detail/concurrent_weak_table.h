@@ -130,15 +130,11 @@ namespace sgcl::concurrent::detail {
 
         // Drops the entries whose objects are gone; returns how many, or
         // 0 at once when another thread's sweep is under way
-        size_type sweep() {
+        size_type sweep() noexcept {
             bool expected = false;
             if (!_sweeping.compare_exchange_strong(expected, true, std::memory_order_acquire, std::memory_order_relaxed)) {
                 return 0;
             }
-            struct Done {   // the flag given back however the walk ends: an erase may throw (the marker's allocation), and a flag left set would end every later sweep at once
-                atomic<bool>& flag;
-                ~Done() { flag.store(false, std::memory_order_release); }
-            } done{_sweeping};
             _inserted.store(0, std::memory_order_relaxed);
             size_type count = 0;
             for (auto it = _table.begin(); it != _table.end();) {
@@ -151,18 +147,20 @@ namespace sgcl::concurrent::detail {
             }
             _threshold.store(std::max<size_type>(16, _table.size()), std::memory_order_relaxed);
             _inserted.store(0, std::memory_order_relaxed);
+            _sweeping.store(false, std::memory_order_release);
             return count;
         }
 
         // Every entry there is at the time of the walk, dead or alive
-        void clear() {
+        void clear() noexcept {
             _table.clear();
             _inserted.store(0, std::memory_order_relaxed);
             _threshold.store(16, std::memory_order_relaxed);
         }
 
         // The entries of the object: none for a null pointer, or an object
-        // that is gone; wait-free
+        // that is gone; wait-free once the object's bucket has its dummy
+        // node
         size_type count(const key_pointer& object) const noexcept {
             return object ? _table.count(object) : 0;
         }
@@ -172,7 +170,7 @@ namespace sgcl::concurrent::detail {
         }
 
         // The entry of the object, dropped: how many (0 or 1); lock-free
-        size_type erase(const key_pointer& object) {
+        size_type erase(const key_pointer& object) noexcept {
             return object ? _table.erase(object) : 0;
         }
 
@@ -186,13 +184,13 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        static WeakKey<Key> _key(const key_pointer& object) {
+        static WeakKey<Key> _key(const key_pointer& object) noexcept {
             return {weak_type(object), weak_hash(object.get())};
         }
 
         // One more insertion: the sweep when the count reaches the
         // threshold, by this thread unless another is at it
-        void _inserted_one() {
+        void _inserted_one() noexcept {
             if (_inserted.fetch_add(1, std::memory_order_relaxed) + 1 >= _threshold.load(std::memory_order_relaxed)) {
                 sweep();
             }

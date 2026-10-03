@@ -88,7 +88,7 @@ namespace sgcl::encoding::detail {
     }
 
     template<class Out>
-    void append_utf8(Out& out, char32_t c) {
+    void append_utf8(Out& out, char32_t c) noexcept {
         char b[4];
         size_t n;
         if (c < 0x80) {
@@ -132,7 +132,7 @@ namespace sgcl::encoding::detail {
     // one — with the scratch holding what came before it. failed: p is
     // the byte at fault and code says what it is.
     template<class Out>
-    ScanStatus scan_string(const char* start, const char*& p, const char* end, bool last, StringScan& state, Out& scratch, bool allow_invalid_utf8, errc& code) {
+    ScanStatus scan_string(const char* start, const char*& p, const char* end, bool last, StringScan& state, Out& scratch, bool allow_invalid_utf8, errc& code) noexcept {
         auto to_scratch = [&] {
             if (!state.decoded) {
                 state.decoded = true;
@@ -329,7 +329,7 @@ namespace sgcl::encoding::detail {
     // lands in HTML); a byte that is not UTF-8 as �, as Go writes it,
     // since a text written must be one that can be read
     template<class Out>
-    void write_string(Out& out, std::string_view s, bool escape_html) {
+    void write_string(Out& out, std::string_view s, bool escape_html) noexcept {
         out.push_back('"');
         const char* p = s.data();
         const char* end = p + s.size();

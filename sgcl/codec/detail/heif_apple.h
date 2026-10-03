@@ -6,6 +6,7 @@
 #pragma once
 
 #include "apple_imageio.h"
+#include "heif_guard.h"
 #include "input.h"
 #include "output.h"
 #include "pixels.h"
@@ -13,6 +14,7 @@
 #include "../image.h"
 #include "../options.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/os.h"
 #include "../../core/expected.h"
 #include "../../core/slice.h"
 #include "../../core/vector.h"
@@ -21,19 +23,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <vector>
 
 // HEIF (HEIC) and AVIF through the system's codec: ImageIO on Apple's
 // systems (HEVC and AV1 are the platform's, as video is), unsupported
 // elsewhere. The first image of the file; its pixels straight (not
-// premultiplied), 16 bits a channel when the file has more than 8.
+// premultiplied), 16 bits a channel when the file has more than 8. A file
+// the system's decoder would hang on is refused before ImageIO sees it
+// (heif_guard.h).
 namespace sgcl::codec::detail {
-    inline error heif_unsupported() {
+    inline error heif_unsupported() noexcept {
         return error(errc::unsupported, 0, "heif: needs the system's codec (macOS ImageIO)");
     }
 
 #if defined(__APPLE__)
-    inline error heif_status_error(apple::Status st) {
+    inline error heif_status_error(apple::Status st) noexcept {
         switch (st) {
             case apple::StatusUnexpectedEof:
             case apple::StatusIncomplete:
@@ -65,7 +70,7 @@ namespace sgcl::codec::detail {
     // The pixels of a CGImage in format f (gray or RGB, alpha straight, 16
     // bits in the machine's order) into dst by vImage, in the image's own
     // color space (no color conversion); false for a layout it does not read
-    inline bool heif_vimage(apple::Ref cg, apple::Ref space, pixel_format f, std::byte* dst, size_t stride, size_t w, size_t h) {
+    inline bool heif_vimage(apple::Ref cg, apple::Ref space, pixel_format f, std::byte* dst, size_t stride, size_t w, size_t h) noexcept {
         using namespace apple;
         const bool deep = f == pixel_format::gray16 || f == pixel_format::gray_alpha16 || f == pixel_format::rgb16 || f == pixel_format::rgba16;
         const bool alpha = f == pixel_format::gray_alpha8 || f == pixel_format::gray_alpha16 || f == pixel_format::rgba8 || f == pixel_format::rgba16;
@@ -82,7 +87,7 @@ namespace sgcl::codec::detail {
     // bits in an RGB space: premultiplied as a bitmap context holds them,
     // straightened here (what premultiplying lost stays lost); opaque when
     // the image has no alpha
-    inline bool heif_draw(apple::Ref cg, apple::Ref space, bool deep, bool alpha, std::byte* dst, size_t stride, size_t w, size_t h) {
+    inline bool heif_draw(apple::Ref cg, apple::Ref space, bool deep, bool alpha, std::byte* dst, size_t stride, size_t w, size_t h) noexcept {
         using namespace apple;
         Owned context(bitmap_context_create(dst, w, h, deep ? 16 : 8, stride, space,
                                             (alpha ? AlphaPremultipliedLast : AlphaNoneSkipLast) | (deep ? ByteOrder16Little : 0)));
@@ -120,7 +125,7 @@ namespace sgcl::codec::detail {
     }
 
     // Rows of format f into the image, converted to its format
-    inline void heif_rows(const std::byte* rows, size_t stride, pixel_format f, image& im, size_t w, size_t h) {
+    inline void heif_rows(const std::byte* rows, size_t stride, pixel_format f, image& im, size_t w, size_t h) noexcept {
         auto& s = ImageAccess::state(im);
         const auto run = converter(f, s.format);
         for (size_t y = 0; y < h; ++y) {
@@ -130,15 +135,22 @@ namespace sgcl::codec::detail {
 
     // The first image of a file in memory. Its native pixel format: gray
     // or RGB (any other color model converted to sRGB), alpha when it has
-    // any, 16 bits when its components have more than 8
-    inline expected<image, error> heif_decode_memory(const uint8_t* data, size_t size, const decode_options& o) {
+    // any, 16 bits when its components have more than 8. Cannot throw: a
+    // CFData the system does not make (it has no other reason to refuse
+    // one) ends the program (os::memory_refused)
+    inline expected<image, error> heif_decode_memory(const uint8_t* data, size_t size, const decode_options& o) noexcept {
         using namespace apple;
         if (o.want && !valid(*o.want)) {
             return unexpected(error(errc::invalid_argument, 0, "heif: the pixel format outside the list"));
         }
+        // what the system's decoder does not survive, refused before it
+        // sees the file (heif_guard.h)
+        if (auto e = heif_guard(data, size)) {
+            return unexpected(*e);
+        }
         Owned bytes(data_create_no_copy(nullptr, data, Index(size), allocator_null));
-        if (!bytes) {
-            throw std::bad_alloc();
+        if (!bytes) [[unlikely]] {
+            sgcl::detail::os::memory_refused("a CFData over the file to decode");
         }
         const Ref keys[] = {source_should_cache};
         const Ref values[] = {boolean_false};
@@ -232,7 +244,7 @@ namespace sgcl::codec::detail {
             // the orientation (ImageIO's reading of irot and imir) and the
             // profile of the pixels' color space; EXIF's own bytes are not
             // given by ImageIO
-            ImageAccess::set_orientation(result, unsigned(number_of(props.get(), property_orientation, 1)));
+            ImageAccess::set_orientation(result, number_of(props.get(), property_orientation, 1));
             Owned icc(color_space_copy_icc(space));
             if (icc) {
                 const size_t n = size_t(data_length(icc.get()));
@@ -270,7 +282,8 @@ namespace sgcl::codec::detail {
     // alpha straight, 16 bits in the machine's order. Its color space from
     // the ICC profile when that has the image's model, else sRGB or gray
     // of gamma 2.2
-    inline apple::Owned heif_cgimage(const image& im, apple::Owned& space, apple::Owned& provider) {
+    inline apple::Owned heif_cgimage(const image& im, apple::Owned& space, apple::Owned& provider) noexcept {
+
         using namespace apple;
         const pixel_format f = im.format();
         const bool gray = f == pixel_format::gray8 || f == pixel_format::gray16 || f == pixel_format::gray_alpha8 || f == pixel_format::gray_alpha16;
@@ -297,13 +310,26 @@ namespace sgcl::codec::detail {
 
     // Where the encoded file goes: a CFData to copy into a vector, or a
     // writer the destination's consumer writes to as ImageIO gives bytes
+    // A write that throws is called from inside the system's encoder, C
+    // code an exception must not unwind: it is caught there, the write
+    // refused, and thrown again once the encoder has returned
     struct HeifConsumer {
         WriterSink sink;
         bool failed = false;
+        std::exception_ptr thrown;
 
-        static size_t put(void* info, const void* buffer, size_t count) {
+        static size_t put(void* info, const void* buffer, size_t count) noexcept {
             auto* self = static_cast<HeifConsumer*>(info);
-            if (self->failed || !self->sink.put(static_cast<const uint8_t*>(buffer), count)) {
+            if (self->failed) {
+                return 0;
+            }
+            try {
+                if (!self->sink.put(static_cast<const uint8_t*>(buffer), count)) {
+                    self->failed = true;
+                    return 0;
+                }
+            } catch (...) {
+                self->thrown = std::current_exception();
                 self->failed = true;
                 return 0;
             }
@@ -319,8 +345,14 @@ namespace sgcl::codec::detail {
         if (quality < 1 || quality > 100) {
             return unexpected(error(errc::invalid_argument, 0, "heif: quality outside 1..100"));
         }
-        // CMYK through RGB (its profile left behind with the ink)
-        const image im = original.format() == pixel_format::cmyk8 ? original.convert(pixel_format::rgb8) : original;
+        // CMYK through RGB (its profile left behind with the ink); 16-bit
+        // gray with alpha, which the system's encoder does not write (it
+        // writes the 8-bit one and 16-bit gray), through RGBA of 16 bits,
+        // its gray profile left behind
+        const pixel_format f = original.format();
+        const image im = f == pixel_format::cmyk8 ? original.convert(pixel_format::rgb8)
+                         : f == pixel_format::gray_alpha16 ? original.convert(pixel_format::rgba16)
+                                                           : original;
         Owned space, provider;
         Owned cg = heif_cgimage(im, space, provider);
         if (!cg) {
@@ -345,11 +377,14 @@ namespace sgcl::codec::detail {
         return {};
     }
 
-    inline expected<vector<byte>, error> heif_encode(const image& im, int quality) {
+    // Into bytes: cannot throw, a CFData the system does not make ends the
+    // program (os::memory_refused). Into a stream: what its write throws,
+    // and a consumer the system does not make ends the program likewise
+    inline expected<vector<byte>, error> heif_encode(const image& im, int quality) noexcept {
         using namespace apple;
         Owned data(data_create_mutable(nullptr, 0));
-        if (!data) {
-            throw std::bad_alloc();
+        if (!data) [[unlikely]] {
+            sgcl::detail::os::memory_refused("a CFData for the encoded file");
         }
         auto r = heif_encode_into(im, quality, [&](Ref type) {
             return Owned(destination_create_with_data(data.get(), type, 1, nullptr));
@@ -367,15 +402,18 @@ namespace sgcl::codec::detail {
 
     inline expected<void, error> heif_encode(const image& im, int quality, const io::writer& out) {
         using namespace apple;
-        HeifConsumer to{WriterSink{out, 0, nullopt}};
+        HeifConsumer to{WriterSink{out, 0, nullopt}, false, nullptr};
         const ConsumerCallbacks callbacks{&HeifConsumer::put, nullptr};
         Owned consumer(consumer_create(&to, &callbacks));
-        if (!consumer) {
-            throw std::bad_alloc();
+        if (!consumer) [[unlikely]] {
+            sgcl::detail::os::memory_refused("a CGDataConsumer for the stream");
         }
         auto r = heif_encode_into(im, quality, [&](Ref type) {
             return Owned(destination_create_with_consumer(consumer.get(), type, 1, nullptr));
         });
+        if (to.thrown) {
+            std::rethrow_exception(to.thrown);
+        }
         if (to.sink.failure) {
             return unexpected(*to.sink.failure);
         }
@@ -384,7 +422,7 @@ namespace sgcl::codec::detail {
 #endif
 
     // The first image of a HEIF or AVIF file in memory, read in place
-    inline expected<image, error> heif_decode_bytes(const slice<const byte>& data, const decode_options& o) {
+    inline expected<image, error> heif_decode_bytes(const slice<const byte>& data, const decode_options& o) noexcept {
 #if defined(__APPLE__)
         return heif_decode_memory(reinterpret_cast<const uint8_t*>(data.data()), data.size(), o);
 #else

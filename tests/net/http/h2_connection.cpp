@@ -542,6 +542,56 @@ TEST(H2Connection_Tests, SendWindow_6_9) {
     EXPECT_EQ(r.last(FrameType::data)->flags, flag::end_stream);
 }
 
+// A payload in place is a slice of the block it lies in, holding it: the
+// writer's pieces name managed memory through its owner, never by a raw
+// address (a raw word into managed memory beside data is what the
+// collector's rule-2 diagnostic reports: H2Server_Tests.HundredStreams
+// printed it on every run under the debug build). A slice of unmanaged
+// memory gives pieces with no owner; nothing taken, no piece
+TEST(H2Connection_Tests, DataInPlaceHoldsItsBlock) {
+    using Block = sgcl::array<std::byte, 32768>;
+    tracked_ptr<Block> block = make_tracked<Block>();
+    for (size_t i = 0; i < block->size(); ++i) {
+        (*block)[i] = std::byte(i * 7);
+    }
+    const slice<const byte> owned(tracked_ptr<const void>(block), block->data() + 100, 32000);
+    Rig r;
+    r.settings({{uint16_t(SettingId::initial_window_size), 1 << 20}});
+    r.w().window_update(0, 1 << 20);
+    r.request(1, "/", true);
+    r.request(3, "/", true);
+    ASSERT_TRUE(r.feed().has_value());
+    EXPECT_EQ(r.m.send_data_in_place(1, owned, false), 32000u);   // two frames of the peer's 16384
+    std::string head;
+    sgcl::vector<Machine::OutPiece> pieces;
+    r.m.take_output(head, pieces);
+    ASSERT_EQ(pieces.size(), 2u);
+    size_t at = 0;
+    for (auto& q : pieces) {
+        EXPECT_EQ(q.piece.owner(), tracked_ptr<const void>(block));
+        EXPECT_EQ(q.piece.data(), owned.data() + at);
+        at += q.piece.size();
+    }
+    EXPECT_EQ(at, owned.size());
+    EXPECT_EQ(pieces[0].piece.size(), 16384u);
+    // unmanaged memory: pieces with no owner
+    const std::string text = bytes(1000);
+    EXPECT_EQ(r.m.send_data_in_place(3, slice<const byte>(reinterpret_cast<const byte*>(text.data()), text.size()), false), 1000u);
+    r.m.take_output(head, pieces);
+    ASSERT_EQ(pieces.size(), 1u);
+    EXPECT_FALSE(pieces[0].piece.owned());
+    EXPECT_EQ(pieces[0].piece.size(), 1000u);
+    // empty with END_STREAM: the frame and no piece; a closed stream: nothing
+    EXPECT_EQ(r.m.send_data_in_place(3, slice<const byte>(), true), 0u);
+    r.m.take_output(head, pieces);
+    EXPECT_TRUE(pieces.empty());
+    EXPECT_FALSE(head.empty());
+    EXPECT_EQ(r.m.send_data_in_place(3, owned, false), 0u);
+    r.m.take_output(head, pieces);
+    EXPECT_TRUE(pieces.empty());
+    EXPECT_TRUE(head.empty());
+}
+
 // DATA in place (send_data_in_place, the server's body blocks): the frames'
 // headers in the output, their payloads as pieces taken beside it; the
 // bytes put together are the frames send_data writes, through the windows,
@@ -549,14 +599,14 @@ TEST(H2Connection_Tests, SendWindow_6_9) {
 TEST(H2Connection_Tests, DataInPlaceIsDataCopied) {
     auto taken = [](Machine& m) {
         std::string bytes;
-        std::vector<Machine::OutPiece> pieces;
+        sgcl::vector<Machine::OutPiece> pieces;
         m.take_output(bytes, pieces);
         std::string whole;
         size_t at = 0;
         for (auto& q : pieces) {
             EXPECT_GE(q.at, at);
             whole.append(bytes, at, q.at - at);
-            whole.append(reinterpret_cast<const char*>(q.p), q.n);
+            whole.append(reinterpret_cast<const char*>(q.piece.data()), q.piece.size());
             at = q.at;
         }
         whole.append(bytes, at, std::string::npos);
@@ -570,6 +620,9 @@ TEST(H2Connection_Tests, DataInPlaceIsDataCopied) {
     };
     const std::string body = bytes(70000);
     const uint8_t* p = reinterpret_cast<const uint8_t*>(body.data());
+    auto in = [&](size_t at, size_t n) {
+        return slice<const byte>(reinterpret_cast<const byte*>(body.data()) + at, n);
+    };
     Rig a;
     Rig b;
     for (Rig* r : {&a, &b}) {
@@ -580,12 +633,12 @@ TEST(H2Connection_Tests, DataInPlaceIsDataCopied) {
     }
     // the stream's window takes 30000 of the first 50000
     EXPECT_EQ(a.m.send_data(1, p, 50000, false), 30000u);
-    EXPECT_EQ(b.m.send_data_in_place(1, p, 50000, false), 30000u);
+    EXPECT_EQ(b.m.send_data_in_place(1, in(0, 50000), false), 30000u);
     const uint8_t opaque[8] = {1, 2, 3, 4, 5, 6, 7, 8};
     a.m.ping(opaque);
     b.m.ping(opaque);
     EXPECT_EQ(a.m.send_data(3, p + 7, 20000, true), 20000u);
-    EXPECT_EQ(b.m.send_data_in_place(3, p + 7, 20000, true), 20000u);
+    EXPECT_EQ(b.m.send_data_in_place(3, in(7, 20000), true), 20000u);
     const std::string first = copied(a.m);
     EXPECT_EQ(taken(b.m), first);
     // the rest when the peer opens the windows
@@ -595,7 +648,7 @@ TEST(H2Connection_Tests, DataInPlaceIsDataCopied) {
         ASSERT_TRUE(r->feed().has_value());
     }
     EXPECT_EQ(a.m.send_data(1, p + 30000, 40000, true), 40000u);
-    EXPECT_EQ(b.m.send_data_in_place(1, p + 30000, 40000, true), 40000u);
+    EXPECT_EQ(b.m.send_data_in_place(1, in(30000, 40000), true), 40000u);
     EXPECT_EQ(taken(b.m), copied(a.m));
     // what was taken parses as the frames: the payloads whole, in order
     const std::string& all = first;
@@ -999,4 +1052,61 @@ TEST(H2Connection_Tests, Attack_WindowZero) {
     r.drain();
     EXPECT_EQ(r.last(FrameType::rst_stream)->code, uint32_t(ErrorCode::cancel));
     EXPECT_EQ(r.m.open_streams(), 0u);
+}
+
+// DESIGN 408: frames at the sizes SETTINGS allow. Ours (2^14): a DATA of
+// exactly that is read. The peer's: a larger SETTINGS_MAX_FRAME_SIZE lets
+// our DATA go in frames of up to it, its largest (2^24 - 1) one frame for
+// a body under it, a body of exactly the size one frame
+TEST(H2Connection_Tests, FramesAtTheMaxFrameSize_4_2) {
+    Rig r;
+    r.request(1, "/", false);
+    r.data(1, std::string(DefaultMaxFrameSize, 'a'), true);
+    ASSERT_TRUE(r.feed().has_value());
+    EXPECT_EQ(r.sink.body.size(), size_t(DefaultMaxFrameSize));
+    EXPECT_TRUE(r.sink.body_end);
+    for (uint32_t most : {uint32_t(20000), LargestMaxFrameSize}) {
+        Rig p;
+        p.settings({{uint16_t(SettingId::max_frame_size), most}, {uint16_t(SettingId::initial_window_size), LargestWindow}});
+        p.request(1, "/");
+        p.w().window_update(0, LargestWindow - DefaultWindow);
+        ASSERT_TRUE(p.feed().has_value());
+        const std::string body = bytes(40000);
+        EXPECT_EQ(p.m.send_data(1, reinterpret_cast<const uint8_t*>(body.data()), body.size(), true), body.size());
+        p.drain();
+        std::vector<size_t> sizes;
+        for (auto& o : p.out) {
+            if (o.type == FrameType::data) {
+                sizes.push_back(o.payload.size());
+            }
+        }
+        if (most == 20000) {
+            EXPECT_EQ(sizes, (std::vector<size_t>{20000, 20000}));
+        } else {
+            EXPECT_EQ(sizes, (std::vector<size_t>{40000}));
+        }
+    }
+}
+
+// DESIGN 408: the peer's SETTINGS_HEADER_TABLE_SIZE of 0: the encoder
+// holds no entry, the next block starts with an update to 0, and what it
+// writes reads back through a decoder that took the update
+TEST(H2Connection_Tests, PeerTableSizeZero_6_5_2) {
+    Rig r;
+    r.settings({{uint16_t(SettingId::header_table_size), 0}});
+    ASSERT_TRUE(r.feed().has_value());
+    EXPECT_EQ(r.m.encoder().table().limit(), 0u);
+    std::string b;
+    r.m.encoder().begin_block(b);
+    ASSERT_EQ(b.size(), 1u);
+    EXPECT_EQ(uint8_t(b[0]), 0x20);                              // a Dynamic Table Size Update to 0
+    r.m.encoder().encode(b, "x-one", "1");
+    r.m.encoder().encode(b, "x-one", "1");
+    EXPECT_EQ(r.m.encoder().table().count(), 0u);
+    Decoder d(4096);
+    auto back = d.decode(slice<const byte>(reinterpret_cast<const byte*>(b.data()), b.size()), 1 << 20);
+    ASSERT_TRUE(back.has_value());
+    EXPECT_EQ(back->fields.get_all("x-one").size(), 2u);
+    EXPECT_EQ(d.table().count(), 0u);
+    EXPECT_EQ(d.table().limit(), 0u);
 }

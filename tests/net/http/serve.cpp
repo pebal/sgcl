@@ -16,6 +16,9 @@
 #include <fstream>
 #include <string>
 
+#include <sys/stat.h>
+#include <unistd.h>
+
 using namespace sgcl;
 
 namespace {
@@ -198,4 +201,47 @@ TEST(HttpServe_Tests, TlsFromFiles) {
     EXPECT_EQ(*res->text(), "hello over HTTP/1.1\n");
     srv.close();
     (void)serving.wait();
+}
+
+// DESIGN 408: the file server at its ends: an empty file, HEAD of one, a
+// name that is not a regular file (a FIFO, which an open would wait on
+// forever) 404 at once, a NUL in the name, If-Modified-Since a second
+// before the file's time, a directory that is not there
+TEST(HttpServe_Tests, Boundaries) {
+    Tree t;
+    write(t.root / "public/empty.txt", "");
+    ASSERT_EQ(::mkfifo((t.root / "public/fifo").c_str(), 0600), 0);
+    Running r(t.dir);
+    net::http::client web;
+    web.timeout = std::chrono::seconds(5);
+    auto empty = web.get(r.url("/empty.txt"));
+    ASSERT_TRUE(empty);
+    EXPECT_EQ(empty->status(), 200);
+    EXPECT_EQ(empty->content_length(), 0u);
+    EXPECT_EQ(*empty->text(), "");
+    auto head = web.head(r.url("/hello.txt"));
+    ASSERT_TRUE(head);
+    EXPECT_EQ(head->content_length(), 6u);
+    EXPECT_EQ(*head->text(), "");
+    auto fifo = web.get(r.url("/fifo"));
+    ASSERT_TRUE(fifo) << text(fifo.error().message());
+    EXPECT_EQ(fifo->status(), 404);
+    auto nul = web.get(r.url("/hello.txt%00.png"));
+    ASSERT_TRUE(nul);
+    EXPECT_EQ(nul->status(), 404);
+    auto first = web.get(r.url("/hello.txt"));
+    ASSERT_TRUE(first);
+    auto modified = first->headers().date("Last-Modified");
+    first->close();
+    ASSERT_TRUE(modified);
+    net::http::request before("GET", r.url("/hello.txt"));
+    before.headers().set_date("If-Modified-Since", time::datetime::from_unix(modified->unix() - 1, time::zone::utc()));
+    auto changed = web.send(before);
+    ASSERT_TRUE(changed);
+    EXPECT_EQ(changed->status(), 200);
+    EXPECT_EQ(*changed->text(), "hello\n");
+    Running gone((t.root / "not_there").string());
+    auto none = web.get(gone.url("/"));
+    ASSERT_TRUE(none);
+    EXPECT_EQ(none->status(), 404);
 }

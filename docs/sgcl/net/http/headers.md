@@ -1,81 +1,105 @@
+[sgcl](../../README.md) › [net](../README.md) › [http](README.md)
+
 # sgcl::net::http::headers
 
 ```cpp
-#include "sgcl/net/http/headers.h"   // or "sgcl/net/http/http.h"
+#include "sgcl/net/http/headers.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    class headers;   // the fields of a head: (name, value) in their order
+    class headers;
 }
 ```
 
-The fields of a head: a list of names and values in the order of the wire, a name as often as it comes (`Set-Cookie`). Names are compared without regard to ASCII case and kept as they were written: there is no canonical form (Go turns `content-type` into `Content-Type`, which costs a string a field; HTTP/2 writes names in lower case anyway). A lookup walks the list: a head is a handful of fields, bounded by the server's limit, and there is no hash to be steered by whoever sends it.
+`sgcl::net::http::headers` is the fields of a head, Go's `http.Header`: a list of names and values in the order of the
+wire, a name as often as it comes (`Set-Cookie`). Names are compared without regard to ASCII case and kept as they were
+written: there is no canonical form (Go turns `content-type` into `Content-Type`, which costs a string a field;
+HTTP/2 writes names in lower case anyway). A lookup walks the list: a head is a handful of fields, bounded by the
+server's limit, and there is no hash to be steered by whoever sends it.
+
+A `headers` is a value, not a handle: a copy is a list of its own, and a moved-from one is empty. A [request](request.md) and a
+[response](response.md) hold theirs and give a reference to it; a [response_writer](response_writer.md) the same.
+Dates (`Date`, `Last-Modified`, `If-Modified-Since`, `Expires`) are [time::datetime](../../time/README.md) values,
+read and written in the format of HTTP, the `time` module's `time::http`, the only one in the library (Go's
+`http.TimeFormat` and `http.ParseTime`).
 
 ## Rules
 
-- The fields of a received head are slices of the one string the head was copied into: nothing is allocated a field. `get` makes the string it returns (`""` when there is none; `contains` tells the two apart), and so does the iteration, a `pair<string, string>` for each field.
-- `set` puts the value in the place of the first field of the name and drops the others; `add` appends.
-- **Dates** (`Date`, `Last-Modified`, `If-Modified-Since`, `Expires`) are [`time::datetime`](../../time/README.md) values: `date(name)` reads the three forms of RFC 9110 §5.6.7 (IMF-fixdate, and the obsolete RFC 850 and asctime a recipient must take) into UTC, `nullopt` when there is none or it is not a date; `set_date(name, t)` writes IMF-fixdate, always GMT, whatever `t`'s zone. The format is the `time` module's (`time::http`), the only one in the library.
-- A name and a value are kept as the program gives them and checked where they are written: a name that is not a token of RFC 9110, or a value with CR, LF, NUL or another control, makes the client's send `std::errc::invalid_argument` before a byte is sent and a handler's response a 500 ([client](client.md), [server](server.md)): values often come from users, and neither a split message nor an exception in the path of a request will do.
+- The fields of a received head are slices of the one string the head was copied into: nothing is allocated a field.
+  [get](headers/get.md) makes the string it returns (`""` when there is none; [contains](headers/contains.md) tells
+  the two apart), and so does the iteration, a `pair<string, string>` for each field.
+- A name and a value are kept as the program gives them and checked where they are written: a name that is not a
+  token of RFC 9110, or a value with CR, LF, NUL or another control, makes the client's send
+  `std::errc::invalid_argument` before a byte is sent ([client](client.md#rules)) and a handler's response a 500
+  ([response_writer](response_writer.md)). Values often come from users, and neither a split message nor an exception
+  in the path of a request will do.
+- A `headers` holds slices of strings, so it lives where a `tracked_ptr` may: on a stack, in a task, in a managed
+  object; in a global or a `std` container, a [rooted](../../core/rooted.md) of it.
 
-## Members
+## Member types
 
-### Reading
+| Type | Definition |
+|---|---|
+| `iterator` | an input iterator over the fields in their order; `*it` makes a `pair<string, string>` of the name and the value |
 
-```cpp
-headers();
-string get(const string& name) const;
-vector<string> get_all(const string& name) const;
-bool contains(const string& name) const;
-```
+## Member functions
 
-The first value of a name, `""` when there is none; every value of it, in order; and whether it is there at all. A name is found in any ASCII case.
+| Function | Description |
+|---|---|
+| [(constructor)](headers/headers.md) | constructs an empty list |
+| `(destructor)` | drops the list |
+| `operator=` | copies or moves another list |
 
-### Writing
+#### Lookup
 
-```cpp
-headers& set(const string& name, const string& value);
-headers& add(const string& name, const string& value);
-headers& erase(const string& name);
-```
+| Function | Description |
+|---|---|
+| [get](headers/get.md) | the first value of a name |
+| [get_all](headers/get_all.md) | every value of a name |
+| [contains](headers/contains.md) | checks whether a name is there |
+| [date](headers/date.md) | the first value of a name read as a date |
 
-`set` takes the place of the first field of the name and drops the others, `add` appends one, `erase` drops every field of the name.
+#### Modifiers
 
-### Dates
+| Function | Description |
+|---|---|
+| [set](headers/set.md) | sets the value of a name, in the place of its first field |
+| [add](headers/add.md) | appends a field |
+| [erase](headers/erase.md) | drops every field of a name |
+| [set_date](headers/set_date.md) | sets the value of a name to a date |
 
-```cpp
-optional<time::datetime> date(const string& name) const;           // RFC 9110 §5.6.7, in UTC
-headers& set_date(const string& name, const time::datetime& t);    // "Sun, 06 Nov 1994 08:49:37 GMT"
-```
+#### Capacity
 
-A field of a date read in any of the three forms of RFC 9110, `nullopt` when there is none or it is not a date, and written as IMF-fixdate.
+| Function | Description |
+|---|---|
+| [size](headers/size.md) | the number of fields |
+| [empty](headers/empty.md) | checks whether there is no field |
 
-### Size and iteration
+#### Iterators
 
-```cpp
-size_t size() const noexcept;
-bool empty() const noexcept;
-iterator begin() const noexcept;   // pair<string, string>, in order
-iterator end() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [begin](headers/begin.md) | an iterator to the first field |
+| [end](headers/end.md) | the iterator past the last field |
 
-The number of fields, and each as a `pair<string, string>` in the order of the wire.
+## Complexity
+
+A lookup, [set](headers/set.md) and [erase](headers/erase.md): linear in the number of fields. [add](headers/add.md):
+constant, amortized.
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-#include "sgcl/time/time.h"
+#include "sgcl/io.h"
+#include "sgcl/net/http.h"
+#include "sgcl/time.h"
 
 using namespace sgcl;
 
 int main() {
     net::http::headers h;
     h.add("Set-Cookie", "a=1").add("set-cookie", "b=2").set("Content-Type", "text/plain");
-    println("{} {}", h.get("SET-COOKIE"), h.get_all("Set-Cookie").size());
-    h.set("X-Name", "line one\r\nInjected: yes");
     h.set_date("Last-Modified", time::datetime::from_unix(784111777));
-    println("{}", (h.date("last-modified") == time::datetime::from_unix(784111777)));
+    println("{} {} {}", h.get("SET-COOKIE"), h.get_all("Set-Cookie").size(), h.size());
     for (auto [name, value] : h) {
         println("{}: {}", name, value);
     }
@@ -85,16 +109,15 @@ int main() {
 Output:
 
 ```text
-a=1 2
-true
+a=1 2 4
 Set-Cookie: a=1
 set-cookie: b=2
 Content-Type: text/plain
-X-Name: line one
-Injected: yes
 Last-Modified: Sun, 06 Nov 1994 08:49:37 GMT
 ```
 
 ## See also
 
-- [request](request.md), [response](response.md), [response_writer](response_writer.md): where headers are held
+- [request::headers](request/headers.md), [response::headers](response/headers.md): the fields of a message
+- [cookie](cookie.md): a `Set-Cookie` value written and read
+- [response_writer](response_writer.md): the fields a handler sends

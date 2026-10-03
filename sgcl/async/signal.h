@@ -14,6 +14,7 @@
 #include <initializer_list>
 #include <map>
 #include <mutex>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -62,7 +63,11 @@ namespace sgcl::async {
 
             // The channel registered for the numbers: their handler
             // installed (the disposition saved once, for reset), the
-            // thread and the pipe started on the first registration
+            // thread and the pipe started on the first registration. A
+            // pipe or a thread that cannot be made is a std::system_error,
+            // thrown before any handler is installed. Not on Windows yet:
+            // a std::system_error at the call (an assertion at compile
+            // time would be one in every program that includes async.h)
             void notify(std::initializer_list<int> numbers, const tracked_ptr<void>& keep, ChannelState<int>* ch) {
 #if SGCL_SIGNALS_POSIX
                 std::lock_guard lock(_m);
@@ -81,14 +86,17 @@ namespace sgcl::async {
                 }
 #else
                 (void)numbers; (void)keep; (void)ch;
-                static_assert(SGCL_SIGNALS_POSIX, "the signals are POSIX only for now (Windows is to come with the platform matrix)");
+                throw std::system_error(std::make_error_code(std::errc::function_not_supported), "signals: POSIX only for now (Windows is to come with the platform matrix)");
 #endif
             }
 
             // The disposition from before the first registration back
             // (every number registered, for an empty list), the channels
             // registered for the numbers forgotten
-            void reset(std::initializer_list<int> numbers) {
+            // noexcept, as ignore: the std::mutex fails only when misused
+            // (a lock taken twice), which this never does; a disposition
+            // saved is memory, never thrown (DESIGN 356)
+            void reset(std::initializer_list<int> numbers) noexcept {
 #if SGCL_SIGNALS_POSIX
                 std::lock_guard lock(_m);
                 if (numbers.size() == 0) {
@@ -139,7 +147,7 @@ namespace sgcl::async {
 
             // The numbers ignored (the disposition before the first
             // registration still saved, for reset), their channels forgotten
-            void ignore(std::initializer_list<int> numbers) {
+            void ignore(std::initializer_list<int> numbers) noexcept {
 #if SGCL_SIGNALS_POSIX
                 std::lock_guard lock(_m);
                 for (int n : numbers) {
@@ -185,21 +193,32 @@ namespace sgcl::async {
 
         private:
 #if SGCL_SIGNALS_POSIX
+            // The pipe and the thread, unless they are there; either that
+            // cannot be made is a std::system_error, with nothing left
+            // behind (the next registration tries again)
             void _start() {
                 if (_thread.joinable()) {
                     return;
                 }
                 if (::pipe(_fd) < 0) {
-                    return;
+                    _fd[0] = _fd[1] = -1;
+                    throw std::system_error(errno, std::generic_category(), "signals: pipe");
                 }
                 ::fcntl(_fd[0], F_SETFD, FD_CLOEXEC);
                 ::fcntl(_fd[1], F_SETFD, FD_CLOEXEC);
                 ::fcntl(_fd[1], F_SETFL, ::fcntl(_fd[1], F_GETFL) | O_NONBLOCK);   // the handler never blocks: a full pipe drops the signal
-                _pipe.store(_fd[1], std::memory_order_release);
-                _thread = std::thread([this] { _run(); });
+                try {
+                    _thread = std::thread([this] { _run(); });
+                } catch (...) {
+                    ::close(_fd[0]);
+                    ::close(_fd[1]);
+                    _fd[0] = _fd[1] = -1;
+                    throw;
+                }
+                _pipe.store(_fd[1], std::memory_order_release);   // after the thread: no handler is installed before this returns
             }
 
-            void _save(int n) {
+            void _save(int n) noexcept {
                 if (!_saved.contains(n)) {
                     struct sigaction old = {};
                     ::sigaction(n, nullptr, &old);
@@ -209,7 +228,7 @@ namespace sgcl::async {
 
             // The handler: async-signal-safe, the number as one byte on
             // the pipe, errno left as it was
-            static void _handler(int n) {
+            static void _handler(int n) noexcept {
                 int saved = errno;
                 int fd = _pipe.load(std::memory_order_relaxed);
                 if (fd >= 0) {
@@ -284,13 +303,13 @@ namespace sgcl::async {
     // The disposition the numbers had before the first `signals` back,
     // the channels registered for them forgotten; every number, for an
     // empty list
-    inline void reset_signals(std::initializer_list<int> numbers = {}) {
+    inline void reset_signals(std::initializer_list<int> numbers = {}) noexcept {
         detail::signals_instance().reset(numbers);
     }
 
     // The numbers ignored by the process, the channels registered for
     // them forgotten; `reset_signals` undoes it
-    inline void ignore_signals(std::initializer_list<int> numbers) {
+    inline void ignore_signals(std::initializer_list<int> numbers) noexcept {
         detail::signals_instance().ignore(numbers);
     }
 }

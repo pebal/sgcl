@@ -33,7 +33,7 @@ namespace sgcl::time::detail {
     // The whole file, when it is a regular file of at most `cap` bytes: a
     // TZ variable may name any path, /dev/zero or a directory included,
     // and reading one of those must end
-    inline file_bytes read_small_file(const std::string& path, size_t cap = size_t(1) << 20) {
+    inline file_bytes read_small_file(const std::string& path, size_t cap = size_t(1) << 20) noexcept {
         file_bytes out;
         int fd;
         do {
@@ -67,7 +67,7 @@ namespace sgcl::time::detail {
     }
 
     // Whether a file starts with these bytes, reading no more of it
-    inline bool starts_with(const std::string& path, std::string_view head) {
+    inline bool starts_with(const std::string& path, std::string_view head) noexcept {
         int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
         if (fd < 0) {
             return false;
@@ -89,12 +89,12 @@ namespace sgcl::time::detail {
     }
 
     // The error of a read as a sentence: "No such file or directory"
-    inline std::string error_text(int error) {
+    inline std::string error_text(int error) noexcept {
         return std::system_category().message(error);
     }
 
     // What a symbolic link points at, nothing when the path is not one
-    inline optional<std::string> link_target(const std::string& path) {
+    inline optional<std::string> link_target(const std::string& path) noexcept {
         std::error_code ec;
         auto target = std::filesystem::read_symlink(path, ec);
         if (ec) {
@@ -106,7 +106,7 @@ namespace sgcl::time::detail {
     // The files under a directory, as paths relative to it, depth first,
     // the directories named in `skip` at the top left out; a directory
     // that is a link is not followed
-    inline std::vector<std::string> files_under(const std::string& root, const std::vector<std::string>& skip) {
+    inline std::vector<std::string> files_under(const std::string& root, const std::vector<std::string>& skip) noexcept {
         std::vector<std::string> out;
         std::error_code ec;
         std::filesystem::recursive_directory_iterator it(root, std::filesystem::directory_options::skip_permission_denied, ec);

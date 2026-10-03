@@ -27,6 +27,8 @@ namespace sgcl {
     , public mixin::lookup<sorted_map<Key, T, Compare>> {
         using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, false>>;
 
+        static_assert(detail::nothrow_function_object<Compare, const Key&, const Key&>, "sgcl::sorted_map: Compare must be noexcept");
+
     public:
         using key_type = Key;
         using mapped_type = T;
@@ -65,54 +67,54 @@ namespace sgcl {
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        pair<iterator, bool> insert(P&& value) {
+        pair<iterator, bool> insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->emplace(std::forward<P>(value));
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator hint, P&& value) {
+        iterator insert(const_iterator hint, P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->emplace_hint(hint, std::forward<P>(value));
         }
 
         template<class M>
-        pair<iterator, bool> insert_or_assign(const key_type& key, M&& obj) {
+        pair<iterator, bool> insert_or_assign(const key_type& key, M&& obj) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, M&&> && std::is_nothrow_assignable_v<T&, M&&>) {
             return _insert_or_assign(key, std::forward<M>(obj));
         }
 
         template<class M>
-        pair<iterator, bool> insert_or_assign(key_type&& key, M&& obj) {
+        pair<iterator, bool> insert_or_assign(key_type&& key, M&& obj) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, M&&> && std::is_nothrow_assignable_v<T&, M&&>) {
             return _insert_or_assign(std::move(key), std::forward<M>(obj));
         }
 
         template<class M>
-        iterator insert_or_assign(const_iterator hint, const key_type& key, M&& obj) {
+        iterator insert_or_assign(const_iterator hint, const key_type& key, M&& obj) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, M&&> && std::is_nothrow_assignable_v<T&, M&&>) {
             return _insert_or_assign_hint(hint, key, std::forward<M>(obj));
         }
 
         template<class M>
-        iterator insert_or_assign(const_iterator hint, key_type&& key, M&& obj) {
+        iterator insert_or_assign(const_iterator hint, key_type&& key, M&& obj) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, M&&> && std::is_nothrow_assignable_v<T&, M&&>) {
             return _insert_or_assign_hint(hint, std::move(key), std::forward<M>(obj));
         }
 
         // The mapped value is built in place from the arguments: it need
         // not be movable.
         template<class... A>
-        pair<iterator, bool> try_emplace(const key_type& key, A&&... a) {
+        pair<iterator, bool> try_emplace(const key_type& key, A&&... a) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A&&...>) {
             return _try_emplace(key, std::forward<A>(a)...);
         }
 
         template<class... A>
-        pair<iterator, bool> try_emplace(key_type&& key, A&&... a) {
+        pair<iterator, bool> try_emplace(key_type&& key, A&&... a) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, A&&...>) {
             return _try_emplace(std::move(key), std::forward<A>(a)...);
         }
 
         template<class... A>
-        iterator try_emplace(const_iterator hint, const key_type& key, A&&... a) {
+        iterator try_emplace(const_iterator hint, const key_type& key, A&&... a) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A&&...>) {
             return _try_emplace_hint(hint, key, std::forward<A>(a)...);
         }
 
         template<class... A>
-        iterator try_emplace(const_iterator hint, key_type&& key, A&&... a) {
+        iterator try_emplace(const_iterator hint, key_type&& key, A&&... a) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, A&&...>) {
             return _try_emplace_hint(hint, std::move(key), std::forward<A>(a)...);
         }
 
@@ -155,26 +157,26 @@ namespace sgcl {
         // The value under the key, moved out, and the element erased;
         // nothing when the key is absent: what Java's remove and C#'s
         // Remove(key, out value) hand back
-        optional<mapped_type> take(const key_type& key) {
+        optional<mapped_type> take(const key_type& key) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return _take(key);
         }
 
         template<class K> requires detail::TransparentCompare<Compare>
-        optional<mapped_type> take(const K& key) {
+        optional<mapped_type> take(const K& key) noexcept(noexcept(_take(key))) {
             return _take(key);
         }
 
-        mapped_type& operator[](const key_type& key) {
+        mapped_type& operator[](const key_type& key) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_default_constructible_v<T>) {
             return _try_emplace(key).first->second;
         }
 
-        mapped_type& operator[](key_type&& key) {
+        mapped_type& operator[](key_type&& key) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_default_constructible_v<T>) {
             return _try_emplace(std::move(key)).first->second;
         }
 
     private:
         template<class K>
-        optional<mapped_type> _take(const K& key) {
+        optional<mapped_type> _take(const K& key) noexcept(Base::template _nothrow_compare<K>() && std::is_nothrow_move_constructible_v<T>) {
             auto it = this->find(key);
             if (it == this->end()) {
                 return nullopt;
@@ -185,7 +187,7 @@ namespace sgcl {
         }
 
         template<class K, class... A>
-        pair<iterator, bool> _try_emplace(K&& key, A&&... a) {
+        pair<iterator, bool> _try_emplace(K&& key, A&&... a) noexcept(std::is_nothrow_constructible_v<Key, K&&> && std::is_nothrow_constructible_v<T, A&&...>) {
             this->_ensure_header();
             auto pos = this->_unique_pos(key);
             if (pos.existing) {
@@ -195,7 +197,7 @@ namespace sgcl {
         }
 
         template<class K, class... A>
-        iterator _try_emplace_hint(const_iterator hint, K&& key, A&&... a) {
+        iterator _try_emplace_hint(const_iterator hint, K&& key, A&&... a) noexcept(std::is_nothrow_constructible_v<Key, K&&> && std::is_nothrow_constructible_v<T, A&&...>) {
             this->_ensure_header();
             auto pos = this->_unique_hint_pos(this->_raw(hint), key);
             if (pos.existing) {
@@ -205,7 +207,7 @@ namespace sgcl {
         }
 
         template<class K, class M>
-        pair<iterator, bool> _insert_or_assign(K&& key, M&& obj) {
+        pair<iterator, bool> _insert_or_assign(K&& key, M&& obj) noexcept(std::is_nothrow_constructible_v<Key, K&&> && std::is_nothrow_constructible_v<T, M&&> && std::is_nothrow_assignable_v<T&, M&&>) {
             this->_ensure_header();
             auto pos = this->_unique_pos(key);
             if (pos.existing) {
@@ -216,7 +218,7 @@ namespace sgcl {
         }
 
         template<class K, class M>
-        iterator _insert_or_assign_hint(const_iterator hint, K&& key, M&& obj) {
+        iterator _insert_or_assign_hint(const_iterator hint, K&& key, M&& obj) noexcept(std::is_nothrow_constructible_v<Key, K&&> && std::is_nothrow_constructible_v<T, M&&> && std::is_nothrow_assignable_v<T&, M&&>) {
             this->_ensure_header();
             auto pos = this->_unique_hint_pos(this->_raw(hint), key);
             if (pos.existing) {

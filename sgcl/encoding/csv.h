@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -61,12 +62,39 @@ namespace sgcl::encoding {
             bool trim_leading_space = false;   // the white space at a field's start dropped
             bool lazy_quotes = false;          // a quote in an unquoted field kept, as Go's LazyQuotes
             bool same_field_count = true;      // every record as long as the first (Go: FieldsPerRecord 0)
-            size_t max_record_size = size_t(16) << 20;   // what a reader of a stream holds at once, a record: errc::out_of_range past it
+            size_t max_record_size = size_t(16) << 20;   // the longest record of a stream, the text of its fields: errc::out_of_range past it
         };
 
         class row;
         class reader;
         class writer;
+
+        // --- text: one line each, what json and xml have ---
+
+        // Every record of the text, the first among them (no header is
+        // taken): Go's ReadAll; the reader's error, the records before it
+        // dropped. With options, invalid_argument for options a reader
+        // refuses
+        static expected<vector<row>, error> parse(const string& text) noexcept;
+        static expected<vector<row>, error> parse(const string& text, const options& o);
+
+        // The records of the text as values of T, the first line the
+        // header whose names the fields are found by, as load<T> reads a
+        // file: csv::parse<visit>(text)
+        template<class T>
+        static expected<vector<T>, error> parse(const string& text);
+        template<class T>
+        static expected<vector<T>, error> parse(const string& text, const options& o);
+
+        // The text of the records, as save writes a file: values of a type
+        // with describe() a header of the fields' names and a record each,
+        // rows and ranges of texts a record each. The writer's mistake (a
+        // field of a kind CSV has no text for) is errc::unsupported_value
+        // with the field's path, no text given
+        template<class R>
+        static expected<string, error> stringify(const R& records);
+        template<class R>
+        static expected<string, error> stringify(const R& records, const options& o);
 
         // --- files: one line each (DESIGN 285) ---
 
@@ -77,7 +105,7 @@ namespace sgcl::encoding {
         template<class T>
         static expected<vector<T>, error> load(const string& path);
         template<class T>
-        static async::task<expected<vector<T>, error>> async_load(string path);
+        static async::task<expected<vector<T>, error>> async_load(string path) noexcept;
 
         // The values into a file, made or written over: a header of the
         // fields' names, then a record for each (writer::write<T>):
@@ -85,13 +113,25 @@ namespace sgcl::encoding {
         template<class R>
         static expected<void, error> save(const string& path, const R& records);
         template<class R>
-        static async::task<expected<void, error>> async_save(string path, R records);
+        static async::task<expected<void, error>> async_save(string path, R records) noexcept(std::is_nothrow_move_constructible_v<R>);
 
     private:
         csv() = delete;
     };
 
     namespace detail {
+        // The options a reader and a writer take alike: a separator and a
+        // comment character that can be told from the rest of a text
+        inline void csv_check(const csv::options& o) {
+            char s = o.separator;
+            if (s == '"' || s == '\r' || s == '\n' || s == 0 || uint8_t(s) >= 0x80) {
+                throw invalid_argument("sgcl::encoding::csv: the separator is a quote, a line ending, NUL or not ASCII");
+            }
+            if (o.comment == s || o.comment == '"' || o.comment == '\r' || o.comment == '\n' || uint8_t(o.comment) >= 0x80) {
+                throw invalid_argument("sgcl::encoding::csv: the comment character is the separator, a quote, a line ending or not ASCII");
+            }
+        }
+
         // The names of a header's columns, shared by its rows
         struct CsvHeader {
             vector<string> names;
@@ -105,7 +145,7 @@ namespace sgcl::encoding {
     // after the reader has gone on.
     class csv::row {
     public:
-        row() = default;
+        row() noexcept = default;
 
         size_t size() const noexcept {
             return (_text.size() - _text_size) / (3 * sizeof(uint32_t));
@@ -117,7 +157,7 @@ namespace sgcl::encoding {
 
         // The field; index < size(), as a vector's operator[] asks (a debug
         // build asserts it); at() is the form that checks and throws
-        slice<const char> operator[](size_t index) const {
+        slice<const char> operator[](size_t index) const noexcept {
             assert(index < size() && "csv::row: the index past the fields; at() checks");
             uint32_t from = index ? _meta((index - 1) * 3) : 0;
             uint32_t to = _meta(index * 3);
@@ -134,7 +174,7 @@ namespace sgcl::encoding {
 
         // The field of the header's column; nullopt when there is no such
         // column (or no header) or the row is shorter
-        optional<slice<const char>> operator[](const string& column) const {
+        optional<slice<const char>> operator[](const string& column) const noexcept {
             if (!_header) {
                 return nullopt;
             }
@@ -146,14 +186,15 @@ namespace sgcl::encoding {
         }
 
         template<size_t N>
-        optional<slice<const char>> operator[](const char (&column)[N]) const {
+        optional<slice<const char>> operator[](const char (&column)[N]) const noexcept {
             return (*this)[string(column)];
         }
 
-        // The field of the column as a string of its own (the row's text is
-        // the reader's memory), or fallback when there is no such column
-        // or the row is shorter: row.get("city", "?")
-        string get(const string& column, const string& fallback) const {
+        // The field of the column as a string of its own (a copy of the
+        // slice operator[] gives, which shares the row's string), or
+        // fallback when there is no such column or the row is shorter:
+        // row.get("city", "?")
+        string get(const string& column, const string& fallback) const noexcept {
             auto f = (*this)[column];
             return f ? string(*f) : fallback;
         }
@@ -179,9 +220,9 @@ namespace sgcl::encoding {
             using difference_type = ptrdiff_t;
             using iterator_category = std::forward_iterator_tag;
 
-            iterator() = default;
+            iterator() noexcept = default;
 
-            slice<const char> operator*() const {
+            slice<const char> operator*() const noexcept {
                 return (*_row)[_i];
             }
 
@@ -309,14 +350,14 @@ namespace sgcl::encoding {
                 return std::string_view(_data.get(), _size);
             }
 
-            void push_back(char c) {
+            void push_back(char c) noexcept {
                 if (_size == _capacity) {
                     _grow(_size + 1);
                 }
                 _data[_size++] = c;
             }
 
-            void append(const char* p, size_t n) {
+            void append(const char* p, size_t n) noexcept {
                 if (n > _capacity - _size) {
                     _grow(_size + n);
                 }
@@ -325,10 +366,13 @@ namespace sgcl::encoding {
             }
 
         private:
-            void _grow(size_t need) {
+            void _grow(size_t need) noexcept {
                 size_t capacity = std::max<size_t>({need, _capacity * 2, 256});
                 auto d = std::make_unique<char[]>(capacity);
                 if (_size) {
+                    // memcpy, not copy_bytes (note 313): a growth, once per
+                    // doubling; with copy_bytes this no longer inlined into
+                    // the reader's _step, which read 4.7% slower
                     std::memcpy(d.get(), _data.get(), _size);
                 }
                 _data = std::move(d);
@@ -373,7 +417,7 @@ namespace sgcl::encoding {
     // async_ forms: `co_await r.async_next()`.
     class csv::reader {
     public:
-        explicit reader(const string& text)
+        explicit reader(const string& text) noexcept
         : reader(text, options()) {
         }
 
@@ -385,12 +429,12 @@ namespace sgcl::encoding {
             _n = text.size();
         }
 
-        explicit reader(const io::reader& in)
+        explicit reader(const io::reader& in) noexcept
         : reader(in, options()) {
         }
 
         reader(const io::reader& in, const options& o)
-        : _in(in), _options(o) {
+        : _in(in), _options(o), _stream(true) {
             _check(o);
         }
 
@@ -420,7 +464,7 @@ namespace sgcl::encoding {
         }
 
         // The records to the end, in a range-for: for (auto r : reader.rows())
-        generator<row> rows() {
+        generator<row> rows() noexcept {
             while (auto r = next()) {
                 co_yield std::move(*r);
             }
@@ -437,7 +481,7 @@ namespace sgcl::encoding {
         optional<T> read();
 
         // In a task: `co_await r.async_next()`
-        async::task<optional<row>> async_next() {
+        async::task<optional<row>> async_next() noexcept {
             for (;;) {
                 Step s = _step();
                 if (s == Step::more) {
@@ -449,14 +493,14 @@ namespace sgcl::encoding {
             }
         }
 
-        async::task<optional<row>> async_read_header() {
+        async::task<optional<row>> async_read_header() noexcept {
             auto r = co_await async_next();
             _take_header(r);
             co_return r;
         }
 
         template<class T>
-        async::task<optional<T>> async_read();
+        async::task<optional<T>> async_read() noexcept;
 
         const optional<error>& last_error() const noexcept {
             return _error;
@@ -470,7 +514,10 @@ namespace sgcl::encoding {
             return _header->names.as_slice();
         }
 
-        // The line the next record starts on
+        // The line the reader is at: after a record, the line after it.
+        // Empty lines and comments before the next record are counted as
+        // that record is read, so this is not always the line it starts on
+        // (row::line() is)
         uint32_t line() const noexcept {
             return _line;
         }
@@ -495,16 +542,10 @@ namespace sgcl::encoding {
         };
 
         static void _check(const options& o) {
-            char s = o.separator;
-            if (s == '"' || s == '\r' || s == '\n' || s == 0 || uint8_t(s) >= 0x80) {
-                throw invalid_argument("sgcl::encoding::csv: the separator is a quote, a line ending, NUL or not ASCII");
-            }
-            if (o.comment == s || o.comment == '"' || o.comment == '\r' || o.comment == '\n' || uint8_t(o.comment) >= 0x80) {
-                throw invalid_argument("sgcl::encoding::csv: the comment character is the separator, a quote, a line ending or not ASCII");
-            }
+            detail::csv_check(o);
         }
 
-        void _take_header(const optional<row>& r) {
+        void _take_header(const optional<row>& r) noexcept {
             if (!r) {
                 return;
             }
@@ -521,12 +562,12 @@ namespace sgcl::encoding {
         // --- the record, a byte at a time through the states, the runs of
         // plain bytes found by the search of text_scan.h ---
 
-        void _begin_field() {
+        void _begin_field() noexcept {
             _field_line = _line;
             _field_column = _column;
         }
 
-        void _end_field() {
+        void _end_field() noexcept {
             _meta.push_back(uint32_t(_text_out.size()));
             _meta.push_back(_field_line);
             _meta.push_back(_field_column);
@@ -552,14 +593,14 @@ namespace sgcl::encoding {
 
         // The error at the byte the reader is at, or `back` bytes before
         // it on the same line
-        Step _fail(errc code, std::string detail, uint32_t back = 0) {
+        Step _fail(errc code, std::string detail, uint32_t back = 0) noexcept {
             error e(code, _base + _pos - back, string(detail));
             e.set_position(_line, _column - back);
             _error = std::move(e);
             return Step::failed;
         }
 
-        Step _step() {
+        Step _step() noexcept {
             if (_error) {
                 return Step::failed;
             }
@@ -770,7 +811,7 @@ namespace sgcl::encoding {
 
         // The end of the input: the record it cuts ends there, a quoted
         // field is not closed
-        Step _at_end() {
+        Step _at_end() noexcept {
             switch (_state) {
                 case State::line_start:
                 case State::comment:
@@ -808,7 +849,7 @@ namespace sgcl::encoding {
         }
 
         // The record read has the count of fields the first one had
-        bool _counted() {
+        bool _counted() noexcept {
             size_t fields = _meta.size() / 3;
             if (_options.same_field_count) {
                 if (_fields == 0) {
@@ -823,8 +864,24 @@ namespace sgcl::encoding {
             return true;
         }
 
+        // A record of a stream within options.max_record_size: checked for
+        // every record, also one that came whole in one block (_room checks
+        // the part gathered when it asks for more, to bound the memory)
+        bool _bounded() noexcept {
+            if (_stream && _text_out.size() > _options.max_record_size) {
+                _error = _too_long();
+                _error->set_position(_record_line, 1);
+                return false;
+            }
+            return true;
+        }
+
+        error _too_long() const noexcept {
+            return error(errc::out_of_range, _base + _pos, string("a record longer than options.max_record_size (" + std::to_string(_options.max_record_size) + " bytes)"));
+        }
+
         optional<row> _result(Step s) {
-            if (s != Step::record || !_counted()) {
+            if (s != Step::record || !_counted() || !_bounded()) {
                 return nullopt;
             }
             row r;
@@ -839,17 +896,19 @@ namespace sgcl::encoding {
 
         // --- the input ---
 
-        slice<byte> _room() {
+        slice<byte> _room() noexcept {
             if (_pos > 0) {
                 _block.drop_front(_pos);
                 _base += _pos;
                 _pos = 0;
             }
-            if (_block.size() + _text_out.size() >= _options.max_record_size) {   // a record of a stream longer than the bound: the part assembled and the part not yet read
+            // a record of a stream longer than the bound already, more
+            // asked for: what is left in the block is no more than a byte
+            // or two the scan waits on (a '\r', a space cut short)
+            if (_text_out.size() > _options.max_record_size) {
                 _refresh();
-                error e(errc::out_of_range, _base, string("a record longer than options.max_record_size (" + std::to_string(_options.max_record_size) + " bytes)"));
-                e.set_position(_line, _column);
-                _error = std::move(e);
+                _error = _too_long();
+                _error->set_position(_line, _column);
                 return slice<byte>();
             }
             if (_block.size() == _block.capacity()) {
@@ -859,7 +918,7 @@ namespace sgcl::encoding {
             return slice<byte>(_block.owner(), reinterpret_cast<byte*>(_block.data() + _block.size()), _block.capacity() - _block.size());
         }
 
-        void _received(const expected<size_t, io::error>& r) {
+        void _received(const expected<size_t, io::error>& r) noexcept {
             if (_error) {
                 return;
             }
@@ -896,6 +955,7 @@ namespace sgcl::encoding {
         uint64_t _base = 0;
         options _options;
         bool _eof = false;
+        bool _stream = false;          // max_record_size holds: a stream's, not a text's in memory
         // the record being read
         State _state = State::line_start;
         detail::CsvChars _text_out;
@@ -926,15 +986,13 @@ namespace sgcl::encoding {
     // the header of its field names first.
     class csv::writer {
     public:
-        explicit writer(const io::writer& out)
+        explicit writer(const io::writer& out) noexcept
         : writer(out, options()) {
         }
 
         writer(const io::writer& out, const options& o)
         : _out(out), _options(o) {
-            if (o.separator == '"' || o.separator == '\r' || o.separator == '\n' || o.separator == 0 || uint8_t(o.separator) >= 0x80) {
-                throw invalid_argument("sgcl::encoding::csv: the separator is a quote, a line ending, NUL or not ASCII");
-            }
+            detail::csv_check(o);
         }
 
         writer(const writer&) = delete;
@@ -945,7 +1003,10 @@ namespace sgcl::encoding {
             return *this;
         }
 
-        writer& write(std::initializer_list<string> fields) {
+        writer& write(std::initializer_list<string> fields) noexcept {
+            if (_error) {
+                return *this;   // nothing more reaches the stream: nothing is gathered
+            }
             bool first = true;
             for (auto& f : fields) {
                 _field(f.view(), first);
@@ -955,7 +1016,10 @@ namespace sgcl::encoding {
             return *this;
         }
 
-        writer& write(const row& r) {
+        writer& write(const row& r) noexcept {
+            if (_error) {
+                return *this;
+            }
             bool first = true;
             for (auto f : r) {
                 _field(f.view(), first);
@@ -969,6 +1033,9 @@ namespace sgcl::encoding {
         template<class R>
         requires std::ranges::input_range<const R&> && (std::is_convertible_v<std::ranges::range_reference_t<const R&>, std::string_view> || std::is_convertible_v<std::ranges::range_reference_t<const R&>, string> || std::is_same_v<std::remove_cvref_t<std::ranges::range_reference_t<const R&>>, slice<const char>>)
         writer& write(const R& fields) {
+            if (_error) {
+                return *this;
+            }
             bool first = true;
             for (auto&& f : fields) {
                 if constexpr (std::is_same_v<std::remove_cvref_t<decltype(f)>, string> || std::is_same_v<std::remove_cvref_t<decltype(f)>, slice<const char>>) {
@@ -998,6 +1065,7 @@ namespace sgcl::encoding {
                 auto w = _out.write(slice<const byte>(reinterpret_cast<const byte*>(_text.data()), _text.size()));
                 if (!w) {
                     _error = w.error();
+                    std::string().swap(_text);   // never written now: let go
                     return io::detail::fail(w);
                 }
                 _text.clear();
@@ -1005,7 +1073,7 @@ namespace sgcl::encoding {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_flush() {
+        async::task<expected<void, io::error>> async_flush() noexcept {
             if (_error) {
                 co_return io::detail::fail(*_error);
             }
@@ -1016,6 +1084,7 @@ namespace sgcl::encoding {
                 _stage.done();
                 if (!w) {
                     _error = w.error();
+                    std::string().swap(_text);   // never written now: let go
                     co_return io::detail::fail(w);
                 }
                 _text.clear();
@@ -1042,14 +1111,17 @@ namespace sgcl::encoding {
             return detail::csv_unicode_space(f.data(), f.data() + f.size()) > 0;
         }
 
-        void _field(std::string_view f, bool first) {
+        void _field(std::string_view f, bool first) noexcept {
             if (!first) {
                 _text += _options.separator;
             } else {
                 _record_start = _text.size();
             }
             _fields = first ? 1 : _fields + 1;
-            if (!_needs_quotes(f)) {
+            // a record starting with the comment character would be passed
+            // over by a reader of the same options: quoted
+            bool comment = first && _options.comment && !f.empty() && f[0] == _options.comment;
+            if (!comment && !_needs_quotes(f)) {
                 _text.append(f);
                 return;
             }
@@ -1078,7 +1150,7 @@ namespace sgcl::encoding {
         // line, which every reader (Go's too) passes over: the record
         // would be lost between the writing and the reading. Go writes the
         // empty line; RFC 4180 allows the quotes, and Python writes them
-        void _end_record() {
+        void _end_record() noexcept {
             if (_fields == 1 && _text.size() == _record_start) {
                 _text += "\"\"";
             }
@@ -1088,6 +1160,7 @@ namespace sgcl::encoding {
 
         template<class T>
         friend struct detail::CsvRecordWriter;
+        friend class csv;   // stringify: the text taken as it is, never written to a stream
 
         io::writer _out;
         io::detail::AsyncStage _stage;   // the text a task's write is given
@@ -1151,6 +1224,38 @@ namespace sgcl::encoding {
             }
         }
 
+        // NaN and the infinities as strconv.ParseFloat reads them, what the
+        // writer writes for them ("NaN", "+Inf", "-Inf") among them: inf or
+        // infinity with a sign or none, nan with none, in either case
+        inline optional<double> csv_special_float(std::string_view t) noexcept {
+            auto same = [](std::string_view a, std::string_view lower) noexcept {
+                if (a.size() != lower.size()) {
+                    return false;
+                }
+                for (size_t i = 0; i < a.size(); ++i) {
+                    if (char(a[i] | 0x20) != lower[i]) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            if (t.size() < 3 || t.size() > 9) {
+                return nullopt;
+            }
+            if (same(t, "nan")) {
+                return std::numeric_limits<double>::quiet_NaN();
+            }
+            double sign = 1;
+            if (t[0] == '+' || t[0] == '-') {
+                sign = t[0] == '-' ? -1 : 1;
+                t.remove_prefix(1);
+            }
+            if (same(t, "inf") || same(t, "infinity")) {
+                return sign * std::numeric_limits<double>::infinity();
+            }
+            return nullopt;
+        }
+
         // A field of a type set from a CSV field: 0 done, 1 not a value of
         // the field's type, 2 out of its range, 3 a kind CSV has no text for
         inline int csv_set_field(void* p, const ValueOps* ops, const field_list& list, const FieldInfo& f, std::string_view t) {
@@ -1166,9 +1271,14 @@ namespace sgcl::encoding {
                         return 0;
                     }
                     return 1;
+                case ValueKind::floating:
+                    if (auto special = csv_special_float(t)) {
+                        ops->set_double(p, *special);
+                        return 0;
+                    }
+                    return ops->set_literal(p, t);
                 case ValueKind::signed_integer:
                 case ValueKind::unsigned_integer:
-                case ValueKind::floating:
                     return ops->set_literal(p, t);
                 case ValueKind::enumeration:
                     if (f.names_count) {
@@ -1214,6 +1324,7 @@ namespace sgcl::encoding {
                 for (auto& f : list) {
                     if (!csv_field_text(f.address, f.ops, fields, f, text)) {
                         w._error = io::error(make_error_code(errc::unsupported_value), string("csv: /" + std::string(f.name) + ": a value CSV has no text for"));
+                        std::string().swap(w._text);   // never written now: let go
                         return;
                     }
                     w._field(text, first);
@@ -1236,7 +1347,7 @@ namespace sgcl::encoding {
     template<class T>
     optional<T> csv::reader::_typed() {
         static_assert(std::is_default_constructible_v<T>, "csv::reader::read<T>: T needs a default constructor");
-        if (!_counted()) {
+        if (!_counted() || !_bounded()) {
             return nullopt;
         }
         optional<T> out(std::in_place);   // the record made where it is returned: no move of its strings
@@ -1309,7 +1420,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<optional<T>> csv::reader::async_read() {
+    async::task<optional<T>> csv::reader::async_read() noexcept {
         if (!_header) {
             co_await async_read_header();
             if (!_header) {
@@ -1351,7 +1462,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<expected<vector<T>, csv::error>> csv::async_load(string path) {
+    async::task<expected<vector<T>, csv::error>> csv::async_load(string path) noexcept {
         co_return co_await async::spawn_blocking([path] { return csv::load<T>(path); });
     }
 
@@ -1359,7 +1470,7 @@ namespace sgcl::encoding {
     expected<void, csv::error> csv::save(const string& path, const R& records) {
         auto file = io::create(path);
         if (!file) {
-            return unexpected(error(file.error(), 0));
+            return unexpected(detail::file_error(file.error()));
         }
         expected<void, error> r;
         {
@@ -1368,11 +1479,11 @@ namespace sgcl::encoding {
                 w.write(record);
             }
             if (auto f = w.flush(); !f) {
-                r = unexpected(error(f.error(), 0));
+                r = unexpected(detail::file_error(f.error()));
             }
         }
         if (auto c = file->close(); r && !c) {
-            r = unexpected(error(c.error(), 0));
+            r = unexpected(detail::file_error(c.error()));
         }
         if (!r) {
             (void)io::remove(path);
@@ -1381,7 +1492,82 @@ namespace sgcl::encoding {
     }
 
     template<class R>
-    async::task<expected<void, csv::error>> csv::async_save(string path, R records) {
+    async::task<expected<void, csv::error>> csv::async_save(string path, R records) noexcept(std::is_nothrow_move_constructible_v<R>) {
         co_return co_await async::spawn_blocking([path, records] { return csv::save(path, records); });
+    }
+
+    inline expected<vector<csv::row>, csv::error> csv::parse(const string& text) noexcept {
+        csv::reader r(text);
+        vector<row> out;
+        while (auto record = r.next()) {
+            out.push_back(std::move(*record));
+        }
+        if (r.last_error()) {
+            return unexpected(*r.last_error());
+        }
+        return out;
+    }
+
+    inline expected<vector<csv::row>, csv::error> csv::parse(const string& text, const options& o) {
+        csv::reader r(text, o);
+        vector<row> out;
+        while (auto record = r.next()) {
+            out.push_back(std::move(*record));
+        }
+        if (r.last_error()) {
+            return unexpected(*r.last_error());
+        }
+        return out;
+    }
+
+    template<class T>
+    expected<vector<T>, csv::error> csv::parse(const string& text) {
+        return parse<T>(text, options());
+    }
+
+    template<class T>
+    expected<vector<T>, csv::error> csv::parse(const string& text, const options& o) {
+        csv::reader r(text, o);
+        vector<T> out;
+        while (auto v = r.template read<T>()) {
+            out.push_back(std::move(*v));
+        }
+        if (r.last_error()) {
+            return unexpected(*r.last_error());
+        }
+        return out;
+    }
+
+    template<class R>
+    expected<string, csv::error> csv::stringify(const R& records) {
+        return stringify(records, options());
+    }
+
+    // The writer over no stream: its text taken whole, never flushed. A
+    // mistake is an io::error of the encoding's category whose operation
+    // reads "csv: /name: words": the path and the words of an error
+    // without a place, as json's stringify gives one
+    template<class R>
+    expected<string, csv::error> csv::stringify(const R& records, const options& o) {
+        csv::writer w(io::writer(), o);
+        for (const auto& record : records) {
+            w.write(record);
+            if (w._error) {
+                std::string_view op = w._error->op().view();
+                if (op.starts_with("csv: ")) {
+                    op.remove_prefix(5);
+                }
+                size_t colon = op.find(": ");
+                error e(errc(w._error->code().value()), 0, string(colon == op.npos ? op : op.substr(colon + 2)));
+                if (colon != op.npos) {
+                    e.set_path(string(op.substr(0, colon)));
+                }
+                return unexpected(std::move(detail::ErrorAccess::without_place(e)));
+            }
+            if (w._text.size() > string::max_size()) {
+                throw length_error("sgcl::encoding::csv::stringify");
+            }
+        }
+        return string(w._text);
     }
 }

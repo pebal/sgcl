@@ -1,128 +1,133 @@
-# sgcl::async::scheduler, sgcl::async::spawn, sgcl::async::yield
+[sgcl](../README.md) › [async](README.md)
+
+# sgcl::async::scheduler
 
 ```cpp
-#include "sgcl/async/scheduler.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/scheduler.h"   // or "sgcl/async.h"
 
-namespace sgcl {
-    struct scheduler;                              // the pool of workers, one per process
-    template<class T> async::task<T> async::spawn(async::task<T> t);    // the task on the queue of the ready
-    template<class T> void async::go(async::task<T> t);          // spawned and let go of: nobody waits for it
-    template<class F> auto async::spawn(F f);             // the same for a coroutine function with captures: spawn([x]() -> task<int> { ... })
-    template<class F> void async::go(F f);
-    struct yield;                                  // co_await yield(): to the back of the queue
+namespace sgcl::async {
+    struct scheduler;
 }
 ```
 
-The scheduler runs [tasks](coroutine.md#task) on a pool of worker threads, one per core (`config::workers`), each with a queue of its own of the coroutines ready to run and one global queue behind them. A coroutine is made ready by whoever it was waiting for: `spawn` puts a new task on the queue, a `send` on a channel makes the receiver that waited ready ([channel](channel.md)), a task that ends makes the task that `co_await`ed it ready, `co_await async::yield()` puts the running task at the back. Whoever makes a coroutine ready returns at once; a worker runs it, on its own stack, to the coroutine's next suspension. A coroutine that waits is nowhere: a frame on the managed heap and a word on some list, no thread held, so a worker serves as many tasks as are ready and a hundred thousand tasks waiting on a channel cost their frames and nothing else.
+`sgcl::async::scheduler` is the program's view of the pool that runs the [tasks](task.md): worker threads, one per
+core, each with a queue of its own of the coroutines ready to run, and one global queue behind them. There is one
+scheduler per process, and every member is static. A coroutine is made ready by whoever it was waiting for:
+[spawn](spawn.md) puts a new task on a queue, a send on a [channel](channel.md) makes the receiver that waited
+ready, a task that ends makes the task that awaited it ready, [yield](yield.md) puts the running task at the back.
+Whoever makes a coroutine ready returns at once; a worker runs it, on its own stack, to the coroutine's next
+suspension. A coroutine that waits is nowhere: a frame on the managed heap and a word on some list, no thread held,
+so a worker serves as many tasks as are ready, and a hundred thousand tasks waiting on a channel cost their frames
+and nothing else.
 
-The shape is Go's. A worker that makes a coroutine ready puts it on its own queue, and the one it wakes (a receiver served, a task awaited) into its *next* slot, to run as soon as the current coroutine suspends, on the same core, with the cache warm: the rendezvous of two tasks never leaves the worker. A thread that is not a worker puts the coroutine on the global queue. A worker with nothing of its own clears the dead part of its stack first (a page: the frames of the task that just ran, whose words the collector's conservative scan would still take for roots while the worker idles, so an object referenced only there lived on), then takes from the global queue, then steals half of another worker's queue; one that finds nothing looks for `config::worker_spin_microseconds` and sleeps. A worker is woken by an enqueue only when none is looking and one sleeps, and a looking worker that finds work wakes the next sleeper, so that there is one looking while work keeps coming and none burning a core when it does not.
+The shape is Go's. A worker that makes a coroutine ready puts it on its own queue, and the one it wakes (a receiver
+served, a task awaited) into its *next* slot, to run as soon as the current coroutine suspends, on the same core,
+with the cache warm: the rendezvous of two tasks never leaves the worker. A thread that is not a worker puts the
+coroutine on the global queue. A worker with nothing of its own takes from the global queue, then steals half of
+another worker's queue; one that finds nothing looks for the spin time ([set_worker_spin](scheduler/set_worker_spin.md))
+and sleeps in the kernel. A worker is woken by an enqueue only when none is looking and one sleeps, and a looking
+worker that finds work wakes the next sleeper, so that one looks while work keeps coming and none burns a core when
+it does not.
 
-What this is, in the terms of Go: `spawn` is `go f()`, a task a goroutine, the workers the P's, a channel between tasks the channel of Go; what it is not, yet: goroutines are stackful and preempted, tasks are stackless C++ coroutines (only the body of a coroutine can suspend, a function it calls cannot) and cooperative (a task that computes for a second holds its worker for a second).
-
-The scheduler is started by the first `spawn` (or the first wake of a waiting coroutine) and stopped when the program ends, or by `async::scheduler::stop()`: its workers are joined, so a task that never suspends never lets the program end, as a thread would not. The queues live in managed objects the scheduler owns; the frames of the queued coroutines are held by the queues' entries and, while they run, by the worker. A worker's queue keeps the words of the entries taken until they are overwritten, so a finished task's frame may stay allocated until its slot is reused (256 slots per worker).
+In the terms of Go: `spawn` is `go f()`, a task a goroutine, the workers the P's (`GOMAXPROCS` is
+[set_workers](scheduler/set_workers.md), `SGCL_WORKERS` in the environment), a channel between tasks the channel of
+Go. What it is not: goroutines are stackful and preempted, tasks are stackless C++ coroutines (only the body of a
+coroutine can suspend, a function it calls cannot) and cooperative (a task that computes for a second holds its
+worker for a second).
 
 ## Rules
 
-- A task on a worker waits with `co_await`: `co_await ch.receive()`, `co_await other_task`, `co_await async::yield()`. The blocking calls (`ch.receive().wait()`, `task.wait()`) park the worker's thread and take it from every other task; debug builds assert on a task's `wait()` from a worker.
+- A task on a worker waits with `co_await`: `co_await ch.receive()`, `co_await other_task`,
+  `co_await async::yield()`. The blocking forms (`ch.receive().wait()`, `t.wait()`) park the worker's thread and take
+  it from every other task; debug builds assert on a task's `wait()` from a worker
+  ([Waiting operations](README.md#waiting-operations)).
 - A worker is a thread like any other to the collector: its stack is scanned, the frame it runs is held on it.
-- The workers are joined when the scheduler stops: at the end of the program, after `main` returns, or on `stop()`. `stop()` is for a program that wants its threads gone at a point of its own, when nothing runs; a task queued at that moment stays queued until the next start. The queues stay across a stop: a task made ready while the workers are being joined (a promise set from a callback, a send from a plain thread) is queued and runs at the next start.
-- **The number of workers** is the program's (`scheduler::set_workers(n)`), else the environment's (`SGCL_WORKERS`, read once when the scheduler first starts, as Go reads `GOMAXPROCS`), else the build's (`config::workers`, `-DSGCL_WORKERS`); 0 in any of them is the hardware concurrency, and there are at most 64. `set_workers` before the first task sets what the scheduler starts with. After it, the workers are stopped as `stop()` stops them, **once the tasks ready at that moment have run**, and started again with the new number; the queues are kept, and the tasks on the rings of workers no longer there go to the global queue. So a program changes it at a quiet moment, never from a task (debug builds assert: it joins the workers). The same number again does nothing.
-- **The spin** (how long a worker with nothing to run looks for work before it sleeps in the kernel; a task made ready in that window costs no wake) is `set_worker_spin(d)`, else `SGCL_WORKER_SPIN_US`, else `config::worker_spin_microseconds` (20 µs); it applies at once. The threads of the blocking pool likewise: `blocking_pool::set_threads(n)`, else `SGCL_BLOCKING_THREADS`, else `config::blocking_threads` ([blocking](blocking.md)).
-- A value of the environment that does not read (`SGCL_WORKERS=abc`) is ignored with one line on stderr, and the default taken; nothing of these settings is read on a task's path.
+  Before it looks for work a worker clears the dead part of its stack (4 KB in a build with `NDEBUG`, 64 KB
+  without; `SGCL_WORKER_STACK_CLEAR` sets it), where the frames of the task that just ran left words the
+  collector's conservative scan would take for roots while the worker idles.
+- The scheduler is started by the first enqueue (a [spawn](spawn.md), the first wake of a waiting coroutine) and by
+  [workers](scheduler/workers.md), and stopped when the program ends or by [stop](scheduler/stop.md); the workers are
+  joined then, so a task that never suspends never lets the program end, as a thread would not. The next enqueue
+  starts it again. A start whose worker thread the system refuses throws `std::system_error` and leaves the
+  scheduler stopped: the workers made before it are joined without having run anything, and the frame whose
+  enqueue started it is on the global queue already, for the next start.
+- The queues live in managed objects the scheduler owns, and stay across a stop: a frame made ready while the
+  workers are being joined (a promise set from a callback, a send from a plain thread) is queued and runs at the
+  next start. A frame on a queue is held by the queue's word, and while it runs by the worker; a slot a frame was
+  taken from is cleared, so a ring holds no frame but the ones queued on it.
+- The number of workers is the program's ([set_workers](scheduler/set_workers.md)), else the environment's
+  (`SGCL_WORKERS`, read once when the scheduler first starts, as Go reads `GOMAXPROCS`), else the build's
+  (`config::workers`, `-DSGCL_WORKERS`); 0 in any of them is the hardware concurrency, and there are at most 64.
+- The spin, how long a worker with nothing to run looks for work before it sleeps, is the program's
+  ([set_worker_spin](scheduler/set_worker_spin.md)), else `SGCL_WORKER_SPIN_US`, else
+  `config::worker_spin_microseconds` (20 µs). A value of the environment that does not read (`SGCL_WORKERS=abc`) is
+  ignored with one line on stderr, and the default taken; nothing of these settings is read on a task's path.
+- [stop](scheduler/stop.md) and [set_workers](scheduler/set_workers.md) join the workers: never from a task (debug
+  builds assert). A program changes them at a quiet moment.
+- A task is cooperative: one that never suspends holds its worker until it does. A worker takes from the global
+  queue once in 61 turns even while its own ring has work, so that the tasks there are not starved by a busy ring.
 
-## Members
+## Member types
 
-### scheduler
+| Type | Definition |
+|---|---|
+| [statistics](scheduler-statistics.md) | the queues and the workers as they are, what `get_statistics` returns |
 
-```cpp
-static unsigned workers();          // the number of workers; starts the scheduler
-static void set_workers(unsigned n);   // from now on (0: the hardware concurrency); after the start: stop() and start again
-static void set_worker_spin(duration d);  static duration worker_spin() noexcept;   // the look for work before a sleep
-static bool on_worker() noexcept;   // whether the calling thread is a worker
-static void stop();                 // the workers joined, the queue let go of; the next spawn starts it again
-static statistics get_statistics(); // the queues as they are
+## Member functions
 
-struct statistics {
-    unsigned workers;               // the threads of the pool (0: not started)
-    size_t global_queued;           // tasks on the global queue
-    size_t local_queued;            // tasks on the workers' rings and next slots, together
-    unsigned spinning;              // workers looking for work
-    unsigned sleeping;              // workers asleep in the kernel
-};
-```
+#### Observers
 
-`get_statistics()` is a look at the load for a benchmark or a monitor: a snapshot, the counts of different words read at different moments.
+| Function | Description |
+|---|---|
+| [workers](scheduler/workers.md) | the number of workers; starts the scheduler (static) |
+| [worker_spin](scheduler/worker_spin.md) | how long a worker looks for work before it sleeps (static) |
+| [on_worker](scheduler/on_worker.md) | checks whether the calling thread is a worker (static) |
+| [get_statistics](scheduler/get_statistics.md) | the queues and the workers as they are (static) |
 
-```cpp
-async::scheduler::set_workers(4);                // before the first task: the scheduler starts with four
-// ... the program's tasks ...
-async::scheduler::set_workers(8);                // later, at a quiet moment: the ready tasks run, then eight workers
-```
+#### Modifiers
 
-The same from the shell, with no change to the program: `SGCL_WORKERS=4 ./server`.
+| Function | Description |
+|---|---|
+| [set_workers](scheduler/set_workers.md) | sets the number of workers (static) |
+| [set_worker_spin](scheduler/set_worker_spin.md) | sets how long a worker looks for work before it sleeps (static) |
 
-### spawn
+#### Operations
 
-```cpp
-template<class T> async::task<T> async::spawn(async::task<T> t);   // t.spawn(), and t back
-template<class T> void async::go(async::task<T> t);         // t.spawn().detach()
-```
+| Function | Description |
+|---|---|
+| [stop](scheduler/stop.md) | joins the workers, and stops the timers, the reactor and the blocking pool (static) |
 
-`auto t = sgcl::async::spawn(f());` runs `f` on the scheduler and keeps the handle; `sgcl::async::go(f());` runs it and forgets it (a spawn and a detach; `spawn` is `[[nodiscard]]`: the task object dropped would destroy the coroutine).
+## Complexity
 
-```cpp
-template<class F> auto async::spawn(F f);   // F: a callable returning a task; the closure copied into a frame of the task's own
-template<class F> void async::go(F f);
-```
-
-The same given the coroutine function rather than its task — a lambda **with captures**, passed without the call: `sgcl::async::spawn([x]() -> async::task<int> { ... })`, `sgcl::async::go([&ch]() -> async::task<> { ... })`. A lambda's captures are fields of the closure object, and a coroutine's frame keeps the closure by `this`, not by copy (only the parameters of a coroutine are copied into its frame), so the task of a called lambda, `async::spawn([x]() -> async::task<int> { ... }())`, runs on a closure that died at the end of that statement and reads freed stack (CppCoreGuidelines CP.51; AddressSanitizer reports a stack-use-after-scope). Passed uncalled, the closure is copied into a frame that lives as long as the task, and the captures with it — a `tracked_ptr` captured is a root of the task, as a local would be. A lambda without captures, or a named coroutine with parameters, may be called and its task passed; one with captures is passed itself. The forms of Go: `go f()` with `async::spawn(f())`, `go func() { ... }()` with `async::go([&]() -> async::task<> { ... })`.
-
-```cpp
-int n = 7;
-tracked_ptr node = make_tracked<Node>();
-auto t = async::spawn([n, node]() -> async::task<int> {   // the closure lives in the task's frame; node is rooted by it
-    co_await async::sleep(10ms);
-    co_return node->value + n;
-});
-```
-
-### yield
-
-```cpp
-struct yield {   // an awaitable: co_await yield()
-    bool await_ready() const noexcept;
-    template<class P> void await_suspend(std::coroutine_handle<P>);
-    void await_resume() const noexcept;
-};
-```
-
-The running task goes to the back of the queue and the worker takes the next ready one: for a task that has a lot to do and other tasks to be fair to.
+Making a coroutine ready is constant: on a worker a store into its ring (a ring of 256; a full one spills to the
+global queue) or into its next slot, from another thread a push on the global queue, and a wake through the kernel
+only when no worker is looking and one sleeps. A resume is a call. A coroutine that waits costs its frame and
+nothing else.
 
 ## Example
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// A pipeline of tasks: producers send jobs on one channel, workers turn
-// each into a result on another, one task sums the results. Nothing
-// here is a thread: every wait is a co_await, every task a frame on the
-// managed heap, and the scheduler's workers run whichever is ready.
+// Producers send jobs on one channel, workers turn each into a result on
+// another, one task sums the results. Nothing here is a thread: every wait
+// is a co_await, and the scheduler's workers run whichever task is ready.
 struct Job {
     int id;
 };
 
 async::task<> producer(async::channel<tracked_ptr<Job>> jobs, int from, int count) {
     for (int i : range(count)) {
-        co_await jobs.send(make_tracked<Job>(from + i));   // suspends while jobs is full
+        co_await jobs.send(make_tracked<Job>(from + i));  // suspends while jobs is full
     }
 }
 
 async::task<> worker(async::channel<tracked_ptr<Job>> jobs, async::channel<int> results) {
-    while (auto job = co_await jobs.receive()) {                 // suspends while jobs is empty
+    while (auto job = co_await jobs.receive()) {  // suspends while jobs is empty
         co_await results.send((*job)->id * 2);
     }
 }
@@ -147,15 +152,14 @@ int main() {
     }
     auto sum = async::spawn(summer(results));
     for (auto& p : producers) {
-        p.wait();                                      // this thread waits; the tasks run on the workers
+        p.wait();  // this thread waits; the tasks run on the workers
     }
-    jobs.close();                                      // the workers' loops end
+    jobs.close();  // the workers' loops end
     for (auto& w : workers) {
         w.wait();
     }
-    results.close();                                   // the summer's loop ends
-    println("{}", sum.wait());                   // 2 * (0 + 1 + ... + 399)
-    return sum.result() == 2L * 399 * 400 / 2 ? 0 : 1;
+    results.close();  // the summer's loop ends
+    println("{}", sum.wait());
 }
 ```
 
@@ -167,6 +171,9 @@ Output:
 
 ## See also
 
-- [coroutine](coroutine.md): `task`; [managed_frame](../core/coroutine.md): the frames on the managed heap; [channel](channel.md): what tasks wait on
+- [task](task.md), [spawn](spawn.md), [go](go.md): what the scheduler runs, and how it gets there
+- [yield](yield.md): to the back of the queue
+- [executor](executor.md), [strand](strand.md): a task on a thread of the program's choosing, or one at a time
+- [spawn_blocking](spawn_blocking.md): a blocking call off the workers
+- [coroutine](../core/coroutine.md): the frames on the managed heap
 - [README: Coroutines](README.md#coroutines)
-- `tests/async/scheduler.cpp`: every behaviour above, checked.

@@ -12,6 +12,7 @@
 // program of the docs run as a child, 200 times, for the lines of its exit.
 #include "tests/types.h"
 
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -19,6 +20,7 @@
 #include <poll.h>
 #include <regex>
 #include <spawn.h>
+#include <stdexcept>
 #include <string>
 #include <sys/wait.h>
 #include <thread>
@@ -148,6 +150,41 @@ TEST(SlogCollectorLog_Tests, ThreadsThatLogAndCollect) {
     slog::collector_log(slog::logger(io::discard));   // the memory handler let go of
 }
 
+// A target whose handler throws (DESIGN 408): the batch of lines it was
+// given is lost, the record that took them goes on, and the next lines
+// come; the target moved from is the same target
+TEST(SlogCollectorLog_Tests, ATargetThatThrows) {
+    struct Throws {
+        std::atomic<int>* calls;
+        std::atomic<bool>* fail;
+
+        void handle(const slog::record&) const {
+            ++*calls;
+            if (fail->exchange(false)) {
+                throw std::runtime_error("the handler threw");
+            }
+        }
+    };
+    std::atomic<int> calls{0};
+    std::atomic<bool> fail{true};
+    auto target = slog::logger(Throws{&calls, &fail});
+    auto moved = std::move(target);
+    slog::collector_log(target);
+    slog::memory kept;
+    const std::string out = stdout_of([&] {
+        collector::force_collect(true);
+        slog::logger(kept).info("after the throw");   // takes the lines; the throw stays inside
+        EXPECT_EQ(kept.size(), 1u);
+        const int before = calls.load();
+        EXPECT_GE(before, 1);
+        collector::force_collect(true);
+        slog::logger(kept).info("again");
+        EXPECT_GT(calls.load(), before);   // the next lines came
+    });
+    EXPECT_EQ(out.find("[sgcl]"), std::string::npos) << out;
+    slog::collector_log(slog::logger(io::discard));
+}
+
 namespace {
     // One run of exit_program: its stderr, and whether it ended by itself
     // with 0 (a child that hangs is killed after 30 s and counts as failed)
@@ -157,7 +194,7 @@ namespace {
         std::string how;
     };
 
-    ExitRun run_exit_program() {
+    ExitRun run_child(const char* program, const char* argument) {
         ExitRun run;
         int pipe_fd[2];
         if (::pipe(pipe_fd) != 0) {
@@ -170,10 +207,11 @@ namespace {
         posix_spawn_file_actions_adddup2(&actions, pipe_fd[1], 2);
         posix_spawn_file_actions_addclose(&actions, pipe_fd[0]);
         posix_spawn_file_actions_addclose(&actions, pipe_fd[1]);
-        char path[] = SGCL_SLOG_EXIT_PROGRAM;
-        char* argv[] = {path, nullptr};
+        std::string path(program);
+        std::string arg(argument ? argument : "");
+        char* argv[] = {path.data(), argument ? arg.data() : nullptr, nullptr};
         pid_t pid = 0;
-        const int spawned = ::posix_spawn(&pid, path, &actions, nullptr, argv, environ);
+        const int spawned = ::posix_spawn(&pid, path.c_str(), &actions, nullptr, argv, environ);
         posix_spawn_file_actions_destroy(&actions);
         ::close(pipe_fd[1]);
         if (spawned != 0) {
@@ -227,7 +265,7 @@ TEST(SlogCollectorLog_Tests, TheExitWritesTheLastLines) {
     int failed = 0;
     std::string first;
     for (int i = 0; i < Runs; ++i) {
-        const ExitRun run = run_exit_program();
+        const ExitRun run = run_child(SGCL_SLOG_EXIT_PROGRAM, nullptr);
         bool ok = run.clean;
         bool done = false, terminate = false, stop = false;
         size_t at = 0;
@@ -252,4 +290,35 @@ TEST(SlogCollectorLog_Tests, TheExitWritesTheLastLines) {
         }
     }
     EXPECT_EQ(failed, 0) << failed << " of " << Runs << " runs failed; the first:\n" << first;
+}
+
+// Records at the very end of a program (exit_cases.cpp, DESIGN 408), 20
+// runs each. A record from the destructor of a static destroyed after the
+// default logger read the default's freed word and hung or crashed; the
+// collector's last lines through a buffered logger whose batch hooks came
+// after collector_log's first call went into a batch the exit had already
+// written, and were lost.
+TEST(SlogCollectorLog_Tests, TheEndOfAProgram) {
+    constexpr int Runs = 20;
+    int failed = 0;
+    std::string first;
+    for (const char* which : {"static", "buffered"}) {
+        for (int i = 0; i < Runs; ++i) {
+            const ExitRun run = run_child(SGCL_SLOG_EXIT_CASES, which);
+            bool ok = run.clean;
+            if (std::string(which) == "static") {
+                ok = ok && run.err.find("level=INFO msg=main\n") != std::string::npos && run.err.find("level=INFO msg=late\n") != std::string::npos;
+            } else {
+                ok = ok && run.err.find("msg=done\n") != std::string::npos && run.err.find("line=\"terminate collector from id: ") != std::string::npos
+                     && run.err.find("line=\"stop collector id: ") != std::string::npos;
+            }
+            if (!ok) {
+                ++failed;
+                if (first.empty()) {
+                    first = std::string(which) + " run " + std::to_string(i) + " (" + (run.how.empty() ? "clean exit" : run.how) + "):\n" + run.err;
+                }
+            }
+        }
+    }
+    EXPECT_EQ(failed, 0) << failed << " runs failed; the first:\n" << first;
 }

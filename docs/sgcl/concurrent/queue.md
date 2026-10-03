@@ -1,116 +1,118 @@
-# sgcl::concurrent::queue
+[sgcl](../README.md) › [concurrent](README.md)
+
+# sgcl::concurrent::queue\<T\>
 
 ```cpp
-#include "sgcl/concurrent/queue.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/queue.h"   // or "sgcl/concurrent.h"
 
-namespace sgcl {
+namespace sgcl::concurrent {
     template<class T>
     class queue;
 }
 ```
 
-`sgcl::concurrent::queue<T>` is an unbounded lock-free FIFO queue shared by any number of producers and consumers: the Michael–Scott queue in the form Java's `ConcurrentLinkedQueue` gives it, written as it is written for a runtime with a collector. The nodes form a singly linked list; the head addresses a node at or before the first element and the tail a node at or before the last one, both lagging on purpose. A push links the new node after the last one with a compare-exchange on that node's link and swings the tail only when it found the tail a node or more behind; a pop walks from the head to the first element not yet taken, claims it with a compare-exchange on its node's flag, and swings the head only when the element was a node or more past it. That halves the exchanges on the two words every thread contends for (Java's "hop two nodes at a time"), and a thread that finds a word behind walks the links to where it should be, so no thread ever waits for another. A node the head has passed is linked to itself: the sign, for a walk, that it left the list, and the reason an old head a thread still holds retains nothing behind it. No ABA, no counted pointers, no hazard pointers in the algorithm and no free list: a node is never reused while a thread holds it, and a node nobody holds is reclaimed by the collector ([README: Lock-free containers](README.md#lock-free-containers)). The interface has the names of `std::queue`: `push`, `emplace`, `try_pop`, `pop`, `empty`, `size`, `clear`. The element type is any movable `T`, a `tracked_ptr` included.
+`sgcl::concurrent::queue<T>` is an unbounded lock-free FIFO queue shared by any number of producers and
+consumers: the Michael–Scott queue in the form Java's `ConcurrentLinkedQueue` gives it, written as it is written
+for a runtime with a collector. The nodes form a singly linked list; the head addresses a node at or before the
+first element and the tail a node at or before the last one, both lagging on purpose. A push links the new node
+after the last one with a compare-exchange on that node's link and swings the tail only when it found the tail a
+node or more behind; a pop walks from the head to the first element not yet taken, claims it with a
+compare-exchange on its node's flag, and swings the head only when the element was a node or more past it. That
+halves the exchanges on the two words every thread contends for (Java's "hop two nodes at a time"), and a thread
+that finds a word behind walks the links to where it should be, so no thread ever waits for another.
+
+A node the head has passed is linked to itself: the sign, for a walk, that it left the list, and the reason an
+old head a thread still holds retains nothing behind it. There is no ABA, no counted pointer, no hazard pointer
+in the algorithm and no free list: a node is never reused while a thread holds it, and a node nobody holds is
+reclaimed by the collector ([README: Lock-free containers](README.md#lock-free-containers)).
+
+What differs from `std::queue`: the interface has its names (`push`, `emplace`, `empty`, `size`), but there is no
+`front()` and `pop` returns the element, because between a look at the front and its removal another thread may
+take it; `try_pop` is the pop that does not wait. What differs from Java's `ConcurrentLinkedQueue`: `pop` waits on
+an empty queue instead of returning nothing, and the element is moved out, not shared. The element type is any
+movable `T`, a `tracked_ptr` included.
 
 ## Rules
 
-- The container is two atomic words, the head and the tail, kept a cache line apart (`config::cache_line_size`) so that the consumers' line and the producers' line do not bounce for each other's traffic. The queue lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1).
-- Every operation is lock-free and may be called from any thread at any time; `push` and `try_pop` are linearizable at their compare-exchange on a link and on a node's flag. The queue is FIFO: every producer's elements come out in the order it pushed them, at every consumer. `pop` blocks while the queue is empty, on the link of the last node; every `push` notifies.
-- An element is moved out of its node by the thread that pops it, into the `optional` returned, and destroyed in the node there and then: what `std::queue::pop` does, on the popping thread. The move should not throw: an element whose move constructor throws is lost.
-- The nodes between the head and the first element, taken ones the head has not passed yet, are the queue's while it lives: at most a couple, as the head is swung every second node.
-- `size()` walks the nodes: linear, and a snapshot of no particular moment when other threads push or pop, as Java's `size` is. `empty()` is a walk to the first element, a load or two.
-- A `tracked_ptr` may not address an element ([The rules](../core/README.md#the-rules), 4); there is no `front()`: the first element is what `try_pop` returns.
+- The container is two atomic words, the head and the tail, kept a cache line apart (`config::cache_line_size`)
+  so that the consumers' line and the producers' line do not bounce for each other's traffic. The queue lives
+  where a `tracked_ptr` may: on a thread's stack or inside a managed object
+  ([The rules](../core/README.md#the-rules), 1).
+- Every member function may be called from any thread at any time. `push`, `emplace`, `push_range`, `try_pop`,
+  `empty`, `size` and `clear` are lock-free; `push` and `try_pop` are linearizable at their compare-exchange on a
+  link and on a node's flag. `pop` waits while the queue is empty.
+- The queue is FIFO: every producer's elements come out in the order it pushed them, at every consumer.
+- An element is moved out of its node by the thread that pops it, into the `optional` returned, and destroyed in
+  the node there and then: what `std::queue::pop` does, on the popping thread. The elements still in the queue
+  when it dies are destroyed with their nodes, by the collector.
+- The nodes between the head and the first element, taken ones the head has not passed yet, are the queue's
+  while it lives: at most a couple, as the head is swung every second node.
 - Non-copyable, non-movable: a shared structure has one place.
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `T` | The type of the elements: any object type that is move-constructible. Its move constructor should not throw: an element whose move throws on the way out is lost. |
 
-```cpp
-using value_type = T;
-using size_type = size_t;
-```
+## Member types
 
-### Constructors
+| Type | Definition |
+|---|---|
+| `value_type` | `T` |
+| `size_type` | `size_t` |
 
-```cpp
-queue();
-queue(const concurrent::queue&) = delete;
-```
+## Member functions
 
-An empty queue: one node on the managed heap whose element is taken, addressed by the head and the tail.
+| Function | Description |
+|---|---|
+| [(constructor)](queue/queue.md) | constructs an empty queue |
+| `(destructor)` | leaves the nodes, and the elements still in them, to the collector |
 
-### push, emplace, push_range
+#### Capacity
 
-```cpp
-void push(const T& value);
-void push(T&& value);
-template<class... A> void emplace(A&&... a);
-template<class It> void push_range(It first, It last);
-```
+| Function | Description |
+|---|---|
+| [empty](queue/empty.md) | checks whether the queue holds an element |
+| [size](queue/size.md) | counts the elements |
 
-Creates a node on the managed heap holding the element (constructed from `a...` in place for `emplace`), walks from the tail to the last node and links the new one after it with a compare-exchange on its link; swings the tail when the walk went two nodes or more (a failure there is another push's success). Notifies the threads waiting in `pop`, when there are any: `pop` counts itself before its last look, and a push with nobody counted notifies nothing (a notify with nobody waiting is a fetch-add and a fence on a table the library shares, and a wake through the kernel now and then; the lists of waiters the async module keeps in these queues never block in `pop`, and the notify was half of a hop between two tasks over a rendezvous, measured).
+#### Modifiers
 
-`push_range` pushes the elements of `[first, last)` together, in their order, with one compare-exchange on the list (Java's `addAll`): the nodes are made and linked to one another first, where nobody sees them, and the chain is linked after the last node as one node is, so a producer pushing *n* elements pays for the contended link once. The pushes of other threads land before the chain or after it, never inside it; nothing is linked when the making of a node throws.
+| Function | Description |
+|---|---|
+| [push](queue/push.md) | appends an element |
+| [emplace](queue/emplace.md) | constructs an element in place at the end |
+| [push_range](queue/push_range.md) | appends the elements of a range together, with one exchange |
+| [try_pop](queue/try_pop.md) | takes the first element, or nothing when the queue is empty |
+| [pop](queue/pop.md) | takes the first element, waiting for one |
+| [clear](queue/clear.md) | pops every element there is |
 
-```cpp
-concurrent::queue<tracked_ptr<Request>> requests;   // a global: 
-requests.push(make_tracked<Request>(1));
-requests.emplace(make_tracked<Request>(2));
-vector<tracked_ptr<Request>> batch = {make_tracked<Request>(3), make_tracked<Request>(4)};
-requests.push_range(batch.begin(), batch.end());   // 3 and 4, one after the other
-```
+## Complexity
 
-### try_pop, pop
+- `push`, `emplace`, `try_pop`: constant, plus the walk over the nodes other threads linked or took since the
+  tail or the head was last swung, a node or two.
+- `push_range`: linear in the number of elements, with one compare-exchange on the list.
+- `empty`: constant. `size`: linear in the number of elements.
 
-```cpp
-optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
-T pop();
-```
-
-`try_pop` takes the first element: it walks from the head to the first node whose element is not taken and claims it with a compare-exchange on the node's flag; the element, or nothing when the walk reached the last node. `pop` takes the first element, waiting while the queue is empty.
-
-```cpp
-while (auto r = requests.try_pop()) {
-    (*r)->handle();
-}
-tracked_ptr next = requests.pop();   // blocks until a push
-```
-
-### empty, size
-
-```cpp
-bool empty() const noexcept;
-size_type size() const noexcept;
-```
-
-`empty` walks from the head to the first element; `size` counts the elements not taken, in linear time.
-
-### clear
-
-```cpp
-void clear() noexcept;
-```
-
-Pops every element there is, destroying each on the calling thread.
+A node is allocated per element, and the unbounded queue is ten times the time of a ring per element
+([Benchmarks: The rings against the unbounded queue](benchmarks.md#the-rings-against-the-unbounded-queue));
+[bounded_queue](bounded_queue.md) is the queue for a stream with a bound.
 
 ## Example
 
 ```cpp
-#include "sgcl/concurrent/concurrent.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/concurrent.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// A pipeline stage: producers push messages, consumers pop them in
-// order; the queue is a member of a managed object, and nothing in the
-// program frees a node
 struct Message {
     int producer, seq;
 };
 
 struct Stage {
-    concurrent::queue<tracked_ptr<Message>> inbox;   // inside a managed object: 
+    concurrent::queue<tracked_ptr<Message>> inbox;  // inside a managed object
 };
 
 int main() {
@@ -126,7 +128,7 @@ int main() {
         threads.emplace_back([&] {
             int last[4] = {-1, -1, -1, -1};
             for (int i : range(1000)) {
-                tracked_ptr m = stage->inbox.pop();   // FIFO per producer, at every consumer
+                tracked_ptr m = stage->inbox.pop();  // FIFO per producer, at every consumer
                 out_of_order += m->seq <= last[m->producer];
                 last[m->producer] = m->seq;
                 ++received;
@@ -137,7 +139,6 @@ int main() {
         t.join();
     }
     println("{} messages, {} out of order", received.load(), out_of_order.load());
-    return received == 4000 && out_of_order == 0 ? 0 : 1;
 }
 ```
 
@@ -149,7 +150,10 @@ Output:
 
 ## See also
 
-- [concurrent::stack](stack.md) for the LIFO counterpart, [concurrent::sorted_map](sorted_map.md) for the sorted map
-- [atomic](../core/atomic.md), what the head, the tail and the links are
-- [queue](../core/queue.md), the sequential adapter
-- [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)
+- [stack](stack.md): the LIFO counterpart
+- [bounded_queue](bounded_queue.md), [spsc_queue](spsc_queue.md): the rings, no allocation per element
+- [channel](../async/channel.md): a queue with the synchronization of both ends, whose lists of waiters are
+  these queues
+- [queue](../core/queue.md): the sequential adapter
+- [atomic](../core/atomic.md): what the head, the tail and the links are
+- [README: Lock-free containers](README.md#lock-free-containers)

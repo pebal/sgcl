@@ -1,0 +1,83 @@
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+
+# sgcl::encoding::base64::decode_to
+
+```cpp
+/*(1)*/ expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const;
+/*(2)*/ expected<size_t, error> decode_to(const slice<byte>& out,
+                                          const slice<const char>& text) const;
+/*(3)*/ template<class T>
+        expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const;
+```
+
+The bytes of a text written into the caller's buffer, nothing allocated: Go's `Decode`. The text is read as
+[decode](decode.md) reads it, strict or lenient as the codec is. `out` holds at least
+[max_decoded_size](max_decoded_size.md)`(text.size())` bytes; a smaller one is a mistake in the program, refused
+before anything is read.
+
+1. The text of a string.
+2. Characters read where they lie, no string made: a file's bytes, a secret's (a private key's PEM, whose bytes
+   must not pass through managed memory).
+3. A literal, a character array or a `std::string_view`, read where it lies, a literal to its first `'\0'`; it
+   takes part only for those.
+
+A text found wrong has had the bytes before the error written into `out`. `out` does not overlap the text.
+
+## Parameters
+
+| Parameter | Description |
+|---|---|
+| `out` | the buffer the bytes are written into |
+| `text` | the text to decode |
+
+## Return value
+
+The number of bytes written, or the [error](../error.md) with its offset, as [decode](decode.md)'s.
+
+## Complexity
+
+Linear in the size of `text`.
+
+## Exceptions
+
+`length_error` when `out` is smaller than `max_decoded_size(text.size())`.
+
+## Example
+
+```cpp
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
+
+using namespace sgcl;
+
+int main() {
+    array<byte, 6> out = {};
+    auto n = encoding::base64::standard.decode_to(out, "aGVsbG8=");
+    println("{} {}", *n, string(out.as_slice(0, *n)));
+
+    auto bad = encoding::base64::standard.decode_to(out, "aGVs*G8=");
+    println(bad.error().message());
+
+    try {
+        array<byte, 3> small = {};
+        encoding::base64::standard.decode_to(small, "aGVsbG8=");
+    } catch (const length_error& e) {
+        println(e.what());
+    }
+}
+```
+
+Output:
+
+```text
+5 hello
+offset 4: invalid character '*'
+sgcl: the buffer is smaller than the most the text decodes to
+```
+
+## See also
+
+- [max_decoded_size](max_decoded_size.md): the size the buffer needs
+- [decode](decode.md): into a vector of its own
+- [encode_to](encode_to.md): the other way
+- [sgcl::encoding::base64](../base64.md)

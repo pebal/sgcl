@@ -1,100 +1,134 @@
-# sgcl::function, sgcl::move_only_function
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::function\<R(Args...)\>
 
 ```cpp
-#include "sgcl/core/function.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/function.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class Signature>
-    class function;              // function<R(Args...)>
-    template<class Signature>
-    class move_only_function;    // R(Args...), R(Args...) const, R(Args...) noexcept, R(Args...) const noexcept
+    class function;   // undefined
+
+    template<class R, class... Args>
+    class function<R(Args...)>;
+
+    using std::bad_function_call;
 }
 ```
 
-`sgcl::function<R(Args...)>` is `std::function` for a closure that captures tracked pointers. `std::function` keeps a small closure in a buffer inside itself, where a `tracked_ptr` would share its word with the data of other closures (the offset leaves the collector's pointer map by elimination: [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)), and a large one on the unmanaged heap, where a `tracked_ptr` may not live; so a `std::function` may not capture one ([The rules](README.md#the-rules), 1). Here a closure goes to one of two places by what it is: a small one that cannot hold a pointer (16 bytes at most, and trivially default constructible, or smaller than a word, or aligned under a word, or trivially copyable, which a closure with a pointer word never is: a function pointer, a captureless lambda, a lambda capturing ints, a `double`, a raw pointer or a reference, a `std::reference_wrapper`) into a buffer inside the `function`; any other, a closure capturing a `tracked_ptr` or a `weak_ptr` first of all, but also one capturing a `std::string` or anything else with a copy constructor of its own (a closure has no default constructor, so the collector cannot rule a pointer out of such a word), into a managed node of its own, held by a pointer in a word of the `function` and traced through its own pointer map, so that a closure capturing the object that holds the `function` is a cycle collected like any other; the closure is destroyed the moment the `function` drops it, on that thread, as a container destroys an erased element, and the node is reclaimed by the collector later. The word holds null or an address and nothing else; 32 bytes, as `std::function`.
+`sgcl::function<R(Args...)>` is `std::function` for a closure that captures tracked pointers. `std::function` keeps
+a small closure in a buffer inside itself, where a `tracked_ptr` would share its word with the data of other
+closures (the offset leaves the collector's pointer map by elimination:
+[Pointer maps](../../garbage_collector/overview.md#pointer-maps)), and a large one on the unmanaged heap, where a
+`tracked_ptr` may not live; so a `std::function` may not capture one ([The rules](README.md#the-rules), 1). Here a
+closure goes to one of two places by what it is:
 
-The interface is that of `std::function`: the constructors (a null function pointer, a null member pointer or an empty function of either library make an empty one), the assignments, `std::reference_wrapper`, `swap`, `operator bool`, the call (`bad_function_call`, the one of `std`, on an empty function; the callable is called as an lvalue, as `std::function` calls it), `target_type`, `target<T>`, the deduction guides from a function pointer and from a functor's `operator()`, `==` with `nullptr`. A copy of a closure in a node is a node of its own. A callable larger than a page is not supported.
+- a small one that cannot hold a pointer into a buffer of 16 bytes inside the `function`: at most 16 bytes, aligned
+  to at most 8, moved without throwing, and either trivially copyable (which a closure with a pointer word never
+  is), trivially default constructible, smaller than a word or aligned under one, or a `std::reference_wrapper` — a
+  function pointer, a captureless lambda, a lambda capturing ints, a `double`, a raw pointer or a reference;
+- any other, a closure capturing a `tracked_ptr` or a `weak_ptr` first of all, but also one capturing a `string`, a
+  `std::string` or anything else with a copy constructor of its own (a closure has no default constructor, so the
+  collector cannot rule a pointer out of such a word), into a managed node of its own, held by a pointer in a word
+  of the `function` and traced through its own pointer map, so that a closure capturing the object that holds the
+  `function` is a cycle collected like any other.
 
-`move_only_function<Signature>` is `std::move_only_function` over the same storage: the callable need not be copyable (a lambda capturing a `unique_ptr`), an empty `move_only_function` of another signature or an empty function of either library makes an empty one, the signature's `const` and `noexcept` are honoured (`R(Args...) const` is callable through a `const move_only_function&`, `R(Args...) noexcept` makes the call `noexcept`; the reference qualifiers `&` and `&&` are not supported), `in_place_type`, and calling an empty one is undefined (debug builds assert).
+The closure is destroyed the moment the `function` drops it, on that thread, as a container destroys an erased
+element, and the node is reclaimed by the collector later. The word holds null or an address and nothing else; a
+`function` is 32 bytes, as `std::function`.
 
-The word is a `tracked_ptr`, so a `function` lives where one may, as the containers do: on a stack or inside a managed object. What the closure captures follows the rules of its type where the `function` lives, as a member would. [`expiry_queue`](expiry_queue.md) takes its function as a `function`: an entry's function may capture the objects it works on.
+The interface is that of `std::function`: the constructors (a null function pointer, a null member pointer or an
+empty function of either library make an empty one), the assignments, `std::reference_wrapper`, `swap`,
+`operator bool`, the call (`bad_function_call`, the one of `std`, on an empty function; the callable is called as
+an lvalue, as `std::function` calls it), `target_type`, `target<T>`, the deduction guides from a function pointer
+and from a functor's `operator()`, `==` with `nullptr`. A copy of a closure in a node is a node of its own. A
+callable larger than a page is not supported. A callable that need not be copyable goes into a
+[move_only_function](move_only_function.md). A Go `func` value is the same thing in a language where every closure
+lives on the collected heap.
 
 ## Rules
 
-- A `function` lives where a `tracked_ptr` may ([The rules](README.md#the-rules), 1); the closure follows the rules of its captures where the `function` lives.
-- A closure in a node is destroyed by `reset`, an assignment or the destructor, at once, on the calling thread; the objects it captured are unreferenced from then on and die with the next cycle that finds them so.
-- A closure in a node is traced: one that captures a strong pointer to the object holding the `function` is a cycle, collected when nothing else reaches it; one that captures a strong pointer to an object an [`expiry_queue`](expiry_queue.md) watches keeps that object alive.
-- Thread safety is that of `std::function` ([The rules](README.md#the-rules), 6).
+- The word is a `tracked_ptr`, so a `function` lives where one may, as the containers do: on a stack or inside a
+  managed object ([The rules](README.md#the-rules), 1). The closure follows the rules of its captures where the
+  `function` lives, as a member would.
+- A closure in a node is destroyed by an assignment, the assignment of `nullptr` or the destructor, at once, on the
+  calling thread; the objects it captured are unreferenced from then on and die with the next cycle that finds them
+  so.
+- A closure in a node is traced: one that captures a strong pointer to the object holding the `function` is a
+  cycle, collected when nothing else reaches it; one that captures a strong pointer to an object an
+  [expiry_queue](expiry_queue.md) watches keeps that object alive. `expiry_queue` takes its function as a
+  `function`: an entry's function may capture the objects it works on.
+- Thread safety is that of `std::function`: threads share one with the program's own synchronization
+  ([The rules](README.md#the-rules), 6).
 
-## Members
+## Template parameters
+
+| Parameter | Description |
+|---|---|
+| `R` | The result type of the call; `void` discards the callable's result. |
+| `Args` | The parameter types of the call. |
+
+## Member types
+
+| Type | Definition |
+|---|---|
+| `result_type` | `R` |
+
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](function/function.md) | constructs a `function`, empty or holding a callable |
+| `(destructor)` | destroys the callable, if any; a node is left to the collector |
+| [operator=](function/operator_assign.md) | assigns another `function`, a callable or `nullptr` |
+| [swap](function/swap.md) | swaps the callables of two `function` objects |
+| [operator bool](function/operator_bool.md) | checks whether the `function` holds a callable |
+| [operator()](function/operator_call.md) | calls the callable |
+| [target_type](function/target_type.md) | the `typeid` of the callable held |
+| [target](function/target.md) | a pointer to the callable held, by its type |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](function/operator_cmp.md) | compares with `nullptr` |
+| [swap](function/swap2.md) | swaps the callables of two `function` objects |
+
+## Deduction guides
 
 ```cpp
-using result_type = R;
+template<class R, class... Args>
+function(R (*)(Args...)) -> function<R(Args...)>;
 
-function() noexcept;
-function(std::nullptr_t) noexcept;
-function(const function&);
-function(function&&) noexcept;
-template<class F> function(F&& f);                    // decay_t<F> invocable as R(Args...), copy constructible
-~function();
-
-function& operator=(const function&);
-function& operator=(function&&) noexcept;
-function& operator=(std::nullptr_t) noexcept;
-template<class F> function& operator=(F&& f);
-template<class F> function& operator=(std::reference_wrapper<F> f) noexcept;
-
-void swap(function&) noexcept;
-explicit operator bool() const noexcept;
-R operator()(Args... args) const;                     // bad_function_call when empty
-const std::type_info& target_type() const noexcept;   // typeid(void) when empty
-template<class T> T* target() noexcept;
-template<class T> const T* target() const noexcept;
+template<class F>
+function(F) -> function</* the signature of F::operator() */>;
 ```
 
-The free functions, in `sgcl`:
+The second takes the parameters and the result of `F::operator()`, whatever its `const`, `noexcept` and `&`.
 
-```cpp
-template<class R, class... Args> void swap(function<R(Args...)>&, function<R(Args...)>&) noexcept;
-template<class R, class... Args> bool operator==(const function<R(Args...)>&, std::nullptr_t) noexcept;
-template<class R, class... Args> function(R (*)(Args...)) -> function<R(Args...)>;
-template<class F> function(F) -> function</* the signature of F::operator() */>;
-```
+## Complexity
 
-`move_only_function<Signature>` has the same members without the copies, `target_type` and `target`, plus `explicit move_only_function(std::in_place_type_t<T>, Args&&...)` (and with an `initializer_list`); its `operator()` carries the signature's `const` and `noexcept`.
-
-```cpp
-struct Node { int value; };
-tracked_ptr node = make_tracked<Node>(1);
-function<int()> f = [node] { return node->value; };   // a closure with a pointer: in a managed node of its own
-function<int(int)> g = [](int x) { return x + 1; };   // no pointers: inside the function
-function<int(int)> h = g;
-assert(f() == 1 && g(1) == 2 && h(1) == 2 && !function<void()>());
-assert(f.target_type() != typeid(void) && g.target<int (*)(int)>() == nullptr);
-node = nullptr;                                            // f still holds the Node
-move_only_function<int() const> m = [p = std::make_unique<int>(2)] { return *p; };   // a move-only closure
-assert(m() == 2);
-```
+Every operation is constant. A closure in the buffer costs no allocation; a closure in a node costs one managed
+allocation per construction and per copy. A call is one indirect call, plus the step through the node's pointer
+for a closure in a node.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// An event with listeners: each listener a function capturing the object
-// it works on, kept in an vector where a tracked pointer may live.
-// The listener's objects live while the listener does; a listener
-// capturing the button that holds it would be a cycle, collected with
-// the button.
+// An event with listeners: each listener a function capturing the object it works on, kept in a
+// vector where a tracked pointer may live. A listener capturing the button that holds it would be
+// a cycle, collected with the button.
 struct Label {
     string text;
 };
 
 struct Button {
-    vector<function<void(const string&)>> on_click;   // the closures in managed nodes
+    vector<function<void(const string&)>> on_click;  // the closures with pointers in managed nodes
     void click(const string& what) {
         for (auto& f : on_click) {
             f(what);
@@ -105,15 +139,16 @@ struct Button {
 int main() {
     Button button;
     tracked_ptr label = make_tracked<Label>();
-    button.on_click.push_back([label](const string& what) { label->text = "clicked " + what; });   // the closure in a managed node: label followed
-    button.on_click.push_back([](const string& what) { println("log: {}", what); });   // no pointers: inside the function
+    // the closure in a managed node: label followed
+    button.on_click.push_back([label](const string& what) { label->text = "clicked " + what; });
+    // no pointers: inside the function
+    button.on_click.push_back([](const string& what) { println("log: {}", what); });
     tracked_ptr<Label> seen = label;
-    label = nullptr;                                     // the listener keeps the label
-    collector::force_collect(true);                  // optional, for the demonstration only
+    label = nullptr;  // the listener keeps the label
+    collector::force_collect(true);  // optional, for the demonstration only
     button.click("ok");
-    println("{}", seen->text);                     // clicked ok
-    button.on_click.clear();                             // the closures destroyed now; the label lives on through seen
-    return 0;
+    println("{}", seen->text);
+    button.on_click.clear();  // the closures destroyed now; the label lives on through seen
 }
 ```
 
@@ -126,7 +161,9 @@ clicked ok
 
 ## See also
 
-- [any](any.md): the same storage for a value; [expiry_queue](expiry_queue.md): where a `function` runs with the object alive one last time
-- [tracked_ptr](tracked_ptr.md), [weak_ptr](weak_ptr.md), [unique_ptr](unique_ptr.md)
-- README: [variant, any, function and expected](README.md#variant-any-function-and-expected), [Pointer maps](../../garbage_collector/overview.md#pointer-maps), [The rules](README.md#the-rules)
-- `tests/core/function.cpp`: every behaviour above, checked.
+- [move_only_function](move_only_function.md): the same storage for a callable that is not copyable
+- [any](any.md): the same storage for a value
+- [expiry_queue](expiry_queue.md): where a `function` runs with the object alive one last time
+- [thread](thread.md): the callable of a thread, in a managed node as well
+- [tracked_ptr](tracked_ptr.md), [weak_ptr](weak_ptr.md)
+- [Pointer maps](../../garbage_collector/overview.md#pointer-maps), [README: The rules](README.md#the-rules)

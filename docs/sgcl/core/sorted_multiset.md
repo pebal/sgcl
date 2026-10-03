@@ -1,7 +1,9 @@
-# sgcl::sorted_multiset
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::sorted_multiset\<Key, Compare\>
 
 ```cpp
-#include "sgcl/core/sorted_multiset.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/sorted_multiset.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class Key, class Compare = std::less<Key>>
@@ -9,373 +11,200 @@ namespace sgcl {
 }
 ```
 
-`sgcl::sorted_multiset<Key, Compare>` is `std::multiset` on a red-black tree whose nodes are managed objects: the same tree as [sorted_set](sorted_set.md), with equivalent keys allowed. The interface is the one of `std::multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators, `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`), and so is the behaviour: equivalent keys are adjacent and a new one goes after those already there, `erase(key)` removes all of them, `iterator` is `const_iterator`, an element is destroyed the moment it is erased.
+`sgcl::sorted_multiset<Key, Compare>` is `std::multiset` on a red-black tree whose nodes are managed objects: the
+same tree as [sorted_set](sorted_set.md), with equivalent keys allowed. The interface is the one of
+`std::multiset` (the constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with
+a transparent comparison, bidirectional iterators, `key_comp` and `value_comp`, `swap`, `==` and `<=>`,
+`std::erase_if`), and so is the behaviour: equivalent keys are adjacent and a new one goes after those already
+there, `erase(key)` removes all of them, `iterator` is `const_iterator`, an element is destroyed the moment it is
+erased.
 
-What differs from `std` is where the memory lives. The multiset object holds one `tracked_ptr` (to a header node), a count and the comparator, so it lives where a `tracked_ptr` may live; the nodes are managed objects linked by tracked pointers and traced from the header, so elements that are or hold `tracked_ptr`s are traced and a cycle through a multiset is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid while their element is in the container. Lookups and iteration read raw pointers and pay no write barrier; insertions, erasures and rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)). The header is allocated on the first insertion: an empty multiset costs nothing.
+What differs from `std` is where the memory lives. The multiset object holds one `tracked_ptr` (to the header node
+of the tree), a count and the comparison, so it lives where a `tracked_ptr` may. The nodes are managed objects
+linked by tracked pointers and traced from the header, so elements that are or hold `tracked_ptr`s are traced, and a
+cycle through a multiset is collected like any other. Nothing is freed by hand: an erase destroys the element and
+unlinks its node, and the collector reclaims the node later. An iterator is one raw node pointer, trivially copyable
+and storable anywhere, valid while its element is in the multiset. A lookup and an iteration read raw pointers and
+pay no write barrier; an insertion, an erasure and the rebalancing store tracked pointers and pay the barrier on
+each link they change ([README: Containers](README.md#containers)). The header is made on the first insertion: an
+empty multiset allocates nothing.
 
 ## Rules
 
-- A multiset holds a `tracked_ptr`, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](README.md#the-rules), 1). The same holds for a node handle.
+- A multiset holds a `tracked_ptr`, so it lives on a stack or inside a managed object: never in `new`/`malloc`
+  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1). The same holds for a [node handle](sorted_set-node_type.md).
 - The elements may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the multiset is destroyed, exactly as in `std`. The one exception is a multiset dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
-- An iterator, a reference or a pointer to an element is valid while the element is in the container, across insertions, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to an erased element is invalid as in `std`.
+- An element is destroyed the moment it is erased, cleared or assigned over, or when the multiset is destroyed,
+  exactly as in `std`. The one exception is a multiset dying in a sweep, inside a managed object nobody refers to
+  any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a
+  collector thread.
+- An iterator, a reference or a pointer to an element is valid while the element is in the multiset, across
+  insertions, erasures of other elements, `swap`, `merge` and a move of the multiset. An iterator to an erased
+  element is invalid, as in `std`.
 - A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the element.
-- Thread safety is that of `std::multiset`: concurrent readers, or one writer, with the program's own synchronization ([The rules](README.md#the-rules), 6).
+- Thread safety is that of `std::multiset`: concurrent readers, or one writer, with the program's own
+  synchronization ([The rules](README.md#the-rules), 6).
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the elements, the keys: any object type `Compare` orders. |
+| `Compare` | A function object ordering two keys, a strict weak order. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. With `is_transparent` declared, as by `std::less` of a [string](string.md), the lookups, `erase` and `extract` take a key of another type. |
 
-```cpp
-using key_type = Key;
-using value_type = Key;
-using key_compare = Compare;
-using value_compare = Compare;
-using size_type = size_t;
-using difference_type = ptrdiff_t;
-using reference = value_type&;
-using const_reference = const value_type&;
-using pointer = value_type*;
-using const_pointer = const value_type*;
-using iterator = /* bidirectional, one raw node pointer, yields const Key& */;
-using const_iterator = iterator;
-using reverse_iterator = std::reverse_iterator<iterator>;
-using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-using node_type = /* the node handle, below */;
-static constexpr bool Multi = true;
-```
+## Member types
+
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `value_type` | `Key` |
+| `key_compare` | `Compare` |
+| `value_compare` | `Compare` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `reference` | `value_type&` |
+| `const_reference` | `const value_type&` |
+| `pointer` | `value_type*` |
+| `const_pointer` | `const value_type*` |
+| `iterator` | a bidirectional iterator over `const Key`, one raw node pointer, `std::bidirectional_iterator` |
+| `const_iterator` | `iterator`, the same type |
+| `reverse_iterator` | `std::reverse_iterator<iterator>` |
+| `const_reverse_iterator` | `std::reverse_iterator<const_iterator>` |
+| [node_type](sorted_set-node_type.md) | the node handle, the same type as sorted_set's |
 
 There is no `insert_return_type`: every `insert` returns an iterator.
 
-### Constructors
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](sorted_multiset/sorted_multiset.md) | constructs the multiset |
+| `(destructor)` | destroys the elements, unless the multiset dies in a sweep, which destroys them itself; the nodes are left to the collector |
+| [operator=](sorted_multiset/operator_assign.md) | assigns another multiset or a list |
+
+#### Element access
+
+| Function | Description |
+|---|---|
+| [min](sorted_multiset/min.md) | the smallest element |
+| [max](sorted_multiset/max.md) | the largest element |
+
+#### Iterators
+
+| Function | Description |
+|---|---|
+| [begin, cbegin](sorted_multiset/begin.md) | an iterator to the beginning |
+| [end, cend](sorted_multiset/end.md) | an iterator to the end |
+| [rbegin, crbegin](sorted_multiset/rbegin.md) | a reverse iterator to the beginning |
+| [rend, crend](sorted_multiset/rend.md) | a reverse iterator to the end |
+
+#### Capacity
+
+| Function | Description |
+|---|---|
+| [empty](sorted_multiset/empty.md) | checks whether the multiset is empty |
+| [size](sorted_multiset/size.md) | the number of elements |
+| [max_size](sorted_multiset/max_size.md) | the largest number of elements |
+
+#### Modifiers
+
+| Function | Description |
+|---|---|
+| [clear](sorted_multiset/clear.md) | destroys every element |
+| [insert](sorted_multiset/insert.md) | inserts elements or nodes |
+| [emplace](sorted_multiset/emplace.md) | constructs an element in place |
+| [emplace_hint](sorted_multiset/emplace_hint.md) | constructs an element in place, with a hint |
+| [erase](sorted_multiset/erase.md) | erases elements |
+| [swap](sorted_multiset/swap.md) | swaps the contents |
+| [extract](sorted_multiset/extract.md) | takes a node out of the multiset |
+| [merge](sorted_multiset/merge.md) | relinks the nodes of another multiset or set |
+
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [count](sorted_multiset/count.md) | the number of elements with a key |
+| [find](sorted_multiset/find.md) | the first element with a key |
+| [contains](sorted_multiset/contains.md) | checks whether the multiset holds a key |
+| [equal_range](sorted_multiset/equal_range.md) | the range of the elements with a key |
+| [lower_bound](sorted_multiset/lower_bound.md) | the first element not less than a key |
+| [upper_bound](sorted_multiset/upper_bound.md) | the first element greater than a key |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [key_comp](sorted_multiset/key_comp.md) | the comparison of the keys |
+| [value_comp](sorted_multiset/value_comp.md) | the comparison of the elements, the same |
+
+#### From mixin::enumerable
+
+The questions asked of the elements, carried by every container of the library
+([mixin::enumerable](mixin/enumerable.md)); `contains` is the multiset's own, by the key, and so are `min` and
+`max`, the ends of the order. The multiset carries [mixin::equatable](mixin/equatable.md),
+[mixin::comparable](mixin/comparable.md) and the bidirectional category too ([the mixins](mixin/README.md)); not
+[mixin::ordered](mixin/ordered.md), the order being the multiset's own, nor [mixin::sequence](mixin/sequence.md).
+
+| Function | Description |
+|---|---|
+| `index_of` | the position of the first element equal to a value, in the order |
+| `last_index_of` | the position of the last element equal to a value |
+| `find_if` | a pointer to the first element the predicate accepts |
+| `find_index` | the position of the first element the predicate accepts |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `for_each` | calls a function with every element |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| `operator==`, `operator<=>` | compare the elements in order, as for `std::multiset`: `==` one by one, `<=>` lexicographically (through `<` for elements without `<=>`), and `!=`, `<`, `<=`, `>`, `>=` follow ([mixin::equatable](mixin/equatable.md), [mixin::comparable](mixin/comparable.md)) |
+| [swap](sorted_multiset/swap.md) | swaps the contents of two multisets |
+| [erase_if](sorted_multiset/erase_if.md) | erases the elements a predicate accepts |
+
+## Deduction guides
 
 ```cpp
-multiset() noexcept(std::is_nothrow_default_constructible_v<Compare>);
-explicit multiset(const Compare& comp);
-template<std::input_iterator InputIt> multiset(InputIt first, InputIt last, const Compare& comp = Compare());
-multiset(std::initializer_list<value_type> ilist, const Compare& comp = Compare());
-multiset(const multiset& other);
-multiset(multiset&& other) noexcept(std::is_nothrow_move_constructible_v<Compare>);
-```
+template<std::input_iterator InputIt,
+         class Compare = std::less<typename std::iterator_traits<InputIt>::value_type>>
+sorted_multiset(InputIt, InputIt, Compare = Compare())
+    -> sorted_multiset<typename std::iterator_traits<InputIt>::value_type, Compare>;
 
-The default constructor allocates nothing. The range and list constructors insert in order with `end()` as the hint (sorted input costs one comparison per element), keeping every element. A range of another type (`string_view`s for `string` keys) is converted once per element, into its node, before the node's key is compared: the source need not be comparable with the keys at all. A copy has nodes of its own, in the same order: the tree copied shape for shape, a node per element with its colour and its links, no comparison and no rebalancing; a move takes the tree over and leaves `other` empty. A constructor or comparator that throws destroys the elements built so far.
-
-```cpp
-sorted_multiset rolls = {4, 2, 4, 6, 2};                          // 2 2 4 4 6
-sorted_multiset<int, std::greater<int>> desc(std::greater<int>{});
-vector src = {3, 1, 3};
-sorted_multiset<int> from_range(src.begin(), src.end());              // 1 3 3
-sorted_multiset<int> taken = std::move(rolls);                         // rolls is empty now
-```
-
-### Destructor
-
-```cpp
-~multiset();
-```
-
-Destroys the elements when the multiset dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The node memory is reclaimed by the collector in both cases.
-
-### operator=
-
-```cpp
-multiset& operator=(const multiset& other);
-multiset& operator=(multiset&& other) noexcept(std::is_nothrow_move_assignable_v<Compare>);
-multiset& operator=(std::initializer_list<value_type> ilist);
-```
-
-Copy assignment clears this container (destroying its elements at once), takes `other`'s comparator and copies its tree shape for shape, as the copy constructor does (an element copy that throws leaves the container empty); move assignment clears and takes the tree over; the list form clears and inserts.
-
-```cpp
-sorted_multiset<int> a = {1, 1}, b;
-b = a;
-b = {5};                     // the old elements die here
-a = std::move(b);            // a is 5, b is empty
-```
-
-### key_comp, value_comp
-
-```cpp
-key_compare key_comp() const;
-value_compare value_comp() const;
-```
-
-Copies of the comparator (the same type for both, as in `std::multiset`).
-
-```cpp
-sorted_multiset s = {1, 2};
-bool less = s.key_comp()(*s.begin(), *s.rbegin());   // true
-```
-
-### Iterators
-
-```cpp
-iterator begin() const noexcept;                 const_iterator cbegin() const noexcept;
-iterator end() const noexcept;                   const_iterator cend() const noexcept;
-reverse_iterator rbegin() const noexcept;        const_reverse_iterator crbegin() const noexcept;
-reverse_iterator rend() const noexcept;          const_reverse_iterator crend() const noexcept;
-```
-
-`iterator` and `const_iterator` are one type, yielding `const Key&`. `begin()` is the smallest key in O(1), `--end()` the largest; equivalent keys come in insertion order. Before the first insertion `begin()` and `end()` are both null iterators, equal to each other, neither of which may be dereferenced or moved; an `end()` taken then does not compare equal to `end()` after the first insertion. Iterators are raw node pointers and may be kept in unmanaged memory while their element is in the container.
-
-```cpp
-sorted_multiset<string> s = {"b", "a", "a"};
-string joined;
-for (const auto& key : s) {             // a a b
-    joined += key;
-}
-auto largest = std::prev(s.end());      // "b"
-```
-
-### empty, size, max_size
-
-```cpp
-[[nodiscard]] bool empty() const noexcept;
-size_type size() const noexcept;
-size_type max_size() const noexcept;
-```
-
-`size()` is a stored count, O(1).
-
-### clear
-
-```cpp
-void clear() noexcept;
-```
-
-Destroys every element at once and unlinks every node; the header stays. The nodes are reclaimed by the collector.
-
-```cpp
-sorted_multiset<string> s = {"a", "a"};
-s.clear();                     // both strings are destroyed here
-bool gone = s.empty();         // true
-```
-
-### insert
-
-```cpp
-iterator insert(const value_type& value);
-iterator insert(value_type&& value);
-iterator insert(const_iterator hint, const value_type& value);
-iterator insert(const_iterator hint, value_type&& value);
-template<std::input_iterator InputIt> void insert(InputIt first, InputIt last);
-void insert(std::initializer_list<value_type> ilist);
-iterator insert(node_type&& nh);
-iterator insert(const_iterator hint, node_type&& nh);
-```
-
-Always inserts; a key already present gets the new element after its equivalents. The hinted forms are O(1) amortized when the element belongs right before `hint`; an append in sorted order at `end()` costs one comparison. The range and list forms insert one by one with `end()` as the hint; a range of another type is converted once per element, into the node, as `emplace_hint` would. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
-
-```cpp
-sorted_multiset<string> s;
-auto it = s.insert("a");
-s.insert("a");                                        // after the first "a"
-s.insert(s.end(), "z");                               // an append: one comparison
-s.insert({"b", "b"});
-sorted_multiset<string> other = {"q"};
-s.insert(other.extract("q"));                         // relinked, no copy
-auto count = s.count("a");                            // 2
-```
-
-### emplace, emplace_hint
-
-```cpp
-template<class... A> iterator emplace(A&&... a);
-template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
-```
-
-Builds the key from `a...` in a new node and links it after its equivalents (or where `hint` says, when that is right). A comparator that throws destroys the new element and leaves the container as it was.
-
-```cpp
-sorted_multiset<string> s;
-s.emplace(3, 'x');                          // "xxx"
-s.emplace(3, 'x');                          // a second "xxx"
-s.emplace_hint(s.end(), "zzz");
-```
-
-### erase
-
-```cpp
-iterator erase(const_iterator pos);
-iterator erase(const_iterator first, const_iterator last);
-size_type erase(const key_type& key);
-```
-
-Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key form erases every element with an equivalent key and returns how many. Erasing `[begin(), end())` is a `clear()`. There is no transparent `erase`.
-
-```cpp
-sorted_multiset s = {1, 1, 2, 3};
-auto erased = s.erase(1);                          // 2
-s.erase(s.find(2));                                // one element: 3 is left
-```
-
-### swap
-
-```cpp
-void swap(multiset& other) noexcept(std::is_nothrow_swappable_v<Compare>);
-friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs)));   // free function in namespace sgcl
-```
-
-Exchanges the trees, counts and comparators; no element is touched, and every iterator keeps pointing at its element, now in the other container.
-
-```cpp
-sorted_multiset<int> a = {1}, b = {2};
-auto it = a.begin();
-swap(a, b);                       // it still points at 1, which is in b now
-bool moved = it == b.begin();     // true
-```
-
-### extract
-
-```cpp
-node_type extract(const_iterator pos);
-node_type extract(const key_type& key);
-```
-
-Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key form extracts the first element with an equivalent key, or returns an empty handle. See [node_type](#node_type-the-node-handle).
-
-```cpp
-sorted_multiset<string> s = {"a", "a"};
-auto nh = s.extract("a");         // s holds one "a"
-nh.value() = "b";
-s.insert(std::move(nh));          // "a" "b"
-```
-
-### merge
-
-```cpp
-template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sorted_set or sorted_multiset<Key, C2>
-template<class Traits2> void merge(detail::RbTree<Traits2>&& source);
-```
-
-Relinks every node of `source` into this multiset (a multi tree takes them all), each after its equivalents, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::sorted_set` or `sgcl::sorted_multiset` with the same `Key` and any comparator.
-
-```cpp
-sorted_multiset a = {1, 3};
-sorted_set b = {2, 3};
-a.merge(b);                       // a: 1 2 3 3;  b is empty
-```
-
-### count, find, contains
-
-```cpp
-size_type count(const key_type& key) const;
-iterator find(const key_type& key) const;
-bool contains(const key_type& key) const;
-template<class K> size_type count(const K& key) const;        // when Compare::is_transparent
-template<class K> iterator find(const K& key) const;          //   "
-template<class K> bool contains(const K& key) const;          //   "
-```
-
-`find` returns the first element with an equivalent key, `count` how many there are (O(log n + count)). The `K` overloads exist for a transparent comparator, which `std::less` of a [string](string.md) is.
-
-```cpp
-sorted_multiset<string> s = {"a", "a"};
-auto n = s.count("a");             // 2, no string built for the literal
-string text = "a b";
-auto m = s.count(text.as_slice(0, 1)); // 2: a view of another string, nothing built either
-```
-
-### equal_range, lower_bound, upper_bound
-
-```cpp
-std::pair<iterator, iterator> equal_range(const key_type& key) const;
-iterator lower_bound(const key_type& key) const;
-iterator upper_bound(const key_type& key) const;
-template<class K> std::pair<iterator, iterator> equal_range(const K& key) const;   // when Compare::is_transparent
-template<class K> iterator lower_bound(const K& key) const;                        //   "
-template<class K> iterator upper_bound(const K& key) const;                        //   "
-```
-
-`equal_range` is the run of elements with an equivalent key; `lower_bound` its start, `upper_bound` its end.
-
-```cpp
-sorted_multiset s = {1, 2, 2, 3};
-auto [from, to] = s.equal_range(2);
-auto twos = std::distance(from, to);      // 2
-```
-
-### The mixins
-
-`sorted_multiset` carries [mixin::enumerable](mixin/enumerable.md) (`contains`, `min`, `max` its own), [mixin::equatable](mixin/equatable.md), [mixin::comparable](mixin/comparable.md) and the bidirectional category ([the mixins](mixin/README.md)).
-
-```cpp
-sorted_multiset<int> s = {3, 1, 1};
-assert(s.min() == 1 && s.count_of([](int x) { return x == 1; }) == 2 && s.exists([](int x) { return x == 3; }));
-```
-
-### Comparisons
-
-```cpp
-friend bool operator==(const multiset& lhs, const multiset& rhs);
-friend auto operator<=>(const multiset& lhs, const multiset& rhs);
-```
-
-Element-wise in order, as for `std::multiset`: `==` compares sizes first; `<=>` is lexicographical with the synthesized three-way comparison, so `!=`, `<`, `<=`, `>` and `>=` follow.
-
-```cpp
-sorted_multiset<int> a = {1, 1}, b = {1, 2};
-bool less = a < b;                                // true
-auto ord = a <=> b;                               // std::strong_ordering::less
-```
-
-### node_type (the node handle)
-
-```cpp
-class node_type {
-public:
-    using value_type = Key;
-    node_type() noexcept;
-    node_type(node_type&&) noexcept;
-    node_type& operator=(node_type&&) noexcept;
-    ~node_type();
-    [[nodiscard]] bool empty() const noexcept;
-    explicit operator bool() const noexcept;
-    value_type& value() const noexcept;    // writable: the node is out of any container
-};
-```
-
-Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::sorted_set<Key>::node_type`. There is no `swap` member.
-
-### std::erase_if
-
-```cpp
-namespace sgcl {
-    template<class Key, class Compare, class Pred>
-    typename sorted_multiset<Key, Compare>::size_type erase_if(sorted_multiset<Key, Compare>& c, Pred pred);
-}
-namespace std { using sgcl::erase_if; }
-```
-
-Erases every element for which `pred(*it)` is true and returns how many.
-
-```cpp
-sorted_multiset s = {1, 2, 2, 3};
-auto n = std::erase_if(s, [](int x) { return x == 2; });   // 2; s is 1 3
-```
-
-### Deduction guides
-
-```cpp
-template<std::input_iterator InputIt, class Compare = std::less<Key>>   // Key from the iterator
-multiset(InputIt, InputIt, Compare = Compare()) -> sorted_multiset<Key, Compare>;
 template<class Key, class Compare = std::less<Key>>
-multiset(std::initializer_list<Key>, Compare = Compare()) -> sorted_multiset<Key, Compare>;
+sorted_multiset(std::initializer_list<Key>, Compare = Compare())
+    -> sorted_multiset<Key, Compare>;
 ```
 
-```cpp
-sorted_multiset s = {3, 1, 1};                           // sorted_multiset<int>
-vector src = {5, 4, 4};
-sorted_multiset from_range(src.begin(), src.end());      // sorted_multiset<int>
-```
+## Complexity
 
-From an iterator pair or an initializer list, as for `std::multiset`; an initializer list of a map spells its pairs out (`std::pair{1, 2.0}`), since a braced pair alone names no type.
+- A lookup (`find`, `contains`, the bounds), an insertion and an erasure by iterator or by one key: logarithmic in
+  the size; `count` and `erase(key)` add the number of elements with the key.
+- `begin`, `min`, `max`, `size`: constant. An erasure at an iterator and an insertion at the right hint:
+  amortized constant.
+- A copy: linear, the tree copied shape for shape with no comparison.
+
+A node is allocated per element; the header on the first insertion.
+
+## Iterator invalidation
+
+| Operations | Invalidated |
+|---|---|
+| all read-only operations, `insert`, `emplace`, `emplace_hint`, `swap`, `merge` | never |
+| `erase`, `extract` | the erased or extracted elements only |
+| `clear`, `operator=` | every element; `end()` stays, except after a move assignment |
+
+An iterator survives a `swap` and a move of the multiset: it points into the other multiset then, `end()` included,
+which follows the header. Before the first insertion there is no header: `begin()` and `end()` are both null
+iterators, and an `end()` taken then does not compare equal to `end()` after the first insertion.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -388,19 +217,20 @@ struct Task {
 // Tasks ordered by priority, several per level: a multiset of pointers
 // with a comparator that looks through them
 struct ByPriority {
-    bool operator()(const tracked_ptr<Task>& l, const tracked_ptr<Task>& r) const {
+    bool operator()(const tracked_ptr<Task>& l, const tracked_ptr<Task>& r) const noexcept {
         return l->priority < r->priority;
     }
 };
 
 int main() {
     println("tasks, by priority");
-    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
+    // after the first line: io's own objects are not the example's
+    auto base = collector::get_live_object_count();
     sorted_multiset<tracked_ptr<Task>, ByPriority> queue;
     tracked_ptr build = make_tracked<Task>("build", 1);
     queue.insert(build);
     queue.insert(make_tracked<Task>("test", 2, build));
-    queue.insert(make_tracked<Task>("lint", 2));               // after "test": equal keys keep their order
+    queue.insert(make_tracked<Task>("lint", 2));  // after "test": equal keys keep their order
     queue.insert(make_tracked<Task>("deploy", 3));
 
     print("order:");
@@ -411,13 +241,14 @@ int main() {
 
     // Everything at priority 2 goes: the two tracked_ptrs are destroyed now,
     // "test" and "lint" are collected, "build" stays through `build`
-    tracked_ptr probe = make_tracked<Task>("", 2);          // a key to look up with
+    tracked_ptr probe = make_tracked<Task>("", 2);  // a key to look up with
     auto erased = queue.erase(probe);
     build = nullptr;
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    println("{} erased, {} left, {} live objects", erased, queue.size(), collector::get_live_object_count() - base);
+    auto live = collector::get_live_object_count() - base;
+    println("{} erased, {} left, {} live objects", erased, queue.size(), live);
     return erased == 2 && queue.size() == 2 ? 0 : 1;
 }
 ```
@@ -432,6 +263,7 @@ order: build test lint deploy
 
 ## See also
 
-- [sorted_set](sorted_set.md) for unique keys, [sorted_multimap](sorted_multimap.md) for key-value pairs, [multiset](multiset.md) for a hash table
+- [sorted_set](sorted_set.md) for unique keys, [sorted_multimap](sorted_multimap.md) for key-value pairs,
+  [multiset](multiset.md) for a hash table
 - [tracked_ptr](tracked_ptr.md), [make_tracked](make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](README.md#the-rules)

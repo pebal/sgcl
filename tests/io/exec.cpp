@@ -233,6 +233,25 @@ TEST_F(IoExec_Tests, ThePipesOfTheProgramsOwn) {
     EXPECT_FALSE(twice.stdin_pipe());
 }
 
+// The program's own writes to a pipe without a reader are EPIPE, not
+// SIGPIPE (file.cpp); the child's end of a pipe is left as a program
+// expects its standard output: `yes` ends by the signal when the program
+// stops reading, as under a shell's `yes | head`
+TEST_F(IoExec_Tests, TheChildKeepsSigpipe) {
+    io::command yes("yes");
+    auto from = yes.stdout_pipe();
+    ASSERT_TRUE(from);
+    ASSERT_TRUE(yes.start());
+    byte some[100];
+    ASSERT_TRUE(from->read_full(some));
+    ASSERT_TRUE(from->close());   // the program stops reading
+    EXPECT_FALSE(yes.wait());
+    ASSERT_TRUE(yes.state);
+    EXPECT_TRUE(yes.state->signaled()) << yes.state->to_string();
+    EXPECT_EQ(yes.state->signal(), SIGPIPE);
+    EXPECT_EQ(yes.state->to_string(), "signal: broken pipe");
+}
+
 TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     io::command sleeping("sleep", "30");
     ASSERT_TRUE(sleeping.start());
@@ -246,7 +265,7 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     EXPECT_TRUE(sleeping.state->signaled() && !sleeping.state->exited());
     EXPECT_EQ(sleeping.state->signal(), SIGTERM);
     EXPECT_EQ(sleeping.state->exit_code(), -1);
-    EXPECT_TRUE(sleeping.state->to_string().starts_with("signal: "));
+    EXPECT_EQ(sleeping.state->to_string(), "signal: terminated");   // Go's text of the signal, the same on every system
     EXPECT_EQ(error_of(sleeping.process.kill()).code(), errc::process_done);   // waited for: no signal to it
 
     // kill
@@ -255,6 +274,7 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     EXPECT_TRUE(killed.process.kill());
     EXPECT_FALSE(killed.wait());
     EXPECT_EQ(killed.state->signal(), SIGKILL);
+    EXPECT_EQ(killed.state->to_string(), "signal: killed");
 
     // The stop token: the child killed when the stop is requested
     stop_source source;

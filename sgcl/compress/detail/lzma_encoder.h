@@ -6,6 +6,7 @@
 #pragma once
 
 #include "lzma_decoder.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <bit>
@@ -98,7 +99,7 @@ namespace sgcl::compress::detail {
         size_t read = 0;
         size_t end = 0;
 
-        void init(uint32_t dictionary, uint32_t nice, uint32_t depth, bool tree) {
+        void init(uint32_t dictionary, uint32_t nice, uint32_t depth, bool tree) noexcept {
             _cyclic = dictionary + 1;
             _nice = nice;
             _depth = depth;
@@ -126,7 +127,7 @@ namespace sgcl::compress::detail {
 
         // The matches at the current position, into m; the position moves on
         template<bool Tree>
-        uint32_t find(Match* m) {
+        uint32_t find(Match* m) noexcept {
             size_t avail = end - read;
             if (avail < 4) {
                 _move();
@@ -185,7 +186,7 @@ namespace sgcl::compress::detail {
 
         // n positions entered without a search
         template<bool Tree>
-        void skip(uint32_t n) {
+        void skip(uint32_t n) noexcept {
             while (n--) {
                 size_t avail = end - read;
                 if (avail < 4) {
@@ -247,7 +248,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        SGCL_LZMA_INLINE void _move() {
+        SGCL_LZMA_INLINE void _move() noexcept {
             ++read;
             if (++_cyc == _cyclic) {
                 _cyc = 0;
@@ -261,7 +262,7 @@ namespace sgcl::compress::detail {
         // size again; entries out of reach become 0
         void _normalize() noexcept {
             uint32_t sub = _pos - _cyclic;
-            auto fix = [sub](uint32_t* p, size_t n) {
+            auto fix = [sub](uint32_t* p, size_t n) noexcept {
                 for (size_t i = 0; i < n; ++i) {
                     p[i] = p[i] <= sub ? 0 : p[i] - sub;
                 }
@@ -275,7 +276,7 @@ namespace sgcl::compress::detail {
             return _cyc - delta + (delta > _cyc ? _cyclic : 0);
         }
 
-        uint32_t _chain_find(const uint8_t* cur, uint32_t next, uint32_t limit, uint32_t best, Match* m, uint32_t count) {
+        uint32_t _chain_find(const uint8_t* cur, uint32_t next, uint32_t limit, uint32_t best, Match* m, uint32_t count) noexcept {
             _son[_cyc] = next;
             uint32_t depth = _depth;
             for (;;) {
@@ -301,7 +302,7 @@ namespace sgcl::compress::detail {
         // The search down the tree: every node visited is put on the side
         // of the new position its bytes sort to, so that the new position
         // becomes the root with the old tree split under it
-        uint32_t _tree_find(const uint8_t* cur, uint32_t next, uint32_t limit, uint32_t best, Match* m, uint32_t count) {
+        uint32_t _tree_find(const uint8_t* cur, uint32_t next, uint32_t limit, uint32_t best, Match* m, uint32_t count) noexcept {
             uint32_t* left = _son.get() + size_t(_cyc) * 2 + 1;    // where the next node greater than cur goes
             uint32_t* right = _son.get() + size_t(_cyc) * 2;       // and the next node less
             uint32_t len_left = 0, len_right = 0;
@@ -342,7 +343,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void _tree_insert(const uint8_t* cur, uint32_t next, uint32_t limit) {
+        void _tree_insert(const uint8_t* cur, uint32_t next, uint32_t limit) noexcept {
             uint32_t* left = _son.get() + size_t(_cyc) * 2 + 1;
             uint32_t* right = _son.get() + size_t(_cyc) * 2;
             uint32_t len_left = 0, len_right = 0;
@@ -402,7 +403,7 @@ namespace sgcl::compress::detail {
         static constexpr uint32_t Opts = uint32_t(1) << 12;   // the positions the optimal parser prices at most
         static constexpr size_t Lookahead = Opts + lzma_model::MatchMax + 8;
 
-        explicit LzmaEncoder(const LzmaEncoderSettings& s)
+        explicit LzmaEncoder(const LzmaEncoderSettings& s) noexcept
         : _s(s)
         , _rc(_sink) {
             _dictionary = std::max(s.props.dictionary, lzma_model::DictionaryMin);
@@ -418,7 +419,7 @@ namespace sgcl::compress::detail {
         }
 
         // A new stream with the same settings: the window and the tables kept
-        void restart() {
+        void restart() noexcept {
             _reset_model();
             _rc.reset();
             _total = 0;
@@ -434,7 +435,7 @@ namespace sgcl::compress::detail {
 
         // The whole of the data, in place (the caller keeps it alive); the
         // dictionary no larger than the data needs
-        void attach(const uint8_t* p, size_t n) {
+        void attach(const uint8_t* p, size_t n) noexcept {
             if (n < _dictionary) {
                 _dictionary = std::max(_round_dictionary(uint32_t(n)), lzma_model::DictionaryMin);
             }
@@ -447,7 +448,7 @@ namespace sgcl::compress::detail {
 
         // Bytes of a stream into the window: as many as there is room for
         // (0: run first, then write again)
-        size_t append(const uint8_t* p, size_t n) {
+        size_t append(const uint8_t* p, size_t n) noexcept {
             if (!_ready) {
                 // LZMA2 may store a chunk as it is: its bytes stay in the window
                 _keep = std::max<size_t>(_dictionary, _chunked ? ChunkUnpacked : 0) + 64;
@@ -459,12 +460,12 @@ namespace sgcl::compress::detail {
             }
             if (_mf.end == _capacity && _at > _keep) {
                 size_t shift = _at - _keep;
-                std::memmove(_window.get(), _window.get() + shift, _mf.end - shift);
+                sgcl::detail::move_bytes(_window.get(), _window.get() + shift, _mf.end - shift);
                 _mf.shifted(shift);
                 _at -= shift;
             }
             size_t k = std::min(n, _capacity - _mf.end);
-            std::memcpy(_window.get() + _mf.end, p, k);
+            sgcl::detail::copy_bytes(_window.get() + _mf.end, p, k);
             _mf.end += k;
             return k;
         }
@@ -472,7 +473,7 @@ namespace sgcl::compress::detail {
         // Codes what can be coded, into out: to the end of the data when
         // finishing. budget: the input bytes to go through at most (0: no
         // bound). In LZMA2's chunks, it stops as well where the chunk is full.
-        LzmaRun run(bool finish, std::vector<uint8_t>& out, uint64_t budget = 0) {
+        LzmaRun run(bool finish, std::vector<uint8_t>& out, uint64_t budget = 0) noexcept {
             _rc_out(out);
             if (!_ready) {
                 return LzmaRun::done;
@@ -501,7 +502,7 @@ namespace sgcl::compress::detail {
         }
 
         // The chunk's last bytes into out; the bytes it codes
-        uint32_t chunk_end(std::vector<uint8_t>& out) {
+        uint32_t chunk_end(std::vector<uint8_t>& out) noexcept {
             _rc_out(out);
             _rc.finish();
             return uint32_t(_total - _chunk_start);
@@ -514,14 +515,14 @@ namespace sgcl::compress::detail {
 
         // The probabilities, the state and the repeats as at the start
         // (after a chunk stored uncompressed, the next one resets them)
-        void reset_state() {
+        void reset_state() noexcept {
             _reset_model();
             _prices_ready = false;
             _match_count = _align_count = 0;
         }
 
         // The end: the marker when asked, and the coder's last bytes
-        void finish(bool marker, std::vector<uint8_t>& out) {
+        void finish(bool marker, std::vector<uint8_t>& out) noexcept {
             _rc_out(out);
             if (marker) {
                 uint32_t ps = uint32_t(_total) & _pb_mask();
@@ -578,7 +579,7 @@ namespace sgcl::compress::detail {
             return (1u << _s.props.pb) - 1;
         }
 
-        void _reset_model() {
+        void _reset_model() noexcept {
             _probs.reset();
             std::fill(_literal.get(), _literal.get() + _s.props.literal_probs(), rc::ProbInit);
             _state = 0;
@@ -592,7 +593,7 @@ namespace sgcl::compress::detail {
             return _literal.get() + size_t(0x300) * ctx;
         }
 
-        void _encode_literal() {
+        void _encode_literal() noexcept {
             const uint8_t* cur = _mf.data + _at;
             uint32_t ps = uint32_t(_total) & _pb_mask();
             _rc.bit(_probs.is_match[_state][ps], 0);
@@ -615,7 +616,7 @@ namespace sgcl::compress::detail {
             _state = lzma_model::after_literal(_state);
         }
 
-        void _encode_len(LzmaLengthProbs& p, uint32_t len, uint32_t ps, bool rep) {
+        void _encode_len(LzmaLengthProbs& p, uint32_t len, uint32_t ps, bool rep) noexcept {
             len -= lzma_model::MatchMin;
             if (len < 8) {
                 _rc.bit(p.choice, 0);
@@ -635,7 +636,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void _encode_dist(uint32_t dist, uint32_t len) {
+        void _encode_dist(uint32_t dist, uint32_t len) noexcept {
             uint32_t ls = std::min<uint32_t>(len - lzma_model::MatchMin, lzma_model::LenStates - 1);
             uint32_t slot = lzma_model::dist_slot(dist);
             _rc.tree(_probs.dist_slot[ls], lzma_model::DistSlotBits, slot);
@@ -654,7 +655,7 @@ namespace sgcl::compress::detail {
             ++_match_count;
         }
 
-        void _encode_match(uint32_t dist, uint32_t len) {
+        void _encode_match(uint32_t dist, uint32_t len) noexcept {
             uint32_t ps = uint32_t(_total) & _pb_mask();
             _rc.bit(_probs.is_match[_state][ps], 1);
             _rc.bit(_probs.is_rep[_state], 0);
@@ -667,7 +668,7 @@ namespace sgcl::compress::detail {
             _state = lzma_model::after_match(_state);
         }
 
-        void _encode_rep(uint32_t index, uint32_t len) {
+        void _encode_rep(uint32_t index, uint32_t len) noexcept {
             uint32_t ps = uint32_t(_total) & _pb_mask();
             _rc.bit(_probs.is_match[_state][ps], 1);
             _rc.bit(_probs.is_rep[_state], 1);
@@ -696,7 +697,7 @@ namespace sgcl::compress::detail {
             _state = lzma_model::after_rep(_state);
         }
 
-        void _emit(const Step& s) {
+        void _emit(const Step& s) noexcept {
             uint32_t len = s.len;
             if (s.back == Literal) {
                 _encode_literal();
@@ -736,7 +737,7 @@ namespace sgcl::compress::detail {
         static constexpr uint32_t LenPriceUpdate = 64;
         static constexpr uint32_t MatchPriceUpdate = 128;
 
-        void _update_len_prices(const LzmaLengthProbs& p, uint32_t* out, uint32_t ps) {
+        void _update_len_prices(const LzmaLengthProbs& p, uint32_t* out, uint32_t ps) noexcept {
             const uint32_t* t = _price;
             uint32_t a0 = rc::price0(t, p.choice);
             uint32_t a1 = rc::price1(t, p.choice);
@@ -753,7 +754,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void _update_dist_prices() {
+        void _update_dist_prices() noexcept {
             const uint32_t* t = _price;
             uint32_t slots = lzma_model::dist_slot(_dictionary - 1) + 1;
             for (uint32_t ls = 0; ls < lzma_model::LenStates; ++ls) {
@@ -780,14 +781,14 @@ namespace sgcl::compress::detail {
             _match_count = 0;
         }
 
-        void _update_align_prices() {
+        void _update_align_prices() noexcept {
             for (uint32_t i = 0; i < lzma_model::AlignSize; ++i) {
                 _align_prices[i] = rc::reverse_tree_price(_price, _probs.align, lzma_model::AlignBits, i);
             }
             _align_count = 0;
         }
 
-        void _update_prices() {
+        void _update_prices() noexcept {
             _price = rc::prices().v;
             _update_dist_prices();
             _update_align_prices();
@@ -850,7 +851,7 @@ namespace sgcl::compress::detail {
         }
 
         template<bool Tree>
-        LzmaRun _run(bool finish, uint64_t budget) {
+        LzmaRun _run(bool finish, uint64_t budget) noexcept {
             uint64_t start = _total;
             for (;;) {
                 if (_chunk_full()) {
@@ -878,7 +879,7 @@ namespace sgcl::compress::detail {
 
         // The matches at _at: the ones found ahead of time, or a search now
         template<bool Tree>
-        uint32_t _matches_here() {
+        uint32_t _matches_here() noexcept {
             if (_have_look) {
                 _have_look = false;
                 return _look_count;
@@ -914,7 +915,7 @@ namespace sgcl::compress::detail {
             return len;
         }
 
-        void _one_step(uint32_t len, uint32_t back) {
+        void _one_step(uint32_t len, uint32_t back) noexcept {
             _path[0] = {len, back, back == Literal ? 0 : back < 4 ? _reps[back] : back - 4};
             _path_len = 1;
         }
@@ -926,7 +927,7 @@ namespace sgcl::compress::detail {
         // The fast levels: the longest match, a repeat when it is nearly as
         // long, and a literal instead when the next position has a better one
         template<bool Tree>
-        void _fast() {
+        void _fast() noexcept {
             uint32_t count = _matches_here<Tree>();
             const uint8_t* cur = _mf.data + _at;
             uint32_t avail = uint32_t(std::min<size_t>(_mf.end - _at, lzma_model::MatchMax));
@@ -1003,7 +1004,7 @@ namespace sgcl::compress::detail {
             const Opt& q = _opts[o.prev];
             uint32_t state = q.state;
             uint32_t r[4] = {q.reps[0], q.reps[1], q.reps[2], q.reps[3]};
-            auto step = [&](uint32_t len, uint32_t back) {
+            auto step = [&](uint32_t len, uint32_t back) noexcept {
                 if (back == Literal) {
                     state = lzma_model::after_literal(state);
                 } else if (back < 4) {
@@ -1049,7 +1050,7 @@ namespace sgcl::compress::detail {
         }
 
         // The steps from node 0 to node end, into the path
-        void _backtrack(uint32_t end) {
+        void _backtrack(uint32_t end) noexcept {
             uint32_t n = 0;
             uint32_t node = end;
             while (node > 0) {
@@ -1081,7 +1082,7 @@ namespace sgcl::compress::detail {
         // a repeat of rep0 reaches — until a node has a match of the nice
         // length or no node reaches further
         template<bool Tree>
-        void _optimum() {
+        void _optimum() noexcept {
             uint32_t count = _matches_here<Tree>();
             const uint8_t* base = _mf.data + _at;
             const uint32_t* t = _price;
@@ -1216,7 +1217,7 @@ namespace sgcl::compress::detail {
                 if (avail_here < 2) {
                     continue;
                 }
-                auto reach = [&](uint32_t to) {
+                auto reach = [&](uint32_t to) noexcept {
                     while (len_end < to) {
                         opts[++len_end].price = rc::Infinity;
                     }

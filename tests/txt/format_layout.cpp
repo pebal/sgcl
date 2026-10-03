@@ -104,3 +104,12 @@ TEST(FormatLayout_Tests, TheFieldOfChrono) {
     EXPECT_FALSE(txt::format(txt::runtime("{:%S}"), c));
     EXPECT_EQ(text(*txt::format(txt::runtime("{:%M}"), c)), "05");
 }
+
+TEST(FormatLayout_Tests, AWidthAValueGives) {
+    Clock c{9, 5};
+    EXPECT_EQ(text(txt::format("[{:>{}%H:%M}]", c, 8)), "[   09:05]");
+    EXPECT_EQ(text(txt::format("[{:{}}]", c, 7)), "[09:05  ]");
+    static_assert(txt::detail::fits<Clock, int>("{:>{}%H}"));
+    static_assert(!txt::detail::fits<Clock, int>("{:.{}%H}"));   // no precision on a time
+    static_assert(!txt::detail::fits<Clock>("{:>{}%H}"));
+}

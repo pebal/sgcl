@@ -24,6 +24,7 @@
 #include <coroutine>
 #include <mutex>
 #include <new>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -33,7 +34,7 @@ namespace sgcl::async {
     namespace detail {
         class Scheduler;
         class WakeBatch;
-        inline Scheduler& scheduler_instance();
+        inline Scheduler& scheduler_instance() noexcept;
         void resume_frame(const tracked_ptr<FrameWord>& frame);
 
         // How long a worker (and an executor's thread) with nothing to run
@@ -111,7 +112,7 @@ namespace sgcl::async {
         struct ExecutorQueue {
             using Frame = tracked_ptr<FrameWord>;
 
-            explicit ExecutorQueue(bool strand)
+            explicit ExecutorQueue(bool strand) noexcept
             : _stub(_make_stub())
             , _head(_stub)
             , strand(strand)
@@ -133,7 +134,7 @@ namespace sgcl::async {
 
             // An executor: stop() called; the thread parked on the queue
             // woken to see it
-            void stop() {
+            void stop() noexcept {
                 stopping.store(true, std::memory_order_seq_cst);
                 _wake();
             }
@@ -149,7 +150,7 @@ namespace sgcl::async {
             // An executor's thread: the next frame, spinning a while on
             // an empty queue and parking then; null when a stop() came, or
             // for a wake that found nothing (the caller asks again)
-            Frame pop() {
+            Frame pop() noexcept {
                 const uint64_t until = spin_until();
                 detail::Backoff<32> backoff;
                 do {
@@ -174,7 +175,7 @@ namespace sgcl::async {
 
             // The consumer's: the first frame, counted as taken, or null
             // when none is linked (the queue empty, or a push under way)
-            Frame take() {
+            Frame take() noexcept {
                 auto stub = _stub.get();
                 if (_head.get() == stub) {
                     if (!_link(stub).load(std::memory_order_acquire)) {
@@ -229,7 +230,7 @@ namespace sgcl::async {
             }
 
             // A frame of the queue's own: a header and nothing else
-            static Frame _make_stub() {
+            static Frame _make_stub() noexcept {
                 auto words = Maker<FrameWord[]>::make_tracked_data(FrameHeaderWords).release();
                 return unique_ptr<FrameWord>(UniquePtr<FrameWord>(words));
             }
@@ -255,7 +256,7 @@ namespace sgcl::async {
             // so that a push or a stop after that look sees it (_wake).
             // A queue that is not empty but has nothing to take has a push
             // under way: the thread yields and looks again
-            void _park() {
+            void _park() noexcept {
                 _parked.store(1, std::memory_order_seq_cst);
                 if (!_empty()) {
                     _parked.store(0, std::memory_order_relaxed);
@@ -333,6 +334,36 @@ namespace sgcl::async {
         // (slog/detail/output.h). One relaxed load in the worker's loop
         inline std::atomic<void (*)(unsigned)> worker_idle_hook = {nullptr};
 
+        // Called by the start with a worker's index before its thread is
+        // made, when set: a test's way to have the start fail as
+        // std::thread's does (it throws std::system_error);
+        // tests/async/scheduler.cpp and the tests of the wakes
+        inline std::atomic<void (*)(unsigned)> scheduler_start_test_hook = {nullptr};
+
+        // Wakes that throw nothing, for the life of the object: a wake
+        // that has to start the workers and cannot (std::system_error)
+        // has queued its frame first (Scheduler::_enqueue_starting), and
+        // in this scope the error is let go of, so the task runs at the
+        // next start. What a destructor that wakes tasks puts around the
+        // wakes (the end of a task_group, of a shared_mutex's writer
+        // guard): a destructor cannot throw, and every wake of a list is
+        // done, where a throw would leave the rest of the list asleep
+        inline thread_local unsigned quiet_wakes = 0;
+
+        class QuietWakes {
+        public:
+            QuietWakes() noexcept {
+                ++quiet_wakes;
+            }
+
+            ~QuietWakes() {
+                --quiet_wakes;
+            }
+
+            QuietWakes(const QuietWakes&) = delete;
+            QuietWakes& operator=(const QuietWakes&) = delete;
+        };
+
         class Scheduler {
         public:
             using Frame = tracked_ptr<FrameWord>;
@@ -380,9 +411,10 @@ namespace sgcl::async {
                 stop();
             }
 
-            // The workers joined and the queues let go of; what was on
-            // them stays suspended, and is run when the scheduler starts
-            // again only if it is made ready again (a program stops the
+            // The workers joined; the queues stay, and what is on them
+            // (ready, not yet run) runs at the next start, as does a frame
+            // made ready meanwhile. A task suspended in a wait stays so
+            // until something makes it ready (a program stops the
             // scheduler when nothing runs)
             void stop() {
                 assert(!on_worker() && "scheduler::stop() from a task would join the calling thread");
@@ -411,18 +443,30 @@ namespace sgcl::async {
             // queue from any other thread. Every path that makes a frame
             // ready comes here (a spawn, a channel's wake, a timer, a task
             // done, a yield), which is what makes a task's executor stick
+            // Quiet: the enqueue of a noexcept call (a task's end, a race's
+            // call), as in a QuietWakes scope: a start of the workers that
+            // fails is let go of, the frame queued for the next start
+            template<bool Quiet = false>
             void enqueue(Frame frame, bool next) {
                 if (auto executor = frame_header(frame.get()).executor.get()) {
-                    executor->push(std::move(frame), next);
+                    if constexpr (Quiet) {
+                        QuietWakes quiet;   // a strand's push may hand its head to the workers
+                        executor->push(std::move(frame), next);
+                    } else {
+                        executor->push(std::move(frame), next);
+                    }
                     return;
                 }
-                enqueue_on_workers(std::move(frame), next);
+                enqueue_on_workers<Quiet>(std::move(frame), next);
             }
 
             // The pool's own queues: what a strand hands its frames to
+            template<bool Quiet = false>
             void enqueue_on_workers(Frame frame, bool next) {
                 if (!_running.load(std::memory_order_acquire)) [[unlikely]] {
-                    _start();
+                    if (!_start_for(&frame, 1, Quiet)) {
+                        return;   // queued for the next start
+                    }
                 }
                 if (auto local = _local) {
                     if (next) {
@@ -480,7 +524,7 @@ namespace sgcl::async {
             }
 
             // The state, for a hang (debugging)
-            void dump(FILE* out) {
+            void dump(FILE* out) noexcept {
                 std::fprintf(out, "spinning %u sleepers %llx global empty %d stop %d\n", _spinning.load(), (unsigned long long)_sleepers.load(), (int)_global->ready.empty(), (int)_stop.load());
                 for (unsigned i = 0; i < _locals.size(); ++i) {
                     auto& l = *_locals[i];
@@ -533,7 +577,9 @@ namespace sgcl::async {
             // (concurrent::queue: push_range)
             void _enqueue_batch(Frame* frames, unsigned n) {
                 if (!_running.load(std::memory_order_acquire)) [[unlikely]] {
-                    _start();
+                    if (!_start_for(frames, n, false)) {
+                        return;
+                    }
                 }
                 if (auto local = _local) {
                     auto t = local->tail.load(std::memory_order_relaxed);
@@ -559,7 +605,7 @@ namespace sgcl::async {
             // program's, else the environment's (read once, at the first
             // start), else the build's; 0 the hardware concurrency; at
             // most MaxWorkers
-            unsigned _resolve_workers() {
+            unsigned _resolve_workers() noexcept {
                 if (!_env_read) {
                     _env_read = true;
                     _workers_env = env_unsigned("SGCL_WORKERS", config::workers);
@@ -572,6 +618,53 @@ namespace sgcl::async {
                 return std::min(MaxWorkers, asked ? asked : std::max(1u, std::thread::hardware_concurrency()));
             }
 
+            // The workers started for frames made ready while they were
+            // not running (before the first start, or after a stop): true
+            // when they run, and the frames go on as any enqueue's. A start
+            // that fails (std::thread's std::system_error, the one throw of
+            // a wake) loses no task: the frames go on the global queue,
+            // where they wait for the next start, and the error is the
+            // waker's, unless the waker is quiet (a QuietWakes scope, a
+            // destructor's; or a noexcept call's enqueue), which lets it
+            // go: false then. Out of line, after the start, so that the
+            // enqueue's own path is what it was
+            SGCL_NOINLINE bool _start_for(Frame* frames, unsigned n, bool quiet) {
+                try {
+                    _start();
+                    return true;
+                } catch (const std::system_error&) {
+                    {
+                        std::lock_guard lock(_lifecycle);
+                        _make_queues();
+                    }
+                    if (n == 1) {
+                        _global->ready.push(std::move(frames[0]));
+                    } else {
+                        _global->ready.push_range(frames, frames + n);
+                    }
+                    if (!quiet && quiet_wakes == 0) {
+                        throw;
+                    }
+                    return false;
+                }
+            }
+
+            // The queues, made once and kept across stops (stop): what was
+            // pushed while the workers were away runs at the next start.
+            // Under _lifecycle
+            void _make_queues() {
+                if (!_global) {
+                    _global = make_tracked<Global>();
+                    _locals.reserve(MaxWorkers);   // never reallocated: a thread that enqueues reads _locals[i] of a sleeper's bit without the lock
+                }
+            }
+
+            // The workers started. A worker's thread the system refuses
+            // (std::thread's std::system_error, thrown to the caller): the
+            // workers made before it are joined without having run
+            // anything (they wait at the gate until the start is done),
+            // and the scheduler is as it was, not running, its queues
+            // kept; the next start makes every worker again
             void _start() {
                 std::lock_guard lock(_lifecycle);
                 if (_running.load(std::memory_order_acquire)) {
@@ -580,10 +673,7 @@ namespace sgcl::async {
                 _sleepers.store(0, std::memory_order_relaxed);
                 _spinning.store(0, std::memory_order_relaxed);
                 auto n = _resolve_workers();
-                if (!_global) {   // the queues are made once and kept across stops (stop): what was pushed while the workers were away runs now
-                    _global = make_tracked<Global>();
-                    _locals.reserve(MaxWorkers);   // never reallocated: a thread that enqueues reads _locals[i] of a sleeper's bit without the lock
-                }
+                _make_queues();
                 for (auto& l : _locals) {
                     l->park.store(0, std::memory_order_relaxed);   // the wake of the stop, taken by nobody: a worker starting with it would count itself woken and leave its bit among the sleepers
                 }
@@ -610,15 +700,49 @@ namespace sgcl::async {
                 }
                 _active = n;
                 _stop.store(false, std::memory_order_release);
+                _gate.store(GateClosed, std::memory_order_relaxed);
                 _workers.reserve(n);
-                for (unsigned i = 0; i < n; ++i) {
-                    _workers.emplace_back([this, i] { _run(i); });
+                try {
+                    for (unsigned i = 0; i < n; ++i) {
+                        if (auto hook = scheduler_start_test_hook.load(std::memory_order_relaxed)) [[unlikely]] {
+                            hook(i);
+                        }
+                        _workers.emplace_back([this, i] {
+                            if (_through_gate()) {
+                                _run(i);
+                            }
+                        });
+                    }
+                } catch (...) {
+                    _gate.store(GateAborted, std::memory_order_release);
+                    _gate.notify_all();
+                    for (auto& w : _workers) {
+                        w.join();
+                    }
+                    _workers.clear();
+                    throw;
                 }
                 _running.store(true, std::memory_order_release);
+                _gate.store(GateOpen, std::memory_order_release);
+                _gate.notify_all();
             }
 
             static void _resume(const Frame& frame) {
                 resume_frame(frame);   // the frame held by the caller's local while the coroutine runs (by reference down from there: a tracked_ptr copied is a barrier and a registration check each)
+            }
+
+            // A worker of a start waits until every worker is made (true)
+            // or one cannot be (false: it runs nothing and ends), so that
+            // no frame is run by a start that may yet fail: a worker of it
+            // would enqueue, find the scheduler not running and wait for
+            // the lock its starter holds while joining it. Apart from
+            // _run, whose loop is the hot one
+            SGCL_NOINLINE bool _through_gate() noexcept {
+                int gate;
+                while ((gate = _gate.load(std::memory_order_acquire)) == GateClosed) {
+                    _gate.wait(GateClosed, std::memory_order_acquire);
+                }
+                return gate == GateOpen;
             }
 
             void _run(unsigned index) {
@@ -669,7 +793,7 @@ namespace sgcl::async {
 
             // The owner's push, at the tail; a full ring spills to the
             // global queue
-            void _push_local(Local& local, Frame frame) {
+            void _push_local(Local& local, Frame frame) noexcept {
                 auto t = local.tail.load(std::memory_order_relaxed);
                 auto h = local.head.load(std::memory_order_acquire);
                 if (t - h < Local::Size) {
@@ -682,7 +806,7 @@ namespace sgcl::async {
             }
 
             // The owner's pop, at the head, against the thieves
-            static Frame _pop_local(Local& local) {
+            static Frame _pop_local(Local& local) noexcept {
                 for (;;) {
                     auto h = local.head.load(std::memory_order_acquire);
                     auto t = local.tail.load(std::memory_order_relaxed);
@@ -738,7 +862,7 @@ namespace sgcl::async {
             // leaves the copies in this ring's free slots, which its tail
             // never reached, and nulls them. The victim's slots taken are
             // the victim's to null (_clear_taken)
-            Frame _steal(Local& victim, Local& mine) {
+            Frame _steal(Local& victim, Local& mine) noexcept {
                 for (;;) {
                     auto h = victim.head.load(std::memory_order_acquire);
                     auto t = victim.tail.load(std::memory_order_acquire);
@@ -803,7 +927,7 @@ namespace sgcl::async {
             // Work seen: this worker looks again as a looker (the count up
             // again, a new round), so that a frame taken as the last
             // looker wakes the next sleeper, as any other
-            Frame _find_work(Local& mine, bool credited = false) {
+            Frame _find_work(Local& mine, bool credited = false) noexcept {
                 // The dead part of this worker's stack cleared first: the
                 // frames of the task that just ran are below here, their
                 // words the collector's conservative scan still sees, and
@@ -907,7 +1031,7 @@ namespace sgcl::async {
             // given back to the idle list and the queues looked at again).
             // True when woken by a wake (with the credit), false when it
             // found work itself or the scheduler stops
-            bool _sleep(Local& local) {
+            bool _sleep(Local& local) noexcept {
                 auto bit = uint64_t(1) << _index;
                 _sleepers.fetch_or(bit, std::memory_order_acq_rel);
                 std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -939,7 +1063,7 @@ namespace sgcl::async {
             // One sleeper woken, with the credit of a looking worker, when
             // none is looking: its bit taken out of the set (exactly one
             // waker gets it), the credit counted, its word set
-            void _wake_one_if_none_looking() {
+            void _wake_one_if_none_looking() noexcept {
                 std::atomic_thread_fence(std::memory_order_seq_cst);
                 if (_spinning.load(std::memory_order_relaxed) != 0) {
                     return;
@@ -960,7 +1084,7 @@ namespace sgcl::async {
             }
 
             // stop(): every worker woken, without a credit
-            void _wake_all() {
+            void _wake_all() noexcept {
                 for (auto& l : _locals) {
                     l->park.store(1, std::memory_order_release);
                     l->park.notify_one();
@@ -986,6 +1110,8 @@ namespace sgcl::async {
             std::atomic<uint64_t> _sleepers = {0};
             std::atomic<unsigned> _spinning = {0};
             std::atomic<bool> _stop = {false};
+            static constexpr int GateClosed = 0, GateOpen = 1, GateAborted = 2;
+            std::atomic<int> _gate = {GateClosed};   // the workers of a start wait at it until the last is made (open) or one cannot be (aborted)
             std::vector<std::thread> _workers;
             unsigned _active = 0;          // the workers of this start: written before they are made, read by them
             unsigned _workers_asked = 0;   // set_workers (under _lifecycle)
@@ -994,7 +1120,7 @@ namespace sgcl::async {
             bool _env_read = false;
         };
 
-        inline Scheduler& scheduler_instance() {
+        inline Scheduler& scheduler_instance() noexcept {
             static Scheduler scheduler;
             return scheduler;
         }
@@ -1043,10 +1169,13 @@ namespace sgcl::async {
         // waking it (the hang the broadcast's walk once had, broadcast.h:
         // _wake). A full batch hands its frames over and goes on
         // gathering; the destructor hands over what is left, so a waker
-        // that ends in a throw loses none of the tasks it claimed, unless
-        // the handing over itself throws (the memory gone), which the
-        // destructor swallows. A batch lives on a thread's stack, for a
-        // walk that wakes and resumes nothing.
+        // that ends in a throw loses none of the tasks it claimed. The
+        // handing over may throw itself, the std::system_error of a
+        // scheduler that cannot start its workers, but only once the
+        // frames are on the global queue (_enqueue_starting), where they
+        // wait for the next start; the destructor lets that error go. A
+        // batch lives on a thread's stack, for a walk that wakes and
+        // resumes nothing.
         //
         // A batch wakes one sleeper when none is looking, as one enqueue
         // does, and the workers that find its frames wake the next ones
@@ -1211,6 +1340,10 @@ namespace sgcl::async {
             scheduler_instance().enqueue(std::move(frame), next);
         }
 
+        inline void enqueue_quiet(tracked_ptr<FrameWord> frame, bool next) noexcept {
+            scheduler_instance().enqueue<true>(std::move(frame), next);
+        }
+
         inline bool on_worker() noexcept {
             return Scheduler::on_worker();
         }
@@ -1242,7 +1375,7 @@ namespace sgcl::async {
         // wake), over SGCL_WORKER_SPIN_US and
         // config::worker_spin_microseconds; applies at once, workers
         // running or not
-        static void set_worker_spin(duration d) {
+        static void set_worker_spin(duration d) noexcept {
             const auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::nanoseconds(d)).count();
             detail::worker_spin_set.store(true, std::memory_order_relaxed);
             detail::worker_spin_us.store(us < 0 ? 0u : unsigned(std::min<long long>(us, 0xFFFFFFFFll)), std::memory_order_relaxed);

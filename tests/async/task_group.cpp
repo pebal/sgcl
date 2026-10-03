@@ -265,3 +265,49 @@ TEST(TaskGroup_Tests, ChildrenInheritTheTaskLocalsAndTheExecutor) {
     EXPECT_TRUE(on_this_thread.load());
     sgcl::async::scheduler::stop();
 }
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+
+    template<class F>
+    bool soon(F&& f) {
+        auto until = std::chrono::steady_clock::now() + 5s;
+        while (!f()) {
+            if (std::chrono::steady_clock::now() > until) {
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
+    }
+
+    task<> until_stopped(sgcl::async::stop_token tok, sgcl::atomic<int>& stopped) {
+        co_await tok.stopped();
+        ++stopped;
+    }
+}
+
+// A group ends with two children waiting for its stop and the workers
+// stopped, which their wakes cannot start: the destructor throws nothing,
+// wakes both (not the first alone), and the children run to their end when
+// the workers next start
+TEST(TaskGroup_Tests, AnEndWhoseStopCannotStartTheWorkersLosesNoChild) {
+    sgcl::atomic<int> stopped = {0};
+    {
+        sgcl::async::task_group g;
+        g.go(until_stopped(g.token(), stopped));
+        g.go(until_stopped(g.token(), stopped));
+        sgcl::async::detail::wait_for_idle_workers();          // both waiting for the stop
+        sgcl::async::scheduler::stop();
+        sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    }
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_EQ(stopped.load(), 0);
+    (void)sgcl::async::scheduler::workers();
+    ASSERT_TRUE(soon([&] { return stopped.load() == 2; }));
+    sgcl::async::scheduler::stop();
+}

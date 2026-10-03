@@ -10,6 +10,7 @@
 #include "../constant_time.h"
 #include "../hash_id.h"
 #include "../secure_zero.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -112,13 +113,13 @@ namespace sgcl::crypto::detail::rsa_pad {
         out[i++] = static_cast<unsigned char>(alg);
         out[i++] = 0x06;
         out[i++] = static_cast<unsigned char>(olen);
-        std::memcpy(out + i, oid, olen);
+        sgcl::detail::copy_bytes(out + i, oid, olen);
         i += olen;
         out[i++] = 0x05;
         out[i++] = 0x00;
         out[i++] = 0x04;
         out[i++] = static_cast<unsigned char>(hlen);
-        std::memcpy(out + i, digest, hlen);
+        sgcl::detail::copy_bytes(out + i, digest, hlen);
         return i + hlen;
     }
 
@@ -135,9 +136,9 @@ namespace sgcl::crypto::detail::rsa_pad {
         }
         em[0] = 0x00;
         em[1] = 0x01;
-        std::memset(em + 2, 0xff, em_len - tlen - 3);
+        sgcl::detail::fill_bytes(em + 2, 0xff, em_len - tlen - 3);
         em[em_len - tlen - 1] = 0x00;
-        std::memcpy(em + em_len - tlen, t, tlen);
+        sgcl::detail::copy_bytes(em + em_len - tlen, t, tlen);
         return true;
     }
 
@@ -156,9 +157,9 @@ namespace sgcl::crypto::detail::rsa_pad {
         const slice<const byte> parts[] = {view(zeros, 8), view(digest, hlen), view(salt, slen)};
         hash_parts(id, h, parts);
         // DB = PS || 01 || salt, masked in place
-        std::memset(em, 0, db_len - slen - 1);
+        sgcl::detail::fill_bytes(em, 0, db_len - slen - 1);
         em[db_len - slen - 1] = 0x01;
-        std::memcpy(em + db_len - slen, salt, slen);
+        sgcl::detail::copy_bytes(em + db_len - slen, salt, slen);
         mgf1_xor(id, h, hlen, em, db_len);
         em[0] &= static_cast<unsigned char>(0xff >> (8 * em_len - em_bits));
         em[em_len - 1] = 0xbc;
@@ -251,10 +252,10 @@ namespace sgcl::crypto::detail::rsa_pad {
         em[0] = 0x00;
         const slice<const byte> parts[] = {view(label, l_len)};
         hash_parts(id, db, parts);
-        std::memset(db + hlen, 0, db_len - hlen - m_len - 1);
+        sgcl::detail::fill_bytes(db + hlen, 0, db_len - hlen - m_len - 1);
         db[db_len - m_len - 1] = 0x01;
-        std::memcpy(db + db_len - m_len, msg, m_len);
-        std::memcpy(s, seed, hlen);
+        sgcl::detail::copy_bytes(db + db_len - m_len, msg, m_len);
+        sgcl::detail::copy_bytes(s, seed, hlen);
         mgf1_xor(mgf, s, hlen, db, db_len);
         mgf1_xor(mgf, db, db_len, s, hlen);
     }

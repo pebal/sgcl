@@ -238,7 +238,7 @@ namespace sgcl::txt {
         // in canonical order and composed — which is where the standard
         // draws the same line, its mapping being per code point with one
         // NFC at the end.
-        inline void nfkc_casefold_points(code_points& out, std::string_view text) {
+        inline void nfkc_casefold_points(code_points& out, std::string_view text) noexcept {
             lent<code_points> lent_taken;
             auto& taken = *lent_taken;
             for (size_t i = 0; i < text.size();) {
@@ -379,11 +379,11 @@ namespace sgcl::txt {
     // followed by continues, with rule R1a for the two joiners. An empty
     // text is not one. Nothing here says the name is a good idea — for
     // that, ask restriction_level_of below.
-    inline bool is_identifier(const string& text) {
+    inline bool is_identifier(const string& text) noexcept {
         return detail::identifier_text<false>(text.view());
     }
 
-    inline bool is_identifier(const string& text, program_syntax_t) {
+    inline bool is_identifier(const string& text, program_syntax_t) noexcept {
         return detail::identifier_text<true>(text.view());
     }
 
@@ -446,7 +446,7 @@ namespace sgcl::txt {
 
     // Whether every code point of the text is one UTS #39 allows in an
     // identifier. It says nothing about the scripts they are written in
-    inline bool is_allowed_identifier(const string& text) {
+    inline bool is_allowed_identifier(const string& text) noexcept {
         auto v = text.view();
         for (size_t i = 0; i < v.size();) {
             auto [c, n] = utf8::decode(v, i);
@@ -523,7 +523,7 @@ namespace sgcl::txt {
     // here as belonging to all of them. That makes the answer more
     // generous than the specification's, never less, so a text this
     // calls single script may be two by Script_Extensions.
-    inline bool is_single_script(const string& text) {
+    inline bool is_single_script(const string& text) noexcept {
         script scripts[detail::scripts_held];
         bool more = false;
         size_t count = detail::scripts_of_text(text.view(), scripts, detail::scripts_held, more);
@@ -535,7 +535,7 @@ namespace sgcl::txt {
     // names the rung it accepts; the specification suggests
     // moderately_restrictive for a registry open to the world and
     // highly_restrictive where a mistaken name costs something.
-    inline restriction_level restriction_level_of(const string& text) {
+    inline restriction_level restriction_level_of(const string& text) noexcept {
         auto v = text.view();
         bool ascii = true;
         for (size_t i = 0; i < v.size();) {
@@ -586,11 +586,11 @@ namespace sgcl::txt {
     }
 
     // The two rungs a caller asks for by name
-    inline bool is_highly_restrictive(const string& text) {
+    inline bool is_highly_restrictive(const string& text) noexcept {
         return restriction_level_of(text) <= restriction_level::highly_restrictive;
     }
 
-    inline bool is_moderately_restrictive(const string& text) {
+    inline bool is_moderately_restrictive(const string& text) noexcept {
         return restriction_level_of(text) <= restriction_level::moderately_restrictive;
     }
 }

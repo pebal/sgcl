@@ -19,7 +19,9 @@
 //     an error or a zone whose offsets stay within 25 hours, whose
 //     transitions after an instant come after it and before it before it,
 //     and whose walk of transitions ascends and ends; a wall time made in
-//     it (date::at) lands within a day of its date.
+//     it (date::at) lands within three days of its date: a time a change
+//     skipped moves on by the change, which between offsets of up to 25
+//     hours either way is up to 50 hours (NZST-24NZDT5 skips 29).
 // Built with libFuzzer (tests/fuzz/run.sh tests/time/fuzz/time_fuzz.cpp) or
 // replayed by the library's own driver (tests/fuzz/driver.cpp).
 #include "sgcl/time/time.h"
@@ -84,7 +86,7 @@ namespace {
         auto d = time::date::parse(string(text), p);
         if (d) {
             (void)d->format(p);
-            auto back = time::date::parse(d->format("%Y-%m-%d"), "%Y-%m-%d");
+            auto back = time::date::parse(d->to_string());   // ISO 8601 reads a year of five digits, %Y four
             check(back.has_value() && *back == *d);
         }
         auto plain = time::date::parse(string(text));
@@ -142,7 +144,7 @@ namespace {
             auto wall = d.at(int(uint8_t(instants[at]) % 25), int(uint8_t(instants[at + 1]) % 60), z);
             if (wall.year() > 1677 && wall.year() < 2262) {
                 auto landed = wall.in(z).date();
-                check(landed >= d.add_days(-1) && landed <= d.add_days(1));
+                check(landed >= d.add_days(-3) && landed <= d.add_days(3));
             }
         }
     }

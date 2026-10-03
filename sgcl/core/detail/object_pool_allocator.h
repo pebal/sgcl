@@ -5,10 +5,12 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "cell_block.h"
 #include "object_pool_allocator_base.h"
 
 namespace sgcl::detail {
+    // The pool of T: its value type and free function. Never constructed:
+    // a thread makes the pool's allocator as an ObjectPoolAllocatorBase
+    // from T's Metadata (thread.h: _make_pool_allocator).
     template<class T>
     class ObjectPoolAllocator
     : public ObjectPoolAllocatorBase {
@@ -16,47 +18,7 @@ namespace sgcl::detail {
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::true_type;
 
-        constexpr ObjectPoolAllocator(PageAllocator& a, std::atomic<Page*>& pages) noexcept
-            : ObjectPoolAllocatorBase(a, pages, _pages_buffer) {
-        }
-
-        ~ObjectPoolAllocator() noexcept override {
-            auto& slab = TypeInfo<T>::header_slab();
-            while (_header_count) {
-                slab.free(_headers[--_header_count]);
-            }
-        }
-
-        // GC thread: the type's emptied pages to the buffer the allocators
-        // of every thread refill from, the entirely free ones to the heap
-        static void free(Page* pages) noexcept {
-            _free(pages, _pages_buffer);
-        }
-
-    private:
-        inline static std::atomic<Page*> _pages_buffer = {nullptr};
-
-        // Headers cached per thread and type, refilled from the slab in
-        // batches so that page turnover on many threads does not serialize
-        // on the slab mutex.
-        static constexpr unsigned HeaderCacheSize = 8;
-        void* _headers[HeaderCacheSize];
-        unsigned _header_count = 0;
-
-        // The header of a fresh page, from a cache of headers taken from
-        // the type's slab a few at a time (one lock per batch)
-        Page* _create_page_parameters(void* data) override {
-            if (!_header_count) {
-                TypeInfo<T>::header_slab().alloc(_headers, HeaderCacheSize);
-                _header_count = HeaderCacheSize;
-            }
-            auto mem = _headers[--_header_count];
-            // a page of blocks of cells: every word its own address, the
-            // free state of every slot of every block, once (cell_block.h)
-            if constexpr(std::is_same_v<ValueType, CellBlock>) {
-                CellBlock::fill_page(data, config::page_size);
-            }
-            return new(mem) Page((ValueType*)data);
-        }
+        // GC thread: one function for every pool (Metadata::free)
+        static constexpr void (*free)(Page*) noexcept = &ObjectPoolAllocatorBase::free_pool_pages;
     };
 }

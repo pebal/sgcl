@@ -49,19 +49,19 @@ namespace sgcl {
 
         template<class Err = E>
         requires (!std::is_same_v<std::remove_cvref_t<Err>, unexpected>) && (!std::is_same_v<std::remove_cvref_t<Err>, std::in_place_t>) && (!detail::IsExpected<std::remove_cvref_t<Err>>::value) && std::is_constructible_v<E, Err>
-        explicit unexpected(Err&& e)
+        explicit unexpected(Err&& e) noexcept(std::is_nothrow_constructible_v<E, Err>)
         : _error(std::forward<Err>(e)) {
         }
 
         template<class... A>
         requires std::is_constructible_v<E, A...>
-        explicit unexpected(std::in_place_t, A&&... a)
+        explicit unexpected(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<E, A...>)
         : _error(std::forward<A>(a)...) {
         }
 
         template<class U, class... A>
         requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
-        explicit unexpected(std::in_place_t, std::initializer_list<U> il, A&&... a)
+        explicit unexpected(std::in_place_t, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>)
         : _error(il, std::forward<A>(a)...) {
         }
 
@@ -80,7 +80,7 @@ namespace sgcl {
         }
 
         template<class E2>
-        friend bool operator==(const unexpected& x, const unexpected<E2>& y) {
+        friend bool operator==(const unexpected& x, const unexpected<E2>& y) noexcept(noexcept(bool(x.error() == y.error()))) {
             return x.error() == y.error();
         }
 
@@ -134,12 +134,12 @@ namespace sgcl {
     class bad_expected_access
     : public bad_expected_access<void> {
     public:
-        explicit bad_expected_access(E e)
+        explicit bad_expected_access(E e) noexcept(std::is_nothrow_move_constructible_v<E>)
         : _error(std::move(e)) {
         }
 
         // The text is the exception's own: a copy asks for it again
-        bad_expected_access(const bad_expected_access& o)
+        bad_expected_access(const bad_expected_access& o) noexcept
         : bad_expected_access<void>(o)
         , _error(o._error) {
         }
@@ -149,7 +149,7 @@ namespace sgcl {
         , _error(std::move(o._error)) {
         }
 
-        bad_expected_access& operator=(const bad_expected_access& o) {
+        bad_expected_access& operator=(const bad_expected_access& o) noexcept {
             if (this != &o) {
                 _error = o._error;
                 delete _what.exchange(nullptr, std::memory_order_acq_rel);
@@ -165,7 +165,7 @@ namespace sgcl {
             return *this;
         }
 
-        ~bad_expected_access() override {
+        ~bad_expected_access() noexcept override {
             delete _what.load(std::memory_order_relaxed);
         }
 
@@ -252,7 +252,7 @@ namespace sgcl {
         template<class U>
         using rebind = expected<U, error_type>;
 
-        expected()
+        expected() noexcept(std::is_nothrow_default_constructible_v<T>)
         requires std::is_default_constructible_v<T>
         : _s(std::in_place_index<0>) {
         }
@@ -263,59 +263,59 @@ namespace sgcl {
         template<class U, class G>
         requires std::is_constructible_v<T, const U&> && std::is_constructible_v<E, const G&> && (!converts_from_other<U, G>)
         explicit(!std::is_convertible_v<const U&, T> || !std::is_convertible_v<const G&, E>)
-        expected(const expected<U, G>& o)
+        expected(const expected<U, G>& o) noexcept(std::is_nothrow_constructible_v<T, const U&> && std::is_nothrow_constructible_v<E, const G&>)
         : _s(o.has_value() ? Storage(std::in_place_index<0>, *o) : Storage(std::in_place_index<1>, o.error())) {
         }
 
         template<class U, class G>
         requires std::is_constructible_v<T, U> && std::is_constructible_v<E, G> && (!converts_from_other<U, G>)
         explicit(!std::is_convertible_v<U, T> || !std::is_convertible_v<G, E>)
-        expected(expected<U, G>&& o)
+        expected(expected<U, G>&& o) noexcept(std::is_nothrow_constructible_v<T, U> && std::is_nothrow_constructible_v<E, G>)
         : _s(o.has_value() ? Storage(std::in_place_index<0>, std::move(*o)) : Storage(std::in_place_index<1>, std::move(o.error()))) {
         }
 
         template<class U = T>
         requires (!std::is_same_v<std::remove_cvref_t<U>, std::in_place_t>) && (!std::is_same_v<std::remove_cvref_t<U>, expected>) && (!detail::IsUnexpected<std::remove_cvref_t<U>>::value) && (!detail::IsExpected<std::remove_cvref_t<U>>::value) && std::is_constructible_v<T, U>
         explicit(!std::is_convertible_v<U, T>)
-        expected(U&& v)
+        expected(U&& v) noexcept(std::is_nothrow_constructible_v<T, U>)
         : _s(std::in_place_index<0>, std::forward<U>(v)) {
         }
 
         template<class G>
         requires std::is_constructible_v<E, const G&>
         explicit(!std::is_convertible_v<const G&, E>)
-        expected(const unexpected<G>& u)
+        expected(const unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<E, const G&>)
         : _s(std::in_place_index<1>, u.error()) {
         }
 
         template<class G>
         requires std::is_constructible_v<E, G>
         explicit(!std::is_convertible_v<G, E>)
-        expected(unexpected<G>&& u)
+        expected(unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<E, G>)
         : _s(std::in_place_index<1>, std::move(u.error())) {
         }
 
         template<class... A>
         requires std::is_constructible_v<T, A...>
-        explicit expected(std::in_place_t, A&&... a)
+        explicit expected(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
         : _s(std::in_place_index<0>, std::forward<A>(a)...) {
         }
 
         template<class U, class... A>
         requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        explicit expected(std::in_place_t, std::initializer_list<U> il, A&&... a)
+        explicit expected(std::in_place_t, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>)
         : _s(std::in_place_index<0>, il, std::forward<A>(a)...) {
         }
 
         template<class... A>
         requires std::is_constructible_v<E, A...>
-        explicit expected(unexpect_t, A&&... a)
+        explicit expected(unexpect_t, A&&... a) noexcept(std::is_nothrow_constructible_v<E, A...>)
         : _s(std::in_place_index<1>, std::forward<A>(a)...) {
         }
 
         template<class U, class... A>
         requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
-        explicit expected(unexpect_t, std::initializer_list<U> il, A&&... a)
+        explicit expected(unexpect_t, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>)
         : _s(std::in_place_index<1>, il, std::forward<A>(a)...) {
         }
 
@@ -324,7 +324,7 @@ namespace sgcl {
         // through _reinit otherwise, so that the expected always holds a
         // value or an error, never nothing (the variant alone would be
         // valueless after a constructor that throws)
-        expected& operator=(const expected& o)
+        expected& operator=(const expected& o) noexcept(std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T> && std::is_nothrow_copy_constructible_v<E> && std::is_nothrow_copy_assignable_v<E>)
         requires std::is_copy_constructible_v<T> && std::is_copy_assignable_v<T> && std::is_copy_constructible_v<E> && std::is_copy_assignable_v<E> && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_move_constructible_v<E>) {
             if (has_value()) {
                 if (o.has_value()) {
@@ -358,7 +358,7 @@ namespace sgcl {
 
         template<class U = T>
         requires (!std::is_same_v<std::remove_cvref_t<U>, expected>) && (!detail::IsUnexpected<std::remove_cvref_t<U>>::value) && std::is_constructible_v<T, U> && std::is_assignable_v<T&, U> && reinit_safe<T, U>
-        expected& operator=(U&& v) {
+        expected& operator=(U&& v) noexcept(std::is_nothrow_constructible_v<T, U> && std::is_nothrow_assignable_v<T&, U>) {
             if (has_value()) {
                 get<0>(_s) = std::forward<U>(v);
             } else {
@@ -369,7 +369,7 @@ namespace sgcl {
 
         template<class G>
         requires std::is_constructible_v<E, const G&> && std::is_assignable_v<E&, const G&> && reinit_safe<E, const G&>
-        expected& operator=(const unexpected<G>& u) {
+        expected& operator=(const unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<E, const G&> && std::is_nothrow_assignable_v<E&, const G&>) {
             if (has_value()) {
                 _reinit<1>(u.error());
             } else {
@@ -380,7 +380,7 @@ namespace sgcl {
 
         template<class G>
         requires std::is_constructible_v<E, G> && std::is_assignable_v<E&, G> && reinit_safe<E, G>
-        expected& operator=(unexpected<G>&& u) {
+        expected& operator=(unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<E, G> && std::is_nothrow_assignable_v<E&, G>) {
             if (has_value()) {
                 _reinit<1>(std::move(u.error()));
             } else {
@@ -516,22 +516,22 @@ namespace sgcl {
         E&& error() && noexcept { return std::move(get<1>(_s)); }
 
         template<class U>
-        T value_or(U&& v) const& {
+        T value_or(U&& v) const& noexcept(std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_constructible_v<T, U>) {
             return has_value() ? **this : static_cast<T>(std::forward<U>(v));
         }
 
         template<class U>
-        T value_or(U&& v) && {
+        T value_or(U&& v) && noexcept(std::is_nothrow_move_constructible_v<T> && std::is_nothrow_constructible_v<T, U>) {
             return has_value() ? std::move(**this) : static_cast<T>(std::forward<U>(v));
         }
 
         template<class G = E>
-        E error_or(G&& e) const& {
+        E error_or(G&& e) const& noexcept(std::is_nothrow_copy_constructible_v<E> && std::is_nothrow_constructible_v<E, G>) {
             return has_value() ? static_cast<E>(std::forward<G>(e)) : error();
         }
 
         template<class G = E>
-        E error_or(G&& e) && {
+        E error_or(G&& e) && noexcept(std::is_nothrow_move_constructible_v<E> && std::is_nothrow_constructible_v<E, G>) {
             return has_value() ? static_cast<E>(std::forward<G>(e)) : std::move(error());
         }
 
@@ -539,26 +539,26 @@ namespace sgcl {
         // same error type (and_then); f on the error, an expected with
         // the same value type (or_else); f's result as the new value
         // (transform) or error (transform_error)
-        template<class F> auto and_then(F&& f) & { return _and_then(*this, std::forward<F>(f)); }
-        template<class F> auto and_then(F&& f) const& { return _and_then(*this, std::forward<F>(f)); }
-        template<class F> auto and_then(F&& f) && { return _and_then(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto and_then(F&& f) const&& { return _and_then(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) & { return _or_else(*this, std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) const& { return _or_else(*this, std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) && { return _or_else(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) const&& { return _or_else(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) & { return _transform(*this, std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) const& { return _transform(*this, std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) && { return _transform(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) const&& { return _transform(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) & { return _transform_error(*this, std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) const& { return _transform_error(*this, std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) && { return _transform_error(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) const&& { return _transform_error(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) & noexcept(noexcept(_and_then(*this, std::forward<F>(f)))) { return _and_then(*this, std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) const& noexcept(noexcept(_and_then(*this, std::forward<F>(f)))) { return _and_then(*this, std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) && noexcept(noexcept(_and_then(std::move(*this), std::forward<F>(f)))) { return _and_then(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) const&& noexcept(noexcept(_and_then(std::move(*this), std::forward<F>(f)))) { return _and_then(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) & noexcept(noexcept(_or_else(*this, std::forward<F>(f)))) { return _or_else(*this, std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) const& noexcept(noexcept(_or_else(*this, std::forward<F>(f)))) { return _or_else(*this, std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) && noexcept(noexcept(_or_else(std::move(*this), std::forward<F>(f)))) { return _or_else(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) const&& noexcept(noexcept(_or_else(std::move(*this), std::forward<F>(f)))) { return _or_else(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) & noexcept(noexcept(_transform(*this, std::forward<F>(f)))) { return _transform(*this, std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) const& noexcept(noexcept(_transform(*this, std::forward<F>(f)))) { return _transform(*this, std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) && noexcept(noexcept(_transform(std::move(*this), std::forward<F>(f)))) { return _transform(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) const&& noexcept(noexcept(_transform(std::move(*this), std::forward<F>(f)))) { return _transform(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) & noexcept(noexcept(_transform_error(*this, std::forward<F>(f)))) { return _transform_error(*this, std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) const& noexcept(noexcept(_transform_error(*this, std::forward<F>(f)))) { return _transform_error(*this, std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) && noexcept(noexcept(_transform_error(std::move(*this), std::forward<F>(f)))) { return _transform_error(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) const&& noexcept(noexcept(_transform_error(std::move(*this), std::forward<F>(f)))) { return _transform_error(std::move(*this), std::forward<F>(f)); }
 
         template<class T2, class E2>
         requires (!std::is_void_v<T2>)
-        friend bool operator==(const expected& x, const expected<T2, E2>& y) {
+        friend bool operator==(const expected& x, const expected<T2, E2>& y) noexcept(noexcept(bool(std::declval<const T&>() == std::declval<const T2&>())) && noexcept(bool(x.error() == y.error()))) {
             if (x.has_value() != y.has_value()) {
                 return false;
             }
@@ -567,18 +567,30 @@ namespace sgcl {
 
         template<class T2>
         requires (!detail::IsExpected<T2>::value) && (!detail::IsUnexpected<T2>::value)
-        friend bool operator==(const expected& x, const T2& v) {
+        friend bool operator==(const expected& x, const T2& v) noexcept(noexcept(bool(std::declval<const T&>() == v))) {
             return x.has_value() && *x == v;
         }
 
         template<class E2>
-        friend bool operator==(const expected& x, const unexpected<E2>& e) {
+        friend bool operator==(const expected& x, const unexpected<E2>& e) noexcept(noexcept(bool(x.error() == e.error()))) {
             return !x.has_value() && x.error() == e.error();
         }
 
     private:
+        // Whether _transform's result is made without throwing: an
+        // expected<U, E> from the function's result (a U), or from the
+        // error; expected<void, E> for a function that returns nothing
+        template<class U, class Err>
+        static consteval bool _nothrow_transformed() noexcept {
+            if constexpr(std::is_void_v<U>) {
+                return std::is_nothrow_constructible_v<expected<void, E>, unexpect_t, Err>;
+            } else {
+                return std::is_nothrow_constructible_v<expected<U, E>, std::in_place_t, U> && std::is_nothrow_constructible_v<expected<U, E>, unexpect_t, Err>;
+            }
+        }
+
         template<class Self, class F>
-        static auto _and_then(Self&& self, F&& f) {
+        static auto _and_then(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_r_v<std::remove_cvref_t<std::invoke_result_t<F, decltype(*std::declval<Self>())>>, F, decltype(*std::declval<Self>())> && std::is_nothrow_constructible_v<std::remove_cvref_t<std::invoke_result_t<F, decltype(*std::declval<Self>())>>, unexpect_t, decltype(std::declval<Self>().error())>) {
             using U = std::remove_cvref_t<std::invoke_result_t<F, decltype(*std::forward<Self>(self))>>;
             static_assert(detail::IsExpected<U>::value && std::is_same_v<typename U::error_type, E>, "and_then's function returns an expected with the same error type");
             if (self.has_value()) {
@@ -588,7 +600,7 @@ namespace sgcl {
         }
 
         template<class Self, class F>
-        static auto _or_else(Self&& self, F&& f) {
+        static auto _or_else(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_r_v<std::remove_cvref_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>, F, decltype(std::declval<Self>().error())> && std::is_nothrow_constructible_v<std::remove_cvref_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>, std::in_place_t, decltype(*std::declval<Self>())>) {
             using G = std::remove_cvref_t<std::invoke_result_t<F, decltype(std::forward<Self>(self).error())>>;
             static_assert(detail::IsExpected<G>::value && std::is_same_v<typename G::value_type, T>, "or_else's function returns an expected with the same value type");
             if (self.has_value()) {
@@ -598,7 +610,7 @@ namespace sgcl {
         }
 
         template<class Self, class F>
-        static auto _transform(Self&& self, F&& f) {
+        static auto _transform(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_v<F, decltype(*std::declval<Self>())> && _nothrow_transformed<std::remove_cv_t<std::invoke_result_t<F, decltype(*std::declval<Self>())>>, decltype(std::declval<Self>().error())>()) {
             using U = std::remove_cv_t<std::invoke_result_t<F, decltype(*std::forward<Self>(self))>>;
             if constexpr(std::is_void_v<U>) {
                 if (self.has_value()) {
@@ -615,7 +627,7 @@ namespace sgcl {
         }
 
         template<class Self, class F>
-        static auto _transform_error(Self&& self, F&& f) {
+        static auto _transform_error(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_v<F, decltype(std::declval<Self>().error())> && std::is_nothrow_constructible_v<expected<T, std::remove_cv_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>>, std::in_place_t, decltype(*std::declval<Self>())> && std::is_nothrow_constructible_v<expected<T, std::remove_cv_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>>, unexpect_t, std::invoke_result_t<F, decltype(std::declval<Self>().error())>>) {
             using G = std::remove_cv_t<std::invoke_result_t<F, decltype(std::forward<Self>(self).error())>>;
             if (self.has_value()) {
                 return expected<T, G>(std::in_place, *std::forward<Self>(self));
@@ -629,11 +641,19 @@ namespace sgcl {
         // old alternative moved out first (it moves without throwing:
         // reinit_safe) and put back if the construction throws, so the
         // expected is never left valueless
+        // noexcept when the new alternative's construction is: the first
+        // branch, nothing to put back. An lvalue argument may lie in the
+        // old alternative (`e = e.error().message`): when the old one's
+        // destructor does something (a tracked word nulled), the new one is
+        // made from it first, into a temporary, as for a throwing
+        // construction; an rvalue or a trivially destructible old one
+        // goes in place
         template<size_t I, class... A>
-        void _reinit(A&&... a) {
+        void _reinit(A&&... a) noexcept(std::is_nothrow_constructible_v<variant_alternative_t<I, Storage>, A...>) {
             using New = variant_alternative_t<I, Storage>;
             using Old = variant_alternative_t<1 - I, Storage>;
-            if constexpr(std::is_nothrow_constructible_v<New, A...>) {
+            constexpr bool MayAlias = !std::is_trivially_destructible_v<Old> && (std::is_lvalue_reference_v<A> || ...);
+            if constexpr(std::is_nothrow_constructible_v<New, A...> && !(MayAlias && std::is_nothrow_move_constructible_v<New>)) {
                 _s.template emplace<I>(std::forward<A>(a)...);
             } else if constexpr(std::is_nothrow_move_constructible_v<New>) {
                 New tmp(std::forward<A>(a)...);
@@ -679,28 +699,28 @@ namespace sgcl {
         template<class U, class G>
         requires std::is_void_v<U> && std::is_constructible_v<E, const G&>
         explicit(!std::is_convertible_v<const G&, E>)
-        expected(const expected<U, G>& o)
+        expected(const expected<U, G>& o) noexcept(std::is_nothrow_constructible_v<E, const G&>)
         : _s(o.has_value() ? Storage(std::in_place_index<0>) : Storage(std::in_place_index<1>, o.error())) {
         }
 
         template<class U, class G>
         requires std::is_void_v<U> && std::is_constructible_v<E, G>
         explicit(!std::is_convertible_v<G, E>)
-        expected(expected<U, G>&& o)
+        expected(expected<U, G>&& o) noexcept(std::is_nothrow_constructible_v<E, G>)
         : _s(o.has_value() ? Storage(std::in_place_index<0>) : Storage(std::in_place_index<1>, std::move(o.error()))) {
         }
 
         template<class G>
         requires std::is_constructible_v<E, const G&>
         explicit(!std::is_convertible_v<const G&, E>)
-        expected(const unexpected<G>& u)
+        expected(const unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<E, const G&>)
         : _s(std::in_place_index<1>, u.error()) {
         }
 
         template<class G>
         requires std::is_constructible_v<E, G>
         explicit(!std::is_convertible_v<G, E>)
-        expected(unexpected<G>&& u)
+        expected(unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<E, G>)
         : _s(std::in_place_index<1>, std::move(u.error())) {
         }
 
@@ -710,20 +730,20 @@ namespace sgcl {
 
         template<class... A>
         requires std::is_constructible_v<E, A...>
-        explicit expected(unexpect_t, A&&... a)
+        explicit expected(unexpect_t, A&&... a) noexcept(std::is_nothrow_constructible_v<E, A...>)
         : _s(std::in_place_index<1>, std::forward<A>(a)...) {
         }
 
         template<class U, class... A>
         requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
-        explicit expected(unexpect_t, std::initializer_list<U> il, A&&... a)
+        explicit expected(unexpect_t, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>)
         : _s(std::in_place_index<1>, il, std::forward<A>(a)...) {
         }
 
         // The assignments as std::expected<void, E>'s: a success is always
         // there to fall back on, so an error whose construction throws
         // leaves a success behind (_error), never nothing
-        expected& operator=(const expected& o)
+        expected& operator=(const expected& o) noexcept(std::is_nothrow_copy_constructible_v<E> && std::is_nothrow_copy_assignable_v<E>)
         requires std::is_copy_constructible_v<E> && std::is_copy_assignable_v<E> {
             if (o.has_value()) {
                 emplace();
@@ -749,7 +769,7 @@ namespace sgcl {
 
         template<class G>
         requires std::is_constructible_v<E, const G&> && std::is_assignable_v<E&, const G&>
-        expected& operator=(const unexpected<G>& u) {
+        expected& operator=(const unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<E, const G&> && std::is_nothrow_assignable_v<E&, const G&>) {
             if (has_value()) {
                 _error(u.error());
             } else {
@@ -760,7 +780,7 @@ namespace sgcl {
 
         template<class G>
         requires std::is_constructible_v<E, G> && std::is_assignable_v<E&, G>
-        expected& operator=(unexpected<G>&& u) {
+        expected& operator=(unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<E, G> && std::is_nothrow_assignable_v<E&, G>) {
             if (has_value()) {
                 _error(std::move(u.error()));
             } else {
@@ -824,35 +844,35 @@ namespace sgcl {
         E&& error() && noexcept { return std::move(get<1>(_s)); }
 
         template<class G = E>
-        E error_or(G&& e) const& {
+        E error_or(G&& e) const& noexcept(std::is_nothrow_copy_constructible_v<E> && std::is_nothrow_constructible_v<E, G>) {
             return has_value() ? static_cast<E>(std::forward<G>(e)) : error();
         }
 
         template<class G = E>
-        E error_or(G&& e) && {
+        E error_or(G&& e) && noexcept(std::is_nothrow_move_constructible_v<E> && std::is_nothrow_constructible_v<E, G>) {
             return has_value() ? static_cast<E>(std::forward<G>(e)) : std::move(error());
         }
 
-        template<class F> auto and_then(F&& f) & { return _and_then(*this, std::forward<F>(f)); }
-        template<class F> auto and_then(F&& f) const& { return _and_then(*this, std::forward<F>(f)); }
-        template<class F> auto and_then(F&& f) && { return _and_then(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto and_then(F&& f) const&& { return _and_then(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) & { return _or_else(*this, std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) const& { return _or_else(*this, std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) && { return _or_else(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto or_else(F&& f) const&& { return _or_else(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) & { return _transform(*this, std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) const& { return _transform(*this, std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) && { return _transform(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform(F&& f) const&& { return _transform(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) & { return _transform_error(*this, std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) const& { return _transform_error(*this, std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) && { return _transform_error(std::move(*this), std::forward<F>(f)); }
-        template<class F> auto transform_error(F&& f) const&& { return _transform_error(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) & noexcept(noexcept(_and_then(*this, std::forward<F>(f)))) { return _and_then(*this, std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) const& noexcept(noexcept(_and_then(*this, std::forward<F>(f)))) { return _and_then(*this, std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) && noexcept(noexcept(_and_then(std::move(*this), std::forward<F>(f)))) { return _and_then(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto and_then(F&& f) const&& noexcept(noexcept(_and_then(std::move(*this), std::forward<F>(f)))) { return _and_then(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) & noexcept(noexcept(_or_else(*this, std::forward<F>(f)))) { return _or_else(*this, std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) const& noexcept(noexcept(_or_else(*this, std::forward<F>(f)))) { return _or_else(*this, std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) && noexcept(noexcept(_or_else(std::move(*this), std::forward<F>(f)))) { return _or_else(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto or_else(F&& f) const&& noexcept(noexcept(_or_else(std::move(*this), std::forward<F>(f)))) { return _or_else(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) & noexcept(noexcept(_transform(*this, std::forward<F>(f)))) { return _transform(*this, std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) const& noexcept(noexcept(_transform(*this, std::forward<F>(f)))) { return _transform(*this, std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) && noexcept(noexcept(_transform(std::move(*this), std::forward<F>(f)))) { return _transform(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform(F&& f) const&& noexcept(noexcept(_transform(std::move(*this), std::forward<F>(f)))) { return _transform(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) & noexcept(noexcept(_transform_error(*this, std::forward<F>(f)))) { return _transform_error(*this, std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) const& noexcept(noexcept(_transform_error(*this, std::forward<F>(f)))) { return _transform_error(*this, std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) && noexcept(noexcept(_transform_error(std::move(*this), std::forward<F>(f)))) { return _transform_error(std::move(*this), std::forward<F>(f)); }
+        template<class F> auto transform_error(F&& f) const&& noexcept(noexcept(_transform_error(std::move(*this), std::forward<F>(f)))) { return _transform_error(std::move(*this), std::forward<F>(f)); }
 
         template<class T2, class E2>
         requires std::is_void_v<T2>
-        friend bool operator==(const expected& x, const expected<T2, E2>& y) {
+        friend bool operator==(const expected& x, const expected<T2, E2>& y) noexcept(noexcept(bool(x.error() == y.error()))) {
             if (x.has_value() != y.has_value()) {
                 return false;
             }
@@ -860,13 +880,25 @@ namespace sgcl {
         }
 
         template<class E2>
-        friend bool operator==(const expected& x, const unexpected<E2>& e) {
+        friend bool operator==(const expected& x, const unexpected<E2>& e) noexcept(noexcept(bool(x.error() == e.error()))) {
             return !x.has_value() && x.error() == e.error();
         }
 
     private:
+        // Whether _transform's result is made without throwing: an
+        // expected<U, E> from the function's result (a U), or from the
+        // error; expected<void, E> for a function that returns nothing
+        template<class U, class Err>
+        static consteval bool _nothrow_transformed() noexcept {
+            if constexpr(std::is_void_v<U>) {
+                return std::is_nothrow_constructible_v<expected<void, E>, unexpect_t, Err>;
+            } else {
+                return std::is_nothrow_constructible_v<expected<U, E>, std::in_place_t, U> && std::is_nothrow_constructible_v<expected<U, E>, unexpect_t, Err>;
+            }
+        }
+
         template<class Self, class F>
-        static auto _and_then(Self&& self, F&& f) {
+        static auto _and_then(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_r_v<std::remove_cvref_t<std::invoke_result_t<F>>, F> && std::is_nothrow_constructible_v<std::remove_cvref_t<std::invoke_result_t<F>>, unexpect_t, decltype(std::declval<Self>().error())>) {
             using U = std::remove_cvref_t<std::invoke_result_t<F>>;
             static_assert(detail::IsExpected<U>::value && std::is_same_v<typename U::error_type, E>, "and_then's function returns an expected with the same error type");
             if (self.has_value()) {
@@ -876,7 +908,7 @@ namespace sgcl {
         }
 
         template<class Self, class F>
-        static auto _or_else(Self&& self, F&& f) {
+        static auto _or_else(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_r_v<std::remove_cvref_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>, F, decltype(std::declval<Self>().error())> && std::is_nothrow_default_constructible_v<std::remove_cvref_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>>) {
             using G = std::remove_cvref_t<std::invoke_result_t<F, decltype(std::forward<Self>(self).error())>>;
             static_assert(detail::IsExpected<G>::value && std::is_void_v<typename G::value_type>, "or_else's function returns an expected<void, G>");
             if (self.has_value()) {
@@ -886,7 +918,7 @@ namespace sgcl {
         }
 
         template<class Self, class F>
-        static auto _transform(Self&& self, F&& f) {
+        static auto _transform(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_v<F> && _nothrow_transformed<std::remove_cv_t<std::invoke_result_t<F>>, decltype(std::declval<Self>().error())>()) {
             using U = std::remove_cv_t<std::invoke_result_t<F>>;
             if constexpr(std::is_void_v<U>) {
                 if (self.has_value()) {
@@ -903,7 +935,7 @@ namespace sgcl {
         }
 
         template<class Self, class F>
-        static auto _transform_error(Self&& self, F&& f) {
+        static auto _transform_error(Self&& self, F&& f) noexcept(std::is_nothrow_invocable_v<F, decltype(std::declval<Self>().error())> && std::is_nothrow_constructible_v<expected<void, std::remove_cv_t<std::invoke_result_t<F, decltype(std::declval<Self>().error())>>>, unexpect_t, std::invoke_result_t<F, decltype(std::declval<Self>().error())>>) {
             using G = std::remove_cv_t<std::invoke_result_t<F, decltype(std::forward<Self>(self).error())>>;
             if (self.has_value()) {
                 return expected<void, G>();
@@ -914,7 +946,7 @@ namespace sgcl {
         // The error constructed in place of the success; the success put
         // back (it costs nothing) if the construction throws
         template<class... A>
-        void _error(A&&... a) {
+        void _error(A&&... a) noexcept(std::is_nothrow_constructible_v<E, A...>) {
             try {
                 _s.template emplace<1>(std::forward<A>(a)...);
             } catch (...) {

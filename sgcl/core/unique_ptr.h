@@ -17,7 +17,7 @@ namespace sgcl {
 
     public:
         using element_type = T;
-        using Base::operator=;
+        using deleter_type = typename Base::deleter_type;
 
         unique_ptr() = default;
 
@@ -26,7 +26,7 @@ namespace sgcl {
         // a dead member leaves its slot's pointer offset null for the next
         // object of the type, constructed on it without any zeroing
         // (maker.h: _init), as a tracked_ptr's destructor does.
-        ~unique_ptr() {
+        ~unique_ptr() noexcept {
             this->reset();
         }
 
@@ -37,9 +37,24 @@ namespace sgcl {
         :Base(nullptr) {
         };
 
+        // From a pointer to a derived class, the ownership moved (a
+        // unique_ptr<U> is a std::unique_ptr<U, deleter_type>)
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        unique_ptr(detail::UniquePtr<U>&& p) noexcept
+        unique_ptr(std::unique_ptr<U, deleter_type>&& p) noexcept
         : Base(static_cast<element_type*>(p.release())) {
+        }
+
+        // The assignments return this unique_ptr, as std's return theirs:
+        // of a pointer to a derived class, the ownership moved, and of null
+        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+        unique_ptr& operator=(std::unique_ptr<U, deleter_type>&& p) noexcept {
+            Base::operator=(std::move(p));
+            return *this;
+        }
+
+        unique_ptr& operator=(std::nullptr_t) noexcept {
+            Base::operator=(nullptr);
+            return *this;
         }
 
         // The same word as a unique_ptr<void>, for the containers
@@ -51,17 +66,17 @@ namespace sgcl {
             return *(const unique_ptr<void>*)(this);
         }
 
-        // The dynamic type from the page, as for tracked_ptr; as<U>() moves
-        // the ownership into the result (null, and nothing moved, when the
-        // object is not a U)
+        // The dynamic type from the page, as for tracked_ptr (is<U>() false
+        // when empty); as<U>() moves the ownership into the result (null,
+        // and nothing moved, when empty or the object is not a U)
         template<class U>
         bool is() const noexcept {
-            return type() == typeid(U);
+            return detail::Pointer::type_info<detail::NoObject>(this->get()) == typeid(U);
         }
 
         template<class U>
         unique_ptr<U> as() noexcept {
-            if (is<U>()) {
+            if (this->get() && is<U>()) {   // the null test first: it drops is<U>()'s null arm, the code as before
                 auto base =  detail::Pointer::data_base_address_of(this->release());
                 return unique_ptr<U>((typename unique_ptr<U>::element_type*)base);
             } else {

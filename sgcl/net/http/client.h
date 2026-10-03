@@ -73,7 +73,7 @@ namespace sgcl::net::http {
 
             // A connection of the origin with room for one more stream, the
             // room reserved (the pool's lock, then the connection's)
-            tracked_ptr<h2::ClientH2> take_h2(const string& key) {
+            tracked_ptr<h2::ClientH2> take_h2(const string& key) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 auto it = h2.find(key);
                 if (it == h2.end()) {
@@ -89,7 +89,7 @@ namespace sgcl::net::http {
 
             // What the origin's server allows a connection, as one of its
             // connections learned it (0: none knows yet)
-            uint32_t h2_limit(const string& key) {
+            uint32_t h2_limit(const string& key) noexcept {
                 vector<tracked_ptr<h2::ClientH2>> list;
                 {
                     std::lock_guard<std::mutex> g(lock);
@@ -108,12 +108,12 @@ namespace sgcl::net::http {
                 return most;
             }
 
-            void add_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) {
+            void add_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 h2[key].push_back(h);
             }
 
-            void remove_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) {
+            void remove_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 auto it = h2.find(key);
                 if (it == h2.end()) {
@@ -133,7 +133,7 @@ namespace sgcl::net::http {
 
             // The dial to an origin: this request's (an event of its own
             // set, the result in the pool, when it ends) or another's to wait for
-            optional<async::event> begin_dial(const string& key, const async::event& mine) {
+            optional<async::event> begin_dial(const string& key, const async::event& mine) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 auto it = h2_dialing.find(key);
                 if (it != h2_dialing.end()) {
@@ -303,17 +303,17 @@ namespace sgcl::net::http {
 
         // The pool's key of a connection: scheme://host:port, one string of
         // its pieces (string::concat), the port's digits written on the stack
-        inline string origin_key(const net::url& u) {
+        inline string origin_key(const net::url& u) noexcept {
             char port[8];
             auto end = std::to_chars(port, port + sizeof port, u.effective_port()).ptr;
             return string::concat(u.scheme(), "://", net::detail::UrlAccess::host_as_written(u), ':', std::string_view(port, size_t(end - port)));
         }
 
-        inline io::error client_error(net::errc e, const Outgoing& o) {
+        inline io::error client_error(net::errc e, const Outgoing& o) noexcept {
             return net::detail::net_error(e, o.method, o.target->to_string());
         }
 
-        inline io::error client_error(const io::error& e, const Outgoing& o) {
+        inline io::error client_error(const io::error& e, const Outgoing& o) noexcept {
             return io::error(e.code(), o.method, o.target->to_string());
         }
 
@@ -352,7 +352,7 @@ namespace sgcl::net::http {
             return nullopt;
         }
 
-        inline async::task<expected<void, io::error>> write_all(net::connection c, std::string bytes) {
+        inline async::task<expected<void, io::error>> write_all(net::connection c, std::string bytes) noexcept {
             slice<const byte> data(reinterpret_cast<const byte*>(bytes.data()), bytes.size());
             auto r = co_await c.async_write(data);
             if (!r) {
@@ -367,7 +367,7 @@ namespace sgcl::net::http {
 
         // The body when it is in memory, as it lies (the slice holds its
         // string or vector); empty for none and for a stream
-        inline slice<const byte> body_in_memory(const Outgoing& o) {
+        inline slice<const byte> body_in_memory(const Outgoing& o) noexcept {
             if (o.body_kind == RequestImpl::BodyKind::text) {
                 return as_bytes(o.text.as_slice());
             }
@@ -380,7 +380,7 @@ namespace sgcl::net::http {
         // The head of a request, and a body in memory shorter than
         // BodyInPlaceMin; a longer one is written from where it lies
         // (write_head_and_body)
-        inline std::string request_bytes(const Outgoing& o, bool& chunked) {
+        inline std::string request_bytes(const Outgoing& o, bool& chunked) noexcept {
             std::string s;
             s.reserve(256);
             s += o.method.view();
@@ -436,7 +436,7 @@ namespace sgcl::net::http {
         // Pieces as one write (net: ConnImpl::start_write_parts): a socket
         // takes them in one sendmsg, TLS seals its records from where they
         // lie. The pieces are held by the caller's frame across the wait
-        inline async::task<expected<void, io::error>> write_parts(net::connection c, vector<slice<const byte>> parts) {
+        inline async::task<expected<void, io::error>> write_parts(net::connection c, vector<slice<const byte>> parts) noexcept {
             auto s = net::detail::ConnectionAccess::impl(c).start_write_parts(parts);
             expected<size_t, io::error> r = std::move(s.done);
             if (s.rest) {
@@ -451,7 +451,7 @@ namespace sgcl::net::http {
         // The head and a body in memory: one write, the body from where it
         // lies (its string or vector; no copy into the head's buffer). A
         // short body is already in the head (request_bytes)
-        inline async::task<expected<void, io::error>> write_head_and_body(net::connection c, std::string head, slice<const byte> body) {
+        inline async::task<expected<void, io::error>> write_head_and_body(net::connection c, std::string head, slice<const byte> body) noexcept {
             if (body.size() < BodyInPlaceMin) {
                 co_return co_await write_all(c, std::move(head));
             }
@@ -462,7 +462,7 @@ namespace sgcl::net::http {
         }
 
         // A stream body: its length's worth, or chunked to its end
-        inline async::task<expected<void, io::error>> write_stream(net::connection c, io::reader stream, optional<uint64_t> length, bool chunked) {
+        inline async::task<expected<void, io::error>> write_stream(net::connection c, io::reader stream, optional<uint64_t> length, bool chunked) noexcept {
             tracked_ptr block = make_tracked<io::detail::CopyBlock>();   // managed: the stream's read may run on the pool, its slice holds the block
             uint64_t sent = 0;
             char size_line[24];
@@ -523,7 +523,7 @@ namespace sgcl::net::http {
         // The TLS settings of a connection to u: the client's, the server
         // name the URL's host (an address verified as one), the handshake
         // within the connect's timeout when that is shorter
-        inline net::tls::config tls_for(const net::tls::config& base, const net::url& u, duration timeout) {
+        inline net::tls::config tls_for(const net::tls::config& base, const net::url& u, duration timeout) noexcept {
             net::tls::config c = base;
             if (c.server_name.empty()) {
                 std::string host(net::detail::UrlAccess::host_as_written(u).view());
@@ -538,7 +538,7 @@ namespace sgcl::net::http {
             return c;
         }
 
-        inline async::task<expected<net::connection, io::error>> default_dial(const net::url& u, duration timeout, net::tls::config tls) {
+        inline async::task<expected<net::connection, io::error>> default_dial(const net::url& u, duration timeout, net::tls::config tls) noexcept {
             std::string address(net::detail::UrlAccess::host_as_written(u).view());
             address += ':';
             address += std::to_string(u.effective_port());
@@ -553,7 +553,7 @@ namespace sgcl::net::http {
 
         // A new connection to the target's origin, TLS for https, within
         // the connect's timeout and the request's deadline
-        inline async::task<expected<net::connection, io::error>> dial_origin(tracked_ptr<ClientSettings> cfg, const Outgoing& o, time_point deadline) {
+        inline async::task<expected<net::connection, io::error>> dial_origin(tracked_ptr<ClientSettings> cfg, const Outgoing& o, time_point deadline) noexcept {
             duration timeout = cfg->connect_timeout;
             if (deadline != time_point()) {
                 auto left = duration(std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - sgcl::clock::now()));
@@ -586,11 +586,11 @@ namespace sgcl::net::http {
         struct RequestBlock final : h2::FieldBlock {
             const Outgoing& o;
 
-            explicit RequestBlock(const Outgoing& o)
+            explicit RequestBlock(const Outgoing& o) noexcept
             : o(o) {
             }
 
-            void encode(h2::Encoder& e, std::string& out) const override {
+            void encode(h2::Encoder& e, std::string& out) const noexcept override {
                 e.encode(out, ":method", o.method.view());
                 e.encode(out, ":scheme", o.target->scheme().view());
                 auto host = o.fields.get("Host");
@@ -638,7 +638,10 @@ namespace sgcl::net::http {
 
         // A request's body as DATA within the windows; a stream's read a
         // block at a time
-        inline async::task<expected<void, io::error>> send_body_h2(tracked_ptr<h2::ClientH2> h, uint32_t id, const Outgoing& o) {
+        // The request's own stream failing (its read, or its end before its
+        // length) is kept in `own`: the stream's reset that follows is ours,
+        // and the send reports the stream's error, as over HTTP/1.1
+        inline async::task<expected<void, io::error>> send_body_h2(tracked_ptr<h2::ClientH2> h, uint32_t id, const Outgoing& o, optional<io::error>& own) noexcept {
             switch (o.body_kind) {
                 case RequestImpl::BodyKind::none:
                     co_return expected<void, io::error>();
@@ -663,13 +666,15 @@ namespace sgcl::net::http {
                 slice<byte> buf(block, block->data(), room);
                 auto n = co_await o.stream.async_read(buf);
                 if (!n) {
+                    own.emplace(n.error());
                     h->reset(id, h2::ErrorCode::cancel);
                     co_return io::detail::fail(n);
                 }
                 if (*n == 0) {
                     if (o.stream_length) {
+                        own.emplace(io::error(io::errc::unexpected_eof, "write", "body"));
                         h->reset(id, h2::ErrorCode::cancel);
-                        co_return io::detail::fail(io::error(io::errc::unexpected_eof, "write", "body"));
+                        co_return io::detail::fail(*own);
                     }
                     break;
                 }
@@ -684,7 +689,7 @@ namespace sgcl::net::http {
 
         // One exchange on an HTTP/2 connection, its place reserved: a
         // stream opened, the body sent, the head awaited
-        inline async::task<Attempt> round_trip_h2(tracked_ptr<ClientSettings> cfg, const Outgoing& o, time_point deadline, tracked_ptr<h2::ClientH2> h) {
+        inline async::task<Attempt> round_trip_h2(tracked_ptr<ClientSettings> cfg, const Outgoing& o, time_point deadline, tracked_ptr<h2::ClientH2> h) noexcept {
             using Fate = h2::ClientStream::Fate;
             Attempt a;
             tracked_ptr st = make_tracked<h2::ClientStream>(tracked_ptr<h2::StreamOwner>(h));
@@ -698,8 +703,9 @@ namespace sgcl::net::http {
                 co_return a;
             }
             h->arm(st, deadline, time_point());
+            optional<io::error> own;
             if (has_body) {
-                (void)co_await send_body_h2(h, st->id, o);   // a failure shows as the stream's fate; an early answer wins
+                (void)co_await send_body_h2(h, st->id, o, own);   // a failure shows as the stream's fate; an early answer wins
             }
             if (cfg->response_header_timeout > duration::zero()) {
                 h->arm(st, time_point(), sgcl::clock::now() + cfg->response_header_timeout);
@@ -722,6 +728,10 @@ namespace sgcl::net::http {
                 co_return a;
             }
             st->cancel_timers();
+            if (own) {
+                a.error = client_error(*own, o);   // our stream failed and we reset: its error, not the reset's
+                co_return a;
+            }
             switch (fate) {
                 case Fate::refused:
                     a.retry_any = true;
@@ -748,12 +758,12 @@ namespace sgcl::net::http {
             co_return a;
         }
 
-        inline async::task<> await_event(async::event e) {
+        inline async::task<> await_event(async::event e) noexcept {
             co_await e;
         }
 
         // The machine's settings of the client's HTTP/2 connections
-        inline h2::TransportSettings transport_settings(const ClientSettings& cfg, uint32_t known_limit) {
+        inline h2::TransportSettings transport_settings(const ClientSettings& cfg, uint32_t known_limit) noexcept {
             h2::TransportSettings t;
             t.machine.max_header_list_size = uint32_t(std::min<size_t>(cfg.max_response_header_bytes, 0xFFFFFFFFu));
             if (known_limit) {
@@ -763,7 +773,7 @@ namespace sgcl::net::http {
             return t;
         }
 
-        inline async::task<Attempt> round_trip(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, const Outgoing& o, time_point deadline, bool may_reuse) {
+        inline async::task<Attempt> round_trip(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, const Outgoing& o, time_point deadline, bool may_reuse) noexcept {
             Attempt a;
             auto key = origin_key(*o.target);
             const bool https = o.target->scheme() == "https";
@@ -927,7 +937,7 @@ namespace sgcl::net::http {
             return to.size() > from.size() && to.substr(to.size() - from.size()) == from && to[to.size() - from.size() - 1] == '.';
         }
 
-        inline async::task<expected<response, io::error>> send_request(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, tracked_ptr<RequestImpl> req) {
+        inline async::task<expected<response, io::error>> send_request(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, tracked_ptr<RequestImpl> req) noexcept {
             Outgoing o;
             o.method = req->method;
             if (!req->url) {
@@ -1044,9 +1054,16 @@ namespace sgcl::net::http {
     // which protocol answered.
     class client {
     public:
-        client()
+        client() noexcept
         : _pool(make_tracked<detail::Pool>()) {
         }
+
+        // A copy shares the pool and copies the settings. There is no move
+        // of its own: a moved-from client is the same client, as a moved-
+        // from tracked_ptr still points (a member-wise move left its dial
+        // and its TLS settings empty, ALPN without http/1.1 among them)
+        client(const client&) = default;
+        client& operator=(const client&) = default;
 
         // The request sent, redirects followed: the response, whose body is
         // read next; the error of the connection, or of net: invalid_url,
@@ -1058,7 +1075,7 @@ namespace sgcl::net::http {
             return async_send(req).wait();
         }
 
-        async::task<expected<response, io::error>> async_send(const request& req) const {
+        async::task<expected<response, io::error>> async_send(const request& req) const noexcept {
             return detail::send_request(_settings(), _pool, detail::RequestAccess::impl(req));
         }
 
@@ -1066,7 +1083,7 @@ namespace sgcl::net::http {
             return send(request("GET", url));
         }
 
-        async::task<expected<response, io::error>> async_get(const string& url) const {
+        async::task<expected<response, io::error>> async_get(const string& url) const noexcept {
             return async_send(request("GET", url));
         }
 
@@ -1074,7 +1091,7 @@ namespace sgcl::net::http {
             return send(request("HEAD", url));
         }
 
-        async::task<expected<response, io::error>> async_head(const string& url) const {
+        async::task<expected<response, io::error>> async_head(const string& url) const noexcept {
             return async_send(request("HEAD", url));
         }
 
@@ -1082,7 +1099,7 @@ namespace sgcl::net::http {
             return send(_post(url, content_type, body));
         }
 
-        async::task<expected<response, io::error>> async_post(const string& url, const string& content_type, const string& body) const {
+        async::task<expected<response, io::error>> async_post(const string& url, const string& content_type, const string& body) const noexcept {
             return async_send(_post(url, content_type, body));
         }
 
@@ -1091,10 +1108,10 @@ namespace sgcl::net::http {
         // than 2xx the error net::errc::http_status and no file; the
         // response, its body read (download.h)
         expected<response, io::error> download(const string& url, const string& path) const;
-        async::task<expected<response, io::error>> async_download(string url, string path) const;
+        async::task<expected<response, io::error>> async_download(string url, string path) const noexcept;
 
         // The idle connections of the pool closed now
-        void close_idle_connections() const {
+        void close_idle_connections() const noexcept {
             _pool->close_all();
         }
 
@@ -1105,8 +1122,9 @@ namespace sgcl::net::http {
         size_t max_idle_per_host = 16;                           // Go's default is 2
         int max_redirects = 10;
         size_t max_response_header_bytes = 1 << 20;
-        // How a connection is made; tcp::connect by default. A unix socket
-        // (Docker's API), a test's connection in memory, TLS in stage 2
+        // How a connection is made; tcp::connect by default (and TLS over
+        // it for https://). A unix socket (Docker's API), a test's
+        // connection in memory
         dial_function dial;
         // https://: the TLS settings (roots, groups, cipher suites,
         // insecure_skip_verify, handshake_timeout); the server name is the
@@ -1116,13 +1134,13 @@ namespace sgcl::net::http {
         bool h2c = false;    // http:// as HTTP/2 by prior knowledge
 
     private:
-        static net::tls::config _default_tls() {
+        static net::tls::config _default_tls() noexcept {
             net::tls::config c;
             c.alpn = {string("http/1.1")};
             return c;
         }
 
-        tracked_ptr<detail::ClientSettings> _settings() const {
+        tracked_ptr<detail::ClientSettings> _settings() const noexcept {
             tracked_ptr cfg = make_tracked<detail::ClientSettings>();
             cfg->timeout = timeout;
             cfg->connect_timeout = connect_timeout;
@@ -1149,7 +1167,7 @@ namespace sgcl::net::http {
             return cfg;
         }
 
-        static request _post(const string& url, const string& content_type, const string& body) {
+        static request _post(const string& url, const string& content_type, const string& body) noexcept {
             request r("POST", url);
             r.set_header("Content-Type", content_type);
             r.set_body(body);

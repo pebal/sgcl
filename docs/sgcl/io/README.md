@@ -1,84 +1,244 @@
+[sgcl](../README.md) › io
+
 # sgcl::io
 
-What Go has in `os`, `io`, `bufio`, `path/filepath` and `os/exec`: files and the file system, streams over them and over anything else that reads or writes, buffering, paths as strings, the process and its environment, and a child process with its streams. `#include "sgcl/io/io.h"` brings the module in; it depends on [`core`](../core/README.md) and [`async`](../async/README.md) (the blocking pool and the reactor carry its asynchronous side), and `net`, `compress` and `codec` are built on its streams.; the index of the whole interface is [`docs/sgcl/`](../README.md).
+```cpp
+#include "sgcl/io.h"   // namespace sgcl::io
+```
 
-## The namespace
+What Go has in `os`, `io`, `bufio`, `path/filepath` and `os/exec`: files and the file system, streams over them and
+over anything else that reads or writes, buffering, paths as strings, files mapped into memory and memory shared
+between processes, the process and its environment, the command line, and a child process with its streams. The
+module depends on [core](../core/README.md) and [async](../async/README.md), whose blocking pool and reactor carry
+its asynchronous side; `net`, `compress`, `codec` and `encoding` are built on its streams.
 
-`io` has a namespace of its own, `sgcl::io`, as every module but `core` has; `core` is the base of the library and stays flat in `sgcl::`, as `std::vector` and `std::thread` are flat while `std::filesystem::remove` is not. The reason is the same as the standard library's: the names of this module — `open`, `remove`, `rename`, `stat`, `chdir`, `getenv`, `pipe`, `exit` — are the names of libc, and in a program with `using namespace sgcl;` a bare `remove("x")` would be resolved to libc's `::remove(const char*)`, an exact match over a conversion to `string`, and compile to something else. `io::remove("x")` cannot. The names are short, so the qualification reads as Go's `os.Remove`, and the examples keep it, as they keep every module's (see [Reading the pages](../README.md)): a program writes `io::open`, `io::read_file`, `io::remove`, since under a directive the bare `remove`, `rename`, `getenv`, `chdir` and `symlink` with a string literal would reach the C library's functions without a word.
+The idea it rests on is that a stream is whatever has the primitive. A reader is a `read(slice<byte>)` that returns
+the bytes read, 0 at the end; a writer a `write(slice<const byte>)` that writes all of it or fails; where a stream can
+wait without holding a thread, `async_read` and `async_write` return a task. No base class and nothing virtual: the
+requirements ([req](req.md)) are concepts checked where a stream is passed, a lambda of the same shape is a stream
+too, the functions of the module ([copy](copy.md), [read_full](read_full.md), [read_all](read_all.md),
+[write](write.md)) take any of them, the classes of the library have the same as methods from the
+[mixins](mixin/README.md), and [reader](reader.md) and [writer](writer.md) hold any stream as a value, Go's interface
+value, where one has to be kept. Every operation that waits has two names: `read()` takes the thread until the data
+comes, `co_await async_read()` gives the worker back meanwhile.
 
-## Errors are values
+Errors are values. An operation that can fail returns [expected\<T, io::error\>](error.md): the value, or an `error`
+that carries the code (`errno` in the system category, or one of the module's own, [errc](errc.md)), the operation
+and the path, so that `e.message()` reads `open log.txt: No such file or directory`, and that answers the questions
+a caller asks (`is_not_found()`, `is_exists()`, `is_permission()`, `is_closed()`, `is_eof()`, `is_timeout()`). A
+missing file, a reset connection, a full disk are outcomes handled where they occur, which a return value states and
+an exception hides; and in a server a `throw` per dropped connection would be the most expensive path of the
+program. The end of a stream is not an error: a `read` returns 0. `io::open(p).value()` throws
+`bad_expected_access` with the error inside for the code that wants an exception.
 
-Nothing in the module throws. Every operation returns [`expected<T, error>`](error.md): the value, or an `error` that carries the code (`errno` in the system category, or one of the module's own, `errc`), the operation and the path, so that `e.message()` reads `open log.txt: no such file or directory`, and answers the questions a caller asks (`is_not_found()`, `is_exists()`, `is_permission()`, `is_closed()`, `is_eof()`, `is_timeout()`). A missing file, a reset connection, a full disk are outcomes the code handles where they occur, which a return value states and an exception hides; and in a server a `throw` per dropped connection, a microsecond and a lock on the unwinder each, would be the most expensive path of the program. The end of a stream is not an error: a `read` returns 0. An `expected` is a superset of the other style: `io::open(p).value()` throws `bad_expected_access` with the error inside for the code that wants that.
+## The rules
 
-## Streams
+1. The names of the module are qualified, `io::open`, `io::remove`: `io` has a namespace of its own, as every module
+   but `core` has, and its names (`open`, `remove`, `rename`, `stat`, `chdir`, `getenv`, `pipe`, `exit`, `symlink`)
+   are the names of the C library, so that in a program with `using namespace sgcl;` a bare `remove("x")` would be
+   resolved to libc's `::remove(const char*)`, an exact match over a conversion to `string`, and compile to
+   something else. `io::remove("x")` cannot, and reads as Go's `os.Remove`. The four printing functions
+   ([print](print.md), [println](println.md), [eprint](eprint.md), [eprintln](eprintln.md)) are also names of
+   `sgcl` itself.
+2. The objects of the module — [file](file.md), [buffer](buffer.md), [buffered_reader](buffered_reader.md),
+   [buffered_writer](buffered_writer.md), [process](process.md), [mapping](mapping.md),
+   [shared_memory](shared_memory.md) — are handles of one word, a `tracked_ptr` to the object inside, as a
+   [string](../core/string.md) is: made as values (`io::file f = io::open(p);`, `io::buffer out;`), copied and
+   passed by value, the copies sharing one object. A stream made of one ([reader](reader.md), [writer](writer.md))
+   holds that object, not the handle. A handle lives on a stack, in a task, in a managed object; in a global or a
+   `std` container it is held by a [rooted](../core/rooted.md) (`rooted<io::file> log(io::open(p));`, then
+   `log->write(...)`), never in a managed object or a task's frame, since a root is never part of a cycle.
+3. The destructor of a stream runs on the collector's thread, after the sweep that finds the object dead, which may
+   be long after the last use: a descriptor is held until then. A stream that is done is `close()`d, which releases
+   what it holds now and reports the error a deferred close cannot.
+4. A function that waits on a thread and its `async_` form for a task do the same: a regular file's asynchronous
+   operation runs the call on the [blocking pool](../async/spawn_blocking.md), since a disk has no readiness to wait for;
+   a non-blocking descriptor's (a [pipe](pipe.md), a socket) waits for readiness on the
+   [reactor](../async/readable.md). An async operation given a slice without an owner that runs on the pool goes
+   through a managed block: the pool's thread never touches plain memory that died with the frame of a task let go
+   of. A slice with an owner (a `string`, a `vector`, a `buffer`) is used as it is: give one.
+5. One thread or task at a time on one stream; two readers of one file use [read_at](file/read_at.md) with positions
+   of their own.
 
-A stream is whatever has the primitive ([stream](stream.md)): `read(slice<byte>)` and `write(slice<const byte>)`, which do their work now, on the calling thread, and, where a stream can wait without holding a thread, `async_read` and `async_write`, which return a task. No base class and nothing virtual: the functions of io (`io::copy`, `read_full`, `read_all`, `write` and their `async_` forms) take a type with the methods, a lambda of the same shape, an object by reference or a `tracked_ptr`, checked by the concepts of `io::req` — `io::async_copy` of a source that only blocks does not compile. The classes of the library have the rest as methods, from mixins (`mixin::reader`, `mixin::writer`, `mixin::seeker`, as [`mixin::enumerable`](../core/mixin/enumerable.md) is a mixin over `begin()` and `end()`): `read_full`, `read_all`, `read_all_text`, `copy_to`, `write`, `copy_from`, `tell`, `size`, `rewind`. Where a stream is kept (a [`buffered_reader`](buffered.md), a gzip reader, a TLS stream over a connection), `io::reader` and `io::writer` hold any of them as a value — Go's `io.Reader` interface value, the method table beside the pointer. Every operation has two names: `read()` takes the thread until the data comes, `co_await async_read()` gives the worker back meanwhile. The standard streams are three objects, `io::stdin`, `io::stdout`, `io::stderr`.
+### Buffers
 
-The objects of the module — `file`, `buffer`, `buffered_reader`, `buffered_writer`, `process` — are handles of one word, a `tracked_ptr` to the object inside, as [`net::connection`](../net/connection.md) and a [`string`](../core/string.md) are: made as values (`io::file f = io::open(p);`, `io::buffered_reader lines(f);`, `io::buffer out;`), copied and passed by value, the copies sharing one object, and a stream made of one (`io::reader`, `io::writer`) holds that object, not the handle. A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a std container, a [`rooted`](../core/rooted.md) of it (`rooted<io::file> log(io::open(p));`, then `log->write(...)`), never in a managed object or a task's frame, since a root is never part of a cycle.
+The module owns two kinds of buffer. A block the library keeps in front of a stream and hands slices of (a
+[buffered_reader](buffered_reader.md)'s) is a managed `array<byte, N>` behind a `tracked_ptr`, with `N` a divisor of
+the page (`config::io_buffer_size`, 8 KB: eight to a page), one object with no header and no pointer map. A block
+nothing hands a slice of, and that no operation on the blocking pool is given, is unmanaged: the block of
+[copy](copy.md) (`config::io_copy_buffer_size`, 32 KB) lies on the stack of the call, a
+[buffered_writer](buffered_writer.md)'s is its own until its first async operation, and [read_all](read_all.md)
+gathers in plain memory before it makes its result. A block an async read or write is handed is managed (that of
+`async_copy`, the reads of `async_read_all`), since the operation may run on the pool and outlive the frame of a task
+let go of.
 
-The destructor of a stream runs on the collector's thread, after the sweep that finds the object dead, which may be long after the last use: a file is closed then, its descriptor held until then. A stream that is done is `close()`d, which releases what it holds now and reports the error a deferred close cannot.
+Data whose size is the data's (what `read_all` returns, a directory listing, a path) is a `vector<byte>` or a
+[string](../core/string.md); a `string` is one word, so handing one back or taking one costs nothing beyond making
+it, and every text parameter of the module is a `const string&` (a literal makes one). A range of bytes handed to
+`read` or `write`, or handed back by `peek` and `buffer::data()`, is a [slice](../core/slice.md): `slice<byte>`,
+`slice<const byte>`, the elements and the managed object they lie in, held — a `std::span` when the memory is
+unmanaged — so a stream reading into a vector's buffer keeps the vector alive for as long as the read runs.
 
-## Files
+### Paths and text
 
-[`file`](file.md) is one class for every descriptor: a regular file, a pipe, a terminal, later a socket. `open`, `create`, `from_fd`, `pipe` make one; `read_at`/`write_at` are `pread`/`pwrite`, `stat`, `sync`, `truncate`, `chmod` the calls of the same names. The asynchronous form of an operation goes one of two ways, chosen when the file is made: a regular file's (and a terminal's) runs the call on the [blocking pool](../async/blocking.md), since a disk has no readiness to wait for; a non-blocking descriptor's (a pipe from `pipe()`, a socket) waits for readiness on the [reactor](../async/reactor.md) and makes the call when it will not block. `read_file`, `read_text`, `write_file`, `append_file` do the whole thing in a call, `temp_file` and `make_temp_dir` make something to clean up.
+Paths are strings, in the platform's form (`/` on POSIX); [path](path.md) is the lexical operations on them, a
+`string` in and a `string` out, no path type. Text is UTF-8 in `char`: a `string` is bytes, `size()` counts them,
+and [path::match](path/match.md) compares code points (`?` is one character, `[α-ω]` a range of them). Invalid bytes
+are rejected nowhere; on POSIX a path is bytes the system does not interpret.
 
-## Buffers
+### Mapped memory
 
-The module owns two kinds of buffer. A block the library keeps in front of a stream and hands slices of ([`buffered_reader`](buffered.md)'s) is a managed `array<byte, N>` behind a `tracked_ptr`, with `N` a divisor of the page (`config::io_buffer_size` 8 KB: eight to a page), one object with no header and no pointer map, from the thread's pool. A block nothing hands a slice of, and that no operation on the blocking pool is given, is unmanaged: `copy()`'s (`config::io_copy_buffer_size`, 32 KB) lies on the stack of the call, a `buffered_writer`'s is its own until its first async operation, and `read_all` gathers in plain memory before it makes its result. A block an async read or write is handed is managed (`async_copy`'s, the reads of `async_read_all`), since the operation may run on the pool and outlive the frame of a task let go of: the slice it is given holds the block, and nothing writes into freed memory. Data whose size is the data's — what `read_all` returns, a directory listing, a path — is a `vector<byte>` or a [`string`](../core/string.md); a `string` is one word, so handing one back or taking one costs nothing beyond making it, and every text parameter of the module is a `const string&` (a literal makes one). A range of bytes handed to `read` or `write`, or handed back by `peek` and `buffer::data()`, is a [`slice`](../core/slice.md): `slice<byte>`, `slice<const byte>`, the elements and the managed object they lie in, held — a `std::span` when the memory is unmanaged, and `v.as_slice()`, `s.as_slice()` or the block itself when it is managed, so a stream reading into a vector's buffer keeps the vector alive for as long as the read runs. A `buffered_reader` hands out lines as `slice<const char>` of its block, nothing allocated per line and the text interface on the spot; a line kept past the next read is copied first (`sgcl::string(line)`); a line longer than the block is assembled in a vector the reader owns, and `set_max_line` bounds it where the stream is not trusted.
+[map](map.md) maps a file into memory and [shared_memory](shared_memory.md) is a named region shared between
+processes; both hand out the bytes as a slice whose owner is the region (one managed object under both handles,
+unmapped when nothing holds it any more), so a slice kept after the handle still reads them. The region is outside
+the managed heap: only trivial data goes into it, never a `tracked_ptr` or a handle of the library.
 
-## Mapped memory
+## Functions
 
-[`map`](mapping.md) maps a file into memory and [`shared_memory`](shared_memory.md) a named object shared between processes; both hand out the bytes as a slice whose owner is the region (one managed object under both handles, unmapped when nothing holds it any more), so a slice kept after the handle still reads them. The region is outside the managed heap: put only trivial data in it — never a tracked_ptr or a library handle.
-
-## Paths and the file system
-
-Paths are strings, in the platform's form; [`path`](path.md) is the lexical operations on them (`clean`, `join`, `base`, `dir`, `ext`, `rel`, `match`, `glob`), a `string` in and a `string` out, no path type. [`fs`](fs.md) is what is at a path and making, moving and removing things there (`stat`, `mkdir_all`, `remove_all`, `rename`, `read_dir`, `walk_dir`), `std::filesystem` and the platform under a layer that returns `expected<T, error>`. [`os`](os.md) is the process: `args`, `getenv`, `working_dir`, `home_dir`, `executable`, the standard streams as objects (`io::stdin`, `io::stdout`, `io::stderr`: the macros of `<cstdio>` are removed and the C streams re-bound under the same names, so both compile).
-
-Text is UTF-8 in `char`: a `string` is bytes, `size()` counts them, and `path::match` compares code points (`?` is one character, `[α-ω]` a range of them). Invalid bytes are not rejected anywhere; on POSIX a path is bytes the system does not interpret.
-
-## Pages
-
-| page | header | what it is |
+| Function | Header | Description |
 |---|---|---|
-| [error](error.md) | `sgcl/io/error.h` | `errc` (the module's own codes), `error` (code, operation, path; the predicates), `expected<T, error>` |
-| [stream](stream.md) | `sgcl/io/stream.h` | `req::reader`, `req::writer`, `req::seeker`, `req::closer` and their `async_` forms (what a stream is); `reader` and `writer`, the handles that hold any stream; the mixins `mixin::reader`, `mixin::writer`, `mixin::seeker`; `copy`, `limit_reader`, `tee_reader`, `multi_reader`, `multi_writer`, `discard`, `buffer` |
-| [buffered](buffered.md) | `sgcl/io/buffered.h` | `buffered_reader` (`read_line`, `read_until`, `peek`, `lines()`), `buffered_writer` (`flush`) |
-| [file](file.md) | `sgcl/io/file.h` | `file`, `open_flags`, `open`, `create`, `from_fd`, `pipe`, `read_file`, `read_text`, `write_file`, `append_file`, `temp_file`, `make_temp_dir` |
-| [mapping](mapping.md) | `sgcl/io/mapping.h` | `map`, `map_options` (`writable`, `shared`, `offset`, `length`), `mapping` (`data`, `writable_data`, `size`, `flush`, `close`): a file mapped into memory, its bytes a slice that keeps the mapping alive |
-| [shared_memory](shared_memory.md) | `sgcl/io/shared_memory.h` | `shared_memory` (`create`, `open`, `remove`, `data`, `size`): a named region between processes, the same region as a mapping's |
-| [fs](fs.md) | `sgcl/io/fs.h` | `permissions`, `file_type`, `file_info`, `directory_entry`, `stat`, `lstat`, `exists`, `mkdir`, `mkdir_all`, `remove`, `remove_all`, `rename`, `copy_file`, `symlink`, `read_link`, `chmod`, `set_modified`, `read_dir`, `walk_dir` |
-| [path](path.md) | `sgcl/io/path.h` | `clean`, `join`, `base`, `dir`, `ext`, `stem`, `split`, `split_list`, `is_abs`, `abs`, `rel`, `match`, `glob`, `from_slash`, `to_slash` |
-| [exec](exec.md) | `sgcl/io/exec.h` | `command` (the fields of `exec.Cmd`: `path`, `args`, `dir`, `env`, `in`, `out`, `err`, `stop`; `start`, `wait`, `run`, `output`, `combined_output`, `stdin_pipe`…, the `async_` forms), `process` (`pid`, `signal`, `kill`, `wait`, `release`), `process_state`, `look_path` |
-| [print](print.md) | `sgcl/io/print.h` | `print`, `println`, `eprint`, `eprintln`: formatted text on `stdout`, `stderr` or any writer in one call, the names `sgcl`'s too |
-| [flags](flags.md) | `sgcl/io/flags.h` | the command line as Go's `flag` package takes it: `io::flags f("about"); f.add("port", port, "help"); f.parse(argc, argv);`, the usage and the messages Go's to the byte |
-| [os](os.md) | `sgcl/io/os.h` | `args`, `env` (a variable as a typed value with a fallback), `getenv`, `setenv`, `unsetenv`, `environ`, `expand_env`, `working_dir`, `chdir`, `home_dir`, `cache_dir`, `config_dir`, `temp_dir`, `executable`, `hostname`, `pid`, `stdin`, `stdout`, `stderr`, `is_terminal`, `exit` |
+| [append_file, async_append_file](append_file.md) | `file.h` | bytes added at the end of a file, the file created when missing |
+| [args](args.md) | `os.h` | the command line, `argv[0]` first, with no `main` needed |
+| [cache_dir](cache_dir.md) | `os.h` | the directory the platform names for cached data |
+| [category](category.md) | `error.h` | the error category of `errc` |
+| [chdir](chdir.md) | `os.h` | changes the working directory |
+| [chmod, async_chmod](chmod.md) | `fs.h` | sets the permissions of a file |
+| [config_dir](config_dir.md) | `os.h` | the directory the platform names for configuration |
+| [copy, async_copy](copy.md) | `functions.h` | a reader to its end into a writer |
+| [copy_file, async_copy_file](copy_file.md) | `fs.h` | the bytes and the permissions of a file copied |
+| [create, async_create](create.md) | `file.h` | a file opened for writing, created or emptied |
+| [env](env.md) | `os.h` | a variable as a value of the fallback's type, the fallback when unset |
+| [environ](environ.md) | `os.h` | every variable of the environment |
+| [eprint](eprint.md) | `print.h` | formatted text on the standard error |
+| [eprintln](eprintln.md) | `print.h` | formatted text and a new line on the standard error |
+| [executable](executable.md) | `os.h` | the path of the running program |
+| [exists](exists.md) | `fs.h` | checks whether something is at a path |
+| [exit](exit.md) | `os.h` | ends the process now, no destructor run |
+| [expand_env](expand_env.md) | `os.h` | `$NAME` and `${NAME}` in a text replaced by the variables |
+| [from_fd](from_fd.md) | `file.h` | a file over a descriptor opened elsewhere |
+| [getenv](getenv.md) | `os.h` | a variable, `nullopt` when it is not set |
+| [home_dir](home_dir.md) | `os.h` | the home directory of the user |
+| [hostname](hostname.md) | `os.h` | the name of the host |
+| [is_directory](is_directory.md) | `fs.h` | checks whether a path names a directory |
+| [is_regular](is_regular.md) | `fs.h` | checks whether a path names a regular file |
+| [is_terminal](is_terminal.md) | `os.h` | checks whether a descriptor is a terminal |
+| [last_error](last_error.md) | `error.h` | the error of `errno` with an operation and a path |
+| [look_path](look_path.md) | `exec.h` | the executable a name stands for, as `PATH` finds it |
+| [lstat, async_lstat](lstat.md) | `fs.h` | what the file system says of a path, a symbolic link not followed |
+| [make_error_code](make_error_code.md) | `error.h` | an `errc` as a `std::error_code` |
+| [make_temp_dir, async_make_temp_dir](make_temp_dir.md) | `file.h` | a new directory of a random name |
+| [map](map.md) | `mapping.h` | a file mapped into memory |
+| [mkdir, async_mkdir](mkdir.md) | `fs.h` | makes one directory |
+| [mkdir_all, async_mkdir_all](mkdir_all.md) | `fs.h` | makes a directory and its missing parents |
+| [open, async_open](open.md) | `file.h` | opens a file with flags and permissions |
+| [pid](pid.md) | `os.h` | the id of the process |
+| [pipe](pipe.md) | `file.h` | an anonymous pipe, both ends on the reactor |
+| [print](print.md) | `print.h` | formatted text on the standard output or a writer |
+| [println](println.md) | `print.h` | formatted text and a new line on the standard output or a writer |
+| [read_all, async_read_all](read_all.md) | `functions.h` | a reader to its end, as bytes |
+| [read_all_text, async_read_all_text](read_all_text.md) | `functions.h` | a reader to its end, as text |
+| [read_dir, async_read_dir](read_dir.md) | `fs.h` | the entries of a directory, sorted by name |
+| [read_file, async_read_file](read_file.md) | `file.h` | a whole file as bytes |
+| [read_full, async_read_full](read_full.md) | `functions.h` | a buffer filled whole from a reader |
+| [read_lines, async_read_lines](read_lines.md) | `file.h` | the lines of a text file, without their ends |
+| [read_link](read_link.md) | `fs.h` | the target of a symbolic link |
+| [read_text, async_read_text](read_text.md) | `file.h` | a whole file as a string |
+| [remove, async_remove](remove.md) | `fs.h` | removes a file, a link or an empty directory |
+| [remove_all, async_remove_all](remove_all.md) | `fs.h` | removes a path and everything under it |
+| [rename, async_rename](rename.md) | `fs.h` | moves a file, replacing what is at the new path |
+| [set_modified](set_modified.md) | `fs.h` | sets the time of the last modification |
+| [setenv](setenv.md) | `os.h` | sets a variable |
+| [stat, async_stat](stat.md) | `fs.h` | what the file system says of a path |
+| [symlink, async_symlink](symlink.md) | `fs.h` | makes a symbolic link |
+| [temp_dir](temp_dir.md) | `os.h` | the directory of temporary files |
+| [temp_file, async_temp_file](temp_file.md) | `file.h` | a new file of a random name |
+| [unsetenv](unsetenv.md) | `os.h` | removes a variable |
+| [walk_dir, async_walk_dir](walk_dir.md) | `fs.h` | every entry under a directory, in lexical order |
+| [working_dir](working_dir.md) | `os.h` | the working directory |
+| [write, async_write](write.md) | `functions.h` | bytes, text or a byte written to a writer |
+| [write_file, async_write_file](write_file.md) | `file.h` | a whole file written in one call |
 
-## SGCL and Go
+## Classes
 
-| Go | sgcl::io | note |
+| Class | Header | Description |
 |---|---|---|
-| `io.Reader`, `io.Writer`, `io.Seeker`, `io.Closer` | `req::reader`, `req::writer`, `req::seeker`, `req::closer`; `reader`, `writer` | concepts over the methods, no base class and nothing virtual; `reader` and `writer` hold any stream as a value, Go's interface value |
-| `io.ReadAll`, `io.ReadFull`, `io.Copy`, `io.CopyN` | `r.read_all()`, `r.read_full(b)`, `copy(w, r)`, `copy(w, limit_reader(r, n))` | members of every reader through the mixin; a `co_await async_` form of each |
-| `io.WriteString` | `w->write(s)` | a `string`, a `slice<const char>`, a literal or a `std::string_view` |
-| `io.LimitReader`, `io.TeeReader`, `io.MultiReader`, `io.MultiWriter`, `io.Discard` | `limit_reader`, `tee_reader`, `multi_reader`, `multi_writer`, `discard` | `discard` is an object: `copy(discard, r)` |
-| `io.EOF`, `io.ErrUnexpectedEOF` | a read of 0; `errc::unexpected_eof` | the end is not an error |
-| `bytes.Buffer` | `buffer` | a reader and a writer over a vector |
-| `bufio.Reader`, `ReadString('\n')`, `ReadLine`, `Peek` | `buffered_reader`, `read_line()`, `read_until(c)`, `peek(n)` | a line is a `slice<const char>` into the reader's block, without its terminator |
-| `bufio.Scanner`, `Scan`, `Text`, `Err` | `for (auto line : r->lines())`, `r->last_error()` | `set_max_line` is `Scanner.Buffer`'s bound |
-| `bufio.Writer`, `Flush` | `buffered_writer`, `flush()` | the destructor does not flush |
-| `os.File`, `Open`, `Create`, `OpenFile`, `NewFile` | `file`, `open(p)`, `create(p)`, `open(p, flags, perm)`, `from_fd(fd)` | one class for every descriptor |
-| `ReadAt`, `WriteAt`, `Seek`, `Sync`, `Truncate`, `Stat`, `Chmod` | `read_at`, `write_at`, `seek`, `sync`, `truncate`, `stat`, `chmod` | |
-| `os.ReadFile`, `os.WriteFile` | `read_file(p)`, `read_text(p)`, `write_file(p, data)`, `append_file(p, data)` | |
-| `syscall.Mmap`, `golang.org/x/exp/mmap` | `map(p)`, `map(p, {.writable = true})` | the bytes a slice that keeps the mapping alive; `shared_memory` for a named region between processes |
-| `os.Pipe` | `pipe()` | both ends non-blocking, on the reactor |
-| `os.CreateTemp`, `os.MkdirTemp`, `os.TempDir` | `temp_file(dir, pattern)`, `make_temp_dir(dir, pattern)`, `temp_dir()` | |
-| `os.Stat`, `os.Lstat`, `fs.FileInfo`, `fs.FileMode` | `stat(p)`, `lstat(p)`, `file_info`, `permissions` | |
-| `os.Mkdir`, `os.MkdirAll`, `os.Remove`, `os.RemoveAll`, `os.Rename`, `os.Symlink`, `os.Readlink`, `os.Chmod`, `os.Chtimes` | `mkdir`, `mkdir_all`, `remove`, `remove_all`, `rename`, `symlink`, `read_link`, `chmod`, `set_modified` | `copy_file` has no Go counterpart |
-| `os.ReadDir`, `fs.DirEntry`, `filepath.WalkDir`, `fs.SkipDir` | `read_dir(p)`, `directory_entry`, `walk_dir(root, f)`, `walk_action::skip_dir` | |
-| `filepath.Clean`, `Join`, `Base`, `Dir`, `Ext`, `Split`, `SplitList`, `IsAbs`, `Abs`, `Rel`, `Match`, `Glob`, `FromSlash`, `ToSlash` | `path::` the same names, `stem` added | `?` and `[...]` match code points |
-| `os.Args`, `os.Getenv`, `LookupEnv`, `Setenv`, `Unsetenv`, `Environ`, `ExpandEnv` | `args()`, `getenv()` (an `optional`: set or not), `setenv`, `unsetenv`, `environ()`, `expand_env` | |
-| `os.Getwd`, `Chdir`, `UserHomeDir`, `UserCacheDir`, `UserConfigDir`, `Executable`, `Hostname`, `Getpid`, `Exit` | `working_dir`, `chdir`, `home_dir`, `cache_dir`, `config_dir`, `executable`, `hostname`, `pid`, `exit` | |
-| `os.Stdin`, `os.Stdout`, `os.Stderr` | `io::stdin`, `io::stdout`, `io::stderr` | objects, each over one file made on first use, the descriptor never closed by it |
-| `exec.Command`, `Cmd.Run`, `Start`, `Wait`, `Output`, `CombinedOutput`, `StdinPipe`, `StdoutPipe`, `StderrPipe`, `CommandContext`, `WaitDelay` | `command(name, args...)`, `run`, `start`, `wait`, `output`, `combined_output`, `stdin_pipe`, `stdout_pipe`, `stderr_pipe`, the `stop` token, `wait_delay` | `posix_spawn`; the wait on the reactor (`async::exited(pid)`), no thread per child |
-| `os.Process`, `os.ProcessState`, `exec.LookPath`, `exec.ExitError` | `process`, `process_state`, `look_path`, `errc::exit_status` with `cmd.state` | |
-| the goroutine that blocks in `Read` | `co_await f->async_read(b)` | the pool for a regular file, the reactor for a pipe or a socket |
+| [buffer](buffer.md) | `stream.h` | bytes in memory, read from the front and written at the back: Go's `bytes.Buffer` |
+| [buffered_reader](buffered_reader.md) | `buffered.h` | lines, tokens and prefixes of any reader as slices of a block: Go's `bufio.Reader` and `Scanner` |
+| [buffered_writer](buffered_writer.md) | `buffered.h` | a block in front of any writer, written out by `flush`: Go's `bufio.Writer` |
+| [command](command.md) | `exec.h` | a program to run, its arguments and streams: Go's `exec.Cmd` |
+| [directory_entry](directory_entry.md) | `fs.h` | an entry of a directory listing: the name, the path, the type |
+| [discard_writer](discard_writer.md) | `stream.h` | the writer that drops everything, the class of `io::discard` |
+| [error](error.md) | `error.h` | the error of an operation: a code, the operation, the path |
+| [file](file.md) | `file.h` | one class for every descriptor: a stream with a position, a handle of one word |
+| [file_info](file_info.md) | `fs.h` | what a stat says: the name, the size, the type, the permissions, the time |
+| [flags](flags.md) | `flags.h` | the command line as Go's `flag` package reads it |
+| [limit_reader](limit_reader.md) | `stream.h` | the first `n` bytes of a reader |
+| [map_options](map_options.md) | `mapping.h` | how a file is mapped: writable, shared, a range |
+| [mapping](mapping.md) | `mapping.h` | a file mapped into memory, its bytes a slice that keeps the mapping |
+| [multi_reader](multi_reader.md) | `stream.h` | readers one after another |
+| [multi_writer](multi_writer.md) | `stream.h` | every write to each of several writers |
+| [pipe_ends](pipe_ends.md) | `file.h` | the two ends of a pipe |
+| [process](process.md) | `exec.h` | a running child: its id, a signal, the wait |
+| [process_state](process_state.md) | `exec.h` | how a process ended: the exit code, the signal, the times |
+| [reader](reader.md) | `stream.h` | any reader held as a value: Go's `io.Reader` |
+| [shared_memory](shared_memory.md) | `shared_memory.h` | a named region of memory shared between processes |
+| [standard_stream](standard_stream.md) | `os.h` | the class of `io::stdin`, `io::stdout`, `io::stderr` |
+| [tee_reader](tee_reader.md) | `stream.h` | a reader whose bytes are written to a writer as well |
+| [transform_reader\<F\>](transform_reader.md) | `stream.h` | a reader whose bytes a function changes as they are read |
+| [writer](writer.md) | `stream.h` | any writer held as a value: Go's `io.Writer` |
+
+## Enumerations
+
+| Enumeration | Header | Description |
+|---|---|---|
+| [errc](errc.md) | `error.h` | the module's own error codes |
+| [file_type](file_type.md) | `fs.h` | the type of a file: regular, directory, symbolic link... |
+| [open_flags](open_flags.md) | `file.h` | how a file is opened: read, write, create, truncate, append... |
+| [permissions](permissions.md) | `fs.h` | the mode bits of a file |
+| [seek_from](seek_from.md) | `req.h` | where a seek counts from |
+| [walk_action](walk_action.md) | `fs.h` | what the function of a walk returns: next, skip the directory, stop |
+
+## Objects and types
+
+| Name | Header | Description |
+|---|---|---|
+| `discard` | `stream.h` | `inline discard_writer discard;`: the writer that drops everything, Go's `io.Discard` ([discard_writer](discard_writer.md)) |
+| `file_time` | `fs.h` | `std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>`: the time of a file ([file_info](file_info.md)) |
+| `stderr` | `os.h` | `inline standard_stream stderr;`: the standard error, descriptor 2 ([standard_stream](standard_stream.md)) |
+| `stdin` | `os.h` | `inline standard_stream stdin;`: the standard input, descriptor 0 |
+| `stdout` | `os.h` | `inline standard_stream stdout;`: the standard output, descriptor 1 |
+
+## Namespaces
+
+| Namespace | Header | Description |
+|---|---|---|
+| [path](path.md) | `path.h` | the lexical operations on paths: `clean`, `join`, `base`, `dir`, `ext`, `rel`, `match`, `glob`... |
+
+## Mixins
+
+The bases a stream of the library declares itself by, and the members each gives it
+([the mixins](mixin/README.md), `namespace sgcl::io::mixin`).
+
+| Mixin | Description |
+|---|---|
+| [reader\<Derived\>](mixin/reader.md) | `read_full`, `read_all`, `read_all_text`, `copy_to` over the class's `read` |
+| [seeker\<Derived\>](mixin/seeker.md) | `tell`, `size`, `rewind` over the class's `seek` |
+| [writer\<Derived\>](mixin/writer.md) | the `write` of text and of a byte, `copy_from`, over the class's `write` |
+
+## Requirements
+
+What a function of the module asks of a stream ([req](req.md), `namespace sgcl::io::req`).
+
+| Requirement | Description |
+|---|---|
+| [closer, async_closer](req/closer.md) | a stream with `close()`, or `async_close()` for a task |
+| [reader, async_reader](req/reader.md) | a stream read with `read(slice<byte>)`, or `async_read` for a task, or a callable of that shape |
+| [seeker](req/seeker.md) | a stream with `seek(int64_t, seek_from)` |
+| [writer, async_writer](req/writer.md) | a stream written with `write(slice<const byte>)`, or `async_write` for a task, or a callable of that shape |
+
+## See also
+
+- [Benchmarks](benchmarks.md): the streams, the files and the child processes against Go and `std`
+- [async](../async/README.md): the blocking pool and the reactor under the async forms
+- [net](../net/README.md): connections, streams of the module
+- [The modules](../README.md)

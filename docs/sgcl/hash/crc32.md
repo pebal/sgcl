@@ -1,72 +1,124 @@
-# sgcl::hash::crc32, sgcl::hash::crc32c
+[sgcl](../README.md) › [hash](README.md)
+
+# sgcl::hash::crc32
 
 ```cpp
-#include "sgcl/hash/crc32.h"   // or "sgcl/hash/hash.h"
+#include "sgcl/hash/crc32.h"   // or "sgcl/hash.h"
 
 namespace sgcl::hash {
-    class crc32;    // CRC-32/ISO-HDLC: zlib, gzip, zip, PNG, Ethernet (Go's crc32.IEEE)
-    class crc32c;   // CRC-32/ISCSI, Castagnoli: iSCSI, ext4, Btrfs, SCTP, LevelDB, gRPC (Go's crc32.Castagnoli)
+    class crc32;  // CRC-32/ISO-HDLC
 }
 ```
 
-The two 32-bit CRCs of the [CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/) a program meets: both reflected, both starting from all ones and inverting the result. Two types rather than one with a polynomial, because a program that needs one of them needs that one by name. Each holds four bytes, its register, and has the [common shape](hasher.md) of the module.
+`sgcl::hash::crc32` is CRC-32/ISO-HDLC of the [CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/): the
+checksum zlib, gzip, zip, PNG and Ethernet carry, the one Go calls `crc32.IEEE`. It is reflected, starts from all
+ones and inverts the result, as [crc32c](crc32c.md), its sibling over Castagnoli's polynomial, does; the two are
+two types rather than one with a polynomial, because a program that needs one of them needs that one by name.
 
-## Members
+It has the shape of every hasher of the module ([mixin::hasher](mixin/hasher.md)): [update](crc32/update.md) as the
+bytes come, [value](crc32/value.md) and [digest](crc32/digest.md) at any time, [of](mixin/hasher/of.md) for the
+whole thing in one call, [copy_from](mixin/hasher/copy_from.md) and [of_file](mixin/hasher/of_file.md) for a stream
+and a file. A CRC adds two of its own: [resume](crc32/resume.md), which goes on from a CRC saved earlier, and
+[combine](crc32/combine.md), the CRC of two pieces from the CRCs of the pieces, with which a large buffer is hashed
+on several threads.
 
-```cpp
-static constexpr size_t digest_size = 4;
-static constexpr size_t block_size = 1;
+## Rules
 
-crc32() noexcept;                              // the initial state: the CRC of nothing is 0
-static crc32 resume(uint32_t value) noexcept;  // going on from the CRC of what came before (Go's crc32.Update)
+- **Four bytes, the register.** The hasher holds that and nothing more: a plain value, trivially copyable, nothing
+  for the collector, on a stack, in a field, in a managed object. A copy is a branch.
+- **`value()` ends nothing**: `update` goes on after it. The CRC of nothing is 0.
+- **`digest()` is big-endian**, as Go's `Sum` writes it. A gzip member and a zip entry store the CRC the other way
+  round, the least significant byte first, and PNG this way: a format writes `value()` in its own order rather than
+  taking `digest()`.
+- **A value is not a seed.** `resume(v)` goes on from a CRC saved earlier. A one-argument constructor of the module
+  ([xxh3_64](xxh3_64.md), [maphash](maphash.md)) is a seed, and a CRC has none: `crc32::of(data, v)` does not
+  compile.
+- **`combine` works on values.** It is static: a CRC does not count its own length, which would cost every `update`
+  an addition for the sake of a call made once per piece, so the caller gives the length of the second piece.
+- **Nothing fails** but `copy_from` and `of_file`, which read a stream and a file and return its error.
+- **The names of zlib.** `crc32` and `adler32` are also the names of zlib's functions: `hash::crc32` qualified does
+  not collide with them, a bare `crc32` under `using namespace sgcl::hash;` in a file that includes `zlib.h` does.
 
-void update(const slice<const byte>& data) noexcept;    // and the text forms of the mixin
-uint32_t value() const noexcept;               // the CRC; update may go on
-array<byte, 4> digest() const noexcept;   // the CRC, the most significant byte first
-void reset() noexcept;
+### From code written for Go
 
-static uint32_t of(/* bytes or text */) noexcept;
-static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept;
+| With Go | With sgcl::hash |
+|---|---|
+| `crc32.ChecksumIEEE(p)` | `crc32::of(p)` |
+| `crc32.NewIEEE()` | `hash::crc32 h;` |
+| `crc32.Update(crc, crc32.IEEETable, p)` | `auto h = crc32::resume(crc); h.update(p);` |
+| `h.Sum32()`, `h.Sum(nil)` | `h.value()`, `h.digest()`: the same big-endian bytes |
+| — | `crc32::combine(a, b, n)`, zlib's `crc32_combine` for every CRC; Go has none |
+| `crc32.MakeTable(poly)` with any polynomial | —: the four named CRCs only (`crc32`, `crc32c`, `crc64`, `crc64_iso`); the engine takes any reflected polynomial, and a type for another comes when one is asked for |
 
-expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
-static expected<uint32_t, io::error> of_file(const string& path);  static async::task<expected<uint32_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
-```
+## Member objects
 
-`crc32c` has the same members.
+| Constant | Value | Description |
+|---|---|---|
+| `digest_size` | `4` | the size of [digest](crc32/digest.md) in bytes, Go's `Size()`; `static constexpr size_t` |
+| `block_size` | `1` | a CRC takes the bytes one at a time, in any number, Go's `BlockSize()`; `static constexpr size_t` |
 
-## combine
+## Member functions
 
-`combine(first, second, n)` is the CRC of A followed by B, given the CRC of A, the CRC of B and `n`, the length of B in bytes: zlib's `crc32_combine`, for both types. Moving a CRC past `n` zero bytes is a multiplication by x^(8n) modulo the polynomial, and the powers x^(8·2^k) are a table the compiler computes, so a combine is one multiplication for every set bit of `n`, for any length up to 2^64 − 1. It is `constexpr`. The [module's page](README.md#two-pieces-one-checksum) has it hashing a buffer on four tasks.
+| Function | Description |
+|---|---|
+| [(constructor)](crc32/crc32.md) | a hasher of no bytes yet |
+| [resume](crc32/resume.md) | a hasher going on from a CRC saved earlier (static) |
 
-## In a file format
+#### Modifiers
 
-`digest()` is big-endian, as Go's `Sum` writes it. gzip and zip store the CRC little-endian, PNG big-endian: a format writes `value()` in its own order rather than taking `digest()` for the bytes it needs.
+| Function | Description |
+|---|---|
+| [update](crc32/update.md) | hashes bytes |
+| [reset](crc32/reset.md) | puts the hasher back as it was made |
 
-## Paths
+#### Observers
 
-On arm64 an input of 128 bytes or more is folded 64 bytes at a time by carry-less multiplication (PMULL), in four independent lanes, and the last 16 bytes of the fold and anything shorter go through the CRC-32 instructions (`crc32x`, `crc32cx`). Folding wins even where there is an instruction: the instruction takes eight bytes and needs the register the last one left, and four lanes of sixteen do not wait for each other. Elsewhere the path is slicing by eight over tables the compiler builds from the polynomial (8 KB each), which x86 takes until its own instructions come. The two paths give the same result for every input; the tests hold them against each other and against Go.
+| Function | Description |
+|---|---|
+| [value](crc32/value.md) | the CRC of the bytes so far |
+| [digest](crc32/digest.md) | the CRC as bytes, the most significant first |
+
+#### Combining
+
+| Function | Description |
+|---|---|
+| [combine](crc32/combine.md) | the CRC of two pieces from their CRCs (static) |
+
+#### From mixin::hasher
+
+The rest of the shape every hasher shares ([mixin::hasher](mixin/hasher.md)).
+
+| Function | Description |
+|---|---|
+| [update](mixin/hasher/update.md) | hashes a text, a digest or a std::span of bytes |
+| [copy_from, async_copy_from](mixin/hasher/copy_from.md) | hashes a stream to its end |
+| [of](mixin/hasher/of.md) | the CRC of bytes or a text in one call (static) |
+| [of_file, async_of_file](mixin/hasher/of_file.md) | the hash of a whole file (static) |
 
 ## Example
 
 ```cpp
-#include "sgcl/hash/hash.h"
-#include "sgcl/io/io.h"
+#include "sgcl/hash.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
-    println("{:08x}", hash::crc32::of("123456789"));  // the catalogue's check
-    println("{:08x}", hash::crc32c::of("123456789"));
+    // the catalogue's check: the CRC of the nine digits
+    println("{:08x}", hash::crc32::of("123456789"));
 
-    // a file's CRC kept beside it, extended when more is appended
-    uint32_t saved = hash::crc32::of("first line\n");
+    // in pieces, as the bytes come
+    hash::crc32 h;
+    h.update("first line\n");
+    uint32_t saved = h.value();
+    h.update("second line\n");
+    println("{:08x}", h.value());
+
+    // going on from a saved CRC, and joining the CRCs of two pieces
     auto more = hash::crc32::resume(saved);
     more.update("second line\n");
-    println(more.value() == hash::crc32::of("first line\nsecond line\n"));
-
-    // the same from the two pieces' CRCs and the second one's length
     uint32_t joined = hash::crc32::combine(saved, hash::crc32::of("second line\n"), 12);
-    println(joined == more.value());
+    println("{} {}", more.value() == h.value(), joined == h.value());
 }
 ```
 
@@ -74,11 +126,14 @@ Output:
 
 ```text
 cbf43926
-e3069283
-true
-true
+5d455a2c
+true true
 ```
 
 ## See also
 
-[The module](README.md); [`crc64`](crc64.md); [`adler32`](adler32.md), zlib's other checksum; [`mixin::hasher`](hasher.md).
+- [crc32c](crc32c.md): the other 32-bit CRC, Castagnoli's
+- [crc64](crc64.md): the CRC of xz and 7z
+- [adler32](adler32.md): zlib's other checksum
+- [mixin::hasher](mixin/hasher.md): the shape every hasher shares
+- [sgcl::hash](README.md)

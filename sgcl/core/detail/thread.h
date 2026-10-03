@@ -40,7 +40,7 @@ namespace sgcl::detail {
             return (uintptr_t)p - begin < size;
         }
     };
-    inline thread_local ThreadStack thread_stack;
+    inline thread_local ThreadStack thread_stack SGCL_VISIBLE;   // os.h: SGCL_VISIBLE
     // True on a thread while it sweeps garbage: the destructors it runs are
     // those of objects that die together with everything reachable only
     // from them, in no order (the containers: a container inside such an
@@ -126,10 +126,42 @@ namespace sgcl::detail {
         }
 
         // The thread's allocator for T (the pool's or the large objects',
-        // by the size of T), made on first use
+        // by the size of T), made on first use. The lookup is inline (the fast path of every make_tracked): the
+        // type's number, read without a guard, indexes this thread's array;
+        // a null there (the type not numbered yet, or no allocator for it
+        // on this thread) takes the cold path. A pool type's allocator is
+        // the one class for every pool (object_pool_allocator_base.h).
         template<class T>
         auto& alocator() noexcept {
-            return _allocator<typename TypeInfo<T>::Allocator>();
+            using Allocator = typename TypeInfo<T>::Allocator;
+            using Type = typename Allocator::ValueType;
+            auto& record = TypeInfo<Type>::record;
+            auto a = _allocators[record.slot.load(std::memory_order_relaxed)].get();
+            if (!a) [[unlikely]] {
+                if constexpr(Allocator::IsPoolAllocator::value) {
+                    a = _make_type_allocator(record);
+                } else {
+                    a = _make_allocator<Allocator>();
+                }
+            }
+            if constexpr(Allocator::IsPoolAllocator::value) {
+                return static_cast<ObjectPoolAllocatorBase&>(*a);
+            } else {
+                return static_cast<Allocator&>(*a);
+            }
+        }
+
+        // The allocator of a pool described by data (a size class:
+        // string_data.h), numbered by its `slot` as a type is by the slot
+        // of its record (the same lookup and the same rules, below), its
+        // Metadata from `metadata()` on the thread's first use
+        template<class MakeMetadata>
+        SGCL_ALWAYS_INLINE ObjectPoolAllocatorBase& pool_allocator(std::atomic<unsigned>& slot, MakeMetadata&& metadata) noexcept {
+            auto a = _allocators[slot.load(std::memory_order_relaxed)].get();
+            if (!a) [[unlikely]] {
+                a = _make_pool_allocator(slot, metadata());
+            }
+            return static_cast<ObjectPoolAllocatorBase&>(*a);
         }
 
         // Whether p is on this thread's stack: the location check of the
@@ -149,12 +181,12 @@ namespace sgcl::detail {
         // be overtaken by the load, and seq_cst makes it an xchg; on arm64
         // the store is stlr either way, and the load must be ldar, since
         // an acquire load is ldapr since ARMv8.3, which may pass the stlr.
-        void set_hazard_pointer(void* p) {
+        void set_hazard_pointer(void* p) noexcept {
             _data->hazard_pointer.store(p, std::memory_order_seq_cst);
         }
 
         // The object is held by its tracked_ptr now (or was not taken)
-        void clear_hazard_pointer() {
+        void clear_hazard_pointer() noexcept {
             _data->hazard_pointer.store(nullptr, std::memory_order_release);
         }
 
@@ -168,39 +200,92 @@ namespace sgcl::detail {
         Data* const _data;
 
         // The allocators are an array indexed by the type's number, one
-        // number per type for the process (_type_index), at most
-        // config::max_types_number of them
-        template<class Allocator>
-        Allocator& _allocator() {
-            auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
-            if (!alocator) {
-                if constexpr(Allocator::IsPoolAllocator::value) {
-                    alocator.reset(new Allocator(*_page_allocator, _data->pages));
-                } else {
-                    alocator.reset(new Allocator(_data->pages));
-                }
-            }
-            return static_cast<Allocator&>(*alocator);
+        // number per type for the process, at most
+        // config::max_types_number - 1 of them: slot 0 is never assigned and
+        // stays null, so that the number 0 of a type not numbered yet leads
+        // the inline lookup (alocator) to its cold path without a test of
+        // its own.
+        //
+        // Why the lookup's relaxed load and the CAS numbering are enough
+        // (the number of a type is the slot of its record, metadata.h:
+        // TypeRecord):
+        // - The slot goes from 0 to its number once, by the CAS below,
+        //   and never changes again. Every load of it reads 0 or that
+        //   number (one modification order), and once a thread has read
+        //   the number its later loads cannot read 0 (read-read coherence).
+        // - Nothing is published through the number: it only indexes the
+        //   reading thread's own _allocators, which no other thread reads
+        //   or writes (the collector never reads them: it finds the pages
+        //   through Data::pages and the Metadata through each page, and
+        //   ~Thread runs on the owning thread). The Metadata of a type is
+        //   published in the record on its own (Metadata::of_type, an
+        //   acquire on the cold path, before the thread's allocator is
+        //   made), so no acquire is needed on the fast path; the CAS is
+        //   acq_rel only because the path is cold.
+        // - Threads racing to number the same type each take a number from
+        //   the counter and try the CAS from 0; one wins, the others adopt
+        //   the winner's number (the CAS returns it) and their own number
+        //   is left unused (at most one per racing thread, at the type's
+        //   first use only; the counter's check still bounds the array).
+        // - A thread created later starts with a null array: it reads the
+        //   number, finds no allocator, and makes its own in that slot.
+        // - The record is constinit (the slot a constant 0, no guard, no
+        //   dynamic initialization), so a use from a global's initializer
+        //   in any translation unit is ordered with nothing.
+
+        // Cold: the thread's first allocation of a pool type (and the
+        // type's first on any thread: its number and its Metadata). One
+        // function for every pool type, given the type's record.
+        SGCL_NOINLINE ObjectAllocatorBase* _make_type_allocator(TypeRecord& r) {
+            return _make_pool_allocator(r.slot, Metadata::of_type(r));
         }
-        // The type's number: taken from the counter on the first use of the
-        // type on any thread
-        template<class T>
-        inline static unsigned _type_index() {
-            static const unsigned index = _next_type_index();
-            return index;
+
+        // Cold, likewise, for a type larger than a page: the allocator of
+        // its page ranges, per type (object_allocator.h)
+        template<class Allocator>
+        SGCL_NOINLINE ObjectAllocatorBase* _make_allocator() {
+            using Type = typename Allocator::ValueType;
+            auto& a = _allocators[_slot_index(TypeInfo<Type>::record.slot)];
+            if (!a) {
+                a.reset(new Allocator(_data->pages));
+            }
+            return a.get();
+        }
+
+        // The allocator of the pool described by `m`, numbered by `slot`
+        SGCL_NOINLINE ObjectAllocatorBase* _make_pool_allocator(std::atomic<unsigned>& slot, Metadata& m) {
+            auto& a = _allocators[_slot_index(slot)];
+            if (!a) {
+                a.reset(new ObjectPoolAllocatorBase(*_page_allocator, _data->pages, m));
+            }
+            return a.get();
+        }
+
+        // The number of a slot: its own, or one from the counter on the
+        // first use of the type on any thread (see above)
+        SGCL_NOINLINE static unsigned _slot_index(std::atomic<unsigned>& slot) {
+            auto index = slot.load(std::memory_order_acquire);
+            if (index) {
+                return index;
+            }
+            auto mine = _next_type_index();
+            if (slot.compare_exchange_strong(index, mine, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                return mine;
+            }
+            return index;   // another thread's number, read by the failed CAS
         }
 
         static unsigned _next_type_index() {
-            auto index = _type_counter++;
+            auto index = _type_counter.fetch_add(1, std::memory_order_relaxed) + 1;   // from 1: slot 0 stays null
             if (index >= config::max_types_number) {
                 // Was an assert: in release the next line would index past
                 // _allocators. Not a recoverable condition for the caller.
-                std::fprintf(stderr, "[sgcl] more than %zu managed types; raise config::max_types_number\n", config::max_types_number);
+                std::fprintf(stderr, "[sgcl] more than %zu managed types; raise config::max_types_number\n", config::max_types_number - 1);
                 std::terminate();
             }
             return index;
         }
-        inline static std::atomic<unsigned> _type_counter = {0};
+        inline static constinit std::atomic<unsigned> _type_counter = {0};
     };
 
     // The main thread's id, taken at static initialization: the Thread of

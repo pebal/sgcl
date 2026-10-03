@@ -20,8 +20,12 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace sgcl;
@@ -207,6 +211,40 @@ TEST(CodecHeif_Tests, SniffHeifAndAvif) {
     EXPECT_FALSE(codec::sniff(bytes(std::string("\0\0\0\x18" "ftyp", 8))));
 }
 
+// Decoding bytes and encoding into bytes cannot throw: a system object
+// ImageIO's call needs and the system does not make ends the program, as
+// running out of managed memory does (DESIGN 391). They threw bad_alloc.
+// Into and from a stream they throw what the stream throws.
+TEST(CodecHeif_Tests, BytesInAndOutCannotThrow) {
+    codec::image picture(4, 4, pixel_format::rgb8);
+    static_assert(noexcept(codec::heif::decode(slice<const byte>())));
+    static_assert(noexcept(codec::heif::encode(picture)));
+    static_assert(noexcept(codec::heif::encode(picture, codec::heif::options{})));
+    static_assert(noexcept(codec::decode(slice<const byte>())));
+    static_assert(noexcept(codec::decode(slice<const byte>(), codec::decode_options())));
+    static_assert(!noexcept(codec::heif::encode(picture, std::declval<const io::writer&>())));
+    static_assert(!noexcept(codec::heif::decode(std::declval<const io::reader&>())));
+    // the boundaries: no file, a file of one byte, a cut file, one pixel
+    EXPECT_FALSE(codec::heif::decode(slice<const byte>()));   // an error, not the end of the program
+    const byte one{0};
+    EXPECT_FALSE(codec::heif::decode(slice<const byte>(&one, 1)));
+    EXPECT_FALSE(codec::decode(slice<const byte>(&one, 1)));
+    codec::image dot(1, 1, pixel_format::rgb8);
+    auto file = codec::heif::encode(dot);
+#if defined(__APPLE__)
+    if (!file) {
+        GTEST_SKIP() << "no HEIC encoder on this system";
+    }
+    auto back = codec::heif::decode(file->as_slice());
+    ASSERT_TRUE(back);
+    EXPECT_EQ(back->width(), 1u);
+    EXPECT_EQ(back->height(), 1u);
+    EXPECT_FALSE(codec::heif::decode(file->as_slice(0, file->size() / 2)));
+#else
+    EXPECT_FALSE(file);
+#endif
+}
+
 #if !defined(__APPLE__)
 TEST(CodecHeif_Tests, UnsupportedWithoutTheSystemsCodec) {
     codec::image picture(4, 4, pixel_format::rgb8);
@@ -367,7 +405,7 @@ TEST(CodecHeif_Tests, QualityOrientationAndProfile) {
     EXPECT_NE(a->size(), c->size());
     // orientation written and read back, as ImageIO reads it
     codec::image turned = picture.clone();
-    codec::detail::ImageAccess::set_orientation(turned, 6);
+    turned.set_orientation(6);
     auto file = codec::heif::encode(turned);
     ASSERT_TRUE(file);
     auto back = codec::heif::decode(slice<const std::byte>(file->data(), file->size()));
@@ -425,5 +463,61 @@ TEST(CodecHeif_Tests, LimitsAndDamage) {
         ASSERT_FALSE(r);
         EXPECT_EQ(r.error().code(), codec::errc::corrupt);
     }
+}
+
+// An HEVC slice whose entry point lies past the slice's data: VideoToolbox
+// (macOS 26.5) waits for ever on its decoding service on it, so the module
+// refuses the file before ImageIO sees it. Each decoding runs on a thread
+// of its own with a deadline: a hang fails the test instead of stopping
+// the suite (the stuck thread is left behind)
+TEST(CodecHeif_Tests, EntryPointPastTheSliceRefused) {
+    auto within = [](const std::string& file) -> std::optional<codec::errc> {
+        auto data = std::make_shared<const std::string>(file);
+        auto done = std::make_shared<std::promise<codec::errc>>();
+        auto answer = done->get_future();
+        std::thread([data, done] {
+            done->set_value(code_of(codec::heif::decode(bytes(*data))));
+        }).detach();
+        if (answer.wait_for(std::chrono::seconds(30)) != std::future_status::ready) {
+            return std::nullopt;
+        }
+        return answer.get();
+    };
+    const std::string seeds = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/')) + "/fuzz/seeds/heif_decode/";
+    // the fuzzer's two files: the entry point of the one slice past its end
+    for (const char* name : {"regress_entry_point_past_slice.heic", "regress_entry_point_past_slice2.heic"}) {
+        const std::string file = read_file(seeds + name);
+        ASSERT_FALSE(file.empty()) << name;
+        const auto code = within(file);
+        ASSERT_TRUE(code) << name << ": the decoding did not return in 30 s";
+        EXPECT_EQ(*code, codec::errc::corrupt) << name;
+    }
+    // sips's file of two rows of wavefronts, its second entry point moved:
+    // within the slice's 168 bytes of data it decodes, at their end and
+    // past it it is refused (the slice header's 4 bytes at 1015 written
+    // again, the entry point in their last 12 bits but the stop bit)
+    const std::string sips = read_file(seeds + "basn2c16.heic");
+    ASSERT_EQ(sips.size(), 1187u);
+    ASSERT_EQ(sips.substr(1015, 4), std::string("\xaf\xa1\x12\x70", 4));   // the entry point at 148, in 8 bits
+    auto moved = [&](const char (&header)[5]) {
+        std::string file = sips;
+        file.replace(1015, 4, header, 4);
+        return file;
+    };
+    const auto at148 = within(sips), at167 = within(moved("\xaf\xa1\x81\x4d")), at168 = within(moved("\xaf\xa1\x81\x4f")),
+               at1000 = within(moved("\xaf\xa1\x87\xcf"));
+    ASSERT_TRUE(at148 && at167 && at168 && at1000) << "a decoding did not return in 30 s";
+    EXPECT_EQ(*at148, codec::errc{});
+    EXPECT_EQ(*at167, codec::errc{});
+    EXPECT_EQ(*at168, codec::errc::corrupt);
+    EXPECT_EQ(*at1000, codec::errc::corrupt);
+    // the error's offset: the slice's NAL unit; codec::decode and a stream the same
+    auto direct = codec::heif::decode(bytes(moved("\xaf\xa1\x87\xcf")));
+    ASSERT_FALSE(direct);
+    EXPECT_EQ(direct.error().offset(), 1013u);
+    EXPECT_EQ(code_of(codec::decode(bytes(moved("\xaf\xa1\x87\xcf")))), codec::errc::corrupt);
+    const std::string past = moved("\xaf\xa1\x87\xcf");
+    pieces p{&past, 7};
+    EXPECT_EQ(code_of(codec::heif::decode(io::reader(p))), codec::errc::corrupt);
 }
 #endif

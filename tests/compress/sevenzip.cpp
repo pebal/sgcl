@@ -543,7 +543,7 @@ TEST(SevenZip_Tests, OurArchivesReadByTheOracles) {
         std::string name;
         sevenzip::options o;
     };
-    std::vector<Case> cases = {
+    std::vector<Case> cases = {   // lint-handles: ok every options keeps its slice optional empty
         {"lzma2", {}},
         {"lzma2-nonsolid", {.solid = false}},
         {"lzma2-0", {.level = 0}},
@@ -725,7 +725,8 @@ TEST(SevenZip_Tests, TheAutomaticFilters) {
 }
 
 // Every error is the first: after it nothing is written, close() gives it;
-// a write to an entry that ended; a path that cannot be made
+// a write to an entry that ended fails by itself, kept by nothing; a path
+// that cannot be made
 TEST(SevenZip_Tests, AWriterKeepsItsFirstError) {
     scratch_dir scratch("sgcl-7zw");
     {
@@ -745,13 +746,35 @@ TEST(SevenZip_Tests, AWriterKeepsItsFirstError) {
         sgcl::io::writer first = w.create("one.txt");
         ASSERT_TRUE(first.write("1"));
         w.add("two.txt", "2");
-        auto late = first.write("late");   // the entry ended
+        // the entry ended: the write fails by itself, the archive goes on
+        auto late = first.write("late");
         ASSERT_FALSE(late);
         EXPECT_EQ(late.error().code(), sgcl::error_code(sgcl::io::errc::closed));
-        auto r = w.close();
-        ASSERT_FALSE(r);
-        ASSERT_TRUE(r.error().io_error());
-        EXPECT_EQ(r.error().io_error()->code(), sgcl::error_code(sgcl::io::errc::closed));
+        EXPECT_FALSE(w.last_error());
+        sgcl::io::writer third = w.create("three.txt");
+        ASSERT_TRUE(third.write("3"));
+        ASSERT_TRUE(third.close());
+        auto closed_entry = third.write("late");   // after its own close
+        ASSERT_FALSE(closed_entry);
+        EXPECT_EQ(closed_entry.error().code(), sgcl::error_code(sgcl::io::errc::closed));
+        auto t = sgcl::async::spawn([](sgcl::io::writer stale) -> sgcl::async::task<bool> {
+            auto r = co_await stale.async_write(std::string("late"));
+            co_return !r && r.error().is_closed();
+        }(first));
+        EXPECT_TRUE(t.wait());
+        EXPECT_FALSE(w.last_error());
+        EXPECT_FALSE(w.is_closed());
+        ASSERT_TRUE(w.close());
+        EXPECT_TRUE(w.is_closed());
+        auto after = third.write("late");   // after the writer's close
+        ASSERT_FALSE(after);
+        EXPECT_EQ(after.error().code(), sgcl::error_code(sgcl::io::errc::closed));
+        EXPECT_FALSE(w.last_error());
+        ASSERT_TRUE(w.close());
+        auto a = sevenzip::archive::open(sgcl::string((scratch.path() / "b.7z").string()));
+        ASSERT_TRUE(a);
+        EXPECT_EQ(a->entries().size(), 3u);
+        sgcl::async::scheduler::stop();
     }
     {
         sevenzip::writer w(sgcl::string((scratch.path() / "no/such/dir/c.7z").string()));

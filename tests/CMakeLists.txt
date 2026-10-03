@@ -27,8 +27,7 @@ endfunction()
 sgcl_test_module(core
     "${CMAKE_CURRENT_SOURCE_DIR}/core/static_init.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/static_init_factory.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/teardown.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/limit_deadlock.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/teardown.cpp")
 sgcl_test_module(containers)   # core's containers (sgcl/core), a program of their own
 sgcl_test_module(immutable)
 sgcl_test_module(concurrent)
@@ -94,6 +93,12 @@ target_link_libraries(tests_slog_collector_exit_program sgcl)
 target_include_directories(tests_slog_collector_exit_program PRIVATE ${CMAKE_SOURCE_DIR})
 add_dependencies(tests_slog_collector_log tests_slog_collector_exit_program)
 target_compile_definitions(tests_slog_collector_log PRIVATE SGCL_SLOG_EXIT_PROGRAM="$<TARGET_FILE:tests_slog_collector_exit_program>")
+# records at the end of a program (a static's destructor, a buffered target), run as a child the same way
+add_executable(tests_slog_exit_cases slog/collector_log/exit_cases.cpp)
+target_link_libraries(tests_slog_exit_cases sgcl)
+target_include_directories(tests_slog_exit_cases PRIVATE ${CMAKE_SOURCE_DIR})
+add_dependencies(tests_slog_collector_log tests_slog_exit_cases)
+target_compile_definitions(tests_slog_collector_log PRIVATE SGCL_SLOG_EXIT_CASES="$<TARGET_FILE:tests_slog_exit_cases>")
 sgcl_test_module(net)
 sgcl_test_module(net/http)
 sgcl_test_module(codec)
@@ -123,15 +128,6 @@ target_link_libraries(teardown_thread_local_test sgcl)
 target_include_directories(teardown_thread_local_test PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME teardown_thread_local_test COMMAND teardown_thread_local_test)
 add_dependencies(tests teardown_thread_local_test)
-
-# limit_deadlock.cpp: a destructor allocating at the memory ceiling on the
-# sweep waits for its own cycle; the symptom is a hang, hence the timeout.
-add_executable(limit_deadlock_test core/limit_deadlock.cpp)
-target_link_libraries(limit_deadlock_test sgcl)
-target_include_directories(limit_deadlock_test PRIVATE ${CMAKE_SOURCE_DIR})
-add_test(NAME limit_deadlock_test COMMAND limit_deadlock_test)
-set_tests_properties(limit_deadlock_test PROPERTIES TIMEOUT 30)
-add_dependencies(tests limit_deadlock_test)
 
 # env_settings.cpp: the settings of the environment (SGCL_WORKERS,
 # SGCL_WORKER_SPIN_US, SGCL_BLOCKING_THREADS, SGCL_MEMORY_LIMIT), each read

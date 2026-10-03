@@ -1,215 +1,86 @@
+[sgcl](../README.md) › [txt](README.md)
+
 # sgcl::txt::bidi
 
 ```cpp
-#include "sgcl/txt/bidi.h"   // or "sgcl/txt/txt.h"
+#include "sgcl/txt/bidi.h"   // or "sgcl/txt.h"
 
-enum class direction : uint8_t { automatic, left_to_right, right_to_left };
-
-bidi bidi_class_of(char32_t c) noexcept;                    // the class of one code point
-direction paragraph_direction(const string& text);         // by its first strong character
-
-vector<uint8_t> levels(const string& text, direction = direction::automatic);
-vector<size_t> visual_order(const string& text, direction = direction::automatic);
-
-class bidi_runs;                                    // the pieces, in the order they are drawn
-
-bool is_mirrored(char32_t c) noexcept;              // Bidi_Mirrored
-char32_t mirrored_of(char32_t c) noexcept;          // the mirrored shape, or the code point itself
-
-string mirrored(const string& text, direction = direction::automatic);   // rule L4 over a text
-string mirrored(const string& text, const vector<uint8_t>& levels);      // with the levels in hand
+namespace sgcl::txt {
+    enum class bidi : uint8_t {
+        l, r, al, en, es, et, an, cs, nsm, bn, b, s, ws, on,
+        lre, lro, rle, rlo, pdf, lri, rli, fsi, pdi,
+    };
+}
 ```
 
-Text that runs both ways at once. Arabic, Hebrew, Persian and Urdu are written right to left, but the numbers inside them run left to right, and so does a Latin word quoted in them. One line then has pieces going both ways, and the order the characters are **stored** in — the logical order, the order they are typed and read — is not the order they are **drawn** in.
+The bidirectional class of a code point, the `Bidi_Class` property of
+[UAX #9](https://www.unicode.org/reports/tr9/): what the bidirectional algorithm knows about a character before it
+looks at anything around it. [bidi_class_of](bidi_class_of.md) answers it for one code point; the algorithm that
+reads it runs in [bidi_runs](bidi_runs.md), [levels](levels.md), [visual_order](visual_order.md),
+[paragraph_direction](paragraph_direction.md) and [mirrored](mirrored.md), and the bidirectional rule of
+[IDNA](idna.md) reads it too.
 
-```text
-stored:  Nazwa: שלום 123 OK
-drawn:   Nazwa: OK 123 םולש
-```
+| Value | Description |
+|---|---|
+| `l` | Left_To_Right: a strong letter of a script written left to right, Latin, Greek, Cyrillic, Han |
+| `r` | Right_To_Left: a strong letter of Hebrew and the other scripts written right to left |
+| `al` | Arabic_Letter: a strong letter of Arabic, Syriac, Thaana |
+| `en` | European_Number: the digits `0`–`9` and the other European digits |
+| `es` | European_Separator: `+` and `-` |
+| `et` | European_Terminator: a currency or a degree sign, `%`, `#` |
+| `an` | Arabic_Number: the Arabic-Indic digits and the Arabic separators of numbers |
+| `cs` | Common_Separator: `,`, `.`, `/`, `:` and the no-break space |
+| `nsm` | Nonspacing_Mark: a mark, which takes the class of the character it stands on |
+| `bn` | Boundary_Neutral: the controls and the format characters the algorithm passes over |
+| `b` | Paragraph_Separator: a line feed, a carriage return, U+2029 |
+| `s` | Segment_Separator: a tab |
+| `ws` | White_Space: a space |
+| `on` | Other_Neutral: the other punctuation and symbols |
+| `lre` | Left_To_Right_Embedding, U+202A |
+| `lro` | Left_To_Right_Override, U+202D |
+| `rle` | Right_To_Left_Embedding, U+202B |
+| `rlo` | Right_To_Left_Override, U+202E |
+| `pdf` | Pop_Directional_Format, U+202C |
+| `lri` | Left_To_Right_Isolate, U+2066 |
+| `rli` | Right_To_Left_Isolate, U+2067 |
+| `fsi` | First_Strong_Isolate, U+2068 |
+| `pdi` | Pop_Directional_Isolate, U+2069 |
 
-The algorithm of [UAX #9](https://www.unicode.org/reports/tr9/) gives every character a level: 0 runs left to right, 1 right to left, 2 left to right inside a right to left piece, and so on. What is drawn is the pieces of odd level turned round.
+## Rules
 
-This is for whoever draws the text — a user interface, a terminal — and for moving a caret through it. Storing, searching and comparing need none of it.
+- The classes come from `DerivedBidiClass.txt` rather than from the assigned code points alone, because the file
+  gives a class to the unassigned ones too: the ranges of Hebrew and Arabic run right to left before anything is
+  put in them, and a text with a code point from a future version must still lay out sensibly.
+- The tables of the bidirectional algorithm are 13.4 KB: the class of every code point 10.2, the 128 bracket pairs
+  1.0 and the mirroring 2.1 ([mirrored_of](mirrored_of.md)).
 
-`visual_order` is the answer of `bidi_runs` one character at a time: the byte position of every code point in the order it is drawn, the ones rule X9 removes left out. That is what a caret steps over in mixed text, where the right arrow key may move backwards through the bytes.
-
-`levels` is the raw answer for a renderer that lays the text out itself.
-
-## What the algorithm is told and what it works out
-
-`direction::automatic` lets the text decide: the first strong character — a letter, not a digit — sets the paragraph. `"123 שלום"` runs right to left, because a number is not strong and the Hebrew behind it is. A paragraph with no strong character at all runs left to right. A caller who knows better (a user interface with a language setting, a protocol that says so) passes `left_to_right` or `right_to_left` instead.
-
-Everything else the algorithm works out on its own: the embedding and override characters, the isolates of Unicode 6.3, the weak types (a number after an Arabic letter is an Arabic number), the neutrals between two directions, and the brackets — `(` and `)` take one direction together, so a parenthesis does not flip away from what it encloses.
-
-## Mirroring
-
-A bracket in a right to left run is drawn the other way round: the character that opens a parenthesis in Arabic has to be **shown** as `)`, because the line runs the other way and the shape has to follow it. That is rule L4 of the annex — a character is drawn mirrored when its resolved level is odd and its `Bidi_Mirrored` property is yes — and it is a substitution of one character for another, nothing more. It is **not** shaping: joining an Arabic letter to its neighbours, choosing an initial or a final form, forming a ligature and placing a mark are a font's work and none of it is here.
-
-`mirrored(text)` is the rule over a whole text: every such character swapped for the code point of its mirrored shape, the rest left alone, and the whole kept in the order it is **stored** in. A renderer holds this and the pieces of `bidi_runs` and has what it needs — the levels say which pieces to turn round, this says which glyphs to change, and neither is any use without the other.
-
-Because whoever draws the text has worked the levels out already — `bidi_runs` and `levels` both run the whole algorithm — there is a second form that takes them. It is the rule and nothing else, and on a mixed line of fifty-one bytes that is **199 ns against 1464**. The levels are one to a code point, as `levels` gives them; a code point the vector does not reach is left where it stands, and levels of the caller's own making are obeyed as given.
-
-A text with nothing to mirror comes back as **the same object**, which is most texts: the first pass over it only asks.
-
-`is_mirrored` and `mirrored_of` are the two questions about one code point, objects of the shape the rest of the module uses. They are not the same set: **554** code points are `Bidi_Mirrored` and only **428** have a mirror of their own, an integral sign being drawn the other way round without there being a second one to name it. `mirrored_of` answers the code point itself where there is no other, and a font mirrors the glyph.
-
-## What it is held to
-
-`BidiCharacterTest.txt` of the UCD, which gives for every case the level the paragraph resolves to, the level of every character and the order they are drawn in. **All 91 707 of its cases pass**; the header the tests carry holds every third of them, 30 569, because the whole file is 7.8 MB of test data — four times everything else the tests carry — and the full set is run by hand before a change to this header lands (`python3 tools/unicode_tables.py --all-bidi`).
-
-Rule L4 has two oracles of its own. `BidiMirroring.txt` is checked **whole**, all 428 of its lines as the file writes them and not as the table made from it has them: every mapping, that every mapping is its own inverse, that everything mapped is `Bidi_Mirrored`, and that no other code point of the 1 112 064 has a mirror. And the rule over a text is checked against the levels `BidiCharacterTest.txt` itself gives, over all 30 569 cases, 17 017 of which have something to mirror — an oracle that does not depend on the levels this library works out, which the test above already weighs against the same file. `BidiTest.txt` is no use here: it gives classes rather than characters, and a class has no glyph to mirror.
-
-The tables are 13.4 KB: the class of every code point, 10.2, the 128 bracket pairs, 1.0, and the mirroring, 2.1 — the 428 pairs as `uint16` (both halves of every one of them are in the Basic Multilingual Plane) and the `Bidi_Mirrored` property as 114 ranges. The classes come from `DerivedBidiClass.txt` rather than from the assigned code points alone, because the file gives a class to the unassigned ones too — the ranges of Hebrew and Arabic run right to left before anything is put in them, and a text with a code point from a future version must still lay out sensibly.
-
-## Members
-
-### bidi_runs
+## Example
 
 ```cpp
-explicit bidi_runs(const string& text, direction = direction::automatic);
-template<size_t N>
-explicit bidi_runs(const char (&text)[N], direction = direction::automatic);  // to its first NUL or its end
-explicit bidi_runs(const char* text, direction = direction::automatic);       // char* too: to its NUL
-struct run { slice<const char> text; uint8_t level; bool right_to_left() const; };
-// a range of the library over the runs, in the order they are drawn
-direction paragraph() const noexcept;
-```
-
-`bidi_runs` is what a renderer wants: it walks the pieces **in the order they go on the line**, left to right, and each piece carries the level it runs at. A piece of odd level has its characters drawn in reverse. Nothing is copied — every piece is a slice of the text.
-
-## Examples
-
-The pieces of a line, in the order a renderer puts them down:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/txt/txt.h"
+#include "sgcl/io.h"
+#include "sgcl/txt.h"
 
 using namespace sgcl;
 
-// A label, a Hebrew word, a number and a Latin word on one line: what is
-// stored, and what a renderer would put on the line
 int main() {
-    string line = "Nazwa: שלום 123 OK";
-    println("akapit biegnie {}", (txt::paragraph_direction(line) == txt::direction::right_to_left
-                                      ? "w lewo"
-                                      : "w prawo"));
-    for (auto piece : txt::bidi_runs(line)) {
-        println("  poziom {}{}[{}]", int(piece.level),
-                (piece.right_to_left() ? " w lewo  " : " w prawo "), piece.text);
+    string line = "Nazwa: שלום 123";
+    int strong_rtl = 0;
+    for (char32_t c : line.runes()) {
+        auto k = txt::bidi_class_of(c);
+        strong_rtl += k == txt::bidi::r || k == txt::bidi::al;
     }
-    return 0;
+    println("{} right to left, {}", strong_rtl, txt::bidi_class_of(U'7') == txt::bidi::en);
 }
 ```
 
 Output:
 
 ```text
-akapit biegnie w prawo
-  poziom 0 w prawo [Nazwa: ]
-  poziom 2 w prawo [123]
-  poziom 1 w lewo  [שלום ]
-  poziom 0 w prawo [ OK]
+4 right to left, true
 ```
-
-The caret walks the text in the order it is shown:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/txt/txt.h"
-
-using namespace sgcl;
-
-int main() {
-    string mixed = "aאבb";
-    print("pozycje bajtów w kolejności rysowania:");
-    for (auto at : txt::visual_order(mixed)) {
-        print(" {}", at);
-    }
-    println();
-    return 0;
-}
-```
-
-Output:
-
-```text
-pozycje bajtów w kolejności rysowania: 0 3 1 5
-```
-
-The brackets inside the Hebrew point the other way when drawn:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/txt/txt.h"
-
-using namespace sgcl;
-
-int main() {
-    string brackets = "א (ב) [ג]";
-    println("zapisane: {}\nrysowane:  {}", brackets, txt::mirrored(brackets));
-    println("a po polsku: {}", txt::mirrored("Ala (ma) kota"));
-    return 0;
-}
-```
-
-Output:
-
-```text
-zapisane: א (ב) [ג]
-rysowane:  א )ב( ]ג[
-a po polsku: Ala (ma) kota
-```
-
-With the levels in hand, the rule and nothing else:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/txt/txt.h"
-
-using namespace sgcl;
-
-int main() {
-    string line = "א (ב) [ג]";
-    auto lv = txt::levels(line);
-    println("{}", txt::mirrored(line, lv));  // the paragraph not worked out a second time
-    return 0;
-}
-```
-
-Output:
-
-```text
-א )ב( ]ג[
-```
-
-One code point at a time:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/txt/txt.h"
-
-using namespace sgcl;
-
-int main() {
-    println("{} {}", txt::is_mirrored(U'('), txt::is_mirrored(U'a'));
-    for (char32_t c : {U'(', U'≤', U'∫'}) {
-        print("{} -> {}   ", c, txt::mirrored_of(c));
-    }
-    println();
-    return 0;
-}
-```
-
-Output:
-
-```text
-true false
-( -> )   ≤ -> ≥   ∫ -> ∫   
-```
-
-The integral sign is mirrored, and has no code point of its own to be mirrored to.
 
 ## See also
 
-[The module](README.md); [`segment`](segment.md), the characters a caret steps over; [`idna`](idna.md), which reads the bidirectional classes for the rule of RFC 5893; [`identifier`](identifier.md), a name drawn in an order its bytes do not have.
+- [bidi_class_of](bidi_class_of.md): the class of a code point
+- [bidi_runs](bidi_runs.md): the algorithm run over a text
+- [txt](README.md)

@@ -404,6 +404,8 @@ namespace {
 TEST(HttpHeap_Tests, AnIdleConnectionGivesBackALargeResponsesRoom) {
 #if !defined(__APPLE__)
     GTEST_SKIP() << "the allocator's statistics are read on macOS";
+#elif __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+    GTEST_SKIP() << "a sanitizer's allocator keeps what was freed: its statistics say nothing of the wire's room";
 #endif
     const string piece(std::string(2 << 20, 'x'));
     http::server s;

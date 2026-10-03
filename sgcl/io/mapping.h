@@ -79,14 +79,14 @@ namespace sgcl::io {
 
         // A writable shared mapping's writes given to the file and waited
         // for (msync MS_SYNC); nothing to do for any other mapping
-        expected<void, error> flush() const {
+        expected<void, error> flush() const noexcept {
             return _get().flush();
         }
 
         // The file given back now, the mapping's range left as zeros for a
         // slice taken before; data() is empty after it. The destructor
         // unmaps a mapping nobody closed
-        expected<void, error> close() const {
+        expected<void, error> close() const noexcept {
             return _get().close();
         }
 
@@ -145,7 +145,7 @@ namespace sgcl::io {
         // The range [offset, offset + length) of a file of `file_size`
         // bytes, length 0 for the rest: its length, or an error for a
         // range past the end
-        inline expected<uint64_t, error> map_range(uint64_t file_size, const map_options& o, const string& name) {
+        inline expected<uint64_t, error> map_range(uint64_t file_size, const map_options& o, const string& name) noexcept {
             uint64_t length = o.length ? o.length : (o.offset <= file_size ? file_size - o.offset : 0);
             if (o.offset > file_size || length > file_size - o.offset) {
                 return fail(error(error_code(EINVAL, std::generic_category()), "map", name));   // a range past the end: an error, the file never extended
@@ -158,7 +158,7 @@ namespace sgcl::io {
 
 #if defined(_WIN32)
         // The file (owned when `owns`) mapped; the handle closed on failure
-        inline expected<void, error> map_handle(win::Handle file, bool owns, const map_options& o, const string& name, tracked_ptr<MappedRegion>& out) {
+        inline expected<void, error> map_handle(win::Handle file, bool owns, const map_options& o, const string& name, tracked_ptr<MappedRegion>& out) noexcept {
             auto give_back = [&] {
                 if (owns) {
                     win::CloseHandle(file);
@@ -203,7 +203,7 @@ namespace sgcl::io {
         }
 #else
         // The descriptor (the region's from now on, closed on failure) mapped
-        inline expected<tracked_ptr<MappedRegion>, error> map_fd(int fd, const map_options& o, const string& name) {
+        inline expected<tracked_ptr<MappedRegion>, error> map_fd(int fd, const map_options& o, const string& name) noexcept {
             struct ::stat st;
             if (::fstat(fd, &st) != 0) {
                 auto e = last_error("map", name);
@@ -240,7 +240,7 @@ namespace sgcl::io {
     // error of the open (is_not_found(), is_permission(): a writable
     // shared mapping of a file the program may not write), of a range past
     // the end (EINVAL), or of the mmap
-    inline expected<mapping, error> map(const string& path, const map_options& options) {
+    inline expected<mapping, error> map(const string& path, const map_options& options) noexcept {
 #if defined(_WIN32)
         auto name = win::wide<std::wstring>(path.data(), int(path.size()));
         win::Dword access = win::GenericRead | (options.writable && options.shared ? win::GenericWrite : 0);
@@ -271,14 +271,14 @@ namespace sgcl::io {
     }
 
     // The whole file at `path`, read only
-    inline expected<mapping, error> map(const string& path) {
+    inline expected<mapping, error> map(const string& path) noexcept {
         return map(path, map_options{});
     }
 
     // An open file mapped: the mapping holds a descriptor of its own (a
     // dup), so the file may be closed after; a writable shared mapping
     // needs a file opened for reading and writing (EACCES otherwise)
-    inline expected<mapping, error> map(const file& f, const map_options& options = {}) {
+    inline expected<mapping, error> map(const file& f, const map_options& options = {}) noexcept {
 #if defined(_WIN32)
         long long h = win::_get_osfhandle(f.fd());
         if (h == -1) {

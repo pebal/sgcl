@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "lent.h"
 #include "regex_program.h"
 
 #include <memory>
@@ -46,12 +47,30 @@
 namespace sgcl::txt::detail {
     inline constexpr size_t NoPos = size_t(-1);
 
+    // What asks a matcher for a block the thread lends
+    struct LentBlock {};
+
     class matcher {
     public:
         // `stamp` is where the visit marks start counting. Nothing but the
         // test that has to reach the wrap of a 32-bit counter without two
         // billion positions of text ever passes it.
-        matcher(const program& p, std::string_view text, size_t ncap, uint32_t stamp = 0)
+        matcher(const program& p, std::string_view text, size_t ncap, uint32_t stamp = 0) noexcept
+        : matcher(p, text, ncap, stamp, false) {
+        }
+
+        // The same machine on a block the thread lends rather than one
+        // of its own, which was a malloc and a free on every contains,
+        // find, replace and split. Only for a matcher made and dropped
+        // within one call: the one regex_matches keeps lives in an
+        // iterator that may outlast the call or die on another thread,
+        // and a lent slot goes back to the thread that took it.
+        matcher(LentBlock, const program& p, std::string_view text, size_t ncap) noexcept
+        : matcher(p, text, ncap, 0, true) {
+        }
+
+    private:
+        matcher(const program& p, std::string_view text, size_t ncap, uint32_t stamp, bool lend) noexcept
         : _p(p)
         , _text(text)
         , _ncap(ncap)
@@ -85,10 +104,19 @@ namespace sgcl::txt::detail {
             // for_overwrite, because make_unique would zero the whole block
             // and only the stamps need it: the stack, the slots being
             // written and both lists are written before they are read, the
-            // lists only ever below the size each one carries.
-            _block = std::make_unique_for_overwrite<uint64_t[]>(stamps + _ncap + stack
-                                                                + 2 * (caps + pcs));
-            uint64_t* at = _block.get();
+            // lists only ever below the size each one carries. A lent block
+            // is the room reserve() leaves, which is not zeroed either; its
+            // size stays nought, so nothing reads it as elements.
+            size_t words = stamps + _ncap + stack + 2 * (caps + pcs);
+            uint64_t* at;
+            if (lend) {
+                scratch_vector<uint64_t>& block = *_lent.emplace();
+                block.reserve(words);
+                at = block.data();
+            } else {
+                _block = std::make_unique_for_overwrite<uint64_t[]>(words);
+                at = _block.get();
+            }
             _gen = reinterpret_cast<uint32_t*>(at);
             at += stamps;
             _scratch = reinterpret_cast<size_t*>(at);
@@ -105,6 +133,7 @@ namespace sgcl::txt::detail {
             _clear_gen();
         }
 
+    public:
         // The first match at or after `from`, leftmost and then by the
         // priority of the branches. The slots — the whole match in 0 and
         // 1, then two to a group — come back in `caps`, NoPos where a
@@ -116,7 +145,7 @@ namespace sgcl::txt::detail {
         // the first match a backtracking engine would have preferred,
         // which may be shorter — so instead a thread that reaches `match`
         // anywhere but at the end of the text is simply not one.
-        bool run(size_t from, size_t* caps, bool whole = false) {
+        bool run(size_t from, size_t* caps, bool whole = false) noexcept {
             bool matched = false;
             const bool anchored = _p.anchored || whole;
             // A run of bytes every match must contain, and no such run
@@ -301,7 +330,7 @@ namespace sgcl::txt::detail {
         //
         // The group slots come first so that they keep the alignment of a
         // size_t without a word being wasted on it.
-        void _grow(thread_list& list) {
+        void _grow(thread_list& list) noexcept {
             size_t want = _p.listed;
             size_t caps = want * _ncap;
             size_t pcs = (want + 1) / 2;
@@ -347,7 +376,7 @@ namespace sgcl::txt::detail {
         // group positions written down on the way. An instruction already
         // in this list is skipped, which both keeps the list short and
         // makes a loop over something that matches nothing terminate.
-        void _add(thread_list& list, uint32_t pc, size_t pos) {
+        void _add(thread_list& list, uint32_t pc, size_t pos) noexcept {
             size_t top = 0;
             _stack[top++] = step{0, pc, 0, false};
             while (top) {
@@ -443,6 +472,7 @@ namespace sgcl::txt::detail {
         size_t _literal_at = NoPos;
         bool _literal_known = false;
         std::unique_ptr<uint64_t[]> _block;
+        optional<lent<scratch_vector<uint64_t>>> _lent;
         uint32_t* _gen = nullptr;
         size_t* _scratch = nullptr;
         step* _stack = nullptr;

@@ -57,7 +57,7 @@ TEST(Range_Tests, CountingFromFirstToLast) {
     EXPECT_TRUE(sgcl::range(5, 5).empty());
     EXPECT_TRUE(sgcl::range(7, 3).empty());              // first past last: empty, not a walk down
     EXPECT_EQ(sgcl::range(7, 3).size(), 0u);
-    sgcl::range<sgcl::detail::counter<int>> r(-2, 2);
+    sgcl::range<sgcl::counting_iterator<int>> r(-2, 2);
     EXPECT_EQ(r.size(), 4u);
     EXPECT_EQ(r.front(), -2);
 }
@@ -77,7 +77,7 @@ TEST(Range_Tests, OtherIntegerTypes) {
 }
 
 TEST(Range_Tests, TheCounterIsRandomAccessToStdRangesAndInputToTheOldCategory) {
-    using C = sgcl::detail::counter<int>;
+    using C = sgcl::counting_iterator<int>;
     static_assert(std::is_same_v<std::iterator_traits<C>::iterator_category, std::input_iterator_tag>);   // *i is a value, which the old forward category forbids
     static_assert(std::is_same_v<C::iterator_concept, std::random_access_iterator_tag>);
     static_assert(std::random_access_iterator<C>);
@@ -93,8 +93,8 @@ TEST(Range_Tests, TheCounterIsRandomAccessToStdRangesAndInputToTheOldCategory) {
 }
 
 TEST(Range_Tests, UnderStdRanges) {
-    static_assert(std::ranges::random_access_range<sgcl::range<sgcl::detail::counter<int>>>);
-    static_assert(std::ranges::sized_range<sgcl::range<sgcl::detail::counter<int>>>);
+    static_assert(std::ranges::random_access_range<sgcl::range<sgcl::counting_iterator<int>>>);
+    static_assert(std::ranges::sized_range<sgcl::range<sgcl::counting_iterator<int>>>);
     EXPECT_EQ(std::ranges::size(sgcl::range(10)), 10u);
     int sum = 0;
     std::ranges::for_each(sgcl::range(1, 5), [&](int i) { sum += i; });
@@ -103,6 +103,6 @@ TEST(Range_Tests, UnderStdRanges) {
     std::vector<int> v(squares.begin(), squares.end());
     EXPECT_EQ(v, (std::vector<int>{0, 1, 4, 9}));
     EXPECT_EQ(*std::ranges::max_element(sgcl::range(3, 8)), 7);   // a borrowed range: the iterator outlives the temporary
-    static_assert(std::ranges::borrowed_range<sgcl::range<sgcl::detail::counter<int>>>);
+    static_assert(std::ranges::borrowed_range<sgcl::range<sgcl::counting_iterator<int>>>);
     static_assert(std::ranges::forward_range<sgcl::range<sgcl::sorted_multimap<int, int>::iterator>>);
 }

@@ -94,16 +94,21 @@ namespace sgcl {
         expiry_queue() = default;
 
         // An entry for the object, with f kept for the day the object is
-        // found unreachable; a null object gets no entry (an empty handle).
-        // The function is made before the cell: it may throw, and a
-        // Watched cell with no entry behind it would keep its target one
-        // cycle longer than the cell itself lives.
+        // found unreachable; a null object, or an empty function (a null
+        // pointer, an empty function object), gets no entry: an empty
+        // handle, as drain() would have nothing to call. The function is
+        // made before the cell: it may throw, and a Watched cell with no
+        // entry behind it would keep its target one cycle longer than the
+        // cell itself lives.
         template<class F>
         entry watch(const value_type& object, F&& on_expire) {
             if (!object) {
                 return {};
             }
             function_type f(std::forward<F>(on_expire));
+            if (!f) {
+                return {};
+            }
             weak_type w(weak_type::_make_cell(object.get(), detail::WeakCell::Watched));
             _entries.push_back(Entry{w._cell, std::move(f)});
             if (++_watched > _threshold) {

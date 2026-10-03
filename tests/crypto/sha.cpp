@@ -375,3 +375,55 @@ TEST(Crypto_Sha, OfFile) {
     EXPECT_FALSE(crypto::sha256::of_file(io::path::join(*dir, "missing")));
     io::remove_all(*dir);
 }
+
+// digest_file: the digest of a whole file by hash_id, what digest() of its
+// bytes gives, for every id; at its edges: an empty file, a read block's
+// size and one past it, a missing path, an empty path, a directory, an id
+// that is none of the list (thrown by the call, and out of the task's
+// co_await), the caller's path gone before the task runs
+TEST(Crypto_Sha, DigestFile) {
+    namespace io = sgcl::io;
+    auto dir = io::make_temp_dir({}, "crypto-test-*");
+    ASSERT_TRUE(dir);
+    random_source r(12);
+    const crypto::hash_id ids[] = {
+        crypto::hash_id::sha1,       crypto::hash_id::sha224,   crypto::hash_id::sha256,
+        crypto::hash_id::sha384,     crypto::hash_id::sha512,   crypto::hash_id::sha512_256,
+        crypto::hash_id::sha3_224,   crypto::hash_id::sha3_256, crypto::hash_id::sha3_384,
+        crypto::hash_id::sha3_512,
+    };
+    sgcl::string path = io::path::join(*dir, "data.bin");
+    for (size_t n : {size_t(0), size_t(1), size_t(65536), size_t(65537), size_t(100003)}) {
+        bytes_t data = r.bytes(n);
+        ASSERT_TRUE(io::write_file(path, view(data)));
+        for (auto id : ids) {
+            auto d = crypto::digest_file(id, path);
+            ASSERT_TRUE(d) << n;
+            EXPECT_EQ(d->size(), crypto::digest_size(id));
+            EXPECT_EQ(hex(*d), hex(crypto::digest(id, view(data)))) << n;
+            auto a = sgcl::async::run(crypto::async_digest_file(id, path));
+            ASSERT_TRUE(a) << n;
+            EXPECT_EQ(hex(*a), hex(*d)) << n;
+        }
+    }
+    auto missing = crypto::digest_file(crypto::hash_id::sha256, io::path::join(*dir, "missing"));
+    ASSERT_FALSE(missing);
+    EXPECT_TRUE(missing.error().is_not_found());
+    auto missing_async = sgcl::async::run(crypto::async_digest_file(crypto::hash_id::sha256, io::path::join(*dir, "missing")));
+    ASSERT_FALSE(missing_async);
+    EXPECT_TRUE(missing_async.error().is_not_found());
+    EXPECT_FALSE(crypto::digest_file(crypto::hash_id::sha256, *dir));   // a directory: its read fails
+    EXPECT_FALSE(crypto::digest_file(crypto::hash_id::sha256, ""));
+    EXPECT_THROW((void)crypto::digest_file(crypto::hash_id(200), path), std::invalid_argument);
+    auto bad = crypto::async_digest_file(crypto::hash_id(200), path);   // the call itself does not throw
+    EXPECT_THROW((void)sgcl::async::run(std::move(bad)), std::invalid_argument);
+    auto later = [&] {
+        sgcl::string gone = io::path::join(*dir, "data.bin");
+        return crypto::async_digest_file(crypto::hash_id::sha256, gone);
+    }();
+    auto kept = sgcl::async::run(std::move(later));
+    ASSERT_TRUE(kept);
+    EXPECT_EQ(kept->size(), 32u);
+    sgcl::async::scheduler::stop();
+    io::remove_all(*dir);
+}

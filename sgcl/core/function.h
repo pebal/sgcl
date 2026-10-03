@@ -50,7 +50,7 @@ namespace sgcl {
         struct IsInPlaceType<std::in_place_type_t<T>> : std::true_type {};
 
         template<class R, class F, class... A>
-        R invoke_as(F& f, A&&... a) {
+        R invoke_as(F& f, A&&... a) noexcept(std::is_nothrow_invocable_r_v<R, F&, A...>) {
             if constexpr(std::is_void_v<R>) {
                 std::invoke(f, std::forward<A>(a)...);
             } else {
@@ -119,13 +119,13 @@ namespace sgcl {
         // a null member pointer or an empty function
         template<class F, class VF = std::decay_t<F>>
         requires Callable<VF> && std::is_copy_constructible_v<VF>
-        function(F&& f) {
+        function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
             if (!detail::callable_is_null(f)) {
                 this->template _emplace<VF, true, &_call<VF>>(std::forward<F>(f));
             }
         }
 
-        ~function() = default;
+        ~function() noexcept = default;
 
         function& operator=(const function& o) {
             function(o).swap(*this);
@@ -144,7 +144,7 @@ namespace sgcl {
 
         template<class F, class VF = std::decay_t<F>>
         requires Callable<VF> && std::is_copy_constructible_v<VF>
-        function& operator=(F&& f) {
+        function& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
             function(std::forward<F>(f)).swap(*this);
             return *this;
         }
@@ -236,7 +236,7 @@ namespace sgcl {
 
             template<class F, class VF = std::decay_t<F>>
             requires (!std::is_same_v<VF, MoveOnlyFunction>) && (!IsInPlaceType<VF>::value) && Callable<VF> && std::is_constructible_v<VF, F>
-            MoveOnlyFunction(F&& f) {
+            MoveOnlyFunction(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
                 if (!callable_is_null(f)) {
                     this->template _emplace<VF, false, &_call<VF>>(std::forward<F>(f));
                 }
@@ -244,17 +244,17 @@ namespace sgcl {
 
             template<class T, class... A, class VF = std::decay_t<T>>
             requires Callable<VF> && std::is_constructible_v<VF, A...>
-            explicit MoveOnlyFunction(std::in_place_type_t<T>, A&&... a) {
+            explicit MoveOnlyFunction(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<VF, A...>) {
                 this->template _emplace<VF, false, &_call<VF>>(std::forward<A>(a)...);
             }
 
             template<class T, class U, class... A, class VF = std::decay_t<T>>
             requires Callable<VF> && std::is_constructible_v<VF, std::initializer_list<U>&, A...>
-            explicit MoveOnlyFunction(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) {
+            explicit MoveOnlyFunction(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VF, std::initializer_list<U>&, A...>) {
                 this->template _emplace<VF, false, &_call<VF>>(il, std::forward<A>(a)...);
             }
 
-            ~MoveOnlyFunction() = default;
+            ~MoveOnlyFunction() noexcept = default;
 
             MoveOnlyFunction& operator=(MoveOnlyFunction&& o) noexcept {
                 MoveOnlyFunction(std::move(o)).swap(*this);
@@ -270,7 +270,7 @@ namespace sgcl {
 
             template<class F>
             requires std::is_constructible_v<MoveOnlyFunction, F>
-            MoveOnlyFunction& operator=(F&& f) {
+            MoveOnlyFunction& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<MoveOnlyFunction, F>) {
                 MoveOnlyFunction(std::forward<F>(f)).swap(*this);
                 return *this;
             }

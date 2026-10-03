@@ -3,7 +3,8 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-#include "tests/types.h"
+#include "tests/throwing.h"
+#include "tests/concurrent/together.h"
 
 #include <atomic>
 #include <memory>
@@ -216,4 +217,98 @@ TEST(CopyOnWrite_Test, DefaultIsValueInitialized) {
     }
     EXPECT_FALSE(kept_ints.empty());
     EXPECT_FALSE(kept_plain.empty());
+}
+
+// Boundaries (DESIGN 408)
+
+// The value itself as the argument: a store, an assignment and a
+// compare_exchange of the value its own snapshot reads, each a copy of
+// its own; an update that reads the old snapshot in its change
+TEST(CopyOnWrite_Test, ItsOwnValueAsTheArgument) {
+    sgcl::concurrent::copy_on_write<std::string> v(std::string(64, 'a'));
+    auto first = v.load();
+    v.store(*v.load());
+    EXPECT_EQ(*v.load(), std::string(64, 'a'));
+    EXPECT_NE(v.load().get(), first.get());   // a new object of the same value
+    v = *v.load();
+    EXPECT_EQ(*v.load(), std::string(64, 'a'));
+    auto seen = v.load();
+    EXPECT_TRUE(v.compare_exchange(seen, *seen));   // desired read from expected's own object
+    EXPECT_EQ(*v.load(), std::string(64, 'a'));
+    EXPECT_NE(v.load().get(), seen.get());
+    auto before = v.load();
+    v.update([&](std::string& s) { s += *before; });
+    EXPECT_EQ(*v.load(), std::string(128, 'a'));
+    EXPECT_EQ(*before, std::string(64, 'a'));
+}
+
+// The snapshot passed as expected at its ends: a null one, and one of an
+// equal value but another object, both fail and get the current
+// snapshot (the comparison is by identity); an update that changes
+// nothing still installs a new object
+TEST(CopyOnWrite_Test, ExpectedAtItsEnds) {
+    sgcl::concurrent::copy_on_write<int> n(5);
+    sgcl::concurrent::copy_on_write<int>::snapshot null;
+    EXPECT_FALSE(n.compare_exchange(null, 6));
+    ASSERT_TRUE(null);
+    EXPECT_EQ(*null, 5);
+    sgcl::concurrent::copy_on_write<int> other(5);
+    auto equal = other.load();
+    EXPECT_FALSE(n.compare_exchange(equal, 6));
+    EXPECT_EQ(equal.get(), n.load().get());
+    EXPECT_EQ(*n.load(), 5);
+    auto old = n.load();
+    auto same = n.update([](int&) {});
+    EXPECT_EQ(*same, 5);
+    EXPECT_NE(same.get(), old.get());
+}
+
+// A change that throws (the copy of the value, f, the construction of a
+// stored value): the value as it was, the snapshot the readers hold the
+// same object (update.md, store.md, compare_exchange.md)
+TEST(CopyOnWrite_Test, AChangeThatThrows) {
+    using throwing::Val;
+    throwing::Disarm disarm;
+    sgcl::concurrent::copy_on_write<Val> v(std::in_place, 1);
+    auto held = v.load();
+    EXPECT_THROW(v.update([](Val&) { throw throwing::Error("f"); }), throwing::Error);
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(v.update([](Val& x) { x.v = 2; }), throwing::Error);
+    Val two(2);
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(v.store(two), throwing::Error);
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(v = two, throwing::Error);
+    auto expected = v.load();
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(v.compare_exchange(expected, two), throwing::Error);
+    EXPECT_EQ(expected.get(), held.get());
+    throwing::countdown.move = 1;
+    EXPECT_THROW(v.store(Val(3)), throwing::Error);
+    throwing::countdown = {};
+    EXPECT_EQ(v.load().get(), held.get());
+    EXPECT_EQ(v.load()->v, 1);
+    throwing::countdown.construct = 1;
+    EXPECT_THROW((sgcl::concurrent::copy_on_write<Val>(std::in_place, 4)), throwing::Error);
+}
+
+// Writers at one value released together, many rounds: of two
+// compare_exchange from one snapshot exactly one succeeds; two updates
+// both land, one after the other
+TEST(CopyOnWrite_Test, TwoWritersAtOneSnapshot) {
+    sgcl::concurrent::copy_on_write<int> n;
+    for (int round = 0; round < together::Rounds; ++round) {
+        auto seen = n.load();
+        std::atomic<int> won = {0};
+        together::run(2, [&](int i) {
+            auto mine = seen;
+            won += n.compare_exchange(mine, *seen + 1 + i);
+        });
+        EXPECT_EQ(won.load(), 1);
+        int now = *n.load();
+        together::run(2, [&](int) {
+            n.update([](int& x) { ++x; });
+        });
+        EXPECT_EQ(*n.load(), now + 2);
+    }
 }

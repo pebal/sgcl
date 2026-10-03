@@ -25,7 +25,8 @@ namespace sgcl::concurrent {
     // reclamation scheme, and a logical deletion is a marker node linked
     // after the deleted one, at each of its levels (Java's way of marking
     // without a bit stolen from the pointer, which the collector's pointer
-    // maps could not follow); a marker is an allocation of one word, and
+    // maps could not follow); a marker is an allocation of 16 bytes (a
+    // node's first two words: the link and the flags), and
     // a marked node is unlinked by the next search that passes it.
     //
     // A node is one managed object: the bottom link and the element,
@@ -49,13 +50,14 @@ namespace sgcl::concurrent {
     // its node, once nothing holds it: not at the erase, which other
     // threads may be reading it across. size() counts, in linear time,
     // as Java's does.
-    template<class Key, class V, class Compare = std::less<Key>>
+    template<class Key, class T, class Compare = std::less<Key>>
     class sorted_map
-    : public detail::SkipList<detail::ConcurrentSortedMapTraits<Key, V, Compare>> {
-        using Base = detail::SkipList<detail::ConcurrentSortedMapTraits<Key, V, Compare>>;
+    : public detail::SkipList<detail::ConcurrentSortedMapTraits<Key, T, Compare>> {
+        using Base = detail::SkipList<detail::ConcurrentSortedMapTraits<Key, T, Compare>>;
+        static_assert(detail::nothrow_function_object<Compare, const Key&, const Key&>, "sgcl::concurrent::sorted_map: Compare must be noexcept");
 
     public:
-        using mapped_type = V;
+        using mapped_type = T;
         using typename Base::value_type;
         using typename Base::iterator;
 
@@ -68,37 +70,40 @@ namespace sgcl::concurrent {
         // and the arguments only when the key is absent, and linked
         // between the neighbours that search found
         template<class... A>
-        pair<iterator, bool> try_emplace(const Key& key, A&&... a) {
+        pair<iterator, bool> try_emplace(const Key& key, A&&... a) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
             return this->_insert_absent(key, [&](unsigned h) {
                 return this->_make_node(h, std::piecewise_construct, forward_as_tuple(key), forward_as_tuple(std::forward<A>(a)...));
             });
         }
 
         template<class... A>
-        pair<iterator, bool> try_emplace(Key&& key, A&&... a) {
+        pair<iterator, bool> try_emplace(Key&& key, A&&... a) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
             return this->_insert_absent(key, [&](unsigned h) {
                 return this->_make_node(h, std::piecewise_construct, forward_as_tuple(std::move(key)), forward_as_tuple(std::forward<A>(a)...));
             });
         }
 
         // The value under the key, or fallback when the key is absent: a
-        // copy (one word for a tracked value), read lock-free as find is (mixin::lookup's
+        // copy (one word for a tracked value), read wait-free as find is (mixin::lookup's
         // value_or of the other maps);
         // an element erased meanwhile is read as it was when found
-        V value_or(const Key& key, const V& fallback) const {
+        T value_or(const Key& key, const T& fallback) const noexcept(std::is_nothrow_copy_constructible_v<T>) {
             auto it = this->find(key);
             return it != this->end() ? it->second : fallback;
         }
 
         template<class K> requires detail::TransparentCompare<Compare>
-        V value_or(const K& key, const V& fallback) const {
+        T value_or(const K& key, const T& fallback) const noexcept(std::is_nothrow_copy_constructible_v<T>) {
             auto it = this->find(key);
             return it != this->end() ? it->second : fallback;
         }
 
+        // A pair whose first is of the key type is searched by that key
+        // first, as the element is, and left as it was when the key is
+        // taken; a pair of other types is built into the element first
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        pair<iterator, bool> insert(P&& value) {
-            return this->emplace(std::forward<P>(value));
+        pair<iterator, bool> insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
+            return this->_insert_value(std::forward<P>(value));
         }
     };
 }

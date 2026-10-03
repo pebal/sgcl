@@ -17,6 +17,7 @@
 #include "url_oracle.h"
 
 #include <random>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -93,10 +94,10 @@ namespace {
             return A::pathname(u, v).value;
         }
         if (setter == "search") {
-            return A::search(u, v);
+            return A::search(u, v).value;
         }
         if (setter == "hash") {
-            return A::hash(u, v);
+            return A::hash(u, v).value;
         }
         if (setter == "href") {
             auto p = net::url::parse(v);
@@ -108,6 +109,14 @@ namespace {
 }
 
 // A literal in the program is constructed, not parsed (DESIGN 234)
+// txt::format (and println) write what to_string gives, in the field's width
+TEST(NetUrl_Tests, Formatted) {
+    net::url u("HTTPS://example.com:443/a b?q=1#top");
+    EXPECT_EQ(txt::format("{}", u), u.to_string());
+    EXPECT_EQ(txt::format("{}", u), "https://example.com/a%20b?q=1#top");
+    EXPECT_EQ(txt::format("[{:>22}]", net::url("http://a.test/")), "[        http://a.test/]");
+}
+
 TEST(NetUrl_Tests, LiteralsConstruct) {
     net::url u("https://user@example.com:8443/a/b?q=1#top");
     EXPECT_EQ(net::url::parse("https://user@example.com:8443/a/b?q=1#top"), u);   // an expected compared whole: equal only with the value
@@ -141,9 +150,9 @@ TEST(NetUrl_Tests, LiteralsConstruct) {
     }
     static_assert(!std::is_convertible_v<const string&, net::url>, "explicit");
 
-    // query_params: parse never fails, and the constructor is the same
+    // query_params: the constructor is parse's value
     net::query_params q("?a=1&b=x+y&a=2");
-    EXPECT_EQ(q, net::query_params::parse("?a=1&b=x+y&a=2"));
+    EXPECT_EQ(q, *net::query_params::parse("?a=1&b=x+y&a=2"));
     EXPECT_EQ(q.get("b"), "x y");
     EXPECT_EQ(q.get_all("a").size(), 2u);
     EXPECT_EQ(net::query_params(""), net::query_params());
@@ -346,7 +355,7 @@ TEST(NetUrl_Tests, PlainUrlsAgainstGo) {
 
 TEST(NetUrl_Tests, QueriesAgainstGo) {
     for (auto& c : url_oracle::query_cases) {
-        auto q = net::query_params::parse(str(c.input));
+        auto q = *net::query_params::parse(str(c.input));
         // Go groups the values by name; the pairs here are in their
         // order, so the comparison is of each name's values in order
         std::vector<std::string> got;
@@ -376,8 +385,11 @@ TEST(NetUrl_Tests, TheSketchsExample) {
     EXPECT_EQ(u->host(), "xn--bcher-kva.de");
     EXPECT_EQ(u->path(), "/szukaj");
     EXPECT_EQ(u->query_params().get("q"), "kot");
-    auto next = u->with_query(u->query_params().set("page", "3"));
-    EXPECT_EQ(next.to_string(), "https://xn--bcher-kva.de/szukaj?q=kot&page=3#wyniki");
+    auto params = u->query_params();
+    ASSERT_TRUE(params.set("page", "3"));
+    auto next = u->with_query(params);
+    ASSERT_TRUE(next);
+    EXPECT_EQ(next->to_string(), "https://xn--bcher-kva.de/szukaj?q=kot&page=3#wyniki");
     auto logo = u->resolve("/img/logo.png");
     ASSERT_TRUE(logo);
     EXPECT_EQ(logo->to_string(), "https://xn--bcher-kva.de/img/logo.png");
@@ -459,17 +471,20 @@ TEST(NetUrl_Tests, TheSettersRefuse) {
     EXPECT_FALSE(mail.with_path("y"));
     EXPECT_FALSE(mail.with_port(25));
 
-    // the query and the fragment always apply
-    EXPECT_EQ(u.with_query("?a=1 2").to_string(), "http://example.com/a?a=1%202");
-    EXPECT_EQ(u.with_query("a").with_query("").to_string(), "http://example.com/a");
-    EXPECT_EQ(u.with_fragment("#top").to_string(), "http://example.com/a#top");
-    EXPECT_EQ(u.with_fragment("top").without_fragment().to_string(), "http://example.com/a");
-    EXPECT_EQ(u.with_query(net::query_params()).to_string(), "http://example.com/a");
-    EXPECT_EQ(u.with_query(net::query_params().add("a b", "c&d")).to_string(), "http://example.com/a?a+b=c%26d");
+    // the query and the fragment take what they are given (and refuse
+    // only past the limit: TextPastTheLimitIsRefused)
+    EXPECT_EQ(u.with_query("?a=1 2")->to_string(), "http://example.com/a?a=1%202");
+    EXPECT_EQ(u.with_query("a")->with_query("")->to_string(), "http://example.com/a");
+    EXPECT_EQ(u.with_fragment("#top")->to_string(), "http://example.com/a#top");
+    EXPECT_EQ(u.with_fragment("top")->without_fragment().to_string(), "http://example.com/a");
+    EXPECT_EQ(u.with_query(net::query_params())->to_string(), "http://example.com/a");
+    net::query_params pairs;
+    ASSERT_TRUE(pairs.add("a b", "c&d"));
+    EXPECT_EQ(u.with_query(pairs)->to_string(), "http://example.com/a?a+b=c%26d");
 }
 
 TEST(NetUrl_Tests, QueryParams) {
-    auto q = net::query_params::parse("?a=1&b=x+y&a=2&c&=e&%zz=%41");
+    auto q = *net::query_params::parse("?a=1&b=x+y&a=2&c&=e&%zz=%41");
     EXPECT_EQ(q.size(), 6u);
     EXPECT_EQ(q.get("a"), "1");
     EXPECT_EQ(q.get("b"), "x y");
@@ -483,23 +498,66 @@ TEST(NetUrl_Tests, QueryParams) {
     EXPECT_EQ(all[0], "1");
     EXPECT_EQ(all[1], "2");
 
-    q.set("a", "3");
+    ASSERT_TRUE(q.set("a", "3"));
     EXPECT_EQ(q.to_string(), "a=3&b=x+y&c=&=e&%25zz=A");
-    q.erase("b").add("\xC3\xA9", "~*");
+    ASSERT_TRUE(q.erase("b").add("\xC3\xA9", "~*"));
     EXPECT_EQ(q.to_string(), "a=3&c=&=e&%25zz=A&%C3%A9=%7E*");
-    q.set("new", "1");
+    ASSERT_TRUE(q.set("new", "1"));
     EXPECT_EQ(q.get("new"), "1");
     EXPECT_EQ(net::query_params().to_string(), "");
 
     // bytes that are not UTF-8 after the unescaping become U+FFFD, one
     // for each longest broken start (the Encoding Standard)
-    EXPECT_EQ(net::query_params::parse("x=%FE%FF").get("x"), "\xEF\xBF\xBD\xEF\xBF\xBD");
-    EXPECT_EQ(net::query_params::parse("x=%F0%9F%98").get("x"), "\xEF\xBF\xBD");
-    EXPECT_EQ(net::query_params::parse("x=%C2x").get("x"), "\xEF\xBF\xBD" "x");
-    EXPECT_EQ(net::query_params::parse("x=%F0%9F%98%80").get("x"), "\xF0\x9F\x98\x80");
+    EXPECT_EQ(net::query_params::parse("x=%FE%FF")->get("x"), "\xEF\xBF\xBD\xEF\xBF\xBD");
+    EXPECT_EQ(net::query_params::parse("x=%F0%9F%98")->get("x"), "\xEF\xBF\xBD");
+    EXPECT_EQ(net::query_params::parse("x=%C2x")->get("x"), "\xEF\xBF\xBD" "x");
+    EXPECT_EQ(net::query_params::parse("x=%F0%9F%98%80")->get("x"), "\xF0\x9F\x98\x80");
     // and round the other way
     auto back = net::query_params::parse(q.to_string());
-    EXPECT_EQ(back, q);
+    ASSERT_TRUE(back);
+    EXPECT_EQ(*back, q);
+}
+
+// The length query_params tracks, which add and set hold to the limit and
+// to_string writes into, is the length of to_string after every change:
+// parse, add, set (of a name there once, many times, not at all), erase
+// (of some pairs, of all of them), an empty name and value, a space, bytes
+// kept, escaped and not UTF-8
+TEST(NetUrl_Tests, QueryParamsTrackTheirWrittenLength) {
+    auto tracked = [](const net::query_params& q) {
+        EXPECT_EQ(net::detail::UrlAccess::written_size(q), q.to_string().size()) << text(q.to_string());
+    };
+    net::query_params q;
+    tracked(q);
+    ASSERT_TRUE(q.add("a", "1"));
+    tracked(q);
+    ASSERT_TRUE(q.add("", ""));
+    tracked(q);
+    ASSERT_TRUE(q.add("a b", "~/\xC3\xA9\xFF"));
+    tracked(q);
+    ASSERT_TRUE(q.add("a", "2"));
+    tracked(q);
+    ASSERT_TRUE(q.set("a", "x y z"));   // two of the name, one left
+    tracked(q);
+    ASSERT_TRUE(q.set("new", "*-._"));  // none of the name
+    tracked(q);
+    ASSERT_TRUE(q.set("", "e"));        // the empty name
+    tracked(q);
+    q.erase("a b");
+    tracked(q);
+    q.erase("none");
+    tracked(q);
+    q.erase("a").erase("").erase("new");
+    tracked(q);
+    EXPECT_TRUE(q.empty());
+    ASSERT_TRUE(q.set("only", "1"));
+    tracked(q);
+    for (auto t : {"", "?", "a", "&&a&=&b=", "?a=1&b=x+y&a=2&c&=e&%zz=%41", "x=%FE%FF&%C3%A9=%7E*", "a+b=c%26d&+=+"}) {
+        auto p = net::query_params::parse(t);
+        ASSERT_TRUE(p) << t;
+        tracked(*p);
+        tracked(net::url("http://x/?" + string(t)).query_params());
+    }
 }
 
 TEST(NetUrl_Tests, TextThatIsNotUtf8) {
@@ -523,18 +581,148 @@ TEST(NetUrl_Tests, ValueSemantics) {
     EXPECT_EQ(copy.to_string(), "http://example.com/a");
 }
 
+namespace {
+    // head, then fill up to n bytes, then tail: written straight into one
+    // string (a forward range is counted first), nothing beside it
+    sgcl::string filled(std::string_view head, char fill, size_t n, std::string_view tail) {
+        auto bytes = std::views::iota(size_t(0), n) | std::views::transform([=](size_t i) {
+            return i < head.size() ? head[i] : i + tail.size() < n ? fill : tail[i + tail.size() - n];
+        });
+        return sgcl::string(bytes.begin(), bytes.end());
+    }
+
+    template<class T>
+    void refused(const expected<T, io::error>& u) {
+        ASSERT_FALSE(u);
+        EXPECT_EQ(u.error().code(), net::errc::invalid_url);
+    }
+
+    // add and set refused leave the pairs as they were
+    void refused_pair(net::query_params q, const string& name, const string& value) {
+        const auto was = q;
+        refused(q.add(name, value));
+        EXPECT_EQ(q, was);
+        EXPECT_EQ(net::detail::UrlAccess::written_size(q), was.to_string().size());
+        refused(q.set(name, value));
+        EXPECT_EQ(q, was);
+        EXPECT_EQ(net::detail::UrlAccess::written_size(q), was.to_string().size());
+    }
+}
+
+// URL text past 512 MiB, and a URL that would grow past it by its
+// escapes, is invalid_url: the parse, a reference against a base and every
+// setter, never length_error; and so are a query text past it and pairs
+// that would be written past it. The one test that makes text of that
+// size: a third of the limit in '"', escaped to three bytes each by the
+// path, the user name, the query, the fragment and the form alike, then a
+// URL of the limit and a byte, then a query of a third of the limit in
+// '/', which a URL's query keeps and the form escapes
+TEST(NetUrl_Tests, TextPastTheLimitIsRefused) {
+    constexpr size_t Limit = size_t(512) << 20;
+    auto base = *net::url::parse("http://example.com/a?q=1#top");
+    net::query_params some("a=1&b=2");
+    {
+        auto grows = filled("http://h/", '"', 9 + Limit / 3 + 1 + 1, "x");   // "http://h/\"\"\"…x"
+        ASSERT_LE(grows.size(), Limit);
+        refused(net::url::parse(grows));
+        refused(net::url::parse(grows, base));
+        refused(base.resolve(grows));
+        refused(base.with_username(grows));
+        refused(base.with_path(grows));
+        refused(base.with_query(grows));
+        refused(base.with_fragment(grows));
+        refused(net::query_params::parse(grows));
+        refused_pair(some, "a", grows);
+        refused_pair(some, grows, "");
+    }
+    {
+        auto past = filled("http://h/", 'a', Limit + 1, "");   // "http://h/aaa…"
+        ASSERT_EQ(past.size(), Limit + 1);
+        refused(net::url::parse(past));
+        refused(net::url::parse(past, base));
+        refused(base.resolve(past));
+        refused(base.with_scheme(past));
+        refused(base.with_host(past));
+        refused(base.with_hostname(past));
+        refused(base.with_query(past));
+        refused(base.with_fragment(past));
+        refused(net::query_params::parse(past));
+        refused(net::query_params::first(past, "x"));
+        refused_pair(some, "a", past);
+    }
+    {
+        // a URL's query is taken whole, its pairs written past the limit
+        // (three times the '/'s); to_string writes them, add and set
+        // refuse to grow them, with_query refuses them
+        auto slashes = filled("a=", '/', Limit / 3 + 3, "");
+        auto u = base.with_query(slashes);
+        ASSERT_TRUE(u);
+        refused(net::query_params::parse(u->query()));
+        auto pairs = u->query_params();
+        ASSERT_EQ(pairs.size(), 1u);
+        EXPECT_EQ(pairs.to_string().size(), 2 + 3 * (Limit / 3 + 1));
+        refused_pair(pairs, "b", "");
+        refused(base.with_query(pairs));
+        EXPECT_EQ(*net::query_params::first(u->query(), "a"), slashes.view().substr(2));
+    }
+}
+
+// What the limit makes noexcept: these threw length_error alone, past the
+// 4 GiB of a string, and the limit keeps every text they make below it
+static_assert(noexcept(net::url::parse(std::declval<const string&>())));
+static_assert(noexcept(net::url::parse(std::declval<const string&>(), std::declval<const net::url&>())));
+static_assert(noexcept(std::declval<const net::url&>().resolve(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_scheme(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_username(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_password(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_host(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_hostname(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_port(optional<uint16_t>())));
+static_assert(noexcept(std::declval<const net::url&>().with_path(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_query(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_query(std::declval<const net::query_params&>())));
+static_assert(noexcept(std::declval<const net::url&>().with_fragment(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::url&>().without_fragment()));
+static_assert(noexcept(std::declval<const net::url&>().query_params()));
+static_assert(noexcept(net::query_params::parse(std::declval<const string&>())));
+static_assert(noexcept(net::query_params::first(std::declval<const string&>(), std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::query_params&>().to_string()));
+static_assert(noexcept(std::declval<net::query_params&>().add(std::declval<const string&>(), std::declval<const string&>())));
+static_assert(noexcept(std::declval<net::query_params&>().set(std::declval<const string&>(), std::declval<const string&>())));
+static_assert(noexcept(std::declval<net::query_params&>().erase(std::declval<const string&>())));
+
+// A host that goes through IDNA is at most 1 MiB after its decoding:
+// what IDNA makes of it stays far below the 4 GiB of a string
+TEST(NetUrl_Tests, HostsPastTheIdnaLimitAreRefused) {
+    constexpr size_t Idna = size_t(1) << 20;
+    std::string label;
+    for (size_t i = 0; i < Idna / 2; ++i) {
+        label += "\xC3\xA9";   // é
+    }
+    auto at = net::url::parse(string("http://" + label + "/"));
+    ASSERT_TRUE(at);
+    EXPECT_EQ(at->hostname().view().substr(0, 6), "xn--9c");
+    refused(net::url::parse(string("http://" + label + "a/")));
+    refused(net::url::parse("http://example.com/a")->with_hostname(string(label + "a")));
+}
+
 // query_params::first(text, name) finds what parse(text).get(name) gives,
 // without the pairs before it made into strings: a name as written, a name
 // that is escaped or has '+', a value decoded, a value that is not UTF-8,
-// the first of two, a name absent, and random queries of those pieces
+// the first of two, a name absent, and random queries of those pieces;
+// and what http::request::query reads in the URL in place is the same
 TEST(NetUrl_Tests, QueryFirstIsParseGet) {
     const char* texts[] = {"?a=1&b=x+y&a=2&c&=e&%zz=%41", "x=%FE%FF", "x=%F0%9F%98", "a+b=1&a%20b=2", "%61=v", "&&a&=&b=", "", "?",
                            "k=%C5%BC%C3%B3%C5%82w&k=2"};
     const char* names[] = {"a", "b", "c", "", "%zz", "x", "a b", "k", "missing"};
     for (auto t : texts) {
-        auto parsed = net::query_params::parse(t);
+        auto parsed = *net::query_params::parse(t);
         for (auto n : names) {
-            EXPECT_EQ(net::query_params::first(t, n), parsed.get(n)) << t << " / " << n;
+            EXPECT_EQ(*net::query_params::first(t, n), parsed.get(n)) << t << " / " << n;
+        }
+        auto u = net::url("http://x/?" + string(t) + "#f");
+        for (auto n : names) {
+            EXPECT_EQ(net::detail::UrlAccess::query_first(u, n), *net::query_params::first(u.query(), n)) << t << " / " << n;
         }
     }
     std::mt19937 rng(11);
@@ -545,9 +733,9 @@ TEST(NetUrl_Tests, QueryFirstIsParseGet) {
         for (int i = 0; i < k; ++i) {
             q += pieces[rng() % std::size(pieces)];
         }
-        auto parsed = net::query_params::parse(string(q));
+        auto parsed = *net::query_params::parse(string(q));
         for (auto& p : parsed) {
-            ASSERT_EQ(net::query_params::first(string(q), p.first), parsed.get(p.first)) << q;
+            ASSERT_EQ(*net::query_params::first(string(q), p.first), parsed.get(p.first)) << q;
         }
     }
 }

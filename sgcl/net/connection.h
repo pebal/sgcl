@@ -46,12 +46,12 @@
 
 namespace sgcl::net {
     // The connections of the module: a stream of bytes both ways (a TCP or
-    // unix socket, a pair of ends in memory; a TLS session in the next
-    // stage), a listener that accepts them, and a Datagram socket. Each is
-    // a handle of one word, a tracked_ptr to the object inside: a copy is
-    // the same connection (as a *net.TCPConn in Go is), and a handle
-    // passed by value into a task keeps the connection alive for as long
-    // as the task runs.
+    // unix socket, a pair of ends in memory, a TLS session over either:
+    // tls.h) and a listener that accepts them; a UDP socket, udp::socket,
+    // is socket.h's. Each is a handle of one word, a tracked_ptr to the
+    // object inside: a copy is the same connection (as a *net.TCPConn in
+    // Go is), and a handle passed by value into a task keeps the
+    // connection alive for as long as the task runs.
     //
     // Every operation that may wait comes twice, as everywhere in the
     // library: read() takes the thread until the data comes, `co_await
@@ -75,12 +75,12 @@ namespace sgcl::net {
     namespace detail {
         using sgcl::io::detail::fail;
 
-        inline io::error closed_error(const char* op, const string& what) {
+        inline io::error closed_error(const char* op, const string& what) noexcept {
             return io::error(io::errc::closed, op, what);
         }
 
         // A wait that did not end in readiness, as the operation's error
-        inline io::error wait_error(WaitResult r, const Descriptor& d, const char* op, const string& what) {
+        inline io::error wait_error(WaitResult r, const Descriptor& d, const char* op, const string& what) noexcept {
             if (r == WaitResult::closed) {
                 return closed_error(op, what);
             }
@@ -166,7 +166,7 @@ namespace sgcl::net {
                 return _op->await_suspend(h);
             }
 
-            expected<void, io::error> await_resume();   // below ConnImpl
+            expected<void, io::error> await_resume() noexcept;   // below ConnImpl
 
         private:
             Descriptor* _d = nullptr;
@@ -175,9 +175,13 @@ namespace sgcl::net {
         };
 
         // The implementation under a connection handle, for the modules
-        // built on net (http: a write begun without a frame)
+        // built on net (http: a write begun without a frame), and the
+        // handle made over one: a connection is made over a transport only
+        // here (the sockets, the pair in memory, TLS), never by a public
+        // constructor
         struct ConnectionAccess {
             static ConnImpl& impl(const connection& c) noexcept;
+            static connection make(const tracked_ptr<ConnImpl>& impl) noexcept;
         };
 
         // The raw side of a connection, under the buffer read_line puts in
@@ -189,7 +193,7 @@ namespace sgcl::net {
             }
 
             expected<size_t, io::error> read(const slice<byte>& buffer);
-            async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer);
+            async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) noexcept;
 
         private:
             tracked_ptr<ConnImpl> _c;
@@ -217,7 +221,7 @@ namespace sgcl::net {
                 return _buffered ? _buffered->read(buffer) : raw_read(buffer);
             }
 
-            async::task<expected<size_t, io::error>> async_read(slice<byte> buffer) {
+            async::task<expected<size_t, io::error>> async_read(slice<byte> buffer) noexcept {
                 if (buffer.empty()) {
                     co_return size_t(0);
                 }
@@ -233,7 +237,7 @@ namespace sgcl::net {
                 return raw_write(data);
             }
 
-            async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+            async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
                 auto guard = co_await _write_lock.scoped_lock();
                 co_return co_await awaited_raw_write(data);
             }
@@ -339,7 +343,7 @@ namespace sgcl::net {
                 return raw_send_file(fd, offset, n);
             }
 
-            async::task<expected<size_t, io::error>> async_send_file(int fd, uint64_t offset, uint64_t n) {
+            async::task<expected<size_t, io::error>> async_send_file(int fd, uint64_t offset, uint64_t n) noexcept {
                 auto guard = co_await _write_lock.scoped_lock();
                 co_return co_await awaited_raw_send_file(fd, offset, n);
             }
@@ -351,7 +355,7 @@ namespace sgcl::net {
                 return _block_read_line();
             }
 
-            async::task<expected<optional<string>, io::error>> async_read_line() {
+            async::task<expected<optional<string>, io::error>> async_read_line() noexcept {
                 return _co_read_line();
             }
 
@@ -360,7 +364,7 @@ namespace sgcl::net {
                 return _line_of(_buffer().read_line());
             }
 
-            async::task<expected<optional<string>, io::error>> _co_read_line()  {
+            async::task<expected<optional<string>, io::error>> _co_read_line() noexcept {
                 auto guard = co_await _read_lock.scoped_lock();
                 co_return _line_of(co_await _buffer().async_read_line());
             }
@@ -368,7 +372,7 @@ namespace sgcl::net {
             // The close in a task, as the handle's async_close: an io::reader
             // or io::writer made of a connection binds this object, and its
             // async_close comes here rather than to the blocking pool
-            virtual async::task<expected<void, io::error>> async_close() {
+            virtual async::task<expected<void, io::error>> async_close() noexcept {
                 co_return close();
             }
 
@@ -383,9 +387,9 @@ namespace sgcl::net {
             }
 
             virtual expected<size_t, io::error> raw_read(const slice<byte>& buffer) = 0;
-            virtual async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> buffer) = 0;
+            virtual async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> buffer) noexcept = 0;
             virtual expected<size_t, io::error> raw_write(const slice<const byte>& data) = 0;
-            virtual async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) = 0;
+            virtual async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) noexcept = 0;
 
             // What the transport has for buffer without waiting: n > 0, 0 at
             // the end of the stream, nullopt when it would wait; or its
@@ -397,7 +401,7 @@ namespace sgcl::net {
 
             // The transport's readiness to be read, as an awaitable without
             // a frame; the default cannot tell (readiness::supported false)
-            virtual readiness raw_readable() {
+            virtual readiness raw_readable() noexcept {
                 return readiness();
             }
 
@@ -431,7 +435,7 @@ namespace sgcl::net {
             // The rest of the pieces from byte `done` of them all, waiting:
             // the bytes written from there. The default writes them one
             // after another
-            virtual async::task<expected<size_t, io::error>> awaited_raw_write_parts(vector<slice<const byte>> parts, size_t done) {
+            virtual async::task<expected<size_t, io::error>> awaited_raw_write_parts(vector<slice<const byte>> parts, size_t done) noexcept {
                 size_t written = 0;
                 for (auto& p : parts) {
                     if (done >= p.size()) {
@@ -454,40 +458,43 @@ namespace sgcl::net {
                 return _send_file_blocks(fd, offset, n);
             }
 
-            virtual async::task<expected<size_t, io::error>> awaited_raw_send_file(int fd, uint64_t offset, uint64_t n) {
+            virtual async::task<expected<size_t, io::error>> awaited_raw_send_file(int fd, uint64_t offset, uint64_t n) noexcept {
                 return _co_send_file_blocks(tracked_ptr<ConnImpl>(this), fd, offset, n);
             }
 
             // Ends the connection both ways; the operations in progress end
-            // with io::errc::closed
-            virtual expected<void, io::error> close() = 0;
+            // with io::errc::closed. close and set_deadline wake the waits
+            // in progress and never wait themselves (noexcept, as the
+            // socket's descriptor is); close_write may wait (TLS writes its
+            // close_notify through the record's lock)
+            virtual expected<void, io::error> close() noexcept = 0;
             virtual bool is_closed() const noexcept = 0;
             virtual expected<void, io::error> close_write() = 0;
-            virtual void set_deadline(int dir, time_point t) = 0;
-            virtual time_point deadline(int dir) const = 0;   // time_point() for none
+            virtual void set_deadline(int dir, time_point t) noexcept = 0;
+            virtual time_point deadline(int dir) const noexcept = 0;   // time_point() for none
 
-            virtual endpoint local_endpoint() const {
+            virtual endpoint local_endpoint() const noexcept {
                 return endpoint();
             }
 
-            virtual endpoint remote_endpoint() const {
+            virtual endpoint remote_endpoint() const noexcept {
                 return endpoint();
             }
 
-            virtual string path() const {
+            virtual string path() const noexcept {
                 return string();
             }
 
-            virtual expected<void, io::error> set_no_delay(bool) {
+            virtual expected<void, io::error> set_no_delay(bool) noexcept {
                 return fail(system_error(EOPNOTSUPP, "set_no_delay", describe()));
             }
 
-            virtual expected<void, io::error> set_keep_alive(std::chrono::nanoseconds) {
+            virtual expected<void, io::error> set_keep_alive(std::chrono::nanoseconds) noexcept {
                 return fail(system_error(EOPNOTSUPP, "set_keep_alive", describe()));
             }
 
             // What an error names the connection by: "tcp 1.2.3.4:5->6.7.8.9:80"
-            virtual string describe() const = 0;
+            virtual string describe() const noexcept = 0;
 
         protected:
             // A file sent through blocks (the default of raw_send_file):
@@ -498,7 +505,7 @@ namespace sgcl::net {
             using FileBlock = io::detail::CopyBlock;
 
             // One round read into the blocks: the bytes read (0: the file's end)
-            static expected<size_t, io::error> _read_round(int fd, uint64_t at, uint64_t left, tracked_ptr<FileBlock>* blocks, vector<slice<const byte>>& parts) {
+            static expected<size_t, io::error> _read_round(int fd, uint64_t at, uint64_t left, tracked_ptr<FileBlock>* blocks, vector<slice<const byte>>& parts) noexcept {
                 parts.clear();
                 size_t round = 0;
                 for (size_t k = 0; k < FileBlocks && left > round; ++k) {
@@ -557,7 +564,7 @@ namespace sgcl::net {
                 return size_t(sent);
             }
 
-            static async::task<expected<size_t, io::error>> _co_send_file_blocks(tracked_ptr<ConnImpl> self, int fd, uint64_t offset, uint64_t n) {
+            static async::task<expected<size_t, io::error>> _co_send_file_blocks(tracked_ptr<ConnImpl> self, int fd, uint64_t offset, uint64_t n) noexcept {
                 tracked_ptr<FileBlock> blocks[FileBlocks];
                 vector<slice<const byte>> parts;
                 uint64_t sent = 0;
@@ -589,7 +596,7 @@ namespace sgcl::net {
             // `held`: the write lock taken by start_write, a parameter, so
             // that a task dropped without being awaited lets go of it with
             // its frame
-            static async::task<expected<size_t, io::error>> _write_rest(tracked_ptr<ConnImpl> self, slice<const byte> data, size_t done, optional<sgcl::async::mutex::guard> held) {
+            static async::task<expected<size_t, io::error>> _write_rest(tracked_ptr<ConnImpl> self, slice<const byte> data, size_t done, optional<sgcl::async::mutex::guard> held) noexcept {
                 if (!held) {
                     held.emplace(co_await self->_write_lock.scoped_lock());
                 }
@@ -602,7 +609,7 @@ namespace sgcl::net {
             }
 
             static async::task<expected<size_t, io::error>> _write_rest_parts(tracked_ptr<ConnImpl> self, vector<slice<const byte>> parts, size_t done, size_t total,
-                                                                             optional<sgcl::async::mutex::guard> held) {
+                                                                             optional<sgcl::async::mutex::guard> held) noexcept {
                 if (!held) {
                     held.emplace(co_await self->_write_lock.scoped_lock());
                 }
@@ -616,7 +623,7 @@ namespace sgcl::net {
             }
 
             // Under the read lock
-            io::detail::BufferedReaderState& _buffer() {
+            io::detail::BufferedReaderState& _buffer() noexcept {
                 if (!_buffered) {
                     _buffered = make_tracked<io::detail::BufferedReaderState>(io::reader(tracked_ptr<ConnRawReader>(make_tracked<ConnRawReader>(tracked_ptr<ConnImpl>(this)))), io::detail::UnmanagedBlock());
                 }
@@ -640,7 +647,7 @@ namespace sgcl::net {
             std::atomic<size_t> _max_line = {64 * 1024};  // a line from the network is bounded
         };
 
-        inline expected<void, io::error> readiness::await_resume() {
+        inline expected<void, io::error> readiness::await_resume() noexcept {
             auto r = _op->await_resume();
             if (r == WaitResult::ready) {
                 return expected<void, io::error>();
@@ -652,7 +659,7 @@ namespace sgcl::net {
             return _c->raw_read(buffer);
         }
 
-        inline async::task<expected<size_t, io::error>> ConnRawReader::async_read(const slice<byte>& buffer) {
+        inline async::task<expected<size_t, io::error>> ConnRawReader::async_read(const slice<byte>& buffer) noexcept {
             return _c->awaited_raw_read(buffer);
         }
 
@@ -692,7 +699,7 @@ namespace sgcl::net {
                 }
             }
 
-            async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> b) override {
+            async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> b) noexcept override {
                 if (b.empty()) {
                     co_return size_t(0);
                 }
@@ -717,7 +724,7 @@ namespace sgcl::net {
                 }
             }
 
-            expected<optional<size_t>, io::error> try_raw_read(const slice<byte>& b) override {
+            expected<optional<size_t>, io::error> try_raw_read(const slice<byte>& b) noexcept override {
                 if (b.empty()) {
                     return optional<size_t>(size_t(0));
                 }
@@ -728,7 +735,7 @@ namespace sgcl::net {
                 return _recv_now(b);
             }
 
-            readiness raw_readable() override {
+            readiness raw_readable() noexcept override {
                 return readiness(_d, *this);
             }
 
@@ -755,7 +762,7 @@ namespace sgcl::net {
                 }
             }
 
-            async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) override {
+            async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) noexcept override {
                 Operation op(_d);
                 if (!op) {
                     co_return fail(closed_error("write", describe()));
@@ -778,7 +785,7 @@ namespace sgcl::net {
                 }
             }
 
-            expected<size_t, io::error> try_raw_write(const slice<const byte>& data) override {
+            expected<size_t, io::error> try_raw_write(const slice<const byte>& data) noexcept override {
                 Operation op(_d);
                 if (!op) {
                     return fail(closed_error("write", describe()));
@@ -793,7 +800,7 @@ namespace sgcl::net {
 
             // The pieces in one sendmsg (up to 64 of them a call), as long
             // as the socket takes them whole
-            expected<size_t, io::error> try_raw_write_parts(const slice<const byte>* parts, size_t n) override {
+            expected<size_t, io::error> try_raw_write_parts(const slice<const byte>* parts, size_t n) noexcept override {
                 Operation op(_d);
                 if (!op) {
                     return fail(closed_error("write", describe()));
@@ -879,7 +886,7 @@ namespace sgcl::net {
                 }
             }
 
-            async::task<expected<size_t, io::error>> awaited_raw_send_file(int fd, uint64_t offset, uint64_t n) override {
+            async::task<expected<size_t, io::error>> awaited_raw_send_file(int fd, uint64_t offset, uint64_t n) noexcept override {
                 Operation op(_d);
                 if (!op) {
                     co_return fail(closed_error("write", describe()));
@@ -909,7 +916,7 @@ namespace sgcl::net {
                 }
             }
 
-            expected<void, io::error> close() override {
+            expected<void, io::error> close() noexcept override {
                 int e = _d.close();
                 if (e) {
                     return fail(system_error(e, "close", describe()));
@@ -921,7 +928,7 @@ namespace sgcl::net {
                 return _d.closing();
             }
 
-            expected<void, io::error> close_write() override {
+            expected<void, io::error> close_write() noexcept override {
                 Operation op(_d);
                 if (!op) {
                     return fail(closed_error("close_write", describe()));
@@ -932,27 +939,27 @@ namespace sgcl::net {
                 return {};
             }
 
-            void set_deadline(int dir, time_point t) override {
+            void set_deadline(int dir, time_point t) noexcept override {
                 _d.set_deadline(dir, t);
             }
 
-            time_point deadline(int dir) const override {
+            time_point deadline(int dir) const noexcept override {
                 return _d.deadline(dir);
             }
 
-            endpoint local_endpoint() const override {
+            endpoint local_endpoint() const noexcept override {
                 return _local;
             }
 
-            endpoint remote_endpoint() const override {
+            endpoint remote_endpoint() const noexcept override {
                 return _remote;
             }
 
-            string path() const override {
+            string path() const noexcept override {
                 return _path;
             }
 
-            expected<void, io::error> set_no_delay(bool on) override {
+            expected<void, io::error> set_no_delay(bool on) noexcept override {
                 if (!_tcp) {
                     return ConnImpl::set_no_delay(on);
                 }
@@ -967,7 +974,7 @@ namespace sgcl::net {
                 return {};
             }
 
-            expected<void, io::error> set_keep_alive(std::chrono::nanoseconds idle) override {
+            expected<void, io::error> set_keep_alive(std::chrono::nanoseconds idle) noexcept override {
                 if (!_tcp) {
                     return ConnImpl::set_keep_alive(idle);
                 }
@@ -981,7 +988,7 @@ namespace sgcl::net {
                 return {};
             }
 
-            string describe() const override {
+            string describe() const noexcept override {
                 if (!_tcp) {
                     return string("unix ") + _path;
                 }
@@ -1009,7 +1016,7 @@ namespace sgcl::net {
                 }
             }
 
-            async::task<int> _co_connected(async::stop_token stop)  {
+            async::task<int> _co_connected(async::stop_token stop) noexcept {
                 Operation op(_d);
                 if (!op) {
                     co_return ECANCELED;
@@ -1047,6 +1054,10 @@ namespace sgcl::net {
                 _local = e;
             }
 
+            void set_remote(endpoint e) noexcept {
+                _remote = e;
+            }
+
             // The descriptor, for the setup of a socket not yet shared
             int fd() const noexcept {
                 return _d.fd();
@@ -1058,7 +1069,7 @@ namespace sgcl::net {
             // (a close, the read deadline), then the call. The bytes (0 at
             // the end of the stream), nullopt when the socket would wait,
             // or the error
-            expected<optional<size_t>, io::error> _recv_now(const slice<byte>& b, bool deadline = true) {
+            expected<optional<size_t>, io::error> _recv_now(const slice<byte>& b, bool deadline = true) noexcept {
                 for (;;) {
                     if (auto e = _check(Descriptor::Read, "read", deadline)) {
                         return fail(*e);
@@ -1084,7 +1095,7 @@ namespace sgcl::net {
             // try): the descriptor's state looked at before every send (a
             // close, the deadline of the direction), then the send. false:
             // everything written; true: the socket would wait; or the error
-            expected<bool, io::error> _send_now(const slice<const byte>& data, size_t& written, bool deadline = true) {
+            expected<bool, io::error> _send_now(const slice<const byte>& data, size_t& written, bool deadline = true) noexcept {
                 while (written < data.size()) {
                     if (auto e = _check(Descriptor::Write, "write", deadline)) {
                         return fail(*e);
@@ -1115,7 +1126,7 @@ namespace sgcl::net {
             // unsupported (sendfile does not take this socket or file: the
             // caller goes on another way from `sent`); or the error. The
             // descriptor's state looked at before every call, as a send
-            expected<FileSend, io::error> _send_file_now(int fd, uint64_t offset, uint64_t n, uint64_t& sent, bool deadline = true) {
+            expected<FileSend, io::error> _send_file_now(int fd, uint64_t offset, uint64_t n, uint64_t& sent, bool deadline = true) noexcept {
                 while (sent < n) {
                     if (auto e = _check(Descriptor::Write, "write", deadline)) {
                         return fail(*e);
@@ -1206,7 +1217,7 @@ namespace sgcl::net {
             // Before a system call: closing, or the deadline passed (the
             // clock read unless `deadline` is false: the wait just before
             // looked at it)
-            optional<io::error> _check(int dir, const char* op, bool deadline = true) const {
+            optional<io::error> _check(int dir, const char* op, bool deadline = true) const noexcept {
                 if (_d.closing()) {
                     return closed_error(op, describe());
                 }
@@ -1237,7 +1248,7 @@ namespace sgcl::net {
 
         class MemoryConn final : public ConnImpl {
         public:
-            MemoryConn(tracked_ptr<MemoryPipe> in, tracked_ptr<MemoryPipe> out)
+            MemoryConn(tracked_ptr<MemoryPipe> in, tracked_ptr<MemoryPipe> out) noexcept
             : _in(std::move(in))
             , _out(std::move(out))
             , _rearm(make_tracked<async::detail::ChannelState<void>>()) {
@@ -1280,7 +1291,7 @@ namespace sgcl::net {
                 }
             }
 
-            async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> b) override {
+            async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> b) noexcept override {
                 if (b.empty()) {
                     co_return size_t(0);
                 }
@@ -1347,7 +1358,7 @@ namespace sgcl::net {
                 return written;
             }
 
-            async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) override {
+            async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) noexcept override {
                 size_t written = 0;
                 while (written < data.size()) {
                     auto [deadline, rearm] = _wait_state(Descriptor::Write);
@@ -1379,7 +1390,7 @@ namespace sgcl::net {
 
             // Both directions ended: the peer reads the end, and a peer's
             // write fails; a wait of this end in progress ends
-            expected<void, io::error> close() override {
+            expected<void, io::error> close() noexcept override {
                 if (_closed.exchange(true, std::memory_order_acq_rel)) {
                     return {};
                 }
@@ -1401,7 +1412,7 @@ namespace sgcl::net {
                 return {};
             }
 
-            void set_deadline(int dir, time_point t) override {
+            void set_deadline(int dir, time_point t) noexcept override {
                 {
                     std::lock_guard lock(_m);
                     _deadline[dir] = t;
@@ -1409,12 +1420,12 @@ namespace sgcl::net {
                 _wake();
             }
 
-            time_point deadline(int dir) const override {
+            time_point deadline(int dir) const noexcept override {
                 std::lock_guard lock(_m);
                 return _deadline[dir];
             }
 
-            string describe() const override {
+            string describe() const noexcept override {
                 return string("pipe");
             }
 
@@ -1432,7 +1443,7 @@ namespace sgcl::net {
                 tracked_ptr<async::detail::ChannelState<void>> rearm;
             };
 
-            WaitState _wait_state(int dir) {
+            WaitState _wait_state(int dir) noexcept {
                 std::lock_guard lock(_m);
                 return WaitState{_deadline[dir], _rearm};
             }
@@ -1449,7 +1460,7 @@ namespace sgcl::net {
                 old->close();
             }
 
-            optional<io::error> _check(int, time_point deadline, const char* op) const {
+            optional<io::error> _check(int, time_point deadline, const char* op) const noexcept {
                 if (is_closed()) {
                     return closed_error(op, describe());
                 }
@@ -1459,7 +1470,7 @@ namespace sgcl::net {
                 return nullopt;
             }
 
-            optional<io::error> _check_write(time_point deadline) const {
+            optional<io::error> _check_write(time_point deadline) const noexcept {
                 if (auto e = _check(Descriptor::Write, deadline, "write")) {
                     return e;
                 }
@@ -1490,7 +1501,7 @@ namespace sgcl::net {
         // a connection's read_from and a response's write(file) send);
         // nullopt for any other file (a pipe, a device) or a position that
         // cannot be told
-        inline optional<pair<uint64_t, uint64_t>> file_rest(const io::file& f) {
+        inline optional<pair<uint64_t, uint64_t>> file_rest(const io::file& f) noexcept {
             const int fd = f.fd();
             struct stat st;
             if (fd < 0 || ::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
@@ -1512,12 +1523,6 @@ namespace sgcl::net {
     public:
         connection() noexcept = default;   // no connection; an operation on it is a contract violation
 
-        // A connection over the transport given: for the module's own
-        // (the sockets, the pair in memory; TLS in the next stage)
-        explicit connection(const tracked_ptr<detail::ConnImpl>& impl) noexcept
-        : _impl(impl) {
-        }
-
         // At most buffer.size() bytes, as many as have come (at least one);
         // 0 at the end of the stream
         // `read(...)` on this thread, `co_await async_read(...)` in a task
@@ -1525,18 +1530,18 @@ namespace sgcl::net {
             return _block_read(buffer);
         }
 
-        async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const {
+        async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const noexcept {
             return _co_read(buffer);
         }
 
-        // The whole buffer, or io::errc::unexpected_eof when the stream
-        // ends inside it (0 when it ended before the first byte)
+        // The whole buffer; 0 when the stream ends before its first byte,
+        // io::errc::unexpected_eof when it ends part way
         // `read_full(...)` on this thread, `co_await async_read_full(...)` in a task
         expected<size_t, io::error> read_full(const slice<byte>& buffer) const {
             return _get().read_full(buffer);
         }
 
-        async::task<expected<size_t, io::error>> async_read_full(const slice<byte>& buffer) const {
+        async::task<expected<size_t, io::error>> async_read_full(const slice<byte>& buffer) const noexcept {
             return _get().async_read_full(buffer);
         }
 
@@ -1546,7 +1551,7 @@ namespace sgcl::net {
             return _get().read_all();
         }
 
-        async::task<expected<vector<byte>, io::error>> async_read_all() const {
+        async::task<expected<vector<byte>, io::error>> async_read_all() const noexcept {
             return _get().async_read_all();
         }
 
@@ -1555,7 +1560,7 @@ namespace sgcl::net {
             return _get().read_all_text();
         }
 
-        async::task<expected<string, io::error>> async_read_all_text() const {
+        async::task<expected<string, io::error>> async_read_all_text() const noexcept {
             return _get().async_read_all_text();
         }
 
@@ -1569,7 +1574,7 @@ namespace sgcl::net {
             return _block_read_line();
         }
 
-        async::task<expected<optional<string>, io::error>> async_read_line() const {
+        async::task<expected<optional<string>, io::error>> async_read_line() const noexcept {
             return _co_read_line();
         }
 
@@ -1587,7 +1592,7 @@ namespace sgcl::net {
             return _block_write(data);
         }
 
-        async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const {
+        async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const noexcept {
             return _co_write(data);
         }
 
@@ -1597,7 +1602,7 @@ namespace sgcl::net {
             return _block_write(text);
         }
 
-        async::task<expected<size_t, io::error>> async_write(const string& text) const {
+        async::task<expected<size_t, io::error>> async_write(const string& text) const noexcept {
             return _co_write(text);
         }
 
@@ -1610,7 +1615,7 @@ namespace sgcl::net {
         }
 
         template<sgcl::detail::TextArgument T>
-        async::task<expected<size_t, io::error>> async_write(const T& text) const {
+        async::task<expected<size_t, io::error>> async_write(const T& text) const noexcept {
             return _co_write(string(slice<const byte>(text)));
         }
 
@@ -1634,7 +1639,7 @@ namespace sgcl::net {
             return r;
         }
 
-        async::task<expected<size_t, io::error>> async_read_from(io::file f) const {
+        async::task<expected<size_t, io::error>> async_read_from(io::file f) const noexcept {
             return _co_read_from(*this, std::move(f));
         }
 
@@ -1645,7 +1650,7 @@ namespace sgcl::net {
             return _get().copy_to(other._get());
         }
 
-        async::task<expected<size_t, io::error>> async_copy_to(const connection& other) const {
+        async::task<expected<size_t, io::error>> async_copy_to(const connection& other) const noexcept {
             return _get().async_copy_to(other._get());
         }
 
@@ -1656,11 +1661,11 @@ namespace sgcl::net {
         // `close()` on this thread, `co_await async_close()` in a task (a
         // socket's close never waits; a transport over one, TLS, sends its
         // closing record first)
-        expected<void, io::error> close() const {
+        expected<void, io::error> close() const noexcept {
             return _get().close();
         }
 
-        async::task<expected<void, io::error>> async_close() const {
+        async::task<expected<void, io::error>> async_close() const noexcept {
             return _close(_impl);
         }
 
@@ -1676,16 +1681,16 @@ namespace sgcl::net {
 
         // The addresses of the two ends; empty for a unix socket and for
         // the pair in memory
-        endpoint local_endpoint() const {
+        endpoint local_endpoint() const noexcept {
             return _get().local_endpoint();
         }
 
-        endpoint remote_endpoint() const {
+        endpoint remote_endpoint() const noexcept {
             return _get().remote_endpoint();
         }
 
         // The path of a unix socket, empty for anything else
-        string path() const {
+        string path() const noexcept {
             return _get().path();
         }
 
@@ -1696,36 +1701,36 @@ namespace sgcl::net {
         // operation is wanted, it is c.set_read_deadline(clock::now() + d)
         // before each; a timeout() around a read is not the same (the
         // read goes on after the race is lost, and takes the data).
-        void set_deadline(time_point t) const {
+        void set_deadline(time_point t) const noexcept {
             _get().set_deadline(detail::Descriptor::Read, t);
             _get().set_deadline(detail::Descriptor::Write, t);
         }
 
-        void set_read_deadline(time_point t) const {
+        void set_read_deadline(time_point t) const noexcept {
             _get().set_deadline(detail::Descriptor::Read, t);
         }
 
-        void set_write_deadline(time_point t) const {
+        void set_write_deadline(time_point t) const noexcept {
             _get().set_deadline(detail::Descriptor::Write, t);
         }
 
         // The deadline of a direction, time_point() when there is none
-        time_point read_deadline() const {
+        time_point read_deadline() const noexcept {
             return _get().deadline(detail::Descriptor::Read);
         }
 
-        time_point write_deadline() const {
+        time_point write_deadline() const noexcept {
             return _get().deadline(detail::Descriptor::Write);
         }
 
         // TCP only (EOPNOTSUPP for anything else): Nagle's algorithm off
         // (the default, as in Go) or on; keep-alive probes after `idle`
         // of silence (15 s by default, as in Go), zero turns them off
-        expected<void, io::error> set_no_delay(bool on) const {
+        expected<void, io::error> set_no_delay(bool on) const noexcept {
             return _get().set_no_delay(on);
         }
 
-        expected<void, io::error> set_keep_alive(duration idle) const {
+        expected<void, io::error> set_keep_alive(duration idle) const noexcept {
             return _get().set_keep_alive(std::chrono::nanoseconds(idle));
         }
 
@@ -1733,7 +1738,7 @@ namespace sgcl::net {
         // other reads, a write waiting for the reads that take it, nothing
         // buffered; deadlines, close and close_write as on a socket. For
         // tests without sockets.
-        static pair<connection, connection> in_memory() {
+        static pair<connection, connection> in_memory() noexcept {
             tracked_ptr<detail::MemoryPipe> a = make_tracked<detail::MemoryPipe>();
             tracked_ptr<detail::MemoryPipe> b = make_tracked<detail::MemoryPipe>();
             return pair<connection, connection>(connection(tracked_ptr<detail::ConnImpl>(make_tracked<detail::MemoryConn>(a, b))),
@@ -1754,13 +1759,19 @@ namespace sgcl::net {
         friend struct detail::ConnectionAccess;
         friend struct io::detail::HandleAccess;
 
+        // A connection over the transport given: the module's own (the
+        // sockets, the pair in memory, TLS), through ConnectionAccess
+        explicit connection(const tracked_ptr<detail::ConnImpl>& impl) noexcept
+        : _impl(impl) {
+        }
+
         // What an io::reader or io::writer made of the handle binds: the
         // connection itself, not the handle, which may go first
         const tracked_ptr<detail::ConnImpl>& _stream_state() const noexcept {
             return _impl;
         }
 
-        static async::task<expected<void, io::error>> _close(tracked_ptr<detail::ConnImpl> c) {
+        static async::task<expected<void, io::error>> _close(tracked_ptr<detail::ConnImpl> c) noexcept {
             co_return co_await c->async_close();
         }
 
@@ -1791,7 +1802,7 @@ namespace sgcl::net {
             return _get().read(buffer);
         }
 
-        async::task<expected<size_t, io::error>> _co_read(const slice<byte>& buffer) const {
+        async::task<expected<size_t, io::error>> _co_read(const slice<byte>& buffer) const noexcept {
             return _get().async_read(buffer);
         }
 
@@ -1799,7 +1810,7 @@ namespace sgcl::net {
             return _get()._block_read_line();
         }
 
-        async::task<expected<optional<string>, io::error>> _co_read_line() const {
+        async::task<expected<optional<string>, io::error>> _co_read_line() const noexcept {
             return _get()._co_read_line();
         }
 
@@ -1807,7 +1818,7 @@ namespace sgcl::net {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, io::error>> _co_write(const slice<const byte>& data) const {
+        async::task<expected<size_t, io::error>> _co_write(const slice<const byte>& data) const noexcept {
             return _get().async_write(data);
         }
 
@@ -1815,11 +1826,11 @@ namespace sgcl::net {
             return _get().write(as_bytes(text.as_slice()));
         }
 
-        async::task<expected<size_t, io::error>> _co_write(const string& text) const {
+        async::task<expected<size_t, io::error>> _co_write(const string& text) const noexcept {
             return _get().async_write(as_bytes(text.as_slice()));
         }
 
-        static async::task<expected<size_t, io::error>> _co_read_from(connection self, io::file f) {
+        static async::task<expected<size_t, io::error>> _co_read_from(connection self, io::file f) noexcept {
             auto span = detail::file_rest(f);
             if (!span) {
                 co_return co_await io::detail::async_copy_loop<const connection, io::file>(self, f);
@@ -1835,6 +1846,10 @@ namespace sgcl::net {
     namespace detail {
         inline ConnImpl& ConnectionAccess::impl(const connection& c) noexcept {
             return c._get();
+        }
+
+        inline connection ConnectionAccess::make(const tracked_ptr<ConnImpl>& impl) noexcept {
+            return connection(impl);
         }
     }
 }
@@ -1852,7 +1867,7 @@ namespace sgcl::net {
         // A listening socket, TCP or unix
         class ListenerImpl {
         public:
-            ListenerImpl(int fd, bool tcp, endpoint local, const string& path, bool unlink_on_close)
+            ListenerImpl(int fd, bool tcp, endpoint local, const string& path, bool unlink_on_close) noexcept
             : _d(fd)
             , _local(local)
             , _path(path)
@@ -1867,7 +1882,7 @@ namespace sgcl::net {
                 return _block_accept();
             }
 
-            async::task<expected<connection, io::error>> async_accept() {
+            async::task<expected<connection, io::error>> async_accept() noexcept {
                 return _co_accept();
             }
 
@@ -1907,7 +1922,7 @@ namespace sgcl::net {
                 }
             }
 
-            virtual async::task<expected<connection, io::error>> _co_accept()  {
+            virtual async::task<expected<connection, io::error>> _co_accept() noexcept {
                 Operation op(_d);
                 if (!op) {
                     co_return fail(closed_error("accept", describe()));
@@ -1945,7 +1960,7 @@ namespace sgcl::net {
 
             // The descriptor first, then the channel of the pause: an accept
             // woken from its pause finds the closing bit set
-            virtual expected<void, io::error> close() {
+            virtual expected<void, io::error> close() noexcept {
                 int e = _d.close();
                 _closed.close();
                 if (_unlink && !_unlinked.exchange(true, std::memory_order_acq_rel)) {
@@ -1965,11 +1980,11 @@ namespace sgcl::net {
                 return _local;
             }
 
-            virtual string path() const {
+            virtual string path() const noexcept {
                 return _path;
             }
 
-            virtual string describe() const {
+            virtual string describe() const noexcept {
                 return _tcp ? string("tcp ") + _local.to_string() : string("unix ") + _path;
             }
 
@@ -1998,7 +2013,7 @@ namespace sgcl::net {
                 return std::min<std::chrono::nanoseconds>(p * 2, 1s);
             }
 
-            expected<connection, io::error> _accepted(int s, SockAddr& from) {
+            expected<connection, io::error> _accepted(int s, SockAddr& from) noexcept {
                 if (!prepare_socket(s)) {
                     int e = errno;
                     ::close(s);
@@ -2010,7 +2025,7 @@ namespace sgcl::net {
                     remote = from_sockaddr(from.get());
                     local = local_of(s);
                 }
-                return connection(tracked_ptr<ConnImpl>(make_tracked<SocketConn>(s, _tcp, local, remote, _path)));
+                return ConnectionAccess::make(tracked_ptr<ConnImpl>(make_tracked<SocketConn>(s, _tcp, local, remote, _path)));
             }
 
             Descriptor _d;
@@ -2023,15 +2038,21 @@ namespace sgcl::net {
         };
     }
 
+    class listener;
+
+    namespace detail {
+        // The module's way to make a listener over its object (a socket's,
+        // TLS's), never a public constructor
+        struct ListenerAccess {
+            static listener make(const tracked_ptr<ListenerImpl>& impl) noexcept;
+        };
+    }
+
     // A listening socket (tcp::listen, unix_domain::listen): the
     // connections it accepts
     class listener {
     public:
         listener() noexcept = default;
-
-        explicit listener(const tracked_ptr<detail::ListenerImpl>& impl) noexcept
-        : _impl(impl) {
-        }
 
         // The next connection. A connection aborted before it was taken
         // (ECONNABORTED) is skipped; when the descriptors run out (EMFILE)
@@ -2044,13 +2065,13 @@ namespace sgcl::net {
             return _block_accept();
         }
 
-        async::task<expected<connection, io::error>> async_accept() const {
+        async::task<expected<connection, io::error>> async_accept() const noexcept {
             return _co_accept();
         }
 
         // No more connections; the accepts in progress end. A unix
         // listener removes its socket's file.
-        expected<void, io::error> close() const {
+        expected<void, io::error> close() const noexcept {
             return _get().close();
         }
 
@@ -2059,12 +2080,12 @@ namespace sgcl::net {
         }
 
         // The address it listens on: ":0" given, the port the system chose
-        endpoint local_endpoint() const {
+        endpoint local_endpoint() const noexcept {
             return _get().local_endpoint();
         }
 
         // The path of a unix listener, empty for TCP
-        string path() const {
+        string path() const noexcept {
             return _get().path();
         }
 
@@ -2077,6 +2098,12 @@ namespace sgcl::net {
         }
 
     private:
+        friend struct detail::ListenerAccess;
+
+        explicit listener(const tracked_ptr<detail::ListenerImpl>& impl) noexcept
+        : _impl(impl) {
+        }
+
         detail::ListenerImpl& _get() const noexcept {
             assert(_impl && "an empty net::listener");
             return *_impl;
@@ -2104,386 +2131,14 @@ namespace sgcl::net {
             return _get()._block_accept();
         }
 
-        async::task<expected<connection, io::error>> _co_accept() const {
+        async::task<expected<connection, io::error>> _co_accept() const noexcept {
             return _get()._co_accept();
         }
     };
 
-    // A Datagram received: how many bytes the buffer got, from whom, and
-    // whether the Datagram was longer than the buffer and cut (MSG_TRUNC)
     namespace detail {
-        struct Datagram {
-            size_t size = 0;
-            endpoint from;
-            bool truncated = false;
-        };
-    }
-
-    namespace detail {
-        class UdpImpl {
-        public:
-            UdpImpl(int fd, int family, endpoint local, endpoint remote) noexcept
-            : _d(fd)
-            , _local(local)
-            , _remote(remote)
-            , _family(family) {
-            }
-
-            // One datagram: its size in the buffer and its sender
-            // `receive(...)` on this thread, `co_await async_receive(...)` in a task
-            expected<Datagram, io::error> receive(const slice<byte>& b) {
-                return _block_receive(b);
-            }
-
-            async::task<expected<Datagram, io::error>> async_receive(const slice<byte>& b) {
-                return _co_receive(b);
-            }
-
-            expected<Datagram, io::error> _block_receive(const slice<byte>& b)  {
-                Operation op(_d);
-                if (!op) {
-                    return fail(closed_error("read", describe()));
-                }
-                for (;;) {
-                    if (auto e = _check(Descriptor::Read, "read")) {
-                        return fail(*e);
-                    }
-                    Datagram d;
-                    int e = _recv(b, d);
-                    if (e == 0) {
-                        return d;
-                    }
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {
-                        return fail(system_error(e, "read", describe()));
-                    }
-                    auto r = _d.wait(Descriptor::Read);
-                    if (r != WaitResult::ready) {
-                        return fail(wait_error(r, _d, "read", describe()));
-                    }
-                }
-            }
-
-            async::task<expected<Datagram, io::error>> _co_receive(slice<byte> b)  {
-                Operation op(_d);
-                if (!op) {
-                    co_return fail(closed_error("read", describe()));
-                }
-                for (;;) {
-                    if (auto e = _check(Descriptor::Read, "read")) {
-                        co_return fail(*e);
-                    }
-                    Datagram d;
-                    int e = _recv(b, d);
-                    if (e == 0) {
-                        co_return d;
-                    }
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {
-                        co_return fail(system_error(e, "read", describe()));
-                    }
-                    auto r = co_await _d.async_wait(Descriptor::Read);
-                    if (r != WaitResult::ready) {
-                        co_return fail(wait_error(r, _d, "read", describe()));
-                    }
-                }
-            }
-
-            // One Datagram to `to`, or to the connected peer when to is empty
-            expected<size_t, io::error> send(const slice<const byte>& data, const endpoint& to) {
-                SockAddr sa;
-                if (to.is_valid() && !to_sockaddr(to, _family, sa)) {
-                    return fail(system_error(EAFNOSUPPORT, "write", to.to_string()));
-                }
-                Operation op(_d);
-                if (!op) {
-                    return fail(closed_error("write", describe()));
-                }
-                for (;;) {
-                    if (auto e = _check(Descriptor::Write, "write")) {
-                        return fail(*e);
-                    }
-                    _d.prepare(Descriptor::Write);
-                    ssize_t n = to.is_valid() ? ::sendto(_d.fd(), data.data(), data.size(), SendFlags, sa.get(), sa.size) : ::send(_d.fd(), data.data(), data.size(), SendFlags);
-                    if (n >= 0) {
-                        return size_t(n);
-                    }
-                    int e = errno;
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {   // ENOBUFS an error, as in Go: the socket has room, so a wait for writability would spin
-                        return fail(system_error(e, "write", describe()));
-                    }
-                    auto r = _d.wait(Descriptor::Write);
-                    if (r != WaitResult::ready) {
-                        return fail(wait_error(r, _d, "write", describe()));
-                    }
-                }
-            }
-
-            async::task<expected<size_t, io::error>> _co_send(slice<const byte> data, endpoint to)  {
-                SockAddr sa;
-                if (to.is_valid() && !to_sockaddr(to, _family, sa)) {
-                    co_return fail(system_error(EAFNOSUPPORT, "write", to.to_string()));
-                }
-                Operation op(_d);
-                if (!op) {
-                    co_return fail(closed_error("write", describe()));
-                }
-                for (;;) {
-                    if (auto e = _check(Descriptor::Write, "write")) {
-                        co_return fail(*e);
-                    }
-                    _d.prepare(Descriptor::Write);
-                    ssize_t n = to.is_valid() ? ::sendto(_d.fd(), data.data(), data.size(), SendFlags, sa.get(), sa.size) : ::send(_d.fd(), data.data(), data.size(), SendFlags);
-                    if (n >= 0) {
-                        co_return size_t(n);
-                    }
-                    int e = errno;
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {   // ENOBUFS an error, as in Go: the socket has room, so a wait for writability would spin
-                        co_return fail(system_error(e, "write", describe()));
-                    }
-                    auto r = co_await _d.async_wait(Descriptor::Write);
-                    if (r != WaitResult::ready) {
-                        co_return fail(wait_error(r, _d, "write", describe()));
-                    }
-                }
-            }
-
-            expected<void, io::error> close() {
-                int e = _d.close();
-                if (e) {
-                    return fail(system_error(e, "close", describe()));
-                }
-                return {};
-            }
-
-            bool is_closed() const noexcept {
-                return _d.closing();
-            }
-
-            void set_deadline(int dir, time_point t) {
-                _d.set_deadline(dir, t);
-            }
-
-            time_point deadline(int dir) const noexcept {
-                return _d.deadline(dir);
-            }
-
-            endpoint local_endpoint() const noexcept {
-                return _local;
-            }
-
-            endpoint remote_endpoint() const noexcept {
-                return _remote;
-            }
-
-            string describe() const {
-                return _remote.is_valid() ? string("udp ") + _local.to_string() + "->" + _remote.to_string() : string("udp ") + _local.to_string();
-            }
-
-        private:
-            // recvmsg, for the flag that says the Datagram was cut: 0 or
-            // errno. An empty buffer reads into a byte of its own: macOS
-            // answers an empty one with 0 and leaves the Datagram queued, a
-            // Datagram of nothing that is not there; so the Datagram is
-            // taken, its size in the buffer 0, truncated when it had bytes
-            int _recv(const slice<byte>& b, Datagram& d) {
-                SockAddr from;
-                byte spare[1];
-                iovec iov;
-                iov.iov_base = b.empty() ? spare : b.data();
-                iov.iov_len = b.empty() ? 1 : b.size();
-                msghdr m = {};
-                m.msg_name = &from.storage;
-                m.msg_namelen = sizeof(from.storage);
-                m.msg_iov = &iov;
-                m.msg_iovlen = 1;
-                _d.prepare(Descriptor::Read);
-                ssize_t n = ::recvmsg(_d.fd(), &m, 0);
-                if (n < 0) {
-                    return errno;
-                }
-                d.size = b.empty() ? 0 : size_t(n);
-                d.truncated = (m.msg_flags & MSG_TRUNC) != 0 || (b.empty() && n > 0);
-                d.from = m.msg_namelen ? from_sockaddr(from.get()) : _remote;
-                return 0;
-            }
-
-            optional<io::error> _check(int dir, const char* op) const {
-                if (_d.closing()) {
-                    return closed_error(op, describe());
-                }
-                if (_d.expired(dir)) {
-                    return system_error(ETIMEDOUT, op, describe());
-                }
-                return nullopt;
-            }
-
-            Descriptor _d;
-            endpoint _local;
-            endpoint _remote;
-            int _family;
-        };
-    }
-
-    // A UDP socket (udp::bind, udp::connect): datagrams to and from any
-    // address, or, connected, to and from one. A Datagram is sent whole or
-    // not at all; one longer than the buffer is cut, and says so.
-    namespace detail {
-        class UdpSocket {
-        public:
-            UdpSocket() noexcept = default;
-
-            explicit UdpSocket(const tracked_ptr<detail::UdpImpl>& impl) noexcept
-            : _impl(impl) {
-            }
-
-            // The next Datagram into the buffer: its size, its sender, and
-            // whether it was cut to fit
-            // `receive_from(...)` on this thread, `co_await async_receive_from(...)` in a task
-            expected<Datagram, io::error> receive_from(const slice<byte>& buffer) const {
-                return _block_receive_from(buffer);
-            }
-
-            async::task<expected<Datagram, io::error>> async_receive_from(const slice<byte>& buffer) const {
-                return _co_receive_from(buffer);
-            }
-
-            // `send_to(...)` on this thread, `co_await async_send_to(...)` in a task
-            expected<size_t, io::error> send_to(const slice<const byte>& data, const endpoint& to) const {
-                return _block_send_to(data, to);
-            }
-
-            async::task<expected<size_t, io::error>> async_send_to(const slice<const byte>& data, const endpoint& to) const {
-                return _co_send_to(data, to);
-            }
-
-            // A socket from udp::connect: to and from its one peer
-            // `receive(...)` on this thread, `co_await async_receive(...)` in a task
-            expected<size_t, io::error> receive(const slice<byte>& buffer) const {
-                return _block_receive(buffer);
-            }
-
-            async::task<expected<size_t, io::error>> async_receive(const slice<byte>& buffer) const {
-                return _co_receive(buffer);
-            }
-
-            // `send(...)` on this thread, `co_await async_send(...)` in a task
-            expected<size_t, io::error> send(const slice<const byte>& data) const {
-                return _block_send(data);
-            }
-
-            async::task<expected<size_t, io::error>> async_send(const slice<const byte>& data) const {
-                return _co_send(data);
-            }
-
-            expected<void, io::error> close() const {
-                return _get().close();
-            }
-
-            bool is_closed() const noexcept {
-                return _get().is_closed();
-            }
-
-            endpoint local_endpoint() const {
-                return _get().local_endpoint();
-            }
-
-            // The peer of a connected socket, empty otherwise
-            endpoint remote_endpoint() const {
-                return _get().remote_endpoint();
-            }
-
-            void set_deadline(time_point t) const {
-                _get().set_deadline(detail::Descriptor::Read, t);
-                _get().set_deadline(detail::Descriptor::Write, t);
-            }
-
-            void set_read_deadline(time_point t) const {
-                _get().set_deadline(detail::Descriptor::Read, t);
-            }
-
-            void set_write_deadline(time_point t) const {
-                _get().set_deadline(detail::Descriptor::Write, t);
-            }
-
-            time_point read_deadline() const noexcept {
-                return _get().deadline(detail::Descriptor::Read);
-            }
-
-            time_point write_deadline() const noexcept {
-                return _get().deadline(detail::Descriptor::Write);
-            }
-
-            explicit operator bool() const noexcept {
-                return (bool)_impl;
-            }
-
-            friend bool operator==(const UdpSocket& a, const UdpSocket& b) noexcept {
-                return a._impl == b._impl;
-            }
-
-        private:
-            detail::UdpImpl& _get() const noexcept {
-                assert(_impl && "an empty net::udp::socket");
-                return *_impl;
-            }
-
-            static async::task<expected<size_t, io::error>> _receive_size(tracked_ptr<detail::UdpImpl> impl, slice<byte> buffer) {
-                auto d = co_await impl->async_receive(buffer);
-                if (!d) {
-                    co_return detail::fail(d);
-                }
-                co_return d->size;
-            }
-
-            tracked_ptr<detail::UdpImpl> _impl;
-
-            // the two halves of the operations above: a thread's and a task's
-            expected<Datagram, io::error> _block_receive_from(const slice<byte>& buffer) const {
-                return _get()._block_receive(buffer);
-            }
-
-            async::task<expected<Datagram, io::error>> _co_receive_from(const slice<byte>& buffer) const {
-                return _get()._co_receive(buffer);
-            }
-
-            expected<size_t, io::error> _block_send_to(const slice<const byte>& data, const endpoint& to) const {
-                return _get().send(data, to);
-            }
-
-            async::task<expected<size_t, io::error>> _co_send_to(const slice<const byte>& data, const endpoint& to) const {
-                return _get()._co_send(data, to);
-            }
-
-            expected<size_t, io::error> _block_receive(const slice<byte>& buffer) const {
-                auto d = _get()._block_receive(buffer);
-                if (!d) {
-                    return detail::fail(d);
-                }
-                return d->size;
-            }
-
-            async::task<expected<size_t, io::error>> _co_receive(const slice<byte>& buffer) const {
-                return _receive_size(_impl, buffer);
-            }
-
-            expected<size_t, io::error> _block_send(const slice<const byte>& data) const {
-                return _get().send(data, endpoint());
-            }
-
-            async::task<expected<size_t, io::error>> _co_send(const slice<const byte>& data) const {
-                return _get()._co_send(data, endpoint());
-            }
-        };
+        inline listener ListenerAccess::make(const tracked_ptr<ListenerImpl>& impl) noexcept {
+            return listener(impl);
+        }
     }
 }

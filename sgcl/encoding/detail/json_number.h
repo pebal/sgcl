@@ -469,6 +469,21 @@ namespace sgcl::encoding::detail {
         return nullopt;
     }
 
+    // A finite float as the double its shortest digits read as: 0.1f as
+    // 0.1, not the 0.100000001490116... it widens to, so a json of a float
+    // is written as stringify writes a float field, with the float's
+    // digits, which a float field reads back as the float (as<float>()).
+    // The double itself, cast to a float, is the float but for two of
+    // them: the digits of ±0x15ae43fd, 7.038531e-26, round to the midpoint
+    // after it, which a cast takes to the even neighbour.
+    inline double float_as_written(float f) noexcept {
+        char buf[32];
+        // scientific: the plain form writes an integer's every digit
+        // (-466428832, where the shortest are -4.6642883e+08)
+        auto r = std::to_chars(buf, buf + sizeof buf, f, std::chars_format::scientific);
+        return floating_of<double>(std::string_view(buf, size_t(r.ptr - buf))).value_or(double(f));
+    }
+
     // The most characters number_text writes: a sign, 17 digits, a point,
     // "e-324", and room for the zeros of the fixed forms (up to 21 + 6)
     inline constexpr size_t NumberTextSize = 40;

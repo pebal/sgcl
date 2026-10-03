@@ -32,11 +32,14 @@ namespace sgcl::codec {
     // unpremultiplied, which loses what premultiplying lost. orientation()
     // is ImageIO's reading of the file's rotation and mirror; exif() is
     // empty (ImageIO gives the tags, not the block). A stream is read to
-    // its end before ImageIO sees it.
+    // its end before ImageIO sees it. A file with an HEVC slice whose entry
+    // points lie past its data, on which VideoToolbox waits for ever, is
+    // errc::corrupt before ImageIO sees it.
     //
     // Encoding: HEIC at a quality of 1 to 100 (85 by default), the image's
     // ICC profile and orientation with it; 16-bit images as the system's
-    // encoder writes them (10 bits); CMYK through RGB. errc::unsupported
+    // encoder writes them (10 bits); CMYK through RGB, 16-bit gray with
+    // alpha through RGBA (the system writes neither). errc::unsupported
     // when the system has no HEVC encoder (some virtual machines).
     class heif {
     public:
@@ -47,7 +50,7 @@ namespace sgcl::codec {
         };
 
         // The image, the file in memory read in place
-        static expected<image, error> decode(const slice<const byte>& data) {
+        static expected<image, error> decode(const slice<const byte>& data) noexcept {
             return detail::heif_decode_bytes(data, decode_options());
         }
 
@@ -60,11 +63,11 @@ namespace sgcl::codec {
         // The file as bytes. (The overloads without options stand for a
         // default argument, which a nested struct with member initializers
         // cannot be inside its class.)
-        static expected<vector<byte>, error> encode(const image& im) {
+        static expected<vector<byte>, error> encode(const image& im) noexcept {
             return encode(im, options{});
         }
 
-        static expected<vector<byte>, error> encode(const image& im, const options& o) {
+        static expected<vector<byte>, error> encode(const image& im, const options& o) noexcept {
 #if defined(__APPLE__)
             return detail::heif_encode(im, o.quality);
 #else

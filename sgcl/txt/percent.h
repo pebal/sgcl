@@ -184,7 +184,7 @@ namespace sgcl::txt {
         // knows they are UTF-8 has them; one that percent-decodes the
         // bytes of some other encoding has those, and turns them into
         // text with txt::decode.
-        inline optional<string> decode(const string& text) {
+        inline optional<string> decode(const string& text) noexcept {
             auto v = text.view();
             auto nibble = [](char c) {
                 if (c >= '0' && c <= '9') {

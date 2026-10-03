@@ -48,20 +48,20 @@ namespace sgcl::concurrent {
         // The value T(): value-initialized, zero for a number (make_tracked
         // without arguments default-initializes, and the slot would give a
         // trivial T the bytes of its last user)
-        copy_on_write()
+        copy_on_write() noexcept(std::is_nothrow_default_constructible_v<T> && std::is_nothrow_move_constructible_v<T>)
         : _value(make_tracked<T>(T())) {
         }
 
-        explicit copy_on_write(const T& value)
+        explicit copy_on_write(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
         : _value(make_tracked<T>(value)) {
         }
 
-        explicit copy_on_write(T&& value)
+        explicit copy_on_write(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
         : _value(make_tracked<T>(std::move(value))) {
         }
 
         template<class... A>
-        explicit copy_on_write(std::in_place_t, A&&... a)
+        explicit copy_on_write(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
         : _value(make_tracked<T>(std::forward<A>(a)...)) {
         }
 
@@ -78,20 +78,20 @@ namespace sgcl::concurrent {
         }
 
         // Replaces the value, whole: a store of a new managed object
-        void store(const T& value) {
+        void store(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             _value.store(make_tracked<T>(value), std::memory_order_release);
         }
 
-        void store(T&& value) {
+        void store(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             _value.store(make_tracked<T>(std::move(value)), std::memory_order_release);
         }
 
-        copy_on_write& operator=(const T& value) {
+        copy_on_write& operator=(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             store(value);
             return *this;
         }
 
-        copy_on_write& operator=(T&& value) {
+        copy_on_write& operator=(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             store(std::move(value));
             return *this;
         }
@@ -116,16 +116,16 @@ namespace sgcl::concurrent {
 
         // Replaces the value if it is still the one `expected` is a
         // snapshot of; otherwise `expected` becomes the current snapshot
-        bool compare_exchange(snapshot& expected, const T& desired) {
+        bool compare_exchange(snapshot& expected, const T& desired) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return _compare_exchange(expected, make_tracked<T>(desired));
         }
 
-        bool compare_exchange(snapshot& expected, T&& desired) {
+        bool compare_exchange(snapshot& expected, T&& desired) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return _compare_exchange(expected, make_tracked<T>(std::move(desired)));
         }
 
     private:
-        bool _compare_exchange(snapshot& expected, tracked_ptr<T> next) {
+        bool _compare_exchange(snapshot& expected, tracked_ptr<T> next) noexcept {
             tracked_ptr<T> e = const_pointer_cast<T>(tracked_ptr<const T>(expected));
             if (_value.compare_exchange_strong(e, next, std::memory_order_acq_rel, std::memory_order_acquire)) {
                 return true;

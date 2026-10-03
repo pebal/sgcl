@@ -54,23 +54,23 @@ namespace sgcl {
 
         template<class T, class VT = std::decay_t<T>>
         requires (!std::is_same_v<VT, any> && !IsInPlace<VT>::value && std::is_copy_constructible_v<VT>)
-        any(T&& value) {
+        any(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>) {
             this->template _emplace<VT, true, nullptr>(std::forward<T>(value));
         }
 
         template<class T, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
-        explicit any(std::in_place_type_t<T>, A&&... a) {
+        explicit any(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>) {
             this->template _emplace<VT, true, nullptr>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, std::initializer_list<U>&, A...> && std::is_copy_constructible_v<VT>
-        explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) {
+        explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>) {
             this->template _emplace<VT, true, nullptr>(il, std::forward<A>(a)...);
         }
 
-        ~any() = default;
+        ~any() noexcept = default;
 
         any& operator=(const any& o) {
             any(o).swap(*this);
@@ -84,21 +84,21 @@ namespace sgcl {
 
         template<class T, class VT = std::decay_t<T>>
         requires (!std::is_same_v<VT, any> && std::is_copy_constructible_v<VT>)
-        any& operator=(T&& value) {
+        any& operator=(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>) {
             any(std::forward<T>(value)).swap(*this);
             return *this;
         }
 
         template<class T, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
-        VT& emplace(A&&... a) {
+        VT& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>) {
             reset();
             return this->template _emplace<VT, true, nullptr>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, std::initializer_list<U>&, A...> && std::is_copy_constructible_v<VT>
-        VT& emplace(std::initializer_list<U> il, A&&... a) {
+        VT& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>) {
             reset();
             return this->template _emplace<VT, true, nullptr>(il, std::forward<A>(a)...);
         }
@@ -132,12 +132,12 @@ namespace sgcl {
     }
 
     template<class T, class... A>
-    any make_any(A&&... a) {
+    any make_any(A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, A...>) {
         return any(std::in_place_type<T>, std::forward<A>(a)...);
     }
 
     template<class T, class U, class... A>
-    any make_any(std::initializer_list<U> il, A&&... a) {
+    any make_any(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, std::initializer_list<U>&, A...>) {
         return any(std::in_place_type<T>, il, std::forward<A>(a)...);
     }
 

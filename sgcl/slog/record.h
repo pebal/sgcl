@@ -25,6 +25,7 @@
 
 namespace sgcl::slog {
     class attr;
+    class attrs;
     class record;
 
     // The message of a record and where in the code it was written: a
@@ -97,8 +98,6 @@ namespace sgcl::slog {
             Arena arena;
             RecordData data;
         };
-
-        struct AttrRange;
     }
 
     // A value of an attribute, as a handler reads it (slog.Value): a
@@ -189,7 +188,7 @@ namespace sgcl::slog {
         }
 
         // The attributes of a group, in order
-        detail::AttrRange as_group() const;
+        slog::attrs as_group() const;
 
         // The value as the text handler writes it, not quoted: 5, 1.5s,
         // [a b]; a group [k=v k2=v2]
@@ -200,7 +199,7 @@ namespace sgcl::slog {
 
     private:
         friend class attr;
-        friend struct detail::AttrRange;
+        friend class attrs;
         friend struct detail::Access;
 
         value(const detail::Value* v, const detail::Tail& t, const tracked_ptr<const void>& owner) noexcept
@@ -232,7 +231,7 @@ namespace sgcl::slog {
         }
 
     private:
-        friend struct detail::AttrRange;
+        friend class attrs;
         friend struct detail::Access;
 
         attr(const detail::Attr* a, const detail::Tail& t, const tracked_ptr<const void>& owner) noexcept
@@ -244,94 +243,120 @@ namespace sgcl::slog {
         tracked_ptr<const void> _owner;
     };
 
-    namespace detail {
-        // The attributes of a list, the call's in place of its Splice
-        struct AttrRange {
-            class iterator {
-            public:
-                using value_type = attr;
-                using difference_type = std::ptrdiff_t;
-                using iterator_category = std::input_iterator_tag;
+    // The attributes of a group or of a record, in order (the []Attr of
+    // slog's Value.Group): a range of attr, the call's attributes in
+    // place of the Splice that stands for them in the logger's list. A
+    // view of the record's, valid while the record is; the attributes of
+    // a type described by its fields are a copy of their own, which the
+    // range keeps.
+    class attrs {
+    public:
+        // An input iterator whose * is an attr, by value
+        class iterator {
+        public:
+            using value_type = attr;
+            using difference_type = std::ptrdiff_t;
+            using iterator_category = std::input_iterator_tag;
 
-                iterator() noexcept = default;
+            iterator() noexcept = default;
 
-                attr operator*() const noexcept {
-                    return attr(_at, _tail, _owner);
-                }
-
-                iterator& operator++() noexcept {
-                    ++_at;
-                    _settle();
-                    return *this;
-                }
-
-                iterator operator++(int) noexcept {
-                    iterator i = *this;
-                    ++*this;
-                    return i;
-                }
-
-                friend bool operator==(const iterator& a, const iterator& b) noexcept {
-                    return a._at == b._at;
-                }
-
-            private:
-                friend struct AttrRange;
-
-                iterator(const Attr* at, const Attr* end, const Tail& tail, bool in_tail, const tracked_ptr<const void>& owner) noexcept
-                : _at(at), _end(end), _tail(tail), _in_tail(in_tail), _owner(owner) {
-                    _settle();
-                }
-
-                // Past a Splice into the call's attributes, and at their
-                // end, to the one end all iterators compare with
-                void _settle() noexcept {
-                    if (!_in_tail && _at != _end && _at->value.kind == Kind::Splice) {
-                        _in_tail = true;
-                        _at = _tail.a;
-                        _end = _tail.a + _tail.n;
-                    }
-                    if (_at == _end) {
-                        _at = nullptr;
-                    }
-                }
-
-                const Attr* _at = nullptr;
-                const Attr* _end = nullptr;
-                Tail _tail;
-                bool _in_tail = false;
-                tracked_ptr<const void> _owner;   // what keeps a copy's attributes
-            };
-
-            iterator begin() const noexcept {
-                return iterator(a, a + n, tail, false, owner);
+            attr operator*() const noexcept {
+                return attr(_at, _tail, _owner);
             }
 
-            iterator end() const noexcept {
-                return iterator();
+            iterator& operator++() noexcept {
+                ++_at;
+                _settle();
+                return *this;
             }
 
-            size_t size() const noexcept {
-                size_t k = 0;
-                for (auto i = begin(); i != end(); ++i) {
-                    ++k;
+            iterator operator++(int) noexcept {
+                iterator i = *this;
+                ++*this;
+                return i;
+            }
+
+            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+                return a._at == b._at;
+            }
+
+        private:
+            friend class attrs;
+
+            iterator(const detail::Attr* at, const detail::Attr* end, const detail::Tail& tail, bool in_tail,
+                     const tracked_ptr<const void>& owner) noexcept
+            : _at(at), _end(end), _tail(tail), _in_tail(in_tail), _owner(owner) {
+                _settle();
+            }
+
+            // Past a Splice into the call's attributes, and at their
+            // end, to the one end all iterators compare with
+            void _settle() noexcept {
+                if (!_in_tail && _at != _end && _at->value.kind == detail::Kind::Splice) {
+                    _in_tail = true;
+                    _at = _tail.a;
+                    _end = _tail.a + _tail.n;
                 }
-                return k;
+                if (_at == _end) {
+                    _at = nullptr;
+                }
             }
 
-            bool empty() const noexcept {
-                return begin() == end();
-            }
-
-            const Attr* a = nullptr;
-            size_t n = 0;
-            Tail tail;
-            tracked_ptr<const void> owner;
+            const detail::Attr* _at = nullptr;
+            const detail::Attr* _end = nullptr;
+            detail::Tail _tail;
+            bool _in_tail = false;
+            tracked_ptr<const void> _owner;   // what keeps a copy's attributes
         };
 
+        // No attributes
+        attrs() noexcept = default;
+
+        iterator begin() const noexcept {
+            return iterator(_a, _a + _n, _tail, false, _owner);
+        }
+
+        iterator end() const noexcept {
+            return iterator();
+        }
+
+        // Walked and counted: the call's attributes stand in the list
+        // in place of one entry
+        size_t size() const noexcept {
+            size_t k = 0;
+            for (auto i = begin(); i != end(); ++i) {
+                ++k;
+            }
+            return k;
+        }
+
+        bool empty() const noexcept {
+            return begin() == end();
+        }
+
+    private:
+        friend class value;
+        friend class record;
+
+        attrs(const detail::Attr* a, size_t n, const detail::Tail& tail,
+              const tracked_ptr<const void>& owner) noexcept
+        : _a(a), _n(n), _tail(tail), _owner(owner) {
+        }
+
+        // A group's attributes, a described type's made into a copy of
+        // their own first, which the range keeps
+        static attrs _group(const detail::Value& v, const detail::Tail& t, const tracked_ptr<const void>& owner);
+
+        const detail::Attr* _a = nullptr;
+        size_t _n = 0;
+        detail::Tail _tail;
+        tracked_ptr<const void> _owner;
+    };
+
+    namespace detail {
         struct Access {
             static const RecordData& data(const record& r) noexcept;
-            static record make(const RecordData& d);
+            static record make(const RecordData& d) noexcept;
 
             static const tracked_ptr<LevelVarState>& state(const level_var& v) noexcept {
                 return v._s;
@@ -350,31 +375,25 @@ namespace sgcl::slog {
             }
         };
 
-        // A group's attributes, a described type's made into a copy of
-        // their own first, which the range keeps
-        inline AttrRange group_range(const Value& v, const Tail& t, const tracked_ptr<const void>& owner) {
-            AttrRange r;
-            if (v.kind == Kind::Group) {
-                r.a = v.g;
-                r.n = v.count;
-                r.tail = t;
-                r.owner = owner;
-            } else if (v.kind == Kind::Record) {
-                tracked_ptr<RecordCopy> copy = make_tracked<RecordCopy>();
-                Lines w;
-                Value g;
-                copy_children(copy->arena, w, v, g, t, 0);
-                r.a = g.g;
-                r.n = g.count;
-                r.owner = tracked_ptr<const void>(copy);
-            }
-            return r;
-        }
     }
 
-    inline detail::AttrRange value::as_group() const {
+    inline attrs attrs::_group(const detail::Value& v, const detail::Tail& t, const tracked_ptr<const void>& owner) {
+        if (v.kind == detail::Kind::Group) {
+            return attrs(v.g, v.count, t, owner);
+        }
+        if (v.kind == detail::Kind::Record) {
+            tracked_ptr<detail::RecordCopy> copy = make_tracked<detail::RecordCopy>();
+            detail::Lines w;
+            detail::Value g;
+            detail::copy_children(copy->arena, w, v, g, t, 0);
+            return attrs(g.g, g.count, detail::Tail{}, tracked_ptr<const void>(copy));
+        }
+        return attrs();
+    }
+
+    inline attrs value::as_group() const {
         _want(kind::group, "as_group");
-        return detail::group_range(*_v, _tail, _owner);
+        return attrs::_group(*_v, _tail, _owner);
     }
 
     inline string value::text() const {
@@ -425,7 +444,7 @@ namespace sgcl::slog {
             b.put('{');
             bool first = true;
             detail::for_each_child(*_v, _tail, [&](const detail::Attr& c) {
-                detail::json_attr(w, c, first, _tail, 1);
+                detail::json_attr(w, c, first, _tail, detail::child_depth(*_v, 0));
             });
             b.put('}');
         } else {
@@ -440,13 +459,13 @@ namespace sgcl::slog {
     // call's, as a tree in which a logger's group() is an attribute of
     // kind group that holds what came after it. A view of the stack of
     // the call, valid for the call to handle(); clone() is a copy that
-    // owns all it holds, to keep (log::memory keeps those).
+    // owns all it holds, to keep (slog::memory keeps those).
     class record {
     public:
         record() noexcept = default;
 
         // The time, in the logger's zone (local, or UTC with options::utc)
-        time::datetime time() const {
+        time::datetime time() const noexcept {
             return _d.utc ? time::datetime::from_unix_nano(_d.ns, time::zone::utc()) : time::datetime::from_unix_nano(_d.ns);
         }
 
@@ -468,12 +487,12 @@ namespace sgcl::slog {
             return _d.has_source;
         }
 
-        detail::AttrRange::iterator begin() const noexcept {
+        attrs::iterator begin() const noexcept {
             return _range().begin();
         }
 
-        detail::AttrRange::iterator end() const noexcept {
-            return detail::AttrRange::iterator();
+        attrs::iterator end() const noexcept {
+            return attrs::iterator();
         }
 
         // The attributes at the top of the tree
@@ -515,13 +534,8 @@ namespace sgcl::slog {
     private:
         friend struct detail::Access;
 
-        detail::AttrRange _range() const noexcept {
-            detail::AttrRange r;
-            r.a = _d.attrs;
-            r.n = _d.n;
-            r.tail = _d.tail;
-            r.owner = _owner;
-            return r;
+        attrs _range() const noexcept {
+            return attrs(_d.attrs, _d.n, _d.tail, _owner);
         }
 
         detail::RecordData _d;
@@ -533,7 +547,7 @@ namespace sgcl::slog {
             return r._d;
         }
 
-        inline record Access::make(const RecordData& d) {
+        inline record Access::make(const RecordData& d) noexcept {
             record r;
             r._d = d;
             return r;

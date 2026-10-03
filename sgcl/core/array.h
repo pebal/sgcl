@@ -32,10 +32,14 @@ namespace sgcl {
     // braces' own syntax in place of them: `array<int, 3> a = {1, 2, 3}`
     // as before, each element constructed in place from its argument, a
     // fourth an error at compile time, an element that only moves moved
-    // in. The elements and that constructor are a base,
-    // detail::ArrayElements: up to 64 elements it takes N parameters of
-    // type T, one per element, from an index sequence in the base's type,
-    // so that the braces are exactly an aggregate's (`array<P, 2> p =
+    // in; fewer arguments than elements, as an aggregate takes them
+    // (`array<char, 7> css = {'#'}`), value-initialize the rest, the
+    // arguments then converted as by the template past 64 below (a brace
+    // without a type, no narrowing check). The elements and that
+    // constructor are a base, detail::ArrayElements: up to 64 elements it
+    // takes N parameters of type T, one per element, from an index
+    // sequence in the base's type, so that the full braces are exactly an
+    // aggregate's (`array<P, 2> p =
     // {{1, 2}, {3, 4}}` with one level of braces, a parameter of type P
     // taking its brace; `array<double, 2> d = {1, 2}`, constants that
     // fit, as `array<uint8_t, 2> b = {1, 0xff}`, a narrowing one refused);
@@ -69,8 +73,16 @@ namespace sgcl {
         public:
             constexpr ArrayElements() = default;
 
-            constexpr ArrayElements(Same<T, I>... init)
+            constexpr ArrayElements(Same<T, I>... init) noexcept(std::is_nothrow_move_constructible_v<T>)
             : elems{std::move(init)...} {
+            }
+
+            // Fewer: the first elements from the arguments, the rest
+            // value-initialized, as an aggregate's
+            template<class... U>
+            requires (sizeof...(U) >= 1 && sizeof...(U) < N && (std::convertible_to<U, T> && ...))
+            constexpr ArrayElements(U&&... init) noexcept((std::is_nothrow_constructible_v<T, U&&> && ...) && std::is_nothrow_default_constructible_v<T>)
+            : elems{T(std::forward<U>(init))...} {
             }
 
         protected:
@@ -86,8 +98,8 @@ namespace sgcl {
             constexpr ArrayElements() = default;
 
             template<class... U>
-            requires (sizeof...(U) == N && (std::convertible_to<U, T> && ...))
-            constexpr ArrayElements(U&&... init)
+            requires (sizeof...(U) >= 1 && sizeof...(U) <= N && (std::convertible_to<U, T> && ...))
+            constexpr ArrayElements(U&&... init) noexcept((std::is_nothrow_constructible_v<T, U&&> && ...) && (sizeof...(U) == N || std::is_nothrow_default_constructible_v<T>))
             : elems{T(std::forward<U>(init))...} {
             }
 
@@ -189,10 +201,16 @@ namespace sgcl {
         }
 
         slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
+            if (pos > size()) {
+                throw out_of_range("sgcl::array::as_slice");
+            }
             return as_slice().subslice(pos, n);
         }
 
         slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
+            if (pos > size()) {
+                throw out_of_range("sgcl::array::as_slice");
+            }
             return as_slice().subslice(pos, n);
         }
 
@@ -264,7 +282,7 @@ namespace sgcl {
             return N;
         }
 
-        constexpr void fill(const T& value) {
+        constexpr void fill(const T& value) noexcept(std::is_nothrow_copy_assignable_v<T>) {
             std::fill_n(elems, N, value);
         }
 
@@ -338,10 +356,16 @@ namespace sgcl {
         }
 
         slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
+            if (pos > size()) {
+                throw out_of_range("sgcl::array::as_slice");
+            }
             return as_slice().subslice(pos, n);
         }
 
         slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
+            if (pos > size()) {
+                throw out_of_range("sgcl::array::as_slice");
+            }
             return as_slice().subslice(pos, n);
         }
 
@@ -393,6 +417,14 @@ namespace sgcl {
             return const_reverse_iterator(begin());
         }
 
+        constexpr const_reverse_iterator crbegin() const noexcept {
+            return rbegin();
+        }
+
+        constexpr const_reverse_iterator crend() const noexcept {
+            return rend();
+        }
+
         [[nodiscard]] constexpr bool empty() const noexcept {
             return true;
         }
@@ -409,6 +441,9 @@ namespace sgcl {
         }
 
         constexpr void swap(array&) noexcept {
+        }
+
+        friend constexpr void swap(array&, array&) noexcept {
         }
     };
 
@@ -434,14 +469,14 @@ namespace sgcl {
     }
 
     template<class T, size_t N>
-    constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) {
+    constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) noexcept(std::is_nothrow_constructible_v<std::remove_cv_t<T>, T&> && std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>) {
         return [&]<size_t... I>(std::index_sequence<I...>) {
             return array<std::remove_cv_t<T>, N>{a[I]...};
         }(std::make_index_sequence<N>());
     }
 
     template<class T, size_t N>
-    constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]) {
+    constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]) noexcept(std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>) {
         return [&]<size_t... I>(std::index_sequence<I...>) {
             return array<std::remove_cv_t<T>, N>{std::move(a[I])...};
         }(std::make_index_sequence<N>());

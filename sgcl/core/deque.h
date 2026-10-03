@@ -19,6 +19,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <new>
 #include <stdexcept>
 #include <type_traits>
@@ -284,7 +285,7 @@ namespace sgcl {
         using reverse_iterator = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-        deque()
+        deque() noexcept
         : _map_size(0)
         , _start(0)
         , _size(0) {
@@ -390,6 +391,7 @@ namespace sgcl {
         }
 
         void assign(size_type count, const T& value) {
+            _check_size(count);
             size_type i = 0;
             for (; i < count && i < _size; ++i) {
                 _elem(i) = value;
@@ -422,39 +424,39 @@ namespace sgcl {
 
         reference at(size_type pos) {
             if (pos >= _size) {
-                throw out_of_range("sgcl::deque");
+                throw out_of_range("sgcl::deque::at");
             }
             return _value(pos);
         }
 
         const_reference at(size_type pos) const {
             if (pos >= _size) {
-                throw out_of_range("sgcl::deque");
+                throw out_of_range("sgcl::deque::at");
             }
             return _value(pos);
         }
 
-        reference operator[](size_type pos) {
+        reference operator[](size_type pos) noexcept {
             return _value(pos);
         }
 
-        const_reference operator[](size_type pos) const {
+        const_reference operator[](size_type pos) const noexcept {
             return _value(pos);
         }
 
-        reference front() {
+        reference front() noexcept {
             return _value(0);
         }
 
-        const_reference front() const {
+        const_reference front() const noexcept {
             return _value(0);
         }
 
-        reference back() {
+        reference back() noexcept {
             return _value(_size - 1);
         }
 
-        const_reference back() const {
+        const_reference back() const noexcept {
             return _value(_size - 1);
         }
 
@@ -524,7 +526,7 @@ namespace sgcl {
 
         // Replaces the map by one holding exactly the blocks in use: the
         // spare blocks go.
-        void shrink_to_fit() {
+        void shrink_to_fit() noexcept {
             if (!_size) {
                 clear();
                 return;
@@ -545,11 +547,11 @@ namespace sgcl {
             _size = 0;
         }
 
-        iterator insert(const_iterator pos, const T& value) {
+        iterator insert(const_iterator pos, const T& value) noexcept(_nothrow_insert<const T&>()) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, T&& value) {
+        iterator insert(const_iterator pos, T&& value) noexcept(_nothrow_insert<T&&>()) {
             return emplace(pos, std::move(value));
         }
 
@@ -558,6 +560,7 @@ namespace sgcl {
             if (!count) {
                 return begin() + index;
             }
+            _check_size(count, _size);
             if (_inside(&value)) {   // an element of this deque: copied before anything moves
                 T copy(value);
                 return insert(pos, count, copy);
@@ -587,13 +590,24 @@ namespace sgcl {
                 if (first == last) {
                     return begin() + index;
                 }
-                size_type count = std::distance(first, last);
-                return _insert(index, count, std::bidirectional_iterator<InputIt>,
+                size_type count = size_type(std::distance(first, last));
+                _check_size(count, _size);
+                // At the front, a range walked backwards is pushed in its
+                // order; a forward-only one is pushed as it comes and the
+                // pushed elements reversed among themselves: either way the
+                // elements already there keep their places, and references
+                // to them stay valid
+                return _insert(index, count, true,
                     [&] {
                         if constexpr (std::bidirectional_iterator<InputIt>) {
                             for (auto i = last; i != first;) {
                                 emplace_front(*--i);
                             }
+                        } else {
+                            for (auto i = first; i != last; ++i) {
+                                emplace_front(*i);
+                            }
+                            std::reverse(begin(), begin() + count);
                         }
                     },
                     [&] {
@@ -609,7 +623,7 @@ namespace sgcl {
         }
 
         template<class... A>
-        iterator emplace(const_iterator pos, A&&... a) {
+        iterator emplace(const_iterator pos, A&&... a) noexcept(_nothrow_insert<A&&...>()) {
             size_type index = pos._index - _start;
             if (index == 0) {
                 emplace_front(std::forward<A>(a)...);
@@ -637,11 +651,11 @@ namespace sgcl {
         // erase(end()) is a no-op that forms no iterator past the end: with
         // one element per block that would read the map entry past the
         // null one
-        iterator erase(const_iterator pos) {
+        iterator erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>) {
             return pos == cend() ? end() : erase(pos, pos + 1);
         }
 
-        iterator erase(const_iterator first, const_iterator last) {
+        iterator erase(const_iterator first, const_iterator last) noexcept(std::is_nothrow_move_assignable_v<T>) {
             size_type index = first._index - _start;
             size_type count = last._index - first._index;
             if (index >= _size || !count) {
@@ -661,20 +675,21 @@ namespace sgcl {
             return begin() + index;
         }
 
-        void push_back(const T& value) {
+        void push_back(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_back(value);
         }
 
-        void push_back(T&& value) {
+        void push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_back(std::move(value));
         }
 
         // The common case, a block at the end (the last one in use, or the
         // spare one): a load of the map, a load of the block, the
         // construction, the block's range, the size. The map at its end or
-        // the block missing goes the slow way.
+        // the block missing goes the slow way. The elements never move: only
+        // the new one's construction may throw.
         template<class... A>
-        reference emplace_back(A&&... a) {
+        reference emplace_back(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A&&...>) {
             auto index = _start + _size;
             if (index < _map_size * BlockSize) {
                 auto block = _map.get()[index / BlockSize].get();
@@ -694,7 +709,7 @@ namespace sgcl {
         // spare of its end (the older spare goes) while the deque holds
         // elements, and every block goes when it holds none. A dropped
         // block is not touched again.
-        void pop_back() {
+        void pop_back() noexcept {
             auto index = _start + _size - 1;
             auto offset = index % BlockSize;
             auto block = _map.get_plain()[index / BlockSize].get_plain();
@@ -709,16 +724,16 @@ namespace sgcl {
             }
         }
 
-        void push_front(const T& value) {
+        void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_front(value);
         }
 
-        void push_front(T&& value) {
+        void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_front(std::move(value));
         }
 
         template<class... A>
-        reference emplace_front(A&&... a) {
+        reference emplace_front(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A&&...>) {
             if (_start) {
                 auto index = _start - 1;
                 auto block = _map.get_plain()[index / BlockSize].get_plain();
@@ -735,7 +750,7 @@ namespace sgcl {
             return _emplace_front_slow(std::forward<A>(a)...);
         }
 
-        void pop_front() {
+        void pop_front() noexcept {
             auto index = _start;
             auto offset = index % BlockSize;
             auto block = _map.get_plain()[index / BlockSize].get_plain();
@@ -751,21 +766,35 @@ namespace sgcl {
             }
         }
 
+        // A growth that throws pops what it pushed: the deque is left as it
+        // was, as std's
         void resize(size_type count) requires std::default_initializable<T> {
+            _check_size(count);
             while (_size > count) {
                 pop_back();
             }
-            while (_size < count) {
-                emplace_back();
+            if (_size < count) {
+                auto push_all = [&] {
+                    while (_size < count) {
+                        emplace_back();
+                    }
+                };
+                _guarded_back(push_all, _size);
             }
         }
 
         void resize(size_type count, const value_type& value) {
+            _check_size(count);
             while (_size > count) {
                 pop_back();
             }
-            while (_size < count) {
-                push_back(value);
+            if (_size < count) {
+                auto push_all = [&] {
+                    while (_size < count) {
+                        push_back(value);
+                    }
+                };
+                _guarded_back(push_all, _size);
             }
         }
 
@@ -788,6 +817,9 @@ namespace sgcl {
             auto index = _start + i;
             return _map.get_plain()[index / BlockSize].get_plain()->elems[index % BlockSize];
         }
+
+        template<class D, class V>
+        friend typename deque<D>::size_type erase(deque<D>& c, const V& value);
 
         // Whether p is one of the elements: a load of the map per block in
         // use, as the elements of a block are its first bytes
@@ -855,7 +887,7 @@ namespace sgcl {
         // The map is at its end or the block is missing: the map grows if
         // it must, a block is found.
         template<class... A>
-        SGCL_NOINLINE reference _emplace_back_slow(A&&... a) {
+        SGCL_NOINLINE reference _emplace_back_slow(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A&&...>) {
             if (_start + _size == _map_size * BlockSize) {
                 _grow_back();
             }
@@ -867,7 +899,7 @@ namespace sgcl {
         // The slow paths of the pushes, out of line: a block to make or the
         // map to grow at that end
         template<class... A>
-        SGCL_NOINLINE reference _emplace_front_slow(A&&... a) {
+        SGCL_NOINLINE reference _emplace_front_slow(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A&&...>) {
             if (!_start) {
                 _grow_front();
             }
@@ -883,7 +915,7 @@ namespace sgcl {
         // the block's range becomes that one slot. The block is dropped
         // again when the constructor throws.
         template<class... A>
-        reference _construct_in_new_block(size_t index, size_t spare, A&&... a) {
+        reference _construct_in_new_block(size_t index, size_t spare, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A&&...>) {
             auto map = _map.get_plain();
             auto& entry = map[index / BlockSize];
             assert(!entry);
@@ -905,6 +937,14 @@ namespace sgcl {
                 entry = nullptr;
                 throw;
             }
+        }
+
+        // An element inserted inside: constructed as a temporary, an end
+        // element moved out by construction, the others shifted by
+        // assignment
+        template<class... A>
+        static constexpr bool _nothrow_insert() noexcept {
+            return std::is_nothrow_constructible_v<T, A...> && std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>;
         }
 
         // Block by block, the map and the block loaded once per block; the
@@ -935,7 +975,7 @@ namespace sgcl {
         // A fresh map of `count` entries, plus the null one past them, with
         // the blocks in use at [first, first + used); the spare blocks
         // travel with them when the new map has room for them.
-        void _reallocate_map(size_t count, size_t first) {
+        void _reallocate_map(size_t count, size_t first) noexcept {
             auto used = _used_blocks();
             auto block = _start / BlockSize;
             auto old = _map.get_plain();
@@ -955,17 +995,25 @@ namespace sgcl {
         // Room for one more block at the back: the blocks in use are
         // recentred in the map when it is at most half full, else in a map
         // twice as large.
-        void _grow_back() {
+        void _grow_back() noexcept {
             auto used = _used_blocks();
             auto count = _map_size >= 2 * (used + 1) ? _map_size : std::max(2 * _map_size, used + 3);
             _reallocate_map(count, (count - used) / 2);
         }
 
         // The map regrown or re-centred so that a block fits at that end
-        void _grow_front() {
+        void _grow_front() noexcept {
             auto used = _used_blocks();
             auto count = _map_size >= 2 * (used + 1) ? _map_size : std::max(2 * _map_size, used + 3);
             _reallocate_map(count, (count - used + 1) / 2);
+        }
+
+        // A count of elements more than max_size() allows, beside `held`:
+        // length_error before anything is built, as std's
+        void _check_size(size_type count, size_type held = 0) const {
+            if (count > max_size() - held) {
+                throw length_error("sgcl::deque");
+            }
         }
 
         // Inserts `count` elements before `index`: they are pushed at the
@@ -1018,6 +1066,9 @@ namespace sgcl {
 
     };
 
+    template<std::input_iterator InputIt>
+    deque(InputIt, InputIt) -> deque<std::iter_value_t<InputIt>>;
+
     template<class T>
     class deque<unique_ptr<T>>
     : public std::deque<unique_ptr<T>> {
@@ -1038,8 +1089,19 @@ namespace sgcl {
         return removed;
     }
 
+    // `value` may be an element of c (erase(d, d[0])): remove_if moves the
+    // elements over it, so that element is taken out of the comparison,
+    // erased by its address, and the others are compared with its value
+    // moved out (copied when its move may throw)
     template<class T, class U>
     inline typename deque<T>::size_type erase(deque<T>& c, const U& value) {
+        if constexpr(std::is_same_v<std::remove_cv_t<U>, T>) {
+            const T* p = std::addressof(value);
+            if (c._inside(p)) {
+                T kept(std::move_if_noexcept(const_cast<T&>(value)));
+                return erase_if(c, [&](const T& e) { return std::addressof(e) == p || e == kept; });
+            }
+        }
         return erase_if(c, [&value](const T& v) { return v == value; });
     }
 }

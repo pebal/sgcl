@@ -210,7 +210,8 @@ namespace sgcl::math {
         // and Yates from the back, as Go's Shuffle, so with Go's stream
         // the same order. Any range of random access.
         template<std::ranges::random_access_range R>
-        void shuffle(R&& range) {
+        void shuffle(R&& range) noexcept(noexcept(std::ranges::begin(range)) && noexcept(std::ranges::distance(range))
+                                         && noexcept(std::ranges::iter_swap(std::ranges::begin(range) + std::ranges::distance(range), std::ranges::begin(range)))) {
             auto first = std::ranges::begin(range);
             auto n = std::ranges::distance(range);
             for (auto i = n - 1; i > 0; --i) {

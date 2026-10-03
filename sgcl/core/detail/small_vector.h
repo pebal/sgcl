@@ -5,11 +5,11 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "bytes.h"
 #include "os.h"
 
 #include <cassert>
 #include <cstddef>
-#include <cstring>
 #include <new>
 #include <type_traits>
 
@@ -184,7 +184,7 @@ namespace sgcl::detail {
                 _reallocate(need > twice ? need : twice, _size);
             }
             if (n) {
-                std::memcpy(static_cast<void*>(data() + _size), p, n * sizeof(T));
+                detail::copy_bytes(data() + _size, p, n * sizeof(T));
             }
             _size += n;
         }
@@ -224,7 +224,7 @@ namespace sgcl::detail {
         void erase_front(size_t n) noexcept {
             assert(n <= _size);
             T* d = data();
-            std::memmove(static_cast<void*>(d), d + n, (_size - n) * sizeof(T));
+            detail::move_bytes(d, d + n, (_size - n) * sizeof(T));   // the two runs overlap when n < size() - n
             Policy::wipe(d + (_size - n), n * sizeof(T));
             _size -= n;
         }
@@ -252,7 +252,7 @@ namespace sgcl::detail {
         void _reallocate(size_t cap, size_t keep) {
             T* block = static_cast<T*>(Policy::allocate(cap * sizeof(T)));
             if (keep) {
-                std::memcpy(static_cast<void*>(block), _heap, keep * sizeof(T));
+                detail::copy_bytes(block, _heap, keep * sizeof(T));
             }
             if (_on_heap()) {
                 Policy::deallocate(_heap, _capacity * sizeof(T));
@@ -272,7 +272,7 @@ namespace sgcl::detail {
                 Policy::wipe(data() + other._size, (_size - other._size) * sizeof(T));
             }
             if (other._size) {
-                std::memcpy(static_cast<void*>(data()), other.data(), other._size * sizeof(T));
+                detail::copy_bytes(data(), other.data(), other._size * sizeof(T));
             }
             _size = other._size;
         }
@@ -287,7 +287,7 @@ namespace sgcl::detail {
                 other._capacity = N;
             } else {
                 if (other._size) {
-                    std::memcpy(static_cast<void*>(_inline), other._inline, other._size * sizeof(T));
+                    detail::copy_bytes(_inline, other._inline, other._size * sizeof(T));
                     Policy::wipe(other._inline, other._size * sizeof(T));
                 }
                 _heap = _inline;

@@ -1,81 +1,88 @@
+[sgcl](../../README.md) › [net](../README.md) › [http](README.md)
+
 # sgcl::net::http::response_writer
 
 ```cpp
-#include "sgcl/net/http/response_writer.h"   // or "sgcl/net/http/http.h"
+#include "sgcl/net/http/response_writer.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    class response_writer;   // the response a handler writes (Go's ResponseWriter); a handle of one word
+    class response_writer;
 }
 ```
 
-`write` does not wait: it adds to a buffer in memory, and the server sends the whole response when the handler returns, with an exact Content-Length. A handler that never waits is therefore a plain function. Streaming (a large body, server-sent events) is `async_flush()`: it sends the head and what is buffered, and the body goes on chunked from there (to an HTTP/1.0 client, to the end of the connection). This is simplicity bought with memory: a body built whole is held whole until it is sent.
+`net::http::response_writer` is the response a handler of a [server](server.md) writes, Go's `http.ResponseWriter`:
+the status, the fields, the body. [write](response_writer/write.md) does not wait: it adds to a buffer in memory, and
+the server sends the whole response when the handler returns, with an exact Content-Length, so that a handler that
+never waits is a plain function. Streaming (a large body, server-sent events) is
+[async_flush](response_writer/flush.md): it sends the head and what is buffered, and the body goes on chunked from
+there (to an HTTP/1.0 client, to the end of the connection). This is simplicity bought with memory: a body built
+whole is held whole until it is sent.
+
+A writer is made by the server and handed to the handler; it is a handle of one word, a `tracked_ptr` to the
+response, which a copy shares. Over HTTP/2 the same writer writes a stream: a response written whole goes as HEADERS
+and DATA with END_STREAM, a flush sends HEADERS and DATA without it ([server, HTTP/2](server.md#http2)).
 
 ## Rules
 
-- **The status** is 200 unless set, one of 200 to 999 (`invalid_argument` otherwise: an informational status is not the handler's); after the head has gone, a new one is ignored.
-- **`Date`** is the server's too: every response carries one, IMF-fixdate of `time::now()` (made once a second), unless the handler set its own.
-- **The framing is the server's.** A Transfer-Encoding of the handler's is not sent; a Content-Length is replaced by the true length of a body sent whole, and honoured for a flushed one (a body that then does not match it ends the connection after the response). `Connection: close` among the fields ends the connection after the response. No Content-Type is guessed (Go sniffs one): a handler that sends text says so.
-- **A field** is kept as given and checked when the head goes: a name that is not a token or a value with CR, LF, NUL or another control is the writer's first error — `flush` returns it (`std::errc::invalid_argument`, the field named) and every flush after it, nothing of the head is sent, and the server answers 500 in its place ([server](server.md)).
-- **`error(code)`** writes the status and its reason as `text/plain` (`Not Found\n`), with `X-Content-Type-Options: nosniff`, dropping what was buffered, as Go's `http.Error`; `error(code, message)` writes the message instead. **`redirect(location, code)`** sets a 3xx (302 by default) and `Location` as given.
-- **`hijack()`** hands the connection over (a WebSocket, a protocol of the program's): the connection, and a reader of what is left of it, whose first bytes are the ones the server had read past this request. The server then sends nothing more on it and does not close it. Only before the head has gone (`io::errc::closed` after). Over HTTP/2 a response is a stream, not a connection: `hijack()` gives `std::errc::operation_not_supported` (Go has no Hijacker there), and a flush sends HEADERS and DATA without END_STREAM ([server, HTTP/2](server.md#http2)).
-- **`write(file)`** makes the file, from its position to its end, the body's bytes, and moves the position to the end. When the file is all of the body (HTTP/1.1, nothing written before or after it, no flush), its length is the Content-Length and it goes after the head by `sendfile`: the file's pages go to the socket without a copy through the process. Over TLS it is read in blocks that are sealed where they lie. In any other case (bytes around it, a flush, HTTP/2) its bytes are taken into the body as `write(bytes)` takes them. It writes the body only: Content-Type and the other fields stay the handler's. A file served whole is one line, `w.write(io::open(path))`.
-- **`async_flush()`** in a handler, which runs on a worker; `flush()` blocks a thread and is for a response written from one of the program's threads. A flush that fails (the client went away) returns the error, and the request's `stop()` is stopped.
+- A writer holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object.
+- The status is 200 unless set, one of 200 to 999; after the head has gone, a new one is ignored, and so are the
+  fields.
+- `Date` is the server's: every response carries one, IMF-fixdate of `time::now()` (made once a second), unless the
+  handler set its own.
+- The framing is the server's. A Transfer-Encoding of the handler's is not sent; a Content-Length is replaced by the
+  true length of a body sent whole, and honoured for a flushed one when set before the first flush (a body that then
+  does not match it ends the connection after the response). `Connection: close` among the fields ends the
+  connection after the response. No Content-Type is guessed (Go sniffs one): a handler that sends text says so.
+- A field is kept as given and checked when the head goes: a name that is not a token or a value with CR, LF, NUL or
+  another control is the writer's first error — [flush](response_writer/flush.md) returns it
+  (`std::errc::invalid_argument`, the field named) and every flush after it, nothing of the head is sent, and the
+  server answers 500 in its place ([server](server.md#rules)).
+- A writer a task keeps past its handler writes nowhere once the server has sent the response: a write or an
+  [error](response_writer/error.md) is dropped and a [flush](response_writer/flush.md) returns `io::errc::closed`;
+  the connection, gone on to the next request, never sees its bytes.
+- A handler runs on a worker, so it flushes with `co_await w.async_flush()`; `flush()` blocks a thread and is for a
+  response written from one of the program's threads. A flush that fails (the client went away) returns the error,
+  and the request's [stop](request/stop.md) is stopped.
 
-## Members
+## Member functions
 
-### The head
+#### The head
 
-```cpp
-response_writer& set_status(int code);
-int status() const noexcept;
-response_writer& set_header(const string& name, const string& value);
-response_writer& add_header(const string& name, const string& value);
-response_writer& add_cookie(const cookie& c);            // a Set-Cookie field added: one per cookie
-http::headers& headers() const noexcept;
-bool header_sent() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [set_status](response_writer/set_status.md) | sets the status |
+| [status](response_writer/status.md) | the status set |
+| [set_header](response_writer/set_header.md) | sets a field, replacing the fields of its name |
+| [add_header](response_writer/add_header.md) | adds a field |
+| [add_cookie](response_writer/add_cookie.md) | adds a Set-Cookie field |
+| [headers](response_writer/headers.md) | the fields of the response |
+| [header_sent](response_writer/header_sent.md) | checks whether the head has gone |
 
-The status (200 unless set) and the fields of the response, kept until the head goes; `header_sent()` tells whether it has, after which neither changes anything.
+#### The body
 
-### The body
+| Function | Description |
+|---|---|
+| [write](response_writer/write.md) | adds bytes, a text or a file to the body |
+| [flush, async_flush](response_writer/flush.md) | sends the head and what is buffered |
 
-```cpp
-response_writer& write(const string& text);
-response_writer& write(const slice<const byte>& data);
-response_writer& write(const io::file& f);                // the file from its position to its end; alone, sent by sendfile after the head
-expected<void, io::error> flush() const;
-async::task<expected<void, io::error>> async_flush() const;
-```
+#### Whole answers
 
-`write` adds to the buffered body and never waits. A flush sends the head and what is buffered, and the body goes on chunked; `async_flush` is a handler's, `flush` a thread's.
-
-### Whole answers
-
-```cpp
-void error(int code);
-void error(int code, const string& message);
-void redirect(const string& location, int code = status::found);
-```
-
-An error as `text/plain`, its reason or the message given, in place of what was buffered; a redirect with `Location`, 302 unless told.
-
-### hijack
-
-```cpp
-expected<pair<net::connection, io::reader>, io::error> hijack();
-```
-
-The connection handed over to the program, with a reader of what the server had read past this request; before the head has gone, and not over HTTP/2.
+| Function | Description |
+|---|---|
+| [error](response_writer/error.md) | an error as `text/plain`, in place of what was buffered |
+| [redirect](response_writer/redirect.md) | a 3xx with `Location` |
+| [hijack](response_writer/hijack.md) | hands the connection over to the program |
 
 ## Example
 
-Three handlers: a response with its status, fields and a cookie, sent whole; an error; and a stream, whose first part goes out at the flush. The client prints what came.
+Three handlers: a response with its status, fields and a cookie, sent whole; an error; and a stream, whose first part
+goes out at the flush. The client prints what came.
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-#include "sgcl/net/net.h"
+#include "sgcl/async.h"
+#include "sgcl/io.h"
+#include "sgcl/net/http.h"
+#include "sgcl/net.h"
 
 using namespace sgcl;
 
@@ -137,4 +144,6 @@ part 2, the head already sent
 
 ## See also
 
-- [server](server.md): where a handler runs; [cookie](cookie.md): what `add_cookie` sends
+- [server](server.md): where a handler runs
+- [request](request.md): the other argument of a handler
+- [cookie](cookie.md): what `add_cookie` sends

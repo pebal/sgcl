@@ -14,6 +14,11 @@
 #include <type_traits>
 
 namespace sgcl {
+    namespace mixin {
+        template<class Derived, class CharT, class Traits>
+        class text;
+    }
+
     // utf8: the encoding of Unicode in bytes, as the functions of Go's
     // unicode/utf8: a code point decoded at a position, encoded into up to
     // four bytes, counted and validated over a string. The text of the
@@ -65,32 +70,56 @@ namespace sgcl {
             return (static_cast<unsigned char>(b) & 0xC0) != 0x80;
         }
 
-        // The code point at s[i] and the bytes it takes; {replacement, 1}
-        // for a byte that is not the start of a valid sequence
-        static constexpr pair<char32_t, size_t> decode(std::string_view s, size_t i = 0) noexcept {
+    private:
+        // The body of decode, defined before it so that a constant
+        // expression finds it. With MarkIllFormed an ill-formed byte
+        // decodes not as U+FFFD but as a value past every code point, one
+        // for each byte, so that it maps to nothing and equals only the
+        // same byte, while U+FFFD written out stays itself (equal_fold of
+        // a text, a friend for this alone). The width is 1 either way.
+        template<bool MarkIllFormed>
+        static constexpr pair<char32_t, size_t> _decode(std::string_view s, size_t i) noexcept {
             if (i >= s.size()) {
                 return {replacement, 0};
             }
             unsigned char c = static_cast<unsigned char>(s[i]);
-            if (c < 0x80) {
+            if constexpr (MarkIllFormed) {
+                // equal_fold decodes where its ASCII loop stopped, at a
+                // byte past ASCII on one side at least: the hint keeps the
+                // ASCII return off the straight path, as it is unmarked
+                if (c < 0x80) [[unlikely]] {
+                    return {c, 1};
+                }
+            } else if (c < 0x80) {
                 return {c, 1};
             }
+            // The mark: the complement of the byte, past U+10FFFF and so
+            // mapped to nothing by every table, one for each byte. It is
+            // one instruction where the replacement is one as well
+            const char32_t ill_formed = MarkIllFormed ? ~char32_t(c) : replacement;
             size_t n = (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 0;
             if (n == 0 || i + n > s.size()) {
-                return {replacement, 1};
+                return {ill_formed, 1};
             }
             char32_t cp = c & (0xFF >> (n + 1));
             for (size_t k = 1; k < n; ++k) {
                 unsigned char b = static_cast<unsigned char>(s[i + k]);
                 if ((b & 0xC0) != 0x80) {
-                    return {replacement, 1};
+                    return {ill_formed, 1};
                 }
                 cp = (cp << 6) | (b & 0x3F);
             }
             if (width(cp) != n) {   // overlong, a surrogate, or past U+10FFFF
-                return {replacement, 1};
+                return {ill_formed, 1};
             }
             return {cp, n};
+        }
+
+    public:
+        // The code point at s[i] and the bytes it takes; {replacement, 1}
+        // for a byte that is not the start of a valid sequence
+        static constexpr pair<char32_t, size_t> decode(std::string_view s, size_t i = 0) noexcept {
+            return _decode<false>(s, i);
         }
 
         // The last code point of s[0, end) and the bytes it takes;
@@ -173,6 +202,9 @@ namespace sgcl {
         // over a word of eight, which is no instruction a compiler would
         // not write by itself.
         static constexpr size_t ascii_run(std::string_view s, size_t at = 0) noexcept {
+            if (at >= s.size()) {   // at or past the end, npos: no run (i + 8 would wrap and read before s)
+                return 0;
+            }
             size_t i = at;
             if (!std::is_constant_evaluated()) {
                 constexpr uint64_t high = 0x8080808080808080ull;
@@ -215,6 +247,9 @@ namespace sgcl {
         };
 
     private:
+        template<class Derived, class CharT, class Traits>
+        friend class mixin::text;
+
         // Whether the bytes at i are U+FFFD itself, which decodes as the
         // replacement while being valid
         static constexpr bool _is_encoded_replacement(std::string_view s, size_t i) noexcept {

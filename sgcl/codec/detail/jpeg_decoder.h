@@ -15,6 +15,7 @@
 #include "../image.h"
 #include "../options.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/expected.h"
 #include "../../core/string.h"
 #include "../../core/vector.h"
@@ -26,6 +27,20 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+// A hot loop of a few instructions starts on a 64-byte boundary, so that
+// it never straddles two: placed by the code before it, the progressive
+// decoding's correction loop of an EOB run crossed one in a build where
+// only code elsewhere in the program had changed, and the decoding took
+// a fifth longer (Apple silicon)
+#if defined(__clang__) && defined(__has_cpp_attribute)
+#if __has_cpp_attribute(clang::code_align)
+#define SGCL_JPEG_ALIGN_LOOP [[clang::code_align(64)]]
+#endif
+#endif
+#ifndef SGCL_JPEG_ALIGN_LOOP
+#define SGCL_JPEG_ALIGN_LOOP
+#endif
 
 namespace sgcl::codec::detail {
     // The JPEG decoder of the sequential DCT modes with Huffman coding
@@ -70,7 +85,7 @@ namespace sgcl::codec::detail {
         : _in(in), _o(o) {
         }
 
-        expected<image, error> run() {
+        expected<image, error> run() noexcept(NothrowInput<Input>) {
             if (_o.want && !valid(*_o.want)) {
                 return unexpected(error(errc::invalid_argument, 0, "jpeg: decode_options.want outside the list"));
             }
@@ -155,17 +170,17 @@ namespace sgcl::codec::detail {
 
         // ---- input ---------------------------------------------------------
 
-        bool _fail(errc code, uint64_t at, const std::string& what) {
+        bool _fail(errc code, uint64_t at, const std::string& what) noexcept {
             _err = error(code, at, string(what));
             return false;
         }
 
-        bool _fail_input() {
+        bool _fail_input() noexcept {
             _err = *_in.failure;
             return false;
         }
 
-        bool _read(uint8_t* dst, size_t n) {
+        bool _read(uint8_t* dst, size_t n) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -175,7 +190,7 @@ namespace sgcl::codec::detail {
                 if (!got) {
                     return _fail(errc::unexpected_end, _in.offset(), "jpeg: the data ends in the middle");
                 }
-                std::memcpy(dst, p, got);
+                sgcl::detail::copy_bytes(dst, p, got);
                 _in.consume(got);
                 dst += got;
                 n -= got;
@@ -183,7 +198,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _skip(size_t n) {
+        bool _skip(size_t n) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -200,7 +215,7 @@ namespace sgcl::codec::detail {
         }
 
         // The next byte, -1 at the end; false when the source failed
-        bool _byte(int& b) {
+        bool _byte(int& b) noexcept(NothrowInput<Input>) {
             const uint8_t* p;
             size_t got;
             if (!_in.peek(1, p, got)) {
@@ -218,7 +233,7 @@ namespace sgcl::codec::detail {
         // The code of the next marker: 0xFF, any fill bytes of 0xFF, the
         // code. Bytes before the 0xFF are passed over (after a scan's data,
         // as libjpeg does; elsewhere the segments are whole and there are none)
-        bool _next_marker(int& code) {
+        bool _next_marker(int& code) noexcept(NothrowInput<Input>) {
             if (_pending) {
                 // the scan's data ended at it: its 0xFF and code already read
                 _pending = false;
@@ -252,7 +267,7 @@ namespace sgcl::codec::detail {
         }
 
         // A segment's length, less its own two bytes
-        bool _length(uint64_t at, size_t& n) {
+        bool _length(uint64_t at, size_t& n) noexcept(NothrowInput<Input>) {
             uint8_t b[2];
             if (!_read(b, 2)) {
                 return false;
@@ -265,12 +280,12 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _skip_segment(uint64_t at) {
+        bool _skip_segment(uint64_t at) noexcept(NothrowInput<Input>) {
             size_t n;
             return _length(at, n) && _skip(n);
         }
 
-        bool _segment(uint64_t at, std::vector<uint8_t>& body) {
+        bool _segment(uint64_t at, std::vector<uint8_t>& body) noexcept(NothrowInput<Input>) {
             size_t n;
             if (!_length(at, n)) {
                 return false;
@@ -281,7 +296,7 @@ namespace sgcl::codec::detail {
 
         // ---- segments ------------------------------------------------------
 
-        bool _app(int code, uint64_t at) {
+        bool _app(int code, uint64_t at) noexcept(NothrowInput<Input>) {
             std::vector<uint8_t> b;
             if (!_segment(at, b)) {
                 return false;
@@ -321,7 +336,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _dqt(uint64_t at) {
+        bool _dqt(uint64_t at) noexcept(NothrowInput<Input>) {
             std::vector<uint8_t> b;
             if (!_segment(at, b)) {
                 return false;
@@ -347,7 +362,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _dht(uint64_t at) {
+        bool _dht(uint64_t at) noexcept(NothrowInput<Input>) {
             std::vector<uint8_t> b;
             if (!_segment(at, b)) {
                 return false;
@@ -379,7 +394,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _dri(uint64_t at) {
+        bool _dri(uint64_t at) noexcept(NothrowInput<Input>) {
             std::vector<uint8_t> b;
             if (!_segment(at, b)) {
                 return false;
@@ -391,7 +406,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _sof(uint64_t at, bool progressive) {
+        bool _sof(uint64_t at, bool progressive) noexcept(NothrowInput<Input>) {
             _progressive = progressive;
             if (_have_frame) {
                 return _fail(errc::corrupt, at, "jpeg: a second frame");
@@ -453,7 +468,7 @@ namespace sgcl::codec::detail {
 
         // ---- scans ---------------------------------------------------------
 
-        bool _sos(uint64_t at) {
+        bool _sos(uint64_t at) noexcept(NothrowInput<Input>) {
             if (!_have_frame) {
                 return _fail(errc::corrupt, at, "jpeg: SOS before SOF");
             }
@@ -546,7 +561,7 @@ namespace sgcl::codec::detail {
 
         // The table of that class and number, Annex K's for 0 and 1 when
         // the file defines none (Motion-JPEG), as libjpeg-turbo does
-        bool _table(bool dc, unsigned number) {
+        bool _table(bool dc, unsigned number) noexcept {
             HuffmanTable& t = dc ? _dc[number] : _ac[number];
             if (t.defined) {
                 return true;
@@ -555,7 +570,7 @@ namespace sgcl::codec::detail {
         }
 
         // At the first scan: the color space, the image, the buffers
-        bool _start(bool one_scan) {
+        bool _start(bool one_scan) noexcept {
             _started = true;
             _streaming = one_scan;
             if (_ncomp == 1) {
@@ -657,7 +672,7 @@ namespace sgcl::codec::detail {
         // The common case first: the next eight bytes there and none of them
         // 0xFF (no stuffing, no marker), the whole bytes that fit taken at
         // once, as the loop below would take them one by one
-        bool _fill() {
+        bool _fill() noexcept(NothrowInput<Input>) {
             if (!_marker && !_eod) {
                 const uint8_t* p;
                 size_t got;
@@ -715,7 +730,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        uint32_t _get(int n) {
+        uint32_t _get(int n) noexcept(NothrowInput<Input>) {
             if (_bits < n) {
                 _fill();
             }
@@ -726,7 +741,7 @@ namespace sgcl::codec::detail {
         }
 
         // The symbol of the next code; -1 for bits that are no code
-        int _decode(const HuffmanTable& t) {
+        int _decode(const HuffmanTable& t) noexcept(NothrowInput<Input>) {
             if (_bits < 16) {
                 _fill();
             }
@@ -750,7 +765,7 @@ namespace sgcl::codec::detail {
         }
 
         // s bits as a signed value (F.2.2.1, EXTEND)
-        int _receive_extend(int s) {
+        int _receive_extend(int s) noexcept(NothrowInput<Input>) {
             if (s == 0) {
                 return 0;
             }
@@ -758,7 +773,7 @@ namespace sgcl::codec::detail {
             return v < (1 << (s - 1)) ? v - (1 << s) + 1 : v;
         }
 
-        bool _block(Component& k, uint8_t* out, size_t stride) {
+        bool _block(Component& k, uint8_t* out, size_t stride) noexcept(NothrowInput<Input>) {
             int16_t coef[64] = {};
             const int s = _decode(_dc[k.td]);
             if (s < 0 || s > 15) {
@@ -819,7 +834,7 @@ namespace sgcl::codec::detail {
         // when the source failed or the data ended within the scan, what the
         // zeros after the end decode to is not the file's, and the error is
         // the source's or the end's
-        bool _data_error(const std::string& what) {
+        bool _data_error(const std::string& what) noexcept {
             if (_in_failed) {
                 return _fail_input();
             }
@@ -831,7 +846,7 @@ namespace sgcl::codec::detail {
 
         // After an MCU: the data read past its end is an error, of the
         // source's, of an end or of a marker too early
-        bool _check_bits() {
+        bool _check_bits() noexcept {
             if (_in_failed) {
                 return _fail_input();
             }
@@ -846,7 +861,7 @@ namespace sgcl::codec::detail {
 
         // A restart: the bits to the byte dropped, the marker RSTn next
         // (the bytes before it passed over), the DC predictions from 0
-        bool _restart(Component* const* scan, unsigned ns) {
+        bool _restart(Component* const* scan, unsigned ns) noexcept(NothrowInput<Input>) {
             if (!_marker) {
                 _buf = 0;
                 _bits = 0;
@@ -893,7 +908,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _scan(Component* const* scan, unsigned ns) {
+        bool _scan(Component* const* scan, unsigned ns) noexcept(NothrowInput<Input>) {
             _buf = 0;
             _bits = 0;
             _phantom = 0;
@@ -962,7 +977,7 @@ namespace sgcl::codec::detail {
 
         // DC, first scan (G.1.2.1): the difference as in F.2.2.1, the value
         // scaled up by the point transform
-        bool _dc_first(Component& k, int16_t* block, unsigned al) {
+        bool _dc_first(Component& k, int16_t* block, unsigned al) noexcept(NothrowInput<Input>) {
             const int s = _decode(_dc[k.td]);
             if (s < 0 || s > 15) {
                 return _data_error("jpeg: a DC code with no symbol");
@@ -973,7 +988,7 @@ namespace sgcl::codec::detail {
         }
 
         // DC, a later scan: the next bit of the value, as it is
-        void _dc_refine(int16_t* block, unsigned al) {
+        void _dc_refine(int16_t* block, unsigned al) noexcept(NothrowInput<Input>) {
             if (_get(1)) {
                 block[0] = int16_t(block[0] | (1 << al));
             }
@@ -982,7 +997,7 @@ namespace sgcl::codec::detail {
         // AC, first scan of the band (G.1.2.2): the run and size of each
         // value as in the sequential mode, and EOBn: this block and the
         // next 2^n - 1 + (n bits) blocks end their band here (Table G.1)
-        bool _ac_first(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned al) {
+        bool _ac_first(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned al) noexcept(NothrowInput<Input>) {
             if (_eobrun) {
                 --_eobrun;
                 return true;
@@ -1014,7 +1029,7 @@ namespace sgcl::codec::detail {
 
         // The correction bit of a coefficient already nonzero: its next
         // bit (G.1.2.3 b), added away from zero when set
-        void _correct(int16_t& c, int p1) {
+        void _correct(int16_t& c, int p1) noexcept(NothrowInput<Input>) {
             if (_get(1) && (c & p1) == 0) {
                 c = int16_t(c >= 0 ? c + p1 : c - p1);
             }
@@ -1026,7 +1041,7 @@ namespace sgcl::codec::detail {
         // already nonzero passed on the way takes a correction bit, those
         // after the last value too, and all of them in the blocks of an
         // EOB run
-        bool _ac_refine(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned al) {
+        bool _ac_refine(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned al) noexcept(NothrowInput<Input>) {
             const int p1 = 1 << al;
             unsigned i = ss;
             if (_eobrun == 0) {
@@ -1072,6 +1087,7 @@ namespace sgcl::codec::detail {
                 }
             }
             if (_eobrun > 0) {
+                SGCL_JPEG_ALIGN_LOOP
                 for (; i <= se; ++i) {
                     int16_t& c = block[ZigZag[i]];
                     if (c != 0) {
@@ -1083,7 +1099,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _progressive_block(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned ah, unsigned al) {
+        bool _progressive_block(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned ah, unsigned al) noexcept(NothrowInput<Input>) {
             if (ss == 0) {
                 if (ah == 0) {
                     return _dc_first(k, block, al);
@@ -1094,7 +1110,7 @@ namespace sgcl::codec::detail {
             return ah == 0 ? _ac_first(k, block, ss, se, al) : _ac_refine(k, block, ss, se, al);
         }
 
-        bool _scan_progressive(Component* const* scan, unsigned ns, unsigned ss, unsigned se, unsigned ah, unsigned al) {
+        bool _scan_progressive(Component* const* scan, unsigned ns, unsigned ss, unsigned se, unsigned ah, unsigned al) noexcept(NothrowInput<Input>) {
             _buf = 0;
             _bits = 0;
             _phantom = 0;
@@ -1154,7 +1170,7 @@ namespace sgcl::codec::detail {
 
         // The blocks of MCU row m of every component, transformed into
         // its ring of rows
-        void _transform_row(uint32_t m) {
+        void _transform_row(uint32_t m) noexcept {
             for (unsigned c = 0; c < _ncomp; ++c) {
                 Component& k = _comp[c];
                 const uint32_t per = _ncomp == 1 ? 1u : k.v;
@@ -1172,7 +1188,7 @@ namespace sgcl::codec::detail {
 
         // The image rows of MCU row m (in the scan's MCU rows): each
         // component upsampled to the row, the row converted
-        void _emit(uint32_t m) {
+        void _emit(uint32_t m) noexcept {
             const uint32_t per = (_ncomp == 1 ? 1u : _vmax) * 8;
             const uint32_t y0 = m * per;
             const uint32_t y1 = std::min(_height, y0 + per);
@@ -1181,7 +1197,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        const uint8_t* _upsampled(Component& k, uint32_t y) {
+        const uint8_t* _upsampled(Component& k, uint32_t y) noexcept {
             const unsigned rv = _vmax / k.v, rh = _hmax / k.h;
             const size_t n = k.cw;
             if (rv == 1) {
@@ -1218,13 +1234,13 @@ namespace sgcl::codec::detail {
             return k.up;
         }
 
-        void _emit_row(uint32_t y) {
+        void _emit_row(uint32_t y) noexcept {
             const size_t w = _width;
             uint8_t* image_row = _pixels + size_t(y) * _stride;
             uint8_t* dst = _convert ? _native_row : image_row;
             switch (_space) {
                 case Space::gray:
-                    std::memcpy(dst, _upsampled(_comp[0], y), w);
+                    sgcl::detail::copy_bytes(dst, _upsampled(_comp[0], y), w);
                     break;
                 case Space::ycc:
                     ycc_to_rgb(_upsampled(_comp[0], y), _upsampled(_comp[1], y), _upsampled(_comp[2], y), dst, w);
@@ -1276,7 +1292,8 @@ namespace sgcl::codec::detail {
 
         // ---- the end -------------------------------------------------------
 
-        expected<image, error> _finish(uint64_t at) {
+        expected<image, error> _finish(uint64_t at) noexcept {
+
             if (!_started) {
                 return unexpected(error(errc::corrupt, at, "jpeg: no scan before EOI"));
             }

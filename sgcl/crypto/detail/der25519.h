@@ -10,6 +10,7 @@
 #include "../secret.h"
 #include "../secure_zero.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/expected.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
@@ -40,13 +41,13 @@ namespace sgcl::crypto::detail {
     inline constexpr unsigned char oid_x25519 = 0x6e;
     inline constexpr unsigned char oid_ed25519 = 0x70;
 
-    inline vector<byte> der_bytes(const unsigned char* p, size_t n) {
+    inline vector<byte> der_bytes(const unsigned char* p, size_t n) noexcept {
         vector<byte> out(n);
-        std::memcpy(out.data(), p, n);
+        sgcl::detail::copy_bytes(out.data(), p, n);
         return out;
     }
 
-    inline vector<byte> der_pkix(unsigned char oid, const unsigned char* key) {
+    inline vector<byte> der_pkix(unsigned char oid, const unsigned char* key) noexcept {
         unsigned char d[44] = {0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, oid, 0x03, 0x21, 0x00};
         std::memcpy(d + 12, key, 32);
         return der_bytes(d, sizeof d);
@@ -54,7 +55,7 @@ namespace sgcl::crypto::detail {
 
     // the private key's 32 bytes are a secret: written straight into the
     // secret_bytes (48 bytes, in the object itself), never in managed memory
-    inline secret_bytes der_pkcs8(unsigned char oid, const unsigned char* key) {
+    inline secret_bytes der_pkcs8(unsigned char oid, const unsigned char* key) noexcept {
         static constexpr unsigned char head[16] = {0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b,
                                                    0x65, 0, 0x04, 0x22, 0x04, 0x20};
         secret_bytes out(48);
@@ -65,14 +66,14 @@ namespace sgcl::crypto::detail {
         return out;
     }
 
-    inline error der_malformed(const DerReader& at, const char* what) {
+    inline error der_malformed(const DerReader& at, const char* what) noexcept {
         return error(errc::malformed, uint64_t(at.offset()), string(what));
     }
 
     // AlgorithmIdentifier: SEQUENCE { OID 1.3.101.x } with no parameters.
     // Another OID of the same shape (the other curve, Ed448, X448) is
     // unsupported; anything else is malformed or unsupported alike
-    inline expected<void, error> der_algorithm(DerReader& r, unsigned char oid) {
+    inline expected<void, error> der_algorithm(DerReader& r, unsigned char oid) noexcept {
         DerReader alg, id;
         if (!r.read(der::sequence, alg)) {
             return unexpected<error>(der_malformed(r, "DER: the algorithm is not a SEQUENCE"));
@@ -91,7 +92,7 @@ namespace sgcl::crypto::detail {
     }
 
     // The 32 bytes of the key in a SubjectPublicKeyInfo
-    inline expected<void, error> der_read_pkix(const slice<const byte>& der, unsigned char oid, unsigned char* key) {
+    inline expected<void, error> der_read_pkix(const slice<const byte>& der, unsigned char oid, unsigned char* key) noexcept {
         DerReader top(reinterpret_cast<const unsigned char*>(der.data()), der.size()), r, bits;
         if (!top.read(der::sequence, r) || !top.empty()) {
             return unexpected<error>(error(errc::malformed, 0, string("DER: not one SEQUENCE")));
@@ -112,7 +113,7 @@ namespace sgcl::crypto::detail {
     // The 32 bytes of the key in a PrivateKeyInfo; has_public says whether
     // a version 1 key carried its public key too, copied into public_key
     inline expected<void, error> der_read_pkcs8(const slice<const byte>& der, unsigned char oid, unsigned char* key,
-                                                bool& has_public, unsigned char* public_key) {
+                                                bool& has_public, unsigned char* public_key) noexcept {
         static constexpr unsigned char v0[] = {0}, v1[] = {1};
         has_public = false;
         DerReader top(reinterpret_cast<const unsigned char*>(der.data()), der.size()), r, outer, inner;

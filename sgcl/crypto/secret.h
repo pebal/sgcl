@@ -8,6 +8,7 @@
 #include "constant_time.h"
 #include "secure_zero.h"
 #include "../core/aliases.h"
+#include "../core/detail/bytes.h"
 #include "../core/detail/small_vector.h"
 #include "../core/slice.h"
 
@@ -101,24 +102,26 @@ namespace sgcl::crypto {
         }
     };
 
-    // Bytes that are a secret, of a length known when the program runs: a
-    // key read from a file, what HKDF or PBKDF2 derives, the plaintext AEAD
-    // opens, a private key's export. Never in managed memory: up to 64
-    // bytes in the object itself (keys of 32, 48 or 64 bytes, derived
-    // secrets, shared secrets: no allocation at all), past that in a block
-    // of plain memory zeroed before it is freed, and the old block zeroed
-    // when a growth leaves it. Move-only: a copy is asked for by name with
-    // clone(); a move leaves the source empty. The destructor zeroes what
-    // it held. Read and written through as_slice(), a slice without an
-    // owner, which every function of the module that takes bytes takes; no
-    // push_back, no operator[]. Kept on the stack or in a unique_ptr its
-    // bytes are gone when its scope ends; in a managed object the inline
-    // ones stay in managed memory until the cycle that finds the object
-    // dead, so a secret_bytes belongs on the stack or in plain memory.
-    // secret<N> is the one for a length known when the program is compiled.
-    // The storage is the core's SmallVector with the wiping policy
-    // (core/detail/small_vector.h, secure_zero.h: WipingPolicy), which
-    // zeroes every byte it lets go of.
+    // Bytes that are a secret, of a length known when the program runs: a key
+    // read from a file, what HKDF or PBKDF2 derives, a key unwrapped (open_to,
+    // decrypt_oaep_to), a private key's export, a password. Never in managed
+    // memory: up to 64 bytes in the object itself (keys of 32, 48 or 64 bytes,
+    // derived secrets, shared secrets: no allocation at all), past that in a
+    // block of plain memory zeroed before it is freed, and the old block
+    // zeroed when a growth leaves it. Move-only: a copy is asked for by name
+    // with clone(); a move leaves the source empty. The destructor zeroes what
+    // it held. Read and written through a slice without an owner, which every
+    // function of the module that takes bytes takes: as_slice(), or the
+    // conversions, to slice<const byte> where bytes are read and, from a
+    // secret_bytes the program may change, to slice<byte> where they are
+    // written (open_to, decrypt_oaep_to, random::fill); no push_back, no
+    // operator[]. Kept on the stack or in a unique_ptr its bytes are gone when
+    // its scope ends; in a managed object the inline ones stay in managed
+    // memory until the cycle that finds the object dead, so a secret_bytes
+    // belongs on the stack or in plain memory. secret<N> is the one for a
+    // length known when the program is compiled. The storage is the core's
+    // SmallVector with the wiping policy (core/detail/small_vector.h,
+    // secure_zero.h: WipingPolicy), which zeroes every byte it lets go of.
     class secret_bytes {
     public:
         static constexpr size_t inline_capacity = 64;
@@ -127,7 +130,7 @@ namespace sgcl::crypto {
         secret_bytes() noexcept = default;
 
         // n bytes, all zero
-        explicit secret_bytes(size_t n)
+        explicit secret_bytes(size_t n) noexcept
         : _bytes(n) {
         }
 
@@ -137,11 +140,9 @@ namespace sgcl::crypto {
         secret_bytes(secret_bytes&&) noexcept = default;
         secret_bytes& operator=(secret_bytes&&) noexcept = default;
 
-        secret_bytes clone() const {
+        secret_bytes clone() const noexcept {
             secret_bytes s(size());
-            if (size()) {
-                std::memcpy(s._bytes.data(), _bytes.data(), size());
-            }
+            sgcl::detail::copy_bytes(s._bytes.data(), _bytes.data(), size());
             return s;
         }
 
@@ -158,6 +159,14 @@ namespace sgcl::crypto {
             return as_slice();
         }
 
+        // Where the module writes bytes (an AEAD's open_to, RSA's
+        // decrypt_oaep_to, random::fill), a secret_bytes the program may
+        // change is taken as the output. Only an lvalue: the bytes written
+        // into one about to go would be read by no one
+        operator slice<byte>() & noexcept {
+            return as_slice();
+        }
+
         size_t size() const noexcept {
             return _bytes.size();
         }
@@ -170,7 +179,7 @@ namespace sgcl::crypto {
         // capacity a new block of exactly n (the old one, or the inline
         // bytes, zeroed); a shrink zeroes the bytes it drops and keeps the
         // room
-        void resize(size_t n) {
+        void resize(size_t n) noexcept {
             _bytes.resize(n);
         }
 

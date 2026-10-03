@@ -8,10 +8,12 @@
 #include "flate.h"
 #include "detail/files.h"
 #include "../io/detail/path.h"
+#include "../io/path.h"
 #include "detail/source.h"
 #include "../core/utf8.h"
 #include "../io/file.h"
 #include "../time/date.h"
+#include "../core/detail/bytes.h"
 
 #include <sys/stat.h>
 
@@ -52,9 +54,9 @@ namespace sgcl::compress::zip {
         // Whether the name may be joined to a directory without leaving
         // it, as Go's filepath.IsLocal (the rule tar's entries use too):
         // not empty, not absolute, no NUL, no '\' (APPNOTE's names use
-        // '/'), no ".." that climbs above the start. The only check
-        // between an archive from outside and the file system until an
-        // extract comes.
+        // '/'), no ".." that climbs above the start. zip::extract checks
+        // every entry by it (errc::insecure_path, nothing written); a
+        // program that writes the entries out itself checks them here.
         bool is_local() const noexcept {
             return sgcl::io::detail::is_local_path(name.view());
         }
@@ -81,12 +83,12 @@ namespace sgcl::compress::zip::detail {
         return uint64_t(le32(p)) | uint64_t(le32(p + 4)) << 32;
     }
 
-    inline void put16(std::vector<uint8_t>& o, uint32_t v) {
+    inline void put16(std::vector<uint8_t>& o, uint32_t v) noexcept {
         o.push_back(uint8_t(v));
         o.push_back(uint8_t(v >> 8));
     }
 
-    inline void put64(std::vector<uint8_t>& o, uint64_t v) {
+    inline void put64(std::vector<uint8_t>& o, uint64_t v) noexcept {
         put_le32(o, uint32_t(v));
         put_le32(o, uint32_t(v >> 32));
     }
@@ -111,7 +113,7 @@ namespace sgcl::compress::zip::detail {
 
     // A name or a comment: UTF-8 as it is (flagged, or valid anyway, as
     // most writers make it without the flag), else code page 437
-    inline string name_of(const uint8_t* p, size_t n, bool utf8) {
+    inline string name_of(const uint8_t* p, size_t n, bool utf8) noexcept {
         if (utf8 || valid_utf8(p, n)) {
             return string(std::string_view(reinterpret_cast<const char*>(p), n));
         }
@@ -134,7 +136,7 @@ namespace sgcl::compress::zip::detail {
 
     // The DOS date and time (APPNOTE 4.4.6), which name no zone: read as
     // UTC, as Go reads them
-    inline time::datetime from_dos(uint16_t date, uint16_t tm) {
+    inline time::datetime from_dos(uint16_t date, uint16_t tm) noexcept {
         // the fields as they are, normalized as Go's time.Date does: a
         // month or a day of 0 is the one before (0/0/1980 is 1979-11-30)
         int64_t months = int64_t(1980 + (date >> 9)) * 12 + ((date >> 5) & 15) - 1;
@@ -191,7 +193,7 @@ namespace sgcl::compress::zip::detail {
             }
         }
 
-        void feed(const uint8_t* p, size_t n) {
+        void feed(const uint8_t* p, size_t n) noexcept {
             const Bytes b{p, n};
             switch (_step) {
                 case Step::tail:
@@ -256,12 +258,12 @@ namespace sgcl::compress::zip::detail {
             done
         };
 
-        void _fail(errc c, uint64_t at, const char* text) {
+        void _fail(errc c, uint64_t at, const char* text) noexcept {
             _error = error(c, at, string(text));
             _step = Step::done;
         }
 
-        void _tail(const Bytes& b) {
+        void _tail(const Bytes& b) noexcept {
             uint64_t tail_at = _size - b.size();
             if (b.size() < EndSize) {
                 return _fail(errc::invalid_header, 0, "zip: not a zip file");
@@ -300,7 +302,7 @@ namespace sgcl::compress::zip::detail {
             _directory_at(_end_at);
         }
 
-        void _end64(const Bytes& b) {
+        void _end64(const Bytes& b) noexcept {
             if (b.size() < 56 || le32(b.data()) != End64Signature) {
                 return _fail(errc::invalid_header, _end64_offset, "zip: invalid ZIP64 end of central directory");
             }
@@ -312,7 +314,7 @@ namespace sgcl::compress::zip::detail {
 
         // Where the directory ends and what it says fix the base: the
         // bytes an archive has in front of it (a self-extractor's)
-        void _directory_at(uint64_t directory_end) {
+        void _directory_at(uint64_t directory_end) noexcept {
             if (_cd_size > directory_end || _cd_offset > directory_end - _cd_size) {
                 return _fail(errc::invalid_header, directory_end, "zip: central directory past its end record");
             }
@@ -331,7 +333,7 @@ namespace sgcl::compress::zip::detail {
         // kept for the next, and the reading stops at the first bytes that
         // are no record. The count is checked at the end; nothing is
         // reserved past what the directory's bytes can hold (46 a record).
-        void _directory(const Bytes& b) {
+        void _directory(const Bytes& b) noexcept {
             if (_dir_read == 0) {
                 if (!b.empty() && (b.size() < 4 || le32(b.data()) != CentralSignature)) {
                     if (_step == Step::directory && _computed_base != 0) {
@@ -390,7 +392,7 @@ namespace sgcl::compress::zip::detail {
         }
 
         // One central record into an entry
-        bool _record(const uint8_t* r, size_t nlen, size_t xlen, size_t clen, uint64_t at) {
+        bool _record(const uint8_t* r, size_t nlen, size_t xlen, size_t clen, uint64_t at) noexcept {
             entry e;
             uint16_t made_by = le16(r + 4);
             uint16_t flags = le16(r + 8);
@@ -430,7 +432,7 @@ namespace sgcl::compress::zip::detail {
         // ZIP64 sizes and offset (in that order, those whose field is all
         // ones), and the time from the fields that carry one (the last of
         // them wins, as in Go)
-        bool _extras(entry& e, const uint8_t* x, size_t n, bool& have_time, uint64_t at) {
+        bool _extras(entry& e, const uint8_t* x, size_t n, bool& have_time, uint64_t at) noexcept {
             size_t i = 0;
             while (i + 4 <= n) {
                 uint16_t id = le16(x + i), len = le16(x + i + 2);
@@ -440,7 +442,7 @@ namespace sgcl::compress::zip::detail {
                 }
                 if (id == 0x0001) {
                     size_t k = 0;
-                    auto take = [&](uint64_t& field) {
+                    auto take = [&](uint64_t& field) noexcept {
                         if (field == 0xFFFFFFFF) {
                             if (k + 8 > len) {
                                 return false;
@@ -521,7 +523,7 @@ namespace sgcl::compress::zip::detail {
     class EntryReader final
     : public io::mixin::reader<EntryReader> {
     public:
-        EntryReader(const tracked_ptr<Archive>& archive, const entry& e)
+        EntryReader(const tracked_ptr<Archive>& archive, const entry& e) noexcept
         : _archive(archive), _entry(e) {
         }
 
@@ -530,7 +532,7 @@ namespace sgcl::compress::zip::detail {
         EntryReader(const EntryReader&) = delete;
         EntryReader& operator=(const EntryReader&) = delete;
 
-        expected<size_t, io::error> read(const slice<byte>& out) {
+        expected<size_t, io::error> read(const slice<byte>& out) noexcept {
             if (!_opened) {
                 _opened = true;
                 uint8_t head[30];
@@ -560,7 +562,7 @@ namespace sgcl::compress::zip::detail {
             return n;
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             if (!_archive->source.file) {
                 // bytes in memory: nothing waits and nothing runs on the
                 // pool, so the thread's read serves (no managed block, no
@@ -600,7 +602,7 @@ namespace sgcl::compress::zip::detail {
         // The local header and its name, read by a task: a file's reads
         // run on the pool, so they go into a managed block of the reader's
         // own (made by the first), which the slices given to them hold
-        async::task<expected<void, io::error>> _async_head() {
+        async::task<expected<void, io::error>> _async_head() noexcept {
             if (!_head) {
                 _head = make_tracked<HeadBlock>();
             }
@@ -632,7 +634,7 @@ namespace sgcl::compress::zip::detail {
                 if (!n) {
                     co_return io::detail::fail(_io_fail(n.error()));
                 }
-                std::memcpy(name.data() + got, p, *n);
+                sgcl::detail::copy_bytes(name.data() + got, p, *n);
                 got += *n;
                 if (*n < k) {
                     break;
@@ -644,19 +646,19 @@ namespace sgcl::compress::zip::detail {
             co_return expected<void, io::error>();
         }
 
-        expected<size_t, io::error> _io_fail(const io::error& e) {
+        expected<size_t, io::error> _io_fail(const io::error& e) noexcept {
             _error = error(e, _entry.offset);
             return io::detail::fail(e);
         }
 
-        optional<io::error> _fail(errc code, uint64_t at, const std::string& text) {
+        optional<io::error> _fail(errc code, uint64_t at, const std::string& text) noexcept {
             _error = error(code, at, string("zip: entry " + std::string(_entry.name.view()) + ": " + text));
             return _io_error();
         }
 
         // What a read through an io handle reports: the error's code, the
         // entry's name as the path ("read dir/a.txt: checksum mismatch")
-        io::error _io_error() const {
+        io::error _io_error() const noexcept {
             if (_error->io_error()) {
                 return *_error->io_error();
             }
@@ -665,7 +667,7 @@ namespace sgcl::compress::zip::detail {
 
         // The local header: where the data starts (its own name and extra
         // lengths; its sizes and CRC are the central record's business)
-        optional<io::error> _header(const uint8_t* head, size_t got) {
+        optional<io::error> _header(const uint8_t* head, size_t got) noexcept {
             if (got < 30 || le32(head) != LocalSignature) {
                 return _fail(errc::invalid_header, _entry.offset, "no local header where the directory points");
             }
@@ -684,7 +686,7 @@ namespace sgcl::compress::zip::detail {
 
         // The local name is the central one (in the form both were read),
         // and the data's reader is set up
-        optional<io::error> _name(const uint8_t* name, size_t size, size_t got) {
+        optional<io::error> _name(const uint8_t* name, size_t size, size_t got) noexcept {
             if (got < size || name_of(name, size, _utf8) != _entry.name) {
                 return _fail(errc::corrupt, _entry.offset, "the local name differs from the central one");
             }
@@ -708,7 +710,7 @@ namespace sgcl::compress::zip::detail {
         }
 
         // bytes of the data as they are (store)
-        expected<size_t, io::error> _raw_read(const slice<byte>& out) {
+        expected<size_t, io::error> _raw_read(const slice<byte>& out) noexcept {
             size_t n = size_t(std::min<uint64_t>(out.size(), _entry.compressed_size - _raw));
             auto r = _archive->source.read_at(reinterpret_cast<uint8_t*>(out.data()), n, _start + _raw);
             if (r) {
@@ -720,7 +722,7 @@ namespace sgcl::compress::zip::detail {
             return r;
         }
 
-        async::task<expected<size_t, io::error>> _async_raw_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> _async_raw_read(slice<byte> out) noexcept {
             size_t n = size_t(std::min<uint64_t>(out.size(), _entry.compressed_size - _raw));
             auto r = co_await _archive->source.async_read_at(out.first(n), _start + _raw);   // the caller's slice, its owner with it
             if (r) {
@@ -734,7 +736,7 @@ namespace sgcl::compress::zip::detail {
 
         // What a read gave: counted and checksummed, the sizes and the
         // CRC-32 checked at the end
-        optional<io::error> _took(const expected<size_t, io::error>& n, const slice<byte>& out) {
+        optional<io::error> _took(const expected<size_t, io::error>& n, const slice<byte>& out) noexcept {
             if (!n) {
                 if (!_error) {
                     if (_inflating && _flate->last_error()) {
@@ -769,11 +771,11 @@ namespace sgcl::compress::zip::detail {
         class RangeReader final
         : public io::mixin::reader<RangeReader> {
         public:
-            RangeReader(const tracked_ptr<Archive>& a, uint64_t start, uint64_t size)
+            RangeReader(const tracked_ptr<Archive>& a, uint64_t start, uint64_t size) noexcept
             : _archive(a), _at(start), _left(size) {
             }
 
-            expected<size_t, io::error> read(const slice<byte>& out) {
+            expected<size_t, io::error> read(const slice<byte>& out) noexcept {
                 size_t n = size_t(std::min<uint64_t>(out.size(), _left));
                 auto r = _archive->source.read_at(reinterpret_cast<uint8_t*>(out.data()), n, _at);
                 if (r) {
@@ -783,7 +785,7 @@ namespace sgcl::compress::zip::detail {
                 return r;
             }
 
-            async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+            async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
                 size_t n = size_t(std::min<uint64_t>(out.size(), _left));
                 auto r = co_await _archive->source.async_read_at(out.first(n), _at);   // the inflater's managed input, its owner with it
                 if (r) {
@@ -825,10 +827,10 @@ namespace sgcl::compress::zip {
     // tracked_ptr may.
     class archive {
     public:
-        static expected<archive, error> open(const string& path) {
+        static expected<archive, error> open(const string& path) noexcept {
             auto f = io::open(path);
             if (!f) {
-                return unexpected<error>(error(f.error(), 0));
+                return unexpected<error>(compress::detail::no_place(f.error()));
             }
             auto a = open(*f);
             if (a) {
@@ -839,10 +841,10 @@ namespace sgcl::compress::zip {
             return a;
         }
 
-        static async::task<expected<archive, error>> async_open(string path) {
+        static async::task<expected<archive, error>> async_open(string path) noexcept {
             auto f = co_await io::async_open(path);
             if (!f) {
-                co_return unexpected<error>(error(f.error(), 0));
+                co_return unexpected<error>(compress::detail::no_place(f.error()));
             }
             auto a = co_await async_open(*f);
             if (a) {
@@ -853,10 +855,10 @@ namespace sgcl::compress::zip {
             co_return a;
         }
 
-        static expected<archive, error> open(const io::file& file) {
+        static expected<archive, error> open(const io::file& file) noexcept {
             auto st = file.stat();
             if (!st) {
-                return unexpected<error>(error(st.error(), 0));
+                return unexpected<error>(compress::detail::no_place(st.error()));
             }
             detail::Source s;
             s.file = file;
@@ -864,10 +866,10 @@ namespace sgcl::compress::zip {
             return _open(s);
         }
 
-        static async::task<expected<archive, error>> async_open(io::file file) {
+        static async::task<expected<archive, error>> async_open(io::file file) noexcept {
             auto st = file.stat();
             if (!st) {
-                co_return unexpected<error>(error(st.error(), 0));
+                co_return unexpected<error>(compress::detail::no_place(st.error()));
             }
             detail::Source s;
             s.file = file;
@@ -892,7 +894,7 @@ namespace sgcl::compress::zip {
 
         // An archive in memory; a buffer of unmanaged memory is the
         // caller's to keep while the archive is used
-        static expected<archive, error> from(const slice<const byte>& data) {
+        static expected<archive, error> from(const slice<const byte>& data) noexcept {
             detail::Source s;
             s.memory = data;
             s.size = data.size();
@@ -904,7 +906,7 @@ namespace sgcl::compress::zip {
         }
 
         // The first entry of that name
-        optional<entry> find(const string& name) const {
+        optional<entry> find(const string& name) const noexcept {
             for (auto& e : _impl->entries) {
                 if (e.name == name) {
                     return e;
@@ -918,20 +920,22 @@ namespace sgcl::compress::zip {
         }
 
         // A reader of the entry's data, decompressed and checked
-        expected<io::reader, error> reader(const entry& e) const {
+        expected<io::reader, error> reader(const entry& e) const noexcept {
             return io::reader(make_tracked<detail::EntryReader>(_impl, e));
         }
 
-        expected<io::reader, error> reader(const string& name) const {
+        expected<io::reader, error> reader(const string& name) const noexcept {
             auto e = find(name);
             if (!e) {
-                return unexpected<error>(error(errc::invalid_argument, 0, string("zip: no entry " + std::string(name.view()))));
+                return unexpected<error>(compress::detail::no_place(errc::invalid_argument, string("zip: no entry " + std::string(name.view()))));
             }
             return reader(*e);
         }
 
-        // The entry's data whole; its size against the limit before anything is read
-        expected<vector<byte>, error> read(const entry& e) const {
+        // The entry's data whole; its size against the limit before anything
+        // is read (with no limit, a size the archive gives past PTRDIFF_MAX
+        // is the vector's length_error: the forms with limits may throw)
+        expected<vector<byte>, error> read(const entry& e) const noexcept {
             return read(e, limits{});
         }
 
@@ -959,11 +963,11 @@ namespace sgcl::compress::zip {
             return out;
         }
 
-        async::task<expected<vector<byte>, error>> async_read(const entry& e) const {
+        async::task<expected<vector<byte>, error>> async_read(const entry& e) const noexcept {
             return async_read(e, limits{});
         }
 
-        async::task<expected<vector<byte>, error>> async_read(entry e, limits l) const {
+        async::task<expected<vector<byte>, error>> async_read(entry e, limits l) const noexcept {
             if (e.size > l.max_size) {
                 co_return unexpected<error>(error(errc::too_large, e.offset, string("zip: entry " + std::string(e.name.view()) + ": larger than the limit")));
             }
@@ -994,25 +998,25 @@ namespace sgcl::compress::zip {
             co_return out;
         }
 
-        expected<vector<byte>, error> read(const string& name) const {
+        expected<vector<byte>, error> read(const string& name) const noexcept {
             return read(name, limits{});
         }
 
         expected<vector<byte>, error> read(const string& name, const limits& l) const {
             auto e = find(name);
             if (!e) {
-                return unexpected<error>(error(errc::invalid_argument, 0, string("zip: no entry " + std::string(name.view()))));
+                return unexpected<error>(compress::detail::no_place(errc::invalid_argument, string("zip: no entry " + std::string(name.view()))));
             }
             return read(*e, l);
         }
 
         // Closes the file the archive opened itself (from a path); a file
         // given to open() is the caller's to close
-        expected<void, error> close() {
+        expected<void, error> close() noexcept {
             if (_impl->source.owned && _impl->source.file) {
                 auto r = _impl->source.file.close();
                 if (!r) {
-                    return unexpected<error>(error(r.error(), 0));
+                    return unexpected<error>(compress::detail::no_place(r.error()));
                 }
             }
             return {};
@@ -1023,7 +1027,7 @@ namespace sgcl::compress::zip {
         : _impl(impl) {
         }
 
-        static expected<archive, error> _open(const detail::Source& s) {
+        static expected<archive, error> _open(const detail::Source& s) noexcept {
             detail::Opener o(s.size);
             while (auto r = o.next()) {
                 std::vector<uint8_t> b(r->size);
@@ -1036,7 +1040,7 @@ namespace sgcl::compress::zip {
             return _finish(s, o);
         }
 
-        static expected<archive, error> _finish(const detail::Source& s, detail::Opener& o) {
+        static expected<archive, error> _finish(const detail::Source& s, detail::Opener& o) noexcept {
             if (o.failure()) {
                 return unexpected<error>(*o.failure());
             }
@@ -1066,17 +1070,19 @@ namespace sgcl::compress::zip::detail {
         std::vector<uint8_t> head;        // the local header a task's create made, counted in offset, written with the entry's first bytes (one write for both)
         OutputStage stage;                // the bytes of a task's write (a local header, a descriptor, the directory): managed, as the write may run on the pool (block.h)
 
-        // e kept as the first error, unless one is kept already; the one kept
-        const io::error& keep(const io::error& e, const compress::error& archive) {
+        // e kept as the first error, unless one is kept already; the one
+        // kept. Neither a failure of out nor the caller's mistake comes
+        // from data read: the archive's error has no place
+        const io::error& keep(const io::error& e, const compress::error& archive) noexcept {
             if (!error) {
                 error = e;
-                failure = archive;
+                failure = compress::detail::no_place(archive);
             }
             return *error;
         }
 
-        const io::error& keep(const io::error& e) {
-            return keep(e, compress::error(e, offset));
+        const io::error& keep(const io::error& e) noexcept {
+            return keep(e, compress::detail::no_place(e));
         }
     };
 
@@ -1112,7 +1118,7 @@ namespace sgcl::compress::zip::detail {
         // A task's: a waiting local header goes out in the same write, the
         // two staged together, unless the data is large (a stored entry's
         // own bytes, written as they are, after the header)
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> d) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> d) noexcept {
             if (_s->error) {
                 co_return io::detail::fail(*_s->error);
             }
@@ -1131,7 +1137,7 @@ namespace sgcl::compress::zip::detail {
 
         // A task's write of bytes the writer made (a descriptor, the
         // directory), staged with a waiting local header
-        async::task<expected<size_t, io::error>> async_write_made(const std::vector<uint8_t>& made) {
+        async::task<expected<size_t, io::error>> async_write_made(const std::vector<uint8_t>& made) noexcept {
             if (_s->error) {
                 co_return io::detail::fail(*_s->error);
             }
@@ -1143,7 +1149,7 @@ namespace sgcl::compress::zip::detail {
 
         // b written; its first `head` bytes were the waiting header, counted
         // in the offset when it was made. A failure kept, as every one.
-        async::task<expected<size_t, io::error>> _async_put(slice<const byte> b, size_t head) {
+        async::task<expected<size_t, io::error>> _async_put(slice<const byte> b, size_t head) noexcept {
             auto r = co_await _s->out.async_write(b);
             if (head) {
                 _s->head.clear();
@@ -1168,7 +1174,7 @@ namespace sgcl::compress::zip::detail {
         using io::mixin::writer<EntryWriter>::write;
         using io::mixin::writer<EntryWriter>::async_write;
 
-        EntryWriter(const tracked_ptr<WriterState>& s, const entry& e, uint64_t number, uint64_t header_offset, bool utf8)
+        EntryWriter(const tracked_ptr<WriterState>& s, const entry& e, uint64_t number, uint64_t header_offset, bool utf8) noexcept
         : _s(s), _sink(s), _entry(e), _number(number), _header(header_offset), _utf8(utf8) {
             if (e.method == method::deflate && !e.is_directory()) {
                 _deflate.emplace(io::writer(_sink));   // a member, referred to: no object of its own
@@ -1193,7 +1199,7 @@ namespace sgcl::compress::zip::detail {
             return d.size();
         }
 
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> d) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> d) noexcept {
             if (auto e = _check(d)) {
                 co_return io::detail::fail(*e);
             }
@@ -1222,7 +1228,7 @@ namespace sgcl::compress::zip::detail {
             return _end();
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             if (_done) {
                 co_return _kept();
             }
@@ -1241,23 +1247,23 @@ namespace sgcl::compress::zip::detail {
         }
 
     private:
-        expected<void, io::error> _kept() const {
+        expected<void, io::error> _kept() const noexcept {
             if (_s->error) {
                 return io::detail::fail(*_s->error);
             }
             return {};
         }
 
-        optional<io::error> _check(const slice<const byte>& d) {
+        optional<io::error> _check(const slice<const byte>& d) noexcept {
             if (_s->error) {
                 return _s->error;
             }
             if (_done || _s->current != _number) {
-                return _s->keep(io::error(io::errc::closed, "write", "zip entry"));
+                return io::error(io::errc::closed, "write", "zip entry");   // the entry's own: the archive goes on
             }
             if (!d.empty() && _entry.is_directory()) {
                 return _s->keep(io::error(make_error_code(errc::invalid_argument), "write", "zip directory entry"),
-                                compress::error(errc::invalid_argument, _s->offset, string("zip: entry " + std::string(_entry.name.view()) + ": data for a directory")));
+                                compress::detail::no_place(errc::invalid_argument, string("zip: entry " + std::string(_entry.name.view()) + ": data for a directory")));
             }
             return nullopt;
         }
@@ -1272,7 +1278,7 @@ namespace sgcl::compress::zip::detail {
             return {};
         }
 
-        std::vector<uint8_t> _finish() {
+        std::vector<uint8_t> _finish() noexcept {
             uint64_t data_end = _s->offset;
             uint64_t csize = data_end - _data_start();
             bool zip64 = _size >= 0xFFFFFFFF || csize >= 0xFFFFFFFF;
@@ -1301,7 +1307,7 @@ namespace sgcl::compress::zip::detail {
             return t >= 0 && t <= int64_t(UINT32_MAX);
         }
 
-        void _central(uint64_t csize) {
+        void _central(uint64_t csize) noexcept {
             bool big_size = _size >= 0xFFFFFFFF, big_csize = csize >= 0xFFFFFFFF, big_offset = _header >= 0xFFFFFFFF;
             bool zip64 = big_size || big_csize || big_offset;
             auto& o = _s->central;
@@ -1373,20 +1379,39 @@ namespace sgcl::compress::zip {
     // every write, create, add and close after it gives it at once and
     // writes nothing (create still gives an entry writer, whose writes
     // give it), so an archive may be written freely and checked once, at
-    // the close; last_error() holds it.
+    // the close; last_error() holds it. A write to an entry that was ended
+    // is that write's own io::errc::closed, not kept: the archive goes on.
+    // No error of the writer has a place: its message is the words alone.
     class writer {
     public:
-        explicit writer(const io::writer& out)
+        explicit writer(const io::writer& out) noexcept
         : _s(make_tracked<detail::WriterState>()) {
             _s->out = out;
         }
 
         // Moved, not copied: a copy would share the archive's state and
-        // not its current entry
+        // not its current entry. The other is left closed, with no archive:
+        // its create, add and set_comment are refused as after a close,
+        // and its close does nothing.
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
-        writer(writer&&) noexcept = default;
-        writer& operator=(writer&&) noexcept = default;
+
+        writer(writer&& o) noexcept
+        : _s(std::move(o._s))
+        , _current(std::move(o._current))
+        , _number(o._number) {
+            o._left_closed();
+        }
+
+        writer& operator=(writer&& o) noexcept {
+            if (this != &o) {
+                _s = std::move(o._s);
+                _current = std::move(o._current);
+                _number = o._number;
+                o._left_closed();
+            }
+            return *this;
+        }
 
         // A deflated entry named `name`, modified now
         expected<io::writer, error> create(const string& name) {
@@ -1411,7 +1436,7 @@ namespace sgcl::compress::zip {
             return _create(e, false);
         }
 
-        async::task<expected<io::writer, error>> async_create(entry e) {
+        async::task<expected<io::writer, error>> async_create(entry e) noexcept {
             co_await _async_end_current();   // an error kept
             co_return _create(e, true);
         }
@@ -1428,7 +1453,7 @@ namespace sgcl::compress::zip {
             return _end_current();
         }
 
-        async::task<expected<void, error>> async_add(string name, slice<const byte> data) {
+        async::task<expected<void, error>> async_add(string name, slice<const byte> data) noexcept {
             entry e;
             e.name = name;
             e.modified = time::now();
@@ -1446,13 +1471,64 @@ namespace sgcl::compress::zip {
             co_return co_await _async_end_current();
         }
 
-        expected<void, error> set_comment(const string& comment) {
+        // The file at path as a whole entry, deflated, with its mode and
+        // its time, read a block at a time: named by the file's own name
+        // (path::base), or by `name`. Before anything is written: a writer
+        // that failed or is closed gives its error, and a path that is not
+        // a regular file (links followed) or does not open is the error of
+        // this call alone, the archive going on. A read that fails once the
+        // entry has begun leaves the entry short: kept, as every error of
+        // the archive
+        expected<void, error> add_file(const string& path) {
+            return add_file(path, io::path::base(path));
+        }
+
+        expected<void, error> add_file(const string& path, const string& name) {
             if (_s->failure) {
+                return _kept();
+            }
+            if (_s->closed) {
+                auto w = create(name);   // the error of a create after close, kept
+                return unexpected<error>(w.error());
+            }
+            auto source = compress::detail::open_source(path, name, "zip");
+            if (!source) {
+                return unexpected<error>(source.error());
+            }
+            entry e;
+            e.name = name;
+            e.modified = compress::detail::datetime_of(source->info.modified);
+            e.mode = io::permissions(unsigned(source->info.mode) & 07777);
+            auto w = create(e);
+            if (!w) {
+                (void)source->file.close();
+                return unexpected<error>(w.error());
+            }
+            auto copied = io::copy(*w, source->file);
+            (void)source->file.close();
+            if (!copied && !_s->failure) {
+                // the read failed: the entry would end short of the file
+                _s->keep(copied.error(), compress::detail::archive_error(copied.error()));
+            }
+            if (_s->failure) {
+                return _kept();
+            }
+            return _end_current();
+        }
+
+        expected<void, error> set_comment(const string& comment) noexcept {
+            if (_s->failure) {
+                return _kept();
+            }
+            if (_s->closed) {
+                // the end record is written: a comment now would be lost
+                _s->keep(io::error(make_error_code(errc::invalid_argument), "set_comment", "zip"),
+                         compress::detail::no_place(errc::invalid_argument, string("zip: set_comment after close")));
                 return _kept();
             }
             if (comment.size() > detail::MaxComment) {
                 _s->keep(io::error(make_error_code(errc::invalid_argument), "set_comment", "zip"),
-                         error(errc::invalid_argument, 0, string("zip: comment longer than 65535 bytes")));
+                         compress::detail::no_place(errc::invalid_argument, string("zip: comment longer than 65535 bytes")));
                 return _kept();
             }
             _s->comment = comment;
@@ -1472,7 +1548,7 @@ namespace sgcl::compress::zip {
             return _kept();
         }
 
-        async::task<expected<void, error>> async_close() {
+        async::task<expected<void, error>> async_close() noexcept {
             if (!_s->closed) {
                 co_await _async_end_current();
                 _s->closed = true;
@@ -1480,6 +1556,11 @@ namespace sgcl::compress::zip {
                 co_await detail::Sink(_s).async_write_made(tail);
             }
             co_return _kept();
+        }
+
+        // Whether close() was called (it ran, whether or not it succeeded)
+        bool is_closed() const noexcept {
+            return _s->closed;
         }
 
         // The first error the writer gave (a failure of out, or the
@@ -1490,7 +1571,15 @@ namespace sgcl::compress::zip {
         }
 
     private:
-        expected<void, error> _kept() const {
+        // Moved from: a state of its own, closed, with no out
+        void _left_closed() noexcept {
+            _s = make_tracked<detail::WriterState>();
+            _s->closed = true;
+            _current = nullptr;
+            _number = 0;
+        }
+
+        expected<void, error> _kept() const noexcept {
             if (_s->failure) {
                 return unexpected<error>(*_s->failure);
             }
@@ -1508,15 +1597,15 @@ namespace sgcl::compress::zip {
             return io::writer(_begin(e, task));
         }
 
-        expected<void, error> _check(const entry& e) {
+        expected<void, error> _check(const entry& e) noexcept {
             if (_s->closed) {
-                return unexpected<error>(error(errc::invalid_argument, _s->offset, string("zip: create after close")));
+                return unexpected<error>(compress::detail::no_place(errc::invalid_argument, string("zip: create after close")));
             }
             if (e.name.size() > 65535 || e.comment.size() > 65535) {
-                return unexpected<error>(error(errc::invalid_argument, _s->offset, string("zip: name or comment longer than 65535 bytes")));
+                return unexpected<error>(compress::detail::no_place(errc::invalid_argument, string("zip: name or comment longer than 65535 bytes")));
             }
             if (e.method != method::store && e.method != method::deflate) {
-                return unexpected<error>(error(errc::unsupported, _s->offset, string("zip: only store and deflate are written")));
+                return unexpected<error>(compress::detail::no_place(errc::unsupported, string("zip: only store and deflate are written")));
             }
             return {};
         }
@@ -1584,7 +1673,7 @@ namespace sgcl::compress::zip {
             return _kept();
         }
 
-        async::task<expected<void, error>> _async_end_current() {
+        async::task<expected<void, error>> _async_end_current() noexcept {
             if (!_current) {
                 co_return expected<void, error>();
             }
@@ -1595,7 +1684,7 @@ namespace sgcl::compress::zip {
         }
 
         // The central records, and the end records after them
-        std::vector<uint8_t> _directory() {
+        std::vector<uint8_t> _directory() noexcept {
             std::vector<uint8_t> o = std::move(_s->central);
             uint64_t cd_offset = _s->offset;
             uint64_t cd_size = o.size();
@@ -1653,12 +1742,13 @@ namespace sgcl::compress::detail {
         uint64_t total = 0;
         for (const auto& e : a->entries()) {
             if (!e.is_local()) {
-                return unexpected(error(errc::insecure_path, 0, string("zip: an entry's name leaves the directory: ") + e.name));
+                return unexpected(no_place(errc::insecure_path, string("zip: an entry's name leaves the directory: ") + e.name));
+            }
+            // against what is left of the bound: a sum past 2^64 would wrap below it
+            if (max_size && e.size > max_size - total) {
+                return unexpected(no_place(errc::too_large, string("zip: the files are larger than max_size")));
             }
             total += e.size;
-            if (max_size && total > max_size) {
-                return unexpected(error(errc::too_large, 0, string("zip: the files are larger than max_size")));
-            }
         }
         TreeWriter out;
         if (auto started = out.start(directory); !started) {
@@ -1679,7 +1769,7 @@ namespace sgcl::compress::detail {
                 }
                 std::string t(reinterpret_cast<const char*>(target->data()), target->size());
                 if (!sgcl::io::detail::link_stays_inside(name, t)) {
-                    return unexpected(error(errc::insecure_path, 0, string("zip: a link's target leaves the directory: ") + e.name));
+                    return unexpected(no_place(errc::insecure_path, string("zip: a link's target leaves the directory: ") + e.name));
                 }
                 out.symlink(name, t);
                 continue;
@@ -1702,7 +1792,7 @@ namespace sgcl::compress::detail {
         }
         auto file = io::create(archive_path);
         if (!file) {
-            return unexpected(error(file.error(), 0));
+            return unexpected(no_place(file.error()));
         }
         auto write_all = [&]() -> expected<void, error> {
             zip::writer w(*file);
@@ -1727,7 +1817,7 @@ namespace sgcl::compress::detail {
                 } else if (t.type == io::file_type::regular) {
                     auto in = io::open(string(t.path));
                     if (!in) {
-                        return unexpected(error(in.error(), 0));
+                        return unexpected(no_place(in.error()));
                     }
                     auto copied = io::copy(*out, *in);
                     (void)in->close();
@@ -1740,7 +1830,7 @@ namespace sgcl::compress::detail {
         };
         auto r = write_all();
         if (auto c = file->close(); r && !c) {
-            r = unexpected(error(c.error(), 0));
+            r = unexpected(no_place(c.error()));
         }
         if (!r) {
             (void)io::remove(archive_path);
@@ -1757,11 +1847,11 @@ namespace sgcl::compress::zip {
     };
 
     namespace detail {
-        inline async::task<expected<void, error>> zip_extract_task(string archive_path, string directory, uint64_t max) {
+        inline async::task<expected<void, error>> zip_extract_task(string archive_path, string directory, uint64_t max) noexcept {
             co_return co_await async::spawn_blocking([archive_path, directory, max] { return compress::detail::zip_extract(archive_path, directory, max); });
         }
 
-        inline async::task<expected<void, error>> zip_create_task(string directory, string archive_path, zip::method m) {
+        inline async::task<expected<void, error>> zip_create_task(string directory, string archive_path, zip::method m) noexcept {
             co_return co_await async::spawn_blocking([directory, archive_path, m] { return compress::detail::zip_create(directory, archive_path, m); });
         }
     }
@@ -1778,7 +1868,7 @@ namespace sgcl::compress::zip {
     }
 
     // The same in a task, on the blocking pool
-    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) {
+    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) noexcept {
         return detail::zip_extract_task(std::move(archive_path), std::move(directory), o.max_size);
     }
 
@@ -1792,7 +1882,7 @@ namespace sgcl::compress::zip {
         return compress::detail::zip_create(directory, archive_path, o.method);
     }
 
-    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) {
+    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) noexcept {
         return detail::zip_create_task(std::move(directory), std::move(archive_path), o.method);
     }
 }

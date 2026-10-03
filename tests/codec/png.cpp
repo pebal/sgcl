@@ -270,6 +270,22 @@ TEST(CodecPng_Tests, Limits) {
     EXPECT_EQ(code_of(codec::png::decode(bytes(small), {.want = static_cast<pixel_format>(20)})), codec::errc::invalid_argument);
 }
 
+TEST(CodecPng_Tests, ASizePastAnAddressIsTooLarge) {
+    // sides of 2^31 - 1, which PNG allows, with the limit lifted: too_large at
+    // IHDR, not the image's length_error, from memory, a stream and decode
+    static_assert(noexcept(codec::png::decode(slice<const byte>())));
+    static_assert(noexcept(codec::png::decode(slice<const byte>(), codec::decode_options())));
+    const auto file = png_signature() + png_ihdr(0x7FFFFFFF, 0x7FFFFFFF, 8, 6) + png_chunk("IDAT", zlib_of(std::string(1, '\0'))) + png_chunk("IEND", "");
+    const codec::decode_options o{.limits = {.max_pixels = UINT64_MAX}};
+    auto r = codec::png::decode(bytes(file), o);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().code(), codec::errc::too_large);
+    EXPECT_EQ(r.error().offset(), 8u);
+    pieces p{&file, 7};
+    EXPECT_EQ(code_of(codec::png::decode(io::reader(p), o)), codec::errc::too_large);
+    EXPECT_EQ(code_of(codec::decode(bytes(file), o)), codec::errc::too_large);
+}
+
 TEST(CodecPng_Tests, EveryCutIsUnexpectedEnd) {
     CODEC_ORACLE(data, "pngsuite/basi2c08.png");
     for (size_t n = 0; n < data.size(); ++n) {

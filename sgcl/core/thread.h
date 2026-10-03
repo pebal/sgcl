@@ -26,12 +26,12 @@ namespace sgcl {
             std::tuple<Args...> args;
 
             template<class G, class... A>
-            ThreadClosure(G&& g, A&&... a)
+            ThreadClosure(G&& g, A&&... a) noexcept(std::is_nothrow_constructible_v<F, G> && std::is_nothrow_constructible_v<std::tuple<Args...>, A...>)
                 : f(std::forward<G>(g))
                 , args(std::forward<A>(a)...) {
             }
 
-            void operator()() {
+            void operator()() noexcept(std::is_nothrow_invocable_v<F, Args...>) {
                 std::apply([this](Args&... a) { std::invoke(std::move(f), std::move(a)...); }, args);
             }
         };
@@ -95,7 +95,7 @@ namespace sgcl {
             });
         }
 
-        ~thread() = default;
+        ~thread() noexcept = default;
 
         void swap(thread& o) noexcept {
             _thread.swap(o._thread);
@@ -117,7 +117,7 @@ namespace sgcl {
             return _thread.get_id();
         }
 
-        native_handle_type native_handle() {
+        native_handle_type native_handle() noexcept {
             return _thread.native_handle();
         }
 

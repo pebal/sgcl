@@ -50,7 +50,7 @@ namespace sgcl::net::http {
             // The url of a server's request, made on the first use when the
             // head was routed without it: "http://" + Host + the target, as
             // at the head; one made by two readers at once is one of theirs
-            const net::url* url_of() {
+            const net::url* url_of() noexcept {
                 if (url) {
                     return &*url;
                 }
@@ -93,8 +93,9 @@ namespace sgcl::net::http {
     class request {
     public:
         // A request to send: the method as given ("GET", "POST"), the URL
-        // parsed now and its error reported by the send (net::errc::invalid_url)
-        request(const string& method, const string& url)
+        // parsed now and its error reported by the send (net::errc::invalid_url,
+        // a text past 512 MiB among it: url.h's UrlMaxSize)
+        request(const string& method, const string& url) noexcept
         : _impl(make_tracked<detail::RequestImpl>()) {
             _impl->method = method;
             _impl->url_text = url;
@@ -103,13 +104,13 @@ namespace sgcl::net::http {
             }
         }
 
-        string method() const {
+        string method() const noexcept {
             return _impl->method;
         }
 
         // The protocol the request came over, as Go's r.Proto: "HTTP/1.1",
         // "HTTP/1.0" or "HTTP/2.0"
-        string proto() const {
+        string proto() const noexcept {
             return _impl->h2 ? "HTTP/2.0" : _impl->minor == 0 ? "HTTP/1.0" : "HTTP/1.1";
         }
 
@@ -126,7 +127,7 @@ namespace sgcl::net::http {
         }
 
         // A field of the head, "" when there is none
-        string header(const string& name) const {
+        string header(const string& name) const noexcept {
             return _impl->fields.get(name);
         }
 
@@ -134,24 +135,24 @@ namespace sgcl::net::http {
             return _impl->fields;
         }
 
-        request& set_header(const string& name, const string& value) {
+        request& set_header(const string& name, const string& value) noexcept {
             _impl->fields.set(name, value);
             return *this;
         }
 
-        request& add_header(const string& name, const string& value) {
+        request& add_header(const string& name, const string& value) noexcept {
             _impl->fields.add(name, value);
             return *this;
         }
 
         // The body to send, with its Content-Length
-        request& set_body(const string& text) {
+        request& set_body(const string& text) noexcept {
             _impl->body_kind = detail::RequestImpl::BodyKind::text;
             _impl->text = text;
             return *this;
         }
 
-        request& set_body(vector<byte> bytes) {   // by value: a vector's copy copies the bytes, its move does not
+        request& set_body(vector<byte> bytes) noexcept {   // by value: a vector's copy copies the bytes, its move does not
             _impl->body_kind = detail::RequestImpl::BodyKind::bytes;
             _impl->bytes = std::move(bytes);
             return *this;
@@ -160,7 +161,7 @@ namespace sgcl::net::http {
         // A stream, read when the request is sent: with its length given,
         // Content-Length; without, chunked. A stream cannot be sent twice,
         // so a request with one is neither retried nor redirected with 307
-        request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) {
+        request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) noexcept {
             _impl->body_kind = detail::RequestImpl::BodyKind::stream;
             _impl->stream = stream;
             detail::set_optional(_impl->stream_length, length);
@@ -168,7 +169,7 @@ namespace sgcl::net::http {
         }
 
         // The server's side. {name} of the route's pattern, unescaped
-        string path_value(const string& name) const {
+        string path_value(const string& name) const noexcept {
             for (auto& p : _impl->path_values) {
                 if (p.first == name) {
                     return p.second;
@@ -178,18 +179,20 @@ namespace sgcl::net::http {
         }
 
         // The first value of the name in the query, "" when there is none:
-        // found in the query's text, only that value decoded (the pairs
-        // before it are not made into strings)
-        string query(const string& name) const {
+        // found in the query's text where the URL holds it, only that value
+        // decoded (the pairs before it are not made into strings):
+        // query_params::first without its limit, which a URL's query is
+        // within
+        string query(const string& name) const noexcept {
             auto u = _impl->url_of();
             if (!u || !u->has_query()) {
                 return string();
             }
-            return net::query_params::first(u->query(), name);
+            return net::detail::UrlAccess::query_first(*u, name);
         }
 
         // The value of the first cookie of the name in the Cookie fields
-        string cookie(const string& name) const {
+        string cookie(const string& name) const noexcept {
             auto c = detail::request_cookie(_impl->fields, name.view());
             return c ? *c : string();
         }
@@ -217,7 +220,7 @@ namespace sgcl::net::http {
             return _co_text(_impl).wait();
         }
 
-        async::task<expected<string, io::error>> async_text() const {
+        async::task<expected<string, io::error>> async_text() const noexcept {
             return _co_text(_impl);
         }
 
@@ -225,13 +228,13 @@ namespace sgcl::net::http {
             return _co_bytes(_impl).wait();
         }
 
-        async::task<expected<vector<byte>, io::error>> async_bytes() const {
+        async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept {
             return _co_bytes(_impl);
         }
 
         // The body as a stream (reads bounded by max_body_bytes); an empty
         // stream for a request without a body
-        io::reader body() const {
+        io::reader body() const noexcept {
             if (!_impl->body) {
                 return io::reader(detail::no_body);
             }
@@ -239,7 +242,7 @@ namespace sgcl::net::http {
         }
 
         // The trailers of a chunked body, once it has been read to its end
-        http::headers trailers() const {
+        http::headers trailers() const noexcept {
             return _impl->body ? _impl->body->trailers() : http::headers();
         }
 
@@ -252,14 +255,14 @@ namespace sgcl::net::http {
 
         tracked_ptr<detail::RequestImpl> _impl;
 
-        static async::task<expected<vector<byte>, io::error>> _co_bytes(tracked_ptr<detail::RequestImpl> impl) {
+        static async::task<expected<vector<byte>, io::error>> _co_bytes(tracked_ptr<detail::RequestImpl> impl) noexcept {
             if (!impl->body) {
                 co_return vector<byte>();
             }
             co_return co_await impl->body->read_everything();
         }
 
-        static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::RequestImpl> impl) {
+        static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::RequestImpl> impl) noexcept {
             if (!impl->body) {
                 co_return string();
             }
@@ -270,7 +273,7 @@ namespace sgcl::net::http {
 
     namespace detail {
         struct RequestAccess {
-            static request make(const tracked_ptr<RequestImpl>& impl) {
+            static request make(const tracked_ptr<RequestImpl>& impl) noexcept {
                 return request(impl);
             }
 

@@ -53,7 +53,7 @@ namespace sgcl::net::http {
 
         // The protocol the response came over, as Go's resp.Proto:
         // "HTTP/1.1", "HTTP/1.0" or "HTTP/2.0"
-        string proto() const {
+        string proto() const noexcept {
             return _impl->h2 ? "HTTP/2.0" : _impl->minor == 0 ? "HTTP/1.0" : "HTTP/1.1";
         }
 
@@ -63,7 +63,7 @@ namespace sgcl::net::http {
         }
 
         // A field of the head, "" when there is none
-        string header(const string& name) const {
+        string header(const string& name) const noexcept {
             return _impl->fields.get(name);
         }
 
@@ -76,7 +76,7 @@ namespace sgcl::net::http {
         }
 
         // The URL the response came from: the last of the redirects
-        net::url url() const {
+        net::url url() const noexcept {
             return *_impl->url;
         }
 
@@ -87,7 +87,7 @@ namespace sgcl::net::http {
             return _co_text(_impl).wait();
         }
 
-        async::task<expected<string, io::error>> async_text() const {
+        async::task<expected<string, io::error>> async_text() const noexcept {
             return _co_text(_impl);
         }
 
@@ -95,31 +95,31 @@ namespace sgcl::net::http {
             return _co_bytes(_impl).wait();
         }
 
-        async::task<expected<vector<byte>, io::error>> async_bytes() const {
+        async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept {
             return _co_bytes(_impl);
         }
 
         // The body as JSON: a value, or a T through describe (defined in
         // download.h, which client.h and http.h bring in)
         expected<encoding::json, io::error> json() const;
-        async::task<expected<encoding::json, io::error>> async_json() const;
+        async::task<expected<encoding::json, io::error>> async_json() const noexcept;
         template<class T>
         expected<T, io::error> json() const;
         template<class T>
-        async::task<expected<T, io::error>> async_json() const;
+        async::task<expected<T, io::error>> async_json() const noexcept;
 
         // The body streamed into the file at path, through path + ".part"
         // renamed at its end (nothing half-written left): the bytes written
         expected<uint64_t, io::error> save(const string& path) const;
-        async::task<expected<uint64_t, io::error>> async_save(string path) const;
+        async::task<expected<uint64_t, io::error>> async_save(string path) const noexcept;
 
         // The body as a stream; its end gives the connection back
-        io::reader body() const {
+        io::reader body() const noexcept {
             return io::reader(_impl->body);
         }
 
         // The trailers of a chunked body, once it has been read to its end
-        http::headers trailers() const {
+        http::headers trailers() const noexcept {
             return _impl->body->trailers();
         }
 
@@ -141,11 +141,11 @@ namespace sgcl::net::http {
 
         tracked_ptr<detail::ResponseImpl> _impl;
 
-        static async::task<expected<vector<byte>, io::error>> _co_bytes(tracked_ptr<detail::ResponseImpl> impl) {
+        static async::task<expected<vector<byte>, io::error>> _co_bytes(tracked_ptr<detail::ResponseImpl> impl) noexcept {
             co_return co_await impl->body->read_everything();
         }
 
-        static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::ResponseImpl> impl) {
+        static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::ResponseImpl> impl) noexcept {
             co_return co_await impl->body->read_text();   // straight into the string
         }
 
@@ -153,7 +153,7 @@ namespace sgcl::net::http {
 
     namespace detail {
         struct ResponseAccess {
-            static response make(const tracked_ptr<ResponseImpl>& impl) {
+            static response make(const tracked_ptr<ResponseImpl>& impl) noexcept {
                 return response(impl);
             }
 

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "aliases.h"
+#include "detail/bytes.h"
 #include "detail/contiguous_iterator.h"
 #include "make_tracked.h"
 #include "mixin/mixin.h"
@@ -13,6 +14,7 @@
 #include "tracked_ptr.h"
 #include "vector.h"
 
+#include <ranges>
 #include <algorithm>
 #include <cstddef>
 #include <initializer_list>
@@ -70,7 +72,7 @@ namespace sgcl {
                     (void)data;
                     _size = count;   // zeroed: null tracked pointers already
                 } else if constexpr(_zero_is_value()) {
-                    std::memset(static_cast<void*>(data), 0, count * sizeof(T));
+                    detail::fill_bytes(static_cast<void*>(data), 0, count * sizeof(T));
                     _size = count;
                 } else {
                     _guarded([&] {
@@ -112,6 +114,16 @@ namespace sgcl {
                 vector<T> collected(first, last);
                 *this = dynamic_array(std::make_move_iterator(collected.begin()), std::make_move_iterator(collected.end()));
             }
+        }
+
+        // From a range of what the elements are made of (the pieces of a
+        // string, a view, another container), as C++23's from_range and
+        // every other sequence: a dynamic_array is copied by its own
+        // constructor, not this one
+        template<std::ranges::input_range R>
+        requires (!std::is_same_v<std::remove_cvref_t<R>, dynamic_array>) && std::is_constructible_v<T, std::ranges::range_reference_t<R>>
+        explicit dynamic_array(R&& r)
+        : dynamic_array(std::ranges::begin(r), std::ranges::end(r)) {
         }
 
         dynamic_array(std::initializer_list<T> ilist)

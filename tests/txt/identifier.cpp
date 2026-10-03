@@ -510,3 +510,77 @@ TEST(Identifier_Tests, TheFuzzerOverSkeletonAndTheIdentifierCheck) {
         (void)txt::restriction_level_of(text);
     }
 }
+
+// DESIGN 408: past the code space, the empty text, one code point, the
+// joiners at the very ends, and a text folded or skeletonized into itself
+TEST(Identifier_Tests, TheEdges) {
+    using enum txt::identifier_status;
+    for (char32_t c : {char32_t(0x10FFFF), char32_t(0x110000), char32_t(0xFFFFFFFF), char32_t(0xD800)}) {
+        EXPECT_FALSE(txt::is_identifier_start(c)) << std::hex << uint32_t(c);
+        EXPECT_FALSE(txt::is_identifier_continue(c));
+        EXPECT_FALSE(txt::is_identifier_start(c, txt::program_syntax));
+        EXPECT_EQ(txt::identifier_status_of(c), restricted);
+    }
+    EXPECT_EQ(txt::identifier_type_of(char32_t(0x110000)), txt::identifier_type::not_character);
+    EXPECT_EQ(txt::identifier_type_of(char32_t(0xFFFFFFFF)), txt::identifier_type::not_character);
+    static_assert(!txt::is_identifier_start(U'\0') && !txt::is_identifier_continue(U'\0'));
+    static_assert(!txt::is_identifier_continue(U'$') && !txt::is_identifier_start(U'$'));
+
+    // One code point
+    EXPECT_TRUE(txt::is_identifier(string("a")));
+    EXPECT_FALSE(txt::is_identifier(string("_")));
+    EXPECT_FALSE(txt::is_identifier(string("$")));
+    EXPECT_TRUE(txt::is_identifier(string("$"), txt::program_syntax));
+    EXPECT_FALSE(txt::is_identifier(string("1"), txt::program_syntax));
+    EXPECT_FALSE(txt::is_identifier(string("a\0b", 3)));                 // a NUL is not a part of a name
+    EXPECT_TRUE(txt::is_allowed_identifier(string("a")));
+    EXPECT_EQ(txt::restriction_level_of(string("a")), txt::restriction_level::ascii_only);
+    EXPECT_FALSE(txt::is_highly_restrictive(string()));
+    EXPECT_FALSE(txt::is_moderately_restrictive(string()));
+    EXPECT_TRUE(txt::is_single_script(string()));
+
+    // A joiner as the whole text, and a joiner last after a virama ($V ZWJ)
+    EXPECT_FALSE(txt::is_identifier(utf8_of(char32_t(0x200D))));
+    EXPECT_FALSE(txt::is_identifier(utf8_of(char32_t(0x200C)), txt::program_syntax));
+    const char32_t virama_last[] = {0x0915, 0x094D, 0x200D, 0};
+    EXPECT_TRUE(txt::is_identifier(utf8_of(virama_last)));
+    // An invalid byte before a joiner is no virama and no joining letter
+    EXPECT_FALSE(txt::is_identifier(string("a\xFF") + utf8_of(char32_t(0x200C)) + string("b")));
+
+    // Empty in, empty out, and the empty skeleton is the empty text's alone
+    EXPECT_EQ(txt::nfkc_casefold(string()), string());
+    EXPECT_EQ(txt::skeleton(string()), string());
+    EXPECT_TRUE(txt::is_nfkc_casefolded(string()));
+    EXPECT_TRUE(txt::is_confusable(string(), string()));
+    EXPECT_FALSE(txt::is_confusable(string(), string("a")));
+    // A text of default ignorables alone folds to nothing
+    EXPECT_EQ(txt::nfkc_casefold(utf8_of(char32_t(0x00AD)) + utf8_of(char32_t(0x200B))), string());
+    EXPECT_FALSE(txt::is_nfkc_casefolded(utf8_of(char32_t(0x00AD))));
+
+    // In the form already: the same object back
+    string folded("wartość");
+    EXPECT_EQ(txt::nfkc_casefold(folded).data(), folded.data());
+    string ascii("abc_1");
+    EXPECT_EQ(txt::nfkc_casefold(ascii).data(), ascii.data());
+    string bones("abc");                                          // its own skeleton ('1' is not: it looks like 'l')
+    EXPECT_EQ(txt::skeleton(bones).data(), bones.data());
+
+    // One code point that grows: U+FDFA folds to 18 of them
+    auto grown = txt::nfkc_casefold(utf8_of(char32_t(0xFDFA)));
+    EXPECT_EQ(grown.runes().count(), 18u);
+    EXPECT_TRUE(txt::is_nfkc_casefolded(grown));
+
+    // Into itself
+    string self("ÉCOLE");
+    self = txt::nfkc_casefold(self);
+    EXPECT_EQ(self, string("école"));
+    self = txt::skeleton(self);
+    EXPECT_EQ(txt::skeleton(self), self);
+    string same("раypal");
+    EXPECT_TRUE(txt::is_confusable(same, same));
+
+    // Broken UTF-8: each bad byte is a U+FFFD, kept by both mappings
+    EXPECT_EQ(txt::nfkc_casefold(string("A\xFF")), string("a�"));
+    EXPECT_EQ(txt::skeleton(string("\xFF")), string("�"));
+    EXPECT_FALSE(txt::is_allowed_identifier(string("a\xFF")));
+}

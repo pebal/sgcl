@@ -1,111 +1,112 @@
-# sgcl::concurrent::stack
+[sgcl](../README.md) › [concurrent](README.md)
+
+# sgcl::concurrent::stack\<T\>
 
 ```cpp
-#include "sgcl/concurrent/stack.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/stack.h"   // or "sgcl/concurrent.h"
 
-namespace sgcl {
+namespace sgcl::concurrent {
     template<class T>
     class stack;
 }
 ```
 
-`sgcl::concurrent::stack<T>` is a lock-free LIFO stack shared by any number of threads: the Treiber stack, a single atomic word for the head and a compare-exchange to push or pop, written the way it is written for a runtime with a collector. There is no ABA problem, no hazard pointer to publish, no epoch to enter and no reclamation scheme in the container, because a node is never reused while a thread holds it; the collector reclaims a node once nothing does ([README: Lock-free containers](README.md#lock-free-containers)). The interface is that of Java's `ConcurrentLinkedDeque` used at one end, with the names of `std::stack`: `push`, `emplace`, `try_pop`, `pop`, `empty`, `size`, `clear`. The element type is any movable `T`, a `tracked_ptr` included.
+`sgcl::concurrent::stack<T>` is a lock-free LIFO stack shared by any number of threads: the Treiber stack, one
+atomic word for the head and a compare-exchange to push or pop, written as it is written for a runtime with a
+collector. A push makes a node holding the element, links it above the head it loaded and publishes it with a
+compare-exchange on the head; a pop loads the head and swings it to the node below with a compare-exchange. A
+thread that loses the exchange backs off before the retry, exponentially, as the stack of Herlihy and Shavit
+does: on one word every thread contends for, the retries of many threads otherwise cost more than the operations.
+
+There is no ABA problem, no hazard pointer to publish, no epoch to enter and no reclamation scheme in the
+container, because a node is never reused while a thread holds it: a popped node is garbage the collector
+reclaims once nothing holds it ([README: Lock-free containers](README.md#lock-free-containers)).
+
+What differs from `std::stack`: the interface has its names (`push`, `emplace`, `empty`, `size`), but there is no
+`top()` and `pop` returns the element, because between a look at the top and its removal another thread may take
+it; `try_pop` is the pop that does not wait. The interface is that of Java's `ConcurrentLinkedDeque` used at one
+end, except that `pop` waits on an empty stack instead of returning nothing, and the element is moved out, not
+shared. Go's library has no stack. The element type is any movable `T`, a `tracked_ptr` included.
 
 ## Rules
 
-- The container is one word, the atomic head. The stack lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1).
-- Every operation is lock-free and may be called from any thread at any time; `push` and `try_pop` are linearizable at their compare-exchange. `pop` blocks while the stack is empty, on the head's `wait`; every `push` notifies.
-- A failed compare-exchange backs off before the retry, exponentially up to `config::backoff_max` pause instructions (the backoff stack of Herlihy and Shavit): many threads at one word otherwise spend more on their retries than on their operations, and the backoff turns the storm into near-serial exchanges, sixteen threads at 23 ns per operation instead of 740 ([config](../core/config.md#sgcl_backoff_max-backoffmax)). The cap bounds what one operation may wait under that contention.
-- An element is moved out of its node by the thread that pops it, into the `optional` returned, and destroyed in the node there and then: what `std::stack::pop` does, on the popping thread. The node is garbage from that moment. The move should not throw: an element whose move constructor throws is lost.
-- `size()` walks the nodes: linear, and a snapshot of no particular moment when other threads push or pop, as Java's `size` is. `empty()` is one load.
-- A `tracked_ptr` may not address an element ([The rules](../core/README.md#the-rules), 4); there is no `top()`: the top element is what `try_pop` returns.
+- The container is the atomic head and a count of the threads waiting in `pop`. The stack lives where a
+  `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1).
+- Every member function may be called from any thread at any time. `push`, `emplace`, `try_pop`, `empty`, `size`
+  and `clear` are lock-free; `push` and `try_pop` are linearizable at their compare-exchange on the head. `pop`
+  waits while the stack is empty, on the head's `wait`; a push notifies only when a thread waits.
+- A failed compare-exchange of `push`, `emplace` or `try_pop` on the head backs off before the retry,
+  exponentially up to `config::backoff_max` pause instructions ([config](../core/config.md)): the backoff turns
+  the storm of lost exchanges into near-serial ones, and the cap bounds what one operation may wait under that
+  contention.
+- An element is moved out of its node by the thread that pops it, into the `optional` returned, and destroyed in
+  the node there and then: what `std::stack::pop` does, on the popping thread. The node is garbage from that
+  moment. The elements still on the stack when it dies are destroyed with their nodes, by the collector.
 - Non-copyable, non-movable: a shared structure has one place.
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `T` | The type of the elements: any object type that is move-constructible. Its move constructor should not throw: an element whose move throws on the way out is lost. |
 
-```cpp
-using value_type = T;
-using size_type = size_t;
-```
+## Member types
 
-### Constructors
+| Type | Definition |
+|---|---|
+| `value_type` | `T` |
+| `size_type` | `size_t` |
 
-```cpp
-stack() noexcept;
-stack(const concurrent::stack&) = delete;
-```
+## Member functions
 
-An empty stack: a null head, no allocation.
+| Function | Description |
+|---|---|
+| [(constructor)](stack/stack.md) | constructs an empty stack |
+| `(destructor)` | leaves the nodes, and the elements still in them, to the collector |
 
-### push, emplace
+#### Capacity
 
-```cpp
-void push(const T& value);
-void push(T&& value);
-template<class... A> void emplace(A&&... a);
-```
+| Function | Description |
+|---|---|
+| [empty](stack/empty.md) | checks whether the stack holds an element |
+| [size](stack/size.md) | counts the elements |
 
-Creates a node on the managed heap holding the element (constructed from `a...` in place for `emplace`), links it above the current head and publishes it with a compare-exchange, retrying against concurrent pushes and pops; then notifies one thread waiting in `pop`.
+#### Modifiers
 
-```cpp
-concurrent::stack<tracked_ptr<Work>> tasks;   // a global: 
-tasks.push(make_tracked<Work>(1));
-tasks.emplace(make_tracked<Work>(2));            // the element built from its arguments
-```
+| Function | Description |
+|---|---|
+| [push](stack/push.md) | puts an element on the top |
+| [emplace](stack/emplace.md) | constructs an element in place on the top |
+| [try_pop](stack/try_pop.md) | takes the top element, or nothing when the stack is empty |
+| [pop](stack/pop.md) | takes the top element, waiting for one |
+| [clear](stack/clear.md) | takes every element off at once |
 
-### try_pop, pop
+## Complexity
 
-```cpp
-optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
-T pop();
-```
+- `push`, `emplace`, `try_pop`: constant, plus the retries of a lost compare-exchange and their backoff.
+- `empty`: constant, one load. `size`: linear in the number of elements. `clear`: linear in the number of
+  elements, with one compare-exchange on the head.
 
-`try_pop` takes the top element: the element, or nothing when the stack was empty at the moment of the load. `pop` takes the top element, waiting while the stack is empty.
-
-```cpp
-if (auto t = tasks.try_pop()) {
-    (*t)->run().wait();
-}
-tracked_ptr next = tasks.pop();   // blocks until a push
-```
-
-### empty, size
-
-```cpp
-bool empty() const noexcept;
-size_type size() const noexcept;
-```
-
-`empty` is a load of the head; `size` counts the nodes, in linear time.
-
-### clear
-
-```cpp
-void clear() noexcept;
-```
-
-Takes the whole stack off the head with a compare-exchange and destroys every element it held, on the calling thread; the nodes are the collector's.
+A node is allocated per element. With the backoff the stack costs 9.9 ns per operation on one thread and 10.8 at
+sixteen threads; without it, sixteen threads at one word spent 607
+([Benchmarks: Lock-free stack](benchmarks.md#lock-free-stack)).
 
 ## Example
 
 ```cpp
-#include "sgcl/concurrent/concurrent.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/concurrent.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// Producers push jobs, consumers pop them and block while there are
-// none: the classic shape, with nothing in it about who frees a node
 struct Job {
     int id;
 };
 
 int main() {
-    concurrent::stack<tracked_ptr<Job>> jobs;   // on the stack: 
-    atomic done = 0;
+    concurrent::stack<tracked_ptr<Job>> jobs;  // on the stack of this thread
+    atomic<int> done = 0;
     vector<thread> threads;
     for (int p : range(4)) {
         threads.emplace_back([&, p] {
@@ -115,28 +116,29 @@ int main() {
         });
         threads.emplace_back([&] {
             for (int i : range(1000)) {
-                tracked_ptr job = jobs.pop();     // waits when the stack is empty
+                tracked_ptr job = jobs.pop();  // waits when the stack is empty
                 done += job->id >= 0;
-            }                                           // the job is garbage once nothing holds it
+            }  // a job is garbage once nothing holds it
         });
     }
     for (auto& t : threads) {
         t.join();
     }
-    println("{} jobs, {}", done.load(), (jobs.empty() ? "stack empty" : "?"));
-    return done == 4000 && jobs.empty() ? 0 : 1;
+    println("{} jobs, empty: {}", done.load(), jobs.empty());
 }
 ```
 
 Output:
 
 ```text
-4000 jobs, stack empty
+4000 jobs, empty: true
 ```
 
 ## See also
 
-- [concurrent::queue](queue.md) for the FIFO counterpart, [concurrent::sorted_map](sorted_map.md) for the sorted map
-- [atomic](../core/atomic.md), what the head is; [examples/lock_free_stack.cpp](../../../examples/lock_free_stack.cpp), the same structure written by hand
-- [stack](../core/stack.md), the sequential adapter
-- [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)
+- [queue](queue.md): the FIFO counterpart
+- [stack](../core/stack.md): the sequential adapter
+- [atomic](../core/atomic.md): what the head is
+- [benchmarks/concurrent/lockfree_stack.cpp](../../../benchmarks/concurrent/lockfree_stack.cpp): the same
+  structure written by hand
+- [README: Lock-free containers](README.md#lock-free-containers)

@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/bytes.h"
 #include "limb.h"
 
 #include <cstring>
@@ -194,7 +195,7 @@ namespace sgcl::math::detail {
             std::swap(an, bn);
         }
         if (!bn) {
-            std::memset(r, 0, an * sizeof(Limb));
+            sgcl::detail::fill_bytes(r, 0, an * sizeof(Limb));
             return;
         }
         r[an] = mul_1(r, a, an, b[0]);
@@ -406,7 +407,7 @@ namespace sgcl::math::detail {
     // until a sweep.
     class Scratch {
     public:
-        explicit Scratch(size_t n)
+        explicit Scratch(size_t n) noexcept
         : _p(n <= Inline ? _inline : (_heap = std::make_unique_for_overwrite<Limb[]>(n)).get()) {
         }
 

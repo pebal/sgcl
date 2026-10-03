@@ -761,3 +761,105 @@ TEST(JsonTyped_Tests, APointerFieldsMissingMembersAreZero) {
     }
     EXPECT_FALSE(kept.empty());
 }
+
+namespace typed {
+    // options set through a field kept past the next add
+    struct kept_options {
+        int a = 0;
+        int b = 0;
+        void describe(field_list& f) {
+            auto first = f.add("a", a);
+            f.add("b", b);
+            first.omit_empty();
+        }
+    };
+
+    // alternatives with no operator==: a variant of them has none either
+    struct plain_circle {
+        double r = 0;
+        void describe(field_list& f) {
+            f.add("r", r);
+        }
+    };
+
+    struct plain_square {
+        double side = 0;
+        void describe(field_list& f) {
+            f.add("side", side);
+        }
+    };
+
+    struct plain_shapes {
+        std::variant<plain_circle, plain_square> one;
+        std::variant<plain_circle, plain_square> other;
+        void describe(field_list& f) {
+            f.add("one", one).tagged("kind", {"circle", "square"});
+            f.add("other", other).tagged("kind", {"circle", "square"}).omit_empty();
+        }
+    };
+
+    struct nested_unknown {
+        int a = 0;
+        address home;
+        void describe(field_list& f) {
+            f.add("a", a);
+            f.add("home", home);
+        }
+    };
+
+    struct not_a_number {
+        double x = 0;
+        void describe(field_list& f) {
+            f.add("x", x);
+        }
+    };
+}
+
+// A field is made by add alone: no default one, no copy of one
+TEST(JsonTyped_Tests, AFieldIsMadeByAddAlone) {
+    EXPECT_FALSE(std::is_default_constructible_v<sgcl::encoding::field>);
+    EXPECT_FALSE(std::is_copy_constructible_v<sgcl::encoding::field>);
+    EXPECT_FALSE(std::is_copy_assignable_v<sgcl::encoding::field>);
+}
+
+// The options of a field go to the field add made it for, also when
+// another field was added since
+TEST(JsonTyped_Tests, OptionsGoToTheirField) {
+    EXPECT_EQ(value_of(json::stringify(typed::kept_options{})).view(), R"({"b":0})");
+    EXPECT_EQ(value_of(json::stringify(typed::kept_options{1, 2})).view(), R"({"a":1,"b":2})");
+}
+
+// A variant of types without == is written and read; omit_empty never
+// finds it empty, as there is nothing to compare it with
+TEST(JsonTyped_Tests, VariantsOfTypesWithoutEquality) {
+    typed::plain_shapes s;
+    s.one = typed::plain_square{2};
+    auto t = value_of(json::stringify(s));
+    EXPECT_EQ(t.view(), R"({"one":{"kind":"square","side":2},"other":{"kind":"circle","r":0}})");
+    auto back = value_of(json::parse<typed::plain_shapes>(t));
+    EXPECT_EQ(std::get<1>(back.one).side, 2.0);
+    EXPECT_EQ(back.other.index(), 0u);
+}
+
+// The errors of a value with no input text (stringify, from, as) have no
+// place, only the path; an unknown field's path is the field's
+TEST(JsonTyped_Tests, ErrorsWithoutAText) {
+    typed::not_a_number nan{std::nan("")};
+    EXPECT_EQ(error_of(json::stringify(nan)).message(), sgcl::string("/x: NaN is not a JSON number"));
+    EXPECT_EQ(error_of(json::from(nan)).message(), sgcl::string("/x: NaN is not a JSON number"));
+    EXPECT_EQ(error_of(json::stringify(std::nan(""))).message(), sgcl::string("NaN is not a JSON number"));
+    EXPECT_EQ(error_of(json::parse(text(R"({"a": "x"})")).value().as<typed::nested_unknown>()).message(),
+              sgcl::string("/a: expected an integer, found a string"));
+    json::options strict;
+    strict.reject_unknown_fields = true;
+    auto tree = json::parse(text(R"({"a": 1, "home": {"city": "x", "zip": 1}})")).value();
+    EXPECT_EQ(error_of(tree.as<typed::nested_unknown>(strict)).message(), sgcl::string("/home/zip: unknown field \"zip\""));
+    EXPECT_EQ(error_of(tree.as<typed::nested_unknown>(strict)).path(), sgcl::string("/home/zip"));
+    auto top = json::parse(text(R"({"a": 1, "b": 2})")).value();
+    EXPECT_EQ(error_of(top.as<typed::nested_unknown>(strict)).message(), sgcl::string("/b: unknown field \"b\""));
+    // the same read from the text: the place and the same path
+    EXPECT_EQ(error_of(json::parse<typed::nested_unknown>(text(R"({"a": 1, "home": {"city": "x", "zip": 1}})"), strict)).message(),
+              sgcl::string("1:32 /home/zip: unknown field \"zip\""));
+    EXPECT_EQ(error_of(json::parse<typed::nested_unknown>(text(R"({"a": 1, "b": 2})"), strict)).message(),
+              sgcl::string("1:10 /b: unknown field \"b\""));
+}

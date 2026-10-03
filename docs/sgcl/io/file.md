@@ -1,165 +1,157 @@
+[sgcl](../README.md) › [io](README.md)
+
 # sgcl::io::file
 
 ```cpp
-#include "sgcl/io/file.h"   // or "sgcl/io/io.h"
+#include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    enum class open_flags : unsigned { read = 1, write = 2, create = 4, truncate = 8, append = 16, exclusive = 32, sync = 64 };
-    class file final : public mixin::reader<file>, public mixin::writer<file>, public mixin::seeker<file>;   // one class for every descriptor; a handle of one word
-
-    expected<file, error> open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666));
-    expected<file, error> create(const string& path, permissions p = permissions(0666));   // write | create | truncate
-    // async_open, async_create: the same for a task, on the blocking pool
-    file from_fd(int fd, const string& name = {});
-    struct pipe_ends { file read; file write; };
-    expected<pipe_ends, error> pipe();
-
-    expected<vector<byte>, error> read_file(const string& path);   expected<string, error> read_text(const string& path);
-    expected<void, error> write_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666));   // and a string's text
-    expected<void, error> append_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666));  // the same
-    // async_read_file, async_read_text, async_write_file, async_append_file: the same for a task, on the blocking pool
-
-    expected<file, error> temp_file(const string& dir = {}, const string& pattern = "*");
-    expected<string, error> make_temp_dir(const string& dir = {}, const string& pattern = "*");
-    // async_temp_file, async_make_temp_dir: the same for a task, on the blocking pool
+    class file final : public mixin::reader<file>, public mixin::writer<file>,
+                       public mixin::seeker<file>;
 }
 ```
 
-A file is one class for every descriptor — a regular file, a pipe, a terminal, later a socket — a [stream](stream.md) with a position. A read or write is the system call on the descriptor. The asynchronous form of an operation goes one of two ways, chosen when the file is made: a regular file's (and a terminal's) runs the call on the [blocking pool](../async/blocking.md), a disk having no readiness to wait for; a non-blocking descriptor's (a pipe from `pipe()`, a socket) waits for readiness on the [reactor](../async/reactor.md) and makes the call when it will not block, and the synchronous form on such a descriptor polls instead. `read_at` and `write_at` are `pread` and `pwrite`: the position given, the file's own untouched, so that tasks share a file without a seek between them.
+`sgcl::io::file` is one class for every descriptor — a regular file, a pipe, a terminal, later a socket — a stream
+with a position. A read or a write is the system call on the descriptor. The asynchronous form of an operation goes
+one of two ways, chosen when the file is made: a regular file's (and a terminal's) runs the call on the
+[blocking pool](../async/spawn_blocking.md), a disk having no readiness to wait for; a non-blocking descriptor's (a pipe
+from [pipe](pipe.md), a socket) waits for readiness on the [reactor](../async/readable.md) and makes the call when it
+will not block, and the synchronous form on such a descriptor polls instead. [read_at](file/read_at.md) and
+[write_at](file/write_at.md) are `pread` and `pwrite`: the position given, the file's own untouched, so that tasks
+share a file without a seek between them.
 
-A `file` is a handle of one word, a `tracked_ptr` to the object inside, as a [`string`](../core/string.md) is: a copy is the same file (one descriptor, one position), passed by value into a task it keeps the file alive for as long as the task runs. `io::file f = io::open(p);` takes the file out of the `expected`, and throws its error when there is none ([expected](../core/expected.md)); `auto opened = io::open(p); if (!opened) ...` is the form that looks at the failure.
+A `file` is a handle of one word, a `tracked_ptr` to the object inside, as a [string](../core/string.md) is: a copy
+is the same file (one descriptor, one position), and passed by value into a task it keeps the file alive for as
+long as the task runs. `io::file f = io::open(p);` takes the file out of the `expected`, and throws its error when
+there is none ([expected](../core/expected.md)); `auto opened = io::open(p); if (!opened) ...` is the form that
+looks at the failure.
+
+Against `std::fstream`: no buffer of its own (a [buffered_reader](buffered_reader.md) or a
+[buffered_writer](buffered_writer.md) goes over it), no formatting, the errors returned as values, a copy that
+shares the file instead of none, and an `async_` form, for a task, of the operations that wait. Against Go's
+`os.File`: the same class for every descriptor and the same operations (`ReadAt`, `WriteAt`, `Seek`, `Sync`,
+`Truncate`, `Stat`, `Chmod` are [read_at](file/read_at.md), [write_at](file/write_at.md), [seek](file/seek.md),
+[sync](file/sync.md), [truncate](file/truncate.md), [stat](file/stat.md), [chmod](file/chmod.md)); `os.Open`,
+`os.Create`, `os.OpenFile` and `os.NewFile` are [open](open.md) with its flags, [create](create.md) and
+[from_fd](from_fd.md). Where a goroutine blocks in `Read`, a task writes `co_await f.async_read(b)`, served by the
+pool for a regular file and by the reactor for a pipe or a socket.
 
 ## Rules
 
-- Made by `open`, `create`, `temp_file`, `from_fd`, `pipe` and their `async_` forms: a handle, which every function of io takes as a reader, a writer, a closer and a seeker ([stream](stream.md)). A `file` made by its default constructor holds none (`!f`); an operation on it is a contract violation.
-- A handle is a tracked word: on a stack, in a task, in a managed object. In a global or a std container it goes into a [`rooted`](../core/rooted.md): `rooted<io::file> log(io::open(p));`, then `log->write(...)` — a copy of the handle in a managed object of its own under a root, the same file. A root is never part of a cycle: a `rooted` never lies in a managed object or in a task's frame, where the handle itself goes.
-- A stream made of a file (`io::reader in = f;`) holds the file itself, not the handle: the handle may go first.
-- `close()` from any thread or task ends the file: no operation starts after it, a task or a thread waiting in `read` or `write` wakes to `errc::closed`, and the descriptor is given back to the kernel by whoever lets go of it last, `close()` itself or the last operation in progress (a count of the operations and a closing bit in one word, as net's sockets hold theirs), so that no read in progress lands on the number the kernel gives to the next file opened. The descriptor is released by `close()` or, failing that, by the destructor on the collector's thread after the sweep that finds the file dead — later than the last use. A file that is done is closed; `close()` reports what the deferred one could not.
-- `from_fd` leaves the descriptor's flags as they are: one that is non-blocking already is served by the reactor, any other by the pool. `open` makes a FIFO or a device non-blocking; `pipe` makes both ends so.
-- The data of an async write stays alive while the task awaits, as a task's local does; a `tracked_ptr` to a buffer captured in the awaiting frame is enough.
-- An async read or write that runs on the blocking pool (a regular file, `read_at`, `write_at`) and is given a slice without an owner goes through a managed block. The data to write is copied into it before the operation starts; the bytes read are copied back from it when the task resumes. The pool's thread may go on after the frame of a task let go of, and it never touches plain memory that died with that frame. A slice with an owner (a `string`, a `vector`, a `buffer`, any type of the library) is used as it is, with no copy: give one.
-- One task or thread at a time on the position; `read_at`/`write_at` from any number.
+- Made by [open](open.md), [create](create.md), [temp_file](temp_file.md), [from_fd](from_fd.md),
+  [pipe](pipe.md) and their `async_` forms: a handle, which every function of io takes as a reader, a writer, a
+  closer and a seeker ([req::reader](req/reader.md), [req::writer](req/writer.md), [req::closer](req/closer.md),
+  [req::seeker](req/seeker.md)). A `file` made by its default constructor holds none (`!f`); an operation on it is
+  a contract violation.
+- A handle is a tracked word: on a stack, in a task, in a managed object. In a global or a `std` container it goes
+  into a [rooted](../core/rooted.md): `rooted<io::file> log(io::open(p));`, then `log->write(...)` — a copy of the
+  handle in a managed object of its own under a root, the same file. A root is never part of a cycle: a `rooted`
+  never lies in a managed object or in a task's frame, where the handle itself goes.
+- A stream made of a file (`io::reader in = f;`, [reader](reader.md), [writer](writer.md)) holds the file itself,
+  not the handle: the handle may go first.
+- [close](file/close.md) from any thread or task ends the file: no operation starts after it, and an operation
+  waiting in `read` or `write` wakes to `errc::closed`. The descriptor is released by `close()` or, failing that,
+  by the destructor on the collector's thread after the sweep that finds the file dead — later than the last use.
+  A file that is done is closed; `close()` reports what the deferred one could not.
+- [from_fd](from_fd.md) leaves the descriptor's flags as they are: one that is non-blocking already is served by the
+  reactor, any other by the pool. [open](open.md) makes a FIFO or a device non-blocking; [pipe](pipe.md) makes both
+  ends so.
+- An async read or write that runs on the blocking pool (a regular file, `read_at`, `write_at`) and is given a
+  slice without an owner goes through a managed block: the data to write is copied into it before the operation
+  starts, the bytes read are copied back from it when the task resumes. The pool's thread may go on after the frame
+  of a task let go of, and it never touches plain memory that died with that frame. A slice with an owner (a
+  `string`, a `vector`, a [buffer](buffer.md), any type of the library) is used as it is, with no copy: give one.
+- One task or thread at a time on the position; `read_at` and `write_at` from any number.
 
-## Members
+## Member functions
 
-### open_flags
+| Function | Description |
+|---|---|
+| [(constructor)](file/file.md) | constructs the handle: no file, or a copy that is the same file |
+| `(destructor)` | releases the handle; the descriptor is closed by `close`, or when the collector finds the file dead |
+| [operator=](file/operator_assign.md) | makes the handle the same file as another |
 
-```cpp
-enum class open_flags : unsigned { read = 1, write = 2, create = 4, truncate = 8, append = 16, exclusive = 32, sync = 64 };
-constexpr open_flags operator|(open_flags, open_flags) noexcept;
-constexpr bool operator&(open_flags, open_flags) noexcept;
-```
+#### Reading and writing
 
-`read` is the default; `write` alone truncates nothing and creates nothing (an error when the file is not there), so a file to write is `write | create | truncate`, which `create(path)` spells, or `write | create | append` for a log; `exclusive` with `create` fails when the file exists (`O_EXCL`); `sync` makes every write reach the disk before it returns (`O_SYNC`). Every file is `O_CLOEXEC`.
+| Function | Description |
+|---|---|
+| [read, async_read](file/read.md) | reads what is available at the position |
+| [write, async_write](file/write.md) | writes the whole of the data at the position |
+| [read_at, async_read_at](file/read_at.md) | reads at an offset, the position untouched (`pread`) |
+| [write_at, async_write_at](file/write_at.md) | writes at an offset, the position untouched (`pwrite`) |
 
-### file
+#### Positioning
 
-```cpp
-file() noexcept;                                                            // no file: !f
-expected<size_t, error> read(const slice<byte>& buffer) const;               // 0 at the end
-async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const;   // on the reactor (a pipe), or on the blocking pool (a regular file)
-expected<size_t, error> write(const slice<const byte>& data) const;          // the whole span
-async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const;
-expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const;
-expected<void, error> close() const;  bool is_closed() const noexcept;     // a close never waits: no async form
-expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) const;       // pread: the position untouched
-expected<size_t, error> write_at(const slice<const byte>& data, uint64_t offset) const; // pwrite
-async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer, uint64_t offset) const;
-async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data, uint64_t offset) const;
-expected<void, error> sync() const;                    // fsync
-expected<void, error> truncate(uint64_t size) const;   // ftruncate
-async::task<expected<void, error>> async_sync() const;                    // on the blocking pool: an fsync waits for the disk
-async::task<expected<void, error>> async_truncate(uint64_t size) const;
-expected<file_info, error> stat() const;               // fstat
-expected<void, error> chmod(permissions p) const;      // fchmod
-async::task<expected<void, error>> async_chmod(permissions p) const;   // on the blocking pool
-int fd() const noexcept;                // -1 when closed
-const string& path() const noexcept;    // as opened, or the name given to from_fd
-bool is_nonblocking() const noexcept;   // served by the reactor rather than the pool
-explicit operator bool() const noexcept;                   // whether the handle holds a file
-friend bool operator==(const file& a, const file& b) noexcept;   // the same file
-```
+| Function | Description |
+|---|---|
+| [seek](file/seek.md) | moves the position (`lseek`) |
 
-Plus everything of [`mixin::reader`, `mixin::writer`, `mixin::seeker`](stream.md#members): `read_full`, `read_all`, `read_all_text`, `copy_to`, `write`, `copy_from`, `tell`, `size`, `rewind`, and their `async_` forms.
+#### File operations
 
-```cpp
-io::file data = io::open("data.bin", io::open_flags::read | io::open_flags::write);
-byte header[16];
-data.read_full(header);
-uint64_t size = data.size();               // the end, the position kept
-data.write_at(footer, size - 8);           // no seek: the position is still after the header
-data.sync();
-data.close();
-```
+| Function | Description |
+|---|---|
+| [close](file/close.md) | ends the file and gives the descriptor back |
+| [is_closed](file/is_closed.md) | checks whether the file was closed |
+| [sync, async_sync](file/sync.md) | waits until what was written reaches the disk (`fsync`) |
+| [truncate, async_truncate](file/truncate.md) | changes the size of the file (`ftruncate`) |
+| [stat](file/stat.md) | what is known of the file (`fstat`) |
+| [chmod, async_chmod](file/chmod.md) | changes the permissions of the file (`fchmod`) |
 
-### open, create, from_fd, pipe
+#### Observers
 
-```cpp
-expected<file, error> open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666));
-expected<file, error> create(const string& path, permissions p = permissions(0666));
-file from_fd(int fd, const string& name = {});   // owns the descriptor from now on
-expected<pipe_ends, error> pipe();               // ends.read, ends.write (or auto [r, w] = ends), both non-blocking
-async::task<expected<file, error>> async_open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666));
-async::task<expected<file, error>> async_create(const string& path, permissions p = permissions(0666));
-```
+| Function | Description |
+|---|---|
+| [fd](file/fd.md) | the descriptor, `-1` when closed |
+| [path](file/path.md) | the path the file was opened with, or the name given to `from_fd` |
+| [is_nonblocking](file/is_nonblocking.md) | checks whether the async operations wait on the reactor |
+| [operator bool](file/operator_bool.md) | checks whether the handle holds a file |
 
-`open`'s error answers `is_not_found()`, `is_permission()`, `is_exists()` (with `exclusive`). `p` is masked by the umask, as `open(2)` does. `co_await io::async_open(...)` makes the same call on the blocking pool: an open waits for the disk, and one of a FIFO for the other end.
+#### From mixin::reader
 
-```cpp
-io::file log = io::open("app.log", io::open_flags::write | io::open_flags::create | io::open_flags::append, io::permissions(0644));
-auto lock = io::open("app.lock", io::open_flags::write | io::open_flags::create | io::open_flags::exclusive);
-if (!lock && lock.error().is_exists()) { /* another instance runs */ }
-```
+[mixin::reader](mixin/reader.md): the algorithms of io over this file, each with its `async_` form.
 
-### read_file, read_text, write_file, append_file
+| Function | Description |
+|---|---|
+| [read_full, async_read_full](mixin/reader/read_full.md) | fills the whole buffer, or says why not |
+| [read_all, async_read_all](mixin/reader/read_all.md) | reads to the end, into a `vector<byte>` |
+| [read_all_text, async_read_all_text](mixin/reader/read_all_text.md) | reads to the end, into a `string` |
+| [copy_to, async_copy_to](mixin/reader/copy_to.md) | copies everything to the end into a writer |
 
-```cpp
-expected<vector<byte>, error> read_file(const string& path);   // the size from fstat, one buffer, one read (and more, should the file have grown)
-expected<string, error> read_text(const string& path);
-expected<void, error> write_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666));    // created or truncated, written, closed
-expected<void, error> write_file(const string& path, const string& text, permissions p = permissions(0666));
-expected<void, error> append_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666));   // at the end, created when missing
-expected<void, error> append_file(const string& path, const string& text, permissions p = permissions(0666));
-async::task<expected<vector<byte>, error>> async_read_file(const string& path);   // and async_read_text, async_write_file, async_append_file
-```
+#### From mixin::writer
 
-Each does its work on the calling thread; `co_await io::async_read_file(p)` in a task runs the same on the blocking pool (a disk has no readiness to wait for).
+[mixin::writer](mixin/writer.md): the overloads of `write` and `async_write` beside the file's own.
 
-```cpp
-auto config = io::read_text("app.toml").value_or("");
-io::write_file("state.json", state.dump());
-io::append_file("app.log", "started\n");
-```
+| Function | Description |
+|---|---|
+| [write, async_write](mixin/writer/write.md) | writes a text (a `string`, a slice of one, a literal, a `std::string_view`) or one byte |
+| [copy_from, async_copy_from](mixin/writer/copy_from.md) | copies everything from a reader to its end into the file |
 
-### temp_file, make_temp_dir
+#### From mixin::seeker
 
-```cpp
-expected<file, error> temp_file(const string& dir = {}, const string& pattern = "*");   // 0600, read and write
-expected<string, error> make_temp_dir(const string& dir = {}, const string& pattern = "*");          // 0700
-async::task<expected<file, error>> async_temp_file(const string& dir = {}, const string& pattern = "*");   // on the blocking pool
-async::task<expected<string, error>> async_make_temp_dir(const string& dir = {}, const string& pattern = "*");
-```
+[mixin::seeker](mixin/seeker.md), over [seek](file/seek.md).
 
-A new file or directory in `dir` (the system's temporary directory when empty: `$TMPDIR`, else `/tmp`) with a name from the pattern, its last `*` replaced by ten random characters (`"upload-*.tmp"`; appended when there is none). The caller removes it.
+| Function | Description |
+|---|---|
+| [tell](mixin/seeker/tell.md) | the position |
+| [size](mixin/seeker/size.md) | the size, the position kept |
+| [rewind](mixin/seeker/rewind.md) | moves the position to the beginning |
 
-```cpp
-string dir = io::make_temp_dir({}, "build-*");
-io::file object = io::temp_file(dir, "*.o");
-/* ... */
-io::remove_all(dir);
-```
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==, operator!=](file/operator_cmp.md) | checks whether two handles are the same file |
 
 ## Example
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/io/io.h"
+#include "sgcl/async.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
-// Copies a file through the pool without holding a worker, then reads it
-// back through a pipe; the failures returned, not thrown
-// by value: a task copies its parameters into its frame
+// Copies a file through the pool without holding a worker, then reads the copy back through a
+// pipe; the failures returned, not thrown. By value: a task copies its parameters into its frame
 async::task<expected<size_t, io::error>> roundtrip(string src, string dst) {
     auto in = co_await io::async_open(src);
     if (!in) co_return unexpected(in.error());
@@ -182,25 +174,39 @@ async::task<expected<size_t, io::error>> roundtrip(string src, string dst) {
 }
 
 int main() {
-    auto n = async::spawn(roundtrip("/etc/hosts", "/tmp/hosts.copy")).wait();
+    io::write_file("notes.txt", "one\ntwo\nthree\n");
+    auto n = async::run(roundtrip("notes.txt", "notes.copy"));
     if (!n) {
         eprintln(n.error().message());
         return 1;
     }
     println("{} bytes", *n);
-    io::remove("/tmp/hosts.copy");
+    println("{}", async::run(roundtrip("missing.txt", "x")).error().message());
 }
 ```
 
-Sample output:
+Output:
 
 ```text
-213 bytes
+14 bytes
+open missing.txt: No such file or directory
 ```
 
 ## See also
 
-- [stream](stream.md): the interfaces and the mixins; [buffered](buffered.md): lines over a file; [fs](fs.md): `file_info`, `permissions`, the directory operations
-- [blocking](../async/blocking.md), [reactor](../async/reactor.md): where the async forms wait
-- `tests/io/rooted.cpp`: `rooted<io::file>` from `open` and from a handle (a copy of it, the same state), from an `expected` holding an error (the exception), `rooted<io::buffered_reader>` made in place, `rooted<io::buffer>` in a `std::vector` and in a global through collections.
-- `tests/io/file.cpp`: create/write/read, the flags, `seek`/`read_at`/`truncate`/`stat`, a buffered file, `temp_file`, a pipe read by polling, the pool and the reactor from a task, a writer blocked by a full pipe, a file closed through an `io::reader` and through a `buffered_reader`, the handle (copies, a stream of a temporary, a `root_ptr` to it).
+- [open](open.md), [create](create.md), [pipe](pipe.md), [from_fd](from_fd.md), [temp_file](temp_file.md): what
+  makes a file
+- [read_file](read_file.md), [read_text](read_text.md), [write_file](write_file.md),
+  [append_file](append_file.md): a whole file in one call
+- [buffered_reader](buffered_reader.md), [buffered_writer](buffered_writer.md): lines and blocks over a file
+- [file_info](file_info.md), [permissions](permissions.md), [stat](stat.md): what [stat](file/stat.md) returns, the
+  file system's side
+- [map](map.md): a file mapped into memory
+- [spawn_blocking](../async/spawn_blocking.md), [reactor](../async/readable.md): where the async forms wait
+- `tests/io/rooted.cpp`: `rooted<io::file>` from `open` and from a handle (a copy of it, the same state), from an
+  `expected` holding an error (the exception), `rooted<io::buffered_reader>` made in place, `rooted<io::buffer>` in
+  a `std::vector` and in a global through collections.
+- `tests/io/file.cpp`: create/write/read, the flags, `seek`/`read_at`/`truncate`/`stat`, a buffered file,
+  `temp_file`, a pipe read by polling, the pool and the reactor from a task, a writer blocked by a full pipe, a file
+  closed through an `io::reader` and through a `buffered_reader`, the handle (copies, a stream of a temporary, a
+  `root_ptr` to it).

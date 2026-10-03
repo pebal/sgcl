@@ -122,7 +122,7 @@ namespace sgcl::compress::detail {
         // Decodes from [in, end) into out[pos, cap). final says that no
         // input follows end: running out of it is then unexpected_end, and
         // the end of a stream with nothing after it is done.
-        Bzip2Status decode(const uint8_t*& in, const uint8_t* end, bool final, uint8_t* out, size_t& pos, size_t cap) {
+        Bzip2Status decode(const uint8_t*& in, const uint8_t* end, bool final, uint8_t* out, size_t& pos, size_t cap) noexcept {
             for (;;) {
                 switch (_stage) {
                     case Stage::stream: {
@@ -428,7 +428,7 @@ namespace sgcl::compress::detail {
 
         // The symbols of the block, to its end symbol; nullopt when the
         // block is whole, the status to return when not
-        optional<Bzip2Status> _symbols(const uint8_t*& in, const uint8_t* end, bool final) {
+        optional<Bzip2Status> _symbols(const uint8_t*& in, const uint8_t* end, bool final) noexcept {
             // the hot loop keeps the state in locals, written back on the way out
             uint64_t bits = _bits;
             uint32_t count = _count;

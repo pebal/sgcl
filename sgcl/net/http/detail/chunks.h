@@ -19,6 +19,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 // Bytes of a body held on the managed heap in blocks of 8 KB (DESIGN 277:
 // no system allocation on the path of a request): a response as its
@@ -63,13 +64,13 @@ namespace sgcl::net::http::detail {
 
         List lists[Workers];
 
-        static ChunkPool& instance() {
+        static ChunkPool& instance() noexcept {
             static root_ptr<ChunkPool>* pool = new root_ptr<ChunkPool>(make_tracked<ChunkPool>());
             return **pool;
         }
 
         // A block for a body: this worker's last given back, else a new one
-        static tracked_ptr<ByteChunk> take() {
+        static tracked_ptr<ByteChunk> take() noexcept {
             const unsigned w = async::detail::Scheduler::worker_index();
             if (w >= Workers) {
                 return make_tracked<ByteChunk>();
@@ -91,7 +92,7 @@ namespace sgcl::net::http::detail {
 
         // A block no body uses any more (every slice of it done): kept by
         // this worker up to Kept
-        static void give(const tracked_ptr<ByteChunk>& c) {
+        static void give(const tracked_ptr<ByteChunk>& c) noexcept {
             const unsigned w = async::detail::Scheduler::worker_index();
             if (w >= Workers) {
                 return;
@@ -133,7 +134,7 @@ namespace sgcl::net::http::detail {
             return _size == 0;
         }
 
-        void append(const void* data, size_t n) {
+        void append(const void* data, size_t n) noexcept {
             const std::byte* p = static_cast<const std::byte*>(data);
             while (n) {
                 if (!_tail || _tail->end == ByteChunk::Room) {
@@ -154,7 +155,7 @@ namespace sgcl::net::http::detail {
             }
         }
 
-        void append(std::string_view s) {
+        void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
@@ -163,7 +164,7 @@ namespace sgcl::net::http::detail {
         // `at` and says how many, 0 at the end (or a failure), and it is
         // called until then. No buffer between the source and the blocks
         template<class Read>
-        void append_read(Read&& read) {
+        void append_read(Read&& read) noexcept(std::is_nothrow_invocable_v<Read&, std::byte*, size_t>) {
             for (;;) {
                 if (!_tail || _tail->end == ByteChunk::Room) {
                     tracked_ptr fresh = ChunkPool::take();
@@ -184,7 +185,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Up to n bytes from the head into out: how many
-        size_t take(void* out, size_t n) {
+        size_t take(void* out, size_t n) noexcept {
             std::byte* o = static_cast<std::byte*>(out);
             size_t done = 0;
             while (done < n && _head) {
@@ -208,7 +209,7 @@ namespace sgcl::net::http::detail {
 
         // Every block given back to the worker's pool (no slice of them
         // left anywhere: the caller's word), the queue empty
-        void release() {
+        void release() noexcept {
             tracked_ptr<ByteChunk> c = _head;
             _head = tracked_ptr<ByteChunk>();
             _tail = tracked_ptr<ByteChunk>();
@@ -233,7 +234,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Every block of a list from detach given back to the worker's pool
-        static void give_back(tracked_ptr<ByteChunk> c) {
+        static void give_back(tracked_ptr<ByteChunk> c) noexcept {
             while (c) {
                 tracked_ptr<ByteChunk> next = c->next;
                 ChunkPool::give(c);
@@ -244,7 +245,7 @@ namespace sgcl::net::http::detail {
         // Each block's bytes not yet taken, in order, as a slice owned by
         // its block
         template<class F>
-        void each(F&& f) const {
+        void each(F&& f) const noexcept(std::is_nothrow_invocable_v<F&, const slice<const byte>&>) {
             for (tracked_ptr<ByteChunk> c = _head; c; c = c->next) {
                 if (c->end > c->begin) {
                     f(slice<const byte>(tracked_ptr<const void>(c), c->bytes + c->begin, c->end - c->begin));
@@ -253,7 +254,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Every byte appended to a std::string (a head's buffer)
-        void copy_to(std::string& out) const {
+        void copy_to(std::string& out) const noexcept {
             out.reserve(out.size() + _size);
             each([&](const slice<const byte>& s) {
                 out.append(reinterpret_cast<const char*>(s.data()), s.size());
@@ -272,7 +273,7 @@ namespace sgcl::net::http::detail {
         size_t _size = 0;
 
         // A block taken whole goes back to the pool (its bytes copied out)
-        void _pop() {
+        void _pop() noexcept {
             tracked_ptr<ByteChunk> done = _head;
             _head = _head->next;
             if (!_head) {
@@ -296,7 +297,7 @@ namespace sgcl::net::http::detail {
             return size() == 0;
         }
 
-        void append(const void* data, size_t n) {
+        void append(const void* data, size_t n) noexcept {
             if (_chunks.empty() && _small_n + n <= Inline) {
                 sgcl::detail::copy_bytes(_small + _small_n, data, n);
                 _small_n += uint8_t(n);
@@ -309,14 +310,14 @@ namespace sgcl::net::http::detail {
             _chunks.append(data, n);
         }
 
-        void append(std::string_view s) {
+        void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
         // Bytes read straight into the blocks (ByteChunks::append_read),
         // after what the buffer holds
         template<class Read>
-        void append_read(Read&& read) {
+        void append_read(Read&& read) noexcept(std::is_nothrow_invocable_v<Read&, std::byte*, size_t>) {
             if (_small_n) {
                 _chunks.append(_small, _small_n);
                 _small_n = 0;
@@ -330,7 +331,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Empty, the blocks given back to the pool (every slice of them done)
-        void release() {
+        void release() noexcept {
             _small_n = 0;
             _chunks.release();
         }
@@ -345,21 +346,21 @@ namespace sgcl::net::http::detail {
         // The bytes as slices in order (the in-place ones copied by the
         // caller before the buffer changes: a slice without an owner)
         template<class F>
-        void each(F&& f) const {
+        void each(F&& f) const noexcept(std::is_nothrow_invocable_v<F&, const slice<const byte>&>) {
             if (_small_n) {
                 f(slice<const byte>(reinterpret_cast<const byte*>(_small), _small_n));
             }
             _chunks.each(f);
         }
 
-        void copy_to(std::string& out) const {
+        void copy_to(std::string& out) const noexcept {
             out.append(_small, _small_n);
             _chunks.copy_to(out);
         }
 
         // The first n bytes, as a copy (a response past its declared
         // length is cut)
-        void copy_to(std::string& out, size_t n) const {
+        void copy_to(std::string& out, size_t n) const noexcept {
             each([&](const slice<const byte>& s) {
                 const size_t k = std::min(n, s.size());
                 out.append(reinterpret_cast<const char*>(s.data()), k);

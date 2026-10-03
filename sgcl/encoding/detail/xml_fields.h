@@ -79,7 +79,7 @@ namespace sgcl::encoding::detail {
         size_t index = 0;        // the position of an element of a list, from 1
         char kind = 0;           // 0 none, '/' an element, '@' an attribute, '[' a position, 't' the text
 
-        std::string text() const {
+        std::string text() const noexcept {
             std::string out = up ? up->text() : std::string();
             switch (kind) {
                 case '/':
@@ -423,19 +423,28 @@ namespace sgcl::encoding::detail {
         }
 
     private:
-        void _fail(errc code, const std::string& what, const XmlPath& path) {
+        void _fail(errc code, const std::string& what, const XmlPath& path) noexcept {
             if (!failure) {
                 auto text = path.text();
                 failure = XmlMapFailure{code, what, text.empty() ? "/" : text};
             }
         }
 
-        void _unsupported(const ValueOps* ops, const XmlPath& path) {
-            _fail(errc::unsupported_value, std::string(ops->name) + " of this kind (a map, a tuple, a variant, json) has no form in XML", path);
+        void _unsupported(const ValueOps* ops, const XmlPath& path) noexcept {
+            _fail(errc::unsupported_value, _no_form(ops), path);
         }
 
-        void _unsupported_read(const ValueOps* ops, const XmlPath& path) {
-            _fail(errc::type_mismatch, std::string(ops->name) + " of this kind (a map, a tuple, a variant, json) has no form in XML", path);
+        void _unsupported_read(const ValueOps* ops, const XmlPath& path) noexcept {
+            _fail(errc::type_mismatch, _no_form(ops), path);
+        }
+
+        // Why a value has no element: a list is a field's element
+        // repeated, never an element of its own (the root, an optional's)
+        static std::string _no_form(const ValueOps* ops) noexcept {
+            if (ops->kind == ValueKind::sequence || ops->kind == ValueKind::set || ops->kind == ValueKind::fixed) {
+                return "a list has no element of its own in XML: it is a field's element repeated";
+            }
+            return std::string(ops->name) + " of this kind (a map, a tuple, a variant, json) has no form in XML";
         }
 
         static bool _has_element_children(const xml& node) noexcept {
@@ -561,7 +570,7 @@ namespace sgcl::encoding::detail {
         }
     };
 
-    inline xml::error xml_map_error(const XmlMapFailure& f, uint64_t offset) {
+    inline xml::error xml_map_error(const XmlMapFailure& f, uint64_t offset) noexcept {
         xml::error e(f.code, offset, string(f.what));
         e.set_path(string(f.path));
         return e;
@@ -583,9 +592,14 @@ namespace sgcl::encoding {
         return value;
     }
 
+    // A tree has no input text: the error is the path alone
     template<class T>
     expected<T, xml::error> xml::as() const {
-        return _as<T>(0);
+        auto v = _as<T>(0);
+        if (!v) {
+            detail::ErrorAccess::without_place(v.error());
+        }
+        return v;
     }
 
     template<class T>
@@ -593,10 +607,12 @@ namespace sgcl::encoding {
         detail::XmlMapper m;
         auto n = m.element(detail::value_ops<T>(), &value, name.view(), detail::XmlPath{nullptr, name.view(), 0, '/'}, 0);
         if (m.failure) {
-            return unexpected<error>(detail::xml_map_error(*m.failure, 0));
+            auto e = detail::xml_map_error(*m.failure, 0);
+            return unexpected<error>(std::move(detail::ErrorAccess::without_place(e)));
         }
         if (!n.exists()) {
-            return unexpected<error>(error(errc::unsupported_value, 0, string("a null value has no element")));
+            error e(errc::unsupported_value, 0, string("a null value has no element"));
+            return unexpected<error>(std::move(detail::ErrorAccess::without_place(e)));
         }
         return n;
     }
@@ -632,7 +648,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<expected<T, xml::error>> xml::async_parse(const io::reader& in) {
+    async::task<expected<T, xml::error>> xml::async_parse(const io::reader& in) noexcept {
         return async_parse<T>(in, options());
     }
 
@@ -653,7 +669,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<expected<T, xml::error>> xml::async_parse(io::reader in, options o) {
+    async::task<expected<T, xml::error>> xml::async_parse(io::reader in, options o) noexcept {
         reader r(std::move(in), o);
         xml root;
         uint64_t at = 0;
@@ -695,7 +711,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<optional<T>> xml::reader::async_read() {
+    async::task<optional<T>> xml::reader::async_read() noexcept {
         if (last_error()) {
             co_return nullopt;
         }

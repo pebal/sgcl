@@ -328,3 +328,44 @@ TEST(Rational_Tests, AlgebraicProperties) {
         }
     }
 }
+
+// A moved-from rational is a valid number, its value kept (a move is the
+// copy of shared parts): it may be assigned, read and computed with
+TEST(Rational_Tests, AMovedFromRationalIsValid) {
+    rational big = R("123456789012345678901234567890", "987654321098765432109876543211");
+    rational taken(std::move(big));
+    expect_parts(taken, "123456789012345678901234567890", "987654321098765432109876543211");
+    EXPECT_GT(big.denominator().sign(), 0);
+    expect_parts(big, "123456789012345678901234567890", "987654321098765432109876543211");
+    EXPECT_GT((big + rational(1, 2)).denominator().sign(), 0);
+    rational other = R("3", "100000000000000000000000000000000000001");
+    rational into;
+    into = std::move(other);
+    expect_parts(into, "3", "100000000000000000000000000000000000001");
+    EXPECT_GT(other.denominator().sign(), 0);
+    rational half(1, 2);
+    rational kept(std::move(half));
+    expect_parts(half, "1", "2");
+    rational mixed = R("1", "100000000000000000000000000000000000001");   // a small numerator, a big denominator
+    rational moved(std::move(mixed));
+    EXPECT_GT(mixed.denominator().sign(), 0);
+    big = rational(7, 3);   // and assigned again
+    expect_parts(big, "7", "3");
+}
+
+// to_decimal with more places than a string can hold is length_error from
+// to_decimal itself, before anything is computed, whatever the count
+TEST(Rational_Tests, ToDecimalPastTheLengthOfAString) {
+    rational third(1, 3);
+    for (size_t places : {SIZE_MAX, size_t(1) << 63, size_t(1) << 62, size_t(string::max_size())}) {
+        try {
+            (void)third.to_decimal(places);
+            ADD_FAILURE() << places;
+        } catch (const std::length_error& e) {
+            EXPECT_NE(std::string(e.what()).find("to_decimal"), std::string::npos) << e.what();
+        } catch (const std::exception& e) {
+            ADD_FAILURE() << places << ": " << e.what();
+        }
+    }
+    EXPECT_EQ(str(third.to_decimal(3)), "0.333");
+}

@@ -64,8 +64,9 @@ namespace sgcl::slog {
         };
 
         // The groups of levels 1..G as a tree whose innermost group ends in
-        // the Splice, and the two renderings, from the copied levels
-        inline void build_context(Context& c) {
+        // the Splice, and the two renderings, from the copied levels (data
+        // alone: a copy reads nothing of the program's)
+        inline void build_context(Context& c) noexcept {
             const size_t g = c.levels.size() - 1;
             Attr* below = nullptr;
             size_t below_n = 0;
@@ -128,7 +129,7 @@ namespace sgcl::slog {
             c.json_open = first;
         }
 
-        inline void copy_levels(Context& c, const Context* old, Lines& w) {
+        inline void copy_levels(Context& c, const Context* old, Lines& w) noexcept {
             if (!old) {
                 c.levels.push_back(ContextLevel{});
                 return;
@@ -161,7 +162,7 @@ namespace sgcl::slog {
             return c;
         }
 
-        inline tracked_ptr<Context> context_group(const Context* old, const char* name, size_t name_n) {
+        inline tracked_ptr<Context> context_group(const Context* old, const char* name, size_t name_n) noexcept {
             auto c = make_tracked<Context>();
             Lines w;
             copy_levels(*c, old, w);
@@ -192,7 +193,7 @@ namespace sgcl::slog {
         };
 
         struct Sampler {
-            Sampler(uint32_t f, uint32_t t, int64_t p)
+            Sampler(uint32_t f, uint32_t t, int64_t p) noexcept
             : first(f), then(t), per(p > 0 ? p : 1), slots(new SampleSlot[Slots]) {
             }
 
@@ -209,7 +210,7 @@ namespace sgcl::slog {
             // Whether the record goes on; `report` the records left out in
             // the thread's last window, when this is the first record
             // after it
-            bool admit(slog::level l, const char* msg, size_t n, int64_t ns, uint64_t& report) {
+            bool admit(slog::level l, const char* msg, size_t n, int64_t ns, uint64_t& report) noexcept {
                 const int64_t window = ns >= 0 ? ns / per : -((-ns + per - 1) / per);
                 uint64_t h = 1469598103934665603ull ^ uint64_t(uint8_t(l));
                 for (size_t i = 0; i < n; ++i) {
@@ -276,11 +277,22 @@ namespace sgcl::slog {
             }
         };
 
-        inline tracked_ptr<LoggerState> copy_state(const LoggerState& s) {
+        // What a logger given an empty io::writer writes to: every write
+        // fails, so its records are counted as lost and said once on
+        // stderr, as a failed write's are
+        struct NoWriter {
+            expected<size_t, io::error> write(const slice<const byte>&) const noexcept {
+                return unexpected(io::error(io::errc::closed, "write to an empty io::writer"));
+            }
+        };
+
+        inline NoWriter no_writer;
+
+        inline tracked_ptr<LoggerState> copy_state(const LoggerState& s) noexcept {
             return make_tracked<LoggerState>(s);
         }
 
-        inline void set_output(LoggerState& s) {
+        inline void set_output(LoggerState& s) noexcept {
             if (s.format == Format::Custom) {
                 s.out = make_tracked<Output>(s.custom);
             } else {
@@ -288,7 +300,7 @@ namespace sgcl::slog {
             }
         }
 
-        inline tracked_ptr<LoggerState> default_state() {
+        inline tracked_ptr<LoggerState> default_state() noexcept {
             auto s = make_tracked<LoggerState>();
             s->writer = io::writer(io::stderr);
             set_output(*s);
@@ -297,7 +309,7 @@ namespace sgcl::slog {
 
         // The local offset of a second, remembered for the second: the
         // zone's rules are looked up once a second on each thread
-        inline int32_t local_offset(int64_t ns) {
+        inline int32_t local_offset(int64_t ns) noexcept {
             struct Cache {
                 int64_t second = INT64_MIN;
                 int32_t offset = 0;
@@ -348,7 +360,7 @@ namespace sgcl::slog {
             return &s;
         }
 
-        inline void source_text(Lines& w, const std::source_location& where) {
+        inline void source_text(Lines& w, const std::source_location& where) noexcept {
             Buf& t = w.tmp;
             t.clear();
             t.put(where.file_name());
@@ -559,7 +571,7 @@ namespace sgcl::slog {
     };
 
     namespace detail {
-        logger buffered_copy(const logger& l);
+        logger buffered_copy(const logger& l) noexcept;
     }
 
     // A logger (slog.Logger): what a record is written as — text or JSON
@@ -574,11 +586,11 @@ namespace sgcl::slog {
     class logger {
     public:
         // Text lines on io::stderr, level info, the local time
-        logger()
+        logger() noexcept
         : _s(detail::default_state()) {
         }
 
-        explicit logger(const options& o)
+        explicit logger(const options& o) noexcept
         : _s(make_tracked<detail::LoggerState>()) {
             detail::LoggerState& s = *_s;
             s.min = o.level;
@@ -596,18 +608,18 @@ namespace sgcl::slog {
                 s.custom = o.handler;
             } else {
                 s.format = o.json ? detail::Format::Json : detail::Format::Text;
-                s.writer = o.out;
+                s.writer = o.out ? o.out : io::writer(detail::no_writer);
             }
             detail::set_output(s);
         }
 
         // Text lines on out from level l
-        explicit logger(const io::writer& out, slog::level l = slog::level::info)
+        explicit logger(const io::writer& out, slog::level l = slog::level::info) noexcept
         : logger(options{.out = out, .level = l}) {
         }
 
         // The records to a handler of the program, from level l
-        explicit logger(const slog::handler& h, slog::level l = slog::level::info)
+        explicit logger(const slog::handler& h, slog::level l = slog::level::info) noexcept
         : logger(options{.handler = h, .level = l}) {
         }
 
@@ -624,7 +636,7 @@ namespace sgcl::slog {
         // A logger whose later attributes, its with()'s and its records',
         // are in a group of this name (slog's WithGroup); an empty name
         // is no group
-        logger group(const char* name) const {
+        logger group(const char* name) const noexcept {
             auto s = detail::copy_state(*_s);
             const size_t n = name ? std::strlen(name) : 0;
             if (n) {
@@ -678,7 +690,7 @@ namespace sgcl::slog {
     private:
         friend struct detail::Access;
         friend struct sgcl::detail::HandleWord;
-        friend logger detail::buffered_copy(const logger& l);
+        friend logger detail::buffered_copy(const logger& l) noexcept;
 
         explicit logger(tracked_ptr<detail::LoggerState> s) noexcept
         : _s(std::move(s)) {
@@ -712,7 +724,7 @@ namespace sgcl::slog {
     namespace detail {
         // The logger as it is, its lines gathered per worker (options::
         // buffered): the server's access log over the default logger
-        inline logger buffered_copy(const logger& l) {
+        inline logger buffered_copy(const logger& l) noexcept {
             auto s = copy_state(*l._s);
             s->buffered = true;
             if (s->format != Format::Custom) {
@@ -722,21 +734,23 @@ namespace sgcl::slog {
         }
 
         // The default logger: a handle in an atomic of its word
-        // (core/atomic.h over handle_word.h), kept by a rooted in a static
-        inline sgcl::atomic<logger>& default_word() {
-            static rooted<sgcl::atomic<logger>> word(std::in_place);
-            return *word;
+        // (core/atomic.h over handle_word.h), kept by a rooted made once
+        // and never destroyed: a record may come from a static's
+        // destructor, after a static rooted would be gone
+        inline sgcl::atomic<logger>& default_word() noexcept {
+            static rooted<sgcl::atomic<logger>>* word = new rooted<sgcl::atomic<logger>>(std::in_place);
+            return **word;
         }
     }
 
     // The logger the free functions write through: text on io::stderr at
     // info, until set_default. A copy: it shares its output
-    inline logger default_logger() {
+    inline logger default_logger() noexcept {
         return detail::default_word().load(std::memory_order_acquire);
     }
 
     // The default logger from now on, for every thread; atomic
-    inline void set_default(const logger& l) {
+    inline void set_default(const logger& l) noexcept {
         detail::default_word().store(l, std::memory_order_release);
     }
 

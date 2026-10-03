@@ -7,6 +7,7 @@
 
 #include "range_coder.h"
 #include "../error.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -45,7 +46,7 @@ namespace sgcl::compress::detail {
     // The data split into the four streams. A branch is converted when its
     // operand is a near relative target (its top byte 00 or FF), as
     // compilers make calls within a program.
-    inline Bcj2Streams bcj2_encode(const uint8_t* p, size_t n) {
+    inline Bcj2Streams bcj2_encode(const uint8_t* p, size_t n) noexcept {
         Bcj2Streams s;
         s.main.reserve(n);
         RangeEncoder rc(s.rc);
@@ -180,7 +181,7 @@ namespace sgcl::compress::detail {
             while (made < n && !_failed) {
                 if (_held) {
                     size_t k = std::min<size_t>(_held, n - made);
-                    std::memcpy(out + made, _hold + (4 - _held), k);
+                    sgcl::detail::copy_bytes(out + made, _hold + (4 - _held), k);
                     made += k;
                     _held -= uint32_t(k);
                     continue;

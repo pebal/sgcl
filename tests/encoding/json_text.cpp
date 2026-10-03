@@ -74,6 +74,32 @@ TEST(JsonNumbers_Tests, FloatsWrittenAsGoWritesThem) {
     EXPECT_EQ(h.h, json_oracle::random_floats_hash);
 }
 
+// A json made of a float is the number the float's shortest digits are:
+// written with them, and read back by as<float>() as the same float
+TEST(JsonNumbers_Tests, AJsonOfAFloatHasTheFloatsDigits) {
+    EXPECT_EQ(json(0.1f).to_string(), "0.1");
+    EXPECT_EQ(json(0.1f), json(0.1));
+    EXPECT_EQ(json(-0.0f).to_string(), "-0");
+    EXPECT_EQ(json(3.4028235e38f).to_string(), "3.4028235e+38");
+    EXPECT_EQ(json(1e-45f).to_string(), "1e-45");
+    rng r{98765};
+    for (int i = 0; i < 1000000;) {
+        float f = std::bit_cast<float>(uint32_t(r.next() >> 32));
+        if (!std::isfinite(f)) {
+            continue;
+        }
+        json j(f);
+        ASSERT_EQ(j.to_string().view(), written_float(f)) << std::hex << std::bit_cast<uint32_t>(f);
+        ASSERT_EQ(std::bit_cast<uint32_t>(*j.as<float>()), std::bit_cast<uint32_t>(f)) << std::hex << std::bit_cast<uint32_t>(f);
+        ++i;
+    }
+    // the digits 7.038531e-26 are nearest the float 0x15ae43fd and their
+    // double is the midpoint after it: as<float>() reads the digits once
+    float edge = std::bit_cast<float>(0x15ae43fdu);
+    EXPECT_EQ(json(edge).to_string(), "7.038531e-26");
+    EXPECT_EQ(std::bit_cast<uint32_t>(*json(edge).as<float>()), 0x15ae43fdu);
+}
+
 // Each literal rounded once to a double and once to a float (never a
 // double rounded again), against strconv.ParseFloat with 64 and 32 bits
 TEST(JsonNumbers_Tests, LiteralsReadAsGoReadsThem) {
@@ -704,6 +730,45 @@ TEST(JsonReader_Tests, ParseOfAStream) {
     EXPECT_TRUE(failed.error().io_error());
 }
 
+namespace {
+    template<class T>
+    constexpr bool names_its_maker = requires { typename T::Made; };
+}
+
+// A token's tag of the reader cannot be named outside it, nor so the
+// constructors that take it
+TEST(JsonReader_Tests, ATokenIsMadeByTheReader) {
+    EXPECT_FALSE(names_its_maker<json::token>);
+    EXPECT_TRUE(std::is_default_constructible_v<json::token>);
+}
+
+// What follows the value, and no value at all: the error of a stream is the
+// error of the same text in memory, its words and its place
+TEST(JsonReader_Tests, ParseOfAStreamFailsAsTheText) {
+    struct item {
+        int a = 0;
+        void describe(sgcl::encoding::field_list& f) {
+            f.add("a", a);
+        }
+    };
+    for (std::string t : {"{\"a\": 1} x", "{\"a\": 1}\n  {}", "  \n ", "", "{\"a\": 1} \xC3\xA9"}) {
+        auto whole = json::parse(text(t));
+        auto typed = json::parse<item>(text(t));
+        ASSERT_FALSE(whole) << t;
+        ASSERT_FALSE(typed) << t;
+        for (size_t n : {1, 3, 1000}) {
+            auto streamed = json::parse(sgcl::make_tracked<dribble>(t, n));
+            ASSERT_FALSE(streamed) << t;
+            EXPECT_EQ(streamed.error(), whole.error()) << t << ": " << streamed.error().message().view() << " / " << whole.error().message().view();
+            auto streamed_typed = json::parse<item>(sgcl::make_tracked<dribble>(t, n));
+            ASSERT_FALSE(streamed_typed) << t;
+            EXPECT_EQ(streamed_typed.error(), typed.error()) << t << ": " << streamed_typed.error().message().view() << " / " << typed.error().message().view();
+        }
+    }
+    EXPECT_EQ(error_of(json::parse(sgcl::make_tracked<dribble>(std::string("{\"a\": 1}\n  x"), 2))).message(),
+              sgcl::string("2:3: invalid character 'x' after the value"));
+}
+
 // The operations in a task: the same tokens, values and errors
 TEST(JsonReader_Tests, AsyncForms) {
     auto t = sgcl::async::spawn([]() -> sgcl::async::task<int> {
@@ -745,6 +810,14 @@ TEST(JsonReader_Tests, AsyncForms) {
         }
         if (!bad.last_error() || bad.last_error()->offset() != 7) {
             co_return -9;
+        }
+        auto trailing = co_await json::async_parse(sgcl::make_tracked<dribble>(std::string("[1]\n x"), 2));
+        if (trailing || trailing.error().message() != sgcl::string("2:2: invalid character 'x' after the value")) {
+            co_return -10;
+        }
+        auto none = co_await json::async_parse<int>(sgcl::make_tracked<dribble>(std::string(" \n"), 1));
+        if (none || none.error().message() != sgcl::string("2:1: unexpected end of input, expected a value")) {
+            co_return -11;
         }
         co_return 1;
     }());

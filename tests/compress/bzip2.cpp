@@ -493,3 +493,23 @@ TEST(Bzip2_Tests, CloseClosesTheSource) {
     ASSERT_TRUE(r.close());
     EXPECT_TRUE(*closed);
 }
+
+// reset: a new stream from another source, the decoder's memory kept and
+// nothing of the old stream carried over, a failure cleared with it
+TEST(Bzip2_Tests, ResetReadsAnotherStream) {
+    std::string one = runs();
+    bzip2::reader r(dribble{bz_compress(one, 1), 1000});
+    std::byte part[100];
+    ASSERT_TRUE(r.read(part));   // the first stream left in the middle
+    r.reset(dribble{bz_compress("two", 1), 7});
+    EXPECT_EQ(read_all(r), "two");
+    EXPECT_FALSE(r.last_error());
+    r.reset(dribble{std::string("BZh9 not bzip2"), 3});
+    EXPECT_EQ(read_all(r), "");
+    ASSERT_TRUE(r.last_error());
+    r.reset(dribble{bz_compress(one, 9), 4096});
+    EXPECT_FALSE(r.last_error());
+    EXPECT_EQ(read_all(r), one);
+    EXPECT_FALSE(r.last_error());
+    static_assert(noexcept(r.reset(std::declval<sgcl::io::reader>())));
+}

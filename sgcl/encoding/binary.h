@@ -55,20 +55,20 @@ namespace sgcl::encoding {
             }
 
             // The number added at the back of the vector
-            static void append_u16(vector<byte>& out, uint16_t v) {
+            static void append_u16(vector<byte>& out, uint16_t v) noexcept {
                 _append(out, v, 2);
             }
 
-            static void append_u32(vector<byte>& out, uint32_t v) {
+            static void append_u32(vector<byte>& out, uint32_t v) noexcept {
                 _append(out, v, 4);
             }
 
-            static void append_u64(vector<byte>& out, uint64_t v) {
+            static void append_u64(vector<byte>& out, uint64_t v) noexcept {
                 _append(out, v, 8);
             }
 
         protected:
-            ByteOrder() = default;
+            ByteOrder() noexcept = default;
 
         private:
             static uint64_t _read(const slice<const byte>& at, size_t n) noexcept {
@@ -92,7 +92,7 @@ namespace sgcl::encoding {
                 _put(reinterpret_cast<uint8_t*>(at.data()), v, n);
             }
 
-            static void _append(vector<byte>& out, uint64_t v, size_t n) {
+            static void _append(vector<byte>& out, uint64_t v, size_t n) noexcept {
                 uint8_t b[8];
                 _put(b, v, n);
                 auto first = reinterpret_cast<const byte*>(b);
@@ -133,14 +133,14 @@ namespace sgcl::encoding {
 
         static constexpr size_t max_size = 10;
 
-        static void append(vector<byte>& out, uint64_t v) {
+        static void append(vector<byte>& out, uint64_t v) noexcept {
             uint8_t b[max_size];
             size_t n = _put(b, v);
             auto first = reinterpret_cast<const byte*>(b);
             out.insert(out.end(), first, first + n);
         }
 
-        static void append_signed(vector<byte>& out, int64_t v) {
+        static void append_signed(vector<byte>& out, int64_t v) noexcept {
             append(out, _zigzag(v));
         }
 
@@ -162,7 +162,7 @@ namespace sgcl::encoding {
         }
 
         // The number at the front of the bytes and the bytes it took
-        static expected<pair<uint64_t, size_t>, error> read(const slice<const byte>& at) {
+        static expected<pair<uint64_t, size_t>, error> read(const slice<const byte>& at) noexcept {
             auto p = reinterpret_cast<const uint8_t*>(at.data());
             size_t n = at.size() < max_size ? at.size() : max_size;
             uint64_t v = 0;
@@ -179,7 +179,7 @@ namespace sgcl::encoding {
             return unexpected<error>(error(errc::unexpected_end, at.size(), string("the bytes end inside a varint")));
         }
 
-        static expected<pair<int64_t, size_t>, error> read_signed(const slice<const byte>& at) {
+        static expected<pair<int64_t, size_t>, error> read_signed(const slice<const byte>& at) noexcept {
             auto r = read(at);
             if (!r) {
                 return unexpected<error>(std::move(r.error()));
@@ -198,7 +198,7 @@ namespace sgcl::encoding {
 
         // The reader by value: a handle, the copy the same reader (one
         // position), held by the task for as long as it runs
-        static async::task<expected<optional<uint64_t>, io::error>> async_read(const io::buffered_reader& in) {
+        static async::task<expected<optional<uint64_t>, io::error>> async_read(const io::buffered_reader& in) noexcept {
             return _co_read(in);
         }
 
@@ -207,7 +207,7 @@ namespace sgcl::encoding {
             return _block_read_signed(in);
         }
 
-        static async::task<expected<optional<int64_t>, io::error>> async_read_signed(const io::buffered_reader& in) {
+        static async::task<expected<optional<int64_t>, io::error>> async_read_signed(const io::buffered_reader& in) noexcept {
             return _co_read_signed(in);
         }
 
@@ -236,7 +236,7 @@ namespace sgcl::encoding {
         // on. The end of the stream is the end of the numbers before the
         // first byte (nullopt) and unexpected_eof inside one; the tenth
         // byte ends the number or fails, so the loop is bounded.
-        static optional<expected<optional<uint64_t>, io::error>> _step(uint64_t& v, size_t i, const expected<size_t, io::error>& r, byte byte) {
+        static optional<expected<optional<uint64_t>, io::error>> _step(uint64_t& v, size_t i, const expected<size_t, io::error>& r, byte byte) noexcept {
             using out = expected<optional<uint64_t>, io::error>;
             if (!r) {
                 return out(io::detail::fail(r));
@@ -258,7 +258,7 @@ namespace sgcl::encoding {
             return nullopt;
         }
 
-        static expected<optional<int64_t>, io::error> _signed(const expected<optional<uint64_t>, io::error>& r) {
+        static expected<optional<int64_t>, io::error> _signed(const expected<optional<uint64_t>, io::error>& r) noexcept {
             if (!r) {
                 return io::detail::fail(r);
             }
@@ -283,7 +283,7 @@ namespace sgcl::encoding {
             return _signed(_block_read(in));
         }
 
-        static async::task<expected<optional<uint64_t>, io::error>> _co_read(io::buffered_reader in) {   // by value: the task holds the reader
+        static async::task<expected<optional<uint64_t>, io::error>> _co_read(io::buffered_reader in) noexcept {   // by value: the task holds the reader
             uint64_t v = 0;
             for (size_t i = 0;; ++i) {
                 byte b {};
@@ -293,7 +293,7 @@ namespace sgcl::encoding {
             }
         }
 
-        static async::task<expected<optional<int64_t>, io::error>> _co_read_signed(io::buffered_reader in) {
+        static async::task<expected<optional<int64_t>, io::error>> _co_read_signed(io::buffered_reader in) noexcept {
             co_return _signed(co_await _co_read(in));
         }
     };

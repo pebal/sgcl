@@ -1,58 +1,116 @@
-# sgcl::io::print, println, eprint, eprintln
+[sgcl](../README.md) › [io](README.md)
+
+# sgcl::io::print
 
 ```cpp
-#include "sgcl/io/print.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
+#include "sgcl/io/print.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    void print(pattern, const A&... args);                        // on io::stdout
-    void println(pattern, const A&... args);                      // and a new line
-    void println();                                               // a new line alone
-    void print(const T& value);  void println(const T& value);    // one value, as "{}" formats it
-    void eprint(pattern, const A&... args);  void eprintln(pattern, const A&... args);   // on io::stderr
-    void eprint(const T& value);  void eprintln(const T& value);  void eprintln();
-    void print(const io::writer& to, pattern, const A&... args);  // on any stream: a file, a connection, a buffer
-    void println(const io::writer& to, pattern, const A&... args);
-    bool print(const txt::runtime_pattern& pattern, const A&... args);    // a pattern read at run time: printed when it fits
-    bool println(const txt::runtime_pattern& pattern, const A&... args);
+    /*(1)*/ template<class... A>
+            void print(const txt::format_pattern<std::type_identity_t<A>...>& pattern,
+                       const A&... args);
+    /*(2)*/ template<class T>
+            void print(const T& value);
+    /*(3)*/ template<class... A>
+            void print(const io::writer& to,
+                       const txt::format_pattern<std::type_identity_t<A>...>& pattern,
+                       const A&... args);
+    /*(4)*/ template<class... A>
+            bool print(const txt::runtime_pattern& pattern, const A&... args);
 }
+
 namespace sgcl {
-    using io::print;  using io::println;  using io::eprint;  using io::eprintln;
+    using io::print;
 }
 ```
 
-Text written in one call: `println("{} items", n)` is `io::stdout.write(txt::format("{} items\n", n))`. The pattern is [`txt::format`](../txt/format.md)'s and the compiler reads it: a brace left open, a value that does not take its field is an error of the build. The names are `sgcl`'s as well as `io`'s, so `using namespace sgcl;` is all a program needs.
+Writes text in one call: `print("{} items", n)` is `io::stdout.write(txt::format("{} items", n))`. The pattern is
+[txt::format](../txt/format.md)'s, and the compiler reads it: a brace left open, or a value that does not take its
+field, is an error of the build. The name is `sgcl`'s as well as `io`'s, so `using namespace sgcl;` is all a program
+needs to write `print`. [println](println.md) is the same with a new line, [eprint](eprint.md) the same on the
+standard error. What C++23's `std::print` does, and Go's `fmt.Printf` and `fmt.Fprintf` without their result.
 
-## Rules
+1. The text of `pattern` and `args` on `io::stdout`.
+2. One value, as `"{}"` formats it: anything `"{}"` formats, a string or a text slice included. Takes part only for
+   such a value that is not an array and not a writer: a literal is always the pattern, so `print("done")`
+   reads it as one, braces and all.
+3. The text of `pattern` and `args` on `to`, any writer: a file, a connection, a buffer, a buffered writer.
+4. A pattern read while the program runs, `txt::runtime(text)` (a translation): the text on `io::stdout` when the
+   pattern fits its values, nothing when it does not.
 
-- **One value needs no pattern**: `println(n)`, `println(name)`, `println(when)` — anything `"{}"` formats, text included. A literal is always the pattern: `println("done")` prints `done`, and `println("{}")` does not compile (a field with no value), so a literal with braces to be printed as they are is `println("{}", "{}")`.
-- **Printing is not checked.** A line on a terminal that could not be written has nobody to tell, and a result every call would have to drop is noise, so the functions return nothing (the runtime forms say only whether the pattern fitted). A program that must know — a pipe closed under it — writes with `io::stdout.write(...)`, which answers an [`expected`](../core/expected.md).
-- **The streams stay what they are.** [`io::stdout`, `io::stderr`](os.md) are streams: bytes, `io::copy(io::stdout, file)`, a [`buffered_writer`](buffered.md) over them, `co_await io::stdout.async_write(...)` in a task. `print` is only the short way to put text on them, or on any other writer: `println(file, "{} {}", key, value)`.
-- **A pattern from data** — a translation read from a file — goes through `txt::runtime(entry)`; when it does not fit its values (`{0} {1}` where one is given) nothing is printed and the call returns `false`, so a program falls back on its own pattern: `println(txt::runtime(entry), n) || println("{} left", n);`.
-- In a task, `print` writes as `io::stdout.write` does, on the calling worker; a program that prints much from tasks writes through a buffered writer.
+## Parameters
+
+| Parameter | Description |
+|---|---|
+| `pattern` | the pattern of [txt::format](../txt/format.md), a literal (1, 3), or a `txt::runtime` of a text (4) |
+| `args` | the values of the fields |
+| `value` | the one value to print |
+| `to` | the stream to write to |
+
+## Return value
+
+- (1–3) None.
+- (4) `true` when the pattern fitted its values and the text was written, `false` when nothing was.
+
+## Complexity
+
+Linear in the length of the text: it is made once and written in one write.
+
+## Exceptions
+
+- `out_of_range` when a `{:c}` field is given a number no character holds.
+- `length_error` when the text passes 4 GiB, the most a string holds.
+- What the formatting of a value of the program's throws.
+- What the stream's write throws: for `io::stdout`, [file::write](file/write.md)'s, `std::system_error` when the
+  write would wait on the reactor and its thread cannot be started.
+
+## Notes
+
+Printing is not checked. A text on a terminal that could not be written has nobody to tell, and a result every call
+would have to drop is noise, so the functions return nothing (the runtime form says only whether the pattern
+fitted). A program that must know, a pipe closed under it, writes with `io::stdout.write(...)`, which answers an
+[expected](../core/expected.md).
+
+The streams stay what they are: `io::stdout` is a stream, given to `io::copy`, a
+[buffered_writer](buffered_writer.md) over it, or `co_await io::stdout.async_write(...)` in a task. `print` is only
+the short way to put text on it, or on any other writer. In a task, `print` writes as `io::stdout.write` does, on
+the calling worker; a program that prints much from tasks writes through a buffered writer.
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/time/time.h"
+#include "sgcl/io.h"
+#include "sgcl/txt.h"
 
 using namespace sgcl;
 
 int main() {
-    auto files = io::read_dir(".");
-    if (!files) {
-        eprintln("cannot list the directory: {}", files.error().message());
-        return 1;
+    print("{} + {} = ", 2, 3);
+    print(2 + 3);
+    print("\n");
+
+    io::buffer report;
+    print(report, "{:>6}|", "right");
+    print("{}\n", report.text());
+
+    if (!print(txt::runtime("{0} of {1}\n"), 7)) {  // one value for two fields: nothing printed
+        print("{} of an unknown number\n", 7);
     }
-    println("{} entries", files->size());
-    for (auto& e : *files) {
-        println("  {:<20} {}", e.name, e.is_directory() ? "dir" : "file");
-    }
-    println();
-    println(time::now());
 }
+```
+
+Output:
+
+```text
+2 + 3 = 5
+ right|
+7 of an unknown number
 ```
 
 ## See also
 
-[`txt::format`](../txt/format.md) (the patterns), [`os`](os.md) (`io::stdout`, `io::stderr`), [`stream`](stream.md) (writers).
+- [println](println.md): the same and a new line
+- [eprint](eprint.md), [eprintln](eprintln.md): on the standard error
+- [txt::format](../txt/format.md): the patterns
+- [standard_stream](standard_stream.md): `io::stdout`, `io::stderr`
+- [writer](writer.md): any stream to print on

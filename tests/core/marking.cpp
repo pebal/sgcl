@@ -114,3 +114,80 @@ TEST(Marking_Tests, ParallelMarkingKeepsTheGraph) {
     EXPECT_EQ(settled_live_count(before), before);
     EXPECT_GT(sgcl::detail::collector_instance().parallel_mark_runs(), runs_before);
 }
+
+// Objects of a type without children are marked and not traced (collector.h:
+// _childless): never pushed on a marker's stack, never prefetched. Two kinds
+// of leaf: one with no pointer words from the start (trivially constructible:
+// its map is empty), one whose map empties by elimination (non-zero data in
+// both words). A tree holds one of each per node; the leaves must come out of
+// cycles intact and counted, and go with the tree.
+namespace {
+    struct PlainLeaf {
+        long value;
+        long index;
+    };
+
+    struct StampedLeaf {
+        long value = 12345;
+        long index = 0;
+    };
+
+    struct LeafNode {
+        tracked_ptr<LeafNode> left, right;
+        tracked_ptr<PlainLeaf> plain;
+        tracked_ptr<StampedLeaf> stamped;
+    };
+
+    constexpr int LeafDepth = 14;
+    constexpr long LeafNodes = (1L << (LeafDepth + 1)) - 1;
+
+    tracked_ptr<LeafNode> leaf_tree(int depth, long& n) {
+        tracked_ptr node = make_tracked<LeafNode>();
+        node->plain = make_tracked<PlainLeaf>();
+        node->plain->value = 777;
+        node->plain->index = ++n;
+        node->stamped = make_tracked<StampedLeaf>();
+        node->stamped->index = n;
+        if (depth > 0) {
+            node->left = leaf_tree(depth - 1, n);
+            node->right = leaf_tree(depth - 1, n);
+        }
+        return node;
+    }
+
+    SGCL_NOINLINE long check_leaves(const tracked_ptr<LeafNode>& node) {
+        if (!node) {
+            return 0;
+        }
+        if (!node->plain || node->plain->value != 777 || !node->stamped || node->stamped->value != 12345 || node->plain->index != node->stamped->index) {
+            return -1;
+        }
+        auto l = check_leaves(node->left);
+        auto r = check_leaves(node->right);
+        return l < 0 || r < 0 ? -1 : 1 + l + r;
+    }
+}
+
+SGCL_NOINLINE static void build_and_check_leaves(size_t before) {
+    tracked_ptr<LeafNode> root;
+    off_frame([&] {
+        long n = 0;
+        root = leaf_tree(LeafDepth, n);
+    });
+    for (int i = 0; i < 4; ++i) {
+        collector::force_collect(true);
+        ASSERT_EQ(check_leaves(root), LeafNodes);
+    }
+    // both leaf types are childless now: the path under test was taken
+    EXPECT_EQ(sgcl::detail::TypeInfo<PlainLeaf>::child_pointers().map.size(), 0u);
+    EXPECT_FALSE(sgcl::detail::TypeInfo<StampedLeaf>::child_pointers().any.load());
+    // the nodes and both leaves of each, nothing lost, nothing counted twice
+    EXPECT_EQ(settled_live_count(before + 3 * LeafNodes), before + 3 * LeafNodes);
+    EXPECT_EQ(check_leaves(root), LeafNodes);
+}
+
+TEST(Marking_Tests, LeavesWithoutChildrenAreMarkedAndKept) {
+    const size_t before = collector::get_live_object_count();
+    build_and_check_leaves(before);
+    EXPECT_EQ(settled_live_count(before), before);   // the tree and its leaves are gone with their frame
+}

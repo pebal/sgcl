@@ -105,7 +105,7 @@ namespace sgcl::txt {
             }
         }
 
-        inline void put(std::string& out, char32_t c) {
+        inline void put(std::string& out, char32_t c) noexcept {
             char buf[utf8::max_width];
             out.append(buf, utf8::encode(c, buf));
         }
@@ -295,7 +295,7 @@ namespace sgcl::txt {
             return _from;
         }
 
-        string message() const {
+        string message() const noexcept {
             return string(std::string("not ") + name_of(_from));
         }
 
@@ -387,22 +387,44 @@ namespace sgcl::txt {
         return decode(bytes, from);
     }
 
+    // Bytes in the encoding a name stands for, as encoding_from_name
+    // reads it (`charset=iso-8859-2` out of a header): decode(bytes, e),
+    // or nothing when nobody knows the name, as encoding_from_name says
+    // nothing — an ordinary answer for a name out of data, not a throw
+    inline optional<string> decode(const slice<const byte>& bytes, const string& name) {
+        auto from = encoding_from_name(name);
+        if (!from) {
+            return nullopt;
+        }
+        return decode(bytes, *from);
+    }
+
     // Text as bytes in some encoding. A character the encoding cannot
     // write is a question mark, which is what every library that does
     // this has always done and what a reader can at least see
-    inline vector<byte> encode(const string& text, encoding to) {
+    inline vector<byte> encode(const string& text, encoding to) noexcept {
         vector<byte> out;
         auto v = text.view();
+        // UTF-8 is the text itself when the text is valid: the one pass
+        // that asks is the only one, and the bytes are copied. An invalid
+        // byte is a U+FFFD of three, so a text that is not valid goes
+        // through the loop below with three bytes a byte.
+        bool valid_utf8 = to == encoding::utf8 && utf8::valid(v);
         // Sized once and written through, as to_utf16 is. The room is
         // taken from the length of the text and not from counting its
         // code points, because counting is a pass of its own and costs
         // more than it saves: a code point is at least one byte here, so
         // it is at most one byte there in an encoding of one byte, two
-        // in UTF-16 and four in UTF-32. What is not used is given back at
-        // the end.
+        // in UTF-16 and four in UTF-32. What is not used is given back
+        // at the end.
         out.resize(to == encoding::utf16le || to == encoding::utf16be ? v.size() * 2
                  : to == encoding::utf32le || to == encoding::utf32be ? v.size() * 4
+                 : to == encoding::utf8 && !valid_utf8 ? v.size() * 3
                  : v.size());
+        if (valid_utf8) {
+            sgcl::detail::copy_bytes(out.data(), v.data(), v.size());
+            return out;
+        }
         auto* at = out.data();
         auto put = [&](uint32_t b) { *at++ = byte(uint8_t(b)); };
         auto unit16 = [&](uint32_t u, bool big) {
@@ -458,10 +480,20 @@ namespace sgcl::txt {
         return out;
     }
 
+    // Text as bytes in the encoding a name stands for: encode(text, e),
+    // or nothing when nobody knows the name, as decode by a name
+    inline optional<vector<byte>> encode(const string& text, const string& name) noexcept {
+        auto to = encoding_from_name(name);
+        if (!to) {
+            return nullopt;
+        }
+        return encode(text, *to);
+    }
+
     // The two encodings of Unicode that have a shape of their own in C++,
     // for the edge of a system call and for the code that wants a code
     // point to be an integer
-    inline vector<char16_t> to_utf16(const string& text) {
+    inline vector<char16_t> to_utf16(const string& text) noexcept {
         auto v = text.view();
         // Sized once and written through: a unit a time through push_back
         // costs ten times what the writing does (0.77 ns an element
@@ -520,7 +552,7 @@ namespace sgcl::txt {
         });
     }
 
-    inline vector<char32_t> to_utf32(const string& text) {
+    inline vector<char32_t> to_utf32(const string& text) noexcept {
         auto v = text.view();
         vector<char32_t> out;
         out.resize(v.size());                       // a code point a byte at the most

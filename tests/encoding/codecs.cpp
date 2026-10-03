@@ -516,3 +516,58 @@ TEST(Codecs_Tests, Base64DecodeToFromASlice) {
     EXPECT_EQ(*r, 3u);
     EXPECT_EQ(error_of(base64::standard.decode_to(slice<byte>(three, 3), slice<const char>("QU*D", 4))).offset(), 2u);
 }
+
+namespace {
+    // decode_to of characters that lie where they are: an overload of its
+    // own (not the string's, through a conversion)
+    template<class C>
+    constexpr bool decodes_in_place = requires { static_cast<expected<size_t, error> (C::*)(const slice<byte>&, const slice<const char>&) const>(&C::decode_to); };
+
+    template<class C>
+    constexpr bool decodes_in_place_static = requires { static_cast<expected<size_t, error> (*)(const slice<byte>&, const slice<const char>&)>(&C::decode_to); };
+
+    // The slice's, the string_view's and the literal's overloads give the
+    // bytes and the errors of the string's
+    template<class Encode, class Decode>
+    void same_as_the_string(Encode encode, Decode decode_to, const char* bad, uint64_t bad_offset) {
+        for (size_t n = 0; n < 64; ++n) {
+            std::string data(n, '\0');
+            for (size_t i = 0; i < n; ++i) {
+                data[i] = char(i * 37 + 11);
+            }
+            string text = encode(slice<const byte>(reinterpret_cast<const byte*>(data.data()), n));
+            std::byte a[128], b[128], c[128];   // the bound of the text, past the bytes
+            auto x = decode_to(slice<byte>(a, 128), text);
+            auto y = decode_to(slice<byte>(b, 128), slice<const char>(text.data(), text.size()));
+            auto z = decode_to(slice<byte>(c, 128), std::string_view(text.data(), text.size()));
+            ASSERT_TRUE(x && y && z) << n;
+            ASSERT_EQ(*x, n);
+            ASSERT_EQ(*y, n);
+            ASSERT_EQ(*z, n);
+            EXPECT_EQ(std::memcmp(a, b, n), 0) << n;
+            EXPECT_EQ(std::memcmp(a, c, n), 0) << n;
+        }
+        std::byte out[16];
+        EXPECT_EQ(error_of(decode_to(slice<byte>(out, 16), slice<const char>(bad, std::strlen(bad)))).offset(), bad_offset);
+        EXPECT_EQ(error_of(decode_to(slice<byte>(out, 16), bad)).offset(), bad_offset);
+    }
+}
+
+// decode_to has the same three forms in every codec: a string, characters
+// read where they lie (a slice), and a literal or a std::string_view
+TEST(Codecs_Tests, DecodeToFromASliceInEveryCodec) {
+    EXPECT_TRUE(decodes_in_place<base64>);
+    EXPECT_TRUE(decodes_in_place<base32>);
+    EXPECT_TRUE(decodes_in_place_static<hex>);
+    EXPECT_TRUE(decodes_in_place_static<ascii85>);
+    same_as_the_string([](const slice<const byte>& d) { return base32::standard.encode(d); },
+                       [](const slice<byte>& out, const auto& t) { return base32::standard.decode_to(out, t); }, "MZ*G", 2);
+    same_as_the_string([](const slice<const byte>& d) { return hex::encode(d); },
+                       [](const slice<byte>& out, const auto& t) { return hex::decode_to(out, t); }, "0aZ1", 2);
+    same_as_the_string([](const slice<const byte>& d) { return ascii85::encode(d); },
+                       [](const slice<byte>& out, const auto& t) { return ascii85::decode_to(out, t); }, "87c~D", 3);
+    std::byte two[2];
+    auto r = hex::decode_to(slice<byte>(two, 2), "4142");
+    ASSERT_TRUE(r);
+    EXPECT_EQ(*r, 2u);
+}

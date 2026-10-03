@@ -188,6 +188,39 @@ TEST(IoBuffered_Tests, MaxLineBounds) {
     EXPECT_EQ(l.error().code(), make_error_code(errc::line_too_long));
 }
 
+// A line past the bound is skipped whole, wherever its end is: in what is
+// buffered, past it (the reader reads on, dropping the bytes, to the
+// delimiter), past the block, or nowhere (the end of the stream). The
+// next read starts after it; before, a line whose end was not buffered
+// gave line_too_long again at every read
+TEST(IoBuffered_Tests, ALineTooLongIsSkipped) {
+    auto too_long = [](const expected<optional<slice<const char>>, io::error>& l) {
+        return !l && l.error().code() == make_error_code(errc::line_too_long);
+    };
+    std::string text = "ok\n" + std::string(100, 'x') + "\nnext\n" + std::string(100, 'y');
+    buffered_reader r(make_tracked<dribble>(text, 20));   // 20 bytes a read: the end of the long line not buffered yet
+    r.set_max_line(50);
+    EXPECT_EQ(value_of(r.read_line()).value(), "ok");
+    EXPECT_TRUE(too_long(r.read_line()));
+    EXPECT_EQ(value_of(r.read_line()).value(), "next");
+    EXPECT_TRUE(too_long(r.read_line()));   // the last line, too long, without its end
+    EXPECT_FALSE(value_of(r.read_line()));   // then the end of the stream
+
+    // past the block, read_until's delimiter, a task's read
+    std::string mid(sgcl::config::io_buffer_size + 10, 'm');
+    buffered_reader r2(make_tracked<dribble>(mid + mid + mid + ";after;", 4000));
+    r2.set_max_line(2 * sgcl::config::io_buffer_size);
+    auto t = sgcl::async::spawn([r2, too_long]() -> task<std::string> {
+        if (!too_long(co_await r2.async_read_until(';'))) {
+            co_return "not too long";
+        }
+        auto next = co_await r2.async_read_until(';');
+        co_return next && *next ? std::string(**next) : "no next token";
+    });
+    EXPECT_EQ(t.wait(), "after;");
+    sgcl::async::scheduler::stop();
+}
+
 TEST(IoBuffered_Tests, ReadUntilPeekByteDiscard) {
     buffered_reader r(make_tracked<dribble>("a,bb,,ccc", 2));
     auto t = r.read_until(',');

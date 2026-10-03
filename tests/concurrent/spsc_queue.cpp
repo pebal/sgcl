@@ -3,8 +3,11 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-#include "tests/types.h"
+#include "tests/throwing.h"
+#include "tests/concurrent/together.h"
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -270,4 +273,94 @@ TEST(SpscQueue_Test, ProducerConsumerStress) {
     collector::force_collect(true);
     collector::force_collect(true);
     EXPECT_EQ(collector::get_live_object_count(), before);
+}
+
+// Boundaries (DESIGN 408)
+
+// A capacity past the largest ring a buffer can hold (its rounding up was
+// undefined past the largest power of two, and the bytes of the buffer
+// wrapped around) is a buffer no memory gives: the program ends as at
+// any refused managed allocation
+TEST(SpscQueue_Test, ACapacityNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    EXPECT_DEATH(sgcl::concurrent::spsc_queue<int>{SIZE_MAX}, "sgcl: out of managed memory");
+    EXPECT_DEATH(sgcl::concurrent::spsc_queue<int>{(size_t(1) << 63) + 1}, "sgcl: out of managed memory");
+    EXPECT_DEATH(sgcl::concurrent::spsc_queue<int>{size_t(1) << 62}, "sgcl: out of managed memory");   // 2^66 bytes: wrapped to 0
+}
+
+// An element whose move throws: try_pop leaves it in its cell and takes
+// it again next time; pop loses it when the move out of the optional
+// throws (try_pop.md, pop.md); a push whose copy throws leaves the queue
+// as it was (try_push.md, push.md)
+TEST(SpscQueue_Test, ACopyOrAMoveThatThrows) {
+    using throwing::Val;
+    throwing::Disarm disarm;
+    sgcl::concurrent::spsc_queue<Val> q(2);
+    Val one(1);
+    EXPECT_TRUE(q.try_push(one));
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(q.try_push(one), throwing::Error);
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(q.push(one), throwing::Error);
+    EXPECT_EQ(q.size(), 1u);
+    EXPECT_TRUE(q.try_push(Val(2)));
+    EXPECT_TRUE(q.full());
+    throwing::countdown.move = 1;
+    EXPECT_THROW(q.try_pop(), throwing::Error);
+    EXPECT_EQ(q.size(), 2u);   // still in its cell
+    EXPECT_EQ(q.try_pop()->v, 1);
+    throwing::countdown.move = 1;
+    EXPECT_THROW(q.pop(), throwing::Error);   // the move out of the cell: the element stays
+    EXPECT_EQ(q.size(), 1u);
+    throwing::countdown = {};
+    EXPECT_EQ(q.pop().v, 2);
+    EXPECT_TRUE(q.empty());
+}
+
+// A ring of one cell between a producer and a consumer that both wait:
+// every push and every pop at a boundary, every value once and in order
+TEST(SpscQueue_Test, ARingOfOneBetweenWaitingSides) {
+    const int n = 20000;
+    sgcl::concurrent::spsc_queue<int> q(0);   // rounded up to one cell
+    ASSERT_EQ(q.capacity(), 1u);
+    together::run(2, [&](int i) {
+        if (i == 0) {
+            for (int k = 0; k < n; ++k) {
+                q.push(k);
+            }
+        } else {
+            for (int k = 0; k < n; ++k) {
+                ASSERT_EQ(q.pop(), k);
+            }
+        }
+    });
+    EXPECT_TRUE(q.empty());
+    EXPECT_FALSE(q.try_pop());
+}
+
+// A third thread reading size, empty and full while the two sides run:
+// a value from 0 to the capacity, never past it
+TEST(SpscQueue_Test, SizeFromAThirdThreadStaysInBounds) {
+    const int n = 20000;
+    sgcl::concurrent::spsc_queue<int> q(4);
+    std::atomic<bool> stop = {false}, out = {false};
+    together::run(3, [&](int i) {
+        if (i == 0) {
+            for (int k = 0; k < n; ++k) {
+                q.push(k);
+            }
+        } else if (i == 1) {
+            for (int k = 0; k < n; ++k) {
+                (void)q.pop();
+            }
+            stop = true;
+        } else {
+            while (!stop) {
+                if (q.size() > q.capacity()) {
+                    out = true;
+                }
+            }
+        }
+    });
+    EXPECT_FALSE(out.load());
 }

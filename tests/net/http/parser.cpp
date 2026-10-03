@@ -385,6 +385,64 @@ TEST(HttpParser_Tests, HeadEnd) {
     EXPECT_EQ(leading_empty_lines("\r\n\n\r\nG", 6), 5u);
 }
 
+// DESIGN 408: the parser at its limits. A length is 1*DIGIT up to 2^63 - 1
+// whatever its leading zeros; a chunk size up to 2^63 - 1 the same; the
+// size line at 4 KB and the trailers at 32 KB exactly; zero chunks; the
+// smallest request line and fields
+TEST(HttpParser_Tests, Boundaries) {
+    // Content-Length: leading zeros are not digits that count
+    auto zeros = std::string(30, '0');
+    auto c = check(rq("Host: x\r\nContent-Length: " + zeros + "5\r\n", "POST / HTTP/1.1"));
+    EXPECT_EQ(c.status, 0);
+    EXPECT_EQ(c.framing.kind, Framing::length);
+    EXPECT_EQ(c.framing.length, 5u);
+    auto zero = check(rq("Host: x\r\nContent-Length: " + zeros + "\r\n", "POST / HTTP/1.1"));
+    EXPECT_EQ(zero.status, 0);
+    EXPECT_EQ(zero.framing.kind, Framing::none);
+    EXPECT_EQ(status_of(rq("Host: x\r\nContent-Length: " + zeros + "9223372036854775807\r\n", "POST / HTTP/1.1")), 0);
+    EXPECT_EQ(status_of(rq("Host: x\r\nContent-Length: " + zeros + "9223372036854775808\r\n", "POST / HTTP/1.1")), 400);
+    EXPECT_EQ(status_of(rq("Host: x\r\nContent-Length: 5, " + zeros + "5\r\n", "POST / HTTP/1.1")), 0);   // the same length
+    EXPECT_EQ(status_of(rq("Host: x\r\nContent-Length: 1000000000000000000\r\n", "POST / HTTP/1.1")), 0);   // 19 digits
+    EXPECT_EQ(status_of(rq("Host: x\r\nContent-Length: 10000000000000000000\r\n", "POST / HTTP/1.1")), 400);  // 20
+    // the chunk size: 2^63 - 1 is a size (its data then cut short), 2^63 none
+    EXPECT_EQ(dechunk("7fffffffffffffff\r\nabc", 1000), "?abc");
+    EXPECT_EQ(dechunk("8000000000000000\r\nabc", 1000), "!400");
+    EXPECT_EQ(dechunk("10000000000000000\r\nabc", 1000), "!400");
+    EXPECT_EQ(dechunk(zeros + "1\r\na\r\n0\r\n\r\n", 7), "a");
+    EXPECT_EQ(dechunk(zeros + "\r\n\r\n", 7), "");                        // zero chunks, the last one of many zeros
+    EXPECT_EQ(dechunk("0;ext=1\r\n\r\n", 1), "");                           // the last chunk with an extension
+    // the size line: 4096 bytes with its CRLF, one more refused
+    EXPECT_EQ(dechunk("3;a=" + std::string(4090, 'b') + "\r\nabc\r\n0\r\n\r\n", 64), "abc");
+    EXPECT_EQ(dechunk("3;a=" + std::string(4091, 'b') + "\r\nabc\r\n0\r\n\r\n", 64), "!400");
+    EXPECT_EQ(dechunk(std::string(4094, '0') + "\r\n\r\n", 100), "");
+    EXPECT_EQ(dechunk(std::string(4095, '0') + "\r\n\r\n", 100), "!400");
+    // the trailers: 32 KB with the empty line that ends them
+    headers t;
+    EXPECT_EQ(dechunk("0\r\nX: " + std::string(32761, 'v') + "\r\n\r\n", 1000, 5, &t), "");
+    EXPECT_EQ(t.get("x").size(), 32761u);
+    EXPECT_EQ(dechunk("0\r\nX: " + std::string(32762, 'v') + "\r\n\r\n", 1000), "!400");
+    // the smallest request line and fields; a value of nothing but OWS
+    auto small = check("A * HTTP/1.0\r\n\r\n");
+    EXPECT_EQ(small.status, 400);                                          // '*' is OPTIONS' alone
+    auto one = check("A / HTTP/1.0\r\n\r\n");
+    EXPECT_EQ(one.status, 0);
+    EXPECT_EQ(one.line.method_size, 1u);
+    EXPECT_EQ(one.line.target_size, 1u);
+    EXPECT_TRUE(one.fields.empty());
+    auto blank = check(rq("Host: x\r\nA:\r\nB: \t \r\n"));
+    EXPECT_EQ(blank.status, 0);
+    EXPECT_TRUE(blank.fields.contains("a"));
+    EXPECT_EQ(blank.fields.get("b"), "");
+    // a head of nothing but its end: no request line
+    EXPECT_EQ(status_of("\r\n\r\n"), -1);                                  // empty lines skipped, no head yet
+    StatusLine sl;
+    headers none;
+    EXPECT_EQ(parse_response_head(string("HTTP/1.1 999\r\n\r\n"), sl, none), 0);   // the largest status
+    EXPECT_EQ(sl.status, 999);
+    EXPECT_EQ(parse_response_head(string("HTTP/1.1 100\r\n\r\n"), sl, none), 0);
+    EXPECT_NE(parse_response_head(string(""), sl, none), 0);
+}
+
 // A deterministic mutator over valid requests: whatever comes out, the
 // parser answers 0 or one of its statuses, and an accepted head keeps the
 // rules (one framing, a Host in 1.1, the length a number); the chunked

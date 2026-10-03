@@ -444,7 +444,7 @@ namespace sgcl::crypto::detail {
             affine t[booth_windows][16];
         };
 
-        static const BaseTable& base_table() {
+        static const BaseTable& base_table() noexcept {
             static const std::unique_ptr<BaseTable> table = build_base_table();
             return *table;
         }
@@ -452,7 +452,7 @@ namespace sgcl::crypto::detail {
         // The table's points made projective and turned affine together,
         // one inversion for all of them (Montgomery's trick). Public data:
         // multiples of the generator
-        static std::unique_ptr<BaseTable> build_base_table() {
+        static std::unique_ptr<BaseTable> build_base_table() noexcept {
             constexpr size_t count = booth_windows * 16;
             auto points = std::make_unique<point[]>(count);
             point g = generator();

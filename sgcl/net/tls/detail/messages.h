@@ -231,32 +231,32 @@ namespace sgcl::net::tls::detail {
             return _out->size();
         }
 
-        void u8(uint8_t v) {
+        void u8(uint8_t v) noexcept {
             _out->push_back(byte(v));
         }
 
-        void u16(uint16_t v) {
+        void u16(uint16_t v) noexcept {
             u8(uint8_t(v >> 8));
             u8(uint8_t(v));
         }
 
-        void u24(uint32_t v) {
+        void u24(uint32_t v) noexcept {
             assert(v < (1u << 24));
             u8(uint8_t(v >> 16));
             u8(uint8_t(v >> 8));
             u8(uint8_t(v));
         }
 
-        void u32(uint32_t v) {
+        void u32(uint32_t v) noexcept {
             u16(uint16_t(v >> 16));
             u16(uint16_t(v));
         }
 
-        void bytes(const Bytes& b) {
+        void bytes(const Bytes& b) noexcept {
             _out->insert(_out->end(), b.begin(), b.end());
         }
 
-        void bytes(const void* p, size_t n) {
+        void bytes(const void* p, size_t n) noexcept {
             auto b = static_cast<const byte*>(p);
             _out->insert(_out->end(), b, b + n);
         }
@@ -264,7 +264,7 @@ namespace sgcl::net::tls::detail {
         // A length prefixed vector, filled in when the block closes
         class Block {
         public:
-            Block(Builder& w, int width, size_t max)
+            Block(Builder& w, int width, size_t max) noexcept
             : _w(&w), _at(w.size()), _width(width), _max(max) {
                 for (int i = 0; i < width; ++i) {
                     w.u8(0);
@@ -303,31 +303,31 @@ namespace sgcl::net::tls::detail {
             size_t _max;
         };
 
-        [[nodiscard]] Block block8(size_t max = 0xFF) {
+        [[nodiscard]] Block block8(size_t max = 0xFF) noexcept {
             return Block(*this, 1, max);
         }
 
-        [[nodiscard]] Block block16(size_t max = 0xFFFF) {
+        [[nodiscard]] Block block16(size_t max = 0xFFFF) noexcept {
             return Block(*this, 2, max);
         }
 
-        [[nodiscard]] Block block24(size_t max = 0xFFFFFF) {
+        [[nodiscard]] Block block24(size_t max = 0xFFFFFF) noexcept {
             return Block(*this, 3, max);
         }
 
         // A handshake message: the type, then the body in a block of 24 bits (§4)
-        [[nodiscard]] Block message(HandshakeType t) {
+        [[nodiscard]] Block message(HandshakeType t) noexcept {
             u8(uint8_t(t));
             return block24();
         }
 
         // An extension: the type, then the body in a block of 16 bits (§4.2)
-        [[nodiscard]] Block extension(uint16_t type) {
+        [[nodiscard]] Block extension(uint16_t type) noexcept {
             u16(type);
             return block16();
         }
 
-        [[nodiscard]] Block extension(ExtensionType type) {
+        [[nodiscard]] Block extension(ExtensionType type) noexcept {
             return extension(uint16_t(type));
         }
 
@@ -393,7 +393,7 @@ namespace sgcl::net::tls::detail {
         }
     };
 
-    inline expected<U16List, Alert> read_u16_list(Reader& r, int width, size_t min, size_t max) {
+    inline expected<U16List, Alert> read_u16_list(Reader& r, int width, size_t min, size_t max) noexcept {
         Bytes b;
         if (!(width == 1 ? r.vec8(b, min, max) : r.vec16(b, min, max))) {
             return failed(r);
@@ -405,7 +405,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_u16_list(Builder& w, int width, const R& values) {
+    void write_u16_list(Builder& w, int width, const R& values) noexcept {
         auto b = width == 1 ? w.block8() : w.block16();
         for (uint16_t v : values) {
             w.u16(v);
@@ -495,7 +495,7 @@ namespace sgcl::net::tls::detail {
     // The extensions vector of a message, its length within [min, max];
     // a type twice is illegal_parameter (§4.2), and so is pre_shared_key
     // anywhere but last where `psk_last` (a ClientHello, §4.2.11)
-    inline expected<Extensions, Alert> read_extensions(Reader& r, size_t min, size_t max, bool psk_last = false) {
+    inline expected<Extensions, Alert> read_extensions(Reader& r, size_t min, size_t max, bool psk_last = false) noexcept {
         Reader list(Bytes(), 0);
         if (!r.sub16(list, min, max)) {
             return failed(r);
@@ -549,14 +549,14 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class F>
-    void write_extensions(Builder& w, F&& entries) {
+    void write_extensions(Builder& w, F&& entries) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         auto b = w.block16();
         entries(w);
     }
 
     // The entries of an extensions vector copied as they are (a message
     // written back from what was read)
-    inline void write_raw(Builder& w, const Extensions& x) {
+    inline void write_raw(Builder& w, const Extensions& x) noexcept {
         w.bytes(x.raw);
     }
 
@@ -587,7 +587,7 @@ namespace sgcl::net::tls::detail {
         inline constexpr uint64_t recognized = client_hello | encrypted_extensions | certificate_request | bits({48});
     }
 
-    inline expected<void, Alert> validate_extensions(HandshakeType type, bool retry, const Extensions& x, uint64_t offered) {
+    inline expected<void, Alert> validate_extensions(HandshakeType type, bool retry, const Extensions& x, uint64_t offered) noexcept {
         using namespace ext_allowed;
         uint64_t allowed = 0;
         bool reply = false;
@@ -624,7 +624,7 @@ namespace sgcl::net::tls::detail {
 
     // An extension whose body is empty (server_name and early_data in a
     // reply, early_data in a ClientHello)
-    inline expected<void, Alert> read_empty(const Bytes& body) {
+    inline expected<void, Alert> read_empty(const Bytes& body) noexcept {
         if (!body.empty()) {
             return failed(AlertDescription::decode_error, 0, "an extension that must be empty is not");
         }
@@ -634,7 +634,7 @@ namespace sgcl::net::tls::detail {
     // server_name (RFC 6066 §3): the host_name of the list; other name types
     // passed over, a second host_name illegal_parameter; a name of 1 to 255
     // bytes
-    inline expected<Bytes, Alert> read_server_name(const Bytes& body) {
+    inline expected<Bytes, Alert> read_server_name(const Bytes& body) noexcept {
         Reader r(body);
         Reader list(Bytes(), 0);
         if (!r.sub16(list, 1, 0xFFFF) || !r.end()) {
@@ -665,7 +665,7 @@ namespace sgcl::net::tls::detail {
         return *host;
     }
 
-    inline void write_server_name(Builder& w, const Bytes& host) {
+    inline void write_server_name(Builder& w, const Bytes& host) noexcept {
         assert(!host.empty() && host.size() <= 255);
         auto list = w.block16();
         w.u8(0);
@@ -675,7 +675,7 @@ namespace sgcl::net::tls::detail {
 
     // supported_groups (§4.2.7), signature_algorithms and
     // signature_algorithms_cert (§4.2.3)
-    inline expected<U16List, Alert> read_groups(const Bytes& body) {
+    inline expected<U16List, Alert> read_groups(const Bytes& body) noexcept {
         Reader r(body);
         auto l = read_u16_list(r, 2, 2, 0xFFFF);
         if (l && !r.end()) {
@@ -684,7 +684,7 @@ namespace sgcl::net::tls::detail {
         return l;
     }
 
-    inline expected<U16List, Alert> read_signature_schemes(const Bytes& body) {
+    inline expected<U16List, Alert> read_signature_schemes(const Bytes& body) noexcept {
         Reader r(body);
         auto l = read_u16_list(r, 2, 2, 0xFFFE);
         if (l && !r.end()) {
@@ -694,18 +694,18 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_groups(Builder& w, const R& groups) {
+    void write_groups(Builder& w, const R& groups) noexcept {
         write_u16_list(w, 2, groups);
     }
 
     template<class R>
-    void write_signature_schemes(Builder& w, const R& schemes) {
+    void write_signature_schemes(Builder& w, const R& schemes) noexcept {
         write_u16_list(w, 2, schemes);
     }
 
     // supported_versions (§4.2.1): a list in a ClientHello, one version in
     // a ServerHello or a HelloRetryRequest
-    inline expected<U16List, Alert> read_versions_offered(const Bytes& body) {
+    inline expected<U16List, Alert> read_versions_offered(const Bytes& body) noexcept {
         Reader r(body);
         auto l = read_u16_list(r, 1, 2, 254);
         if (l && !r.end()) {
@@ -714,7 +714,7 @@ namespace sgcl::net::tls::detail {
         return l;
     }
 
-    inline expected<uint16_t, Alert> read_version_selected(const Bytes& body) {
+    inline expected<uint16_t, Alert> read_version_selected(const Bytes& body) noexcept {
         Reader r(body);
         uint16_t v;
         if (!r.u16(v) || !r.end()) {
@@ -724,11 +724,11 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_versions_offered(Builder& w, const R& versions) {
+    void write_versions_offered(Builder& w, const R& versions) noexcept {
         write_u16_list(w, 1, versions);
     }
 
-    inline void write_version_selected(Builder& w, uint16_t v) {
+    inline void write_version_selected(Builder& w, uint16_t v) noexcept {
         w.u16(v);
     }
 
@@ -751,7 +751,7 @@ namespace sgcl::net::tls::detail {
 
     // A share checked: of the size its group has, and a point of a curve
     // uncompressed (§4.2.8.2)
-    inline bool share_ok(Reader& r, uint32_t at, uint16_t group, const Bytes& key, bool server) {
+    inline bool share_ok(Reader& r, uint32_t at, uint16_t group, const Bytes& key, bool server) noexcept {
         size_t n = share_size(group, server);
         if (n && key.size() != n) {
             r.fail(AlertDescription::illegal_parameter, "a key share of the wrong size for its group");
@@ -813,7 +813,7 @@ namespace sgcl::net::tls::detail {
         }
     };
 
-    inline expected<KeyShareList, Alert> read_key_shares(const Bytes& body) {
+    inline expected<KeyShareList, Alert> read_key_shares(const Bytes& body) noexcept {
         Reader r(body);
         Bytes raw;
         if (!r.vec16(raw, 0, 0xFFFF) || !r.end()) {
@@ -840,7 +840,7 @@ namespace sgcl::net::tls::detail {
         return KeyShareList{raw};
     }
 
-    inline expected<KeyShare, Alert> read_key_share_selected(const Bytes& body) {
+    inline expected<KeyShare, Alert> read_key_share_selected(const Bytes& body) noexcept {
         Reader r(body);
         uint16_t group;
         Bytes key;
@@ -854,7 +854,7 @@ namespace sgcl::net::tls::detail {
     }
 
     // A HelloRetryRequest's: the group alone
-    inline expected<uint16_t, Alert> read_key_share_retry(const Bytes& body) {
+    inline expected<uint16_t, Alert> read_key_share_retry(const Bytes& body) noexcept {
         Reader r(body);
         uint16_t group;
         if (!r.u16(group) || !r.end()) {
@@ -864,7 +864,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_key_shares(Builder& w, const R& shares) {
+    void write_key_shares(Builder& w, const R& shares) noexcept {
         auto list = w.block16();
         for (const KeyShare& s : shares) {
             w.u16(s.group);
@@ -873,13 +873,13 @@ namespace sgcl::net::tls::detail {
         }
     }
 
-    inline void write_key_share_selected(Builder& w, const KeyShare& s) {
+    inline void write_key_share_selected(Builder& w, const KeyShare& s) noexcept {
         w.u16(s.group);
         auto k = w.block16();
         w.bytes(s.key);
     }
 
-    inline void write_key_share_retry(Builder& w, uint16_t group) {
+    inline void write_key_share_retry(Builder& w, uint16_t group) noexcept {
         w.u16(group);
     }
 
@@ -921,7 +921,7 @@ namespace sgcl::net::tls::detail {
         }
     };
 
-    inline expected<NameList, Alert> read_protocols(const Bytes& body) {
+    inline expected<NameList, Alert> read_protocols(const Bytes& body) noexcept {
         Reader r(body);
         Bytes raw;
         if (!r.vec16(raw, 2, 0xFFFF) || !r.end()) {
@@ -937,7 +937,7 @@ namespace sgcl::net::tls::detail {
         return NameList{raw};
     }
 
-    inline expected<Bytes, Alert> read_protocol_selected(const Bytes& body) {
+    inline expected<Bytes, Alert> read_protocol_selected(const Bytes& body) noexcept {
         auto l = read_protocols(body);
         if (!l) {
             return unexpected<Alert>(l.error());
@@ -951,7 +951,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_protocols(Builder& w, const R& names) {
+    void write_protocols(Builder& w, const R& names) noexcept {
         auto list = w.block16();
         for (const auto& n : names) {
             Bytes b = bytes_of(n.data(), n.size());
@@ -962,7 +962,7 @@ namespace sgcl::net::tls::detail {
     }
 
     // cookie (§4.2.2)
-    inline expected<Bytes, Alert> read_cookie(const Bytes& body) {
+    inline expected<Bytes, Alert> read_cookie(const Bytes& body) noexcept {
         Reader r(body);
         Bytes c;
         if (!r.vec16(c, 1, 0xFFFF) || !r.end()) {
@@ -971,13 +971,13 @@ namespace sgcl::net::tls::detail {
         return c;
     }
 
-    inline void write_cookie(Builder& w, const Bytes& c) {
+    inline void write_cookie(Builder& w, const Bytes& c) noexcept {
         auto b = w.block16();
         w.bytes(c);
     }
 
     // psk_key_exchange_modes (§4.2.9): read for its syntax
-    inline expected<Bytes, Alert> read_psk_modes(const Bytes& body) {
+    inline expected<Bytes, Alert> read_psk_modes(const Bytes& body) noexcept {
         Reader r(body);
         Bytes m;
         if (!r.vec8(m, 1, 0xFF) || !r.end()) {
@@ -986,13 +986,13 @@ namespace sgcl::net::tls::detail {
         return m;
     }
 
-    inline void write_psk_modes(Builder& w, const Bytes& modes) {
+    inline void write_psk_modes(Builder& w, const Bytes& modes) noexcept {
         auto b = w.block8();
         w.bytes(modes);
     }
 
     // early_data in a NewSessionTicket (§4.2.10): max_early_data_size
-    inline expected<uint32_t, Alert> read_early_data_limit(const Bytes& body) {
+    inline expected<uint32_t, Alert> read_early_data_limit(const Bytes& body) noexcept {
         Reader r(body);
         uint32_t n;
         if (!r.u32(n) || !r.end()) {
@@ -1009,7 +1009,7 @@ namespace sgcl::net::tls::detail {
         size_t count = 0;
     };
 
-    inline expected<PreSharedKeys, Alert> read_pre_shared_keys(const Bytes& body) {
+    inline expected<PreSharedKeys, Alert> read_pre_shared_keys(const Bytes& body) noexcept {
         Reader r(body);
         PreSharedKeys k;
         if (!r.vec16(k.identities, 7, 0xFFFF) || !r.vec16(k.binders, 33, 0xFFFF) || !r.end()) {
@@ -1040,12 +1040,12 @@ namespace sgcl::net::tls::detail {
     }
 
     // pre_shared_key in a ServerHello: the identity chosen
-    inline expected<uint16_t, Alert> read_pre_shared_key_selected(const Bytes& body) {
+    inline expected<uint16_t, Alert> read_pre_shared_key_selected(const Bytes& body) noexcept {
         return read_version_selected(body);
     }
 
     // record_size_limit (RFC 8449 §4): read for its syntax, not acted on
-    inline expected<uint16_t, Alert> read_record_size_limit(const Bytes& body) {
+    inline expected<uint16_t, Alert> read_record_size_limit(const Bytes& body) noexcept {
         auto v = read_version_selected(body);
         if (v && *v < 64) {
             return failed(AlertDescription::illegal_parameter, 0, "record_size_limit below 64");
@@ -1062,7 +1062,7 @@ namespace sgcl::net::tls::detail {
     };
 
     // The header of a message, its length the rest exactly
-    inline expected<Handshake, Alert> read_handshake(const Bytes& message) {
+    inline expected<Handshake, Alert> read_handshake(const Bytes& message) noexcept {
         Reader r(message);
         uint8_t type;
         uint32_t n;
@@ -1082,7 +1082,7 @@ namespace sgcl::net::tls::detail {
         Extensions extensions;
     };
 
-    inline expected<ClientHello, Alert> read_client_hello(const Bytes& body) {
+    inline expected<ClientHello, Alert> read_client_hello(const Bytes& body) noexcept {
         Reader r(body, 4);
         ClientHello m;
         Bytes compression;
@@ -1118,7 +1118,7 @@ namespace sgcl::net::tls::detail {
     // A ClientHello written: legacy_version 0x0303, the null compression
     // alone; `extensions(w)` writes the entries (Builder::extension)
     template<class R, class F>
-    void write_client_hello(Builder& w, const Bytes& random, const Bytes& session_id, const R& cipher_suites, F&& extensions) {
+    void write_client_hello(Builder& w, const Bytes& random, const Bytes& session_id, const R& cipher_suites, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         assert(random.size() == 32 && session_id.size() <= 32);
         auto m = w.message(HandshakeType::client_hello);
         w.u16(Tls12);
@@ -1146,7 +1146,7 @@ namespace sgcl::net::tls::detail {
         }
     };
 
-    inline expected<ServerHello, Alert> read_server_hello(const Bytes& body) {
+    inline expected<ServerHello, Alert> read_server_hello(const Bytes& body) noexcept {
         Reader r(body, 4);
         ServerHello m;
         uint8_t compression;
@@ -1177,7 +1177,7 @@ namespace sgcl::net::tls::detail {
     // A ServerHello written; a HelloRetryRequest is one with
     // HelloRetryRandom for its random
     template<class F>
-    void write_server_hello(Builder& w, const Bytes& random, const Bytes& session_id, uint16_t cipher_suite, F&& extensions) {
+    void write_server_hello(Builder& w, const Bytes& random, const Bytes& session_id, uint16_t cipher_suite, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         assert(random.size() == 32 && session_id.size() <= 32);
         auto m = w.message(HandshakeType::server_hello);
         w.u16(Tls12);
@@ -1192,7 +1192,7 @@ namespace sgcl::net::tls::detail {
     }
 
     // EncryptedExtensions (§4.3.1)
-    inline expected<Extensions, Alert> read_encrypted_extensions(const Bytes& body) {
+    inline expected<Extensions, Alert> read_encrypted_extensions(const Bytes& body) noexcept {
         Reader r(body, 4);
         auto x = read_extensions(r, 0, 0xFFFF);
         if (x && !r.end()) {
@@ -1202,7 +1202,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class F>
-    void write_encrypted_extensions(Builder& w, F&& extensions) {
+    void write_encrypted_extensions(Builder& w, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         auto m = w.message(HandshakeType::encrypted_extensions);
         write_extensions(w, std::forward<F>(extensions));
     }
@@ -1213,7 +1213,7 @@ namespace sgcl::net::tls::detail {
         Extensions extensions;
     };
 
-    inline expected<CertificateRequest, Alert> read_certificate_request(const Bytes& body) {
+    inline expected<CertificateRequest, Alert> read_certificate_request(const Bytes& body) noexcept {
         Reader r(body, 4);
         CertificateRequest m;
         if (!r.vec8(m.context, 0, 0xFF)) {
@@ -1234,7 +1234,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class F>
-    void write_certificate_request(Builder& w, const Bytes& context, F&& extensions) {
+    void write_certificate_request(Builder& w, const Bytes& context, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         auto m = w.message(HandshakeType::certificate_request);
         {
             auto c = w.block8();
@@ -1293,7 +1293,7 @@ namespace sgcl::net::tls::detail {
         }
     };
 
-    inline expected<Certificate, Alert> read_certificate(const Bytes& body) {
+    inline expected<Certificate, Alert> read_certificate(const Bytes& body) noexcept {
         Reader r(body, 4);
         Certificate m;
         if (!r.vec8(m.context, 0, 0xFF)) {
@@ -1326,7 +1326,7 @@ namespace sgcl::net::tls::detail {
     // The entries: a range of the DER of each certificate (no extensions),
     // or of CertificateEntry (their extensions copied as they are)
     template<class R>
-    void write_certificate(Builder& w, const Bytes& context, const R& entries) {
+    void write_certificate(Builder& w, const Bytes& context, const R& entries) noexcept {
         auto m = w.message(HandshakeType::certificate);
         {
             auto c = w.block8();
@@ -1357,7 +1357,7 @@ namespace sgcl::net::tls::detail {
         Bytes signature;
     };
 
-    inline expected<CertificateVerify, Alert> read_certificate_verify(const Bytes& body) {
+    inline expected<CertificateVerify, Alert> read_certificate_verify(const Bytes& body) noexcept {
         Reader r(body, 4);
         CertificateVerify m;
         if (!r.u16(m.scheme) || !r.vec16(m.signature, 0, 0xFFFF) || !r.end()) {
@@ -1366,7 +1366,7 @@ namespace sgcl::net::tls::detail {
         return m;
     }
 
-    inline void write_certificate_verify(Builder& w, uint16_t scheme, const Bytes& signature) {
+    inline void write_certificate_verify(Builder& w, uint16_t scheme, const Bytes& signature) noexcept {
         auto m = w.message(HandshakeType::certificate_verify);
         w.u16(scheme);
         auto s = w.block16();
@@ -1374,20 +1374,20 @@ namespace sgcl::net::tls::detail {
     }
 
     // Finished (§4.4.4): verify_data of the length of the hash
-    inline expected<Bytes, Alert> read_finished(const Bytes& body, size_t hash_size) {
+    inline expected<Bytes, Alert> read_finished(const Bytes& body, size_t hash_size) noexcept {
         if (body.size() != hash_size) {
             return failed(AlertDescription::decode_error, 4, "Finished of another length than the hash's");
         }
         return body;
     }
 
-    inline void write_finished(Builder& w, const Bytes& verify_data) {
+    inline void write_finished(Builder& w, const Bytes& verify_data) noexcept {
         auto m = w.message(HandshakeType::finished);
         w.bytes(verify_data);
     }
 
     // KeyUpdate (§4.6.3): whether the other side is asked to update too
-    inline expected<bool, Alert> read_key_update(const Bytes& body) {
+    inline expected<bool, Alert> read_key_update(const Bytes& body) noexcept {
         Reader r(body, 4);
         uint8_t request;
         if (!r.u8(request) || !r.end()) {
@@ -1399,7 +1399,7 @@ namespace sgcl::net::tls::detail {
         return request == 1;
     }
 
-    inline void write_key_update(Builder& w, bool request_update) {
+    inline void write_key_update(Builder& w, bool request_update) noexcept {
         auto m = w.message(HandshakeType::key_update);
         w.u8(request_update ? 1 : 0);
     }
@@ -1413,7 +1413,7 @@ namespace sgcl::net::tls::detail {
         Extensions extensions;
     };
 
-    inline expected<NewSessionTicket, Alert> read_new_session_ticket(const Bytes& body) {
+    inline expected<NewSessionTicket, Alert> read_new_session_ticket(const Bytes& body) noexcept {
         Reader r(body, 4);
         NewSessionTicket m;
         if (!r.u32(m.lifetime) || !r.u32(m.age_add) || !r.vec8(m.nonce, 0, 0xFF) || !r.vec16(m.ticket, 1, 0xFFFF)) {
@@ -1433,7 +1433,7 @@ namespace sgcl::net::tls::detail {
         return m;
     }
 
-    inline void write_new_session_ticket(Builder& w, const NewSessionTicket& t) {
+    inline void write_new_session_ticket(Builder& w, const NewSessionTicket& t) noexcept {
         auto m = w.message(HandshakeType::new_session_ticket);
         w.u32(t.lifetime);
         w.u32(t.age_add);
@@ -1450,20 +1450,20 @@ namespace sgcl::net::tls::detail {
     }
 
     // EndOfEarlyData (§4.5): empty
-    inline expected<void, Alert> read_end_of_early_data(const Bytes& body) {
+    inline expected<void, Alert> read_end_of_early_data(const Bytes& body) noexcept {
         if (!body.empty()) {
             return failed(AlertDescription::decode_error, 4, "EndOfEarlyData with a body");
         }
         return {};
     }
 
-    inline void write_end_of_early_data(Builder& w) {
+    inline void write_end_of_early_data(Builder& w) noexcept {
         auto m = w.message(HandshakeType::end_of_early_data);
     }
 
     // message_hash (§4.4.1): what the transcript holds in place of the
     // first ClientHello after a HelloRetryRequest
-    inline void write_message_hash(Builder& w, const Bytes& hash) {
+    inline void write_message_hash(Builder& w, const Bytes& hash) noexcept {
         auto m = w.message(HandshakeType::message_hash);
         w.bytes(hash);
     }
@@ -1471,7 +1471,7 @@ namespace sgcl::net::tls::detail {
     // An alert record's two bytes (§6): the level is not read, the kind
     // says what the alert is (every one fatal but close_notify and
     // user_canceled), as Go reads it
-    inline expected<Alert, Alert> read_alert(const Bytes& fragment) {
+    inline expected<Alert, Alert> read_alert(const Bytes& fragment) noexcept {
         Reader r(fragment);
         uint8_t level, description;
         if (!r.u8(level) || !r.u8(description) || !r.end("an alert of more than two bytes")) {
@@ -1480,7 +1480,7 @@ namespace sgcl::net::tls::detail {
         return Alert{AlertDescription(description), 0, nullptr};
     }
 
-    inline void write_alert(Builder& w, AlertDescription d) {
+    inline void write_alert(Builder& w, AlertDescription d) noexcept {
         Alert a{d};
         w.u8(a.fatal() ? 2 : 1);
         w.u8(uint8_t(d));

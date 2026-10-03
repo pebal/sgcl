@@ -1,143 +1,124 @@
+[sgcl](../README.md) › codec
+
 # sgcl::codec
 
-Images: what Go has in `image/png`, `image/jpeg` and `image/gif`, and what libpng, libjpeg-turbo, giflib and libwebp decode and encode in C. `#include "sgcl/codec/codec.h"` brings the module in. It depends on:
-
-- [`core`](../core/README.md);
-- [`io`](../io/README.md) (the streams read and written);
-- [`compress`](../compress/README.md) (zlib's DEFLATE for PNG, LZW for GIF);
-- [`hash`](../hash/README.md) (CRC-32 and Adler-32 for PNG).
-
-The index of the whole interface is [`docs/sgcl/`](../README.md).
-
-Every format is written from its specification: PNG 3rd ed. (W3C), T.81 with JFIF 1.02 and Adobe's APP14, GIF89a, RFC 9649 and RFC 6386 for WebP, CIPA DC-008 for the orientation of EXIF. The reference libraries (libpng, libjpeg-turbo, giflib, libwebp) and Go's image packages are the oracles of the tests and nothing more:
-
-- PNG decodes pixel for pixel as libpng and Go do, and the PNG encoder's filters are libpng's row for row.
-- JPEG decodes bit for bit as `djpeg -dct int`, and the JPEG encoder writes what `cjpeg -dct int -baseline` writes, byte for byte.
-- GIF's frames are giflib's and Go's pixel for pixel.
-- Lossless WebP decodes to libwebp's and Go's pixels byte for byte. The container is taken and refused as libwebp's demuxer takes and refuses it.
-- HEIF and AVIF are not decoded by the module: HEVC and AV1 come from the system (ImageIO on macOS), and the module's wrapping is held against ImageIO's own reading of each file.
-
-The time each format takes against libpng, libjpeg-turbo, libwebp, giflib and Go is on the page of [benchmarks](benchmarks.md). The decoders are fuzzed (libFuzzer with ASan and UBSan, a harness for each). Their code has not been audited on its own: take files from outside as the input they are, with the [limits](#limits) set to what a program expects.
-
-## One call for any file
-
 ```cpp
-#include "sgcl/codec/codec.h"
-#include "sgcl/io/io.h"
-
-using namespace sgcl;
-
-int main() {
-    codec::image picture(320, 200, codec::pixel_format::rgb8);
-    picture.save("picture.png");
-    codec::image loaded = codec::load("picture.png");
-    loaded.save("picture.jpg");
-    println("{}x{}", loaded.width(), loaded.height());
-}
+#include "sgcl/codec.h"   // namespace sgcl::codec
 ```
 
-Output:
+Images: what Go has in `image/png`, `image/jpeg` and `image/gif`, and what libpng, libjpeg-turbo, giflib and libwebp
+decode and encode in C. An [image](image.md) is a handle of one word to its size, its pixels in one of nine
+[pixel formats](pixel_format.md) and the metadata of its file (EXIF and the ICC profile, as bytes);
+[load](load.md) reads a file of any of the module's formats and [save](save.md) writes one in the format its
+extension names, [decode](decode.md) does what `load` does for a file already in memory, and each format has a type
+of its own: [png](png.md), [jpeg](jpeg.md), [gif](gif.md), [webp](webp.md) and [heif](heif.md). The module depends
+on [core](../core/README.md), [io](../io/README.md) (the files and the streams read and written),
+[async](../async/README.md) (`async_load` and `async_save` on the blocking pool), [compress](../compress/README.md)
+(zlib's DEFLATE for PNG, LZW for GIF) and [hash](../hash/README.md) (CRC-32 and Adler-32 for PNG). The index of the
+whole interface is [the modules](../README.md).
 
-```text
-320x200
-```
+Every format is written from its specification: PNG 3rd ed. (W3C), T.81 with JFIF 1.02 and Adobe's APP14, GIF89a,
+RFC 9649 and RFC 6386 for WebP, CIPA DC-008 for the orientation of EXIF. The reference libraries (libpng,
+libjpeg-turbo, giflib, libwebp) and Go's image packages are the oracles of the tests and nothing more: PNG decodes
+pixel for pixel as libpng and Go do and its encoder's filters are libpng's row for row; JPEG decodes bit for bit as
+`djpeg -dct int`, and its encoder writes what `cjpeg -dct int -baseline` writes, byte for byte; GIF's frames are
+giflib's and Go's pixel for pixel; WebP decodes to libwebp's pixels byte for byte, its container taken and refused as
+libwebp's demuxer takes and refuses it. HEIF and AVIF are not decoded by the module: HEVC and AV1 come from the
+system (ImageIO on macOS), and the module's wrapping is held against ImageIO's own reading of each file.
 
-`codec::load` reads a file of any of the module's formats and tells the format from its first bytes ([`sniff`](decode.md)). `save` writes the format the path's extension names. Both return [`expected`](error.md): `loaded` above takes the image, and a file that does not load throws. A `save` whose result is not looked at, as above, fails quietly. [Files](#files) has the rules. For a file already in memory, `codec::decode` does what `load` does:
+A file is data from outside, and what is wrong in it is a value, never an exception: every decoder returns an
+[expected](../core/expected.md) of the image and a [codec::error](error.md), the code and the byte of the file where
+it was found. A small file can claim a huge image, so every decoder checks the size it declares against the
+[limits](limits.md) before it allocates anything. The decoders are fuzzed (libFuzzer with ASan and UBSan, a harness
+for each); their code has not been audited on its own, so a program takes files from outside with the limits set
+to what it expects.
 
-```cpp
-vector<byte> file = io::read_file("photo.jpg");
-codec::image photo = codec::decode(file);
-```
+## The rules
 
-[`decode_options`](decode.md) set what differs from the defaults, for `load` and `decode` alike. `want` asks for the pixels in one format whatever the file holds, so a gray PNG, a CMYK JPEG and a GIF all come as RGBA:
+1. An [image](image.md) and [frames](frames.md) are handles of one tracked word: they live where a `tracked_ptr`
+   may ([the rules of core](../core/README.md#the-rules), 1), copies share the pixels or the reading, and `clone()`
+   makes new pixels. A slice of an image's pixels, from `pixels()` or `row()`, keeps them alive after the image is
+   gone. An [error](error.md) holds a `string` and lives where a string may.
+2. The data of a file never throws: a decoder, `load`, `decode` and `decode_frames` return
+   `expected<T, codec::error>`, an encoder of bytes `expected<vector<byte>, codec::error>`, an encoder into a stream
+   and `save` `expected<void, codec::error>`.
+   `codec::image photo = codec::load(path);` takes the image and throws `bad_expected_access<codec::error>` when
+   the file does not load; a result that is not looked at fails quietly. What throws is a contract of the
+   program: a side of zero or a pixel format outside the list (`invalid_argument`), a row past the last
+   (`out_of_range`), a JPEG quality outside 1..100 or subsampling outside the list (`invalid_argument`), an image
+   larger than an address holds
+   (`length_error`; a file that claims one is `errc::too_large`, whatever `limits.max_pixels` says).
+3. Without [decode_options](decode_options.md)`::want` an image comes in its file's own pixel format: a gray PNG
+   stays `gray8` or `gray16`, a JPEG is `rgb8`, `gray8` or `cmyk8`, a GIF frame is `rgba8`, a WebP `rgba8` or
+   `rgb8` as it says it has alpha or not. `want` asks for one format whatever the file holds, each row converted
+   as it is decoded. Alpha is always straight, and no decoder turns an image by its EXIF orientation:
+   [oriented](image/oriented.md) does.
+4. Every `decode` also takes an [io::reader](../io/reader.md) and reads the file as it comes, so that memory is
+   the image and a constant, not the file; the exceptions are a progressive JPEG, whose coefficients are kept
+   whole until its last scan, a lossy WebP's VP8 chunk, read whole, and HEIF, read to the end of the stream before
+   the system's codec sees it. Every `encode` also writes into an [io::writer](../io/writer.md) and returns
+   `expected<void, codec::error>`, `errc::io` when the stream fails.
+5. Decoding and encoding run on the calling thread, as long as the image takes. A task that loads or saves a file
+   calls [async_load](load.md) and [async_save](save.md), which run on the blocking pool; other work of the module
+   in a task goes there through [spawn_blocking](../async/spawn_blocking.md), so that it does not hold a worker.
+6. HEIC, HEIF and AVIF are read, and HEIC written, through the system's codec: ImageIO on macOS. Elsewhere every
+   call of [heif](heif.md) is `errc::unsupported`, and so is `load` or `decode` of such a file.
 
-```cpp
-codec::image rgba = codec::load("photo.png", {.want = codec::pixel_format::rgba8, .limits = {.max_pixels = 20'000'000}});
-```
+### The formats
 
-Without `want`, the file's own format is kept: a gray PNG stays `gray8` or `gray16`, a JPEG is `rgb8`, `gray8` or `cmyk8`, a GIF frame is `rgba8`, and a WebP is `rgba8` or `rgb8` as it says it has alpha or not. Each format also has a type of its own with `decode` and, where the module writes the format, `encode`:
-
-```cpp
-codec::image picture = codec::png::decode(file);
-vector<byte> smaller = codec::jpeg::encode(picture, {.quality = 90});
-```
-
-## The formats
-
-| format | read | write | notes |
+| Format | Read | Write | Description |
 |---|---|---|---|
-| PNG | yes | yes | every type and depth, Adam7 |
-| JPEG | yes | yes | baseline, extended and progressive read; baseline written |
-| GIF | yes | no | animations through `frames` |
-| WebP | yes | no | lossless, lossy, alpha, animations |
-| HEIC | macOS | macOS | through the platform's ImageIO |
-| AVIF | macOS | no | through the platform's ImageIO |
+| [AVIF](heif.md) | macOS | no | through the platform's ImageIO |
+| [GIF](gif.md) | yes | no | GIF87a and GIF89a; animations through `frames` |
+| [HEIC](heif.md) | macOS | macOS | through the platform's ImageIO |
+| [JPEG](jpeg.md) | yes | yes | baseline, extended and progressive read; baseline written |
+| [PNG](png.md) | yes | yes | every type and depth, Adam7 |
+| [WebP](webp.md) | yes | no | lossless, lossy, alpha, animations |
 
-`image.save` and `codec::save` on a format without an encoder give `errc::unsupported`; `codec::load` and `codec::decode` read every format of the table.
+`save` and `image::save` of a format without an encoder give `errc::unsupported`; `load` and `decode` read every
+format of the table.
 
-## The types
+## Functions
 
-| type | what | page |
+| Function | Header | Description |
 |---|---|---|
-| `codec::image` | an image in memory: its size, one of nine pixel formats, its rows, EXIF and ICC; `convert`, `clone`, `oriented`, `save` | [image](image.md) |
-| `codec::load`, `codec::save`, `codec::save_options` | a file of any format read, told by its signature; an image written in the format its extension names | [below](#files) |
-| `codec::decode`, `codec::decode_frames`, `codec::sniff`, `codec::format` | any file of the module's formats, told by its signature; the frames of an animation | [decode](decode.md) |
-| `codec::png` | PNG: every type and depth, Adam7, tRNS, eXIf, iCCP; the encoder with adaptive filters | [png](png.md) |
-| `codec::jpeg` | JPEG: baseline, extended and progressive, every sampling, CMYK and YCCK; the baseline encoder | [jpeg](jpeg.md) |
-| `codec::gif` | GIF87a and GIF89a: the first frame, or all of them through `frames` | [gif](gif.md) |
-| `codec::frames`, `codec::frame` | the frames of an animation, each the whole canvas, read one by one | [frames](frames.md) |
-| `codec::error`, `codec::errc` | what went wrong in a file, and at which byte | [error](error.md) |
-| `codec::limits`, `codec::decode_options` | how large a file may be, the format asked for, metadata or not | [below](#limits) |
-| `codec::webp` | WebP: the container, animation, lossless and lossy images, alpha | [webp](webp.md) |
-| `codec::heif` | HEIC, HEIF and AVIF through the system's codec (ImageIO on macOS): the first image, HEIC written | [heif](heif.md) |
+| [codec_category](codec_category.md) | `error.h` | the `std::error_category` of an `errc` |
+| [decode](decode.md) | `decode.h` | the image of a file in any of the module's formats, from bytes or a stream, told by its signature |
+| [decode_frames](decode_frames.md) | `decode.h` | the frames of an animation, GIF or WebP, told by its signature |
+| [load, async_load](load.md) | `files.h` | the image of the file at a path, in any of the module's formats |
+| [make_error_code](make_error_code.md) | `error.h` | an `errc` as a `std::error_code` |
+| [save, async_save](save.md) | `files.h` | an image written to a file in the format its extension names |
+| [sniff](sniff.md) | `format.h` | the format a file's first bytes claim |
 
-## Files
+## Classes
 
-```cpp
-namespace sgcl::codec {
-    struct save_options {
-        compress::level level = 7;                                   // PNG: 0 stores, 1 fastest, 9 smallest
-        int quality = 85;                                            // JPEG and HEIC: 1..100
-        jpeg::subsampling subsampling = jpeg::subsampling::s420;     // JPEG
-    };
+| Class | Header | Description |
+|---|---|---|
+| [decode_options](decode_options.md) | `options.h` | what a decoding asks for: the pixel format, the limits, the metadata or not |
+| [error](error.md) | `error.h` | what went wrong in a file, and at which byte |
+| [frame](frame.md) | `frames.h` | a frame of an animation: the whole canvas and how long it is shown |
+| [frames](frames.md) | `frames.h` | the frames of an animation, each the whole canvas, read one by one |
+| [gif](gif.md) | `gif.h` | GIF87a and GIF89a: the first frame, or all of them |
+| [heif](heif.md) | `heif.h` | HEIC, HEIF and AVIF through the system's codec: the first image read, HEIC written |
+| [image](image.md) | `image.h` | an image in memory: its size, its pixel format, its rows, EXIF and ICC |
+| [jpeg](jpeg.md) | `jpeg.h` | JPEG: baseline, extended and progressive read, every sampling, CMYK and YCCK; baseline written |
+| [limits](limits.md) | `options.h` | how many pixels a file may claim and how much metadata it may carry |
+| [png](png.md) | `png.h` | PNG: every type and depth, Adam7, tRNS, eXIf, iCCP; written with adaptive filters |
+| [save_options](save_options.md) | `files.h` | what `save` writes: the PNG level, the JPEG and HEIC quality, the JPEG subsampling |
+| [webp](webp.md) | `webp.h` | WebP: the container, lossless and lossy images, alpha, animations |
 
-    expected<image, error> load(const string& path, const decode_options& o = {});
-    expected<void, error> save(const image& im, const string& path, const save_options& o = {});
-    // image::save(path[, options]), the same as codec::save(image, path[, options]);
-    // async_load, async_save and image::async_save for a task, on the blocking pool
-}
-```
+## Enumerations
 
-`load` reads the whole file and decodes it as `decode` does: the format by the file's first bytes, whatever its name says. A file that does not read is `errc::io`, with io's error inside (`error().io_error()`); a file of no format the module reads is `errc::unsupported`.
+| Enumeration | Header | Description |
+|---|---|---|
+| [errc](errc.md) | `error.h` | the kinds of failure, one list for every format |
+| [format](format.md) | `format.h` | the file formats the module reads |
+| [pixel_format](pixel_format.md) | `image.h` | how the pixels of an image lie in its rows: nine layouts |
 
-`save` takes the format from the extension, in either case: `.png`, `.jpg` or `.jpeg`, and `.heic` or `.heif` where the system writes HEIC (macOS). `.gif`, `.webp` and `.avif` are read but not written: `errc::unsupported`, and so is any other extension. Nothing is written then. The file is written as `path + ".part"` and renamed over `path` when whole. A failure of the stream or of the encoder leaves no `.part`, and `path` as it was. Each field of `save_options` is for the formats it names:
+## See also
 
-```cpp
-photo.save("small.jpg", {.quality = 70, .subsampling = codec::jpeg::subsampling::s420});
-photo.save("fast.png", {.level = 1});
-```
-
-## Streams
-
-Every `decode` also takes an [`io::reader`](../io/stream.md) and reads the file as it comes, so that memory is the image and a constant, not the file. The exception is a progressive JPEG, whose coefficients are kept whole until its last scan. Every `encode` also writes into an [`io::writer`](../io/stream.md) and returns `expected<void, codec::error>` (`errc::io` when the stream fails).
-
-## limits
-
-```cpp
-struct limits {
-    uint64_t max_pixels = 100'000'000;   // the pixels a file may claim
-    size_t max_metadata = 64u << 20;      // the bytes of EXIF and ICC it may carry
-};
-
-struct decode_options {
-    optional<pixel_format> want;         // the pixel format of the result; the file's own when not given
-    codec::limits limits;
-    bool metadata = true;                 // EXIF and ICC; false leaves both empty
-};
-```
-
-A small file can claim a huge image. Every decoder checks the size a file declares against `max_pixels` before it allocates anything, and the metadata against `max_metadata` as it reads it. Past either it returns `errc::too_large`. Pillow warns from about 89 million pixels and refuses from about 179 million; Go has no limit.
-
-## Examples
-
-Each page ends with a program that runs as it is written, under `using namespace sgcl;` with every module named. A result used further has its type named (`codec::image photo = …`), and a variable is never named like a type. Some read files of the repository's tests, by their path from its root.
+- [Benchmarks](benchmarks.md): each format against libpng, libjpeg-turbo, libwebp, giflib and Go
+- [compress](../compress/README.md): DEFLATE and LZW under PNG and GIF
+- [io](../io/README.md): the files and the streams
+- [spawn_blocking](../async/spawn_blocking.md): decoding and encoding from a task
+- [The modules](../README.md)

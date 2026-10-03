@@ -15,6 +15,7 @@
 #include "../../compress/detail/inflate.h"
 #include "../../compress/zlib.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/expected.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
@@ -75,7 +76,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        expected<image, error> run() {
+        expected<image, error> run() noexcept(NothrowInput<Input>) {
             if (_o.want && !valid(*_o.want)) {
                 return unexpected(error(errc::invalid_argument, 0, "png: decode_options.want outside the list"));
             }
@@ -162,7 +163,7 @@ namespace sgcl::codec::detail {
             std::memcpy(p, &v, 2);
         }
 
-        static std::string _name(uint32_t type) {
+        static std::string _name(uint32_t type) noexcept {
             std::string s(4, ' ');
             for (int i = 0; i < 4; ++i) {
                 s[i] = char(type >> (24 - 8 * i));
@@ -170,18 +171,18 @@ namespace sgcl::codec::detail {
             return s;
         }
 
-        bool _fail(errc code, uint64_t at, const std::string& what) {
+        bool _fail(errc code, uint64_t at, const std::string& what) noexcept {
             _err = error(code, at, string(what));
             return false;
         }
 
-        bool _fail_input() {
+        bool _fail_input() noexcept {
             _err = *_in.failure;
             return false;
         }
 
         // n bytes into dst, through the chunk's CRC when `crc`
-        bool _read(uint8_t* dst, size_t n, bool crc) {
+        bool _read(uint8_t* dst, size_t n, bool crc) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -191,7 +192,7 @@ namespace sgcl::codec::detail {
                 if (!got) {
                     return _fail(errc::unexpected_end, _in.offset(), "png: the data ends in the middle");
                 }
-                std::memcpy(dst, p, got);
+                sgcl::detail::copy_bytes(dst, p, got);
                 if (crc) {
                     _crc.update(slice<const byte>(reinterpret_cast<const byte*>(p), got));
                 }
@@ -203,7 +204,7 @@ namespace sgcl::codec::detail {
         }
 
         // n bytes of the chunk passed over, through its CRC
-        bool _skip(size_t n) {
+        bool _skip(size_t n) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -220,7 +221,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _chunk(uint32_t type, uint32_t length, uint64_t at) {
+        bool _chunk(uint32_t type, uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             switch (type) {
                 case IHDR:
                     return _ihdr(length, at);
@@ -247,7 +248,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        bool _ihdr(uint32_t length, uint64_t at) {
+        bool _ihdr(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             if (_have_header) {
                 return _fail(errc::corrupt, at, "png: a second IHDR");
             }
@@ -294,7 +295,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _plte(uint32_t length, uint64_t at) {
+        bool _plte(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             if (_have_plte) {
                 return _fail(errc::corrupt, at, "png: a second PLTE");
             }
@@ -326,7 +327,7 @@ namespace sgcl::codec::detail {
 
         // Transparency: ignored (as libpng does) when out of place or of
         // the wrong size, or in an image with an alpha channel
-        bool _trns(uint32_t length) {
+        bool _trns(uint32_t length) noexcept(NothrowInput<Input>) {
             uint8_t b[256];
             if (_idat_seen || _have_trns || length > 256) {
                 return _skip(length);
@@ -363,7 +364,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _exif_chunk(uint32_t length, uint64_t at) {
+        bool _exif_chunk(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             if (!_o.metadata || !_exif.empty()) {
                 return _skip(length);
             }
@@ -378,11 +379,17 @@ namespace sgcl::codec::detail {
         // compression method 0, the profile in a zlib stream. One that
         // does not read (a bad name, a stream that fails) is dropped, as
         // libpng drops it; one past limits.max_metadata is too_large.
-        bool _iccp(uint32_t length, uint64_t at) {
+        bool _iccp(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             if (!_o.metadata || _have_icc || _idat_seen) {
                 return _skip(length);
             }
-            if (length > _o.limits.max_metadata) {
+            // the chunk holds the name (79 bytes at most), its 0, the
+            // method and the profile in a zlib stream: a profile of
+            // max_metadata bytes that does not compress takes more than
+            // that, zlib's 6 bytes and 5 for each stored block of 65 535
+            const size_t most = _o.limits.max_metadata;
+            const size_t room = most > SIZE_MAX / 2 ? SIZE_MAX : most + 81 + 6 + 5 * (most / 65535 + 1);
+            if (length > room) {
                 return _fail(errc::too_large, at, "png: iCCP past limits.max_metadata");
             }
             std::vector<uint8_t> body(length);
@@ -410,7 +417,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _idat(uint32_t length, uint64_t at) {
+        bool _idat(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             if (_idat_over) {
                 return _fail(errc::corrupt, at, "png: IDAT chunks not one after another");
             }
@@ -442,7 +449,7 @@ namespace sgcl::codec::detail {
 
         // The image's format, the pipeline of the rows, the memory: at
         // the first IDAT, when PLTE and tRNS, which come before it, are known
-        bool _start(uint64_t at) {
+        bool _start(uint64_t at) noexcept {
             if (_color == 3 && !_have_plte) {
                 return _fail(errc::corrupt, at, "png: indexed color without PLTE");
             }
@@ -510,6 +517,8 @@ namespace sgcl::codec::detail {
             _cur = _memory.get() + cur_at;
             _prior = _memory.get() + prior_at;
             _zero = _memory.get() + zero_at;
+            // libc's memset, not fill_bytes: a row may be megabytes, and a
+            // large zero fill is libc's (whole cache lines, DESIGN 393)
             std::memset(_zero, 0, row);
             _native_row = _memory.get() + native_at;
             _out_row = _memory.get() + out_at;
@@ -520,7 +529,7 @@ namespace sgcl::codec::detail {
 
         // The pass of Adam7 (0 to 6), or 7 for an image not interlaced;
         // passes of no pixels skipped
-        void _pass_setup() {
+        void _pass_setup() noexcept {
             static constexpr uint8_t X0[7] = {0, 4, 0, 2, 0, 1, 0};
             static constexpr uint8_t Y0[7] = {0, 0, 4, 0, 2, 0, 1};
             static constexpr uint8_t DX[7] = {8, 8, 4, 4, 2, 2, 1};
@@ -553,7 +562,7 @@ namespace sgcl::codec::detail {
 
         // IDAT data: the zlib header, the DEFLATE stream into the window,
         // the Adler-32 after it; bytes past the stream ignored
-        bool _feed(const uint8_t* p, size_t n) {
+        bool _feed(const uint8_t* p, size_t n) noexcept {
             while (n) {
                 switch (_zstage) {
                     case ZHeader:
@@ -614,16 +623,18 @@ namespace sgcl::codec::detail {
 
         // The history the next back reference may reach and the row not yet
         // complete moved to the front of the window
-        void _slide() {
+        void _slide() noexcept {
             size_t from = _window_pos > Window ? _window_pos - Window : 0;
             from = std::min(from, _window_read);
-            std::memmove(_window, _window + from, _window_pos - from);
+            // the bytes kept overlap where they go when fewer are dropped
+            // than kept
+            sgcl::detail::move_bytes(_window, _window + from, _window_pos - from);
             _window_pos -= from;
             _window_read -= from;
         }
 
         // Every row complete in the window
-        bool _rows() {
+        bool _rows() noexcept {
             while (!_pixels_done) {
                 const size_t need = 1 + _pass_rowbytes;
                 if (_window_pos - _window_read < need) {
@@ -648,7 +659,8 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _one_row(const uint8_t* raw) {
+        bool _one_row(const uint8_t* raw) noexcept {
+
             const uint8_t filter = raw[0];
             if (filter > FilterPaeth) {
                 return _fail(errc::corrupt, _in.offset(), "png: filter type " + std::to_string(filter));
@@ -773,7 +785,7 @@ namespace sgcl::codec::detail {
                             put16(d + 2 * i, be16(s + 2 * i));
                         }
                     } else {
-                        std::memcpy(d, s, size_t(count) * _channels);
+                        sgcl::detail::copy_bytes(d, s, size_t(count) * _channels);
                     }
                     break;
             }

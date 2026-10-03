@@ -66,7 +66,7 @@ namespace sgcl::net::tls::detail {
         }
 
         template<class U, class... A>
-        void construct(U* p, A&&... a) {
+        void construct(U* p, A&&... a) noexcept(std::is_nothrow_constructible_v<U, A...>) {
             ::new (static_cast<void*>(p)) U(std::forward<A>(a)...);
         }
     };
@@ -75,7 +75,7 @@ namespace sgcl::net::tls::detail {
 
     class TlsImpl final : public net::detail::ConnImpl {
     public:
-        TlsImpl(const net::connection& transport, const ClientSettings& settings)
+        TlsImpl(const net::connection& transport, const ClientSettings& settings) noexcept
         : _transport(transport)
         , _b(new Block()) {
             _hs.emplace(settings, Entropy(), Clock());
@@ -83,7 +83,7 @@ namespace sgcl::net::tls::detail {
 
         // The server's side; `keep` holds what the identities' keys live in
         // (the machine signs through pointers into them)
-        TlsImpl(const net::connection& transport, const ServerSettings& settings, const vector<tracked_ptr<const void>>& keep)
+        TlsImpl(const net::connection& transport, const ServerSettings& settings, const vector<tracked_ptr<const void>>& keep) noexcept
         : _transport(transport)
         , _b(new Block())
         , _keep(keep) {
@@ -105,7 +105,7 @@ namespace sgcl::net::tls::detail {
             return r;
         }
 
-        async::task<expected<void, io::error>> async_handshake(time_point deadline) {
+        async::task<expected<void, io::error>> async_handshake(time_point deadline) noexcept {
             _transport.set_deadline(deadline);
             auto r = co_await _co_handshake();
             _transport.set_deadline(time_point());
@@ -152,7 +152,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> buffer) override {
+        async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> buffer) noexcept override {
             for (;;) {
                 auto s = _read_step(buffer);
                 if (s.kind == ReadStep::Kind::bytes) {
@@ -224,7 +224,7 @@ namespace sgcl::net::tls::detail {
 
         // The transport's readiness: asked for only when no whole record is
         // held (try_raw_read gave nullopt)
-        net::detail::readiness raw_readable() override {
+        net::detail::readiness raw_readable() noexcept override {
             return _t().raw_readable();
         }
 
@@ -256,7 +256,7 @@ namespace sgcl::net::tls::detail {
             return data.size();
         }
 
-        async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) override {
+        async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) noexcept override {
             size_t done = 0;
             bool first = true;
             for (;;) {
@@ -387,7 +387,7 @@ namespace sgcl::net::tls::detail {
             return taken;
         }
 
-        async::task<expected<size_t, io::error>> awaited_raw_write_parts(vector<slice<const byte>> parts, size_t from) override {
+        async::task<expected<size_t, io::error>> awaited_raw_write_parts(vector<slice<const byte>> parts, size_t from) noexcept override {
             size_t total = 0;
             for (auto& p : parts) {
                 total += p.size();
@@ -426,7 +426,7 @@ namespace sgcl::net::tls::detail {
         // close_notify without waiting (after the tail of a record in part
         // sent, never inside it; none when another write holds the record or
         // the socket does not take it at once), then the transport closed
-        expected<void, io::error> close() override {
+        expected<void, io::error> close() noexcept override {
             if (_closing.exchange(true)) {
                 return _transport.close();
             }
@@ -440,9 +440,10 @@ namespace sgcl::net::tls::detail {
             return _transport.close();
         }
 
-        // The same in a task: the record waited for up to 100 ms, a tail and
-        // the close_notify written (given 100 ms too), then the transport closed
-        async::task<expected<void, io::error>> async_close() override {
+        // The same in a task: the record waited for, a tail and the
+        // close_notify written, 100 ms for all of it, then the transport
+        // closed
+        async::task<expected<void, io::error>> async_close() noexcept override {
             if (_closing.exchange(true)) {
                 co_return _transport.close();
             }
@@ -484,35 +485,35 @@ namespace sgcl::net::tls::detail {
             return _transport.close_write();
         }
 
-        void set_deadline(int dir, time_point t) override {
+        void set_deadline(int dir, time_point t) noexcept override {
             net::detail::ConnectionAccess::impl(_transport).set_deadline(dir, t);
         }
 
-        time_point deadline(int dir) const override {
+        time_point deadline(int dir) const noexcept override {
             return net::detail::ConnectionAccess::impl(_transport).deadline(dir);
         }
 
-        endpoint local_endpoint() const override {
+        endpoint local_endpoint() const noexcept override {
             return _transport.local_endpoint();
         }
 
-        endpoint remote_endpoint() const override {
+        endpoint remote_endpoint() const noexcept override {
             return _transport.remote_endpoint();
         }
 
-        string path() const override {
+        string path() const noexcept override {
             return _transport.path();
         }
 
-        expected<void, io::error> set_no_delay(bool on) override {
+        expected<void, io::error> set_no_delay(bool on) noexcept override {
             return _transport.set_no_delay(on);
         }
 
-        expected<void, io::error> set_keep_alive(std::chrono::nanoseconds idle) override {
+        expected<void, io::error> set_keep_alive(std::chrono::nanoseconds idle) noexcept override {
             return _transport.set_keep_alive(duration(idle));
         }
 
-        string describe() const override {
+        string describe() const noexcept override {
             auto t = net::detail::ConnectionAccess::impl(_transport).describe();
             return string("tls ") + t;
         }
@@ -609,7 +610,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        async::task<expected<void, io::error>> _co_handshake() {
+        async::task<expected<void, io::error>> _co_handshake() noexcept {
             if (auto e = _start(); e) {
                 _drop_out();
                 co_return fail(*e);
@@ -684,7 +685,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // The records of one content into the handshake's output
-        void _queue(RecordProtection& w, ContentType type, const uint8_t* p, size_t n) {
+        void _queue(RecordProtection& w, ContentType type, const uint8_t* p, size_t n) noexcept {
             size_t at = 0;
             do {
                 size_t k = std::min(n - at, MaxPlaintext);
@@ -696,7 +697,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // The machine's actions during the handshake (nothing else writes)
-        void _run(const Step& step) {
+        void _run(const Step& step) noexcept {
             for (auto& a : step.actions) {
                 switch (a.kind) {
                 case Action::Kind::send: {
@@ -783,7 +784,8 @@ namespace sgcl::net::tls::detail {
                     }
                     _on_alert(*a);
                     // before the server's hello (its records still in the
-                    // clear): most likely a server without TLS 1.3
+                    // clear): a range of its own, a server without TLS 1.3
+                    // among the senders
                     _broken = !_server && _b->read_epoch == Epoch::initial ? before_hello_error(a->description, "handshake", describe())
                                                                            : remote_error(a->description, "handshake", describe());
                     break;
@@ -799,11 +801,25 @@ namespace sgcl::net::tls::detail {
         // A fatal alert of this side: sent (queued with the handshake's
         // output, or by the read side under the record mutex), and the
         // connection over
-        void _fail_local(const Alert& a, const char* op) {
+        void _fail_local(const Alert& a, const char* op) noexcept {
             if (_broken) {
                 return;
             }
             if (!_established()) {
+                if (_hs && !_hs->failed()) {
+                    // a failure of the records, not of the machine (whose own
+                    // alert comes here through _run): the machine ends too,
+                    // and after the server's hello the keys for the alert go
+                    // first, as for its own
+                    for (auto& k : _hs->fail(a).actions) {
+                        if (k.kind == Action::Kind::change_cipher_spec) {
+                            const uint8_t one = 1;
+                            _queue(_b->write, ContentType::change_cipher_spec, &one, 1);
+                        } else if (k.kind == Action::Kind::install_write) {
+                            _b->write.install(k.cipher, k.secret);
+                        }
+                    }
+                }
                 const uint8_t bytes[2] = {uint8_t(Alert{a.description}.fatal() ? 2 : 1), uint8_t(a.description)};
                 _queue(_b->write, ContentType::alert, bytes, 2);
             }
@@ -816,7 +832,7 @@ namespace sgcl::net::tls::detail {
 
         // --- reading, without I/O -------------------------------------------------
 
-        optional<io::error> _took(size_t n) {
+        optional<io::error> _took(size_t n) noexcept {
             if (n == 0) {
                 if (_b->framer.buffered() > 0) {
                     return io::error(io::errc::unexpected_eof, "read", describe());
@@ -830,7 +846,7 @@ namespace sgcl::net::tls::detail {
 
         // One step of a read: bytes for the reader, a need of more from
         // the transport, something to write first, or the end
-        ReadStep _read_step(const slice<byte>& buffer) {
+        ReadStep _read_step(const slice<byte>& buffer) noexcept {
             for (;;) {
                 auto s = _read_once(buffer);
                 if (s.kind != ReadStep::Kind::again) {
@@ -839,7 +855,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        ReadStep _read_once(const slice<byte>& buffer) {
+        ReadStep _read_once(const slice<byte>& buffer) noexcept {
             ReadStep s;
             Block& b = *_b;
             if (b.plain_at < b.plain_end) {
@@ -963,7 +979,7 @@ namespace sgcl::net::tls::detail {
 
         // A message after the handshake: NewSessionTicket passed over,
         // KeyUpdate taken (§4.6); false when it ended the connection
-        bool _after_handshake(const slice<const byte>& m) {
+        bool _after_handshake(const slice<const byte>& m) noexcept {
             const Step& step = _feed_machine(m);
             for (auto& a : step.actions) {
                 switch (a.kind) {
@@ -987,7 +1003,7 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
-        void _read_failed(const Alert& a) {
+        void _read_failed(const Alert& a) noexcept {
             if (!_broken) {
                 _want_alert.store(uint8_t(a.description), std::memory_order_release);
                 _broken = local_error(a.description, "read", describe());
@@ -1009,7 +1025,7 @@ namespace sgcl::net::tls::detail {
             return _want_key_update.load(std::memory_order_acquire) || _want_alert.load(std::memory_order_acquire) != NoAlert;
         }
 
-        optional<io::error> _writable() {
+        optional<io::error> _writable() noexcept {
             if (_broken) {
                 return _broken;
             }
@@ -1055,7 +1071,7 @@ namespace sgcl::net::tls::detail {
         // Room for `more` bytes past what the queue holds, and for `want`
         // when it is empty (a batch of records: taken at once, not grown
         // into by doubling): the thread's spare room when it has enough
-        void _room(size_t more, size_t want = 0) {
+        void _room(size_t more, size_t want = 0) noexcept {
             auto& q = _b->queue;
             if (q.empty() && q.capacity() < more) {
                 want = std::max(want, more);
@@ -1076,7 +1092,7 @@ namespace sgcl::net::tls::detail {
             return spare;
         }
 
-        void _append(ContentType type, const uint8_t* p, size_t n) {
+        void _append(ContentType type, const uint8_t* p, size_t n) noexcept {
             _room(_b->write.sealed_size(type, n));
             auto& q = _b->queue;
             size_t at = q.size();
@@ -1084,14 +1100,14 @@ namespace sgcl::net::tls::detail {
             _b->write.seal(type, bytes_of(p, n), q.data() + at);
         }
 
-        void _append_key_update() {
+        void _append_key_update() noexcept {
             const uint8_t ku[5] = {uint8_t(HandshakeType::key_update), 0, 0, 1, 0};
             _append(ContentType::handshake, ku, 5);
             _b->write.update();
         }
 
         // What the read side asked for: the KeyUpdate answer, the fatal alert
-        void _queue_wants() {
+        void _queue_wants() noexcept {
             const bool key_update = _want_key_update.exchange(false, std::memory_order_acq_rel);
             const uint8_t alert = _want_alert.exchange(NoAlert, std::memory_order_acq_rel);
             if (_write_closed) {
@@ -1113,7 +1129,7 @@ namespace sgcl::net::tls::detail {
 
         // One record of data from `from` (a KeyUpdate first when the keys
         // near their limit, §5.5): the plaintext taken
-        size_t _seal_record(const slice<const byte>& data, size_t from) {
+        size_t _seal_record(const slice<const byte>& data, size_t from) noexcept {
             if (_b->write.needs_update()) {
                 _append_key_update();
             }
@@ -1126,7 +1142,7 @@ namespace sgcl::net::tls::detail {
         // plaintext copied into its place in the queue, sealed there (a
         // KeyUpdate first when the keys near their limit, §5.5); the
         // plaintext taken
-        size_t _seal_parts(const slice<const byte>* parts, size_t n, size_t total, size_t from) {
+        size_t _seal_parts(const slice<const byte>* parts, size_t n, size_t total, size_t from) noexcept {
             if (_b->write.needs_update()) {
                 _append_key_update();
             }
@@ -1172,7 +1188,7 @@ namespace sgcl::net::tls::detail {
             return n;
         }
 
-        bool _queue_close_notify() {
+        bool _queue_close_notify() noexcept {
             if (_write_closed || _broken || !_b->write.installed()) {
                 return false;
             }
@@ -1216,7 +1232,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        io::error _break(const io::error& e) {
+        io::error _break(const io::error& e) noexcept {
             if (!_broken) {
                 _broken = e;
             }

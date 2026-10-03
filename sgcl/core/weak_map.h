@@ -85,18 +85,18 @@ namespace sgcl {
         }
 
         // The entry of the object, or end(); a null pointer has none
-        iterator find(const key_pointer& object) {
+        iterator find(const key_pointer& object) noexcept {
             return object ? iterator(_table.find(object), _table.end()) : end();
         }
 
-        const_iterator find(const key_pointer& object) const {
+        const_iterator find(const key_pointer& object) const noexcept {
             return object ? const_iterator(_table.find(object), _table.end()) : end();
         }
 
         // The value of the object, made if the object has none; a null
         // pointer is not an object. One search: the entry is made in place
         // from the pointer when the search finds none
-        T& operator[](const key_pointer& object) {
+        T& operator[](const key_pointer& object) noexcept(std::is_nothrow_default_constructible_v<T>) {
             assert(object && "a weak_map has no entry for a null pointer");
             auto [node, inserted] = _table._try_emplace(object);
             if (inserted) {
@@ -109,7 +109,7 @@ namespace sgcl {
         // The value is built in place, and not at all when the object has
         // one
         template<class... A>
-        pair<iterator, bool> emplace(const key_pointer& object, A&&... a) {
+        pair<iterator, bool> emplace(const key_pointer& object, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A&&...>) {
             assert(object && "a weak_map has no entry for a null pointer");
             auto [node, inserted] = _table._try_emplace(object, std::forward<A>(a)...);
             if (inserted) {
@@ -118,17 +118,17 @@ namespace sgcl {
             return {iterator(_table._make_iterator(node), _table.end()), inserted};
         }
 
-        pair<iterator, bool> insert(const key_pointer& object, const T& value) {
+        pair<iterator, bool> insert(const key_pointer& object, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return emplace(object, value);
         }
 
-        pair<iterator, bool> insert(const key_pointer& object, T&& value) {
+        pair<iterator, bool> insert(const key_pointer& object, T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return emplace(object, std::move(value));
         }
 
         // The value for the object, replaced if it has one
         template<class V>
-        pair<iterator, bool> insert_or_assign(const key_pointer& object, V&& value) {
+        pair<iterator, bool> insert_or_assign(const key_pointer& object, V&& value) noexcept(std::is_nothrow_constructible_v<T, V&&> && std::is_nothrow_assignable_v<T&, V&&>) {
             auto [it, inserted] = emplace(object, std::forward<V>(value));
             if (!inserted) {
                 it->value = std::forward<V>(value);
@@ -137,7 +137,7 @@ namespace sgcl {
         }
 
         // The next live entry up to the iterator's own bound
-        iterator erase(iterator pos) {
+        iterator erase(iterator pos) noexcept {
             return iterator(_table.erase(pos.inner()), pos.bound());
         }
 
@@ -158,9 +158,9 @@ namespace sgcl {
         using size_type = size_t;
 
         using reference = detail::WeakMapReference<Key, T>;
-        using iterator = detail::WeakIterator<typename Table::iterator, Key, reference>;
+        using iterator = detail::WeakIterator<typename Table::iterator, Key, reference, true>;
         using const_reference = detail::WeakMapReference<Key, const T>;
-        using const_iterator = detail::WeakIterator<typename Table::const_iterator, Key, const_reference>;
+        using const_iterator = detail::WeakIterator<typename Table::const_iterator, Key, const_reference, true>;
 
         weak_multimap() = default;
 
@@ -189,21 +189,31 @@ namespace sgcl {
         }
 
         // The first entry of the object, or end()
-        iterator find(const key_pointer& object) {
+        iterator find(const key_pointer& object) noexcept {
             return object ? iterator(_table.find(object), _table.end()) : end();
         }
 
-        const_iterator find(const key_pointer& object) const {
+        const_iterator find(const key_pointer& object) const noexcept {
             return object ? const_iterator(_table.find(object), _table.end()) : end();
         }
 
-        // The entries of the object: a range of its own, [first, last)
-        pair<iterator, iterator> equal_range(const key_pointer& object) {
+        // The entries of the object: a range of its own, [first, last); a
+        // walk from first ends with the object's run, at last, whatever
+        // became of the entry last stands on
+        pair<iterator, iterator> equal_range(const key_pointer& object) noexcept {
             if (!object) {
                 return {end(), end()};
             }
             auto [first, last] = _table.equal_range(object);
-            return {iterator(first, last), iterator(last, last)};
+            return {iterator(first, last, true), iterator(last, last)};
+        }
+
+        pair<const_iterator, const_iterator> equal_range(const key_pointer& object) const noexcept {
+            if (!object) {
+                return {end(), end()};
+            }
+            auto [first, last] = _table.equal_range(object);
+            return {const_iterator(first, last, true), const_iterator(last, last)};
         }
 
         // One more value for the object, built in place
@@ -224,10 +234,10 @@ namespace sgcl {
         }
 
         // The next live entry up to the iterator's own bound: an erase
-        // through an equal_range stops where the range does, a dead entry
-        // there included
-        iterator erase(iterator pos) {
-            return iterator(_table.erase(pos.inner()), pos.bound());
+        // through an equal_range stops where the range does, with the
+        // object's run
+        iterator erase(iterator pos) noexcept {
+            return iterator(_table.erase(pos.inner()), pos);
         }
 
         using Base::erase;

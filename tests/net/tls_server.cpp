@@ -152,7 +152,7 @@ namespace {
         sgcl::crypto::ed25519::private_key ed25519;
         sgcl::crypto::p256::private_key p256, other;
         sgcl::crypto::p384::private_key p384;
-        sgcl::crypto::rsa::private_key rsa;
+        sgcl::crypto::rsa::private_key rsa, rsa1024;
         std::map<std::string, std::vector<std::vector<sgcl::byte>>> chains;
 
         static const tls_identities::Identity& find(const char* name) {
@@ -173,7 +173,8 @@ namespace {
         , p256(sgcl::crypto::p256::private_key::from_pkcs8_der(view(key("p256"))).value())
         , other(sgcl::crypto::p256::private_key::from_pkcs8_der(view(key("other"))).value())
         , p384(sgcl::crypto::p384::private_key::from_pkcs8_der(view(key("p384"))).value())
-        , rsa(sgcl::crypto::rsa::private_key::from_pkcs8_der(view(key("rsa"))).value()) {
+        , rsa(sgcl::crypto::rsa::private_key::from_pkcs8_der(view(key("rsa"))).value())
+        , rsa1024(sgcl::crypto::rsa::private_key::from_pkcs8_der(view(key("rsa1024"))).value()) {
             for (auto& i : tls_identities::all) {
                 chains[i.name] = {bytes(unhex(i.certificate))};
             }
@@ -185,6 +186,7 @@ namespace {
             if (name == "p256") return tls::identity_of(c, p256);
             if (name == "other") return tls::identity_of(c, other);
             if (name == "p384") return tls::identity_of(c, p384);
+            if (name == "rsa1024") return tls::identity_of(c, rsa1024);
             return tls::identity_of(c, rsa);
         }
     };
@@ -395,7 +397,7 @@ namespace {
         auto& all = real_shares();
         for (size_t i = 0; i < all.size(); ++i) {
             if (uint16_t(all.group(i)) == group) {
-                std::vector<tls::KeyShare> s = {{group, all.public_share(i)}};
+                std::vector<tls::KeyShare> s = {{group, all.public_share(i)}};   // lint-handles: ok slices over unmanaged bytes, no owner
                 tls::write_key_shares(w, s);
             }
         }
@@ -649,6 +651,30 @@ TEST(TlsServer, TheIdentityBySniAndScheme) {
     }
 }
 
+// A key of 1024 bits has no room for RSA-PSS under SHA-512 (its digest and
+// salt, 130 bytes, past the 128 of the encoding): a client that offers that
+// scheme alone gets handshake_failure, as one with no scheme in common, and
+// the server's feed throws nothing; the schemes that fit still serve
+TEST(TlsServer, AnRsaKeyTooSmallForTheScheme) {
+    auto r = server_settings({"rsa1024"});
+    auto c = client_settings();
+    {
+        c.schemes = {0x0806};   // rsa_pss_rsae_sha512 alone
+        Pair p(c, r);
+        p.run();
+        EXPECT_FALSE(p.client.established());
+        ASSERT_EQ(p.server_log.alerts.size(), 1u);
+        EXPECT_EQ(p.server_log.alerts[0], AlertDescription::handshake_failure);
+    }
+    for (uint16_t scheme : {uint16_t(0x0804), uint16_t(0x0805)}) {
+        c.schemes = {0x0806, scheme};
+        Pair p(c, r);
+        p.run();
+        EXPECT_TRUE(p.client.established()) << scheme;
+        EXPECT_EQ(p.server.result().scheme, scheme);
+    }
+}
+
 TEST(TlsServer, KeyUpdateBothWays) {
     Pair p(client_settings(), server_settings());
     p.run();
@@ -737,7 +763,7 @@ TEST(TlsServer, TheClientsSecondFlightRefused) {
         p.server_log.take(p.server.feed(view(p.client_log.sent[0])));
         std::vector<sgcl::byte> c;
         tls::Builder w(c);
-        tls::write_certificate(w, tls::Bytes(), std::vector<tls::Bytes>());
+        tls::write_certificate(w, tls::Bytes(), std::vector<tls::Bytes>());   // lint-handles: ok slices over unmanaged bytes, no owner
         Log log;
         log.take(p.server.feed(tls::bytes_of(c.data(), c.size())));
         ASSERT_EQ(log.alerts.size(), 1u);

@@ -86,7 +86,7 @@ namespace sgcl::encoding {
             return encode(slice<const byte>(text));
         }
 
-        expected<vector<byte>, error> decode(const string& text) const {
+        expected<vector<byte>, error> decode(const string& text) const noexcept {
             return detail::decode_text(_radix, text);
         }
 
@@ -112,11 +112,26 @@ namespace sgcl::encoding {
             return detail::decode_to(_radix, out, text);
         }
 
+        // The same from characters read where they lie, no string made: a
+        // file's bytes, a secret's, as base64's
+        expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) const {
+            return detail::decode_to(_radix, out, text.data(), text.size());
+        }
+
+        // A literal, a character array, a std::string_view: read where it
+        // lies (an exact match, else the conversions to a string and to a
+        // slice tie)
+        template<sgcl::detail::TextArgument T>
+        expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const {
+            const std::string_view v(text);   // a literal to its first NUL, not past it
+            return decode_to(out, slice<const char>(v.data(), v.size()));
+        }
+
         // A writer that encodes what is written to it into out (close()
         // writes the last group and leaves out open), and a reader of the
         // bytes the text of in decodes to
-        encoder encoder_to(const io::writer& out) const;
-        decoder decoder_from(const io::reader& in) const;
+        encoder encoder_to(const io::writer& out) const noexcept;
+        decoder decoder_from(const io::reader& in) const noexcept;
 
     private:
         constexpr explicit base32(const detail::Radix<5>& r) noexcept
@@ -143,11 +158,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline base32::encoder base32::encoder_to(const io::writer& out) const {
+    inline base32::encoder base32::encoder_to(const io::writer& out) const noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<5>>>(_radix, out));
     }
 
-    inline base32::decoder base32::decoder_from(const io::reader& in) const {
+    inline base32::decoder base32::decoder_from(const io::reader& in) const noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<5>>>(_radix, in));
     }
 }

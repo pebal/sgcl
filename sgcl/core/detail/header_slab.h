@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../config.h"
+#include "os.h"
 
 #include <cstddef>
 #include <mutex>
@@ -26,20 +27,24 @@ namespace sgcl::detail {
         : _size((size + Alignment - 1) & ~(Alignment - 1)) {
         }
 
-        void* alloc() {
+        // Out of line, all three: the class is one for every type, but its
+        // functions inlined into each type's allocator were its code once
+        // per type (the batch loop unrolled), 93 KB in a program of 117
+        // managed types; they take a mutex once per page or per batch.
+        SGCL_NOINLINE void* alloc() {
             std::lock_guard<std::mutex> lock(_mutex);
             return _alloc_locked();
         }
 
         // Several at once for the per-thread caches: one lock per batch.
-        void alloc(void** out, unsigned count) {
+        SGCL_NOINLINE void alloc(void** out, unsigned count) {
             std::lock_guard<std::mutex> lock(_mutex);
             for (unsigned i = 0; i < count; ++i) {
                 out[i] = _alloc_locked();
             }
         }
 
-        void free(void* p) noexcept {
+        SGCL_NOINLINE void free(void* p) noexcept {
             std::lock_guard<std::mutex> lock(_mutex);
             auto node = (Node*)p;
             node->next = _free;

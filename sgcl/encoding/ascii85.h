@@ -108,7 +108,7 @@ namespace sgcl::encoding {
             // worth more than 32 bits is out_of_range at its fifth
             // character — no encoder writes one, and Go, which takes it
             // modulo 2^32, reads it as some other bytes.
-            FeedStatus feed(decoding& d, const char*& in, const char* in_end, uint8_t*& out, uint8_t* out_end, optional<error>& e) const {
+            FeedStatus feed(decoding& d, const char*& in, const char* in_end, uint8_t*& out, uint8_t* out_end, optional<error>& e) const noexcept {
                 auto p = in;
                 auto o = out;
                 auto status = FeedStatus::more;
@@ -159,7 +159,7 @@ namespace sgcl::encoding {
                 return status;
             }
 
-            FeedStatus finish(decoding& d, uint8_t*& out, uint8_t* out_end, optional<error>& e) const {
+            FeedStatus finish(decoding& d, uint8_t*& out, uint8_t* out_end, optional<error>& e) const noexcept {
                 if (d.count == 0) {
                     return FeedStatus::more;
                 }
@@ -229,7 +229,7 @@ namespace sgcl::encoding {
             return encode(slice<const byte>(text));
         }
 
-        static expected<vector<byte>, error> decode(const string& text) {
+        static expected<vector<byte>, error> decode(const string& text) noexcept {
             return detail::decode_text(detail::Ascii85{}, text);
         }
 
@@ -257,11 +257,26 @@ namespace sgcl::encoding {
             return detail::decode_to(detail::Ascii85{}, out, text);
         }
 
+        // The same from characters read where they lie, no string made, as
+        // base64's
+        static expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) {
+            return detail::decode_to(detail::Ascii85{}, out, text.data(), text.size());
+        }
+
+        // A literal, a character array, a std::string_view: read where it
+        // lies (an exact match, else the conversions to a string and to a
+        // slice tie)
+        template<sgcl::detail::TextArgument T>
+        static expected<size_t, error> decode_to(const slice<byte>& out, const T& text) {
+            const std::string_view v(text);   // a literal to its first NUL, not past it
+            return decode_to(out, slice<const char>(v.data(), v.size()));
+        }
+
         // A writer that encodes what is written to it into out (close()
         // writes the last group and leaves out open), and a reader of the
         // bytes the text of in decodes to
-        static encoder encoder_to(const io::writer& out);
-        static decoder decoder_from(const io::reader& in);
+        static encoder encoder_to(const io::writer& out) noexcept;
+        static decoder decoder_from(const io::reader& in) noexcept;
     };
 
     // The streams: handles of one word, the state made by encoder_to and
@@ -278,11 +293,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline ascii85::encoder ascii85::encoder_to(const io::writer& out) {
+    inline ascii85::encoder ascii85::encoder_to(const io::writer& out) noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Ascii85>>(detail::Ascii85{}, out));
     }
 
-    inline ascii85::decoder ascii85::decoder_from(const io::reader& in) {
+    inline ascii85::decoder ascii85::decoder_from(const io::reader& in) noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Ascii85>>(detail::Ascii85{}, in));
     }
 }

@@ -53,8 +53,9 @@ namespace sgcl::codec {
     //   GIF   "GIF87a" or "GIF89a"
     //   WebP  "RIFF", 4 bytes of size, "WEBP"
     //   HEIF  an ftyp box first whose major brand is heic, heix, hevc, hevx,
-    //         heim, heis, hevm or hevs, or (a major brand mif1, msf1,
-    //         miaf) whose first compatible brand of HEIF or AVIF is one
+    //         heim, heis, hevm or hevs, or, under any other major brand
+    //         (mif1, msf1, miaf, isom...), whose first compatible brand of
+    //         HEIF or AVIF is one
     //   AVIF  the same with the brand avif or avis
     inline optional<format> sniff(const slice<const byte>& head) noexcept {
         const auto* p = reinterpret_cast<const unsigned char*>(head.data());

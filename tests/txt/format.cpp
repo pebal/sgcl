@@ -506,6 +506,88 @@ TEST(Format_Tests, AFieldOfTextIsMeasuredAsTheStandardMeasuresIt) {
     EXPECT_EQ(txt::columns(string("é")), 1u);
 }
 
+// Found by the fuzzer against std::format: a cluster that begins with a
+// mark after a cluster of more than one byte that ends in a control (a
+// format character, U+202A, U+2028, U+0085) went uncounted — the width
+// looked back for an ASCII letter the mark could belong to and read the
+// last byte of the code point before it instead. Every cluster counts
+// one, as grapheme_count counts them and std::format pads them
+TEST(Format_Tests, AMarkAfterAControlOfSeveralBytesIsAClusterOfItsOwn) {
+    const std::string texts[] = {
+        "\x02\u202A\u05C7", "\u202A\u0301", "\u2028\u0301", "\u0085\u0301x", "\u65E5\u202A\u0301\u0301",
+        "a\u2028\u0301b\u202A\u0301",
+    };
+    for (auto& t : texts) {
+        for (const char* pat : {"[{:>12}]", "[{:<6}]", "[{:^9}]", "[{:.2}]", "[{:10.3}]"}) {
+            auto ours = txt::format(txt::runtime(string(pat)), string(t));
+            ASSERT_TRUE(ours) << pat;
+            EXPECT_EQ(ours->view(), std::vformat(pat, std::make_format_args(t))) << pat << " of " << testing::PrintToString(t);
+        }
+    }
+    EXPECT_EQ(txt::grapheme_count(string("\x02\u202A\u05C7")), 3u);
+    EXPECT_EQ(txt::format("{:>5}|", string("\x02\u202A\u05C7")), "  \x02\u202A\u05C7|");
+    // after a control a new cluster starts and its rules hold whole: an
+    // emoji ZWJ sequence is one cluster of two columns (GB11), a flag one
+    // of one (GB12) — libc++ counts them apart there, its difference named
+    // in format.md
+    const std::string family = "\x02\U0001F468\u200D\U0001F469";
+    EXPECT_EQ(txt::grapheme_count(string(family)), 2u);
+    EXPECT_EQ(txt::format("[{:>5}]", string(family)), "[  " + family + "]");
+    const std::string flag = "\r\U0001F1F5\U0001F1F1";
+    EXPECT_EQ(txt::format("[{:>4}]", string(flag)), "[  " + flag + "]");
+}
+
+// The boundaries of the width of a field of text (DESIGN 408): every
+// cluster one, two for the wide, whatever stands before it
+TEST(Format_Tests, TheWidthOfTextAtItsBoundaries) {
+    auto field = [](const char* pattern, const std::string& t) {
+        auto ours = txt::format(txt::runtime(string(pattern)), string(t));
+        EXPECT_TRUE(ours.has_value()) << pattern;
+        return ours ? std::string(ours->view()) : std::string();
+    };
+    auto std_field = [](const char* pattern, const std::string& t) {
+        return std::vformat(pattern, std::make_format_args(t));
+    };
+    // nothing: the default string and the empty one
+    EXPECT_EQ(txt::format("[{:>3}]", string()), "[   ]");
+    EXPECT_EQ(field("[{:.0}]", std::string()), "[]");
+    // one cluster of each kind that begins one: a control of several
+    // bytes, a mark with nothing before it, a joiner
+    for (const std::string t : {"\u202A", "\u0301", "\u200D", "\u2028", "\u0085"}) {
+        EXPECT_EQ(field("[{:>3}]", t), std_field("[{:>3}]", t)) << testing::PrintToString(t);
+        EXPECT_EQ(field("[{:.1}]", t), "[" + t + "]");
+        EXPECT_EQ(field("[{:.0}]", t), "[]");
+    }
+    // a precision of nought, and one that ends inside the text
+    const std::string three = "\x02\u202A\u05C7";
+    EXPECT_EQ(field("[{:.0}]", three), "[]");
+    EXPECT_EQ(field("[{:.2}]", three), "[\x02\u202A]");
+    // the limits: the widest field there is, and a text past the room on
+    // the stack, its clusters counted to the last
+    std::string many;
+    for (int i = 0; i < 400; ++i) {
+        many += "\u202A\u0301";
+    }
+    EXPECT_EQ(txt::grapheme_count(string(many)), 800u);
+    EXPECT_EQ(field("{:>801}", many), std_field("{:>801}", many));
+    EXPECT_EQ(field("{:>801}", many).size(), many.size() + 1);
+    auto widest = field("{:>65535}", three);
+    EXPECT_EQ(widest.size(), 65535u - 3 + three.size());
+    // a field that does not fit the room a caller lends: the whole size
+    // comes back and what fits is written
+    char room[4];
+    auto size = txt::format_to(slice<char>(tracked_ptr<const void>(), room, sizeof room), txt::runtime(string("{:>6}")), string(three));
+    ASSERT_TRUE(size.has_value());
+    EXPECT_EQ(*size, 3u + three.size());
+    EXPECT_EQ(std::string_view(room, 4), std::string_view("   \x02", 4));
+    // out of the specification: ill-formed bytes before a mark are
+    // clusters as grapheme_count counts them
+    for (const std::string t : {"\xE2\x80\u0301", "\x80\u0301", "\xF0\x9F\u05C7x"}) {
+        size_t clusters = txt::grapheme_count(string(t));
+        EXPECT_EQ(field("{:>10}", t).size(), 10 - clusters + t.size()) << testing::PrintToString(t);
+    }
+}
+
 // The standard as the oracle, over the values and the specifications the
 // earlier ones left out. Every one of the seven faults of DESIGN note 169
 // survived a suite of 719 cases and sixty-two tests, and none of them
@@ -1226,4 +1308,342 @@ TEST(Format_Tests, AFieldThatRanOffBeforeTheRoomGrewIsWrittenAgain) {
     }).join();
     EXPECT_EQ(first, second);
     EXPECT_EQ(mismatched, 0u);
+}
+
+// A width or a precision a value gives, as std::format has them: {:>{}}
+// and {:.{}f}, numbered or not. They were refused where the program is
+// compiled, a brace inside a specification ending the field.
+TEST(Format_Tests, AWidthOrAPrecisionAValueGives) {
+    EXPECT_EQ(txt::format("[{:>{}}]", "ab", 5), "[   ab]");
+    EXPECT_EQ(txt::format("[{:*^{}}]", 7, 5), "[**7**]");
+    EXPECT_EQ(txt::format("[{:.{}f}]", 3.14159, 2), "[3.14]");
+    EXPECT_EQ(txt::format("[{:>{}.{}f}]", 3.14159, 8, 3), "[   3.142]");
+    EXPECT_EQ(txt::format("[{0:>{1}}] [{0:<{2}}]", 42, 4, 3), "[  42] [42 ]");
+    EXPECT_EQ(txt::format("[{:{}}]", "x", 3u), "[x  ]");
+    EXPECT_EQ(txt::format("[{:0{}}]", -7, 4), "[-007]");
+    EXPECT_EQ(txt::format("[{:.{}}]", "żółw", 2), "[żó]");   // a precision of text, in columns
+    // more steps than a pattern keeps: the same answer read where it runs
+    EXPECT_EQ(txt::format("{} {} {} {} [{:>{}}]", 1, 2, 3, 4, 5, 3), "1 2 3 4 [  5]");
+    // every road agrees with std::format
+    for (int w : {0, 1, 3, 10}) {
+        for (int p : {0, 1, 4}) {
+            EXPECT_EQ(std::string(txt::format("{:>{}.{}f}|{:<{}}", 2.5, w, p, "ab", w).view()),
+                      std::format("{:>{}.{}f}|{:<{}}", 2.5, w, p, "ab", w));
+        }
+    }
+    // a value outside what a field holds: a negative width pads nothing,
+    // a negative precision is none given, a width past 65535 columns is
+    // held there
+    EXPECT_EQ(txt::format("[{:>{}}]", 7, -3), "[7]");
+    EXPECT_EQ(txt::format("[{:.{}f}]", 2.5, -1), txt::format("[{:f}]", 2.5));
+    EXPECT_EQ(txt::format("{:>{}}", 7, 1000000).size(), 65535u);
+    EXPECT_EQ(txt::format("{:>{}}", 7, uint64_t(-1)).size(), 65535u);
+
+    // where it runs, the same
+    auto at_run = [](const char* text) { return txt::runtime(string(text)); };
+    EXPECT_EQ(txt::format(at_run("[{:>{}}]"), "ab", 5).value(), "[   ab]");
+    EXPECT_EQ(txt::format(at_run("[{1:.{0}f}]"), 1, 2.25).value(), "[2.2]");
+    EXPECT_TRUE((txt::fits<string, int>(at_run("{:>{}}"))));
+    EXPECT_FALSE((txt::fits<string, string>(at_run("{:>{}}"))));   // text gives no width
+    EXPECT_FALSE((txt::fits<string>(at_run("{:>{}}"))));           // no value to give it
+    EXPECT_FALSE(txt::format(at_run("{:>{}}"), "a", true));        // nor does a bool
+    EXPECT_FALSE(txt::format(at_run("{:>{}}"), "a", 'c'));         // nor a character
+    EXPECT_FALSE(txt::format(at_run("{:>{x}}"), "a", 1));
+
+    // read where the program is compiled
+    static_assert(BUILDS(txt::format_pattern<string, int>("{:>{}}")));
+    static_assert(BUILDS(txt::format_pattern<double, int, long>("{:{}.{}}")));
+    static_assert(BUILDS(txt::format_pattern<int, unsigned char>("{0:>{1}}")));
+    static_assert(!BUILDS(txt::format_pattern<string>("{:>{}}")));          // no such value
+    static_assert(!BUILDS(txt::format_pattern<string, double>("{:>{}}")));  // not an integer
+    static_assert(!BUILDS(txt::format_pattern<string, bool>("{:>{}}")));
+    static_assert(!BUILDS(txt::format_pattern<string, char>("{:>{}}")));
+    static_assert(!BUILDS(txt::format_pattern<int, int>("{:.{}}")));        // no precision on a number
+    static_assert(!BUILDS(txt::format_pattern<std::vector<int>, int>("{::>{}}")));  // not in what it holds
+    // an opening brace that is not one is still a character to pad with
+    EXPECT_EQ(txt::format("{:{<4}", 7), "7{{{");
+}
+
+TEST(Format_Tests, TheStepsOfAPatternAreATypeOfItsOwnName) {
+    // format_pattern::parts() gives txt::format_part, which a program can
+    // name: the literal run, the value after it and its specification
+    static_assert(std::is_same_v<decltype(txt::format_pattern<int>("{}").parts()), const txt::format_part*>);
+    constexpr txt::format_pattern<int, double, int> p("n={:>5} x={:.{}f}");
+    static_assert(p.count() == 2);
+    static_assert(p.parts()[0].at == 0 && p.parts()[0].size == 2);         // "n="
+    static_assert(p.parts()[0].which == 0 && p.parts()[0].width == 5 && p.parts()[0].align == '>');
+    static_assert(p.parts()[1].at == 7 && p.parts()[1].size == 3);         // " x="
+    static_assert(p.parts()[1].which == 1 && p.parts()[1].type == 'f');
+    static_assert((p.parts()[1].flags & 16) && p.parts()[1].precision == 2);   // the third value's
+    constexpr txt::format_pattern<> literal("no field");
+    static_assert(literal.count() == 1 && literal.parts()[0].which == txt::format_part::no_value);
+    constexpr txt::format_pattern<int> five("{0}{0}{0}{0}{0}");
+    static_assert(five.count() == 0);   // more steps than it keeps: read where it runs
+}
+
+// DESIGN 408: format_value of a type of the program at its edges — one
+// that writes nothing, one that throws half-way, one longer than the room
+// on the stack — and the sinks, the empty pattern and the fill byte
+namespace format_edges {
+    struct Silent {};
+
+    void format_value(txt::format_sink&, const Silent&, const txt::format_spec&) noexcept {
+    }
+
+    struct Loud {};
+
+    void format_value(txt::format_sink& out, const Loud&, const txt::format_spec&) {
+        out.put("half");
+        throw std::runtime_error("loud");
+    }
+
+    int long_calls = 0;
+
+    struct Long {};
+
+    void format_value(txt::format_sink& out, const Long&, const txt::format_spec& spec) noexcept {
+        ++long_calls;
+        static const std::string text(1000, 'z');
+        txt::write_padded(out, text, spec);
+    }
+}
+
+TEST(Format_Tests, FormatValueAtItsEdges) {
+    using namespace format_edges;
+    // Writing nothing: the field is empty whatever its specification
+    EXPECT_EQ(txt::format("[{}]", Silent{}), "[]");
+    EXPECT_EQ(txt::format("[{:*>8.3x}]", Silent{}), "[]");      // any specification is taken
+    EXPECT_EQ(txt::format_to(slice<char>(), "{}", Silent{}), 0u);
+    EXPECT_EQ(txt::format(txt::runtime(string("[{:>4}]")), Silent{}).value(), "[]");
+    EXPECT_TRUE(txt::fits<Silent>(txt::runtime(string("{:#Q}"))));
+    // inside the values made of others
+    EXPECT_EQ(txt::format("{}", std::vector<Silent>(2)), "[, ]");
+    EXPECT_EQ(txt::format("{}", optional<Silent>(Silent{})), "");
+    EXPECT_EQ(txt::format("{}", optional<Silent>()), "nullopt");
+    EXPECT_EQ(txt::format("{}", std::pair<Silent, int>{Silent{}, 1}), "(, 1)");
+
+    // noexcept follows the format_value
+    auto nothrow = []<class T>(const T*) {
+        return noexcept(txt::format_to(std::declval<const slice<char>&>(),
+                                       std::declval<const txt::format_pattern<T>&>(), std::declval<const T&>()));
+    };
+    static_assert(nothrow((const Silent*)nullptr));
+    static_assert(!nothrow((const Loud*)nullptr));
+    static_assert(nothrow((const Long*)nullptr));
+    static_assert(!nothrow((const std::vector<Loud>*)nullptr));
+    static_assert(nothrow((const optional<Silent>*)nullptr));
+
+    // Throwing half-way: the exception comes out of every road, and what
+    // was written into the caller's buffer stays there
+    EXPECT_THROW((void)txt::format("{}", Loud{}), std::runtime_error);
+    EXPECT_THROW((void)txt::format(txt::runtime(string("a{}")), Loud{}), std::runtime_error);
+    char room[16] = {};
+    EXPECT_THROW((void)txt::format_to(slice<char>(room, sizeof room), "ab{}", Loud{}), std::runtime_error);
+    EXPECT_EQ(std::string(room, 6), "abhalf");
+    std::string long_text(400, 'q');
+    EXPECT_THROW((void)txt::format("{}{}", long_text, Loud{}), std::runtime_error);   // in the first pass
+    EXPECT_EQ(txt::format("{}", 1), "1");                                              // and nothing is left behind
+
+    // Longer than the room on the stack: written twice, as the page says,
+    // and into a buffer of ten bytes the first ten and the whole size
+    long_calls = 0;
+    EXPECT_EQ(txt::format("{}", Long{}).size(), 1000u);
+    EXPECT_EQ(long_calls, 2);
+    char ten[10];
+    EXPECT_EQ(txt::format_to(slice<char>(ten, sizeof ten), "{:>1002}", Long{}), 1002u);
+    EXPECT_EQ(std::string(ten, 10), "  zzzzzzzz");
+    EXPECT_EQ(txt::format("{:.5}", Long{}), "zzzzz");                       // a precision through write_padded
+}
+
+TEST(Format_Tests, TheSinksAndTheEmptyPattern) {
+    // A sink with no room counts what it is given and writes nothing
+    txt::format_sink none(nullptr, 0);
+    none.put('a');
+    none.put("bcd", 3);
+    none.put(nullptr, 0);
+    none.fill('x', 5);
+    none.put(std::string_view());
+    EXPECT_EQ(none.size(), 9u);
+    // A sink exactly as big as its text
+    char three[3];
+    txt::format_sink exact(three, 3);
+    exact.put("ab", 2);
+    exact.fill('c', 1);
+    exact.put('d');
+    EXPECT_EQ(exact.size(), 4u);
+    EXPECT_EQ(std::string(three, 3), "abc");
+
+    // write_padded: nothing, a field narrower than the text, a precision of nothing
+    char room[32];
+    auto padded = [&room](std::string_view text, txt::format_spec spec) {
+        txt::format_sink out(room, sizeof room);
+        txt::write_padded(out, text, spec);
+        return std::string(room, std::min(out.size(), sizeof room));
+    };
+    txt::format_spec spec;
+    EXPECT_EQ(padded("", spec), "");
+    spec.width = 3;
+    EXPECT_EQ(padded("", spec), "   ");
+    spec.width = 1;
+    EXPECT_EQ(padded("abc", spec), "abc");
+    spec.precision = 0;
+    spec.width = 2;
+    EXPECT_EQ(padded("abc", spec), "  ");
+    spec.precision = -1;
+    spec.width = 4;
+    spec.align = '^';
+    spec.fill = '*';
+    EXPECT_EQ(padded("\xFF", spec), "*\xFF**");                              // a broken byte is one cluster
+
+    // growing_sink: room of nothing grows from nothing; lent room never grows
+    txt::growing_sink grows(nullptr, 0);
+    EXPECT_EQ(grows.capacity(), 0u);
+    grows.out().put("hello", 5);
+    EXPECT_EQ(grows.size(), 5u);
+    EXPECT_EQ(grows.view(), "");                                             // nothing was there to hold it
+    EXPECT_GE(grows.take_room(5, 0), 5u);
+    grows.out().put("hello", 5);
+    EXPECT_EQ(grows.view(), "hello");
+    EXPECT_EQ(grows.text(), "hello");
+    char lent_room[4];
+    txt::growing_sink lent(txt::growing_sink::lent, lent_room, sizeof lent_room);
+    lent.out().put("abcdef", 6);
+    EXPECT_EQ(lent.take_room(100, 0), size_t(-1));
+    EXPECT_EQ(lent.view(), "abcd");
+    EXPECT_EQ(lent.size(), 6u);
+
+    // The empty pattern, and one of braces alone, on both roads
+    EXPECT_EQ(txt::format(""), "");
+    EXPECT_EQ(txt::format_to(slice<char>(), ""), 0u);
+    EXPECT_EQ(txt::format(txt::runtime(string())).value(), "");
+    EXPECT_EQ(txt::format_to(slice<char>(), txt::runtime(string())).value(), 0u);
+    EXPECT_TRUE(txt::fits<>(txt::runtime(string())));
+    EXPECT_EQ(txt::format("{{}}"), "{}");
+    EXPECT_EQ(txt::format(txt::runtime(string("}}{{"))).value(), "}{");
+    EXPECT_FALSE(txt::format(txt::runtime(string("}{"))));
+    // A runtime pattern moved from is still the pattern
+    auto from = txt::runtime(string("x{}"));
+    auto to = std::move(from);
+    EXPECT_EQ(txt::format(to, 1).value(), "x1");
+    EXPECT_EQ(txt::format(from, 2).value(), "x2");                         // NOLINT(bugprone-use-after-move)
+    // A value of zero bytes and one of one in a field of every alignment
+    EXPECT_EQ(txt::format("[{:^3}]", ""), "[   ]");
+    EXPECT_EQ(txt::format("[{:^4}]", "a"), "[ a  ]");
+
+    // The fill is one code point, as std::format has it: one byte of
+    // ASCII or the two to four of one above, repeated whole, each one a
+    // column of the width. Bytes that are no whole code point are refused
+    EXPECT_EQ(txt::format("{:ż>5}", 7), "żżżż7");                            // two bytes
+    EXPECT_EQ(txt::format("{:…<4}", 7), "7………");                            // three
+    EXPECT_EQ(txt::format("{:😀^4}", 7), "😀7😀😀");                          // four
+    EXPECT_EQ(txt::format("{:ż>0}", 7), "7");                                // width 0
+    EXPECT_EQ(txt::format("{:ż>1}", 7), "7");                                // width exactly the value's
+    EXPECT_EQ(txt::format("{:…^3}", "ab"), "ab…");
+    EXPECT_EQ(txt::format("{:😀<2}", "ab"), "ab");
+    EXPECT_EQ(txt::format("{:ż^5}", 1.5), "ż1.5ż");
+    EXPECT_EQ(txt::format("[{:ż>6}]", std::vector<int>{1}), "[żżż[1]]");    // a field made of fields
+    EXPECT_EQ(txt::format("{::ż>3}", std::vector<int>{1, 2}), "[żż1, żż2]");  // and its elements
+    for (const char* p : {"{:ż>5}", "{:…<4}", "{:😀^4}", "{:\xEF\xBF\xBD>3}"}) {
+        EXPECT_TRUE(txt::format(txt::runtime(string(p)), 7)) << p;
+    }
+    EXPECT_EQ(txt::format(txt::runtime(string("{:😀^4}")), 7).value(), "😀7😀😀");
+    EXPECT_EQ(txt::format(txt::runtime(string("{:\xEF\xBF\xBD>3}")), 7).value(), "\uFFFD\uFFFD" "7");
+    char ten[10];
+    EXPECT_EQ(txt::format_to(slice<char>(ten, sizeof ten), "{:😀>3}", 7), 9u);
+    EXPECT_EQ(std::string(ten, 9), "😀😀7");
+    // refused: a lone byte above ASCII, a sequence cut short, an overlong
+    // or encoded surrogate, two code points, a code point with no alignment
+    static_assert(!BUILDS(txt::format_pattern<int>("{:\xC5>5}")));
+    static_assert(!BUILDS(txt::format_pattern<int>("{:\xF0\x9F\x98>5}")));
+    static_assert(!BUILDS(txt::format_pattern<int>("{:żż>5}")));
+    static_assert(!BUILDS(txt::format_pattern<int>("{:ż5}")));
+    for (const char* p : {"{:\xC5>5}", "{:\xFF^5}", "{:\x80<5}", "{:\xE2\x80>5}", "{:\xF0\x9F\x98>5}",
+                          "{:\xC0\xAF>5}", "{:\xED\xA0\x80>5}", "{:żż>5}", "{:ż5}", "{:ż}", "{:\xC5}"}) {
+        EXPECT_FALSE(txt::format(txt::runtime(string(p)), 7)) << p;
+        EXPECT_FALSE(txt::fits<int>(txt::runtime(string(p)))) << p;
+    }
+    EXPECT_FALSE(txt::format(txt::runtime(string("{::\xC5>5}")), std::vector<int>{1}));   // nor for the elements
+    EXPECT_EQ(txt::format(txt::runtime(string("{:\x7F>3}")), 7).value(), "\x7F\x7F" "7");
+    EXPECT_EQ(txt::format("{:\x01<3}", 7), "7\x01\x01");
+}
+
+// DESIGN 408: the least and the greatest value of every integer type in
+// every base, with the sign, '#', '0' and a field, against std::format
+TEST(Format_Tests, EveryIntegerAtItsLimitsInEveryShape) {
+    const char* shapes[] = {"{}", "{:d}", "{:+d}", "{: d}", "{:#b}", "{:#B}", "{:#o}", "{:#x}", "{:#X}",
+                            "{:b}", "{:o}", "{:x}", "{:#030x}", "{:<+#25o}", "{:^+40b}", "{:>-12d}", "{:+08X}"};
+    auto check = [&shapes](auto v) {
+        for (const char* p : shapes) {
+            std::string theirs = std::vformat(p, std::make_format_args(v));
+            auto ours = txt::format(txt::runtime(string(p)), v);
+            ASSERT_TRUE(ours) << p;
+            EXPECT_EQ(std::string(ours->view()), theirs) << p << " " << +v;
+        }
+    };
+    auto limits = [&check]<class T>(T) {
+        check(std::numeric_limits<T>::min());
+        check(std::numeric_limits<T>::max());
+        check(T(0));
+        check(T(1));
+        if constexpr (std::is_signed_v<T>) {
+            check(T(-1));
+            check(T(std::numeric_limits<T>::min() + 1));
+        }
+    };
+    limits((signed char)0);
+    limits((unsigned char)0);
+    limits(short());
+    limits((unsigned short)0);
+    limits(0);
+    limits(0u);
+    limits(0l);
+    limits(0ul);
+    limits(0ll);
+    limits(0ull);
+    // the pointer of nothing, and a bool in the integer shapes
+    EXPECT_EQ(txt::format("{}", static_cast<const void*>(nullptr)), "0x0");
+    EXPECT_EQ(txt::format("{:#x}", true), "0x1");
+    EXPECT_EQ(txt::format("{:d}", false), "0");
+    // char32_t past the code space and a surrogate: one replacement
+    // character as text, the number as a number
+    EXPECT_EQ(txt::format("{}", char32_t(0x110000)), "�");
+    EXPECT_EQ(txt::format("{}", char32_t(0xD800)), "�");
+    EXPECT_EQ(txt::format("{:d}", char32_t(0xFFFFFFFF)), "4294967295");
+    EXPECT_EQ(txt::format("{:x}", char32_t(0x10FFFF)), "10ffff");
+}
+
+// The sink copies a run under 32 bytes inline and a longer one out of
+// line: every length across that step, into every room up to one more
+// than the run, writes what fits and counts the whole; and a field with
+// a fill above ASCII, which goes its own way, round a sign, zeros asked
+// for with an alignment, and a buffer that ends inside the fill
+TEST(Format_Tests, TheSinkOnBothSidesOfItsInlineCopy) {
+    auto std_of = [](const string& s) { return std::string(s.view()); };
+    std::string text;
+    for (size_t i = 0; i < 80; ++i) {
+        text += char('a' + i % 26);
+    }
+    char room[96];
+    for (size_t n = 0; n <= 80; ++n) {
+        for (size_t r = 0; r <= n + 1; ++r) {
+            std::memset(room, '#', sizeof room);
+            txt::format_sink out(room, r);
+            out.put(text.data(), n);
+            ASSERT_EQ(out.size(), n) << n << " into " << r;
+            size_t fits = std::min(n, r);
+            ASSERT_EQ(std::string(room, fits), text.substr(0, fits)) << n << " into " << r;
+            ASSERT_EQ(room[fits], '#') << n << " into " << r;
+        }
+        auto value = string(text.data(), n);
+        auto want = "<" + text.substr(0, n) + ">";
+        EXPECT_EQ(std_of(txt::format("<{}>", value)), want);
+        EXPECT_EQ(std_of(txt::format(txt::runtime(string("<{}>")), value).value()), want);
+    }
+    EXPECT_EQ(txt::format("{:ż>+6}", 7), "żżżż+7");
+    EXPECT_EQ(txt::format("{:ż<#6x}", 255), "0xffżż");
+    EXPECT_EQ(txt::format("{:ż^06}", -7), "żż-7żż");                            // an alignment: no zeros
+    EXPECT_EQ(txt::format("{:*^06}", -7), "**-7**");
+    char five[5];
+    EXPECT_EQ(txt::format_to(slice<char>(five, sizeof five), "{:ż>4}", 7), 7u);
+    EXPECT_EQ(std::string(five, 4), "żż");                                     // what fits
 }

@@ -196,7 +196,11 @@ TEST(IoPath_Tests, Glob) {
     ASSERT_EQ(g->size(), 0u);
     g = path::glob(dir + "/nodir/*");
     ASSERT_EQ(g->size(), 0u);
-    EXPECT_FALSE(path::glob("["));
+    auto bad = path::glob("src/[");   // the operation is glob's own, the pattern its path
+    ASSERT_FALSE(bad);
+    EXPECT_EQ(bad.error().code(), make_error_code(errc::invalid_pattern));
+    EXPECT_EQ(bad.error().op(), "glob");
+    EXPECT_EQ(bad.error().path(), "src/[");
     io::remove_all(dir);
 }
 

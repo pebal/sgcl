@@ -1,66 +1,59 @@
-# sgcl::codec::frames, frame
+[sgcl](../README.md) › [codec](README.md)
+
+# sgcl::codec::frames
 
 ```cpp
-#include "sgcl/codec/frames.h"   // or "sgcl/codec/codec.h"
+#include "sgcl/codec/frames.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    struct frame {
-        image picture;     // the whole canvas as it is shown
-        duration delay;    // as the file says
-    };
-
-    class frames {
-    public:
-        expected<optional<frame>, error> next();   // nullopt after the last frame
-        uint32_t width() const noexcept;           // the canvas
-        uint32_t height() const noexcept;
-        uint32_t loop_count() const noexcept;      // how many times it plays: 0 forever
-    };
+    class frames;
 }
 ```
 
-The frames of an animation, read one by one as they are asked for. Each frame is a new [`image`](image.md) of the whole canvas, with what came before composed under it as the format says. [`gif::frames`](gif.md) and [`webp::frames`](webp.md) make them, and [`codec::decode_frames`](decode.md) makes either, told by the signature. The frames' decoded pixels match the format's reference decoder bit for bit; WebP's blending onto the canvas is RFC 9649's exact formula, which libwebp approximates, so a blended pixel may differ from libwebp's ([webp](webp.md) has the bounds).
+`sgcl::codec::frames` is the frames of an animation, GIF or WebP, read one by one as they are asked for. Each
+[frame](frame.md) is a new [image](image.md) of the whole canvas, with what came before composed under it as the
+format says: the disposal and transparency of GIF, the disposal and alpha blending of WebP. Nothing is decoded ahead
+of [next](frames/next.md): the reading keeps the canvas, and a frame is the program's to keep or let go of. There is
+no public constructor: [gif::frames](gif/frames.md) and [webp::frames](webp/frames.md) make one, and
+[decode_frames](decode_frames.md) makes either, told by the signature.
 
-- **A handle of one word.** Copies share the reading, and a frame read through one copy is not read again through another.
-- **The end and errors.** After the last frame `next()` gives `nullopt`, and does again on every call. An error of the data comes where it is found and again on every call after.
-- **What it holds.** The file's bytes (a slice of unmanaged memory must outlive the frames), or the stream, which is read as frames are asked for.
+The frames' pixels are those of the format's reference decoder bit for bit. WebP's blending onto the canvas is RFC
+9649's exact formula, which libwebp approximates in fixed point, so a blended pixel may differ from libwebp's
+([webp](webp.md) has the bounds). Go's `gif.DecodeAll` reads every frame at once and gives each as the rectangle it
+covers, leaving the composing to the program; here the frames come composed, one at a time.
 
-## Members
+## Rules
 
-### frame
+- A handle of one word: a tracked pointer to the state of the reading, so it lives where a `tracked_ptr` may (on a
+  stack, in a task, inside a managed object). Copies share the reading, and a frame read through one copy is not read
+  again through another. A move copies the word, as a `tracked_ptr`'s does: the moved-from frames are another handle
+  of the same reading.
+- What it reads from lives while the frames do: the file's bytes, held (a slice of memory that is not managed must
+  outlive the frames), or the stream, read as the frames are asked for.
+- After the last frame, [next](frames/next.md) gives `nullopt`, and again on every call. An error of the data comes
+  where it is found, and again on every call after; a file of no frame is `errc::corrupt` at the first call. A read
+  of the stream that throws stops the reading: `errc::io` after it.
+- [next](frames/next.md) moves the reading on: one thread at a time reads through a handle and its copies.
 
-```cpp
-struct frame {
-    image picture;     // the whole canvas as it is shown
-    duration delay;    // as the file says
-};
-```
+## Member functions
 
-One frame: the canvas with this frame drawn on what came before, and how long it is shown.
+| Function | Description |
+|---|---|
+| [next](frames/next.md) | the next frame, decoded |
 
-### next
+#### Observers
 
-```cpp
-expected<optional<frame>, error> next();
-```
-
-The next frame, decoded when it is asked for; `nullopt` after the last, and again on every call. An error of the data comes where it is found, and again on every call after.
-
-### width, height, loop_count
-
-```cpp
-uint32_t width() const noexcept;
-uint32_t height() const noexcept;
-uint32_t loop_count() const noexcept;
-```
-
-The size of the canvas, and how many times the animation plays, 0 for forever ([gif](gif.md) and [webp](webp.md) say when each knows it).
+| Function | Description |
+|---|---|
+| [width](frames/width.md) | the width of the canvas |
+| [height](frames/height.md) | the height of the canvas |
+| [loop_count](frames/loop_count.md) | how many times the animation plays, 0 for forever |
 
 ## Example
 
 ```cpp
-#include "sgcl/codec/codec.h"
-#include "sgcl/io/io.h"
+#include "sgcl/codec.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -91,4 +84,7 @@ first 290x48, second 290x48
 
 ## See also
 
-[`gif`](gif.md), [`image`](image.md).
+- [frame](frame.md): one frame
+- [decode_frames](decode_frames.md): the frames of a GIF or a WebP, told by the signature
+- [gif](gif.md), [webp](webp.md): the formats
+- [codec](README.md)

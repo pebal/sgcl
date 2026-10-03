@@ -8,6 +8,7 @@
 #include "input.h"
 #include "vp8l_simd.h"
 #include "../error.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -26,12 +27,14 @@ namespace sgcl::codec::detail {
     template<class Input>
     class Vp8lBits {
     public:
+        static constexpr bool Nothrow = NothrowInput<Input>;
+
         Vp8lBits(Input& in, uint64_t size) noexcept
         : _in(in), _left(size) {
         }
 
         // At least 32 bits held (zeros past the end)
-        void fill() {
+        void fill() noexcept(Nothrow) {
             if (_nbits >= 32) {
                 return;
             }
@@ -48,7 +51,7 @@ namespace sgcl::codec::detail {
             _fill_slow();
         }
 
-        uint32_t bits(unsigned n) {
+        uint32_t bits(unsigned n) noexcept(Nothrow) {
             fill();
             const uint32_t r = uint32_t(_val) & ((uint32_t(1) << n) - 1);
             _val >>= n;
@@ -82,7 +85,7 @@ namespace sgcl::codec::detail {
         // Done with the chunk: its bytes not read yet taken from the input
         // (the bits held and not used are dropped); false when the input
         // failed or ended on the way
-        bool finish() {
+        bool finish() noexcept(Nothrow) {
             _in.consume(size_t(_p - _span));
             _span = _p = _e;
             while (_left) {
@@ -103,7 +106,7 @@ namespace sgcl::codec::detail {
         }
 
     private:
-        void _fill_slow() {
+        void _fill_slow() noexcept(Nothrow) {
             while (_nbits <= 56) {
                 if (_p < _e) {
                     _val |= uint64_t(*_p++) << _nbits;
@@ -161,7 +164,7 @@ namespace sgcl::codec::detail {
         // The canonical code of the lengths (0: no symbol), appended to
         // `table`; false when the lengths are not a whole tree (one symbol
         // is whole) or name no symbol
-        inline bool build(const uint8_t* lengths, unsigned n, std::vector<uint32_t>& table, uint32_t& offset) {
+        inline bool build(const uint8_t* lengths, unsigned n, std::vector<uint32_t>& table, uint32_t& offset) noexcept {
             unsigned count[MaxLength + 1] = {};
             unsigned symbols = 0;
             unsigned last = 0;
@@ -316,7 +319,7 @@ namespace sgcl::codec::detail {
         // is read already, the input standing after it: false with the
         // error in `err`
         template<class Input>
-        bool decode(Input& in, uint64_t size, uint32_t width, uint32_t height, optional<error>& err, uint64_t at) {
+        bool decode(Input& in, uint64_t size, uint32_t width, uint32_t height, optional<error>& err, uint64_t at) noexcept(NothrowInput<Input>) {
             Vp8lBits<Input> b(in, size);
             _width = width;
             _height = height;
@@ -357,14 +360,14 @@ namespace sgcl::codec::detail {
 
         // An error of the bitstream, at the offset of its chunk
         template<class Bits>
-        bool _fail(Bits& b, optional<error>& err, errc code, const char* what) {
+        bool _fail(Bits& b, optional<error>& err, errc code, const char* what) noexcept {
             (void)b;
             err = error(code, _at, string(what));
             return false;
         }
 
         template<class Bits>
-        bool _image(Bits& b, optional<error>& err) {
+        bool _image(Bits& b, optional<error>& err) noexcept(Bits::Nothrow) {
             uint32_t xsize = _width;
             unsigned seen = 0;
             _transforms_used = 0;
@@ -413,7 +416,7 @@ namespace sgcl::codec::detail {
         // The prefix codes of one entropy-coded image: `groups` groups, only
         // those `used` built (the others read and checked, then dropped)
         template<class Bits>
-        bool _codes(Bits& b, optional<error>& err, uint32_t groups, unsigned cache_bits) {
+        bool _codes(Bits& b, optional<error>& err, uint32_t groups, unsigned cache_bits) noexcept(Bits::Nothrow) {
             _tables.clear();
             _groups.clear();
             _groups.resize(groups);
@@ -441,7 +444,7 @@ namespace sgcl::codec::detail {
         // One prefix code: simple (one or two symbols) or normal (its
         // lengths through the code of code lengths)
         template<class Bits>
-        bool _code(Bits& b, optional<error>& err, unsigned alphabet, uint32_t& offset) {
+        bool _code(Bits& b, optional<error>& err, unsigned alphabet, uint32_t& offset) noexcept(Bits::Nothrow) {
             uint8_t lengths[256 + 24 + 2048] = {};
             if (b.bits(1)) {
                 // a symbol past the alphabet (a distance's of 40..255) is
@@ -504,7 +507,7 @@ namespace sgcl::codec::detail {
                     if (s + repeat > alphabet) {
                         return _fail(b, err, errc::corrupt, "webp: VP8L code lengths past the alphabet");
                     }
-                    std::memset(lengths + s, value, repeat);
+                    sgcl::detail::fill_bytes(lengths + s, value, repeat);
                     s += repeat;
                 }
                 _tables.resize(mark);
@@ -521,7 +524,7 @@ namespace sgcl::codec::detail {
         // An entropy-coded image of xsize × ysize into dst: the color cache,
         // the meta prefix codes (the main image only), the codes, the pixels
         template<class Bits>
-        bool _stream(Bits& b, optional<error>& err, uint32_t xsize, uint32_t ysize, bool main, uint32_t* dst) {
+        bool _stream(Bits& b, optional<error>& err, uint32_t xsize, uint32_t ysize, bool main, uint32_t* dst) noexcept(Bits::Nothrow) {
             unsigned cache_bits = 0;
             if (b.bits(1)) {
                 cache_bits = b.bits(4);
@@ -560,7 +563,7 @@ namespace sgcl::codec::detail {
         }
 
         template<class Bits>
-        bool _pixels_of(Bits& b, optional<error>& err, uint32_t xsize, uint32_t ysize, uint32_t* dst, unsigned prefix_bits, uint32_t prefix_width, unsigned cache_bits) {
+        bool _pixels_of(Bits& b, optional<error>& err, uint32_t xsize, uint32_t ysize, uint32_t* dst, unsigned prefix_bits, uint32_t prefix_width, unsigned cache_bits) noexcept(Bits::Nothrow) {
             const size_t total = size_t(xsize) * ysize;
             const uint32_t* t = _tables.data();
             uint32_t* cache = _cache.data();
@@ -652,7 +655,7 @@ namespace sgcl::codec::detail {
 
         // A length or a distance from its prefix code and extra bits
         template<class Bits>
-        static uint32_t _prefix_value(Bits& b, uint32_t code) {
+        static uint32_t _prefix_value(Bits& b, uint32_t code) noexcept(Bits::Nothrow) {
             if (code < 4) {
                 return code + 1;
             }
@@ -661,7 +664,7 @@ namespace sgcl::codec::detail {
             return offset + b.bits(extra) + 1;
         }
 
-        void _inverse(const Transform& t) {
+        void _inverse(const Transform& t) noexcept {
             uint32_t* p = _pixels.data();
             const uint32_t w = t.xsize;
             switch (t.type) {
@@ -691,7 +694,7 @@ namespace sgcl::codec::detail {
 
         // The predictor transform, row by row in place: the top row from
         // the left, the left column from above, the rest by the block's mode
-        void _predict(const Transform& t, uint32_t* p, uint32_t w) {
+        void _predict(const Transform& t, uint32_t* p, uint32_t w) noexcept {
             const uint32_t tw = vp8l::div_round_up(w, t.bits);
             const uint32_t block = uint32_t(1) << t.bits;
             p[0] = vp8l::add_pixels(p[0], 0xff000000u);
@@ -736,7 +739,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        static void _predict_one(unsigned mode, uint32_t* cur, const uint32_t* top, uint32_t x, uint32_t w) {
+        static void _predict_one(unsigned mode, uint32_t* cur, const uint32_t* top, uint32_t x, uint32_t w) noexcept {
             const uint32_t L = cur[x - 1];
             const uint32_t T = top[x];
             const uint32_t TL = top[x - 1];
@@ -764,7 +767,8 @@ namespace sgcl::codec::detail {
         // The color indexing transform: each index (bundled 2, 4 or 8 to a
         // pixel's green when the table is small) replaced by its color, the
         // rows unpacked from the last, right to left, in the same buffer
-        void _unpack(const Transform& t, uint32_t* p) {
+        void _unpack(const Transform& t, uint32_t* p) noexcept {
+
             const uint32_t* table = t.data.data();
             const uint32_t packed = vp8l::div_round_up(_width, t.bits);
             if (t.bits == 0) {

@@ -17,6 +17,7 @@ using namespace sgcl::async;
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 namespace {
@@ -75,9 +76,9 @@ TEST(Blocking_Tests, ReturnsAValue) {
         co_return r * 2;
     }());
     EXPECT_EQ(t.wait(), 42);
-    // the alias, and a move-only result
+    // a move-only result
     auto u = sgcl::async::spawn([]() -> sgcl::async::task<int> {
-        auto p = co_await sgcl::async::blocking([] { return std::make_unique<int>(9); });
+        auto p = co_await sgcl::async::spawn_blocking([] { return std::make_unique<int>(9); });
         co_return *p;
     }());
     EXPECT_EQ(u.wait(), 9);
@@ -117,6 +118,17 @@ TEST(Blocking_Tests, ThrowsThrough) {
     (void)sgcl::async::select(thrower.on_done([] {})).wait();
     EXPECT_THROW(thrower.result(), std::logic_error);
     sgcl::async::scheduler::stop();
+}
+
+// A handle with a job is spawn_blocking's to make: its constructor from
+// the job, a type of the library's own, is not public
+TEST(Blocking_Tests, AHandleIsMadeOnlyBySpawnBlocking) {
+    static_assert(!std::is_constructible_v<sgcl::async::blocking_task<int>, const sgcl::tracked_ptr<sgcl::async::detail::BlockingJob<int>>&>);
+    static_assert(!std::is_constructible_v<sgcl::async::blocking_task<void>, const sgcl::tracked_ptr<sgcl::async::detail::BlockingJob<void>>&>);
+    static_assert(std::is_default_constructible_v<sgcl::async::blocking_task<int>>);
+    auto job = sgcl::async::spawn_blocking([] { return 3; });
+    EXPECT_EQ(job.wait(), 3);
+    sgcl::async::blocking_pool::stop();
 }
 
 TEST(Blocking_Tests, TheClosureMayCaptureATrackedPtr) {
@@ -238,6 +250,46 @@ TEST(Blocking_Tests, StoppedAndRestarted) {
     EXPECT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 1u);
     sgcl::async::scheduler::stop();
     EXPECT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 0u);
+}
+
+// A thread of the pool that cannot be started (the test hook throws what
+// std::thread throws then): with no thread to run the job, spawn_blocking
+// throws, the job never runs and nothing of it is left behind (no entry
+// stop() would wait for, no job wait_idle() would wait for); with a thread
+// running, the pool does not grow and the job waits for that thread
+TEST(Blocking_Tests, AThreadThatCannotStartLeavesNothingBehind) {
+    sgcl::async::blocking_pool::stop();
+    sgcl::async::detail::blocking_start_test_hook.store([] {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    });
+    std::atomic<bool> ran = {false};
+    EXPECT_THROW((void)sgcl::async::spawn_blocking([&] { ran = true; }), std::system_error);
+    auto st = sgcl::async::blocking_pool::get_statistics();
+    EXPECT_EQ(st.threads, 0u);                               // no entry without a thread
+    sgcl::async::detail::blocking_start_test_hook.store(nullptr);
+    ASSERT_EQ(st.threads, 0u);                               // (an entry left would hang the stop below)
+    sgcl::async::blocking_pool::wait_idle();                 // the job that could not run is owed to nobody
+    sgcl::async::blocking_pool::stop();
+    EXPECT_EQ(sgcl::async::spawn_blocking([] { return 7; }).wait(), 7);
+    EXPECT_FALSE(ran.load());                                // never run, not even by the next thread
+    // a thread running: the job waits for it instead of failing
+    sgcl::async::blocking_pool::wait_idle();                 // the thread of 7 parked: the next job is its
+    std::atomic<bool> release = {false};
+    auto first = sgcl::async::spawn_blocking([&] {
+        while (!release.load()) {
+            std::this_thread::sleep_for(1ms);
+        }
+        return 1;
+    });
+    sgcl::async::detail::blocking_start_test_hook.store([] {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    });
+    auto second = sgcl::async::spawn_blocking([] { return 2; });
+    sgcl::async::detail::blocking_start_test_hook.store(nullptr);
+    EXPECT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 1u);
+    release = true;
+    EXPECT_EQ(first.wait() + second.wait(), 3);
+    sgcl::async::blocking_pool::stop();
 }
 
 TEST(Blocking_Tests, ManyQuickJobs) {

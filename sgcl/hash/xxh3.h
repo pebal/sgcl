@@ -22,7 +22,7 @@
 // or maphash where the hashes never leave the process.
 //
 // A hasher holds its eight lanes, a buffer of four stripes (256 bytes) and,
-// with a seed other than 0, the secret made from it: about 540 bytes, a
+// with a seed other than 0, the secret made from it: 552 bytes, a
 // plain value that a copy branches. of() hashes in one call with no state
 // made. detail/xxh3.h says how the algorithm goes.
 namespace sgcl::hash {

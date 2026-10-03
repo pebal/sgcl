@@ -5,7 +5,9 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "copy.h"
 #include "lzma_encoder.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -51,7 +53,7 @@ namespace sgcl::compress::detail {
         errc error = errc::corrupt;
         const char* error_text = nullptr;
 
-        void reset(uint32_t dictionary) {
+        void reset(uint32_t dictionary) noexcept {
             _lzma.lzma2_init(dictionary);
             _phase = Phase::header;
             _header_size = 0;
@@ -69,7 +71,7 @@ namespace sgcl::compress::detail {
 
         // As LzmaDecoder::decode, to the control byte that ends the data
         template<bool Linear>
-        LzmaStatus decode(uint8_t* window, size_t size, size_t& pos, size_t limit, const uint8_t*& in, const uint8_t* end, bool input_ended) {
+        LzmaStatus decode(uint8_t* window, size_t size, size_t& pos, size_t limit, const uint8_t*& in, const uint8_t* end, bool input_ended) noexcept {
             if (_failed) {
                 return LzmaStatus::failed;
             }
@@ -116,6 +118,9 @@ namespace sgcl::compress::detail {
                         if (n == 0) {
                             return _starve(input_ended);
                         }
+                        // A stored chunk, up to 64 KB, into a result perhaps not in
+                        // the cache: libc's copy, as copy.h says why (xz of
+                        // stored chunks 9.2 GB/s, 8.7 by copy_bytes)
                         std::memcpy(window + pos, in, n);
                         pos += n;
                         in += n;
@@ -161,7 +166,7 @@ namespace sgcl::compress::detail {
             ended
         };
 
-        LzmaStatus _starve(bool input_ended) {
+        LzmaStatus _starve(bool input_ended) noexcept {
             return input_ended ? _fail(errc::unexpected_end, "lzma2: unexpected end of the compressed data") : LzmaStatus::need_input;
         }
 
@@ -172,7 +177,7 @@ namespace sgcl::compress::detail {
             return LzmaStatus::failed;
         }
 
-        bool _start_chunk() {
+        bool _start_chunk() noexcept {
             // a dictionary reset asks for new properties (and with them a
             // state reset) before the next LZMA chunk: no repeated distance
             // reaches back past it
@@ -241,7 +246,7 @@ namespace sgcl::compress::detail {
     // decode). Settings with lc + lp past 4 are the caller's to refuse.
     class Lzma2Encoder {
     public:
-        explicit Lzma2Encoder(const LzmaEncoderSettings& s)
+        explicit Lzma2Encoder(const LzmaEncoderSettings& s) noexcept
         : _lzma(s)
         , _props(s.props) {
             _lzma.chunked();
@@ -251,16 +256,16 @@ namespace sgcl::compress::detail {
             return _lzma.dictionary();
         }
 
-        void attach(const uint8_t* p, size_t n) {
+        void attach(const uint8_t* p, size_t n) noexcept {
             _lzma.attach(p, n);
         }
 
-        size_t append(const uint8_t* p, size_t n) {
+        size_t append(const uint8_t* p, size_t n) noexcept {
             return _lzma.append(p, n);
         }
 
         // As LzmaEncoder::run, the chunks written into out as they fill
-        LzmaRun run(bool finish, std::vector<uint8_t>& out, uint64_t budget = 0) {
+        LzmaRun run(bool finish, std::vector<uint8_t>& out, uint64_t budget = 0) noexcept {
             for (;;) {
                 if (!_in_chunk) {
                     _chunk.clear();
@@ -280,12 +285,12 @@ namespace sgcl::compress::detail {
         }
 
         // The end of the data, after run(true)
-        void finish(std::vector<uint8_t>& out) {
+        void finish(std::vector<uint8_t>& out) noexcept {
             out.push_back(0);
         }
 
         // A new stream: the window and the tables kept
-        void restart() {
+        void restart() noexcept {
             _lzma.restart();
             _chunk.clear();
             _in_chunk = false;
@@ -295,7 +300,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        void _end_chunk(std::vector<uint8_t>& out) {
+        void _end_chunk(std::vector<uint8_t>& out) noexcept {
             uint32_t unpacked = _lzma.chunk_end(_chunk);
             _in_chunk = false;
             if (unpacked == 0) {

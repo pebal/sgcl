@@ -6,12 +6,14 @@
 #pragma once
 
 #include "detail/bytes.h"
+#include "detail/words.h"
 #include "hmac.h"
 #include "secret.h"
 #include "secure_zero.h"
 #include "sha256.h"
 #include "../core/aliases.h"
 #include "../core/array.h"
+#include "../core/detail/bytes.h"
 #include "../core/slice.h"
 #include "../core/vector.h"
 
@@ -125,13 +127,17 @@ namespace sgcl::crypto {
         }
 
         // expand() into the caller's buffer: out.size() bytes, no
-        // allocation
+        // allocation. info is read again for every block, so an out that
+        // overlaps it is std::invalid_argument (the key is read whole
+        // before the first byte is written: out may lie over it)
         static void expand_to(const slice<byte>& out, const prk& key, const slice<const byte>& info) {
-            _expand(out.data(), _checked(out.size()), key.bytes(), info);
+            _checked(out, info);
+            _expand(out.data(), out.size(), key.bytes(), info);
         }
 
         static void expand_to(const slice<byte>& out, const slice<const byte>& key, const slice<const byte>& info) {
-            _expand(out.data(), _checked(out.size()), key, info);
+            _checked(out, info);
+            _expand(out.data(), out.size(), key, info);
         }
 
         // extract() and expand() in one: n bytes from ikm under salt and info
@@ -142,7 +148,7 @@ namespace sgcl::crypto {
         }
 
         static void derive_to(const slice<byte>& out, const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info) {
-            _checked(out.size());
+            _checked(out, info);
             prk k = extract(salt, ikm);
             expand_to(out, k, info);
         }
@@ -153,6 +159,13 @@ namespace sgcl::crypto {
                 throw invalid_argument("sgcl::crypto::hkdf: more than 255 blocks asked of expand");
             }
             return n;
+        }
+
+        static void _checked(const slice<byte>& out, const slice<const byte>& info) {
+            _checked(out.size());
+            if (detail::overlap(out.data(), out.size(), info.data(), info.size())) {
+                throw invalid_argument("sgcl::crypto::hkdf: the output overlaps info, which every block reads");
+            }
         }
 
         static void _expand(byte* out, size_t n, const slice<const byte>& key, const slice<const byte>& info) noexcept {
@@ -168,7 +181,7 @@ namespace sgcl::crypto {
                 mac.update(slice<const byte>(reinterpret_cast<const byte*>(&counter), 1));
                 t = mac.value();
                 size_t take = std::min(H::digest_size, n - done);
-                std::memcpy(out + done, t.data(), take);
+                sgcl::detail::copy_bytes(out + done, t.data(), take);
                 done += take;
             }
             detail::secure_zero(t.data(), t.size());

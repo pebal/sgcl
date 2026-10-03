@@ -75,30 +75,6 @@ namespace sgcl::txt {
         lower_first,
     };
 
-    // What a collator does beside putting the letters in order: the
-    // settings CLDR names, under the names it gives them. They are a
-    // value handed to the constructor rather than methods that change a
-    // collator afterwards, because a collator is a comparator — it is
-    // copied into a sort and shared between threads, and a setter would
-    // make it a thing that can change under one of them. An aggregate
-    // also reads at the call site the way the setting reads in CLDR:
-    // collator{locale("da"), {.numeric = true}}.
-    //
-    // Four of them are things a language asks for, and those are the
-    // four that are not set here: a collator made for a locale starts
-    // with what that language's rules ask for, and what is written here
-    // is what the caller wants instead. `numeric` is not among them
-    // because no language asks for it — it is a thing a program wants
-    // for its file names, never a thing a language wants for its words.
-    struct options {
-        txt::strength strength = txt::strength::tertiary;
-        optional<txt::punctuation> punctuation;    // CLDR ka / alternate
-        optional<txt::case_order> case_order;      // CLDR kf / caseFirst
-        optional<bool> case_level;                 // CLDR kc / caseLevel
-        optional<bool> backwards;                  // CLDR kb, the accents from the end
-        bool numeric = false;                      // CLDR kn, file9 before file10
-    };
-
     namespace detail {
         // The options as the elements are made and read: the questions
         // asked of every element, settled once when the collator is
@@ -353,7 +329,7 @@ namespace sgcl::txt {
             }
 
             // At least n code points are ready, or the text has ended
-            bool ensure(size_t n) {
+            bool ensure(size_t n) noexcept {
                 while (_points.size() - _at < n && _more) {
                     _fill();
                 }
@@ -416,17 +392,26 @@ namespace sgcl::txt {
                 _read += n;
             }
 
+            // Every code point the stream weighs passes here, so this is
+            // the one comparison; the window is moved down out of line,
+            // once in WindowPoints / 2 code points. With the three
+            // erase_fronts inline (move_bytes, DESIGN 393) skip was no
+            // longer inlined at all, and a Polish compare read 4% slower.
             void skip(size_t n) noexcept {
                 _at += n;
-                if (_at >= WindowPoints / 2) {
-                    _points.erase_front(_at);
-                    _taken.erase_front(_at);
-                    _where.erase_front(_at);
-                    _at = 0;
+                if (_at >= WindowPoints / 2) [[unlikely]] {
+                    _drop_consumed();
                 }
             }
 
         private:
+            SGCL_NOINLINE void _drop_consumed() noexcept {
+                _points.erase_front(_at);
+                _taken.erase_front(_at);
+                _where.erase_front(_at);
+                _at = 0;
+            }
+
             // The top bit of a recorded position, which no position in a
             // text of two gigabytes reaches: this code point is the
             // first of its sequence
@@ -434,7 +419,7 @@ namespace sgcl::txt {
 
             // one combining sequence: a code point and the marks that
             // belong with it, taken apart and put in canonical order
-            void _fill() {
+            void _fill() noexcept {
                 if (_read >= _text.size()) {
                     _more = false;
                     return;
@@ -563,7 +548,7 @@ namespace sgcl::txt {
         // a million. Three bases, in the order they sort: the ideographs
         // of the two blocks that come first, the ideographs of the
         // extensions, and everything else.
-        inline void implicit_weights(element_sink& out, char32_t c) {
+        inline void implicit_weights(element_sink& out, char32_t c) noexcept {
             uint32_t aaaa, bbbb;
             for (auto& r : collate_tables::Implicit) {
                 if (c >= r.lo && c <= r.hi) {
@@ -596,7 +581,7 @@ namespace sgcl::txt {
         // The weights of one code point, from the ranges where they run
         // with it, from the index where they do not, and by arithmetic
         // where there is no table at all
-        inline void weights_of(element_sink& out, char32_t c) {
+        inline void weights_of(element_sink& out, char32_t c) noexcept {
             // the two-stage table answers in two reads: a weight of zero
             // means the code point is not one of the letters whose weight
             // runs with it, and the index below has it
@@ -634,7 +619,7 @@ namespace sgcl::txt {
         };
 
         template<bool Track>
-        inline contraction_match match_contraction(nfd_window<Track>& points) {
+        inline contraction_match match_contraction(nfd_window<Track>& points) noexcept {
             contraction_match best;
             if (!starts_contraction(points[0])) {
                 return best;
@@ -752,7 +737,7 @@ namespace sgcl::txt {
         // meets O U+0334 U+0302, which is how Ô followed by U+0334 is
         // decomposed and put in canonical order.
         template<bool Track>
-        SGCL_NOINLINE bool rule_apart(nfd_window<Track>& points, uint16_t pool_at, size_t size, size_t k, rule_apart_found& f);
+        SGCL_NOINLINE bool rule_apart(nfd_window<Track>& points, uint16_t pool_at, size_t size, size_t k, rule_apart_found& f) noexcept;
 
         // Apart false: only where the code points stand together, saying
         // in `maybe` whether a mark stands where the rule goes on, so that
@@ -761,7 +746,7 @@ namespace sgcl::txt {
         // its words in registers there (Polish compare 188 → 211 ns with
         // the call inline, measured)
         template<bool Apart, bool Track>
-        inline bool rule_at(nfd_window<Track>& points, uint16_t pool_at, size_t size, bool& maybe) {
+        inline bool rule_at(nfd_window<Track>& points, uint16_t pool_at, size_t size, bool& maybe) noexcept {
             using namespace collate_tables;
             if (!points.ensure(size)) {        // as many code points as the rule, together or apart
                 return false;
@@ -790,7 +775,7 @@ namespace sgcl::txt {
         // before that nothing blocks; a mark already taken, by an earlier
         // match or by this one, is no longer in the text
         template<bool Track>
-        SGCL_NOINLINE bool rule_apart(nfd_window<Track>& points, uint16_t pool_at, size_t size, size_t k, rule_apart_found& f) {
+        SGCL_NOINLINE bool rule_apart(nfd_window<Track>& points, uint16_t pool_at, size_t size, size_t k, rule_apart_found& f) noexcept {
             using namespace collate_tables;
             size_t start = k;
             size_t found = 0;
@@ -829,7 +814,7 @@ namespace sgcl::txt {
         }
 
         template<bool Apart, bool Track>
-        inline tailored_match tailored(nfd_window<Track>& points, const Tailoring& language, bool& maybe) {
+        inline tailored_match tailored(nfd_window<Track>& points, const Tailoring& language, bool& maybe) noexcept {
             using namespace collate_tables;
             tailored_match best;
             char32_t c = points[0];
@@ -874,7 +859,7 @@ namespace sgcl::txt {
             return {};
         }
 
-        inline void put_tailored(element_sink& out, const tailored_match& m) {
+        inline void put_tailored(element_sink& out, const tailored_match& m) noexcept {
             if (m.sequence) {
                 out.push_back({m.sequence->primary, m.sequence->secondary, m.sequence->tertiary});
             } else if (m.expansion) {
@@ -897,7 +882,7 @@ namespace sgcl::txt {
         };
 
         inline bool same_bytes(std::string_view text, size_t at, uint16_t pool_at, size_t size,
-                               size_t& bytes) {
+                               size_t& bytes) noexcept {
             bytes = 0;
             for (size_t i = 0; i < size; ++i) {
                 if (at + bytes >= text.size()) {
@@ -960,16 +945,20 @@ namespace sgcl::txt {
         // reasonable — so it is never made into one: the leading zeros
         // come off, and what is compared is first how many digits are
         // left and then the digits themselves. Both are written as
-        // weights in the space between the digit zero and the digit one,
-        // where no weight of the root falls, so a number sorts where the
-        // digits it is written with sort and nothing else moves.
+        // weights in the space just below the digit zero, where no weight
+        // of the root or of a language falls: CLDR puts the weights of a
+        // number at the start of the digits' group (UTS #35, Numeric
+        // Ordering), above everything before the digits and below every
+        // digit read as a character — "a12" before "a⓪", and "8" before
+        // "↉", whose 0⁄3 is no run of decimal digits and weighs as the
+        // digit zero does. Nothing else moves.
         //
         // The elements of a number, in the order they are compared: one
         // that says how many elements the count of digits takes, that
         // many holding the count, and then the digits four to an
         // element. Two numbers of different length differ in the first
         // of those, two of the same length in the digits.
-        inline constexpr uint32_t NumericBase = uint32_t(DigitZero) << PrimaryShift;
+        inline constexpr uint32_t NumericBase = uint32_t(DigitZero - 1) << PrimaryShift;
         inline constexpr uint32_t NumericChunk = 60000;   // the count of digits, a piece at a time
         inline constexpr uint32_t NumericPack = 10000;    // four digits in one element
 
@@ -992,7 +981,7 @@ namespace sgcl::txt {
             , _how(how) {
             }
 
-            bool next(Element& e) {
+            bool next(Element& e) noexcept {
                 while (_read == _count) {
                     if (!_fill()) {
                         return false;
@@ -1083,7 +1072,7 @@ namespace sgcl::txt {
             // As many of the number's elements as fit in one batch; what
             // is left waits for the next call, a number of a hundred
             // digits taking more elements than a batch holds.
-            void _number(element_sink& out) {
+            void _number(element_sink& out) noexcept {
                 size_t n = _count_digits;
                 size_t chunks = 1;
                 for (size_t left = n; left >= NumericChunk; left /= NumericChunk) {
@@ -1125,7 +1114,7 @@ namespace sgcl::txt {
             // window where something has. The leading zeros are not part
             // of the number: "007" and "7" are one number, and what is
             // counted and written is what is left after them.
-            bool _digit_run(element_sink& out) {
+            bool _digit_run(element_sink& out) noexcept {
                 if (_points.spent()) {
                     auto text = _points.text();
                     size_t at = _points.byte();
@@ -1194,7 +1183,7 @@ namespace sgcl::txt {
             // Which code points the letter was written with is what
             // _batch leaves behind: the case is theirs and not their
             // weights'.
-            bool _fill() {
+            bool _fill() noexcept {
                 if (!_batch()) {
                     return false;
                 }
@@ -1220,7 +1209,7 @@ namespace sgcl::txt {
                 return true;
             }
 
-            bool _batch() {
+            bool _batch() noexcept {
                 _read = 0;
                 if constexpr (!Plain) {
                     _letters = 0;
@@ -1383,14 +1372,14 @@ namespace sgcl::txt {
             }
 
             // The language's rules asked again, past the marks (S2.1)
-            SGCL_NOINLINE tailored_match _tailored_apart() {
+            SGCL_NOINLINE tailored_match _tailored_apart() noexcept {
                 bool unused = false;
                 return tailored<true>(_points, *_language, unused);
             }
 
             // The code points of a language's rule that stood further off
             // (S2.1), looked for again and taken; where the last of them is
-            SGCL_NOINLINE size_t _take_apart(const tailored_match& theirs, size_t together, size_t end) {
+            SGCL_NOINLINE size_t _take_apart(const tailored_match& theirs, size_t together, size_t end) noexcept {
                 rule_apart_found f;
                 rule_apart(_points, theirs.sequence ? theirs.sequence->at : theirs.expansion->points_at,
                            theirs.size, together, f);
@@ -1462,7 +1451,7 @@ namespace sgcl::txt {
         // the sort key does, a comparison does not
         template<bool Plain>
         inline void collation_elements(SmallVector<Element, TextElements>& out, const string& text,
-                                       const Tailoring* language, const shape& how) {
+                                       const Tailoring* language, const shape& how) noexcept {
             element_stream<false, Plain> stream(text.view(), language, how);
             Element e;
             while (stream.next(e)) {
@@ -1505,7 +1494,7 @@ namespace sgcl::txt {
             , _borrowed(true) {
             }
 
-            placed_text(const placed_text& other)
+            placed_text(const placed_text& other) noexcept
             : _own(other._own)
             , _data(other._borrowed ? other._data : _own.data())
             , _size(other._size)
@@ -1562,17 +1551,57 @@ namespace sgcl::txt {
     public:
         // Where a match was found, in the bytes of the text as it was
         // given. The size is the text's own and not the pattern's: six
-        // letters of a pattern may be found in nine bytes of text, an
+        // letters of a pattern may be found in eight bytes of text, an
         // accent taking bytes that the pattern never had.
         struct match {
             size_t at;
             size_t size;
         };
 
+        // What a collator does beside putting the letters in order: the
+        // settings CLDR names, under the names it gives them. They are a
+        // value handed to the constructor rather than methods that change a
+        // collator afterwards, because a collator is a comparator — it is
+        // copied into a sort and shared between threads, and a setter would
+        // make it a thing that can change under one of them. An aggregate
+        // also reads at the call site the way the setting reads in CLDR:
+        // collator{locale("da"), {.numeric = true}}. Nested, because
+        // they are this class's and no other's: txt::options named nothing
+        // that said so.
+        //
+        // Four of them are things a language asks for, and those are the
+        // four that are not set here: a collator made for a locale starts
+        // with what that language's rules ask for, and what is written here
+        // is what the caller wants instead. `numeric` is not among them
+        // because no language asks for it — it is a thing a program wants
+        // for its file names, never a thing a language wants for its words.
+        struct options {
+            txt::strength strength = txt::strength::tertiary;
+            optional<txt::punctuation> punctuation;    // CLDR ka / alternate
+            optional<txt::case_order> case_order;      // CLDR kf / caseFirst
+            optional<bool> case_level;                 // CLDR kc / caseLevel
+            optional<bool> backwards;                  // CLDR kb, the accents from the end
+            bool numeric = false;                      // CLDR kn, file9 before file10
+        };
+
         collator() noexcept = default;
 
         explicit collator(locale where, strength level = strength::tertiary) noexcept
         : collator(where, options{.strength = level}) {
+        }
+
+        // The same for a language named by its tag: txt::collator("pl"),
+        // a BCP-47 tag or a POSIX name, read as locale(tag) reads it (an
+        // unknown one is the root). A constructor of its own rather than
+        // a locale made of text by itself: every function that takes a
+        // locale would then take any text, and a misspelt tag would pass
+        // as the root without a word
+        explicit collator(const string& tag, strength level = strength::tertiary) noexcept
+        : collator(locale(tag), options{.strength = level}) {
+        }
+
+        collator(const string& tag, const options& how) noexcept
+        : collator(locale(tag), how) {
         }
 
         explicit collator(strength level) noexcept
@@ -1623,18 +1652,18 @@ namespace sgcl::txt {
         // is nearly always the first letter: neither text is taken apart
         // any further than that. What has been read is kept, because the
         // levels below need it when the first says nothing.
-        int compare(const string& a, const string& b) const {
+        int compare(const string& a, const string& b) const noexcept {
             return _plain ? _compare<true>(a, b) : _compare<false>(a, b);
         }
 
-        bool equal(const string& a, const string& b) const {
+        bool equal(const string& a, const string& b) const noexcept {
             return compare(a, b) == 0;
         }
 
         // A key that compares byte by byte the way the collator compares
         // texts: worth making once for a text that is sorted or looked up
         // many times, and worth storing in an index
-        vector<byte> key(const string& text) const {
+        vector<byte> key(const string& text) const noexcept {
             return _plain ? _key<true>(text) : _key<false>(text);
         }
 
@@ -1646,7 +1675,7 @@ namespace sgcl::txt {
         // would compare as a different text, which is worse than none —
         // so a caller may ask with an empty buffer first, or try again
         // with a larger one.
-        size_t key_to(const slice<byte>& buffer, const string& text) const {
+        size_t key_to(const slice<byte>& buffer, const string& text) const noexcept {
             elements weights;
             if (_plain) {
                 detail::collation_elements<true>(weights, text, _tailoring, _how);
@@ -1698,10 +1727,10 @@ namespace sgcl::txt {
         // The whole text is weighed to answer, so a loop over every
         // occurrence weighs it once for each: `from` is there for a
         // caller who wants the next one, not to make that loop cheap.
-        optional<match> find(const string& text, const string& pattern, size_t from = 0) const;
-        bool contains(const string& text, const string& pattern) const;
-        bool starts_with(const string& text, const string& pattern) const;
-        bool ends_with(const string& text, const string& pattern) const;
+        optional<match> find(const string& text, const string& pattern, size_t from = 0) const noexcept;
+        bool contains(const string& text, const string& pattern) const noexcept;
+        bool starts_with(const string& text, const string& pattern) const noexcept;
+        bool ends_with(const string& text, const string& pattern) const noexcept;
 
         // Whether two collators put text in the same order, which is
         // what a prepared searcher and a prepared text have to agree on
@@ -1713,7 +1742,7 @@ namespace sgcl::txt {
         bool operator==(const collator&) const noexcept = default;
 
         // So that a collator may stand where a comparator is asked for
-        bool operator()(const string& a, const string& b) const {
+        bool operator()(const string& a, const string& b) const noexcept {
             return compare(a, b) < 0;
         }
 
@@ -1779,7 +1808,7 @@ namespace sgcl::txt {
         }
 
         template<bool Plain>
-        vector<byte> _key(const string& text) const {
+        vector<byte> _key(const string& text) const noexcept {
             elements weights;
             detail::collation_elements<Plain>(weights, text, _tailoring, _how);
             vector<byte> out(_key_size<Plain>(weights));
@@ -1788,7 +1817,7 @@ namespace sgcl::txt {
         }
 
         template<bool Plain>
-        size_t _key(const string& text, const slice<byte>& buffer) const {
+        size_t _key(const string& text, const slice<byte>& buffer) const noexcept {
             elements weights;
             detail::collation_elements<Plain>(weights, text, _tailoring, _how);
             size_t size = _key_size<Plain>(weights);
@@ -1803,7 +1832,7 @@ namespace sgcl::txt {
         // difference; what has been read is kept, because the levels
         // below need it when the first says nothing.
         template<bool Plain>
-        int _compare(const string& a, const string& b) const {
+        int _compare(const string& a, const string& b) const noexcept {
             if (a == b) {
                 return 0;
             }
@@ -1847,7 +1876,7 @@ namespace sgcl::txt {
         // The levels below the first, in the order they are compared,
         // which is also the order a key writes them in
         template<bool Plain>
-        int _below_first(const elements& x, const elements& y) const {
+        int _below_first(const elements& x, const elements& y) const noexcept {
             if (_at_least(strength::secondary)) {
                 auto weight = [](const detail::Element& e) {
                     return uint32_t(detail::secondary_of<Plain>(e));
@@ -1891,7 +1920,7 @@ namespace sgcl::txt {
         // One level of the two element sequences, the weights of zero
         // passed over: they are what the level does not see
         template<class Weight>
-        static int _walk(const elements& x, const elements& y, Weight weight) {
+        static int _walk(const elements& x, const elements& y, Weight weight) noexcept {
             size_t i = 0, j = 0;
             for (;;) {
                 while (i < x.size() && !weight(x[i])) {
@@ -1912,7 +1941,7 @@ namespace sgcl::txt {
         }
 
         template<class Weight>
-        static int _walk_back(const elements& x, const elements& y, Weight weight) {
+        static int _walk_back(const elements& x, const elements& y, Weight weight) noexcept {
             size_t i = x.size(), j = y.size();
             for (;;) {
                 while (i && !weight(x[i - 1])) {
@@ -2103,7 +2132,7 @@ namespace sgcl::txt {
         // The text as its elements, each with the bytes it came from,
         // into a vector of the library or a plain one
         template<class Out>
-        void _places_into(Out& out, const slice<const char>& text) const {
+        void _places_into(Out& out, const slice<const char>& text) const noexcept {
             out.reserve(text.size());
             detail::element_stream<true, false> stream(text.view(), _tailoring, _how);
             detail::Element e;
@@ -2115,7 +2144,7 @@ namespace sgcl::txt {
             }
         }
 
-        places _places(const slice<const char>& text) const {
+        places _places(const slice<const char>& text) const noexcept {
             places out;
             _places_into(out, text);
             return out;
@@ -2123,7 +2152,7 @@ namespace sgcl::txt {
 
         // and the pattern as the elements a search looks at, the ones it
         // passes over left out
-        void _wanted(const string& pattern, elements& out) const {
+        void _wanted(const string& pattern, elements& out) const noexcept {
             detail::element_stream<false, false> stream(pattern.view(), _tailoring, _how);
             detail::Element e;
             while (stream.next(e)) {
@@ -2136,7 +2165,7 @@ namespace sgcl::txt {
         // The pattern against the text from the i-th element on, with
         // both boundaries asked for
         optional<match> _match(const detail::placed_text& text, size_t i, const elements& wanted,
-                               size_t* ended = nullptr) const {
+                               size_t* ended = nullptr) const noexcept {
             auto& first = text[i];
             if (!_counts(first.element) || !(first.flags & detail::HeadsSequence)
                 || !(first.flags & detail::FirstOfLetter)) {
@@ -2224,10 +2253,32 @@ namespace sgcl::txt {
     // mistake and not a road, so it is not on anybody's loop.
     class collated_searcher {
     public:
-        collated_searcher(const collator& by, const string& pattern)
+        collated_searcher(const collator& by, const string& pattern) noexcept
         : _by(by)
         , _pattern(pattern) {
             by._wanted(pattern, _wanted);
+        }
+
+        // A copy is the pattern again; a searcher moved from is the empty
+        // pattern of the root collator, its pattern() empty too
+        collated_searcher(const collated_searcher&) = default;
+        collated_searcher& operator=(const collated_searcher&) = default;
+
+        collated_searcher(collated_searcher&& other) noexcept
+        : _by(other._by)
+        , _pattern(other._pattern)
+        , _wanted(std::move(other._wanted)) {
+            other._reset();
+        }
+
+        collated_searcher& operator=(collated_searcher&& other) noexcept {
+            if (this != &other) {
+                _by = other._by;
+                _pattern = other._pattern;
+                _wanted = std::move(other._wanted);
+                other._reset();
+            }
+            return *this;
         }
 
         const string& pattern() const noexcept {
@@ -2253,6 +2304,12 @@ namespace sgcl::txt {
         friend class collated_text;
         friend class collated_matches;
 
+        void _reset() noexcept {
+            _by = collator();
+            _pattern = string();
+            _wanted.clear();
+        }
+
         collator _by;
         string _pattern;
         collator::elements _wanted;
@@ -2271,6 +2328,28 @@ namespace sgcl::txt {
 
         collated_text() noexcept = default;
 
+        // A copy is the text again; a text moved from is the empty text
+        // of the root collator, as the one above
+        collated_text(const collated_text&) = default;
+        collated_text& operator=(const collated_text&) = default;
+
+        collated_text(collated_text&& other) noexcept
+        : _by(other._by)
+        , _text(other._text)
+        , _places(std::move(other._places)) {
+            other._reset();
+        }
+
+        collated_text& operator=(collated_text&& other) noexcept {
+            if (this != &other) {
+                _by = other._by;
+                _text = other._text;
+                _places = std::move(other._places);
+                other._reset();
+            }
+            return *this;
+        }
+
         // The text is kept as the string it is and not as a slice of
         // it. A slice is two raw pointers into a managed buffer beside
         // the owner that keeps it alive, which is what a slice is for
@@ -2280,7 +2359,7 @@ namespace sgcl::txt {
         // does not read as data: it said so on stderr in every build
         // without NDEBUG. A string is a single tracked_ptr and the
         // slice is made where it is asked for.
-        collated_text(const collator& by, const string& text)
+        collated_text(const collator& by, const string& text) noexcept
         : _by(by)
         , _text(text)
         , _places(by._places(text.as_slice())) {
@@ -2310,7 +2389,7 @@ namespace sgcl::txt {
 
         // A pattern weighed the way this text was, which is the only
         // kind this text can be asked about
-        searcher_type searcher(const string& pattern) const {
+        searcher_type searcher(const string& pattern) const noexcept {
             return searcher_type(_by, pattern);
         }
 
@@ -2319,7 +2398,7 @@ namespace sgcl::txt {
         // of the text as it was given; the size is the text's own and
         // not the pattern's, an accent taking bytes the pattern never
         // had.
-        optional<match> find(const searcher_type& pattern, size_t from = 0) const {
+        optional<match> find(const searcher_type& pattern, size_t from = 0) const noexcept {
             if (_weighed_elsewhere(pattern)) {
                 return find(searcher(pattern.pattern()), from);
             }
@@ -2344,15 +2423,15 @@ namespace sgcl::txt {
             return nullopt;
         }
 
-        optional<match> find(const string& pattern, size_t from = 0) const {
+        optional<match> find(const string& pattern, size_t from = 0) const noexcept {
             return find(searcher(pattern), from);
         }
 
-        bool contains(const searcher_type& pattern) const {
+        bool contains(const searcher_type& pattern) const noexcept {
             return find(pattern).has_value();
         }
 
-        bool contains(const string& pattern) const {
+        bool contains(const string& pattern) const noexcept {
             return find(pattern).has_value();
         }
 
@@ -2368,7 +2447,7 @@ namespace sgcl::txt {
         // answered that way and these two did not: "-resume" contained
         // "resume" and did not start with it, which is two rules where
         // the header promises one.
-        bool starts_with(const searcher_type& pattern) const {
+        bool starts_with(const searcher_type& pattern) const noexcept {
             if (_weighed_elsewhere(pattern)) {
                 return starts_with(searcher(pattern.pattern()));
             }
@@ -2386,7 +2465,7 @@ namespace sgcl::txt {
             return false;
         }
 
-        bool starts_with(const string& pattern) const {
+        bool starts_with(const string& pattern) const noexcept {
             return starts_with(searcher(pattern));
         }
 
@@ -2399,7 +2478,7 @@ namespace sgcl::txt {
         // the text's: every position was tried, from the last to the
         // first, and over a hundred kilobytes that is 658 us against the
         // 6 ns starts_with costs for the same question at the other end.
-        bool ends_with(const searcher_type& pattern) const {
+        bool ends_with(const searcher_type& pattern) const noexcept {
             if (_weighed_elsewhere(pattern)) {
                 return ends_with(searcher(pattern.pattern()));
             }
@@ -2419,12 +2498,12 @@ namespace sgcl::txt {
             return _by._match(_places, i, pattern._wanted, &ended) && _nothing_after(ended);
         }
 
-        bool ends_with(const string& pattern) const {
+        bool ends_with(const string& pattern) const noexcept {
             return ends_with(searcher(pattern));
         }
 
         // The occurrences that do not overlap, counted left to right
-        size_t count(const searcher_type& pattern) const {
+        size_t count(const searcher_type& pattern) const noexcept {
             if (_weighed_elsewhere(pattern)) {
                 return count(searcher(pattern.pattern()));
             }
@@ -2444,7 +2523,7 @@ namespace sgcl::txt {
             return n;
         }
 
-        size_t count(const string& pattern) const {
+        size_t count(const string& pattern) const noexcept {
             return count(searcher(pattern));
         }
 
@@ -2485,7 +2564,7 @@ namespace sgcl::txt {
 
         // Over elements weighed for one call and lent by the thread
         // (collator::find and its kind): kept no longer than the call
-        collated_text(const collator& by, const string& text, const detail::scratch_vector<detail::placed>& weighed)
+        collated_text(const collator& by, const string& text, const detail::scratch_vector<detail::placed>& weighed) noexcept
         : _by(by)
         , _text(text)
         , _places(weighed) {
@@ -2535,6 +2614,12 @@ namespace sgcl::txt {
             return lo;
         }
 
+        void _reset() noexcept {
+            _by = collator();
+            _text = string();
+            _places = detail::placed_text();
+        }
+
         collator _by;
         string _text;
         detail::placed_text _places;
@@ -2568,7 +2653,7 @@ namespace sgcl::txt {
             // A pattern weighed by another collator is weighed again
             // here, once, rather than at every step of the walk: this
             // is the one place the range brings the two together
-            state(const collator& by, const string& t, searcher_type p)
+            state(const collator& by, const string& t, searcher_type p) noexcept
             : text(by, t)
             , pattern(p.by() == by ? std::move(p) : searcher_type(by, p.pattern())) {
             }
@@ -2650,13 +2735,36 @@ namespace sgcl::txt {
 
         using const_iterator = iterator;
 
-        collated_matches() noexcept = default;
+        // An empty text and an empty pattern under the root collator,
+        // held as the other constructors hold theirs: the range has no
+        // occurrence, and its text and its pattern are there to be asked
+        collated_matches() noexcept
+        : collated_matches(collator(), string(), string()) {
+        }
 
-        collated_matches(const collator& by, const string& text, const string& pattern)
+        // A copy shares the walk's state; a range moved from is the empty
+        // one, as the one above
+        collated_matches(const collated_matches&) = default;
+        collated_matches& operator=(const collated_matches&) = default;
+
+        collated_matches(collated_matches&& other) noexcept
+        : _state(other._state) {
+            other._reset();
+        }
+
+        collated_matches& operator=(collated_matches&& other) noexcept {
+            if (this != &other) {
+                _state = other._state;
+                other._reset();
+            }
+            return *this;
+        }
+
+        collated_matches(const collator& by, const string& text, const string& pattern) noexcept
         : collated_matches(by, text, searcher_type(by, pattern)) {
         }
 
-        collated_matches(const collator& by, const string& text, searcher_type pattern)
+        collated_matches(const collator& by, const string& text, searcher_type pattern) noexcept
         : _state(make_tracked<state>(by, text, std::move(pattern))) {
         }
 
@@ -2708,6 +2816,10 @@ namespace sgcl::txt {
         }
 
     private:
+        void _reset() noexcept {
+            _state = make_tracked<state>(collator(), string(), searcher_type(collator(), string()));
+        }
+
         tracked_ptr<state> _state;
     };
 
@@ -2719,25 +2831,25 @@ namespace sgcl::txt {
     // The text is weighed into scratch the thread lends, and nothing of
     // it outlives the call.
     inline optional<collator::match> collator::find(const string& text, const string& pattern,
-                                                    size_t from) const {
+                                                    size_t from) const noexcept {
         detail::lent<detail::scratch_vector<detail::placed>> weighed;
         _places_into(*weighed, text.as_slice());
         return collated_text(*this, text, *weighed).find(pattern, from);
     }
 
-    inline bool collator::contains(const string& text, const string& pattern) const {
+    inline bool collator::contains(const string& text, const string& pattern) const noexcept {
         detail::lent<detail::scratch_vector<detail::placed>> weighed;
         _places_into(*weighed, text.as_slice());
         return collated_text(*this, text, *weighed).contains(pattern);
     }
 
-    inline bool collator::starts_with(const string& text, const string& pattern) const {
+    inline bool collator::starts_with(const string& text, const string& pattern) const noexcept {
         detail::lent<detail::scratch_vector<detail::placed>> weighed;
         _places_into(*weighed, text.as_slice());
         return collated_text(*this, text, *weighed).starts_with(pattern);
     }
 
-    inline bool collator::ends_with(const string& text, const string& pattern) const {
+    inline bool collator::ends_with(const string& text, const string& pattern) const noexcept {
         detail::lent<detail::scratch_vector<detail::placed>> weighed;
         _places_into(*weighed, text.as_slice());
         return collated_text(*this, text, *weighed).ends_with(pattern);

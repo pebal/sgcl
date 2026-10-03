@@ -60,7 +60,7 @@ namespace sgcl::txt::detail {
         possessive,
         nothing_to_repeat,
         double_repeat,
-        bad_repeat,
+        reversed_repeat,
         repeat_too_large,
         bad_class_range,
         boundary_in_class,
@@ -93,7 +93,7 @@ namespace sgcl::txt::detail {
         case regex_fault::possessive:           return "a possessive quantifier: it exists to cut a backtracking engine short, and there is no backtracking here to cut";
         case regex_fault::nothing_to_repeat:    return "a quantifier with nothing before it to repeat";
         case regex_fault::double_repeat:        return "a quantifier on a quantifier";
-        case regex_fault::bad_repeat:           return "a '{' that is not a count: write '\\{' for a literal brace";
+        case regex_fault::reversed_repeat:      return "a count whose bounds are reversed: in '{n,m}' n may not be greater than m";
         case regex_fault::repeat_too_large:     return "a repetition count past the engine's limit";
         case regex_fault::bad_class_range:      return "a range inside a class whose end comes before its start";
         case regex_fault::boundary_in_class:    return "'\\b' inside a class: a word boundary is a place, not a character";
@@ -340,7 +340,7 @@ namespace sgcl::txt::detail {
         : _text(pattern) {
         }
 
-        constexpr regex_fault_at parse(regex_tree& out) {
+        constexpr regex_fault_at parse(regex_tree& out) noexcept {
             regex_flags flags;
             uint32_t root = _alternate(flags, 0);
             if (_bad()) {
@@ -374,7 +374,7 @@ namespace sgcl::txt::detail {
             return {_fault, _fault_at};
         }
 
-        constexpr uint32_t _add(node n) {
+        constexpr uint32_t _add(node n) noexcept {
             _nodes.push_back(std::move(n));
             return uint32_t(_nodes.size() - 1);
         }
@@ -398,7 +398,7 @@ namespace sgcl::txt::detail {
         // a|b|c. The flags are the group's own and are shared by every
         // branch: (?i) in one of them holds for the ones after it, which
         // is what a flag set inside a group means everywhere else.
-        constexpr uint32_t _alternate(regex_flags& flags, size_t depth) {
+        constexpr uint32_t _alternate(regex_flags& flags, size_t depth) noexcept {
             if (depth > MaxRegexDepth) {
                 _fail(regex_fault::too_deep, _at);
                 return NoNode;
@@ -420,7 +420,7 @@ namespace sgcl::txt::detail {
             return _add(std::move(n));
         }
 
-        constexpr uint32_t _concat(regex_flags& flags, size_t depth) {
+        constexpr uint32_t _concat(regex_flags& flags, size_t depth) noexcept {
             std::vector<uint32_t> parts;
             while (!_bad() && _more() && _peek() != '|' && _peek() != ')') {
                 uint32_t part = _repeat(flags, depth);
@@ -450,7 +450,7 @@ namespace sgcl::txt::detail {
         // same atom is refused rather than read: a*+ is a possessive star
         // in Perl and a repeated one here, and guessing which the writer
         // meant would be worse than saying so.
-        constexpr uint32_t _repeat(regex_flags& flags, size_t depth) {
+        constexpr uint32_t _repeat(regex_flags& flags, size_t depth) noexcept {
             uint32_t atom = _atom(flags, depth);
             if (_bad()) {
                 return NoNode;
@@ -516,7 +516,7 @@ namespace sgcl::txt::detail {
         // {n}, {n,}, {n,m}. Anything else leaves _at where it was and
         // says no, so that a '{' nobody meant as a count is a character:
         // "a{b}" is three of them, as it is in RE2 and in Python.
-        constexpr bool _counted(uint32_t& min, uint32_t& max) {
+        constexpr bool _counted(uint32_t& min, uint32_t& max) noexcept {
             size_t save = _at;
             size_t at = _at + 1;
             auto number = [&](uint32_t& out) {
@@ -553,12 +553,12 @@ namespace sgcl::txt::detail {
             if (min > MaxRegexRepeat || (max != Unbounded && max > MaxRegexRepeat)) {
                 _fail(regex_fault::repeat_too_large, save);
             } else if (max != Unbounded && max < min) {
-                _fail(regex_fault::bad_repeat, save);
+                _fail(regex_fault::reversed_repeat, save);
             }
             return true;
         }
 
-        constexpr uint32_t _atom(regex_flags& flags, size_t depth) {
+        constexpr uint32_t _atom(regex_flags& flags, size_t depth) noexcept {
             size_t mark = _at;
             char c = _peek();
             if (c == '(') {
@@ -620,7 +620,7 @@ namespace sgcl::txt::detail {
 
         //----------------------------------------------------------------
         // ( ... ) and everything that begins (? .
-        constexpr uint32_t _group(regex_flags& flags, size_t depth) {
+        constexpr uint32_t _group(regex_flags& flags, size_t depth) noexcept {
             size_t open = _at;
             ++_at;   // '('
             bool capturing = true;
@@ -716,7 +716,7 @@ namespace sgcl::txt::detail {
         }
 
         // The name of (?<name>...), the '<' already passed
-        constexpr bool _group_name(uint32_t& at, uint32_t& size) {
+        constexpr bool _group_name(uint32_t& at, uint32_t& size) noexcept {
             size_t from = _at;
             while (_more() && _peek() != '>') {
                 ++_at;
@@ -746,7 +746,7 @@ namespace sgcl::txt::detail {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
         }
 
-        constexpr bool _flag_letters(regex_flags& flags) {
+        constexpr bool _flag_letters(regex_flags& flags) noexcept {
             bool on = true;
             bool any = false;
             while (_more()) {
@@ -782,7 +782,7 @@ namespace sgcl::txt::detail {
 
         //----------------------------------------------------------------
         // [ ... ]
-        constexpr uint32_t _class(regex_flags& flags) {
+        constexpr uint32_t _class(regex_flags& flags) noexcept {
             size_t open = _at;
             ++_at;   // '['
             char_class cc;
@@ -862,7 +862,7 @@ namespace sgcl::txt::detail {
 
         // An escape inside a class. Either one character (single stays
         // true and comes back in `value`) or a whole item pushed into cc.
-        constexpr bool _class_escape(char_class& cc, char32_t& value, bool& single) {
+        constexpr bool _class_escape(char_class& cc, char32_t& value, bool& single) noexcept {
             size_t mark = _at;
             ++_at;   // '\'
             if (!_more()) {
@@ -888,7 +888,7 @@ namespace sgcl::txt::detail {
 
         //----------------------------------------------------------------
         // \ outside a class
-        constexpr uint32_t _escape(regex_flags& flags, bool) {
+        constexpr uint32_t _escape(regex_flags& flags, bool) noexcept {
             size_t mark = _at;
             ++_at;   // '\'
             if (!_more()) {
@@ -947,7 +947,7 @@ namespace sgcl::txt::detail {
         // \d \D \w \W \s \S \p{...} \P{...}: the escapes that stand for a
         // class rather than a character. The '\' is already past; the
         // letter is only taken when it is one of these.
-        constexpr bool _shorthand(class_item& out) {
+        constexpr bool _shorthand(class_item& out) noexcept {
             char c = _peek();
             if (c == 'd' || c == 'D') {
                 ++_at;
@@ -1091,7 +1091,7 @@ namespace sgcl::txt::detail {
 
         // \n, \x41, \x{1F600}, é, and a punctuation mark standing
         // for itself. The '\' is past and the letter has not been taken.
-        constexpr bool _char_escape(char32_t& out) {
+        constexpr bool _char_escape(char32_t& out) noexcept {
             size_t mark = _at - 1;
             char c = _peek();
             ++_at;
@@ -1131,7 +1131,7 @@ namespace sgcl::txt::detail {
 
         // Exactly n hexadecimal digits, or, where braces are allowed
         // (\x{...}), as many as stand between them
-        constexpr bool _hex(size_t n, bool braces, char32_t& out, size_t mark) {
+        constexpr bool _hex(size_t n, bool braces, char32_t& out, size_t mark) noexcept {
             uint64_t v = 0;
             size_t digits = 0;
             if (braces && _take('{')) {

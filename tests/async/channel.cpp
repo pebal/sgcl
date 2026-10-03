@@ -54,6 +54,32 @@ TEST(Channel_Test, BufferedSendReceive) {
     EXPECT_FALSE(ch.closed());
 }
 
+// A try_send that fails, on a full buffer, on a rendezvous with nobody
+// receiving, or on a closed channel, leaves its argument as it was: the
+// element is moved only when it is delivered
+TEST(Channel_Test, AFailedTrySendLeavesTheElement) {
+    sgcl::async::channel<std::unique_ptr<int>> full(1);
+    EXPECT_TRUE(full.try_send(std::make_unique<int>(1)));
+    auto two = std::make_unique<int>(2);
+    EXPECT_FALSE(full.try_send(std::move(two)));
+    ASSERT_TRUE(two);
+    EXPECT_EQ(*two, 2);
+    sgcl::async::channel<std::unique_ptr<int>> rendezvous;
+    auto three = std::make_unique<int>(3);
+    EXPECT_FALSE(rendezvous.try_send(std::move(three)));
+    ASSERT_TRUE(three);
+    EXPECT_EQ(*three, 3);
+    full.close();
+    EXPECT_FALSE(full.try_send(std::move(two)));
+    ASSERT_TRUE(two);
+    EXPECT_EQ(**full.try_receive(), 1);
+    auto four = std::make_unique<int>(4);
+    sgcl::async::channel<std::unique_ptr<int>> open(1);
+    EXPECT_TRUE(open.try_send(std::move(four)));
+    EXPECT_FALSE(four);   // delivered: moved into the channel
+    EXPECT_EQ(**open.try_receive(), 4);
+}
+
 TEST(Channel_Test, CloseDrainsThenEnds) {
     sgcl::async::channel<std::string> ch(8);
     ch.send("a").wait();

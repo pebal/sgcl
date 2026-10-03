@@ -15,95 +15,103 @@
 #include <cstddef>
 #include <iterator>
 #include <ranges>
+#include <type_traits>
 #include <utility>
 
 namespace sgcl {
-    namespace detail {
-        // An integer as a random-access iterator: *i is the number, ++i
-        // the next one; a difference is a subtraction, so a range of
-        // counters has its size in O(1). Random access to std::ranges
-        // (iterator_concept); to the pre-C++20 iterator_category, which a
-        // forward iterator's reference must be a true reference for, an
-        // input iterator, as std::ranges::iota_view's is: *i is a value.
-        template<std::integral T>
-        class counter {
-        public:
-            using iterator_category = std::input_iterator_tag;
-            using iterator_concept = std::random_access_iterator_tag;
-            using value_type = T;
-            using difference_type = std::ptrdiff_t;
-            using pointer = const T*;
-            using reference = T;
+    // The iterator of range(n) and range(first, last): an integer as a
+    // random-access iterator, *i is the number, ++i the next one; a
+    // difference is a subtraction, so a range of them has its size in
+    // O(1). Random access to std::ranges
+    // (iterator_concept); to the pre-C++20 iterator_category, which a
+    // forward iterator's reference must be a true reference for, an
+    // input iterator, as std::ranges::iota_view's is: *i is a value.
+    template<std::integral T>
+    class counting_iterator {
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using iterator_concept = std::random_access_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const T*;
+        using reference = T;
 
-            counter() = default;
+        counting_iterator() = default;
 
-            explicit counter(T value) noexcept
-            : _value(value) {
-            }
+        explicit counting_iterator(T value) noexcept
+        : _value(value) {
+        }
 
-            T operator*() const noexcept {
-                return _value;
-            }
+        T operator*() const noexcept {
+            return _value;
+        }
 
-            T operator[](difference_type n) const noexcept {
-                return (T)(_value + n);
-            }
+        T operator[](difference_type n) const noexcept {
+            return (T)((Wide)_value + (Wide)n);
+        }
 
-            counter& operator++() noexcept {
-                ++_value;
-                return *this;
-            }
+        counting_iterator& operator++() noexcept {
+            ++_value;
+            return *this;
+        }
 
-            counter operator++(int) noexcept {
-                counter c = *this;
-                ++_value;
-                return c;
-            }
+        counting_iterator operator++(int) noexcept {
+            counting_iterator c = *this;
+            ++_value;
+            return c;
+        }
 
-            counter& operator--() noexcept {
-                --_value;
-                return *this;
-            }
+        counting_iterator& operator--() noexcept {
+            --_value;
+            return *this;
+        }
 
-            counter operator--(int) noexcept {
-                counter c = *this;
-                --_value;
-                return c;
-            }
+        counting_iterator operator--(int) noexcept {
+            counting_iterator c = *this;
+            --_value;
+            return c;
+        }
 
-            counter& operator+=(difference_type n) noexcept {
-                _value = (T)(_value + n);
-                return *this;
-            }
+        counting_iterator& operator+=(difference_type n) noexcept {
+            _value = (T)((Wide)_value + (Wide)n);
+            return *this;
+        }
 
-            counter& operator-=(difference_type n) noexcept {
-                _value = (T)(_value - n);
-                return *this;
-            }
+        counting_iterator& operator-=(difference_type n) noexcept {
+            _value = (T)((Wide)_value - (Wide)n);
+            return *this;
+        }
 
-            friend counter operator+(counter c, difference_type n) noexcept {
-                return c += n;
-            }
+        friend counting_iterator operator+(counting_iterator c, difference_type n) noexcept {
+            return c += n;
+        }
 
-            friend counter operator+(difference_type n, counter c) noexcept {
-                return c += n;
-            }
+        friend counting_iterator operator+(difference_type n, counting_iterator c) noexcept {
+            return c += n;
+        }
 
-            friend counter operator-(counter c, difference_type n) noexcept {
-                return c -= n;
-            }
+        friend counting_iterator operator-(counting_iterator c, difference_type n) noexcept {
+            return c -= n;
+        }
 
-            friend difference_type operator-(counter a, counter b) noexcept {
-                return (difference_type)a._value - (difference_type)b._value;
-            }
+        friend difference_type operator-(counting_iterator a, counting_iterator b) noexcept {
+            return (difference_type)((Wide)a._value - (Wide)b._value);
+        }
 
-            friend bool operator==(counter, counter) noexcept = default;
-            friend auto operator<=>(counter, counter) noexcept = default;
+        friend bool operator==(counting_iterator, counting_iterator) noexcept = default;
+        friend auto operator<=>(counting_iterator, counting_iterator) noexcept = default;
 
-        private:
-            T _value = {};
-        };
-    }
+    private:
+        // The steps and the difference in unsigned arithmetic, modulo 2^64:
+        // the ends of a 64-bit T (range(INT64_MIN, INT64_MAX)) are 2^64 - 1
+        // apart, past a signed 64-bit difference, and that subtraction was
+        // an overflow. Modular, the difference wraps into the ptrdiff_t,
+        // size() takes it back as a size_t, and an iterator moved by it
+        // lands on the other end
+        using Wide = std::make_unsigned_t<std::common_type_t<T, difference_type>>;
+
+        T _value = {};
+    };
 
     // A range of the library over any pair of iterators (mixin/): what
     // the iterator can do, the range declares — bidirectional, random
@@ -143,14 +151,14 @@ namespace sgcl {
         // The integers 0..last, or first..last, half-open; first > last is
         // empty (the counting forms, through the deduction guides below)
         template<std::integral T>
-        requires std::same_as<It, detail::counter<T>>
+        requires std::same_as<It, counting_iterator<T>>
         explicit range(T last) noexcept
         : _first(T(0))
         , _last(last < T(0) ? T(0) : last) {
         }
 
         template<std::integral T>
-        requires std::same_as<It, detail::counter<T>>
+        requires std::same_as<It, counting_iterator<T>>
         range(T first, T last) noexcept
         : _first(first)
         , _last(last < first ? first : last) {
@@ -161,8 +169,8 @@ namespace sgcl {
         }
 
         // A subtraction for a random-access iterator (by the C++20 concept:
-        // the counter's category says input), a walk for a forward one
-        size_t size() const {
+        // the counting iterator's category says input), a walk for a forward one
+        size_t size() const noexcept(_nothrow_distance()) {
             return (size_t)std::ranges::distance(_first, _last);
         }
 
@@ -179,15 +187,25 @@ namespace sgcl {
         }
 
     private:
+        // Whether the distance cannot throw: the subtraction of a sized
+        // iterator, or the copy, increment and comparison of the walk
+        static consteval bool _nothrow_distance() noexcept {
+            if constexpr(std::sized_sentinel_for<It, It>) {
+                return noexcept(std::declval<const It&>() - std::declval<const It&>());
+            } else {
+                return std::is_nothrow_copy_constructible_v<It> && noexcept(++std::declval<It&>()) && noexcept(std::declval<const It&>() == std::declval<const It&>());
+            }
+        }
+
         It _first = {};
         It _last = {};
     };
 
     template<std::integral T>
-    range(T last) -> range<detail::counter<T>>;
+    range(T last) -> range<counting_iterator<T>>;
 
     template<std::integral T>
-    range(T first, T last) -> range<detail::counter<T>>;
+    range(T first, T last) -> range<counting_iterator<T>>;
 
     template<class Pair>
     range(Pair p) -> range<decltype(p.first)>;

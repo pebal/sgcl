@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <ranges>
 #include <type_traits>
+#include <utility>
 
 namespace sgcl {
     // The result of a search that finds nothing: the position that is no position
@@ -59,17 +60,20 @@ namespace sgcl {
     // never whether the type happens to have the right members, so that
     // only what said "I am enumerable" passes and the error for what did
     // not is one line at the call. A requirement of a value (equatable,
-    // comparable) is also structural, because a value need not be the
+    // comparable) is structural, because a value need not be the
     // library's: an int, a std::pair, a class with <=> of its own pass on
-    // what they can do. Used in the abbreviated form as a parameter:
+    // what they can do. A container passes the same way: mixin::equatable
+    // and mixin::comparable give it == and <=> only for elements that
+    // compare, so a vector of a type without == is not equatable, though
+    // it carries the mixin. Used in the abbreviated form as a parameter:
     // `size_t count_odd(const req::enumerable auto& r)`.
     namespace req {
         // Values
         template<class T>
-        concept equatable = detail::Declares<T, mixin::equatable> || detail::EqualComparable<T>;
+        concept equatable = detail::EqualComparable<T>;
 
         template<class T>
-        concept comparable = detail::Declares<T, mixin::comparable> || std::three_way_comparable<T> || detail::LessOrdered<T>;
+        concept comparable = std::three_way_comparable<T> || detail::LessOrdered<T>;
 
         // Containers: what iterates, and how
         template<class R>
@@ -123,7 +127,7 @@ namespace sgcl {
         // ask for == too, and a type ordered by < alone is req::comparable)
         struct Less {
             template<class A, class B>
-            constexpr bool operator()(const A& a, const B& b) const {
+            constexpr bool operator()(const A& a, const B& b) const noexcept(noexcept(bool(a < b))) {
                 return a < b;
             }
         };
@@ -134,7 +138,35 @@ namespace sgcl {
         template<class F, class R>
         concept ElementVisitor = std::invocable<F&, std::ranges::range_reference_t<R>>;
 
+        // A projection of the elements to a key that has < (sort_by)
+        template<class F, class R>
+        concept ElementKey = ElementVisitor<F, R> && req::comparable<std::remove_cvref_t<std::invoke_result_t<F&, std::ranges::range_reference_t<R>>>>;
+
         template<class Cmp, class R>
         concept ElementOrder = std::strict_weak_order<Cmp&, std::ranges::range_reference_t<const R>, std::ranges::range_reference_t<const R>>;
+
+        // When the mixins' methods cannot throw: the element's < and ==
+        // with what it is compared to, and the caller's predicate, visitor
+        // or comparator called on the elements (taken by value, so copied
+        // too); a sort's moves and swaps of the elements. The methods are
+        // noexcept as far as these are: nothing else they do can throw.
+        // Read in the methods' noexcept only, where R is complete
+        template<class R>
+        using ElementValue = std::ranges::range_value_t<R>;
+
+        template<class R>
+        using ElementReference = std::ranges::range_reference_t<R>;
+
+        template<class A, class B = A>
+        inline constexpr bool nothrow_less = noexcept(bool(std::declval<const A&>() < std::declval<const B&>()));
+
+        template<class A, class B = A>
+        inline constexpr bool nothrow_equal = noexcept(bool(std::declval<const A&>() == std::declval<const B&>()));
+
+        template<class F, class... A>
+        inline constexpr bool nothrow_callback = std::is_nothrow_copy_constructible_v<F> && std::is_nothrow_invocable_v<F&, A...>;
+
+        template<class T>
+        inline constexpr bool nothrow_permutable = std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T> && std::is_nothrow_swappable_v<T>;
     }
 }

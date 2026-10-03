@@ -250,6 +250,33 @@ TEST(NetDial_Tests, DeadlineAndStop) {
     sgcl::async::scheduler::stop();
 }
 
+// A deadline passed before the race starts is ETIMEDOUT and no attempt,
+// as a stop that came first is ECANCELED: an attempt that connects at once
+// won the select against the timer before, on some runs, and a connect
+// with a timeout of zero (or less) connected
+TEST(NetDial_Tests, ADeadlinePassedBeforeTheStart) {
+    tracked_ptr<Dialer> d = make_tracked<Dialer>();
+    d->scripts[ep("192.0.2.1").address()] = Script::at_once;
+    d->scripts[ep("2001:db8::1").address()] = Script::at_once;
+    for (int i : range(200)) {
+        (void)i;
+        auto past = sgcl::clock::now() - 1s;
+        auto one = spawn(race(targets_of({"192.0.2.1"}), d, stop_token(), past)).wait();
+        ASSERT_FALSE(one);
+        EXPECT_TRUE(one.error().is_timeout()) << one.error().message();
+        auto two = spawn(race(targets_of({"2001:db8::1", "192.0.2.1"}), d, stop_token(), sgcl::clock::now())).wait();
+        ASSERT_FALSE(two);
+        EXPECT_TRUE(two.error().is_timeout()) << two.error().message();
+    }
+    EXPECT_TRUE(d->starts().empty());
+    stop_source src;
+    src.request_stop();
+    auto both = spawn(race(targets_of({"192.0.2.1"}), d, src.token(), sgcl::clock::now() - 1s)).wait();
+    ASSERT_FALSE(both);
+    EXPECT_EQ(both.error().code(), std::errc::operation_canceled);   // the stop first, as everywhere
+    sgcl::async::scheduler::stop();
+}
+
 // A name dialed over the loopback. localhost has both families on macOS,
 // ::1 first: the listener is on 127.0.0.1 alone, so ::1 is refused and the
 // race goes on to 127.0.0.1, which answers. A resolver that gives one
@@ -350,6 +377,27 @@ TEST(NetDns_Tests, NumbersWithoutThePool) {
     ASSERT_TRUE(v6);
     EXPECT_EQ((*v6)[0].to_string(), "fe80::1%lo0");
     EXPECT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 0u);   // no thread was started for them
+}
+
+// The task forms start nothing at the call: the pool's job begins when the
+// task first runs, so a task made and never awaited costs no thread, and
+// the call itself cannot throw
+TEST(NetDns_Tests, TheTaskFormsStartLazily) {
+    const sgcl::string host("localhost");
+    const ip_address loopback = ip_address::loopback_v4();
+    static_assert(noexcept(dns::async_lookup(host)));
+    static_assert(noexcept(dns::async_reverse_lookup(loopback)));
+    sgcl::async::blocking_pool::stop();
+    ASSERT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 0u);
+    {
+        auto forward = dns::async_lookup(host);
+        auto reverse = dns::async_reverse_lookup(loopback);
+        EXPECT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 0u);
+    }
+    EXPECT_EQ(sgcl::async::blocking_pool::get_statistics().threads, 0u);
+    auto names = spawn(dns::async_reverse_lookup(ip_address::loopback_v4())).wait();
+    ASSERT_TRUE(names) << names.error().message();
+    EXPECT_FALSE(names->empty());
 }
 
 TEST(NetDns_Tests, AWaitEndedByItsTokenOrItsDeadline) {

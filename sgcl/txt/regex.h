@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/bytes.h"
 #include "../core/expected.h"
 #include "../core/make_tracked.h"
 #include "../core/mixin/enumerable.h"
@@ -53,7 +54,7 @@ namespace sgcl::txt {
     namespace detail {
         // A compiled pattern: the program the machine runs and the text
         // it was made from, which the group names point into. It lives in
-        // a managed object, so a regex is two words to copy and a match
+        // a managed object, so a regex is one word to copy and a match
         // keeps alive exactly what it needs to answer questions about
         // itself after the regex it came from is gone.
         struct regex_state {
@@ -75,24 +76,24 @@ namespace sgcl::txt {
             match_slots() noexcept {
             }
 
-            match_slots(const match_slots& other) {
+            match_slots(const match_slots& other) noexcept {
                 _copy(other);
             }
 
-            match_slots& operator=(const match_slots& other) {
+            match_slots& operator=(const match_slots& other) noexcept {
                 if (this != &other) {
                     _copy(other);
                 }
                 return *this;
             }
 
-            void assign(const size_t* from, size_t n) {
+            void assign(const size_t* from, size_t n) noexcept {
                 _size = n;
                 if (n <= Inline) {
-                    std::copy(from, from + n, _inline);
+                    sgcl::detail::copy_bytes(_inline, from, n * sizeof(size_t));
                 } else {
                     _more.reset(new size_t[n]);
-                    std::copy(from, from + n, _more.get());
+                    sgcl::detail::copy_bytes(_more.get(), from, n * sizeof(size_t));
                 }
             }
 
@@ -107,10 +108,10 @@ namespace sgcl::txt {
         private:
             static constexpr size_t Inline = 8;
 
-            void _copy(const match_slots& other) {
+            void _copy(const match_slots& other) noexcept {
                 if (other._size <= Inline) {
                     _size = other._size;
-                    std::copy(other._inline, other._inline + _size, _inline);
+                    sgcl::detail::copy_bytes(_inline, other._inline, _size * sizeof(size_t));
                 } else {
                     assign(other._more.get(), other._size);
                 }
@@ -133,12 +134,12 @@ namespace sgcl::txt {
     // what to do, and an empty optional does not.
     class regex_error {
     public:
-        regex_error(const string& message, size_t offset)
+        regex_error(const string& message, size_t offset) noexcept
         : _message(message)
         , _offset(offset) {
         }
 
-        string message() const {
+        string message() const noexcept {
             return _message;
         }
 
@@ -257,7 +258,7 @@ namespace sgcl::txt {
         // with neither — which is most of what contains() and split() are
         // given — costs no reference count at all.
         static match _made(const tracked_ptr<const detail::regex_state>& state,
-                           const slice<const char>& subject, const size_t* caps) {
+                           const slice<const char>& subject, const size_t* caps) noexcept {
             match m;
             m._subject = subject;
             m._begin = caps[0];
@@ -307,6 +308,13 @@ namespace sgcl::txt {
 
             iterator() noexcept = default;
 
+            // A move is a copy, as it is of every handle of the library:
+            // the iterator moved from stands where it stood and can still
+            // be stepped (a moved shared_ptr would have left it without
+            // its machine)
+            iterator(const iterator&) noexcept = default;
+            iterator& operator=(const iterator&) noexcept = default;
+
             const match& operator*() const noexcept {
                 return _match;
             }
@@ -315,12 +323,12 @@ namespace sgcl::txt {
                 return &_match;
             }
 
-            iterator& operator++() {
+            iterator& operator++() noexcept {
                 _step(_next);
                 return *this;
             }
 
-            iterator operator++(int) {
+            iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
@@ -333,7 +341,7 @@ namespace sgcl::txt {
         private:
             friend class regex_matches;
 
-            iterator(tracked_ptr<const detail::regex_state> state, const slice<const char>& text)
+            iterator(tracked_ptr<const detail::regex_state> state, const slice<const char>& text) noexcept
             : _state(std::move(state))
             , _text(text) {
                 if (_state) {
@@ -365,7 +373,7 @@ namespace sgcl::txt {
                 _step(0);
             }
 
-            void _step(size_t from) {
+            void _step(size_t from) noexcept {
                 if (!_state || from > _text.size()) {
                     _done = true;
                     return;
@@ -405,7 +413,29 @@ namespace sgcl::txt {
         using const_iterator = iterator;
 
         regex_matches() noexcept = default;
-        regex_matches(const regex& re, const slice<const char>& text);
+
+        // A copy is the range again; a range moved from is the empty one,
+        // as the one made with nothing
+        regex_matches(const regex_matches&) = default;
+        regex_matches& operator=(const regex_matches&) = default;
+
+        regex_matches(regex_matches&& other) noexcept
+        : _state(other._state)
+        , _text(other._text) {
+            other._state = nullptr;
+            other._text = slice<const char>();
+        }
+
+        regex_matches& operator=(regex_matches&& other) noexcept {
+            if (this != &other) {
+                _state = other._state;
+                _text = other._text;
+                other._state = nullptr;
+                other._text = slice<const char>();
+            }
+            return *this;
+        }
+        regex_matches(const regex& re, const slice<const char>& text) noexcept;
 
         // A C text, copied into a string the range then holds: the
         // slice of a literal's array would count its terminating zero
@@ -420,7 +450,7 @@ namespace sgcl::txt {
         : regex_matches(re, detail::c_string(text).as_slice()) {
         }
 
-        iterator begin() const {
+        iterator begin() const noexcept {
             return iterator(_state, _text);
         }
 
@@ -428,12 +458,12 @@ namespace sgcl::txt {
             return iterator();
         }
 
-        bool empty() const {
+        bool empty() const noexcept {
             return begin() == end();
         }
 
         // Walked and counted, not stored
-        size_type count() const {
+        size_type count() const noexcept {
             size_t n = 0;
             for (auto it = begin(); it != end(); ++it) {
                 ++n;
@@ -496,19 +526,19 @@ namespace sgcl::txt {
         };
     }
 
-    // A compiled pattern: two words to copy and safe to share between
+    // A compiled pattern: one word to copy and safe to share between
     // threads, since nothing in it changes after it is built and the
     // machine that runs it keeps its own scratch for one search.
     class regex {
     public:
         // From a literal, which the compiler has already read
-        regex(const detail::regex_pattern& pattern)
+        regex(const detail::regex_pattern& pattern) noexcept
         : _state(_built(string(pattern.view().data(), pattern.view().size()))) {
         }
 
         // From a pattern the program only has where it runs: either the
         // regex or the reason it is not one
-        static expected<regex, regex_error> compile(const string& pattern) {
+        static expected<regex, regex_error> compile(const string& pattern) noexcept {
             return _compile(pattern);
         }
 
@@ -554,57 +584,60 @@ namespace sgcl::txt {
         // at the match a backtracking engine would have preferred, which
         // may be the shorter one, and the question here is whether the
         // longer one exists at all.
-        bool full_match(const slice<const char>& text) const {
+        bool full_match(const slice<const char>& text) const noexcept {
             size_t caps[2];
-            detail::matcher machine(_state->prog, _view(text), 2);
+            detail::matcher machine(detail::LentBlock{}, _state->prog, _view(text), 2);
             return machine.run(0, caps, true);
         }
 
-        bool full_match(const string& text) const {
+        bool full_match(const string& text) const noexcept {
             return full_match(text.as_slice());
         }
 
         template<size_t N>
-        bool full_match(const char (&text)[N]) const {
+        bool full_match(const char (&text)[N]) const noexcept {
             return full_match(detail::c_text(text));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        bool full_match(P text) const {
+        bool full_match(P text) const noexcept {
             return full_match(detail::c_text(text));
         }
 
         // Whether the pattern is anywhere in the text
-        bool contains(const slice<const char>& text) const {
+        bool contains(const slice<const char>& text) const noexcept {
             size_t caps[2];
-            detail::matcher machine(_state->prog, _view(text), 2);
+            detail::matcher machine(detail::LentBlock{}, _state->prog, _view(text), 2);
             return machine.run(0, caps);
         }
 
-        bool contains(const string& text) const {
+        bool contains(const string& text) const noexcept {
             return contains(text.as_slice());
         }
 
         template<size_t N>
-        bool contains(const char (&text)[N]) const {
+        bool contains(const char (&text)[N]) const noexcept {
             return contains(detail::c_text(text));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        bool contains(P text) const {
+        bool contains(P text) const noexcept {
             return contains(detail::c_text(text));
         }
 
         // The first match at or after `from`, leftmost and then by the
         // order the pattern puts its branches in
-        optional<match> find(const slice<const char>& text, size_t from = 0) const {
+        optional<match> find(const slice<const char>& text, size_t from = 0) const noexcept {
             if (from > text.size()) {
                 return nullopt;
             }
+            if (from && from < text.size()) {
+                from = _point_start(text, from);
+            }
             size_t ncap = _ncap();
-            detail::matcher machine(_state->prog, _view(text), ncap);
+            detail::matcher machine(detail::LentBlock{}, _state->prog, _view(text), ncap);
             size_t room[detail::InlineCaps];
             std::vector<size_t> wider;
             size_t* caps = room;
@@ -618,7 +651,7 @@ namespace sgcl::txt {
             return match::_made(_state, text, caps);
         }
 
-        optional<match> find(const string& text, size_t from = 0) const {
+        optional<match> find(const string& text, size_t from = 0) const noexcept {
             return find(text.as_slice(), from);
         }
 
@@ -635,11 +668,11 @@ namespace sgcl::txt {
         }
 
         // Every match, one after another and never overlapping
-        regex_matches all(const slice<const char>& text) const {
+        regex_matches all(const slice<const char>& text) const noexcept {
             return regex_matches(*this, text);
         }
 
-        regex_matches all(const string& text) const {
+        regex_matches all(const string& text) const noexcept {
             return regex_matches(*this, text.as_slice());
         }
 
@@ -654,22 +687,22 @@ namespace sgcl::txt {
             return regex_matches(*this, text);
         }
 
-        size_t count(const slice<const char>& text) const {
+        size_t count(const slice<const char>& text) const noexcept {
             return all(text).count();
         }
 
-        size_t count(const string& text) const {
+        size_t count(const string& text) const noexcept {
             return count(text.as_slice());
         }
 
         template<size_t N>
-        size_t count(const char (&text)[N]) const {
+        size_t count(const char (&text)[N]) const noexcept {
             return count(detail::c_text(text));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        size_t count(P text) const {
+        size_t count(P text) const noexcept {
             return count(detail::c_text(text));
         }
 
@@ -724,7 +757,7 @@ namespace sgcl::txt {
         // The pieces of the text between the matches, as slices of it. A
         // limit of n gives at most n pieces, the last of them the whole
         // rest of the text; zero is no limit.
-        vector<slice<const char>> split(const slice<const char>& text, size_t limit = 0) const {
+        vector<slice<const char>> split(const slice<const char>& text, size_t limit = 0) const noexcept {
             vector<slice<const char>> out;
             // where the next piece begins, and where the next search
             // does: a match of no width moves the second on by a whole
@@ -733,7 +766,7 @@ namespace sgcl::txt {
             size_t piece = 0;
             size_t search = 0;
             size_t caps[2];
-            detail::matcher machine(_state->prog, _view(text), 2);
+            detail::matcher machine(detail::LentBlock{}, _state->prog, _view(text), 2);
             while (!limit || out.size() + 1 < limit) {
                 if (search > text.size() || !machine.run(search, caps)) {
                     break;
@@ -750,7 +783,7 @@ namespace sgcl::txt {
             return out;
         }
 
-        vector<slice<const char>> split(const string& text, size_t limit = 0) const {
+        vector<slice<const char>> split(const string& text, size_t limit = 0) const noexcept {
             return split(text.as_slice(), limit);
         }
 
@@ -789,7 +822,7 @@ namespace sgcl::txt {
 
         // For a pattern already known to be one: the compiler read the
         // literal, so nothing here can fail
-        static tracked_ptr<const detail::regex_state> _built(const string& pattern) {
+        static tracked_ptr<const detail::regex_state> _built(const string& pattern) noexcept {
             auto state = make_tracked<detail::regex_state>();
             state->pattern = pattern;
             detail::regex_tree tree;
@@ -798,7 +831,7 @@ namespace sgcl::txt {
             return tracked_ptr<const detail::regex_state>(std::move(state));
         }
 
-        static expected<regex, regex_error> _compile(const string& pattern) {
+        static expected<regex, regex_error> _compile(const string& pattern) noexcept {
             detail::regex_tree tree;
             auto fault = detail::regex_parser(pattern.view()).parse(tree);
             detail::program prog;
@@ -819,6 +852,25 @@ namespace sgcl::txt {
             return regex(tracked_ptr<const detail::regex_state>(std::move(state)));
         }
 
+        // Where a search from byte `at` starts: there, or past the code
+        // point `at` stands inside. The walk is over code points and a
+        // match never begins inside one; a byte that belongs to no whole
+        // code point (a lone continuation byte, a cut sequence) is one of
+        // its own, as the machine reads it, and stays where it is.
+        static size_t _point_start(const slice<const char>& text, size_t at) noexcept {
+            if ((uint8_t(text[at]) & 0xC0) != 0x80) {
+                return at;
+            }
+            std::string_view view(text.data(), text.size());
+            for (size_t back = 1; back <= 3 && back <= at; ++back) {
+                if ((uint8_t(view[at - back]) & 0xC0) != 0x80) {
+                    size_t n = utf8::decode(view, at - back).second;
+                    return n > back ? at - back + n : at;
+                }
+            }
+            return at;
+        }
+
         static size_t _one_point(const slice<const char>& text, size_t at) noexcept {
             if (at >= text.size()) {
                 return 1;
@@ -831,7 +883,7 @@ namespace sgcl::txt {
         // replacement is written by a person and a missing group is far
         // more often a typing mistake than a request for the text "$7".
         void _expand(std::string& out, std::string_view with, std::string_view text,
-                     const size_t* caps, size_t ncap) const {
+                     const size_t* caps, size_t ncap) const noexcept {
             for (size_t i = 0; i < with.size();) {
                 if (with[i] != '$') {
                     size_t next = with.find('$', i);
@@ -928,7 +980,7 @@ namespace sgcl::txt {
             out.reserve(text.size());
             std::string_view view = _view(text);
             size_t ncap = _ncap();
-            detail::matcher machine(_state->prog, view, ncap);
+            detail::matcher machine(detail::LentBlock{}, _state->prog, view, ncap);
             size_t room[detail::InlineCaps];
             std::vector<size_t> wider;
             size_t* caps = room;
@@ -959,7 +1011,7 @@ namespace sgcl::txt {
         tracked_ptr<const detail::regex_state> _state;
     };
 
-    inline regex_matches::regex_matches(const regex& re, const slice<const char>& text)
+    inline regex_matches::regex_matches(const regex& re, const slice<const char>& text) noexcept
     : _state(re._state)
     , _text(text) {
     }

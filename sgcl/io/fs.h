@@ -66,8 +66,8 @@ namespace sgcl::io {
         bool is_symlink() const noexcept { return type == file_type::symlink; }
     };
 
-    expected<file_info, error> stat(const string& path);
-    expected<file_info, error> lstat(const string& path);
+    expected<file_info, error> stat(const string& path) noexcept;
+    expected<file_info, error> lstat(const string& path) noexcept;
 
     // An entry of a directory listing: the name and the type come from
     // the listing itself, the rest (info()) from a stat when asked
@@ -78,7 +78,7 @@ namespace sgcl::io {
 
         bool is_directory() const noexcept { return type == file_type::directory; }
 
-        expected<file_info, error> info() const {
+        expected<file_info, error> info() const noexcept {
             return lstat(path);
         }
     };
@@ -112,7 +112,7 @@ namespace sgcl::io {
             }
         }
 
-        inline file_info info_of(const struct ::stat& st, const string& path) {
+        inline file_info info_of(const struct ::stat& st, const string& path) noexcept {
             file_info i;
             i.name = io::path::base(path);
             i.size = static_cast<uint64_t>(st.st_size);
@@ -127,11 +127,11 @@ namespace sgcl::io {
             return i;
         }
 
-        inline error fs_error(error_code ec, const char* op, const string& path) {
+        inline error fs_error(error_code ec, const char* op, const string& path) noexcept {
             return error(ec, op, path);
         }
 
-        inline fs::path fs_path(const string& p) {
+        inline fs::path fs_path(const string& p) noexcept {
             return fs::path(p.str());
         }
 
@@ -139,12 +139,12 @@ namespace sgcl::io {
         // f holds copies of the arguments (a task is lazy, the caller's
         // may be gone before it runs)
         template<class F>
-        async::task<std::invoke_result_t<F&>> on_pool(F f) {
+        async::task<std::invoke_result_t<F&>> on_pool(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             co_return co_await async::spawn_blocking(std::move(f));
         }
     }
 
-    inline expected<file_info, error> stat(const string& path) {
+    inline expected<file_info, error> stat(const string& path) noexcept {
         struct ::stat st;
         if (::stat(path.c_str(), &st) != 0) {
             return detail::fail(last_error("stat", path));
@@ -152,7 +152,7 @@ namespace sgcl::io {
         return detail::info_of(st, path);
     }
 
-    inline expected<file_info, error> lstat(const string& path) {
+    inline expected<file_info, error> lstat(const string& path) noexcept {
         struct ::stat st;
         if (::lstat(path.c_str(), &st) != 0) {
             return detail::fail(last_error("lstat", path));
@@ -162,11 +162,11 @@ namespace sgcl::io {
 
     // `stat(...)` on this thread, `co_await async_stat(...)` in a task (a
     // stat of a path on a slow or network disk waits as a read does)
-    inline async::task<expected<file_info, error>> async_stat(const string& path) {
+    inline async::task<expected<file_info, error>> async_stat(const string& path) noexcept {
         return detail::on_pool([path] { return stat(path); });
     }
 
-    inline async::task<expected<file_info, error>> async_lstat(const string& path) {
+    inline async::task<expected<file_info, error>> async_lstat(const string& path) noexcept {
         return detail::on_pool([path] { return lstat(path); });
     }
 
@@ -190,7 +190,7 @@ namespace sgcl::io {
 
     // One directory (an error when the parent is missing or it exists);
     // the whole chain, existing ones left alone (mkdir -p)
-    inline expected<void, error> mkdir(const string& path, permissions p = permissions(0777)) {
+    inline expected<void, error> mkdir(const string& path, permissions p = permissions(0777)) noexcept {
         if (::mkdir(path.c_str(), static_cast<mode_t>(p)) != 0) {
             return detail::fail(last_error("mkdir", path));
         }
@@ -198,11 +198,11 @@ namespace sgcl::io {
     }
 
     // `mkdir(...)` on this thread, `co_await async_mkdir(...)` in a task
-    inline async::task<expected<void, error>> async_mkdir(const string& path, permissions p = permissions(0777)) {
+    inline async::task<expected<void, error>> async_mkdir(const string& path, permissions p = permissions(0777)) noexcept {
         return detail::on_pool([path, p] { return mkdir(path, p); });
     }
 
-    inline expected<void, error> mkdir_all(const string& path, permissions p = permissions(0777)) {
+    inline expected<void, error> mkdir_all(const string& path, permissions p = permissions(0777)) noexcept {
         string clean = io::path::clean(path);
         size_t pos = 0;
         while (pos < clean.size()) {
@@ -223,13 +223,13 @@ namespace sgcl::io {
     }
 
     // `mkdir_all(...)` on this thread, `co_await async_mkdir_all(...)` in a task
-    inline async::task<expected<void, error>> async_mkdir_all(const string& path, permissions p = permissions(0777)) {
+    inline async::task<expected<void, error>> async_mkdir_all(const string& path, permissions p = permissions(0777)) noexcept {
         return detail::on_pool([path, p] { return mkdir_all(path, p); });
     }
 
     // A file, a symlink or an empty directory; everything under the path
     // and the path itself, nothing there being no error for remove_all
-    inline expected<void, error> remove(const string& path) {
+    inline expected<void, error> remove(const string& path) noexcept {
         error_code ec;
         bool removed = detail::fs::remove(detail::fs_path(path), ec);
         if (ec) {
@@ -242,11 +242,24 @@ namespace sgcl::io {
     }
 
     // `remove(...)` on this thread, `co_await async_remove(...)` in a task
-    inline async::task<expected<void, error>> async_remove(const string& path) {
+    inline async::task<expected<void, error>> async_remove(const string& path) noexcept {
         return detail::on_pool([path] { return remove(path); });
     }
 
-    inline expected<void, error> remove_all(const string& path) {
+    // A path whose last element is "." or ".." is refused before anything is
+    // removed: rmdir refuses it at the end, after the entries under it are
+    // gone (Go's RemoveAll refuses ".")
+    inline expected<void, error> remove_all(const string& path) noexcept {
+        std::string_view last(path);
+        while (last.size() > 1 && last.back() == '/') {
+            last.remove_suffix(1);
+        }
+        if (auto slash = last.rfind('/'); slash != std::string_view::npos) {
+            last.remove_prefix(slash + 1);
+        }
+        if (last == "." || last == "..") {
+            return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "remove_all", path));
+        }
         error_code ec;
         detail::fs::remove_all(detail::fs_path(path), ec);
         if (ec) {
@@ -256,13 +269,13 @@ namespace sgcl::io {
     }
 
     // `remove_all(...)` on this thread, `co_await async_remove_all(...)` in a task
-    inline async::task<expected<void, error>> async_remove_all(const string& path) {
+    inline async::task<expected<void, error>> async_remove_all(const string& path) noexcept {
         return detail::on_pool([path] { return remove_all(path); });
     }
 
     // Moves, replacing what is at the new path (rename(2)); copies the
     // bytes and the permissions of a regular file, replacing the target
-    inline expected<void, error> rename(const string& from, const string& to) {
+    inline expected<void, error> rename(const string& from, const string& to) noexcept {
         if (::rename(from.c_str(), to.c_str()) != 0) {
             return detail::fail(last_error("rename", from));
         }
@@ -270,11 +283,11 @@ namespace sgcl::io {
     }
 
     // `rename(...)` on this thread, `co_await async_rename(...)` in a task
-    inline async::task<expected<void, error>> async_rename(const string& from, const string& to) {
+    inline async::task<expected<void, error>> async_rename(const string& from, const string& to) noexcept {
         return detail::on_pool([from, to] { return rename(from, to); });
     }
 
-    inline expected<void, error> copy_file(const string& from, const string& to) {
+    inline expected<void, error> copy_file(const string& from, const string& to) noexcept {
         error_code ec;
         detail::fs::copy_file(detail::fs_path(from), detail::fs_path(to), detail::fs::copy_options::overwrite_existing, ec);
         if (ec) {
@@ -284,11 +297,11 @@ namespace sgcl::io {
     }
 
     // `copy_file(...)` on this thread, `co_await async_copy_file(...)` in a task
-    inline async::task<expected<void, error>> async_copy_file(const string& from, const string& to) {
+    inline async::task<expected<void, error>> async_copy_file(const string& from, const string& to) noexcept {
         return detail::on_pool([from, to] { return copy_file(from, to); });
     }
 
-    inline expected<void, error> symlink(const string& target, const string& link) {
+    inline expected<void, error> symlink(const string& target, const string& link) noexcept {
         if (::symlink(target.c_str(), link.c_str()) != 0) {
             return detail::fail(last_error("symlink", link));
         }
@@ -296,11 +309,11 @@ namespace sgcl::io {
     }
 
     // `symlink(...)` on this thread, `co_await async_symlink(...)` in a task
-    inline async::task<expected<void, error>> async_symlink(const string& target, const string& link) {
+    inline async::task<expected<void, error>> async_symlink(const string& target, const string& link) noexcept {
         return detail::on_pool([target, link] { return symlink(target, link); });
     }
 
-    inline expected<string, error> read_link(const string& link) {
+    inline expected<string, error> read_link(const string& link) noexcept {
         error_code ec;
         auto target = detail::fs::read_symlink(detail::fs_path(link), ec);
         if (ec) {
@@ -309,7 +322,7 @@ namespace sgcl::io {
         return string(target.native());
     }
 
-    inline expected<void, error> chmod(const string& path, permissions p) {
+    inline expected<void, error> chmod(const string& path, permissions p) noexcept {
         if (::chmod(path.c_str(), static_cast<mode_t>(p)) != 0) {
             return detail::fail(last_error("chmod", path));
         }
@@ -317,17 +330,21 @@ namespace sgcl::io {
     }
 
     // `chmod(...)` on this thread, `co_await async_chmod(...)` in a task
-    inline async::task<expected<void, error>> async_chmod(const string& path, permissions p) {
+    inline async::task<expected<void, error>> async_chmod(const string& path, permissions p) noexcept {
         return detail::on_pool([path, p] { return chmod(path, p); });
     }
 
-    inline expected<void, error> set_modified(const string& path, file_time t) {
-        auto ns = t.time_since_epoch();
+    inline expected<void, error> set_modified(const string& path, file_time t) noexcept {
+        // whole seconds rounded down and the nanoseconds past them, 0 to
+        // 999999999: a time before 1970 with a fraction has a negative
+        // remainder, which utimensat refuses, or takes for UTIME_NOW (-1)
+        // and UTIME_OMIT (-2)
+        auto secs = std::chrono::floor<std::chrono::seconds>(t.time_since_epoch());
         struct timespec times[2];
         times[0].tv_sec = 0;
         times[0].tv_nsec = UTIME_OMIT;
-        times[1].tv_sec = static_cast<time_t>(std::chrono::duration_cast<std::chrono::seconds>(ns).count());
-        times[1].tv_nsec = static_cast<long>((ns % std::chrono::seconds(1)).count());
+        times[1].tv_sec = static_cast<time_t>(secs.count());
+        times[1].tv_nsec = static_cast<long>((t.time_since_epoch() - secs).count());
         if (::utimensat(AT_FDCWD, path.c_str(), times, 0) != 0) {
             return detail::fail(last_error("set_modified", path));
         }
@@ -336,7 +353,7 @@ namespace sgcl::io {
 
     // The entries of a directory, sorted by name, "." and ".." left out
     namespace detail {
-    inline expected<vector<directory_entry>, error> _block_read_dir(const string& path)  {
+    inline expected<vector<directory_entry>, error> _block_read_dir(const string& path) noexcept {
         error_code ec;
         detail::fs::directory_iterator it(detail::fs_path(path), ec);
         if (ec) {
@@ -361,17 +378,17 @@ namespace sgcl::io {
     }
 
     namespace detail {
-    inline async::task<expected<vector<directory_entry>, error>> _co_read_dir(string path)  {   // by value: a task is lazy, the caller's string may be gone before it runs
+    inline async::task<expected<vector<directory_entry>, error>> _co_read_dir(string path) noexcept {   // by value: a task is lazy, the caller's string may be gone before it runs
         co_return co_await async::spawn_blocking([path] { return _block_read_dir(path); });
     }
     }
 
     // `read_dir(...)` on this thread, `co_await async_read_dir(...)` in a task
-    inline expected<vector<directory_entry>, error> read_dir(const string& path) {
+    inline expected<vector<directory_entry>, error> read_dir(const string& path) noexcept {
         return detail::_block_read_dir(path);
     }
 
-    inline async::task<expected<vector<directory_entry>, error>> async_read_dir(const string& path) {
+    inline async::task<expected<vector<directory_entry>, error>> async_read_dir(const string& path) noexcept {
         return detail::_co_read_dir(path);
     }
 
@@ -380,8 +397,15 @@ namespace sgcl::io {
     enum class walk_action { next, skip_dir, stop };
 
     namespace detail {
+        // Whether the function given to a walk cannot throw (the program's
+        // own: a lambda may)
         template<class F>
-        walk_action walk(const string& dir, F& f) {
+        inline constexpr bool NothrowWalk = std::is_nothrow_invocable_v<F&, directory_entry&, optional<error>>
+                                         && std::is_nothrow_invocable_v<F&, const directory_entry&, optional<error>>
+                                         && std::is_nothrow_invocable_v<F&, directory_entry, optional<error>>;
+
+        template<class F>
+        walk_action walk(const string& dir, F& f) noexcept(NothrowWalk<F>) {
             auto entries = _block_read_dir(dir);
             if (!entries) {
                 return f(directory_entry{io::path::base(dir), dir, file_type::directory}, optional<error>(entries.error())) == walk_action::stop ? walk_action::stop : walk_action::next;
@@ -407,7 +431,7 @@ namespace sgcl::io {
     // once, as the error with its entry, and the walk goes on; root
     // itself is not reported. Symlinks are not followed.
     template<class F>
-    expected<void, error> walk_dir(const string& root, F f) {
+    expected<void, error> walk_dir(const string& root, F f) noexcept(detail::NothrowWalk<F>) {
         auto info = lstat(root);
         if (!info) {
             return detail::fail(info);
@@ -424,7 +448,7 @@ namespace sgcl::io {
         // called in the task, in the same order as walk(); a stack of the
         // listings instead of recursion
         template<class F>
-        async::task<expected<void, error>> _co_walk_dir(string root, F f) {   // by value: a task is lazy
+        async::task<expected<void, error>> _co_walk_dir(string root, F f) noexcept(std::is_nothrow_move_constructible_v<F>) {   // by value: a task is lazy
             auto info = co_await async_lstat(root);
             if (!info) {
                 co_return detail::fail(info);
@@ -471,7 +495,7 @@ namespace sgcl::io {
     // `walk_dir(...)` on this thread, `co_await async_walk_dir(...)` in a
     // task: the directories read on the blocking pool, f called in the task
     template<class F>
-    async::task<expected<void, error>> async_walk_dir(const string& root, F f) {
+    async::task<expected<void, error>> async_walk_dir(const string& root, F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
         return detail::_co_walk_dir(root, std::move(f));
     }
 }

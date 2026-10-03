@@ -189,7 +189,7 @@ namespace sgcl::slog::detail {
     // format_value, to_text, to_string), then fields. What matches none is
     // an error of the build, not a %v
     template<class T>
-    constexpr Category category_of() {
+    constexpr Category category_of() noexcept {
         using U = std::remove_cv_t<T>;
         if constexpr (IsCharacter<U>) {
             return Category::Character;
@@ -250,7 +250,7 @@ namespace sgcl::slog::detail {
 
     // The text an exception says of itself, as on_unhandled writes it:
     // its type and what()
-    inline std::string exception_text(const std::exception_ptr& e) {
+    inline std::string exception_text(const std::exception_ptr& e) noexcept {
         try {
             std::rethrow_exception(e);
         } catch (const std::exception& x) {
@@ -266,7 +266,7 @@ namespace sgcl::slog::detail {
     }
 
     // io::error's message() without the managed string it makes
-    inline std::string io_error_text(const io::error& e) {
+    inline std::string io_error_text(const io::error& e) noexcept {
         std::string m(e.op().data(), e.op().size());
         if (!e.path().empty()) {
             m += ' ';
@@ -280,7 +280,7 @@ namespace sgcl::slog::detail {
     }
 
     template<class T>
-    size_t write_text_of(const void* p, char* out, size_t room) {
+    size_t write_text_of(const void* p, char* out, size_t room) noexcept(noexcept(std::declval<const T&>().write_text(out))) {
         if (room < T::MaxText) {
             return T::MaxText;
         }
@@ -288,7 +288,7 @@ namespace sgcl::slog::detail {
     }
 
     template<class T>
-    size_t format_value_of(const void* p, char* out, size_t room) {
+    size_t format_value_of(const void* p, char* out, size_t room) noexcept(noexcept(format_value(std::declval<txt::format_sink&>(), std::declval<const T&>(), txt::format_spec{}))) {
         txt::format_sink sink(out, room);
         format_value(sink, *static_cast<const T*>(p), txt::format_spec{});
         return sink.size();
@@ -452,7 +452,7 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::IoError> {
-        Holder(const T& x)
+        Holder(const T& x) noexcept
         : text(io_error_text(x)) {
         }
 
@@ -465,7 +465,7 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::ErrorCode> {
-        Holder(const T& x)
+        Holder(const T& x) noexcept
         : text(x.message()) {
         }
 
@@ -478,7 +478,7 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Exception> {
-        Holder(const T& x)
+        Holder(const T& x) noexcept
         : null(!x), text(x ? exception_text(x) : std::string()) {
         }
 
@@ -498,13 +498,13 @@ namespace sgcl::slog::detail {
     struct Holder<T, Category::Optional> {
         using Inner = typename T::value_type;
 
-        Holder(const T& x) {
+        Holder(const T& x) noexcept(std::is_nothrow_constructible_v<Holder<Inner>, const Inner&>) {
             if (x) {
                 inner.emplace(*x);
             }
         }
 
-        void fill(Value& v) const {
+        void fill(Value& v) const noexcept {
             if (inner) {
                 inner->fill(v);
             } else {
@@ -547,7 +547,7 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::ToText> {
-        Holder(const T& x)
+        Holder(const T& x) noexcept(noexcept(string(std::declval<const T&>().to_text())))
         : text(x.to_text()) {
         }
 
@@ -560,7 +560,9 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::ToString> {
-        Holder(const T& x)
+        using Text = std::conditional_t<std::is_same_v<std::remove_cvref_t<decltype(std::declval<const T&>().to_string())>, std::string>, std::string, string>;
+
+        Holder(const T& x) noexcept(noexcept(Text(std::declval<const T&>().to_string())))
         : text(x.to_string()) {
         }
 
@@ -568,7 +570,7 @@ namespace sgcl::slog::detail {
             set_string(v, text.data(), text.size());
         }
 
-        std::conditional_t<std::is_same_v<std::remove_cvref_t<decltype(std::declval<const T&>().to_string())>, std::string>, std::string, string> text;
+        Text text;
     };
 
     template<class T>
@@ -604,7 +606,7 @@ namespace sgcl::slog::detail {
     };
 
     template<class... A>
-    constexpr Layout<sizeof...(A)> layout_of() {
+    constexpr Layout<sizeof...(A)> layout_of() noexcept {
         constexpr size_t N = sizeof...(A);
         Layout<N> l;
         constexpr bool keys[N ? N : 1] = {IsKey<A>...};
@@ -648,13 +650,17 @@ namespace sgcl::slog::detail {
         static_assert(L.error != 3, "slog: a group stands on its own, with its name inside: slog::group(\"req\", \"id\", id), not a value after a key");
         static constexpr size_t Count = L.count;
 
-        explicit Pack(const A&... a)
+        // Whether the holders are made without a throw: what a value of
+        // the program says of itself (to_text, to_string) may throw
+        static constexpr bool NothrowHolders = (std::is_nothrow_constructible_v<Holder<A>, const A&> && ...);
+
+        explicit Pack(const A&... a) noexcept(NothrowHolders)
         : holders(a...) {
             _fill(std::index_sequence_for<A...>{});
         }
 
         template<class Tuple>
-        explicit Pack(const Tuple& t, int)
+        explicit Pack(const Tuple& t, int) noexcept(NothrowHolders)
         : Pack(t, std::index_sequence_for<A...>{}) {
         }
 
@@ -666,18 +672,18 @@ namespace sgcl::slog::detail {
 
     private:
         template<class Tuple, size_t... I>
-        Pack(const Tuple& t, std::index_sequence<I...>)
+        Pack(const Tuple& t, std::index_sequence<I...>) noexcept(NothrowHolders)
         : holders(std::get<I>(t)...) {
             _fill(std::index_sequence_for<A...>{});
         }
 
         template<size_t... I>
-        void _fill(std::index_sequence<I...>) {
+        void _fill(std::index_sequence<I...>) noexcept {
             (_one<I>(), ...);
         }
 
         template<size_t I>
-        void _one() {
+        void _one() noexcept {
             using T = std::tuple_element_t<I, std::tuple<A...>>;
             Attr& a = attrs[L.index[I]];
             const auto& h = std::get<I>(holders);
@@ -699,7 +705,7 @@ namespace sgcl::slog::detail {
     // A group's own holders, made from the references it keeps
     template<class... B>
     struct Holder<slog::group<B...>, Category::Group> {
-        Holder(const slog::group<B...>& g);
+        Holder(const slog::group<B...>& g) noexcept(Pack<B...>::NothrowHolders);
 
         void fill_group(Attr& a) const noexcept {
             a.key = name;
@@ -748,7 +754,7 @@ namespace sgcl::slog {
 
 namespace sgcl::slog::detail {
     template<class... B>
-    Holder<slog::group<B...>, Category::Group>::Holder(const slog::group<B...>& g)
+    Holder<slog::group<B...>, Category::Group>::Holder(const slog::group<B...>& g) noexcept(Pack<B...>::NothrowHolders)
     : name(g._name), name_n(g._name_n), pack(g._args, 0) {
     }
 }

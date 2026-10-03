@@ -117,9 +117,51 @@ namespace sgcl::io {
     }
 
     namespace detail {
+        // Whether the primitive, called the way the stream offers it,
+        // cannot throw: the stream's own method or callable declared
+        // noexcept (a lambda of the program's may throw, and the call
+        // through it then may too)
+        template<class T>
+        constexpr bool nothrow_read() noexcept {
+            if constexpr (MemberRead<T>) {
+                return noexcept(expected<size_t, error>(std::declval<T&>().read(std::declval<const slice<byte>&>())));
+            } else {
+                return noexcept(expected<size_t, error>(std::declval<T&>()(std::declval<const slice<byte>&>())));
+            }
+        }
+
+        template<class T>
+        constexpr bool nothrow_async_read() noexcept {
+            if constexpr (MemberAsyncRead<T>) {
+                return noexcept(std::declval<T&>().async_read(std::declval<const slice<byte>&>()));
+            } else {
+                return noexcept(std::declval<T&>()(std::declval<const slice<byte>&>()));
+            }
+        }
+
+        template<class T>
+        constexpr bool nothrow_write() noexcept {
+            if constexpr (MemberWrite<T>) {
+                return noexcept(expected<size_t, error>(std::declval<T&>().write(std::declval<const slice<const byte>&>())));
+            } else if constexpr (CalledVoidWrite<T>) {
+                return noexcept(std::declval<T&>()(std::declval<const slice<const byte>&>()));
+            } else {
+                return noexcept(expected<size_t, error>(std::declval<T&>()(std::declval<const slice<const byte>&>())));
+            }
+        }
+
+        template<class T>
+        constexpr bool nothrow_async_write() noexcept {
+            if constexpr (MemberAsyncWrite<T>) {
+                return noexcept(std::declval<T&>().async_write(std::declval<const slice<const byte>&>()));
+            } else {
+                return noexcept(std::declval<T&>()(std::declval<const slice<const byte>&>()));
+            }
+        }
+
         // The primitives called the way the stream offers them
         template<class T>
-        expected<size_t, error> call_read(T& t, const slice<byte>& b) {
+        expected<size_t, error> call_read(T& t, const slice<byte>& b) noexcept(nothrow_read<T>()) {
             if constexpr (MemberRead<T>) {
                 return t.read(b);
             } else {
@@ -128,7 +170,7 @@ namespace sgcl::io {
         }
 
         template<class T>
-        async::task<expected<size_t, error>> call_async_read(T& t, const slice<byte>& b) {
+        async::task<expected<size_t, error>> call_async_read(T& t, const slice<byte>& b) noexcept(nothrow_async_read<T>()) {
             if constexpr (MemberAsyncRead<T>) {
                 return t.async_read(b);
             } else {
@@ -137,7 +179,7 @@ namespace sgcl::io {
         }
 
         template<class T>
-        expected<size_t, error> call_write(T& t, const slice<const byte>& b) {
+        expected<size_t, error> call_write(T& t, const slice<const byte>& b) noexcept(nothrow_write<T>()) {
             if constexpr (MemberWrite<T>) {
                 return t.write(b);
             } else if constexpr (CalledVoidWrite<T>) {
@@ -149,7 +191,7 @@ namespace sgcl::io {
         }
 
         template<class T>
-        async::task<expected<size_t, error>> call_async_write(T& t, const slice<const byte>& b) {
+        async::task<expected<size_t, error>> call_async_write(T& t, const slice<const byte>& b) noexcept(nothrow_async_write<T>()) {
             if constexpr (MemberAsyncWrite<T>) {
                 return t.async_write(b);
             } else {

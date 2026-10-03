@@ -421,6 +421,11 @@ namespace {
         EXPECT_THROW((void)c.decapsulate(e.ciphertext.as_slice()), std::logic_error);
         EXPECT_THROW((void)c.encapsulation_key(), std::logic_error);
         EXPECT_THROW((void)c.seed(), std::logic_error);
+        EXPECT_THROW((void)c.clone(), std::logic_error);
+        // == too: it once compared the zeros of a key moved from
+        EXPECT_THROW((void)(c == dk), std::logic_error);
+        EXPECT_THROW((void)(dk == c), std::logic_error);
+        EXPECT_FALSE(noexcept(c == dk));
     }
 
     template<class T>

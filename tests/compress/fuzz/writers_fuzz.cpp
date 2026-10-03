@@ -10,8 +10,9 @@
 // must be the data. For the archives, entries (files written in pieces,
 // directories, links) and their data must come back as written.
 //
-//   deflate, gzip (a header with a name and a comment), zlib (a dictionary
-//   from the input, both sides), lzma (small dictionaries, lc/lp/pb), xz (a
+//   deflate, gzip (a header with a name and a comment; a name of the
+//   data's first bytes reads back as written when it is UTF-8), zlib (a
+//   dictionary from the input, both sides), lzma (small dictionaries, lc/lp/pb), xz (a
 //   check, a BCJ filter or Delta), tar, zip (stored and deflated entries)
 //
 // The 7z writer has its own harness (sevenzip_writer_fuzz.cpp). The input:
@@ -26,6 +27,7 @@
 #include "sgcl/compress/xz.h"
 #include "sgcl/compress/zip.h"
 #include "sgcl/compress/zlib.h"
+#include "sgcl/core/utf8.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -268,11 +270,25 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         o.level = level;
         o.header.name = string("name.txt");
         o.header.comment = string(flags & 1 ? "a comment" : "");
+        if (flags & 2) {
+            // a name of the data's first bytes, NULs made 'x': UTF-8 reads
+            // back as it was written, past ISO 8859-1 too
+            std::string name(reinterpret_cast<const char*>(p), std::min<size_t>(n, 1 + lvl % 24));
+            std::replace(name.begin(), name.end(), '\0', 'x');
+            o.header.name = string(name);
+        }
         {
             compress::gzip::writer w(b, o);
             write_all(w, p, n, write_pz, flags);
         }
         compress::gzip::reader r(b);
+        if (flags & 2) {
+            auto h = r.header();
+            check(h.has_value());
+            if (utf8::valid(o.header.name.view())) {
+                check(h->name == o.header.name);
+            }
+        }
         read_back(r, p, n, read_pz);
         break;
     }

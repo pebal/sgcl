@@ -56,17 +56,17 @@ namespace sgcl {
             return end();
         }
 
-        iterator find(const key_pointer& object) {
+        iterator find(const key_pointer& object) noexcept {
             return object ? iterator(_table.find(object), _table.end()) : end();
         }
 
-        const_iterator find(const key_pointer& object) const {
+        const_iterator find(const key_pointer& object) const noexcept {
             return object ? const_iterator(_table.find(object), _table.end()) : end();
         }
 
         // The object added, unless it is in the set; whether it was added.
         // One search: the entry is made from the pointer when it finds none
-        pair<iterator, bool> insert(const key_pointer& object) {
+        pair<iterator, bool> insert(const key_pointer& object) noexcept {
             assert(object && "a weak_set has no entry for a null pointer");
             auto [node, inserted] = _table._try_emplace(object);
             if (inserted) {
@@ -76,7 +76,7 @@ namespace sgcl {
         }
 
         // The next live entry up to the iterator's own bound
-        iterator erase(iterator pos) {
+        iterator erase(iterator pos) noexcept {
             return iterator(_table.erase(pos.inner()), pos.bound());
         }
 

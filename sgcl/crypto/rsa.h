@@ -18,6 +18,7 @@
 #include "secret.h"
 #include "secure_zero.h"
 #include "../core/aliases.h"
+#include "../core/detail/bytes.h"
 #include "../core/expected.h"
 #include "../core/slice.h"
 #include "../core/string.h"
@@ -26,7 +27,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -71,21 +71,21 @@ namespace sgcl::crypto::detail {
         static constexpr uint64_t max_exponent = (uint64_t(1) << 31) - 1;
         static constexpr size_t der_capacity = 12288;      // a key of max_bits in PKCS #8
 
-        static error key_error(errc code, const char* what) {
+        static error key_error(errc code, const char* what) noexcept {
             return error(code, string(std::string("sgcl::crypto::rsa: ") + what));
         }
 
-        static error der_error(errc code, size_t offset, const char* what) {
+        static error der_error(errc code, size_t offset, const char* what) noexcept {
             return error(code, uint64_t(offset), string(std::string("sgcl::crypto::rsa: ") + what));
         }
 
         // The error of every failed decryption, whatever failed
-        static error decryption_error() {
+        static error decryption_error() noexcept {
             return error(errc::authentication, string("sgcl::crypto::rsa: decryption error"));
         }
 
         template<class W>
-        static vector<byte> take(const W& w) {
+        static vector<byte> take(const W& w) noexcept {
             const byte* p = reinterpret_cast<const byte*>(w.data());
             return vector<byte>(p, p + w.size());
         }
@@ -113,7 +113,7 @@ namespace sgcl::crypto::detail {
         // The AlgorithmIdentifier of an RSA key: rsaEncryption with NULL
         // parameters, as Go reads it (an RSASSA-PSS key, or another
         // algorithm, is unsupported; parameters other than NULL malformed)
-        static expected<void, error> read_algorithm(DerReader& in) {
+        static expected<void, error> read_algorithm(DerReader& in) noexcept {
             DerReader alg;
             size_t at = in.offset();
             if (!in.read(der::sequence, alg)) {
@@ -151,13 +151,13 @@ namespace sgcl::crypto::detail {
         // errc::invalid_key for an even modulus or an exponent that is
         // even or below 3; errc::unsupported for a modulus of fewer than
         // 1024 bits or more than 16384, an exponent above 2^31 - 1
-        static expected<RsaPublicKey, error> from_modulus(const slice<const byte>& n, uint64_t e) {
+        static expected<RsaPublicKey, error> from_modulus(const slice<const byte>& n, uint64_t e) noexcept {
             return _make(detail::bytes(n.data()), n.size(), e, 0);
         }
 
         // An RSAPublicKey of PKCS #1 (RFC 8017 §A.1.1, "RSA PUBLIC KEY" in
         // PEM): SEQUENCE { modulus, publicExponent }
-        static expected<RsaPublicKey, error> from_pkcs1_der(const slice<const byte>& der) {
+        static expected<RsaPublicKey, error> from_pkcs1_der(const slice<const byte>& der) noexcept {
             DerReader in(detail::bytes(der.data()), der.size());
             auto k = _read_pkcs1(in);
             if (k && !in.empty()) {
@@ -168,7 +168,7 @@ namespace sgcl::crypto::detail {
 
         // A SubjectPublicKeyInfo (RFC 5280 §4.1.2.7, RFC 3279 §2.3.1,
         // "PUBLIC KEY" in PEM) of an rsaEncryption key
-        static expected<RsaPublicKey, error> from_pkix_der(const slice<const byte>& der) {
+        static expected<RsaPublicKey, error> from_pkix_der(const slice<const byte>& der) noexcept {
             DerReader in(detail::bytes(der.data()), der.size());
             DerReader seq;
             if (!in.read(der::sequence, seq) || !in.empty()) {
@@ -190,26 +190,47 @@ namespace sgcl::crypto::detail {
             return k;
         }
 
+        // A copy holds the modulus and its constant of its own: an
+        // allocation, nothing that fails otherwise
+        RsaPublicKey(const RsaPublicKey&) noexcept = default;
+        RsaPublicKey& operator=(const RsaPublicKey&) noexcept = default;
+        RsaPublicKey(RsaPublicKey&&) noexcept = default;
+        // Onto itself it stays the key it was (the default would hand the
+        // vectors to themselves, which a std::vector may leave empty)
+        RsaPublicKey& operator=(RsaPublicKey&& other) noexcept {
+            if (this != &other) {
+                _n = std::move(other._n);
+                _rr = std::move(other._rr);
+                _m0inv = other._m0inv;
+                _e = other._e;
+                _bits = other._bits;
+            }
+            return *this;
+        }
+
         // The modulus's bits: 2048 for a 2048-bit key
-        size_t bits() const noexcept {
+        size_t bits() const {
+            _check();
             return _bits;
         }
 
         // The modulus's bytes: the length of a signature and of a
         // ciphertext
-        size_t size() const noexcept {
-            return (_bits + 7) / 8;
+        size_t size() const {
+            _check();
+            return _size();
         }
 
         // n, big-endian, size() bytes
         vector<byte> modulus() const {
             _check();
-            vector<byte> out(size());
-            bn::to_be(detail::bytes(out.data()), size(), _n.data(), _n.size());
+            vector<byte> out(_size());
+            bn::to_be(detail::bytes(out.data()), _size(), _n.data(), _n.size());
             return out;
         }
 
-        uint64_t exponent() const noexcept {
+        uint64_t exponent() const {
+            _check();
             return _e;
         }
 
@@ -251,7 +272,7 @@ namespace sgcl::crypto::detail {
             if (digest.size() != digest_size(id)) {
                 return false;
             }
-            size_t k = size();
+            size_t k = _size();
             std::vector<unsigned char> em(k);
             if (!_open(signature, em.data())) {
                 return false;
@@ -282,6 +303,31 @@ namespace sgcl::crypto::detail {
             return _verify_pss(id, digest, signature, &salt_length);
         }
 
+        // The same three of a message, hashed here by id: verify_digest
+        // and verify_digest_pss of its digest (the digest on the stack).
+        // An id that is none of hash_id's is std::invalid_argument, as
+        // digest_size(id) is
+        [[nodiscard]] bool verify(hash_id id, const slice<const byte>& message, const slice<const byte>& signature) const {
+            return visit_hash(id, [&](auto t) {
+                auto d = decltype(t)::type::of(message);
+                return verify_digest(id, slice<const byte>(d.data(), d.size()), signature);
+            });
+        }
+
+        [[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message, const slice<const byte>& signature) const {
+            return visit_hash(id, [&](auto t) {
+                auto d = decltype(t)::type::of(message);
+                return _verify_pss(id, slice<const byte>(d.data(), d.size()), signature, nullptr);
+            });
+        }
+
+        [[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message, const slice<const byte>& signature, size_t salt_length) const {
+            return visit_hash(id, [&](auto t) {
+                auto d = decltype(t)::type::of(message);
+                return _verify_pss(id, slice<const byte>(d.data(), d.size()), signature, &salt_length);
+            });
+        }
+
         // message encrypted with RSAES-OAEP (RFC 8017 §7.1): the label's
         // hash and MGF1 both by id (Go's EncryptOAEP), an empty label.
         // size() bytes. The message is at most max_oaep_message_size(id)
@@ -306,11 +352,15 @@ namespace sgcl::crypto::detail {
         // The longest message encrypt_oaep takes under id: size() - 2 hLen
         // - 2, or 0 when the key is too small for the hash at all
         size_t max_oaep_message_size(hash_id id) const {
-            size_t h = digest_size(id);
-            return size() >= 2 * h + 2 ? size() - 2 * h - 2 : 0;
+            _check();
+            return _max_oaep(id);
         }
 
-        friend bool operator==(const RsaPublicKey& a, const RsaPublicKey& b) noexcept {
+        // The same modulus and exponent; a key moved from is
+        // std::logic_error, as everywhere
+        friend bool operator==(const RsaPublicKey& a, const RsaPublicKey& b) {
+            a._check();
+            b._check();
             return a._e == b._e && a._n == b._n;
         }
 
@@ -323,10 +373,21 @@ namespace sgcl::crypto::detail {
 
         RsaPublicKey() = default;
 
+        // A key moved from has no modulus (the vectors went with the move;
+        // _bits and _e stay, so every public member checks first)
         void _check() const {
             if (_n.empty()) {
                 moved_from("sgcl::crypto::rsa::public_key");
             }
+        }
+
+        size_t _size() const noexcept {
+            return (_bits + 7) / 8;
+        }
+
+        size_t _max_oaep(hash_id id) const {
+            size_t h = digest_size(id);
+            return _size() >= 2 * h + 2 ? _size() - 2 * h - 2 : 0;
         }
 
         bn::Modulus _mod() const noexcept {
@@ -340,7 +401,7 @@ namespace sgcl::crypto::detail {
             }
         }
 
-        static expected<RsaPublicKey, error> _make(const unsigned char* n, size_t len, uint64_t e, size_t offset) {
+        static expected<RsaPublicKey, error> _make(const unsigned char* n, size_t len, uint64_t e, size_t offset) noexcept {
             while (len != 0 && *n == 0) {
                 ++n;
                 --len;
@@ -379,7 +440,7 @@ namespace sgcl::crypto::detail {
         }
 
         // SEQUENCE { INTEGER n, INTEGER e } at the reader
-        static expected<RsaPublicKey, error> _read_pkcs1(DerReader& in) {
+        static expected<RsaPublicKey, error> _read_pkcs1(DerReader& in) noexcept {
             DerReader seq;
             size_t at = in.offset();
             if (!in.read(der::sequence, seq)) {
@@ -412,7 +473,7 @@ namespace sgcl::crypto::detail {
 
         // INTEGER n, INTEGER e, as the writer takes them (last first)
         template<class W>
-        void _write_numbers(W& w) const {
+        void _write_numbers(W& w) const noexcept {
             unsigned char eb[8];
             for (int i = 0; i < 8; ++i) {
                 eb[i] = static_cast<unsigned char>(_e >> (56 - 8 * i));
@@ -423,7 +484,7 @@ namespace sgcl::crypto::detail {
         }
 
         template<class W>
-        void _write_pkcs1(W& w) const {
+        void _write_pkcs1(W& w) const noexcept {
             size_t mark = w.size();
             _write_numbers(w);
             w.wrap(der::sequence, mark);
@@ -432,7 +493,7 @@ namespace sgcl::crypto::detail {
         // s^e mod n for s below n, into out (kn words). The words it works
         // in are zeroed when freed: under encrypt_oaep, s is the encoded
         // message, and m·R mod n would give it back from freed memory
-        void _power(word* out, const word* s) const {
+        void _power(word* out, const word* s) const noexcept {
             size_t kn = _n.size();
             bn::Modulus mod = _mod();
             bn::SecretWords<> m(kn), scratch(bn::mul_scratch(kn) + 2 * kn);
@@ -444,8 +505,8 @@ namespace sgcl::crypto::detail {
         // The signature (size() bytes, below n) raised to e, as size()
         // bytes into em; false for a signature of another length or not
         // below n (RFC 8017 §8.2.2 step 1, §5.2.2 step 1)
-        bool _open(const slice<const byte>& signature, unsigned char* em) const {
-            size_t k = size();
+        bool _open(const slice<const byte>& signature, unsigned char* em) const noexcept {
+            size_t k = _size();
             size_t kn = _n.size();
             if (signature.size() != k) {
                 return false;
@@ -467,7 +528,7 @@ namespace sgcl::crypto::detail {
             if (digest.size() != digest_size(id)) {
                 return false;
             }
-            size_t k = size();
+            size_t k = _size();
             std::vector<unsigned char> em(k);
             if (!_open(signature, em.data())) {
                 return false;
@@ -494,7 +555,7 @@ namespace sgcl::crypto::detail {
         // with the seed given (hLen bytes): the tests' known answers
         vector<byte> _encrypt(hash_id id, hash_id mgf, const slice<const byte>& message, const slice<const byte>& label, const unsigned char* seed) const {
             _check();
-            size_t k = size();
+            size_t k = _size();
             size_t h = digest_size(id);
             (void)digest_size(mgf);   // an unknown id is std::invalid_argument before anything else
             if (k < 2 * h + 2 || message.size() > k - 2 * h - 2) {
@@ -546,7 +607,7 @@ namespace sgcl::crypto::detail {
         // unsupported). The key is checked whole: n = p q, qInv q = 1 mod
         // p, dP = d mod (p - 1) and e dP = 1 mod (p - 1), and the same for
         // q; a key that fails is errc::invalid_key
-        static expected<RsaPrivateKey, error> from_pkcs1_der(const slice<const byte>& der) {
+        static expected<RsaPrivateKey, error> from_pkcs1_der(const slice<const byte>& der) noexcept {
             DerReader in(detail::bytes(der.data()), der.size());
             auto k = _read_pkcs1(in);
             if (k && !in.empty()) {
@@ -558,7 +619,7 @@ namespace sgcl::crypto::detail {
         // A PKCS #8 PrivateKeyInfo ("PRIVATE KEY" in PEM) of an
         // rsaEncryption key, or its version 2 (RFC 5958) with the public
         // key after it, which is skipped
-        static expected<RsaPrivateKey, error> from_pkcs8_der(const slice<const byte>& der) {
+        static expected<RsaPrivateKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             DerReader in(detail::bytes(der.data()), der.size());
             DerReader seq;
             if (!in.read(der::sequence, seq) || !in.empty()) {
@@ -615,12 +676,14 @@ namespace sgcl::crypto::detail {
             return _pub;
         }
 
-        size_t bits() const noexcept {
+        size_t bits() const {
+            _check();
             return _pub._bits;
         }
 
-        size_t size() const noexcept {
-            return _pub.size();
+        size_t size() const {
+            _check();
+            return _pub._size();
         }
 
         // The PKCS #1 v1.5 signature (RFC 8017 §8.2.1) of a digest the
@@ -632,7 +695,7 @@ namespace sgcl::crypto::detail {
         vector<byte> sign_digest(hash_id id, const slice<const byte>& digest) const {
             _check();
             _pub._check_digest(id, digest);
-            size_t k = size();
+            size_t k = _pub._size();
             std::vector<unsigned char> em(k);
             if (!rsa_pad::pkcs1_encode(id, detail::bytes(digest.data()), digest.size(), em.data(), k)) {
                 throw invalid_argument("sgcl::crypto::rsa: the key is too small for the hash");
@@ -654,6 +717,26 @@ namespace sgcl::crypto::detail {
             random::fill(slice<byte>(reinterpret_cast<byte*>(salt), h));
             vector<byte> sig = _sign_pss(id, digest, salt, h);
             return sig;
+        }
+
+        // The two of a message, hashed here by id: sign_digest and
+        // sign_digest_pss of its digest (the digest on the stack), what
+        // Go's SignPKCS1v15 and SignPSS take hashed. sign(hash_id::sha256,
+        // m) is JWT's RS256, sign_pss(hash_id::sha256, m) its PS256. An id
+        // that is none of hash_id's is std::invalid_argument, and so is a
+        // key too small for the hash, as for the digest's forms
+        vector<byte> sign(hash_id id, const slice<const byte>& message) const {
+            return visit_hash(id, [&](auto t) {
+                auto d = decltype(t)::type::of(message);
+                return sign_digest(id, slice<const byte>(d.data(), d.size()));
+            });
+        }
+
+        vector<byte> sign_pss(hash_id id, const slice<const byte>& message) const {
+            return visit_hash(id, [&](auto t) {
+                auto d = decltype(t)::type::of(message);
+                return sign_digest_pss(id, slice<const byte>(d.data(), d.size()));
+            });
         }
 
         // The message of an OAEP ciphertext (RFC 8017 §7.1.2), the label's
@@ -727,8 +810,8 @@ namespace sgcl::crypto::detail {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<RsaPrivateKey, error> from_pem(const slice<const byte>& text) {
-            auto p = detail::read_key_pem(text);
+        static expected<RsaPrivateKey, error> from_pem(const slice<const byte>& text) noexcept {
+            auto p = detail::read_key_pem(text, "sgcl::crypto::rsa: ");
             if (!p) {
                 return unexpected<error>(p.error());
             }
@@ -738,7 +821,7 @@ namespace sgcl::crypto::detail {
             if (p->label == "RSA PRIVATE KEY") {
                 return from_pkcs1_der(p->der);
             }
-            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+            return unexpected<error>(Rsa::key_error(errc::malformed, "PEM: a block of another key's type"));
         }
 
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
@@ -792,7 +875,7 @@ namespace sgcl::crypto::detail {
         }
 
         // The Montgomery constants of p and q (both odd, above 1)
-        void _constants() {
+        void _constants() noexcept {
             size_t k = _k;
             Words scratch(bn::mul_scratch(k) + k);
             _m0()[0] = bn::mont_m0inv(_p()[0]);
@@ -804,7 +887,7 @@ namespace sgcl::crypto::detail {
         // Whether the key's parts agree (see from_pkcs1_der), every check
         // folded into one mask before the answer, which is public. p and q
         // are odd and above 1 already
-        bool _consistent() const {
+        bool _consistent() const noexcept {
             size_t k = _k;
             size_t kn = _pub._n.size();
             Words s(8 * k + 2 + kn + bn::reduce_scratch(k));
@@ -849,7 +932,7 @@ namespace sgcl::crypto::detail {
             size_t at[8];
         };
 
-        static expected<RsaPrivateKey, error> _from_parts(const Parts& parts) {
+        static expected<RsaPrivateKey, error> _from_parts(const Parts& parts) noexcept {
             uint64_t ev = 0;
             if (parts.n[1] > 8) {
                 return unexpected<error>(Rsa::der_error(errc::unsupported, parts.at[1], "a public exponent above 2^31 - 1"));
@@ -897,7 +980,7 @@ namespace sgcl::crypto::detail {
             return key;
         }
 
-        static expected<RsaPrivateKey, error> _read_pkcs1(DerReader& in) {
+        static expected<RsaPrivateKey, error> _read_pkcs1(DerReader& in) noexcept {
             DerReader seq;
             size_t at = in.offset();
             if (!in.read(der::sequence, seq)) {
@@ -935,7 +1018,7 @@ namespace sgcl::crypto::detail {
         }
 
         template<class W>
-        void _write_pkcs1(W& w) const {
+        void _write_pkcs1(W& w) const noexcept {
             size_t k = _k;
             size_t kn = _pub._n.size();
             Words tmp(kn > k ? kn : k);
@@ -957,7 +1040,7 @@ namespace sgcl::crypto::detail {
 
         // out = c^d mod n for c below n (kn words each): blinded, CRT,
         // checked with e. False when the check fails (a fault)
-        bool _private(word* out, const word* c) const {
+        bool _private(word* out, const word* c) const noexcept {
             const size_t k = _k;
             const size_t kn = _pub._n.size();
             const word* n = _pub._n.data();
@@ -1032,7 +1115,7 @@ namespace sgcl::crypto::detail {
 
         // A random number in [0, n) into r (kn words); 0 is refused by the
         // caller through the product
-        void _random_below_n(word* r) const {
+        void _random_below_n(word* r) const noexcept {
             size_t kn = _pub._n.size();
             size_t bits = _pub._bits;
             for (;;) {
@@ -1049,7 +1132,7 @@ namespace sgcl::crypto::detail {
         // The signature of the encoded message em (k bytes, below n)
         vector<byte> _sign(const unsigned char* em, size_t len) const {
             size_t kn = _pub._n.size();
-            size_t k = size();
+            size_t k = _pub._size();
             Words w(2 * kn);
             bn::from_be(w.data(), kn, em, len);
             if (!_private(w.data() + kn, w.data())) {
@@ -1077,16 +1160,14 @@ namespace sgcl::crypto::detail {
                 return unexpected<error>(offset.error());
             }
             const byte* p = reinterpret_cast<const byte*>(w.data() + 2 * _pub._n.size());
-            vector<byte> out(size() - *offset);
-            if (out.size()) {
-                std::memcpy(out.data(), p + *offset, out.size());
-            }
+            vector<byte> out(_pub._size() - *offset);
+            sgcl::detail::copy_bytes(out.data(), p + *offset, out.size());
             return out;
         }
 
         expected<size_t, error> _decrypt_to(const slice<byte>& out, hash_id id, hash_id mgf, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
             _check();
-            if (out.size() < _pub.max_oaep_message_size(id)) {
+            if (out.size() < _pub._max_oaep(id)) {
                 throw length_error("sgcl::crypto::rsa::decrypt_oaep_to: the output holds fewer bytes than max_oaep_message_size");
             }
             Words w;
@@ -1095,8 +1176,8 @@ namespace sgcl::crypto::detail {
                 return unexpected<error>(offset.error());
             }
             const unsigned char* em = reinterpret_cast<const unsigned char*>(w.data() + 2 * _pub._n.size());
-            size_t n = size() - *offset;
-            std::memcpy(out.data(), em + *offset, n);
+            size_t n = _pub._size() - *offset;
+            sgcl::detail::copy_bytes(out.data(), em + *offset, n);
             return n;
         }
 
@@ -1105,7 +1186,7 @@ namespace sgcl::crypto::detail {
         // message, or the one decryption error
         expected<size_t, error> _decode(Words& w, hash_id id, hash_id mgf, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
             _check();
-            size_t k = size();
+            size_t k = _pub._size();
             size_t h = digest_size(id);
             (void)digest_size(mgf);
             size_t kn = _pub._n.size();
@@ -1132,7 +1213,7 @@ namespace sgcl::crypto::detail {
 
         // --- generation ------------------------------------------------------
 
-        static optional<RsaPrivateKey> _generate(size_t bits) {
+        static optional<RsaPrivateKey> _generate(size_t bits) noexcept {
             using namespace bn;
             const uint64_t e = 65537;
             size_t pbits = (bits + 1) / 2;
@@ -1244,9 +1325,9 @@ namespace sgcl::crypto::detail {
 
         // out = c^d mod n, both size() bytes big-endian; false on a fault
         template<class R>
-        static bool private_op(const RsaPrivateKey<R>& key, unsigned char* out, const unsigned char* c) {
+        static bool private_op(const RsaPrivateKey<R>& key, unsigned char* out, const unsigned char* c) noexcept {
             size_t kn = key._pub._n.size();
-            size_t k = key.size();
+            size_t k = key._pub._size();
             std::vector<uint64_t> w(2 * kn);
             bn::from_be(w.data(), kn, c, k);
             bool ok = key._private(w.data() + kn, w.data());
@@ -1256,7 +1337,7 @@ namespace sgcl::crypto::detail {
 
         // The bit of dP flipped
         template<class R>
-        static void break_dp(RsaPrivateKey<R>& key, unsigned bit) {
+        static void break_dp(RsaPrivateKey<R>& key, unsigned bit) noexcept {
             key._dp()[bit / 64] ^= uint64_t(1) << (bit % 64);
         }
     };

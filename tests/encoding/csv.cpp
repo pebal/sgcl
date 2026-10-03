@@ -380,6 +380,53 @@ TEST(Csv_Tests, ARecordPastTheBoundIsAnError) {
     EXPECT_EQ(r.last_error()->code(), sgcl::encoding::errc::out_of_range);
 }
 
+// The bound holds for every record of a stream, also one that came in one
+// block with the records before it; a record of the bound's length is read
+TEST(Csv_Tests, ARecordPastTheBoundInOneBlockIsAnError) {
+    std::string text = "a,b\n" + std::string(30, 'x') + ",y\n" + std::string(39, 'z') + "\n";
+    for (size_t n : {size_t(1), size_t(7), size_t(1000)}) {
+        sgcl::encoding::csv::options o;
+        o.max_record_size = 31;
+        o.same_field_count = false;
+        sgcl::encoding::csv::reader r(sgcl::make_tracked<enc_test::dribble>(text, n), o);
+        auto header = r.next();
+        ASSERT_TRUE(header) << n;
+        auto exact = r.next();
+        ASSERT_TRUE(exact) << n;   // 30 + 1: the fields' text is the bound's length
+        EXPECT_EQ((*exact)[0].size(), 30u);
+        EXPECT_FALSE(r.next()) << n;
+        ASSERT_TRUE(r.last_error()) << n;
+        EXPECT_EQ(r.last_error()->code(), sgcl::encoding::errc::out_of_range) << n;
+        EXPECT_EQ(r.last_error()->line(), 3u) << n;
+    }
+    // a text in memory is not a stream: no bound
+    sgcl::encoding::csv::options o;
+    o.max_record_size = 31;
+    o.same_field_count = false;
+    sgcl::encoding::csv::reader t(sgcl::string(text), o);
+    size_t records = 0;
+    while (t.next()) {
+        ++records;
+    }
+    EXPECT_FALSE(t.last_error());
+    EXPECT_EQ(records, 3u);
+}
+
+// The reader's line: the one after the record read last; empty lines and
+// comments before the next record are counted as it is read
+TEST(Csv_Tests, TheLineOfTheReader) {
+    sgcl::encoding::csv::options o;
+    o.comment = '#';
+    sgcl::encoding::csv::reader r(sgcl::string("a\n\n# c\nb\n"), o);
+    EXPECT_EQ(r.line(), 1u);
+    ASSERT_TRUE(r.next());
+    EXPECT_EQ(r.line(), 2u);
+    auto b = r.next();
+    ASSERT_TRUE(b);
+    EXPECT_EQ(b->line(), 4u);
+    EXPECT_EQ(r.line(), 5u);
+}
+
 // A field by its column's name as a string of its own, or a value for when
 // the column is not there or the row is shorter
 TEST(Csv_Tests, GetWithAFallback) {

@@ -116,7 +116,7 @@ namespace sgcl::encoding::detail {
     }
 
     template<class Codec>
-    expected<vector<byte>, error> decode_text(const Codec& c, const string& text) {
+    expected<vector<byte>, error> decode_text(const Codec& c, const string& text) noexcept {
         vector<byte> out;
         out.resize(c.decode_bound(text.data(), text.size()));
         auto r = decode_into(c, text.data(), text.size(), reinterpret_cast<uint8_t*>(out.data()), out.size());
@@ -157,7 +157,7 @@ namespace sgcl::encoding::detail {
         using io::mixin::writer<CodecWriter<Codec>>::write;
         using io::mixin::writer<CodecWriter<Codec>>::async_write;
 
-        CodecWriter(const Codec& codec, const io::writer& out)
+        CodecWriter(const Codec& codec, const io::writer& out) noexcept
         : _codec(codec), _out(out), _block(make_tracked<CodecBlock>()) {
         }
 
@@ -183,7 +183,7 @@ namespace sgcl::encoding::detail {
             }
         }
 
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
             if (_error) {
                 co_return io::detail::fail(*_error);
             }
@@ -223,7 +223,7 @@ namespace sgcl::encoding::detail {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             if (_closed || _error) {
                 _closed = true;
                 co_return _error ? expected<void, io::error>(io::detail::fail(*_error)) : expected<void, io::error>();
@@ -308,7 +308,7 @@ namespace sgcl::encoding::detail {
     class CodecReader
     : public io::mixin::reader<CodecReader<Codec>> {
     public:
-        CodecReader(const Codec& codec, const io::reader& in)
+        CodecReader(const Codec& codec, const io::reader& in) noexcept
         : _codec(codec), _in(in), _block(make_tracked<CodecBlock>()) {
         }
 
@@ -324,7 +324,7 @@ namespace sgcl::encoding::detail {
             }
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> buffer) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> buffer) noexcept {
             if (buffer.empty()) {
                 co_return 0;
             }
@@ -350,7 +350,7 @@ namespace sgcl::encoding::detail {
             return slice<byte>(_block, _block->data(), _block->size());
         }
 
-        expected<size_t, io::error> _failure() const {
+        expected<size_t, io::error> _failure() const noexcept {
             return io::detail::fail(to_io_error(*_error, _codec.name()));
         }
 
@@ -363,7 +363,7 @@ namespace sgcl::encoding::detail {
 
         // One step: the bytes the block holds decoded into the buffer, or
         // nullopt when more text is needed
-        optional<expected<size_t, io::error>> _step(const slice<byte>& buffer) {
+        optional<expected<size_t, io::error>> _step(const slice<byte>& buffer) noexcept {
             if (_pending_begin < _pending_end) {
                 return expected<size_t, io::error>(_hand_out(buffer));
             }
@@ -415,7 +415,7 @@ namespace sgcl::encoding::detail {
             return nullopt;
         }
 
-        void _received(const expected<size_t, io::error>& r) {
+        void _received(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _state.offset);
             } else if (*r == 0) {
@@ -440,7 +440,7 @@ namespace sgcl::encoding::detail {
 
     // The tag of a stream handle's constructor from a state the library made
     struct CodecMade {
-        explicit CodecMade() = default;
+        explicit CodecMade() noexcept = default;
     };
 
     // The one way from a state to a handle: encoder_to, decoder_from,
@@ -474,7 +474,7 @@ namespace sgcl::encoding::detail {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const {
+        async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const noexcept {
             return _get().async_write(data);
         }
 
@@ -484,7 +484,7 @@ namespace sgcl::encoding::detail {
             return _get().close();
         }
 
-        async::task<expected<void, io::error>> async_close() const {
+        async::task<expected<void, io::error>> async_close() const noexcept {
             return _get().async_close();
         }
 
@@ -546,7 +546,7 @@ namespace sgcl::encoding::detail {
             return _get().read(buffer);
         }
 
-        async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const {
+        async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const noexcept {
             return _get().async_read(buffer);
         }
 

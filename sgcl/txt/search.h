@@ -47,6 +47,18 @@
 // drift apart: a search blind to the way a text is written may not
 // answer two ways about two spellings of one text.
 namespace sgcl::txt {
+    // A text as a search without regard to case, or to the way it was
+    // written, sees it (folded_text::points, fold_matches::points): its
+    // code points, folded or decomposed and put in canonical order, and
+    // the byte of the original text each of them came from — one entry
+    // more than the points, the size of the text, so that the end of a
+    // match is a position too. Where one character's points end and the
+    // next one's begin is where the position changes.
+    struct mapped_text {
+        vector<char32_t> points;
+        vector<size_t> at;
+    };
+
     // A pattern prepared once: Boyer–Moore–Horspool over the bytes
     // (detail/skip_table.h), which needs no more than a table of skips
     // and finds a pattern of m bytes in n bytes in about n/m steps on
@@ -56,7 +68,7 @@ namespace sgcl::txt {
     // one implementation means one place for a fault in it to be.
     class searcher {
     public:
-        explicit searcher(const string& pattern)
+        explicit searcher(const string& pattern) noexcept
         : _pattern(pattern) {
             _table.prepare(_pattern.view());
         }
@@ -106,16 +118,25 @@ namespace sgcl::txt {
             return find(text) != npos;
         }
 
-        // The occurrences that do not overlap, counted left to right
+        // The occurrences that do not overlap, counted left to right, in
+        // every text find takes
         size_t count(const string& text) const noexcept {
-            if (_pattern.empty()) {
-                return 0;
-            }
-            size_t n = 0;
-            for (size_t at = find(text); at != npos; at = find(text, at + _pattern.size())) {
-                ++n;
-            }
-            return n;
+            return _count(text.view());
+        }
+
+        size_t count(const slice<const char>& text) const noexcept {
+            return _count({text.data(), text.size()});
+        }
+
+        template<size_t N>
+        size_t count(const char (&text)[N]) const noexcept {
+            return count(detail::c_text(text));
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        size_t count(P text) const noexcept {
+            return count(detail::c_text(text));
         }
 
         const string& pattern() const noexcept {
@@ -123,6 +144,18 @@ namespace sgcl::txt {
         }
 
     private:
+        size_t _count(std::string_view text) const noexcept {
+            if (_pattern.empty()) {
+                return 0;
+            }
+            size_t n = 0;
+            for (size_t at = _table.find(text, _pattern.view(), 0); at != npos;
+                 at = _table.find(text, _pattern.view(), at + _pattern.size())) {
+                ++n;
+            }
+            return n;
+        }
+
         string _pattern;
         detail::skip_table _table;
     };
@@ -152,10 +185,10 @@ namespace sgcl::txt {
         // wherever it starts.
         //
         // Two kinds, one layout. A text mapped for an object that keeps
-        // it (a folded_text, the state of a match range) is in vectors of
-        // the library: that is the object's data, and building it there
-        // measured a quarter faster than in fresh plain memory over
-        // sixty-four kilobytes. A text mapped for one call (find,
+        // it (a folded_text, the state of a match range) is a mapped_text,
+        // in vectors of the library: that is the object's data, and
+        // building it there measured a quarter faster than in fresh plain
+        // memory over sixty-four kilobytes. A text mapped for one call (find,
         // contains, count, the pattern of a searcher) is scratch and is
         // in plain memory lent by the thread (detail/lent.h): as managed
         // buffers it was 262 KB of garbage for every search through ten
@@ -166,17 +199,16 @@ namespace sgcl::txt {
             At at;
         };
 
-        using mapped_text = basic_mapped_text<vector<char32_t>, vector<size_t>>;
         using mapped_scratch = basic_mapped_text<code_points, scratch_vector<size_t>>;
 
         template<class F>
-        void lent_each(mapped_scratch& t, F& f) {
+        void lent_each(mapped_scratch& t, F& f) noexcept {
             f(t.points);
             f(t.at);
         }
 
         template<class Text, class F>
-        SGCL_ALWAYS_INLINE void mapped_into(Text& out, std::string_view text, F&& each) {
+        SGCL_ALWAYS_INLINE void mapped_into(Text& out, std::string_view text, F&& each) noexcept {
             out.points.reserve(text.size());
             out.at.reserve(text.size() + 1);
             for (size_t i = 0; i < text.size();) {
@@ -197,7 +229,7 @@ namespace sgcl::txt {
         // the ranges of segment.h are one class over the end of a segment.
         struct fold_mapping {
             template<class Points>
-            static void point(Points& out, char32_t c) {
+            static void point(Points& out, char32_t c) noexcept {
                 // Nothing below 0x80 has a folding of its own beyond the
                 // ASCII lowercase, and the table of the full ones is a
                 // bisection — where the decomposition of the normalizing
@@ -222,7 +254,7 @@ namespace sgcl::txt {
 
         struct nfd_mapping {
             template<class Points>
-            static void point(Points& out, char32_t c) {
+            static void point(Points& out, char32_t c) noexcept {
                 decompose_into<false>(out, c);
             }
 
@@ -232,21 +264,21 @@ namespace sgcl::txt {
             // text above says, and it is the same ordering normalize()
             // and the collator's window use.
             template<class Text>
-            static void whole(Text& out) {
+            static void whole(Text& out) noexcept {
                 canonical_order(out.points);
             }
         };
 
         template<class Map, class Text>
-        SGCL_ALWAYS_INLINE void map_text_into(Text& out, std::string_view text) {
-            mapped_into(out, text, [](auto& points, std::string_view, size_t, size_t, char32_t c) {
+        SGCL_ALWAYS_INLINE void map_text_into(Text& out, std::string_view text) noexcept {
+            mapped_into(out, text, [](auto& points, std::string_view, size_t, size_t, char32_t c) noexcept {
                 Map::point(points, c);
             });
             Map::whole(out);
         }
 
         template<class Map>
-        mapped_text map_text(std::string_view text) {
+        mapped_text map_text(std::string_view text) noexcept {
             mapped_text out;
             map_text_into<Map>(out, text);
             return out;
@@ -363,19 +395,6 @@ namespace sgcl::txt {
             return npos;
         }
 
-        // The byte position in the original text where the match begins
-        template<class Text, class Pattern>
-        size_t find_points(const Text& text, const Pattern& pattern, size_t from) {
-            if (pattern.empty()) {
-                // As it is in a std::string and in the searcher above: an
-                // empty pattern is found where it is looked for, and
-                // nowhere past the end of the text
-                return from <= text.at.back() ? from : npos;
-            }
-            size_t i = match_from(text, pattern, point_at(text, from));
-            return i == npos ? npos : text.at[i];
-        }
-
     }
 
     // Where a search without regard to case, or to the way a text was
@@ -390,11 +409,15 @@ namespace sgcl::txt {
     };
 
     namespace detail {
-        // The first match at or after the byte `from`, with the bytes it covers
+        // The first match at or after the byte `from`, with the bytes it
+        // covers. An empty pattern is found where it is looked for, as it
+        // is in a std::string and in the searcher above, and nowhere past
+        // the end of the text. A mapping with no end at all is the one a
+        // prepared text was moved out of, which answers as the empty text
         template<class Text, class Pattern>
-        optional<occurrence> find_occurrence(const Text& text, const Pattern& pattern, size_t from) {
+        optional<occurrence> find_occurrence(const Text& text, const Pattern& pattern, size_t from) noexcept {
             if (pattern.empty()) {
-                if (from <= text.at.back()) {
+                if (from <= (text.at.empty() ? 0 : text.at.back())) {
                     return occurrence{from, 0};
                 }
                 return nullopt;
@@ -413,9 +436,30 @@ namespace sgcl::txt {
         template<class Map>
         class mapped_searcher {
         public:
-            explicit mapped_searcher(const string& pattern)
+            explicit mapped_searcher(const string& pattern) noexcept
             : _pattern(pattern)
             , _points(_mapped_pattern(pattern)) {
+            }
+
+            // A copy is the pattern again; a searcher moved from is the
+            // searcher of the empty pattern, its pattern() empty too, and
+            // not a pattern that says one thing and finds another
+            mapped_searcher(const mapped_searcher&) = default;
+            mapped_searcher& operator=(const mapped_searcher&) = default;
+
+            mapped_searcher(mapped_searcher&& other) noexcept
+            : _pattern(other._pattern)
+            , _points(std::move(other._points)) {
+                other._reset();
+            }
+
+            mapped_searcher& operator=(mapped_searcher&& other) noexcept {
+                if (this != &other) {
+                    _pattern = other._pattern;
+                    _points = std::move(other._points);
+                    other._reset();
+                }
+                return *this;
             }
 
             const string& pattern() const noexcept {
@@ -437,18 +481,18 @@ namespace sgcl::txt {
             }
 
             // The first occurrence in the text at or after the byte `from`
-            optional<occurrence> find(const string& text, size_t from = 0) const {
+            optional<occurrence> find(const string& text, size_t from = 0) const noexcept {
                 lent<mapped_scratch> mapped;
                 map_text_into<Map>(*mapped, text.view());
                 return find_occurrence(*mapped, _points, from);
             }
 
-            bool contains(const string& text) const {
+            bool contains(const string& text) const noexcept {
                 return find(text).has_value();
             }
 
             // The occurrences that do not overlap, counted left to right
-            size_t count(const string& text) const {
+            size_t count(const string& text) const noexcept {
                 if (_points.empty()) {
                     return 0;
                 }
@@ -463,9 +507,14 @@ namespace sgcl::txt {
             }
 
         private:
+            void _reset() noexcept {
+                _pattern = string();
+                _points = vector<char32_t>();
+            }
+
             // The pattern mapped in scratch and kept at its size: the
             // positions of its code points are of no use to a pattern
-            static vector<char32_t> _mapped_pattern(const string& pattern) {
+            static vector<char32_t> _mapped_pattern(const string& pattern) noexcept {
                 lent<mapped_scratch> mapped;
                 map_text_into<Map>(*mapped, pattern.view());
                 return vector<char32_t>(mapped->points.begin(), mapped->points.end());
@@ -485,13 +534,36 @@ namespace sgcl::txt {
         public:
             using searcher_type = mapped_searcher<Map>;
 
-            mapped_search() noexcept = default;
+            // An empty text: asked, it answers as one built from ""
+            mapped_search() noexcept
+            : mapped_search(slice<const char>()) {
+            }
 
-            explicit mapped_search(const string& text)
+            // A copy is the text again; a text moved from is the empty
+            // text, as the one above
+            mapped_search(const mapped_search&) = default;
+            mapped_search& operator=(const mapped_search&) = default;
+
+            mapped_search(mapped_search&& other) noexcept
+            : _text(other._text)
+            , _mapped(std::move(other._mapped)) {
+                other._reset();
+            }
+
+            mapped_search& operator=(mapped_search&& other) noexcept {
+                if (this != &other) {
+                    _text = other._text;
+                    _mapped = std::move(other._mapped);
+                    other._reset();
+                }
+                return *this;
+            }
+
+            explicit mapped_search(const string& text) noexcept
             : mapped_search(text.as_slice()) {
             }
 
-            explicit mapped_search(const slice<const char>& text)
+            explicit mapped_search(const slice<const char>& text) noexcept
             : _text(text)
             , _mapped(map_text<Map>(text.view())) {
             }
@@ -510,27 +582,28 @@ namespace sgcl::txt {
             : mapped_search(c_string(text).as_slice()) {
             }
 
-            // The byte position of the first occurrence at or after the
-            // byte position `from` — in the text as it was given, not in
-            // the mapped copy of it — or npos
-            size_t find(const searcher_type& pattern, size_t from = 0) const {
-                return find_points(_mapped, pattern.points(), from);
+            // The first occurrence at or after the byte position `from`,
+            // as the searcher's own find answers it: where it begins and
+            // the bytes it covers, in the text as it was given and not in
+            // the mapped copy of it — or nothing
+            optional<occurrence> find(const searcher_type& pattern, size_t from = 0) const noexcept {
+                return find_occurrence(_mapped, pattern.points(), from);
             }
 
-            size_t find(const string& pattern, size_t from = 0) const {
+            optional<occurrence> find(const string& pattern, size_t from = 0) const noexcept {
                 return find(searcher_type(pattern), from);
             }
 
-            bool contains(const searcher_type& pattern) const {
-                return find(pattern) != npos;
+            bool contains(const searcher_type& pattern) const noexcept {
+                return find(pattern).has_value();
             }
 
-            bool contains(const string& pattern) const {
-                return find(pattern) != npos;
+            bool contains(const string& pattern) const noexcept {
+                return find(pattern).has_value();
             }
 
             // The occurrences that do not overlap, counted left to right
-            size_t count(const searcher_type& pattern) const {
+            size_t count(const searcher_type& pattern) const noexcept {
                 if (pattern.empty()) {
                     return 0;
                 }
@@ -542,7 +615,7 @@ namespace sgcl::txt {
                 return n;
             }
 
-            size_t count(const string& pattern) const {
+            size_t count(const string& pattern) const noexcept {
                 return count(searcher_type(pattern));
             }
 
@@ -565,6 +638,11 @@ namespace sgcl::txt {
             }
 
         private:
+            void _reset() noexcept {
+                _text = slice<const char>();
+                _mapped = map_text<Map>(std::string_view());
+            }
+
             slice<const char> _text;
             mapped_text _mapped;
         };
@@ -573,8 +651,8 @@ namespace sgcl::txt {
         // in the manner of segment.h: constructed from the text and the
         // pattern, deciding as it walks, the element a slice of the
         // original text — the bytes the match covers, which need not be
-        // as many as the pattern has, "STRASSE" matching six of them in
-        // "straße".
+        // as many as the pattern has, "STRASSE" matching all seven of
+        // them in "straße".
         //
         // What it has and the ranges of segment.h have not is a mapped
         // text, which is too large to copy into every iterator and must
@@ -596,7 +674,7 @@ namespace sgcl::txt {
 
         private:
             struct state {
-                state(const string& t, searcher_type p)
+                state(const string& t, searcher_type p) noexcept
                 : text(t)
                 , pattern(std::move(p))
                 , mapped(map_text<Map>(t.view())) {
@@ -679,14 +757,37 @@ namespace sgcl::txt {
 
             using const_iterator = iterator;
 
-            match_range() noexcept = default;
+            // An empty text and an empty pattern, held as the other
+            // constructors hold theirs: the range has no occurrence, and
+            // its text and its pattern are there to be asked
+            match_range() noexcept
+            : match_range(string(), string()) {
+            }
 
-            match_range(const string& text, const string& pattern)
+            match_range(const string& text, const string& pattern) noexcept
             : match_range(text, searcher_type(pattern)) {
             }
 
-            match_range(const string& text, searcher_type pattern)
+            match_range(const string& text, searcher_type pattern) noexcept
             : _state(make_tracked<state>(text, std::move(pattern))) {
+            }
+
+            // A copy shares the walk's state; a range moved from is the
+            // empty one, as the one made with nothing
+            match_range(const match_range&) = default;
+            match_range& operator=(const match_range&) = default;
+
+            match_range(match_range&& other) noexcept
+            : _state(other._state) {
+                other._reset();
+            }
+
+            match_range& operator=(match_range&& other) noexcept {
+                if (this != &other) {
+                    _state = other._state;
+                    other._reset();
+                }
+                return *this;
             }
 
             // A piece of a text is kept as that piece, which copies
@@ -748,6 +849,10 @@ namespace sgcl::txt {
             }
 
         private:
+            void _reset() noexcept {
+                _state = make_tracked<state>(string(), searcher_type(string()));
+            }
+
             tracked_ptr<state> _state;
         };
     }
@@ -789,7 +894,7 @@ namespace sgcl::txt {
     // This folds the text on every call, so a loop over the occurrences
     // of one pattern is quadratic: fold_matches, or a folded_text kept,
     // is the way to ask more than once.
-    inline optional<occurrence> find_fold(const string& text, const string& pattern, size_t from = 0) {
+    inline optional<occurrence> find_fold(const string& text, const string& pattern, size_t from = 0) noexcept {
         detail::lent<detail::mapped_scratch> t;
         detail::lent<detail::mapped_scratch> p;
         detail::map_text_into<detail::fold_mapping>(*t, text.view());
@@ -797,7 +902,7 @@ namespace sgcl::txt {
         return detail::find_occurrence(*t, p->points, from);
     }
 
-    inline bool contains_fold(const string& text, const string& pattern) {
+    inline bool contains_fold(const string& text, const string& pattern) noexcept {
         return find_fold(text, pattern).has_value();
     }
 
@@ -806,7 +911,7 @@ namespace sgcl::txt {
     // an "é" of one code point finds an "é" of two. The position is in
     // the original text, and its size there. normalized_matches is the
     // way to ask for all of them, for the same reason.
-    inline optional<occurrence> find_normalized(const string& text, const string& pattern, size_t from = 0) {
+    inline optional<occurrence> find_normalized(const string& text, const string& pattern, size_t from = 0) noexcept {
         detail::lent<detail::mapped_scratch> t;
         detail::lent<detail::mapped_scratch> p;
         detail::map_text_into<detail::nfd_mapping>(*t, text.view());
@@ -814,7 +919,7 @@ namespace sgcl::txt {
         return detail::find_occurrence(*t, p->points, from);
     }
 
-    inline bool contains_normalized(const string& text, const string& pattern) {
+    inline bool contains_normalized(const string& text, const string& pattern) noexcept {
         return find_normalized(text, pattern).has_value();
     }
 }

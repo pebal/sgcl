@@ -6,8 +6,10 @@
 #pragma once
 
 #include "../core/array.h"
+#include "../core/detail/bytes.h"
 #include "../core/aliases.h"
 #include "../core/string.h"
+#include "../txt/format.h"
 #include "error.h"
 
 #include <array>
@@ -28,8 +30,8 @@ namespace sgcl::net {
 
         // The readings of parse without the error: for the library's own
         // tries, where a text that is not an address is no failure
-        optional<ip_network> parse_network(const string& text);
-        optional<endpoint> parse_endpoint(const string& text);
+        optional<ip_network> parse_network(const string& text) noexcept;
+        optional<endpoint> parse_endpoint(const string& text) noexcept;
     }
 
     // An IP address as a value: sixteen bytes of address, the kind (none,
@@ -61,8 +63,9 @@ namespace sgcl::net {
         ip_address() noexcept = default;   // empty: !is_valid()
 
         // "10.0.0.1", "2001:db8::1", "fe80::1%en0", "::ffff:1.2.3.4";
-        // nullopt for anything else (no surrounding spaces, no brackets)
-        static expected<ip_address, io::error> parse(const string& text);
+        // net::errc::invalid_address for anything else (no surrounding
+        // spaces, no brackets)
+        static expected<ip_address, io::error> parse(const string& text) noexcept;
 
         // The address a literal in the program spells: what parse gives,
         // or bad_expected_access<io::error> with parse's message. Input
@@ -203,7 +206,7 @@ namespace sgcl::net {
         }
 
         // "en0" of "fe80::1%en0"; empty for an address without one
-        string zone() const {
+        string zone() const noexcept {
             return string(std::string_view(_zone.data(), _zone_size()));
         }
 
@@ -259,7 +262,7 @@ namespace sgcl::net {
 
         // RFC 5952 for IPv6, dotted decimal for IPv4, "invalid IP" for the
         // empty address (Go's text)
-        string to_string() const;
+        string to_string() const noexcept;
 
         auto operator<=>(const ip_address&) const noexcept = default;
         bool operator==(const ip_address&) const noexcept = default;
@@ -280,6 +283,7 @@ namespace sgcl::net {
         friend struct detail::IpText;
         friend class ip_network;
         friend class endpoint;
+        friend void format_value(txt::format_sink& out, const ip_address& address, const txt::format_spec& spec) noexcept;
 
         bool _mapped_prefix() const noexcept {
             for (size_t i = 0; i < 10; ++i) {
@@ -438,7 +442,7 @@ namespace sgcl::net {
                     }
                     size_t tail = n - size_t(ellipsis);
                     std::memmove(out + 16 - tail, out + ellipsis, tail);
-                    std::memset(out + ellipsis, 0, 16 - n);
+                    sgcl::detail::fill_bytes(out + ellipsis, 0, 16 - n);
                 } else if (ellipsis >= 0) {
                     return false;   // "::" standing for no group at all
                 }
@@ -557,7 +561,7 @@ namespace sgcl::net {
         };
     }
 
-    inline expected<ip_address, io::error> ip_address::parse(const string& text) {
+    inline expected<ip_address, io::error> ip_address::parse(const string& text) noexcept {
         if (auto a = detail::IpText::parse(detail::IpText::view(text))) {
             return *a;
         }
@@ -582,7 +586,7 @@ namespace sgcl::net {
         return n;
     }
 
-    inline string ip_address::to_string() const {
+    inline string ip_address::to_string() const noexcept {
         char buf[MaxText];
         return string(std::string_view(buf, write_text(buf)));
     }
@@ -609,7 +613,7 @@ namespace sgcl::net {
 
         // "address/bits": the address as ip_address::parse takes it, but
         // without a zone; bits in decimal without a sign or a leading zero
-        static expected<ip_network, io::error> parse(const string& text);
+        static expected<ip_network, io::error> parse(const string& text) noexcept;
 
         // The network a literal spells: parse's value or its
         // bad_expected_access<io::error> (DESIGN 234)
@@ -659,7 +663,7 @@ namespace sgcl::net {
         }
 
         // "10.0.0.0/8"; "invalid Prefix" for the empty network (Go's text)
-        string to_string() const {
+        string to_string() const noexcept {
             char buf[MaxText];
             return string(std::string_view(buf, write_text(buf)));
         }
@@ -746,8 +750,9 @@ namespace sgcl::net {
         }
 
         // "address:port" with the port in decimal (0..65535, leading
-        // zeros allowed, no sign); nullopt for anything else
-        static expected<endpoint, io::error> parse(const string& text);
+        // zeros allowed, no sign); net::errc::invalid_address for
+        // anything else
+        static expected<endpoint, io::error> parse(const string& text) noexcept;
 
         // The endpoint a literal spells: parse's value or its
         // bad_expected_access<io::error> (DESIGN 234)
@@ -768,7 +773,7 @@ namespace sgcl::net {
         }
 
         // "1.2.3.4:80", "[::1]:80"; "invalid AddrPort" for the empty one
-        string to_string() const {
+        string to_string() const noexcept {
             char buf[MaxText];
             return string(std::string_view(buf, write_text(buf)));
         }
@@ -865,14 +870,14 @@ namespace sgcl::net {
         }
     }
 
-    inline expected<endpoint, io::error> endpoint::parse(const string& text) {
+    inline expected<endpoint, io::error> endpoint::parse(const string& text) noexcept {
         if (auto e = detail::parse_endpoint(text)) {
             return *e;
         }
         return unexpected(detail::net_error(errc::invalid_address, "parse endpoint", text));
     }
 
-    inline optional<endpoint> detail::parse_endpoint(const string& text) {
+    inline optional<endpoint> detail::parse_endpoint(const string& text) noexcept {
         auto hp = detail::split_host_port(sgcl::net::detail::IpText::view(text));
         if (!hp || hp->host.empty()) {
             return nullopt;
@@ -891,14 +896,14 @@ namespace sgcl::net {
 
 namespace sgcl::net {
     namespace detail { using namespace sgcl::detail; }
-    inline expected<ip_network, io::error> ip_network::parse(const string& text) {
+    inline expected<ip_network, io::error> ip_network::parse(const string& text) noexcept {
         if (auto n = detail::parse_network(text)) {
             return *n;
         }
         return unexpected(detail::net_error(errc::invalid_address, "parse IP network", text));
     }
 
-    inline optional<ip_network> detail::parse_network(const string& text) {
+    inline optional<ip_network> detail::parse_network(const string& text) noexcept {
         std::string_view s = sgcl::net::detail::IpText::view(text);
         auto slash = s.rfind('/');
         if (slash == std::string_view::npos) {
@@ -924,7 +929,61 @@ namespace sgcl::net {
         }
         return ip_network(*a, bits);
     }
+
+    // txt::format and println: {} is to_string() ("fe80::1%en0",
+    // "10.0.0.0/8", "[::1]:443"), in the field's width, fill and alignment
+    // as a string's ({:>40}); written from the bytes, nothing allocated
+    inline void format_value(txt::format_sink& out, const ip_address& address, const txt::format_spec& spec) noexcept {
+        char buf[ip_address::MaxText];
+        txt::write_padded(out, std::string_view(buf, address.write_text(buf)), spec);
+    }
+
+    inline void format_value(txt::format_sink& out, const ip_network& network, const txt::format_spec& spec) noexcept {
+        char buf[ip_network::MaxText];
+        txt::write_padded(out, std::string_view(buf, network.write_text(buf)), spec);
+    }
+
+    inline void format_value(txt::format_sink& out, const endpoint& e, const txt::format_spec& spec) noexcept {
+        char buf[endpoint::MaxText];
+        txt::write_padded(out, std::string_view(buf, e.write_text(buf)), spec);
+    }
 }
+
+// Which specifications the addresses take, for the pattern checked where
+// it is compiled: none but the width, the fill and the alignment ({:x} and
+// {:.3} are errors of the compiler); the writing is format_value's, above
+template<>
+struct sgcl::txt::formatter<sgcl::net::ip_address> {
+    static constexpr bool takes(char type) noexcept {
+        return !type;
+    }
+
+    static constexpr bool takes_precision() noexcept {
+        return false;
+    }
+};
+
+template<>
+struct sgcl::txt::formatter<sgcl::net::ip_network> {
+    static constexpr bool takes(char type) noexcept {
+        return !type;
+    }
+
+    static constexpr bool takes_precision() noexcept {
+        return false;
+    }
+};
+
+template<>
+struct sgcl::txt::formatter<sgcl::net::endpoint> {
+    static constexpr bool takes(char type) noexcept {
+        return !type;
+    }
+
+    static constexpr bool takes_precision() noexcept {
+        return false;
+    }
+};
 
 template<>
 struct std::hash<sgcl::net::ip_address> {

@@ -3,9 +3,11 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-#include "tests/types.h"
+#include "tests/throwing.h"
+#include "tests/concurrent/together.h"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -345,4 +347,113 @@ TEST(ConcurrentBoundedQueue_Test, MixedPushPopOnTwoCells) {
         q.push(-1);   // usable: the ring is intact
         EXPECT_EQ(*q.try_pop(), -1);
     });
+}
+
+// Boundaries (DESIGN 408)
+
+// A capacity past the largest ring a buffer can hold (its rounding up was
+// undefined past the largest power of two, and the bytes of the buffer
+// wrapped around) is a buffer no memory gives: the program ends as at
+// any refused managed allocation
+TEST(ConcurrentBoundedQueue_Test, ACapacityNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    EXPECT_DEATH(sgcl::concurrent::bounded_queue<int>{SIZE_MAX}, "sgcl: out of managed memory");
+    EXPECT_DEATH(sgcl::concurrent::bounded_queue<int>{(size_t(1) << 63) + 1}, "sgcl: out of managed memory");
+    EXPECT_DEATH(sgcl::concurrent::bounded_queue<int>{size_t(1) << 62}, "sgcl: out of managed memory");   // 2^66 bytes: wrapped to 0
+}
+
+// Elements whose copy or move throws: a push whose copy throws publishes
+// its cell empty, passed over by the consumers (try_push.md); a pop whose
+// move throws loses the element, destroyed in its cell, and the ring goes
+// on in order (try_pop.md, pop.md)
+TEST(ConcurrentBoundedQueue_Test, ACopyOrAMoveThatThrows) {
+    using throwing::Val;
+    throwing::Disarm disarm;
+    sgcl::concurrent::bounded_queue<Val> q(4);
+    Val one(1);
+    EXPECT_TRUE(q.try_push(one));
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(q.try_push(one), throwing::Error);
+    throwing::countdown.copy = 1;
+    EXPECT_THROW(q.push(one), throwing::Error);
+    EXPECT_TRUE(q.try_push(Val(2)));
+    EXPECT_EQ(q.size(), 4u);   // the two empty cells count until passed
+    EXPECT_TRUE(q.full());
+    throwing::countdown.move = 1;
+    EXPECT_THROW(q.try_pop(), throwing::Error);   // 1, lost
+    EXPECT_EQ(q.size(), 3u);
+    EXPECT_EQ(q.try_pop()->v, 2);   // the empty cells passed
+    EXPECT_TRUE(q.empty());
+    for (int i = 3; i < 7; ++i) {
+        EXPECT_TRUE(q.try_push(Val(i)));
+    }
+    throwing::countdown.move = 2;   // the move out of the cell, then the one into pop's value
+    EXPECT_THROW(q.pop(), throwing::Error);
+    throwing::countdown = {};
+    EXPECT_EQ(q.pop().v, 4);
+    EXPECT_EQ(q.pop().v, 5);
+    EXPECT_EQ(q.pop().v, 6);
+    EXPECT_TRUE(q.empty());
+}
+
+// Threads at the boundaries of the ring, many rounds: at the empty ring
+// every try_pop finds nothing and one element goes to one of them; at the
+// full ring every try_push fails, and the one cell a pop frees goes to
+// exactly one of them
+TEST(ConcurrentBoundedQueue_Test, ThreadsAtTheEmptyAndTheFullRing) {
+    sgcl::concurrent::bounded_queue<int> q(2);
+    for (int round = 0; round < together::Rounds; ++round) {
+        std::atomic<int> got = {0}, refused = {0}, pushed = {0};
+        together::run(4, [&](int) {
+            got += q.try_pop().has_value();
+        });
+        EXPECT_EQ(got.load(), 0);
+        EXPECT_TRUE(q.try_push(round));
+        together::run(4, [&](int) {
+            if (auto v = q.try_pop()) {
+                EXPECT_EQ(*v, round);
+                ++got;
+            }
+        });
+        EXPECT_EQ(got.load(), 1);
+        EXPECT_TRUE(q.empty());
+        EXPECT_TRUE(q.try_push(1));
+        EXPECT_TRUE(q.try_push(2));
+        together::run(4, [&](int i) {
+            refused += !q.try_emplace(i);
+        });
+        EXPECT_EQ(refused.load(), 4);
+        EXPECT_EQ(*q.try_pop(), 1);
+        together::run(4, [&](int i) {
+            pushed += q.try_push(10 + i);
+        });
+        EXPECT_EQ(pushed.load(), 1);
+        EXPECT_TRUE(q.full());
+        EXPECT_EQ(*q.try_pop(), 2);
+        EXPECT_GE(*q.try_pop(), 10);
+        EXPECT_TRUE(q.empty());
+    }
+}
+
+// Producers waiting in push at a full ring of two and consumers waiting
+// in pop at the empty one, released by each other: every element once
+TEST(ConcurrentBoundedQueue_Test, WaitersAtBothEnds) {
+    const int n = 2000;
+    sgcl::concurrent::bounded_queue<int> q(1);   // a ring of two: every push and pop at a boundary
+    std::vector<std::atomic<int>> seen(size_t(2 * n));
+    together::run(4, [&](int i) {
+        if (i < 2) {
+            for (int k = 0; k < n; ++k) {
+                q.push(i * n + k);
+            }
+        } else {
+            for (int k = 0; k < n; ++k) {
+                ++seen[size_t(q.pop())];
+            }
+        }
+    });
+    for (auto& c : seen) {
+        ASSERT_EQ(c.load(), 1);
+    }
+    EXPECT_TRUE(q.empty());
 }

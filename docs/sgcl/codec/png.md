@@ -1,115 +1,93 @@
+[sgcl](../README.md) › [codec](README.md)
+
 # sgcl::codec::png
 
 ```cpp
-#include "sgcl/codec/png.h"   // or "sgcl/codec/codec.h"
+#include "sgcl/codec/png.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    class png {
-    public:
-        struct options {
-            compress::level level = 7;   // compress's: 0 stores, 1 fastest, 9 smallest; 7 the default here
-        };
-
-        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {});
-        static expected<image, error> decode(const io::reader& in, const decode_options& o = {});
-
-        static vector<byte> encode(const image& im, const options& o = {});
-        static expected<void, error> encode(const image& im, const io::writer& out, const options& o = {});
-    };
+    class png;
 }
 ```
 
-PNG as the W3C's third edition has it: every color type and bit depth, Adam7 interlacing, tRNS, and the CRC-32 of every chunk and the Adler-32 of the image data checked.
+`sgcl::codec::png` reads and writes PNG as the W3C's third edition has it: every color type and bit depth, Adam7
+interlacing and tRNS transparency, with the CRC-32 of every chunk and the Adler-32 of the image data checked.
+[decode](png/decode.md) gives the image of a file, in the file's own pixel format unless asked for another;
+[encode](png/encode.md) writes any [image](image.md) as the PNG type that holds its format, its rows filtered as
+libpng filters them, at the DEFLATE level of its [options](png-options.md). Every member is static.
+[codec::decode](decode.md) reads a PNG too, told by its signature.
 
-**Decoding.** Without [`want`](README.md#limits), the image comes in the file's own format:
+The pixels decoded are libpng's and Go's, pixel for pixel. As in Go's `image/png`, gamma and color are not managed:
+gAMA, cHRM and sRGB are read past, never applied. The metadata is kept: EXIF and the ICC profile of the file come
+with the image, and an image written takes its own with it.
 
-- gray of 1 to 8 bits becomes `gray8` (scaled to 8 bits), 16 bits `gray16`;
-- gray with alpha becomes `gray_alpha8` or `gray_alpha16`;
-- truecolor becomes `rgb8` or `rgb16`, and with alpha `rgba8` or `rgba16`;
-- a palette always becomes `rgba8`;
-- a tRNS chunk adds alpha to gray and truecolor.
+## Rules
 
-Gamma, chromaticities and sRGB (gAMA, cHRM, sRGB) are not applied, as in Go. EXIF (eXIf) and the ICC profile (iCCP) are kept as bytes. An APNG decodes to its default image.
+- **Strict where the format is.** A critical chunk the decoder does not know, or one out of place, a bad CRC-32 or
+  Adler-32, image data that ends short and a missing IEND are errors.
+- **Lenient where libpng is.** An ancillary chunk it does not know, or one out of place (a tRNS of the wrong size,
+  or in an image with an alpha channel), is passed over; a palette index past the palette is opaque black; the
+  bytes of the zlib stream past the image are ignored, and a stream whose rows are all there but whose end never
+  comes is taken, its Adler-32 then unchecked.
+- **Metadata.** eXIf and iCCP are read into the image's [exif](image/exif.md) and [icc](image/icc.md) as bytes (an
+  ICC profile that does not decompress is dropped, as libpng drops it), the [orientation](image/orientation.md)
+  taken from the EXIF; `encode` writes an image's own as eXIf and iCCP. Text, time, background and sBIT are not
+  read, and of an APNG only the default image is.
+- **Errors are values**: an [expected](../core/expected.md) with an [error](error.md), whose code is an
+  [errc](errc.md). A program that takes the image directly, `codec::image picture = codec::png::decode(file);`,
+  gets a [bad_expected_access](../core/bad_expected_access.md) thrown on an error.
 
-The decoder is strict where the format is and lenient where libpng is:
+## Member types
 
-- These are errors: a critical chunk it does not know or out of place, a bad CRC or Adler-32, image data that ends short, a missing IEND.
-- These are passed over: an ancillary chunk it does not know or out of place, a palette index past the palette (opaque black), stream bytes past the image.
+| Type | Definition |
+|---|---|
+| [options](png-options.md) | the encoder's settings: the DEFLATE level |
 
-**Encoding.** Any image is written as the PNG type that holds it, at 8 or 16 bits a channel. `cmyk8` is written as truecolor; nothing is interlaced and nothing gets a palette.
+## Member functions
 
-- **Filters.** Each row gets the filter whose output has the smallest sum of absolute values, as libpng chooses: the same filter as libpng on every row.
-- **Compression.** The zlib stream uses DEFLATE's filtered strategy at `options.level`, 7 unless asked: the first of DEFLATE's chain levels, which the filtered strategy is for ([level](../compress/README.md#level); levels 1 to 6 are a faster encoder that gains nothing from it). The files come within ±0.3 % of libpng's size at the same level, and at 7 a little smaller than libpng's default.
-- **Metadata.** The image's EXIF and ICC profile become eXIf and iCCP.
-- **Failure.** `encode` to bytes never fails for a valid image. To a writer, it fails only with the stream (`errc::io`).
-
-## Members
-
-### options
-
-```cpp
-struct options {
-    compress::level level = 7;
-};
-```
-
-The encoder's DEFLATE level, compress's: 0 stores, 1 is the fastest, 9 the smallest; 7 unless told.
-
-### decode
-
-```cpp
-static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {});
-static expected<image, error> decode(const io::reader& in, const decode_options& o = {});
-```
-
-The image of a PNG file, from its bytes or from a stream, in the file's own format unless [`want`](README.md#limits) asks for another.
-
-### encode
-
-```cpp
-static vector<byte> encode(const image& im, const options& o = {});
-static expected<void, error> encode(const image& im, const io::writer& out, const options& o = {});
-```
-
-A PNG of the image, as bytes or into a stream; to bytes it never fails for a valid image.
+| Function | Description |
+|---|---|
+| [decode](png/decode.md) | the image of a PNG file, from its bytes or from a stream (static) |
+| [encode](png/encode.md) | a PNG of an image, as bytes or into a stream (static) |
 
 ## Example
 
 ```cpp
-#include "sgcl/codec/codec.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
-
-#include <algorithm>
+#include "sgcl/codec.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
     // a gradient, 64 × 32, with a transparent left half
     codec::image picture(64, 32, codec::pixel_format::rgba8);
-    for (uint32_t y : range(picture.height())) {
+    for (int y : range(32)) {
         slice<byte> row = picture.row(y);
-        for (uint32_t x : range(picture.width())) {
+        for (int x : range(64)) {
             row[4 * x] = byte(x * 4);
             row[4 * x + 1] = byte(y * 8);
             row[4 * x + 2] = byte(128);
             row[4 * x + 3] = byte(x < 32 ? 0 : 255);
         }
     }
-    vector<byte> file = codec::png::encode(picture, {.level = 9});
+    vector<byte> file = codec::png::encode(picture);
     codec::image back = codec::png::decode(file);
-    const bool same =
-        std::equal(back.pixels().begin(), back.pixels().end(), picture.pixels().begin());
-    println("{} bytes; {}x{}; the same pixels: {}", file.size(), back.width(), back.height(), same);
+    println("{} bytes; {}x{}", file.size(), back.width(), back.height());
+    println("the same pixels: {}", back.pixels() == picture.pixels());
 }
 ```
 
 Output:
 
 ```text
-130 bytes; 64x32; the same pixels: true
+131 bytes; 64x32
+the same pixels: true
 ```
 
 ## See also
 
-[`image`](image.md), [`decode`](decode.md), [`error`](error.md); [`compress::zlib`](../compress/zlib.md), which it writes and reads through.
+- [jpeg](jpeg.md): the lossy format for photographs
+- [decode](decode.md), [save](save.md): any format, told by the signature or by the extension
+- [compress::zlib](../compress/zlib.md): the stream PNG's image data is written and read through
+- [image](image.md), [error](error.md)

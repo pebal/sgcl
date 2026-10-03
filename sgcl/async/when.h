@@ -26,8 +26,11 @@ namespace sgcl::async {
     // the first to finish and lets go of the rest, which run on and are
     // the collector's once done. The tasks are taken over (moved in): a
     // task is awaited by one awaiter, and the result of when_all is where
-    // theirs are. They are spawned ones, or ones the caller runs some
-    // other way: when_all and when_any wait, they do not start.
+    // theirs are. A task nobody started is started by the wait for it:
+    // when_all awaits its tasks in order, so tasks given unstarted run
+    // one after the other (spawn them to have them run at once), and
+    // when_any starts every task at the call, each in a small task of its
+    // own, so they race whether spawned or not.
     namespace detail {
         // One task awaited: its result kept, or its exception, the first
         // one only; the others are awaited all the same. An awaiter over
@@ -48,11 +51,11 @@ namespace sgcl::async {
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) noexcept {
+            bool await_suspend(std::coroutine_handle<P> h) {   // the task's own: its start may throw (coroutine.h: task::awaiter)
                 return _a.await_suspend(h);
             }
 
-            void await_resume() {
+            void await_resume() noexcept {   // what the task threw, kept: nothing leaves
                 try {
                     _out.emplace(_a.await_resume());
                 } catch (...) {
@@ -80,11 +83,11 @@ namespace sgcl::async {
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) noexcept {
+            bool await_suspend(std::coroutine_handle<P> h) {   // the task's own: its start may throw (coroutine.h: task::awaiter)
                 return _a.await_suspend(h);
             }
 
-            void await_resume() {
+            void await_resume() noexcept {
                 try {
                     _a.await_resume();
                 } catch (...) {

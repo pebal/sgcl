@@ -5,13 +5,13 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/nothrow_function.h"
 #include "../core/aliases.h"
 #include "../core/config.h"
 #include "../core/detail/os.h"
 #include "../core/vector.h"
 #include "../core/detail/backoff.h"
 
-#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -56,6 +56,12 @@ namespace sgcl::concurrent {
     // raises after its element is in the heap.
     template<class T, class Compare = std::less<T>>
     class priority_queue {
+        static_assert(detail::nothrow_function_object<Compare, const T&, const T&>, "sgcl::concurrent::priority_queue: Compare must be noexcept");
+
+        // What a push and a pop do to the elements: construct, move
+        // construct and move assign
+        static constexpr bool NothrowMoves = std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>;
+
         struct Entry {
             T value;
             uint64_t seq;
@@ -64,7 +70,7 @@ namespace sgcl::concurrent {
         // The heap's order: the greatest of the heap is the least by
         // Compare, and of two equal the one pushed first
         struct Order {
-            bool operator()(const Entry& a, const Entry& b) const {
+            bool operator()(const Entry& a, const Entry& b) const noexcept {
                 if (comp(b.value, a.value)) {
                     return true;
                 }
@@ -82,11 +88,11 @@ namespace sgcl::concurrent {
         using value_compare = Compare;
         using size_type = size_t;
 
-        priority_queue()
+        priority_queue() noexcept(std::is_nothrow_default_constructible_v<Compare> && std::is_nothrow_copy_constructible_v<Compare>)
         : priority_queue(Compare()) {
         }
 
-        explicit priority_queue(const Compare& comp)
+        explicit priority_queue(const Compare& comp) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
         : _order{comp} {
         }
 
@@ -105,23 +111,26 @@ namespace sgcl::concurrent {
         priority_queue(const priority_queue&) = delete;
         priority_queue& operator=(const priority_queue&) = delete;
 
-        void push(const T& value) {
+        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T> && NothrowMoves) {
             emplace(value);
         }
 
-        void push(T&& value) {
+        void push(T&& value) noexcept(NothrowMoves) {
             emplace(std::move(value));
         }
 
         // The element constructed from a... and sifted into the heap under
         // the lock; the count of the pushes raised after, and a thread
-        // waiting for an element woken
+        // waiting for an element woken. A throw from the constructor
+        // leaves the queue as it was
         template<class... A>
-        void emplace(A&&... a) {
+        void emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...> && NothrowMoves) {
             {
                 Guard guard(_lock);
                 _heap.push_back(Entry{T(std::forward<A>(a)...), _seq++});
-                std::push_heap(_heap.begin(), _heap.end(), _order);
+                if (_heap.size() > 1) {
+                    _sift_up();
+                }
                 _count.store(_heap.size(), std::memory_order_relaxed);
             }
             _pushed.fetch_add(1, std::memory_order_seq_cst);
@@ -131,12 +140,14 @@ namespace sgcl::concurrent {
         }
 
         // The least element, moved out, or nothing when the queue is empty
-        optional<T> try_pop() {
+        optional<T> try_pop() noexcept(NothrowMoves) {
             Guard guard(_lock);
             if (_heap.empty()) {
                 return nullopt;
             }
-            std::pop_heap(_heap.begin(), _heap.end(), _order);
+            if (_heap.size() > 1) {
+                _pop_heap();
+            }
             optional<T> value(std::move(_heap.back().value));
             _heap.pop_back();
             _count.store(_heap.size(), std::memory_order_relaxed);
@@ -147,7 +158,7 @@ namespace sgcl::concurrent {
         // count of the pushes is read before the attempt, so a push that
         // came after the attempt found nothing changes the count and the
         // wait returns at once, and one that came before was found
-        T pop() {
+        T pop() noexcept(NothrowMoves) {
             for (;;) {
                 uint64_t pushed = _pushed.load(std::memory_order_seq_cst);
                 if (auto value = try_pop()) {
@@ -158,7 +169,7 @@ namespace sgcl::concurrent {
         }
 
         // A copy of the least element, or nothing when the queue is empty
-        optional<T> try_top() const requires std::is_copy_constructible_v<T> {
+        optional<T> try_top() const noexcept(std::is_nothrow_copy_constructible_v<T>) requires std::is_copy_constructible_v<T> {
             Guard guard(_lock);
             if (_heap.empty()) {
                 return nullopt;
@@ -176,13 +187,13 @@ namespace sgcl::concurrent {
         }
 
         // Every element destroyed
-        void clear() {
+        void clear() noexcept {
             Guard guard(_lock);
             _heap.clear();
             _count.store(0, std::memory_order_relaxed);
         }
 
-        value_compare value_comp() const {
+        value_compare value_comp() const noexcept(std::is_nothrow_copy_constructible_v<Compare>) {
             return _order.comp;
         }
 
@@ -229,6 +240,124 @@ namespace sgcl::concurrent {
             explicit Guard(Lock& l) noexcept : lock(l) { lock.lock(); }
             ~Guard() { lock.unlock(); }
         };
+
+        // The element at the back of the heap sifted up to its place: the
+        // steps of std::push_heap, the element taken out, each parent that
+        // comes out after it moved down into the hole, the element put in
+        // the hole where the climb stops. The comparator is noexcept; a
+        // move of T that throws on the way undoes the climb (_unclimb) and
+        // takes the element off, so that no moved-from entry is left in the
+        // heap (the contents are then unspecified: push.md). The handlers
+        // cost nothing until a throw, and none is compiled for a T whose
+        // moves are noexcept. The heap holds two entries at least: the
+        // caller tests that, so a heap of one costs no call and no saved
+        // registers
+        void _sift_up() noexcept(NothrowMoves) {
+            size_t last = _heap.size() - 1;
+            Entry* heap = _heap.data();
+            size_t parent = (last - 1) / 2;
+            if (!_order(heap[parent], heap[last])) {
+                return;
+            }
+            Entry entry(std::move(heap[last]));
+            size_t hole = last;
+            try {
+                do {
+                    heap[hole] = std::move(heap[parent]);
+                    hole = parent;
+                    if (hole == 0) {
+                        break;
+                    }
+                    parent = (hole - 1) / 2;
+                } while (_order(heap[parent], entry));
+            } catch (...) {
+                _unclimb(last, hole);
+                throw;
+            }
+            heap[hole] = std::move(entry);
+        }
+
+        // The climb from the back to the hole undone, after a throw: the
+        // entries on the path, each moved one level down, moved back up from
+        // the top, and the back (the element's place, moved-from now) taken
+        // off. The path of the back is (last + 1) >> j - 1 for j = 0, 1...
+        SGCL_NOINLINE void _unclimb(size_t last, size_t hole) noexcept(std::is_nothrow_move_assignable_v<Entry>) {
+            Entry* heap = _heap.data();
+            unsigned levels = 0;
+            while (((last + 1) >> levels) - 1 != hole) {
+                ++levels;
+            }
+            for (unsigned j = levels; j > 0; --j) {
+                heap[((last + 1) >> j) - 1] = std::move(heap[((last + 1) >> (j - 1)) - 1]);
+            }
+            _heap.pop_back();
+        }
+
+        // The front of the heap moved to the back and the rest put in order:
+        // the steps of std::pop_heap (Floyd's), the front taken out, the
+        // greater child of the hole moved up into it down to a leaf, then
+        // the back moved into the hole and sifted up, the front put at the
+        // back. Both the descent and the climb run along one path from the
+        // root, so a move of T that throws in either is undone the same
+        // way (_undescend), and the back, when it was taken out, is put
+        // back (the comparator is noexcept). std::pop_heap leaves such a
+        // throw with the front lost and a moved-from entry in the heap. The
+        // handlers cost nothing until a throw. The heap holds two entries
+        // at least: the caller tests that
+        void _pop_heap() noexcept(NothrowMoves) {
+            size_t last = _heap.size() - 1;
+            Entry* heap = _heap.data();
+            Entry top(std::move(heap[0]));
+            size_t hole = 0;
+            bool climbs;
+            try {
+                do {
+                    size_t child = 2 * hole + 1;
+                    if (child < last && _order(heap[child], heap[child + 1])) {
+                        ++child;
+                    }
+                    heap[hole] = std::move(heap[child]);
+                    hole = child;
+                } while (hole <= (last - 1) / 2);
+                climbs = hole != last && _order(heap[(hole - 1) / 2], heap[last]);
+            } catch (...) {
+                _undescend(hole, top);
+                throw;
+            }
+            if (climbs) {
+                Entry entry(std::move(heap[last]));
+                try {
+                    do {
+                        size_t parent = (hole - 1) / 2;
+                        heap[hole] = std::move(heap[parent]);
+                        hole = parent;
+                    } while (hole > 0 && _order(heap[(hole - 1) / 2], entry));
+                } catch (...) {
+                    heap[last] = std::move(entry);
+                    _undescend(hole, top);
+                    throw;
+                }
+                heap[hole] = std::move(entry);
+            } else if (hole != last) {
+                heap[hole] = std::move(heap[last]);
+            }
+            heap[last] = std::move(top);
+        }
+
+        // The descent from the root to the hole undone, after a throw: the
+        // entries on the path, each moved one level up, moved back down from
+        // the hole, and the front put back at the root. A climb that came
+        // after the descent moved the lower part of the path back already,
+        // so the same steps from where it stopped undo both
+        SGCL_NOINLINE void _undescend(size_t hole, Entry& top) noexcept(std::is_nothrow_move_assignable_v<Entry>) {
+            Entry* heap = _heap.data();
+            while (hole > 0) {
+                size_t parent = (hole - 1) / 2;
+                heap[hole] = std::move(heap[parent]);
+                hole = parent;
+            }
+            heap[0] = std::move(top);
+        }
 
         // The wait of pop on the count of the pushes: a spin first, then
         // a park, counted so that a push notifies only when someone waits

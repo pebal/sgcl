@@ -55,8 +55,8 @@
 // Nothing throws. A source that does not parse is a thing that really
 // happens — a file somebody edited — so it is an answer and not an
 // exception, as a pattern read where the program runs is in format.h:
-// parse gives back an optional, and the overload taking a
-// stencil_error says where and why it stopped.
+// parse gives back an expected, whose stencil_error says where and why
+// it stopped.
 //
 // Where the values come from. C++20 has no reflection, so this cannot
 // walk the fields of a struct of the caller's and does not pretend to:
@@ -90,6 +90,9 @@ namespace sgcl::txt {
         // promise about the shape of the thing rather than about what it
         // holds.
         struct value_reach;
+
+        // Reads a source into the steps of a stencil (below the class)
+        struct StencilParser;
     }
 
     // What a value is. Scoped, so that `list` and `object` here and the
@@ -129,15 +132,21 @@ namespace sgcl::txt {
         : _held(v) {
         }
 
-        // Every whole number arrives as the widest one. A char is a byte
-        // of UTF-8 and not a small number here, so it is refused rather
-        // than quietly written as 65: text is what a piece of text is.
+        // Every whole number arrives as the widest one; a char and a
+        // char32_t are refused below. An unsigned one past the widest
+        // signed one is held as the real number nearest it rather than
+        // wrapped round into a negative one
         template<class T>
         requires std::integral<T> && (!std::same_as<std::remove_cv_t<T>, bool>)
                  && (!std::same_as<std::remove_cv_t<T>, char>)
                  && (!std::same_as<std::remove_cv_t<T>, char32_t>)
         value(T v) noexcept
         : _held(static_cast<long long>(v)) {
+            if constexpr (std::is_unsigned_v<T> && sizeof(T) >= sizeof(long long)) {
+                if (v > T(std::numeric_limits<long long>::max())) {
+                    _held = static_cast<double>(v);
+                }
+            }
         }
 
         template<class T>
@@ -146,11 +155,11 @@ namespace sgcl::txt {
         : _held(static_cast<double>(v)) {
         }
 
-        value(const string& v)
+        value(const string& v) noexcept
         : _held(v) {
         }
 
-        value(string&& v)
+        value(string&& v) noexcept
         : _held(std::move(v)) {
         }
 
@@ -178,9 +187,17 @@ namespace sgcl::txt {
         // one piece of text, where value v("one") is the text — the
         // initializer list wins in copy-list-initialization, as it does
         // everywhere else in C++.
-        value(std::initializer_list<value> items);
+        value(std::initializer_list<value> items) noexcept;
 
-        value(const vector<value>& items);
+        value(const vector<value>& items) noexcept;
+
+        // A char is a byte of UTF-8 and not a small number here, so it is
+        // refused rather than quietly written as 65: text is what a piece
+        // of text is. Refused by name, because left out of the numbers
+        // above it took the constructor of bool, and value('A') held
+        // true; a char32_t the same. "A" is the text, int('A') the number.
+        value(char) = delete;
+        value(char32_t) = delete;
 
         value_kind kind() const noexcept {
             return value_kind(_held.index());
@@ -223,7 +240,7 @@ namespace sgcl::txt {
         // for. Nothing here is a second implementation of anything:
         // every alternative goes to detail::write_one.
         void write(format_sink& out, const format_spec& spec,
-                   std::string_view nested = {}) const;
+                   std::string_view nested = {}) const noexcept;
 
         // The same as a string, with no specification: what a pipeline
         // function is given when it wants characters (a conversion of
@@ -237,7 +254,7 @@ namespace sgcl::txt {
         // What the two classes below reach for. A mapping is built by
         // its own type and nowhere else, so this is theirs and not the
         // world's.
-        void _become_object();
+        void _become_object() noexcept;
 
         detail::value_object* _as_object() noexcept;
 
@@ -257,11 +274,11 @@ namespace sgcl::txt {
 
             value_list() = default;
 
-            explicit value_list(std::initializer_list<value> il)
+            explicit value_list(std::initializer_list<value> il) noexcept
             : items(il) {
             }
 
-            explicit value_list(const vector<value>& v)
+            explicit value_list(const vector<value>& v) noexcept
             : items(v) {
             }
         };
@@ -275,7 +292,7 @@ namespace sgcl::txt {
 
             value_object() = default;
 
-            explicit value_object(std::initializer_list<pair<string, value>> il) {
+            explicit value_object(std::initializer_list<pair<string, value>> il) noexcept {
                 for (auto& f : il) {
                     fields.insert_or_assign(f.first, f.second);
                 }
@@ -290,26 +307,30 @@ namespace sgcl::txt {
     // the two was meant.
     class list : public value {
     public:
-        list() = default;
+        // An empty list, not nothing: a list made with no elements is
+        // still a list, which a template walks as one
+        list() noexcept
+        : value(std::initializer_list<value>{}) {
+        }
 
-        list(std::initializer_list<value> items)
+        list(std::initializer_list<value> items) noexcept
         : value(items) {
         }
 
-        explicit list(const vector<value>& items)
+        explicit list(const vector<value>& items) noexcept
         : value(items) {
         }
     };
 
     class object : public value {
     public:
-        object();
+        object() noexcept;
 
-        object(std::initializer_list<pair<string, value>> fields);
+        object(std::initializer_list<pair<string, value>> fields) noexcept;
 
         // Built a field at a time, for a mapping whose names are not
         // known where the program is written
-        void set(const string& name, const value& v);
+        void set(const string& name, const value& v) noexcept;
     };
 
     //--------------------------------------------------------------------
@@ -340,7 +361,7 @@ namespace sgcl::txt {
         }
 
         // Why, in a few words
-        string message() const {
+        string message() const noexcept {
             return string(_reason);
         }
 
@@ -375,7 +396,7 @@ namespace sgcl::txt {
     // where a word was wanted.
     class stencil_functions {
     public:
-        stencil_functions();
+        stencil_functions() noexcept;
 
         // Replaces a name already there, which is how a caller overrides
         // one of the six.
@@ -391,18 +412,18 @@ namespace sgcl::txt {
         // clock will be right on most pages and wrong on some, and the
         // some are not the ones anybody tests. Nothing else in a render
         // depends on it.
-        void add(const string& name, stencil_function fn) {
+        void add(const string& name, stencil_function fn) noexcept {
             _named.insert_or_assign(name, std::move(fn));
         }
 
-        const stencil_function* find(const string& name) const {
+        const stencil_function* find(const string& name) const noexcept {
             auto i = _named.find(name);
             return i == _named.end() ? nullptr : &i->second;
         }
 
         // The six that are always there, shared by every template that
         // does not ask for a table of its own
-        static const stencil_functions& builtin();
+        static const stencil_functions& builtin() noexcept;
 
     private:
         ordered_map<string, stencil_function> _named;
@@ -502,14 +523,16 @@ namespace sgcl::txt {
 
         // The common call, with the six built-in functions and nothing
         // else. What comes back where the source is not a template is the
-        // error: where and why the reading stopped.
-        static expected<stencil, stencil_error> parse(const string& source) {
+        // error: where and why the reading stopped. (The built-in
+        // functions are copied without a throw, so nothing here throws;
+        // a table of the program's is copied with its callables'.)
+        static expected<stencil, stencil_error> parse(const string& source) noexcept {
             return parse(source, stencil_functions::builtin());
         }
 
-        // The whole of it. `functions` is kept by the template, so a
-        // table built on the stack of the caller must outlive it — which
-        // the built-in one, being a static, always does.
+        // The whole of it. The template copies the functions of the
+        // table it calls into a table of its own, so `functions` need
+        // not outlive it: one built on the stack of the caller will do.
         static expected<stencil, stencil_error> parse(const string& source,
                                                       const stencil_functions& functions);
 
@@ -517,7 +540,7 @@ namespace sgcl::txt {
         // parse's tables: parse's value, or bad_expected_access<stencil_error>
         // with parse's message. A source read from outside (a file, a
         // setting) is parsed; one the program itself wrote is constructed
-        // (DESIGN 234). `functions` is kept, as by parse
+        // (DESIGN 234). The functions it calls are copied, as by parse
         explicit stencil(const string& source)
         : stencil(parse(source).value()) {
         }
@@ -529,7 +552,7 @@ namespace sgcl::txt {
         // Whether a source is a template at all, with nothing kept. For
         // a program that reads a directory of them at startup and wants
         // to say which one is broken before it needs any of them.
-        static bool parses(const string& source) {
+        static bool parses(const string& source) noexcept {
             return parse(source).has_value();
         }
 
@@ -553,7 +576,7 @@ namespace sgcl::txt {
         }
 
     private:
-        friend struct stencil_parser;
+        friend struct detail::StencilParser;
 
         // How deep the blocks may go before the walk's bookkeeping stops
         // fitting on the stack of _run
@@ -578,7 +601,7 @@ namespace sgcl::txt {
         value _eval(const detail::stencil_expr& e, const value* dot, const value* root) const;
 
         // The program is written once, at its size, from the scratch the
-        // parse builds it in (stencil_parser::scratch): growing these
+        // parse builds it in (detail::StencilParser::scratch): growing these
         // vectors a step at a time left a managed buffer behind at every
         // doubling, seven of the thirteen objects a small template made
         string _source;
@@ -603,15 +626,15 @@ namespace sgcl::txt {
 // structs they point at were
 //------------------------------------------------------------------------------
 namespace sgcl::txt {
-    inline value::value(std::initializer_list<value> items)
+    inline value::value(std::initializer_list<value> items) noexcept
     : _held(make_tracked<detail::value_list>(items)) {
     }
 
-    inline value::value(const vector<value>& items)
+    inline value::value(const vector<value>& items) noexcept
     : _held(make_tracked<detail::value_list>(items)) {
     }
 
-    inline void value::_become_object() {
+    inline void value::_become_object() noexcept {
         _held = make_tracked<detail::value_object>();
     }
 
@@ -620,11 +643,11 @@ namespace sgcl::txt {
         return o ? o->get() : nullptr;
     }
 
-    inline object::object() {
+    inline object::object() noexcept {
         _become_object();
     }
 
-    inline object::object(std::initializer_list<pair<string, value>> fields) {
+    inline object::object(std::initializer_list<pair<string, value>> fields) noexcept {
         _become_object();
         auto o = _as_object();
         for (auto& f : fields) {
@@ -632,7 +655,7 @@ namespace sgcl::txt {
         }
     }
 
-    inline void object::set(const string& name, const value& v) {
+    inline void object::set(const string& name, const value& v) noexcept {
         if (auto o = _as_object()) {
             o->fields.insert_or_assign(name, v);
         }
@@ -703,7 +726,7 @@ namespace sgcl::txt {
         // the column the template asked for intact and the value in it.
         template<class T>
         void write_as(format_sink& out, const T& v, const format_spec& spec,
-                      std::string_view nested) {
+                      std::string_view nested) noexcept(nothrow_write<T>()) {
             if (takes_one<T>(spec, nested)) {
                 write_one(out, v, spec, nested);
                 return;
@@ -754,13 +777,26 @@ namespace sgcl::txt {
         // or a name cannot hold anything, so nothing on the common road
         // reads this at all — which is the point of keeping it here and
         // not in value::write.
+        //
+        // A count alone stops a ring but not its breadth: a mapping that
+        // holds itself under two names was walked 2^64 times before every
+        // path reached the bottom. So a level is also asked whether it is
+        // one of its own ancestors, and if it is, it is the ellipsis: a
+        // ring is cut where it closes, one level below the value that
+        // begins it, whatever its breadth. The answer depends on the path
+        // alone and not on what was written before — a field with a width
+        // writes its body twice when it runs off its room, and the two
+        // must be one text. What the ordinary value pays is a word stored
+        // and a comparison with each value above it, which for data a
+        // template is written for is two or three.
         inline constexpr unsigned MaxValueDepth = 64;
 
         inline thread_local unsigned value_depth = 0;
+        inline thread_local const void* value_path[MaxValueDepth + 1] = {};
 
         struct value_step {
-            value_step() noexcept {
-                ++value_depth;
+            explicit value_step(const void* held) noexcept
+            : _ok(_enter(held)) {
             }
 
             ~value_step() {
@@ -768,8 +804,25 @@ namespace sgcl::txt {
             }
 
             explicit operator bool() const noexcept {
-                return value_depth <= MaxValueDepth;
+                return _ok;
             }
+
+        private:
+            static bool _enter(const void* held) noexcept {
+                unsigned depth = ++value_depth;
+                if (depth > MaxValueDepth) [[unlikely]] {
+                    return false;
+                }
+                for (unsigned k = 1; k < depth; ++k) {
+                    if (value_path[k] == held) [[unlikely]] {
+                        return false;                // its own ancestor: a ring
+                    }
+                }
+                value_path[depth] = held;
+                return true;
+            }
+
+            bool _ok;
         };
     }
 
@@ -799,13 +852,23 @@ namespace sgcl::txt {
         }
 
         static void write(format_sink& out, const value& v, const format_spec& spec,
-                          std::string_view nested) {
+                          std::string_view nested) noexcept {
             v.write(out, spec, nested);
         }
     };
 
+    // A list and a mapping written as data are values and are written as
+    // values: txt::format("{}", txt::object{...}) with nothing wrapped
+    template<>
+    struct formatter<list> : formatter<value> {
+    };
+
+    template<>
+    struct formatter<object> : formatter<value> {
+    };
+
     inline void value::write(format_sink& out, const format_spec& spec,
-                             std::string_view nested) const {
+                             std::string_view nested) const noexcept {
         switch (kind()) {
             case value_kind::none:
                 // Nothing, and not the word "none": a template writing a
@@ -866,7 +929,7 @@ namespace sgcl::txt {
                     // would not come back: the step counts the levels
                     // and the ellipsis is what stands where the walk
                     // was stopped
-                    detail::value_step step;
+                    detail::value_step step(l->get());
                     if (!step) {
                         detail::write_as(out, std::string_view("..."), spec, nested);
                         return;
@@ -878,7 +941,7 @@ namespace sgcl::txt {
             case value_kind::object: {
                 auto o = get_if<tracked_ptr<detail::value_object>>(&_held);
                 if (*o) {
-                    detail::value_step step;
+                    detail::value_step step(o->get());
                     if (!step) {
                         detail::write_as(out, std::string_view("..."), spec, nested);
                         return;
@@ -964,7 +1027,7 @@ namespace sgcl::txt {
         }
     }
 
-    inline stencil_functions::stencil_functions() {
+    inline stencil_functions::stencil_functions() noexcept {
         // The case mappings are the full ones of case.h — "straße"
         // upper-cases to "STRASSE", and a letter whose mapping depends
         // on what stands around it is given what stands around it —
@@ -997,7 +1060,7 @@ namespace sgcl::txt {
         });
     }
 
-    inline const stencil_functions& stencil_functions::builtin() {
+    inline const stencil_functions& stencil_functions::builtin() noexcept {
         // Managed, and held by a root that may live in a global: the
         // table holds tracked pointers — every function is one — and a
         // tracked pointer must live on the stack or inside a managed
@@ -1022,643 +1085,645 @@ namespace sgcl::txt {
     // nowhere. What is left for the render is only what depends on the
     // values, which do not exist yet.
     //--------------------------------------------------------------------
-    struct stencil_parser {
-        const string& src;
-        std::string_view text;
-        const stencil_functions& functions;
-        stencil out;
-        stencil_error why = stencil_error(0, 1, 1, "");
+    namespace detail {
+        struct StencilParser {
+            const string& src;
+            std::string_view text;
+            const stencil_functions& functions;
+            stencil out;
+            stencil_error why = stencil_error(0, 1, 1, "");
 
-        // The block being read, and the fixing up it is owed
-        struct open_block {
-            enum class kind : uint8_t { branch, loop, with };
+            // The block being read, and the fixing up it is owed
+            struct open_block {
+                enum class kind : uint8_t { branch, loop, with };
 
-            kind what = kind::branch;
-            size_t at = 0;                  // where in the source it was opened
-            size_t cond = size_t(-1);       // the step to be told where to go when its arm ends
-            size_t body = 0;                // where the body of a loop starts
-            bool had_else = false;
-            size_t jumps_from = 0;          // its jumps waiting for the end: jumps[jumps_from...]
-        };
+                kind what = kind::branch;
+                size_t at = 0;                  // where in the source it was opened
+                size_t cond = size_t(-1);       // the step to be told where to go when its arm ends
+                size_t body = 0;                // where the body of a loop starts
+                bool had_else = false;
+                size_t jumps_from = 0;          // its jumps waiting for the end: jumps[jumps_from...]
+            };
 
-        // What the parse builds the program in, and the blocks still
-        // open: plain memory lent by the thread (detail/lent.h), since
-        // none of it holds a pointer and none of it leaves the parse but
-        // by the one copy of the program at its size. The jumps waiting
-        // for the end of their block are one stack for all the blocks, as
-        // the blocks close in the order they opened backwards.
-        struct scratch {
-            detail::scratch_vector<detail::stencil_step> steps;
-            detail::scratch_vector<detail::stencil_expr> exprs;
-            detail::scratch_vector<detail::stencil_stage> stages;
-            detail::scratch_vector<detail::stencil_expr> args;
-            detail::scratch_vector<open_block> open;
-            detail::scratch_vector<size_t> jumps;
+            // What the parse builds the program in, and the blocks still
+            // open: plain memory lent by the thread (detail/lent.h), since
+            // none of it holds a pointer and none of it leaves the parse but
+            // by the one copy of the program at its size. The jumps waiting
+            // for the end of their block are one stack for all the blocks, as
+            // the blocks close in the order they opened backwards.
+            struct scratch {
+                detail::scratch_vector<detail::stencil_step> steps;
+                detail::scratch_vector<detail::stencil_expr> exprs;
+                detail::scratch_vector<detail::stencil_stage> stages;
+                detail::scratch_vector<detail::stencil_expr> args;
+                detail::scratch_vector<open_block> open;
+                detail::scratch_vector<size_t> jumps;
 
-            template<class F>
-            friend void lent_each(scratch& s, F& f) {
-                f(s.steps);
-                f(s.exprs);
-                f(s.stages);
-                f(s.args);
-                f(s.open);
-                f(s.jumps);
-            }
-        };
-
-        detail::lent<scratch> work{};   // braced, so that the aggregate below names four fields and not ten
-        detail::scratch_vector<detail::stencil_step>& steps = work->steps;
-        detail::scratch_vector<detail::stencil_expr>& exprs = work->exprs;
-        detail::scratch_vector<detail::stencil_stage>& stages = work->stages;
-        detail::scratch_vector<detail::stencil_expr>& args = work->args;
-        detail::scratch_vector<open_block>& open = work->open;
-        detail::scratch_vector<size_t>& jumps = work->jumps;
-        size_t depth = 0;
-
-        // The program, built, copied into the template at its size
-        void finish() {
-            out._steps = vector<detail::stencil_step>(steps.begin(), steps.end());
-            out._exprs = vector<detail::stencil_expr>(exprs.begin(), exprs.end());
-            out._stages = vector<detail::stencil_stage>(stages.begin(), stages.end());
-            out._args = vector<detail::stencil_expr>(args.begin(), args.end());
-            out._depth = uint32_t(depth);
-        }
-
-        bool fail(size_t at, const char* reason) {
-            size_t line = 1;
-            size_t column = 1;
-            for (size_t i = 0; i < at && i < text.size(); ++i) {
-                if (text[i] == '\n') {
-                    ++line;
-                    column = 1;
-                } else {
-                    ++column;
+                template<class F>
+                friend void lent_each(scratch& s, F& f) noexcept {
+                    f(s.steps);
+                    f(s.exprs);
+                    f(s.stages);
+                    f(s.args);
+                    f(s.open);
+                    f(s.jumps);
                 }
+            };
+
+            detail::lent<scratch> work{};   // braced, so that the aggregate below names four fields and not ten
+            detail::scratch_vector<detail::stencil_step>& steps = work->steps;
+            detail::scratch_vector<detail::stencil_expr>& exprs = work->exprs;
+            detail::scratch_vector<detail::stencil_stage>& stages = work->stages;
+            detail::scratch_vector<detail::stencil_expr>& args = work->args;
+            detail::scratch_vector<open_block>& open = work->open;
+            detail::scratch_vector<size_t>& jumps = work->jumps;
+            size_t depth = 0;
+
+            // The program, built, copied into the template at its size
+            void finish() noexcept {
+                out._steps = vector<detail::stencil_step>(steps.begin(), steps.end());
+                out._exprs = vector<detail::stencil_expr>(exprs.begin(), exprs.end());
+                out._stages = vector<detail::stencil_stage>(stages.begin(), stages.end());
+                out._args = vector<detail::stencil_expr>(args.begin(), args.end());
+                out._depth = uint32_t(depth);
             }
-            why = stencil_error(at, line, column, reason);
-            return false;
-        }
 
-        static bool is_space(char c) noexcept {
-            return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
-        }
-
-        // A name of the template's own language: what may stand as one
-        // step of a path or as the name of a function. Deliberately
-        // narrow — letters, digits and an underscore — because a name
-        // that may hold anything cannot be told from the syntax around
-        // it, and a mapping whose keys are sentences is reached through
-        // the data and not through a path.
-        static bool is_name_char(char c) noexcept {
-            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                || (c >= '0' && c <= '9') || c == '_';
-        }
-
-        void emit(detail::stencil_op op, uint32_t a, uint32_t b) {
-            detail::stencil_step s;
-            s.op = op;
-            s.a = a;
-            s.b = b;
-            steps.push_back(s);
-        }
-
-        size_t here() const {
-            return steps.size();
-        }
-
-        //----------------------------------------------------------------
-        // The pieces of an expression
-        //----------------------------------------------------------------
-        // A run of text in quotes, with the escapes a person writing a
-        // template would expect. The characters are copied out, since
-        // an escape means the value is not a run of the source.
-        bool read_quoted(size_t& at, size_t end, string& made) {
-            char quote = text[at];
-            ++at;
-            std::string room;
-            while (at < end) {
-                char c = text[at];
-                if (c == quote) {
-                    ++at;
-                    made = string(room.data(), room.size());
-                    return true;
-                }
-                if (c == '\\' && at + 1 < end) {
-                    char e = text[at + 1];
-                    switch (e) {
-                        case 'n':  room.push_back('\n'); break;
-                        case 't':  room.push_back('\t'); break;
-                        case 'r':  room.push_back('\r'); break;
-                        case '\\': room.push_back('\\'); break;
-                        case '"':  room.push_back('"'); break;
-                        case '\'': room.push_back('\''); break;
-                        default:   return fail(at, "an escape nobody knows");
+            bool fail(size_t at, const char* reason) noexcept {
+                size_t line = 1;
+                size_t column = 1;
+                for (size_t i = 0; i < at && i < text.size(); ++i) {
+                    if (text[i] == '\n') {
+                        ++line;
+                        column = 1;
+                    } else {
+                        ++column;
                     }
-                    at += 2;
-                    continue;
                 }
-                room.push_back(c);
-                ++at;
+                why = stencil_error(at, line, column, reason);
+                return false;
             }
-            return fail(at, "the text is not closed");
-        }
 
-        // One operand: a literal, or a path from the dot or from the
-        // root. What is not one of those is refused here rather than
-        // read as a name and found missing at render, when whoever
-        // could fix it is no longer looking.
-        bool read_operand(size_t& at, size_t end, detail::stencil_expr& e) {
-            while (at < end && is_space(text[at])) {
+            static bool is_space(char c) noexcept {
+                return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
+            }
+
+            // A name of the template's own language: what may stand as one
+            // step of a path or as the name of a function. Deliberately
+            // narrow — letters, digits and an underscore — because a name
+            // that may hold anything cannot be told from the syntax around
+            // it, and a mapping whose keys are sentences is reached through
+            // the data and not through a path.
+            static bool is_name_char(char c) noexcept {
+                return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_';
+            }
+
+            void emit(detail::stencil_op op, uint32_t a, uint32_t b) noexcept {
+                detail::stencil_step s;
+                s.op = op;
+                s.a = a;
+                s.b = b;
+                steps.push_back(s);
+            }
+
+            size_t here() const noexcept {
+                return steps.size();
+            }
+
+            //----------------------------------------------------------------
+            // The pieces of an expression
+            //----------------------------------------------------------------
+            // A run of text in quotes, with the escapes a person writing a
+            // template would expect. The characters are copied out, since
+            // an escape means the value is not a run of the source.
+            bool read_quoted(size_t& at, size_t end, string& made) noexcept {
+                char quote = text[at];
                 ++at;
-            }
-            if (at >= end) {
-                return fail(at, "a value was expected");
-            }
-            char c = text[at];
-            if (c == '"' || c == '\'') {
-                string made;
-                if (!read_quoted(at, end, made)) {
-                    return false;
-                }
-                e.from = detail::stencil_expr::origin::literal;
-                e.lit = uint32_t(out._literals.size());
-                out._literals.push_back(value(made));
-                return true;
-            }
-            if (c == '-' || (c >= '0' && c <= '9')) {
-                size_t from = at;
-                if (text[at] == '-') {
-                    ++at;
-                }
-                bool real = false;
-                while (at < end && ((text[at] >= '0' && text[at] <= '9') || text[at] == '.'
-                                    || text[at] == 'e' || text[at] == 'E'
-                                    || ((text[at] == '-' || text[at] == '+') && at > from
-                                        && (text[at - 1] == 'e' || text[at - 1] == 'E')))) {
-                    real = real || text[at] == '.' || text[at] == 'e' || text[at] == 'E';
-                    ++at;
-                }
-                auto number = text.substr(from, at - from);
-                value made;
-                if (real) {
-                    double d = 0;
-                    auto r = std::from_chars(number.data(), number.data() + number.size(), d);
-                    if (r.ec != std::errc() || r.ptr != number.data() + number.size()) {
-                        return fail(from, "that is not a number");
-                    }
-                    made = value(d);
-                } else {
-                    long long v = 0;
-                    auto r = std::from_chars(number.data(), number.data() + number.size(), v);
-                    if (r.ec != std::errc() || r.ptr != number.data() + number.size()) {
-                        return fail(from, "that is not a number");
-                    }
-                    made = value(v);
-                }
-                e.from = detail::stencil_expr::origin::literal;
-                e.lit = uint32_t(out._literals.size());
-                out._literals.push_back(made);
-                return true;
-            }
-            // A path. `$` starts at the root of the data whatever block
-            // it stands in, which is the only way out of a range; a
-            // leading dot is the element being walked, and so is a name
-            // with no dot before it — the shorthand this has that Go
-            // does not, where a bare name is a function call.
-            if (c == '$') {
-                e.from = detail::stencil_expr::origin::root;
-                ++at;
-            } else {
-                e.from = detail::stencil_expr::origin::dot;
-                if (c == '.') {
-                    // `.` alone is the element itself
-                    if (at + 1 >= end || !is_name_char(text[at + 1])) {
+                std::string room;
+                while (at < end) {
+                    char c = text[at];
+                    if (c == quote) {
                         ++at;
-                        e.path_at = uint32_t(out._names.size());
-                        e.path_size = 0;
+                        made = string(room.data(), room.size());
                         return true;
                     }
-                }
-            }
-            e.path_at = uint32_t(out._names.size());
-            e.path_size = 0;
-            bool first = true;
-            while (at < end) {
-                if (text[at] == '.') {
-                    ++at;
-                } else if (!first) {
-                    break;
-                }
-                if (at >= end || !is_name_char(text[at])) {
-                    if (first && e.from == detail::stencil_expr::origin::root) {
-                        return true;            // `$` alone is the whole of the data
-                    }
-                    return fail(at, "a name was expected after the dot");
-                }
-                size_t from = at;
-                while (at < end && is_name_char(text[at])) {
-                    ++at;
-                }
-                out._names.push_back(string(text.data() + from, at - from));
-                ++e.path_size;
-                first = false;
-                if (at >= end || text[at] != '.') {
-                    break;
-                }
-            }
-            if (!e.path_size && e.from == detail::stencil_expr::origin::dot) {
-                return fail(at, "a value was expected");
-            }
-            return true;
-        }
-
-        // A whole field: an operand, the functions it is piped through,
-        // and — where one is allowed — the specification after the
-        // colon, which is read by format.h's own reader and by nothing
-        // written here.
-        bool read_expr(size_t from, size_t to, uint32_t& made, bool spec_allowed) {
-            detail::stencil_expr e;
-            size_t body_end = to;
-            if (spec_allowed) {
-                // The first colon standing outside quotes ends the
-                // expression: neither a path nor the name of a function
-                // may hold one, and a literal that does is in quotes,
-                // which this walks past.
-                char quote = 0;
-                for (size_t i = from; i < to; ++i) {
-                    char c = text[i];
-                    if (quote) {
-                        if (c == '\\') {
-                            ++i;
-                        } else if (c == quote) {
-                            quote = 0;
+                    if (c == '\\' && at + 1 < end) {
+                        char e = text[at + 1];
+                        switch (e) {
+                            case 'n':  room.push_back('\n'); break;
+                            case 't':  room.push_back('\t'); break;
+                            case 'r':  room.push_back('\r'); break;
+                            case '\\': room.push_back('\\'); break;
+                            case '"':  room.push_back('"'); break;
+                            case '\'': room.push_back('\''); break;
+                            default:   return fail(at, "an escape nobody knows");
                         }
+                        at += 2;
                         continue;
                     }
-                    if (c == '"' || c == '\'') {
-                        quote = c;
-                        continue;
+                    room.push_back(c);
+                    ++at;
+                }
+                return fail(at, "the text is not closed");
+            }
+
+            // One operand: a literal, or a path from the dot or from the
+            // root. What is not one of those is refused here rather than
+            // read as a name and found missing at render, when whoever
+            // could fix it is no longer looking.
+            bool read_operand(size_t& at, size_t end, detail::stencil_expr& e) noexcept {
+                while (at < end && is_space(text[at])) {
+                    ++at;
+                }
+                if (at >= end) {
+                    return fail(at, "a value was expected");
+                }
+                char c = text[at];
+                if (c == '"' || c == '\'') {
+                    string made;
+                    if (!read_quoted(at, end, made)) {
+                        return false;
                     }
-                    if (c == ':') {
-                        body_end = i;
+                    e.from = detail::stencil_expr::origin::literal;
+                    e.lit = uint32_t(out._literals.size());
+                    out._literals.push_back(value(made));
+                    return true;
+                }
+                if (c == '-' || (c >= '0' && c <= '9')) {
+                    size_t from = at;
+                    if (text[at] == '-') {
+                        ++at;
+                    }
+                    bool real = false;
+                    while (at < end && ((text[at] >= '0' && text[at] <= '9') || text[at] == '.'
+                                        || text[at] == 'e' || text[at] == 'E'
+                                        || ((text[at] == '-' || text[at] == '+') && at > from
+                                            && (text[at - 1] == 'e' || text[at - 1] == 'E')))) {
+                        real = real || text[at] == '.' || text[at] == 'e' || text[at] == 'E';
+                        ++at;
+                    }
+                    auto number = text.substr(from, at - from);
+                    value made;
+                    if (real) {
+                        double d = 0;
+                        auto r = std::from_chars(number.data(), number.data() + number.size(), d);
+                        if (r.ec != std::errc() || r.ptr != number.data() + number.size()) {
+                            return fail(from, "that is not a number");
+                        }
+                        made = value(d);
+                    } else {
+                        long long v = 0;
+                        auto r = std::from_chars(number.data(), number.data() + number.size(), v);
+                        if (r.ec != std::errc() || r.ptr != number.data() + number.size()) {
+                            return fail(from, "that is not a number");
+                        }
+                        made = value(v);
+                    }
+                    e.from = detail::stencil_expr::origin::literal;
+                    e.lit = uint32_t(out._literals.size());
+                    out._literals.push_back(made);
+                    return true;
+                }
+                // A path. `$` starts at the root of the data whatever block
+                // it stands in, which is the only way out of a range; a
+                // leading dot is the element being walked, and so is a name
+                // with no dot before it — the shorthand this has that Go
+                // does not, where a bare name is a function call.
+                if (c == '$') {
+                    e.from = detail::stencil_expr::origin::root;
+                    ++at;
+                } else {
+                    e.from = detail::stencil_expr::origin::dot;
+                    if (c == '.') {
+                        // `.` alone is the element itself
+                        if (at + 1 >= end || !is_name_char(text[at + 1])) {
+                            ++at;
+                            e.path_at = uint32_t(out._names.size());
+                            e.path_size = 0;
+                            return true;
+                        }
+                    }
+                }
+                e.path_at = uint32_t(out._names.size());
+                e.path_size = 0;
+                bool first = true;
+                while (at < end) {
+                    if (text[at] == '.') {
+                        ++at;
+                    } else if (!first) {
+                        break;
+                    }
+                    if (at >= end || !is_name_char(text[at])) {
+                        if (first && e.from == detail::stencil_expr::origin::root) {
+                            return true;            // `$` alone is the whole of the data
+                        }
+                        return fail(at, "a name was expected after the dot");
+                    }
+                    size_t from = at;
+                    while (at < end && is_name_char(text[at])) {
+                        ++at;
+                    }
+                    out._names.push_back(string(text.data() + from, at - from));
+                    ++e.path_size;
+                    first = false;
+                    if (at >= end || text[at] != '.') {
                         break;
                     }
                 }
+                if (!e.path_size && e.from == detail::stencil_expr::origin::dot) {
+                    return fail(at, "a value was expected");
+                }
+                return true;
             }
-            size_t at = from;
-            if (!read_operand(at, body_end, e)) {
-                return false;
-            }
-            e.pipe_at = uint32_t(stages.size());
-            e.pipe_size = 0;
-            for (;;) {
-                while (at < body_end && is_space(text[at])) {
-                    ++at;
+
+            // A whole field: an operand, the functions it is piped through,
+            // and — where one is allowed — the specification after the
+            // colon, which is read by format.h's own reader and by nothing
+            // written here.
+            bool read_expr(size_t from, size_t to, uint32_t& made, bool spec_allowed) {
+                detail::stencil_expr e;
+                size_t body_end = to;
+                if (spec_allowed) {
+                    // The first colon standing outside quotes ends the
+                    // expression: neither a path nor the name of a function
+                    // may hold one, and a literal that does is in quotes,
+                    // which this walks past.
+                    char quote = 0;
+                    for (size_t i = from; i < to; ++i) {
+                        char c = text[i];
+                        if (quote) {
+                            if (c == '\\') {
+                                ++i;
+                            } else if (c == quote) {
+                                quote = 0;
+                            }
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') {
+                            quote = c;
+                            continue;
+                        }
+                        if (c == ':') {
+                            body_end = i;
+                            break;
+                        }
+                    }
                 }
-                if (at >= body_end) {
-                    break;
+                size_t at = from;
+                if (!read_operand(at, body_end, e)) {
+                    return false;
                 }
-                if (text[at] != '|') {
-                    return fail(at, "a bar was expected between a value and a function");
-                }
-                ++at;
-                while (at < body_end && is_space(text[at])) {
-                    ++at;
-                }
-                size_t name_from = at;
-                while (at < body_end && is_name_char(text[at])) {
-                    ++at;
-                }
-                if (at == name_from) {
-                    return fail(at, "the name of a function was expected");
-                }
-                string name(text.data() + name_from, at - name_from);
-                auto fn = functions.find(name);
-                if (!fn) {
-                    // Found here and not at render, so that a template
-                    // calling a function nobody wrote is a thing the
-                    // program learns when it reads the file
-                    return fail(name_from, "no function of that name");
-                }
-                detail::stencil_stage stage;
-                stage.fn = uint32_t(out._functions.size());
-                out._functions.push_back(*fn);
-                stage.args_at = uint32_t(args.size());
-                stage.args_size = 0;
+                e.pipe_at = uint32_t(stages.size());
+                e.pipe_size = 0;
                 for (;;) {
                     while (at < body_end && is_space(text[at])) {
                         ++at;
                     }
-                    if (at >= body_end || text[at] == '|') {
+                    if (at >= body_end) {
                         break;
                     }
-                    if (stage.args_size == detail::MaxArgs) {
-                        return fail(at, "too many arguments to one function");
+                    if (text[at] != '|') {
+                        return fail(at, "a bar was expected between a value and a function");
                     }
-                    detail::stencil_expr arg;
-                    if (!read_operand(at, body_end, arg)) {
-                        return false;
+                    ++at;
+                    while (at < body_end && is_space(text[at])) {
+                        ++at;
                     }
-                    args.push_back(arg);
-                    ++stage.args_size;
+                    size_t name_from = at;
+                    while (at < body_end && is_name_char(text[at])) {
+                        ++at;
+                    }
+                    if (at == name_from) {
+                        return fail(at, "the name of a function was expected");
+                    }
+                    string name(text.data() + name_from, at - name_from);
+                    auto fn = functions.find(name);
+                    if (!fn) {
+                        // Found here and not at render, so that a template
+                        // calling a function nobody wrote is a thing the
+                        // program learns when it reads the file
+                        return fail(name_from, "no function of that name");
+                    }
+                    detail::stencil_stage stage;
+                    stage.fn = uint32_t(out._functions.size());
+                    out._functions.push_back(*fn);
+                    stage.args_at = uint32_t(args.size());
+                    stage.args_size = 0;
+                    for (;;) {
+                        while (at < body_end && is_space(text[at])) {
+                            ++at;
+                        }
+                        if (at >= body_end || text[at] == '|') {
+                            break;
+                        }
+                        if (stage.args_size == detail::MaxArgs) {
+                            return fail(at, "too many arguments to one function");
+                        }
+                        detail::stencil_expr arg;
+                        if (!read_operand(at, body_end, arg)) {
+                            return false;
+                        }
+                        args.push_back(arg);
+                        ++stage.args_size;
+                    }
+                    stages.push_back(stage);
+                    ++e.pipe_size;
                 }
-                stages.push_back(stage);
-                ++e.pipe_size;
+                if (body_end < to) {
+                    // Everything after the colon is format.h's to read, and
+                    // it is read by format.h: the same reader, the same
+                    // grammar, the same refusals. A nested specification is
+                    // opened only for a value that holds other values, and
+                    // a value here may hold them, so a second colon is
+                    // always offered.
+                    std::string_view body = text.substr(body_end + 1, to - body_end - 1);
+                    std::string_view nested;
+                    if (!detail::read_spec(body, e.spec, nested, true)) {
+                        return fail(body_end + 1, "that is not a specification");
+                    }
+                    if (nested.data()) {
+                        e.has_nested = true;
+                        e.nested_at = uint32_t(nested.data() - text.data());
+                        e.nested_size = uint32_t(nested.size());
+                    }
+                }
+                made = uint32_t(exprs.size());
+                exprs.push_back(e);
+                return true;
             }
-            if (body_end < to) {
-                // Everything after the colon is format.h's to read, and
-                // it is read by format.h: the same reader, the same
-                // grammar, the same refusals. A nested specification is
-                // opened only for a value that holds other values, and
-                // a value here may hold them, so a second colon is
-                // always offered.
-                std::string_view body = text.substr(body_end + 1, to - body_end - 1);
-                std::string_view nested;
-                if (!detail::read_spec(body, e.spec, nested, true)) {
-                    return fail(body_end + 1, "that is not a specification");
-                }
-                if (nested.data()) {
-                    e.has_nested = true;
-                    e.nested_at = uint32_t(nested.data() - text.data());
-                    e.nested_size = uint32_t(nested.size());
-                }
-            }
-            made = uint32_t(exprs.size());
-            exprs.push_back(e);
-            return true;
-        }
 
-        //----------------------------------------------------------------
-        // The actions
-        //----------------------------------------------------------------
-        // A keyword, and not merely a name that starts with its
-        // letters. The end of the action bounds it rather than the end
-        // of the source, which is the whole of the difference between
-        // {{end}} being read as the keyword and being read as a path
-        // called "end": what follows it is a brace, not a space, and
-        // only `to` knows that the action stops there.
-        bool word_at(size_t at, size_t to, std::string_view word) const {
-            if (to - at < word.size()) {
-                return false;
+            //----------------------------------------------------------------
+            // The actions
+            //----------------------------------------------------------------
+            // A keyword, and not merely a name that starts with its
+            // letters. The end of the action bounds it rather than the end
+            // of the source, which is the whole of the difference between
+            // {{end}} being read as the keyword and being read as a path
+            // called "end": what follows it is a brace, not a space, and
+            // only `to` knows that the action stops there.
+            bool word_at(size_t at, size_t to, std::string_view word) const noexcept {
+                if (to - at < word.size()) {
+                    return false;
+                }
+                if (text.compare(at, word.size(), word) != 0) {
+                    return false;
+                }
+                size_t after = at + word.size();
+                return after == to || is_space(text[after]);
             }
-            if (text.compare(at, word.size(), word) != 0) {
-                return false;
-            }
-            size_t after = at + word.size();
-            return after == to || is_space(text[after]);
-        }
 
-        bool action(size_t from, size_t to) {
-            while (from < to && is_space(text[from])) {
-                ++from;
-            }
-            while (to > from && is_space(text[to - 1])) {
-                --to;
-            }
-            if (from == to) {
-                return fail(from, "an empty action");
-            }
-            auto starts = [&](std::string_view word) {
-                return word_at(from, to, word);
-            };
-            if (starts("if")) {
-                uint32_t e = 0;
-                if (!read_expr(from + 2, to, e, false)) {
-                    return false;
+            bool action(size_t from, size_t to) {
+                while (from < to && is_space(text[from])) {
+                    ++from;
                 }
-                open_block b;
-                b.jumps_from = jumps.size();
-                b.what = open_block::kind::branch;
-                b.at = from;
-                emit(detail::stencil_op::branch, e, 0);
-                b.cond = here() - 1;
-                open.push_back(std::move(b));
-                return true;
-            }
-            if (starts("range")) {
-                uint32_t e = 0;
-                if (!read_expr(from + 5, to, e, false)) {
-                    return false;
+                while (to > from && is_space(text[to - 1])) {
+                    --to;
                 }
-                open_block b;
-                b.jumps_from = jumps.size();
-                b.what = open_block::kind::loop;
-                b.at = from;
-                emit(detail::stencil_op::loop, e, 0);
-                b.cond = here() - 1;
-                b.body = here();
-                open.push_back(std::move(b));
-                depth = std::max(depth, open.size());
-                return true;
-            }
-            if (starts("with")) {
-                uint32_t e = 0;
-                if (!read_expr(from + 4, to, e, false)) {
-                    return false;
+                if (from == to) {
+                    return fail(from, "an empty action");
                 }
-                open_block b;
-                b.jumps_from = jumps.size();
-                b.what = open_block::kind::with;
-                b.at = from;
-                emit(detail::stencil_op::enter, e, 0);
-                b.cond = here() - 1;
-                open.push_back(std::move(b));
-                depth = std::max(depth, open.size());
-                return true;
-            }
-            if (starts("else")) {
-                if (open.empty()) {
-                    return fail(from, "an else with nothing open");
-                }
-                auto& b = open.back();
-                if (b.had_else && b.cond == size_t(-1)) {
-                    return fail(from, "a second else");
-                }
-                size_t rest = from + 4;
-                while (rest < to && is_space(text[rest])) {
-                    ++rest;
-                }
-                bool chained = rest < to;
-                if (chained && b.what != open_block::kind::branch) {
-                    return fail(rest, "only an if may be chained with else if");
-                }
-                if (chained && !word_at(rest, to, "if")) {
-                    return fail(rest, "an if was expected after else");
-                }
-                // The arm that just ended jumps over everything left,
-                // and where the condition failed is here
-                if (b.what == open_block::kind::loop) {
-                    emit(detail::stencil_op::repeat, 0, uint32_t(b.body));
-                } else if (b.what == open_block::kind::with) {
-                    emit(detail::stencil_op::leave, 0, 0);
-                }
-                emit(detail::stencil_op::jump, 0, 0);
-                jumps.push_back(here() - 1);
-                if (b.cond != size_t(-1)) {
-                    steps[b.cond].b = uint32_t(here());
-                }
-                b.had_else = true;
-                b.cond = size_t(-1);
-                if (chained) {
-                    // An else if opens no block of its own: the one
-                    // end that closes the chain closes all of it, so
-                    // the condition of this arm simply becomes the one
-                    // the block is waiting to fix up
+                auto starts = [&](std::string_view word) {
+                    return word_at(from, to, word);
+                };
+                if (starts("if")) {
                     uint32_t e = 0;
-                    if (!read_expr(rest + 2, to, e, false)) {
+                    if (!read_expr(from + 2, to, e, false)) {
                         return false;
                     }
+                    open_block b;
+                    b.jumps_from = jumps.size();
+                    b.what = open_block::kind::branch;
+                    b.at = from;
                     emit(detail::stencil_op::branch, e, 0);
                     b.cond = here() - 1;
+                    open.push_back(std::move(b));
+                    return true;
                 }
-                return true;
-            }
-            if (starts("end")) {
-                if (open.empty()) {
-                    return fail(from, "an end with nothing open");
+                if (starts("range")) {
+                    uint32_t e = 0;
+                    if (!read_expr(from + 5, to, e, false)) {
+                        return false;
+                    }
+                    open_block b;
+                    b.jumps_from = jumps.size();
+                    b.what = open_block::kind::loop;
+                    b.at = from;
+                    emit(detail::stencil_op::loop, e, 0);
+                    b.cond = here() - 1;
+                    b.body = here();
+                    open.push_back(std::move(b));
+                    depth = std::max(depth, open.size());
+                    return true;
                 }
-                auto b = std::move(open.back());
-                open.pop_back();
-                if (!b.had_else) {
+                if (starts("with")) {
+                    uint32_t e = 0;
+                    if (!read_expr(from + 4, to, e, false)) {
+                        return false;
+                    }
+                    open_block b;
+                    b.jumps_from = jumps.size();
+                    b.what = open_block::kind::with;
+                    b.at = from;
+                    emit(detail::stencil_op::enter, e, 0);
+                    b.cond = here() - 1;
+                    open.push_back(std::move(b));
+                    depth = std::max(depth, open.size());
+                    return true;
+                }
+                if (starts("else")) {
+                    if (open.empty()) {
+                        return fail(from, "an else with nothing open");
+                    }
+                    auto& b = open.back();
+                    if (b.had_else && b.cond == size_t(-1)) {
+                        return fail(from, "a second else");
+                    }
+                    size_t rest = from + 4;
+                    while (rest < to && is_space(text[rest])) {
+                        ++rest;
+                    }
+                    bool chained = rest < to;
+                    if (chained && b.what != open_block::kind::branch) {
+                        return fail(rest, "only an if may be chained with else if");
+                    }
+                    if (chained && !word_at(rest, to, "if")) {
+                        return fail(rest, "an if was expected after else");
+                    }
+                    // The arm that just ended jumps over everything left,
+                    // and where the condition failed is here
                     if (b.what == open_block::kind::loop) {
                         emit(detail::stencil_op::repeat, 0, uint32_t(b.body));
                     } else if (b.what == open_block::kind::with) {
                         emit(detail::stencil_op::leave, 0, 0);
                     }
-                }
-                if (b.cond != size_t(-1)) {
-                    steps[b.cond].b = uint32_t(here());
-                }
-                for (size_t k = b.jumps_from; k < jumps.size(); ++k) {
-                    steps[jumps[k]].b = uint32_t(here());
-                }
-                jumps.resize(b.jumps_from);
-                return true;
-            }
-            uint32_t e = 0;
-            if (!read_expr(from, to, e, true)) {
-                return false;
-            }
-            emit(detail::stencil_op::write, e, 0);
-            return true;
-        }
-
-        //----------------------------------------------------------------
-        // The whole source
-        //----------------------------------------------------------------
-        bool run() {
-            size_t n = text.size();
-            size_t i = 0;
-            bool trim_next = false;
-            while (i < n) {
-                size_t open_at = text.find("{{", i);
-                size_t run_from = i;
-                size_t run_to = open_at == std::string_view::npos ? n : open_at;
-                if (trim_next) {
-                    while (run_from < run_to && is_space(text[run_from])) {
-                        ++run_from;
+                    emit(detail::stencil_op::jump, 0, 0);
+                    jumps.push_back(here() - 1);
+                    if (b.cond != size_t(-1)) {
+                        steps[b.cond].b = uint32_t(here());
                     }
-                    trim_next = false;
-                }
-                // A space after the minus is required, as it is in Go,
-                // and for the same reason: without it {{-5}} is a trim
-                // and the number five, where every reader of it sees
-                // minus five.
-                bool trims_before = open_at != std::string_view::npos
-                                 && open_at + 3 < n && text[open_at + 2] == '-'
-                                 && is_space(text[open_at + 3]);
-                if (trims_before) {
-                    while (run_to > run_from && is_space(text[run_to - 1])) {
-                        --run_to;
-                    }
-                }
-                if (run_to > run_from) {
-                    emit(detail::stencil_op::text, uint32_t(run_from), uint32_t(run_to - run_from));
-                }
-                if (open_at == std::string_view::npos) {
-                    break;
-                }
-                size_t body = open_at + 2 + (trims_before ? 1 : 0);
-                // A comment is the whole of its action, so it is read
-                // whole: nothing inside it is looked at and a closing
-                // brace in it means nothing
-                size_t lead = body;
-                while (lead < n && is_space(text[lead])) {
-                    ++lead;
-                }
-                if (lead + 1 < n && text[lead] == '/' && text[lead + 1] == '*') {
-                    size_t shut = text.find("*/", lead + 2);
-                    if (shut == std::string_view::npos) {
-                        return fail(lead, "the comment is not closed");
-                    }
-                    size_t after = shut + 2;
-                    while (after < n && is_space(text[after])) {
-                        ++after;
-                    }
-                    if (after < n && text[after] == '-') {
-                        trim_next = true;
-                        ++after;
-                    }
-                    if (after + 1 >= n || text[after] != '}' || text[after + 1] != '}') {
-                        return fail(after, "the comment does not end the action");
-                    }
-                    i = after + 2;
-                    continue;
-                }
-                // The end of the action, with what stands in quotes
-                // walked past so that a brace written inside a literal
-                // does not close it
-                size_t at = body;
-                char quote = 0;
-                size_t shut = std::string_view::npos;
-                while (at + 1 < n) {
-                    char c = text[at];
-                    if (quote) {
-                        if (c == '\\') {
-                            ++at;
-                        } else if (c == quote) {
-                            quote = 0;
+                    b.had_else = true;
+                    b.cond = size_t(-1);
+                    if (chained) {
+                        // An else if opens no block of its own: the one
+                        // end that closes the chain closes all of it, so
+                        // the condition of this arm simply becomes the one
+                        // the block is waiting to fix up
+                        uint32_t e = 0;
+                        if (!read_expr(rest + 2, to, e, false)) {
+                            return false;
                         }
-                        ++at;
-                        continue;
+                        emit(detail::stencil_op::branch, e, 0);
+                        b.cond = here() - 1;
                     }
-                    if (c == '"' || c == '\'') {
-                        quote = c;
-                        ++at;
-                        continue;
+                    return true;
+                }
+                if (starts("end")) {
+                    if (open.empty()) {
+                        return fail(from, "an end with nothing open");
                     }
-                    if (c == '}' && text[at + 1] == '}') {
-                        shut = at;
-                        break;
+                    auto b = std::move(open.back());
+                    open.pop_back();
+                    if (!b.had_else) {
+                        if (b.what == open_block::kind::loop) {
+                            emit(detail::stencil_op::repeat, 0, uint32_t(b.body));
+                        } else if (b.what == open_block::kind::with) {
+                            emit(detail::stencil_op::leave, 0, 0);
+                        }
                     }
-                    ++at;
+                    if (b.cond != size_t(-1)) {
+                        steps[b.cond].b = uint32_t(here());
+                    }
+                    for (size_t k = b.jumps_from; k < jumps.size(); ++k) {
+                        steps[jumps[k]].b = uint32_t(here());
+                    }
+                    jumps.resize(b.jumps_from);
+                    return true;
                 }
-                if (shut == std::string_view::npos) {
-                    return fail(open_at, "the action is not closed");
-                }
-                size_t body_to = shut;
-                if (body_to > body && text[body_to - 1] == '-'
-                    && body_to - 1 > body && is_space(text[body_to - 2])) {
-                    // A minus glued to what stands before it is a minus
-                    // sign; one with a space in front of it is the trim
-                    trim_next = true;
-                    --body_to;
-                }
-                if (!action(body, body_to)) {
+                uint32_t e = 0;
+                if (!read_expr(from, to, e, true)) {
                     return false;
                 }
-                i = shut + 2;
+                emit(detail::stencil_op::write, e, 0);
+                return true;
             }
-            if (!open.empty()) {
-                return fail(open.back().at, "a block was left open");
+
+            //----------------------------------------------------------------
+            // The whole source
+            //----------------------------------------------------------------
+            bool run() {
+                size_t n = text.size();
+                size_t i = 0;
+                bool trim_next = false;
+                while (i < n) {
+                    size_t open_at = text.find("{{", i);
+                    size_t run_from = i;
+                    size_t run_to = open_at == std::string_view::npos ? n : open_at;
+                    if (trim_next) {
+                        while (run_from < run_to && is_space(text[run_from])) {
+                            ++run_from;
+                        }
+                        trim_next = false;
+                    }
+                    // A space after the minus is required, as it is in Go,
+                    // and for the same reason: without it {{-5}} is a trim
+                    // and the number five, where every reader of it sees
+                    // minus five.
+                    bool trims_before = open_at != std::string_view::npos
+                                     && open_at + 3 < n && text[open_at + 2] == '-'
+                                     && is_space(text[open_at + 3]);
+                    if (trims_before) {
+                        while (run_to > run_from && is_space(text[run_to - 1])) {
+                            --run_to;
+                        }
+                    }
+                    if (run_to > run_from) {
+                        emit(detail::stencil_op::text, uint32_t(run_from), uint32_t(run_to - run_from));
+                    }
+                    if (open_at == std::string_view::npos) {
+                        break;
+                    }
+                    size_t body = open_at + 2 + (trims_before ? 1 : 0);
+                    // A comment is the whole of its action, so it is read
+                    // whole: nothing inside it is looked at and a closing
+                    // brace in it means nothing
+                    size_t lead = body;
+                    while (lead < n && is_space(text[lead])) {
+                        ++lead;
+                    }
+                    if (lead + 1 < n && text[lead] == '/' && text[lead + 1] == '*') {
+                        size_t shut = text.find("*/", lead + 2);
+                        if (shut == std::string_view::npos) {
+                            return fail(lead, "the comment is not closed");
+                        }
+                        size_t after = shut + 2;
+                        while (after < n && is_space(text[after])) {
+                            ++after;
+                        }
+                        if (after < n && text[after] == '-') {
+                            trim_next = true;
+                            ++after;
+                        }
+                        if (after + 1 >= n || text[after] != '}' || text[after + 1] != '}') {
+                            return fail(after, "the comment does not end the action");
+                        }
+                        i = after + 2;
+                        continue;
+                    }
+                    // The end of the action, with what stands in quotes
+                    // walked past so that a brace written inside a literal
+                    // does not close it
+                    size_t at = body;
+                    char quote = 0;
+                    size_t shut = std::string_view::npos;
+                    while (at + 1 < n) {
+                        char c = text[at];
+                        if (quote) {
+                            if (c == '\\') {
+                                ++at;
+                            } else if (c == quote) {
+                                quote = 0;
+                            }
+                            ++at;
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') {
+                            quote = c;
+                            ++at;
+                            continue;
+                        }
+                        if (c == '}' && text[at + 1] == '}') {
+                            shut = at;
+                            break;
+                        }
+                        ++at;
+                    }
+                    if (shut == std::string_view::npos) {
+                        return fail(open_at, "the action is not closed");
+                    }
+                    size_t body_to = shut;
+                    if (body_to > body && text[body_to - 1] == '-'
+                        && body_to - 1 > body && is_space(text[body_to - 2])) {
+                        // A minus glued to what stands before it is a minus
+                        // sign; one with a space in front of it is the trim
+                        trim_next = true;
+                        --body_to;
+                    }
+                    if (!action(body, body_to)) {
+                        return false;
+                    }
+                    i = shut + 2;
+                }
+                if (!open.empty()) {
+                    return fail(open.back().at, "a block was left open");
+                }
+                return true;
             }
-            return true;
-        }
-    };
+        };
+    }
 
     inline expected<stencil, stencil_error> stencil::parse(const string& source,
                                                            const stencil_functions& functions) {
-        stencil_parser parser{source, source.view(), functions, stencil()};
+        detail::StencilParser parser{source, source.view(), functions, stencil()};
         parser.out._source = source;
         if (!parser.run()) {
             return unexpected(parser.why);

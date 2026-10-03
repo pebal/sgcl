@@ -328,3 +328,62 @@ TEST(Lzw_Tests, CloseClosesTheSource) {
     ASSERT_TRUE(r.close());
     EXPECT_TRUE(*closed);
 }
+
+// reset: a new stream with the same settings, the coder's memory kept and
+// nothing of the old stream carried over (the writer's table and bits, a
+// failure, the closed state), as flate's, lzma's and xz's do
+TEST(Lzw_Tests, ResetReusesTheWriterAndTheReader) {
+    auto buffer_text = [](const sgcl::io::buffer& b) {
+        return std::string(reinterpret_cast<const char*>(b.data().data()), b.size());
+    };
+    std::string one = read_oracle("lzw/lw8-gettysburg.in");
+    for (auto o : {lzw::order::lsb, lzw::order::msb}) {
+        sgcl::io::buffer a;
+        sgcl::io::buffer b;
+        sgcl::io::buffer c;
+        lzw::writer w(a, o, 8);
+        EXPECT_FALSE(w.last_error());
+        ASSERT_TRUE(w.write(bytes(one)));
+        ASSERT_TRUE(w.close());
+        w.reset(b);
+        EXPECT_FALSE(w.is_closed());
+        ASSERT_TRUE(w.write(bytes(one.substr(0, 777))));   // left without its close
+        w.reset(c);
+        ASSERT_TRUE(w.write(bytes(std::string("two"))));
+        ASSERT_TRUE(w.close());
+        auto ca = buffer_text(a);
+        auto cc = buffer_text(c);
+        EXPECT_EQ(ca, text(lzw::compress(bytes(one), o, 8))) << order_name(o);
+        EXPECT_EQ(cc, text(lzw::compress(bytes(std::string("two")), o, 8))) << order_name(o);
+        lzw::reader r(dribble{ca, 1000}, o, 8);
+        std::byte part[100];
+        ASSERT_TRUE(r.read(part));   // the first stream left in the middle
+        r.reset(dribble{cc, 1});
+        EXPECT_EQ(text(value_of(r.read_all())), "two");
+        r.reset(dribble{ca, 4096});
+        EXPECT_EQ(text(value_of(r.read_all())), one);
+    }
+    // the first error kept, last_error() its whole; reset clears it
+    sgcl::io::buffer d;
+    sgcl::io::buffer e;
+    lzw::writer narrow(d, lzw::order::lsb, 7);
+    auto bad = narrow.write(bytes(std::string("\xC3\xA9")));
+    ASSERT_FALSE(bad);
+    ASSERT_TRUE(narrow.last_error());
+    EXPECT_EQ(narrow.last_error()->code(), compress::make_error_code(compress::errc::invalid_argument));
+    EXPECT_FALSE(narrow.close());
+    narrow.reset(e);
+    EXPECT_FALSE(narrow.last_error());
+    ASSERT_TRUE(narrow.write(bytes(std::string("ascii"))));
+    ASSERT_TRUE(narrow.close());
+    EXPECT_EQ(text(value_of(lzw::decompress(bytes(buffer_text(e)), lzw::order::lsb, 7))), "ascii");
+    // a reader's failure cleared by reset
+    lzw::reader r(dribble{std::string("\xFF\xFF\xFF\xFF"), 1}, lzw::order::lsb, 8);
+    EXPECT_FALSE(r.read_all());
+    ASSERT_TRUE(r.last_error());
+    r.reset(dribble{text(lzw::compress(bytes(std::string("fine")), lzw::order::lsb, 8)), 2});
+    EXPECT_FALSE(r.last_error());
+    EXPECT_EQ(text(value_of(r.read_all())), "fine");
+    static_assert(noexcept(narrow.reset(std::declval<sgcl::io::writer>())));
+    static_assert(noexcept(r.reset(std::declval<sgcl::io::reader>())));
+}

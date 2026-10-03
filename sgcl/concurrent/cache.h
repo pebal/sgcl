@@ -9,6 +9,7 @@
 #include "../core/atomic.h"
 #include "../core/clock.h"
 #include "../core/config.h"
+#include "../core/detail/nothrow_function.h"
 #include "../core/detail/transparent.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
@@ -53,7 +54,9 @@ namespace sgcl::concurrent {
     // of the cache was inserted, which is what LRU is for, and the
     // ordered_map is the one to reach for when the order has to be exact.
     //
-    // A get is wait-free; a put is lock-free (the map's try_emplace, a
+    // A get that finds the entry fresh, or no entry, is wait-free as the
+    // map's find is (one that finds it stale erases it, lock-free); a
+    // put is lock-free (the map's try_emplace, a
     // store into the entry on a key already there) plus the eviction it
     // owes, which is the walk and the erasures. The value lives in the
     // map's node, copied in by put and never modified there; a put on a
@@ -70,12 +73,17 @@ namespace sgcl::concurrent {
     // the counts of the gets, striped over cache lines as the map's count
     // is, and the stripes hold the cursors of the evictions, so that
     // threads evicting at once walk different stretches of the list. The
-    // cache holds its map and its counters by tracked_ptrs, so it lives
-    // where one may: on a stack or, for a cache the threads share, inside
+    // cache holds its map and a tracked_ptr to its counters, so it lives
+    // where a tracked_ptr may: on a stack or, for a cache the threads share, inside
     // a managed object under a root_ptr.
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class cache {
         static_assert(std::is_copy_constructible_v<T>, "cache copies the value in on put and out on get");
+        static_assert(detail::nothrow_function_object<Hash, const Key&>, "sgcl::concurrent::cache: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::concurrent::cache: KeyEqual must be noexcept");
+
+        static constexpr bool NothrowCopyOut = std::is_nothrow_copy_constructible_v<T>;
+        static constexpr bool NothrowCopyIn = std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_copy_constructible_v<T>;
 
     public:
         using key_type = Key;
@@ -95,7 +103,7 @@ namespace sgcl::concurrent {
         // points to from then on
         struct Box {
             template<class... A>
-            explicit Box(time_point m, A&&... a)
+            explicit Box(time_point m, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::forward<A>(a)...)
             , made(m) {
             }
@@ -117,7 +125,7 @@ namespace sgcl::concurrent {
         // puts again, the eraser that sees a fresh box gives the flag back
         struct Entry {
             template<class... A>
-            explicit Entry(uint64_t s, time_point m, A&&... a)
+            explicit Entry(uint64_t s, time_point m, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::forward<A>(a)...)
             , made(m)
             , stamp(s) {
@@ -176,7 +184,7 @@ namespace sgcl::concurrent {
         // A cache of `capacity` entries, with no time to live (ttl zero)
         // or one; `sample` entries are looked at per eviction. The map
         // gets its buckets for the capacity up front.
-        explicit cache(size_type capacity, duration ttl = duration::zero(), unsigned sample = DefaultSample, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+        explicit cache(size_type capacity, duration ttl = duration::zero(), unsigned sample = DefaultSample, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(std::is_nothrow_copy_constructible_v<Hash> && std::is_nothrow_copy_constructible_v<KeyEqual>)
         : _map(std::max<size_type>(capacity, 16), hash, equal)
         , _counters(make_tracked<Counters>())
         , _capacity(capacity)
@@ -188,27 +196,28 @@ namespace sgcl::concurrent {
         cache& operator=(const cache&) = delete;
 
         // A copy of the value under the key, or nothing: absent, or older
-        // than the time to live (erased then). Wait-free: the map's
-        // search, a load of the entry's box, a relaxed store of the tick
-        // into the entry when it changed. With a key of another type the
+        // than the time to live (erased then). Wait-free on a fresh entry
+        // or none, as the map's find is: the map's search, a load of the
+        // entry's box, a relaxed store of the tick into the entry when it
+        // changed; a stale entry's erasure is lock-free. With a key of another type the
         // hash and the equality take (is_transparent: a string_view for a
         // string), no key is built for the search.
-        optional<T> get(const Key& key) {
+        optional<T> get(const Key& key) noexcept(NothrowCopyOut) {
             return _get(key);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        optional<T> get(const K& key) {
+        optional<T> get(const K& key) noexcept(NothrowCopyOut) {
             return _get(key);
         }
 
         // Inserts a copy of the value under the key, or replaces the one
         // there; then, if the size is past the capacity, evicts down to it
-        void put(const Key& key, const T& value) {
+        void put(const Key& key, const T& value) noexcept(NothrowCopyIn) {
             _put(key, value);
         }
 
-        void put(const Key& key, T&& value) {
+        void put(const Key& key, T&& value) noexcept(NothrowCopyIn && std::is_nothrow_move_constructible_v<T>) {
             _put(key, std::move(value));
         }
 
@@ -229,7 +238,10 @@ namespace sgcl::concurrent {
                 auto [it, inserted] = mine ? _map.try_emplace(key, tick, made, std::as_const(mine->value)) : _map.try_emplace(key, tick, made, std::as_const(value));
                 if (inserted) {
                     _evict(_inserted());
-                    return mine ? mine->value : value;
+                    if (mine) {
+                        return mine->value;
+                    }
+                    return std::move(value);   // the entry holds its copy
                 }
                 Entry& e = it->second;   // another thread's, made meanwhile: its value, unless it is stale already
                 for (;;) {
@@ -254,19 +266,19 @@ namespace sgcl::concurrent {
 
         // Erases the entry under the key: whether there was one (an entry
         // another thread is erasing at the moment counts as gone)
-        bool erase(const Key& key) {
+        bool erase(const Key& key) noexcept {
             return _erase(key);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        bool erase(const K& key) {
+        bool erase(const K& key) noexcept {
             return _erase(key);
         }
 
         // Erases every entry there is at the time of the walk, and lets go
         // of the cursors, which hold the nodes the last evictions ended
         // at; the counts of the gets stay
-        void clear() {
+        void clear() noexcept {
             for (iterator it = _map.begin(); it != _map.end(); ++it) {
                 _erase_node(it);
             }
@@ -316,11 +328,11 @@ namespace sgcl::concurrent {
             return n;
         }
 
-        hasher hash_function() const {
+        hasher hash_function() const noexcept(std::is_nothrow_copy_constructible_v<Hash>) {
             return _map.hash_function();
         }
 
-        key_equal key_eq() const {
+        key_equal key_eq() const noexcept(std::is_nothrow_copy_constructible_v<KeyEqual>) {
             return _map.key_eq();
         }
 
@@ -349,7 +361,7 @@ namespace sgcl::concurrent {
         }
 
         template<class K>
-        optional<T> _get(const K& key) {
+        optional<T> _get(const K& key) noexcept(NothrowCopyOut) {
             iterator it = _map.find(key);
             if (it == _map.end()) {
                 _cell().misses.fetch_add(1, std::memory_order_relaxed);
@@ -361,8 +373,7 @@ namespace sgcl::concurrent {
                 if (!e.dead.exchange(true, std::memory_order_seq_cst)) {   // claimed: erased here, unless a put came meanwhile (Entry)
                     box = e.replaced.load(std::memory_order_seq_cst);
                     if (_stale(box ? box->made : e.made, _now())) {
-                        _map.erase(it);
-                        _counters->size.fetch_sub(1, std::memory_order_relaxed);
+                        _erase_claimed(it);
                         _cell().misses.fetch_add(1, std::memory_order_relaxed);
                         return nullopt;
                     }
@@ -384,7 +395,7 @@ namespace sgcl::concurrent {
         // to another thread's (the node built and dropped) loses nothing;
         // a key already there gets the value in a box, moved when it may be
         template<class V>
-        void _put(const Key& key, V&& value) {
+        void _put(const Key& key, V&& value) noexcept(NothrowCopyIn && std::is_nothrow_constructible_v<T, V&&>) {
             time_point made = _now();
             uint64_t tick = _tick();
             tracked_ptr<Box> box;
@@ -415,17 +426,23 @@ namespace sgcl::concurrent {
         }
 
         // The node claimed and erased: true when this thread erased it
-        bool _erase_node(iterator it) {
+        bool _erase_node(iterator it) noexcept {
             if (it->second.dead.exchange(true, std::memory_order_seq_cst)) {
                 return false;
             }
-            _map.erase(it);
-            _counters->size.fetch_sub(1, std::memory_order_relaxed);
+            _erase_claimed(it);
             return true;
         }
 
+        // The node this thread claimed, erased from the map and counted
+        // off
+        void _erase_claimed(iterator it) noexcept {
+            _map.erase(it);
+            _counters->size.fetch_sub(1, std::memory_order_relaxed);
+        }
+
         template<class K>
-        bool _erase(const K& key) {
+        bool _erase(const K& key) noexcept {
             iterator it = _map.find(key);
             return it != _map.end() && _erase_node(it);
         }
@@ -433,7 +450,7 @@ namespace sgcl::concurrent {
         // Down to the capacity, from a count of `n`: a pass per entry
         // over, the count read again after each, until a pass finds
         // nothing to look at (the map emptied under it)
-        void _evict(long n) {
+        void _evict(long n) noexcept {
             while (n > long(_capacity)) {
                 if (!_evict_one()) {
                     return;
@@ -448,7 +465,7 @@ namespace sgcl::concurrent {
         // oldest stamp among the rest erased unless the stale were
         // enough; the cursor moved to where the walk ended. False when
         // there was nothing to walk.
-        bool _evict_one() {
+        bool _evict_one() noexcept {
             typename Counters::Cell& cell = _cell();
             tracked_ptr<Cursor> cursor = cell.cursor.load(std::memory_order_acquire);
             iterator it = cursor ? cursor->pos : _map.begin();

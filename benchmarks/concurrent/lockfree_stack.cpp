@@ -3,8 +3,7 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// A Treiber stack shared by every thread (the shape of examples/
-// lock_free_stack.cpp). With a collector the stack is the textbook one, a
+// A Treiber stack shared by every thread. With a collector the stack is the textbook one, a
 // compare-exchange on the head and no ABA (a node is never reused while a
 // thread still holds it); with shared_ptr the head is the atomic
 // shared_ptr of the standard library (std::atomic_load /

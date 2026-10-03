@@ -906,6 +906,24 @@ namespace sgcl::txt {
 
             segment_range() noexcept = default;
 
+            // A copy is the range again; a range moved from is the empty
+            // one, as the one made with nothing
+            segment_range(const segment_range&) = default;
+            segment_range& operator=(const segment_range&) = default;
+
+            segment_range(segment_range&& other) noexcept
+            : _text(other._text) {
+                other._text = slice<const char>();
+            }
+
+            segment_range& operator=(segment_range&& other) noexcept {
+                if (this != &other) {
+                    _text = other._text;
+                    other._text = slice<const char>();
+                }
+                return *this;
+            }
+
             explicit segment_range(const slice<const char>& text) noexcept
             : _text(text) {
             }
@@ -1130,6 +1148,24 @@ namespace sgcl::txt {
 
         line_breaks() noexcept = default;
 
+        // A copy is the range again; a range moved from is the empty
+        // one, as the one made with nothing
+        line_breaks(const line_breaks&) = default;
+        line_breaks& operator=(const line_breaks&) = default;
+
+        line_breaks(line_breaks&& other) noexcept
+        : _text(other._text) {
+            other._text = slice<const char>();
+        }
+
+        line_breaks& operator=(line_breaks&& other) noexcept {
+            if (this != &other) {
+                _text = other._text;
+                other._text = slice<const char>();
+            }
+            return *this;
+        }
+
         explicit line_breaks(const slice<const char>& text) noexcept
         : _text(text) {
         }
@@ -1188,7 +1224,7 @@ namespace sgcl::txt {
     // alternative is cutting a word in half. The width is counted in
     // terminal cells (columns), which is what a monospaced renderer and a
     // table of columns need.
-    inline vector<slice<const char>> wrap(const slice<const char>& text, size_t width) {
+    inline vector<slice<const char>> wrap(const slice<const char>& text, size_t width) noexcept {
         vector<slice<const char>> out;
         auto v = text.view();
         size_t start = 0;     // the first byte of the line being built
@@ -1241,7 +1277,7 @@ namespace sgcl::txt {
         return out;
     }
 
-    inline vector<slice<const char>> wrap(const string& text, size_t width) {
+    inline vector<slice<const char>> wrap(const string& text, size_t width) noexcept {
         return wrap(text.as_slice(), width);
     }
 
@@ -1269,18 +1305,26 @@ namespace sgcl::txt {
         if (columns(text) <= width) {
             return text;
         }
-        size_t room = width > columns(ellipsis) ? width - columns(ellipsis) : 0;
-        size_t used = 0;
-        size_t cut = 0;
-        for (auto g : graphemes(text)) {
-            size_t w = columns(g);
-            if (used + w > room) {
-                break;
+        // The bytes of the longest start of whole graphemes that takes at
+        // most `room` columns
+        auto fitting = [](const string& t, size_t room) {
+            size_t used = 0;
+            size_t cut = 0;
+            for (auto g : graphemes(t)) {
+                size_t w = columns(g);
+                if (used + w > room) {
+                    break;
+                }
+                used += w;
+                cut += g.size();
             }
-            used += w;
-            cut += g.size();
+            return cut;
+        };
+        size_t mark = columns(ellipsis);
+        if (mark > width) {
+            return ellipsis.substr(0, fitting(ellipsis, width));
         }
-        return text.substr(0, cut) + ellipsis;
+        return text.substr(0, fitting(text, width - mark)) + ellipsis;
     }
 
     inline string truncate(const string& text, size_t width) {

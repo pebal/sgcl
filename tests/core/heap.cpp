@@ -205,9 +205,10 @@ TEST(Heap_Tests, LargeArrayFullyRetainedByItsOwner) {
 
 // Commit limit: above the pressure threshold the collector cycles quickly and
 // returns every free chunk; at the limit an allocation forces a collection
-// and, if that does not free enough, throws bad_alloc instead of letting the
-// process grow into the OOM killer.
-TEST(Heap_Tests, CommitLimitCollectsThenThrows) {
+// and, if that does not free enough, ends the program with one line on
+// stderr instead of letting the process grow into the OOM killer.
+TEST(Heap_Tests, CommitLimitCollectsThenEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
     const auto original = collector::get_memory_limit();
     EXPECT_GT(sgcl::detail::os::memory_limit(), 0u);
     EXPECT_LE(sgcl::detail::os::memory_limit(), sgcl::detail::os::physical_memory());
@@ -226,29 +227,53 @@ TEST(Heap_Tests, CommitLimitCollectsThenThrows) {
     }
     EXPECT_LE(collector::get_committed_memory(), limit);
 
-    // 2. live data beyond the limit: bad_alloc, and the heap stays under the cap
-    bool thrown = false;
-    {
+    // 2. live data beyond the limit: the collection frees nothing, and the
+    // program ends with the diagnostic, the heap still under the cap
+    EXPECT_DEATH({
         sgcl::vector<sgcl::vector<int>> keep;
-        try {
-            for (int i = 0; i < 300; ++i) {
-                keep.emplace_back(250000, i);
+        for (int i = 0; i < 300; ++i) {
+            keep.emplace_back(250000, i);
+        }
+    }, "sgcl: out of managed memory: [0-9]+ bytes committed, limit [0-9]+");
+    EXPECT_LE(collector::get_committed_memory(), limit);
+
+    // 3. a destructor run by the sweep that allocates past the limit: it
+    // cannot wait for the cycle it is part of (collector.h:
+    // collect_for_allocation), so the program ends at once rather than
+    // hanging
+    EXPECT_DEATH({
+        struct AllocatesWhenDying {
+            ~AllocatesWhenDying() {
+                sgcl::vector<char> buffer(size_t(256) << 20);   // past the limit, and past any free committed range
+                buffer[0] = 1;
             }
-        } catch (const std::bad_alloc&) {
-            thrown = true;
+        };
+        off_frame([] {
+            tracked_ptr<AllocatesWhenDying> p = make_tracked<AllocatesWhenDying>();
+        });
+        collector::clear_stack(SIZE_MAX);
+        collector::set_memory_limit(collector::get_committed_memory());   // no chunk may be committed from here on
+        for (int i = 0; i < 3; ++i) {
+            collector::force_collect(true);
         }
-        EXPECT_TRUE(thrown);
-        EXPECT_LE(collector::get_committed_memory(), limit);
-        EXPECT_GT(keep.size(), 8u);                     // it got well past the first chunks
-        for (size_t i = 0; i < keep.size(); ++i) {      // and what it kept is intact
-            ASSERT_EQ(keep[i][249999], int(i));
-        }
-    }
+    }, "sgcl: out of managed memory");
 
     collector::set_memory_limit(original);
     for (int i = 0; i < 3; ++i) {
         collector::force_collect(true);
     }
+}
+
+// Plain memory the system refuses (a malloc or realloc of the library's
+// own, an object of the system's) ends the program as managed memory
+// does: one line on stderr naming what was refused, then std::terminate
+TEST(Heap_Tests, RefusedPlainMemoryEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    static_assert(noexcept(sgcl::detail::os::memory_refused("a block", 1)));
+    EXPECT_DEATH(sgcl::detail::os::memory_refused("a block of the test", 4096),
+                 "sgcl: out of memory: a block of the test of 4096 bytes was refused");
+    EXPECT_DEATH(sgcl::detail::os::memory_refused("an object of the system"),
+                 "sgcl: out of memory: an object of the system was refused");
 }
 
 // The free ranges are binned by size; ranges handed out never overlap and
@@ -285,6 +310,38 @@ TEST(Heap_Tests, FreeRangesAreBinnedAndCoalesce) {
     // other, so they merge into one)
     EXPECT_LE(heap.free_range_count(), held);
     EXPECT_GE(held, 1u);
+}
+
+// A range of more pages than the whole heap is refused before anything is
+// computed from its count: 2^32 pages and more put the request's bin past
+// the 32 bits of the bins' mask (a shift by 32 or more, undefined; UBSan
+// reports it). One page past the heap, 2^32 pages and SIZE_MAX / page_size
+// pages each give null and leave the free ranges as they were; through a
+// buffer's allocator the null ends the program as any refused range does.
+TEST(Heap_Tests, ARangeLargerThanTheHeapIsRefused) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    auto& heap = sgcl::detail::Heap::instance();
+    const size_t heap_pages = sgcl::detail::Heap::globals.size / sgcl::config::page_size;
+    const size_t free_ranges = heap.free_range_count();
+    for (size_t pages : {heap_pages + 1, size_t(1) << 32, SIZE_MAX / sgcl::config::page_size}) {
+        EXPECT_EQ(heap.alloc_range(pages), nullptr) << pages;
+        EXPECT_EQ(heap.free_range_count(), free_ranges) << pages;
+    }
+    // the heap still hands out a range after the refusals
+    auto p = heap.alloc_range(3);
+    ASSERT_NE(p, nullptr);
+    heap.free_range(p, 3);
+
+    auto past_the_heap = [] {
+        auto data = sgcl::detail::Maker<uint64_t[]>::make_tracked_data((size_t(1) << 32) * sgcl::config::page_size / 8);
+        (void)data;
+    };
+    auto largest_buffer = [] {
+        auto data = sgcl::detail::Maker<uint64_t[]>::make_tracked_data(sgcl::detail::buffer_max_capacity(8));
+        (void)data;
+    };
+    EXPECT_DEATH(past_the_heap(), "sgcl: out of managed memory");
+    EXPECT_DEATH(largest_buffer(), "sgcl: out of managed memory");
 }
 
 // collector::get_statistics(): counters stored at the end of a cycle, read
@@ -326,3 +383,183 @@ TEST(Heap_Tests, TheChildOfAForkReadsAndExitsOrFails) {
     EXPECT_DEATH((void)make_tracked<Fresh>(), "a managed allocation in the child of a fork");                     // the pages of a fresh type
 }
 #endif
+
+// The Metadata of a type (metadata.h): what every page of the type shares,
+// made once per type on its first use and never freed. Checked field by
+// field for each kind the collector treats apart: a pool type with a
+// pointer and a destructor, a plain one, one larger than a page, the
+// weak cells, the blocks of cells, the holders of a to_shared, a
+// conservative type, a size class of the strings and of the buffers, and
+// the range of a buffer past a page.
+namespace {
+    struct MetaNode {
+        long value;
+        tracked_ptr<MetaNode> next;
+    };
+
+    struct MetaPlain {
+        int a, b, c;
+    };
+
+    struct MetaLarge {
+        char bytes[70000];
+    };
+
+    struct MetaFresh {
+        long a, b, c, d, e;
+    };
+
+    struct MetaRaced {
+        long a, b, c;
+    };
+
+    template<class T>
+    void expect_kinds(const detail::Metadata& m, bool weak_cell, bool cell_block, bool root_holder, bool string) {
+        EXPECT_FALSE(m.is_array) << typeid(T).name();
+        EXPECT_EQ(m.is_weak_cell, weak_cell) << typeid(T).name();
+        EXPECT_EQ(m.is_cell_block, cell_block) << typeid(T).name();
+        EXPECT_EQ(m.is_root_holder, root_holder) << typeid(T).name();
+        EXPECT_EQ(m.is_string, string) << typeid(T).name();
+    }
+
+    // The fields every type's Metadata takes from the type itself
+    template<class T>
+    void expect_type_metadata(size_t object_size, size_t object_count, bool pool, bool destroy) {
+        using Info = detail::TypeInfo<T>;
+        auto& m = Info::private_metadata();
+        EXPECT_EQ(&m, &Info::private_metadata()) << "made once";
+        EXPECT_EQ(m.object_size, object_size) << typeid(T).name();
+        EXPECT_EQ(m.object_count, object_count) << typeid(T).name();
+        EXPECT_EQ(m.pool_allocated, pool) << typeid(T).name();
+        EXPECT_EQ(m.destroy != nullptr, destroy) << typeid(T).name();
+        EXPECT_EQ(m.destroy, Info::get_destroy_function()) << typeid(T).name();
+        EXPECT_EQ(m.free, Info::Allocator::free) << typeid(T).name();
+        if (pool) {
+            EXPECT_EQ(m.free, &detail::ObjectPoolAllocatorBase::free_pool_pages) << typeid(T).name();
+        }
+        EXPECT_EQ(m.type_info, typeid(T));
+        EXPECT_EQ(&m.child_pointers, &Info::child_pointers()) << typeid(T).name();
+        EXPECT_EQ(m.child_pointers.type, typeid(T));
+        EXPECT_EQ(m.header_slab, &Info::header_slab()) << typeid(T).name();
+        EXPECT_NE(m.header_slab, nullptr);
+    }
+}
+
+TEST(Heap_Tests, TheMetadataOfEachKindOfType) {
+    using namespace sgcl::detail;
+    // a pool type with a pointer and a destructor
+    expect_type_metadata<MetaNode>(16, 4096, true, true);
+    expect_kinds<MetaNode>(TypeInfo<MetaNode>::private_metadata(), false, false, false, false);
+    EXPECT_EQ(TypeInfo<MetaNode>::child_pointers().map.size(), 1u);
+    EXPECT_FALSE(TypeInfo<MetaNode>::child_pointers().conservative);
+    // its objects' pages name it
+    auto node = make_tracked<MetaNode>();
+    EXPECT_EQ(Page::page_of(node.get())->metadata, &TypeInfo<MetaNode>::private_metadata());
+
+    // plain data: no destructor, no pointer map
+    expect_type_metadata<MetaPlain>(12, 65536 / 12, true, false);
+    expect_kinds<MetaPlain>(TypeInfo<MetaPlain>::private_metadata(), false, false, false, false);
+    EXPECT_EQ(TypeInfo<MetaPlain>::child_pointers().map.size(), 0u);
+    EXPECT_FALSE(TypeInfo<MetaPlain>::child_pointers().any.load());
+
+    // larger than a page: a range of its own, one object
+    expect_type_metadata<MetaLarge>(70000, 1, false, false);
+    expect_kinds<MetaLarge>(TypeInfo<MetaLarge>::private_metadata(), false, false, false, false);
+    EXPECT_EQ(TypeInfo<MetaLarge>::private_metadata().free, &ObjectAllocator<MetaLarge>::free);
+
+    // the kinds the collector treats apart
+    expect_type_metadata<WeakCell>(sizeof(WeakCell), 65536 / sizeof(WeakCell), true, std::is_trivially_destructible_v<WeakCell> == false);
+    expect_kinds<WeakCell>(TypeInfo<WeakCell>::private_metadata(), true, false, false, false);
+    EXPECT_EQ(TypeInfo<WeakCell>::child_pointers().map.size(), 0u);
+    expect_type_metadata<CellBlock>(sizeof(CellBlock), std::max<size_t>(1, 65536 / sizeof(CellBlock)), true, std::is_trivially_destructible_v<CellBlock> == false);
+    expect_kinds<CellBlock>(TypeInfo<CellBlock>::private_metadata(), false, true, true, false);
+    EXPECT_TRUE(TypeInfo<CellBlock>::child_pointers().any.load());
+    expect_type_metadata<SharedHolder>(8, 8192, true, true);
+    expect_kinds<SharedHolder>(TypeInfo<SharedHolder>::private_metadata(), false, false, true, false);
+
+    // conservative: the map full and kept so
+    expect_type_metadata<FrameWord>(8, 8192, true, false);
+    expect_kinds<FrameWord>(TypeInfo<FrameWord>::private_metadata(), false, false, false, false);
+    EXPECT_TRUE(TypeInfo<FrameWord>::child_pointers().conservative);
+    EXPECT_EQ(TypeInfo<FrameWord>::child_pointers().map.size(), 1u);
+    EXPECT_EQ(TypeInfo<FrameWord>::child_pointers().word(0), 1u);
+
+    // a size class of the strings: a pool described by data
+    sgcl::string text("abcdefghijklmnopqrstuvwxyz");
+    auto& sm = *Page::page_of(text.data())->metadata;
+    EXPECT_TRUE(sm.is_string);
+    EXPECT_FALSE(sm.is_array);
+    EXPECT_FALSE(sm.is_weak_cell || sm.is_cell_block || sm.is_root_holder);
+    EXPECT_TRUE(sm.pool_allocated);
+    EXPECT_EQ(sm.destroy, nullptr);
+    EXPECT_EQ(sm.free, &ObjectPoolAllocatorBase::free_pool_pages);
+    EXPECT_EQ(sm.object_count, 65536 / sm.object_size);
+    EXPECT_EQ(sm.type_info, sm.child_pointers.type);
+    EXPECT_EQ(sm.child_pointers.map.size(), 0u);
+    EXPECT_NE(std::string(sm.type_info.name()).find("StringSlot"), std::string::npos);
+    EXPECT_EQ(&sm, StringPools::metadata[(sm.object_size / 4) - 1].load());
+
+    // a size class of the buffers: 10 ints in the class of 48 bytes
+    sgcl::vector<int> small(10);
+    auto& bm = *Page::page_of(small.data())->metadata;
+    EXPECT_TRUE(bm.is_array);
+    EXPECT_FALSE(bm.is_string || bm.is_weak_cell || bm.is_cell_block || bm.is_root_holder);
+    EXPECT_TRUE(bm.pool_allocated);
+    EXPECT_EQ(bm.object_size, 64u);
+    EXPECT_EQ(bm.object_count, 1024u);
+    EXPECT_EQ(bm.destroy, nullptr);
+    EXPECT_EQ(bm.free, &ObjectPoolAllocatorBase::free_pool_pages);
+    EXPECT_EQ(bm.type_info, typeid(Array<48>));
+    EXPECT_EQ(bm.child_pointers.type, typeid(Array<48>));
+    EXPECT_EQ(bm.child_pointers.map.size(), 0u);
+    EXPECT_FALSE(bm.child_pointers.conservative);
+
+    // a buffer past a page: a range of its own
+    sgcl::vector<int> large(100000);
+    auto& rm = *Page::page_of(large.data())->metadata;
+    EXPECT_TRUE(rm.is_array);
+    EXPECT_FALSE(rm.pool_allocated);
+    EXPECT_EQ(rm.object_count, 1u);
+    EXPECT_EQ(rm.object_size, sizeof(Array<PageDataSize>));
+    EXPECT_EQ(rm.destroy, nullptr);
+    // (the range's page layout and Metadata are those of a page's worth,
+    // array.h: PageInfo<Array<>>)
+    EXPECT_EQ(rm.free, &ObjectAllocator<Array<PageDataSize>>::free);
+    EXPECT_EQ(rm.type_info, typeid(Array<PageDataSize>));
+    EXPECT_EQ(&rm, &TypeInfo<Array<>>::private_metadata());
+
+    // the buffers of an element type share its pointer map
+    EXPECT_EQ(&TypeInfo<MetaNode>::array_metadata().child_pointers, &TypeInfo<MetaNode>::child_pointers());
+    EXPECT_EQ(TypeInfo<MetaNode>::array_metadata().type_info, typeid(MetaNode[]));
+    EXPECT_EQ(TypeInfo<MetaNode>::array_metadata().object_size, 16u);
+
+    // the slab of a type's page headers hands out headers of its size
+    // (a fresh slab: two headers in a row from its first block)
+    auto& slab = TypeInfo<MetaFresh>::header_slab();
+    auto h1 = (char*)slab.alloc();
+    auto h2 = (char*)slab.alloc();
+    EXPECT_EQ(size_t(h2 - h1), (TypeInfo<MetaFresh>::HeaderSize + config::cache_line_size - 1) & ~(config::cache_line_size - 1));
+    slab.free(h2);
+    slab.free(h1);
+    EXPECT_EQ(TypeInfo<MetaFresh>::private_metadata().header_slab, &slab);
+
+    // threads making the Metadata of a new type at once get one
+    std::atomic<int> ready = {0};
+    const Metadata* seen[4] = {};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t) {
+        threads.emplace_back([&, t] {
+            ready.fetch_add(1);
+            while (ready.load() < 4) {
+            }
+            seen[t] = &TypeInfo<MetaRaced>::private_metadata();
+        });
+    }
+    for (auto& t : threads) {
+        t.join();
+    }
+    for (auto m : seen) {
+        EXPECT_EQ(m, seen[0]);
+    }
+    EXPECT_EQ(seen[0]->object_size, 24u);
+}

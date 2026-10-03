@@ -47,7 +47,7 @@ namespace sgcl::math {
         // nothing for a value int64_t holds, as big_integer)
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        rational(T value) noexcept(std::is_nothrow_constructible_v<big_integer, T>)
+        rational(T value) noexcept
         : _numerator(value)
         , _denominator(1) {
         }
@@ -91,7 +91,7 @@ namespace sgcl::math {
         // and an exponent past a million either way are errors of the data
         // — the second because a few bytes would ask for megabytes — at the
         // offset of the denominator or the exponent.
-        static expected<rational, parse_error> parse(const string& text);
+        static expected<rational, parse_error> parse(const string& text) noexcept;
 
         // The number a literal in the program writes: parse's value, or
         // bad_expected_access<parse_error> with parse's message. Input is
@@ -101,10 +101,20 @@ namespace sgcl::math {
         : rational(parse(text).value()) {
         }
 
+        // A move is the copy: the parts' limbs are shared words, so the
+        // copy costs what the move would, less the clearing of the source,
+        // and the source keeps its value (a big_integer moved from is
+        // zero, and 0/0 or n/0 is no rational)
         rational(const rational&) noexcept = default;
-        rational(rational&&) noexcept = default;
         rational& operator=(const rational&) noexcept = default;
-        rational& operator=(rational&&) noexcept = default;
+
+        rational(rational&& other) noexcept
+        : rational(static_cast<const rational&>(other)) {
+        }
+
+        rational& operator=(rational&& other) noexcept {
+            return *this = static_cast<const rational&>(other);
+        }
 
         // The numerator, with the sign, and the denominator, above zero
         // and with no factor in common with it
@@ -116,17 +126,17 @@ namespace sgcl::math {
             return _denominator;
         }
 
-        friend rational operator+(const rational& a, const rational& b) {
+        friend rational operator+(const rational& a, const rational& b) noexcept {
             return _add(a, b, false);
         }
 
-        friend rational operator-(const rational& a, const rational& b) {
+        friend rational operator-(const rational& a, const rational& b) noexcept {
             return _add(a, b, true);
         }
 
         // (a/b)·(c/d) with gcd(a, d) and gcd(c, b) taken out first, so the
         // product is in lowest terms without a gcd of the products
-        friend rational operator*(const rational& a, const rational& b) {
+        friend rational operator*(const rational& a, const rational& b) noexcept {
             if (a._denominator == 1 && b._denominator == 1) {
                 return rational(a._numerator * b._numerator, Reduced{});
             }
@@ -141,19 +151,19 @@ namespace sgcl::math {
             return a * b.inverse();
         }
 
-        rational operator-() const {
+        rational operator-() const noexcept {
             return rational(Reduced{}, -_numerator, _denominator);
         }
 
-        rational& operator+=(const rational& b) {
+        rational& operator+=(const rational& b) noexcept {
             return *this = *this + b;
         }
 
-        rational& operator-=(const rational& b) {
+        rational& operator-=(const rational& b) noexcept {
             return *this = *this - b;
         }
 
-        rational& operator*=(const rational& b) {
+        rational& operator*=(const rational& b) noexcept {
             return *this = *this * b;
         }
 
@@ -167,7 +177,7 @@ namespace sgcl::math {
         }
 
         // a/b against c/d as a·d against c·b (the denominators above zero)
-        friend std::strong_ordering operator<=>(const rational& a, const rational& b) {
+        friend std::strong_ordering operator<=>(const rational& a, const rational& b) noexcept {
             int sa = a._numerator.sign();
             int sb = b._numerator.sign();
             if (sa != sb) {
@@ -179,7 +189,7 @@ namespace sgcl::math {
             return a._numerator * b._denominator <=> b._numerator * a._denominator;
         }
 
-        rational abs() const {
+        rational abs() const noexcept {
             return _numerator.sign() < 0 ? -*this : *this;
         }
 
@@ -214,12 +224,12 @@ namespace sgcl::math {
         }
 
         // The largest whole number not above, and the smallest not below
-        big_integer floor() const {
+        big_integer floor() const noexcept {
             auto [q, r] = _numerator.div_rem(_denominator);
             return r.sign() < 0 ? q - 1 : q;
         }
 
-        big_integer ceil() const {
+        big_integer ceil() const noexcept {
             auto [q, r] = _numerator.div_rem(_denominator);
             return r.sign() > 0 ? q + 1 : q;
         }
@@ -244,14 +254,15 @@ namespace sgcl::math {
         // rounding taught at school: 2/3 is "0.667", -1/8 to two places
         // "-0.13", 1/2 to none "1". A negative value keeps its minus when
         // it rounds to zero ("-0.00"), as printf does; no places, no point.
+        // More places than a string holds is length_error, before anything
+        // is computed.
         string to_decimal(size_t places) const;
 
         // The nearest double, a tie to the even one — rounded once, from the
         // exact value (so not the quotient of the two parts' doubles, which
         // rounds three times); past the largest double an infinity of the
-        // sign, below the smallest a zero of the sign. Not noexcept: the
-        // division of long parts allocates.
-        double to_double() const;
+        // sign, below the smallest a zero of the sign
+        double to_double() const noexcept;
 
     private:
         struct Reduced {};
@@ -267,7 +278,7 @@ namespace sgcl::math {
         , _denominator(1) {
         }
 
-        void _reduce() {
+        void _reduce() noexcept {
             if (_denominator.sign() < 0) {
                 _numerator = -_numerator;
                 _denominator = -_denominator;
@@ -290,7 +301,7 @@ namespace sgcl::math {
         // t = a·(d/g) ± c·(b/g) and the denominator (b/g)·d, of which only
         // a factor of g can be common with t — so the second gcd is of t
         // and g, not of t and the whole product
-        static rational _add(const rational& x, const rational& y, bool subtract) {
+        static rational _add(const rational& x, const rational& y, bool subtract) noexcept {
             const big_integer& a = x._numerator;
             const big_integer& b = x._denominator;
             const big_integer& d = y._denominator;
@@ -354,6 +365,9 @@ namespace sgcl::math {
     }
 
     inline string rational::to_decimal(size_t places) const {
+        if (places >= string::max_size()) {   // the point and the digits would not fit
+            throw length_error("sgcl::math::rational::to_decimal: more places than a string holds");
+        }
         // |x|·10^places, rounded half away from zero
         big_integer scale = big_integer(10).pow(int64_t(places));
         auto [q, r] = (_numerator.abs() * scale).div_rem(_denominator);
@@ -385,7 +399,7 @@ namespace sgcl::math {
     // bits the double keeps: 53, or fewer for a subnormal; the quotient of
     // |n|·2^k by d to that many bits, its remainder against half the
     // divisor for the rounding, and a scaling that is exact
-    inline double rational::to_double() const {
+    inline double rational::to_double() const noexcept {
         if (_numerator.sign() == 0) {
             return 0.0;
         }
@@ -445,7 +459,7 @@ namespace sgcl::math {
         return negative ? -v : v;
     }
 
-    inline expected<rational, parse_error> rational::parse(const string& text) {
+    inline expected<rational, parse_error> rational::parse(const string& text) noexcept {
         using Reason = parse_error::Reason;
         auto fail = [](Reason reason, size_t at) {
             return unexpected<parse_error>(parse_error(reason, at, 10));

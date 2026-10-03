@@ -9,8 +9,9 @@
 #
 # The libraries a harness's oracle needs are read from its includes:
 # <openssl/...> (Homebrew's openssl@3), <zlib.h>, <bzlib.h>, <lzma.h>
-# (Homebrew's xz), <unicode/...> (Homebrew's icu4c); SGCL_FUZZ_LIBS, when
-# set, is added to them. Each harness's output goes to
+# (Homebrew's xz), <unicode/...> (Homebrew's icu4c), <pcre2.h> (Homebrew's
+# pcre2, with SGCL_FUZZ_PCRE2 defined, which turns the oracle on);
+# SGCL_FUZZ_LIBS, when set, is added to them. Each harness's output goes to
 # build-fuzz/logs/<name>.log; a crash to build-fuzz/crash/<name>/, as
 # run.sh has it. Every run is bounded by libFuzzer's -max_total_time (and
 # -timeout=5 per input), so the script ends after about seconds × harnesses
@@ -48,6 +49,9 @@ for src in $harnesses; do
     fi
     if grep -q '#include <unicode/' "$root/$src"; then
         libs="$libs -I$brew/icu4c/include -L$brew/icu4c/lib -licuuc -licui18n"
+    fi
+    if grep -q '#include <pcre2.h>' "$root/$src"; then
+        libs="$libs -DSGCL_FUZZ_PCRE2 -I$brew/pcre2/include -L$brew/pcre2/lib -lpcre2-8"
     fi
     log=$out/logs/$name.log
     crashes_before=$(ls "$out/crash/$name" 2>/dev/null | wc -l | tr -d ' ')

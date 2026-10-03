@@ -144,7 +144,7 @@ namespace sgcl::txt::detail {
         , _out(out) {
         }
 
-        constexpr regex_fault_at compile() {
+        constexpr regex_fault_at compile() noexcept {
             _out.classes = _tree.classes;
             _out.names = _tree.names;
             _out.groups = _tree.groups;
@@ -180,7 +180,7 @@ namespace sgcl::txt::detail {
         // so only a handful more can follow, and the indices already
         // handed out stay pointing at what they were meant to. Nothing of
         // such a program is ever run.
-        constexpr uint32_t _emit(inst i) {
+        constexpr uint32_t _emit(inst i) noexcept {
             if (_out.insts.size() >= MaxRegexInsts) {
                 _fault = regex_fault::too_large;
             }
@@ -188,7 +188,7 @@ namespace sgcl::txt::detail {
             return uint32_t(_out.insts.size() - 1);
         }
 
-        constexpr void _walk(uint32_t index) {
+        constexpr void _walk(uint32_t index) noexcept {
             if (_bad() || index == NoNode) {
                 return;
             }
@@ -285,7 +285,7 @@ namespace sgcl::txt::detail {
             return true;
         }
 
-        constexpr void _repeat(const node& n) {
+        constexpr void _repeat(const node& n) noexcept {
             uint32_t body = n.kids[0];
             // The n copies that must be there
             uint32_t last = 0;
@@ -335,7 +335,7 @@ namespace sgcl::txt::detail {
         }
 
         // L: split body, out; body; jump L; out:
-        constexpr void _star(uint32_t body, bool greedy) {
+        constexpr void _star(uint32_t body, bool greedy) noexcept {
             uint32_t loop = _here();
             inst s;
             s.op = opcode::split;
@@ -353,7 +353,7 @@ namespace sgcl::txt::detail {
 
         // The last copy of the body has just been written and begins at
         // `loop`: split loop, out — so that copy is the one repeated
-        constexpr void _star_after(uint32_t loop, bool greedy) {
+        constexpr void _star_after(uint32_t loop, bool greedy) noexcept {
             inst s;
             s.op = opcode::split;
             uint32_t at = _emit(s);
@@ -378,7 +378,7 @@ namespace sgcl::txt::detail {
         }
 
         // Whether every match must begin where the text does
-        constexpr bool _anchored(uint32_t index) const {
+        constexpr bool _anchored(uint32_t index) const noexcept {
             if (index == NoNode) {
                 return false;
             }
@@ -435,7 +435,7 @@ namespace sgcl::txt::detail {
         // Running out of budget breaks the run, which only ever shortens the
         // required string and can never pass over a match.
         constexpr void _flatten(uint32_t index, std::vector<char32_t>& out, size_t depth,
-                                size_t& work) const {
+                                size_t& work) const noexcept {
             if (index == NoNode || depth > MaxRegexDepth || out.size() > 512
                 || ++work > MaxRegexExpansion) {
                 out.push_back(Opaque);
@@ -447,7 +447,9 @@ namespace sgcl::txt::detail {
             case node_kind::assertion:
                 return;
             case node_kind::literal:
-                out.push_back(n.fold ? Opaque : n.literal);
+                // U+FFFD is also every byte of an ill-formed sequence, as
+                // the walk decodes one: no run of bytes stands for it
+                out.push_back(n.fold || n.literal == utf8::replacement ? Opaque : n.literal);
                 return;
             case node_kind::any:
             case node_kind::klass:
@@ -481,7 +483,7 @@ namespace sgcl::txt::detail {
             }
         }
 
-        constexpr void _required_run() {
+        constexpr void _required_run() noexcept {
             std::vector<char32_t> flat;
             size_t work = 0;
             _flatten(_tree.root, flat, 0, work);
@@ -521,7 +523,7 @@ namespace sgcl::txt::detail {
         // since the set only has to be large enough; reaching the match
         // instruction means the empty text matches, and then every
         // position is a candidate and the set is worth nothing.
-        constexpr void _first_bytes() {
+        constexpr void _first_bytes() noexcept {
             std::vector<uint8_t> seen(_out.insts.size(), 0);
             std::vector<uint32_t> stack;
             stack.push_back(_out.start);
@@ -580,7 +582,14 @@ namespace sgcl::txt::detail {
             }
         }
 
+        // A code point's first byte; U+FFFD's are every byte above ASCII,
+        // which is what a byte of an ill-formed sequence decodes as
         constexpr void _add_first(char32_t c) noexcept {
+            if (c == utf8::replacement) {
+                _out.first[2] = ~uint64_t(0);
+                _out.first[3] = ~uint64_t(0);
+                return;
+            }
             utf8::encoded e(c);
             uint8_t b = uint8_t(e.bytes[0]);
             _out.first[b >> 6] |= uint64_t(1) << (b & 63);

@@ -1,192 +1,211 @@
-# sgcl::concurrent::weak_map
+[sgcl](../README.md) › [concurrent](README.md)
+
+# sgcl::concurrent::weak_map\<Key, T\>
 
 ```cpp
-#include "sgcl/concurrent/weak_map.h"   // or "sgcl/concurrent/concurrent.h"
+#include "sgcl/concurrent/weak_map.h"   // or "sgcl/concurrent.h"
 
-namespace sgcl {
+namespace sgcl::concurrent {
     template<class Key, class T>
     class weak_map;
 }
 ```
 
-`concurrent::weak_map<Key, T>` is the [weak_map](../core/weak_map.md) shared by any number of threads without a lock: a map from objects to values that does not keep the objects alive, over the lock-free hash table of [concurrent::sorted_map](sorted_map.md) (Java's `WeakHashMap` with the concurrency of its `ConcurrentHashMap`). The key is the object itself, its identity and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object and held by a [`weak_ptr`](../core/weak_ptr.md). An entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Metadata attached to objects from several threads, a cache keyed by the object that the workers share, a registry that forgets. [`concurrent::weak_set`](weak_set.md) holds the objects alone.
+`sgcl::concurrent::weak_map<Key, T>` is the [weak_map](../core/weak_map.md) shared by any number of threads without
+a lock: a map from objects to values that does not keep the objects alive, over the lock-free hash table of
+[concurrent::map](map.md), the split-ordered list of Shalev and Shavit. The key is the object itself, its identity
+and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object and held by a
+[weak_ptr](../core/weak_ptr.md). An entry whose object the collector has found unreachable is dead: never found,
+passed over by the iteration, dropped by a sweep. Metadata attached to objects from several threads, a cache keyed
+by the object that the workers share, a registry that forgets. [concurrent::weak_set](weak_set.md) holds the objects
+alone.
 
-The entries are hashed and compared by the object's address, as in `weak_map`, which the weak pointer's cell holds while the object lives and the collector clears before the address can be handed out again ([Weak pointers](../core/README.md#weak-pointers)); so a dead entry equals nothing, its own key included, and can neither be found nor block the entry of the object that takes the slot next. One thing differs from the sequential map: the split-ordered list keeps a node's place from the hash at the insertion and hashes the key again to erase by iterator, and the address, so the hash, is gone once the object dies; so an entry carries the hash it was placed with, and is erased from where it was put.
+The entries are hashed and compared by the object's address, which the weak pointer's cell holds while the object
+lives and the collector clears before the address can be handed out again; so a dead entry equals nothing, its own
+key included, and can neither be found nor block the entry of the object that takes the slot next. One thing differs
+from the sequential map: the split-ordered list keeps a node's place from the hash at the insertion and hashes the
+key again to erase it, and the address, so the hash, is gone once the object dies; so an entry carries the hash it
+was placed with, and is erased from where it was put.
 
-The dead entries are swept by the inserting threads: the insertion that brings the count since the last sweep to the threshold (as many as the map has entries, 16 at least, so that a pass costs less than the insertions that paid for it) walks the map and erases, by iterator, every entry whose cell is cleared. That is safe under concurrent use: the collector clears a cell before the object's slot can be handed out again, so an entry seen dead is dead for good and no thread can find it alive meanwhile, and erasing it races with nothing but another erase of the same node, which the table settles (one thread marks it). One sweep runs at a time: a thread finding one under way goes on without waiting, so an insertion never blocks on a sweep. `sweep()` runs one on demand and returns how many entries it dropped, or 0 at once when another thread's sweep is under way. `size()` is the table's count, the dead entries not yet swept included.
+The dead entries are swept by the inserting threads: the insertion that brings the count since the last sweep to as
+many as the map had entries after it (16 at least, so that a pass costs less than the insertions that paid for it)
+walks the map and erases every entry whose cell is cleared. One sweep runs at a time, and a thread that finds one
+under way goes on without waiting, so an insertion never waits for a sweep; [sweep](weak_map/sweep.md) runs one on
+demand.
 
-The values are the map's own, destroyed with the node by the collector once nothing holds it: a value holding a strong pointer to its own key keeps the key alive, and the entry with it (there are no ephemerons). There is no `operator[]` and no `insert_or_assign`, as the table has none: a value is set once, at the insertion, and changed through an [`atomic`](../core/atomic.md) inside it.
+What differs from `std::unordered_map` and from the sequential `weak_map`: there is no `operator[]`, no `at` and no
+`insert_or_assign`, as the table has none: a value is set once, at the insertion, and changed through an
+[atomic](../core/atomic.md) inside it; there is no `const_iterator`, and the map is neither copied nor moved. What
+differs from Java's `WeakHashMap`: the map is shared without a lock, where Java's is wrapped in
+`Collections.synchronizedMap`; the key is compared by identity, not by `equals`, as in Java's `IdentityHashMap`.
+Go's library has no weak map.
 
 ## Rules
 
-- The map holds tracked pointers (the table's array, head and counters), so it lives on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); the one a program shares goes into a managed object under a `root_ptr`. The values may be, or hold, tracked pointers: the nodes are managed objects.
-- `find`, `contains` and `count` are wait-free and never write; `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable at the table's compare-exchange. A concurrent insertion of the same object wins or loses there: exactly one returns `true`.
-- Iteration is weakly consistent, as the table's: an iterator holds its node and, on a live entry, the object as a strong pointer, so it is valid whatever the other threads do and the entry cannot die under it; it skips the entries erased since it passed them and may or may not see the ones inserted meanwhile. An iterator is a tracked object then, and lives where the map's pointers may.
-- An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that cycle, it is found and visited like any other: the lag of any garbage collector.
-- The value of an entry stays alive for as long as an iterator holds the node, erased or swept or not, as in `concurrent::map`; a reference to it taken through an iterator is valid while the iterator exists.
-- `size()` is the sum of the table's stripes, a snapshot of no particular moment under concurrent modification, exact once the threads are quiet; `empty()` is exact after a `sweep()` with the threads quiet.
+- The map holds tracked pointers (the table's array of buckets, its head and the counters), so it lives on a
+  thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); the one a program shares
+  goes into a managed object under a [root_ptr](../core/root_ptr.md). The values may be, or hold, tracked pointers:
+  the nodes are managed objects.
+- Every member function may be called from any thread at any time, and none waits. `find`, `contains` and `count`
+  are wait-free and write nothing once the object's bucket has its dummy node, which the first lookup or insertion
+  in the bucket makes (an allocation and a compare-exchange, lock-free, once per bucket for the array's life).
+  `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable at the table's compare-exchange: of
+  two threads inserting the same object, exactly one gets `true`. `sweep` and `clear` are walks of lock-free
+  erasures.
+- Iteration is weakly consistent, as the table's: an iterator holds its node and, on a live entry, the object as a
+  strong pointer, so it is valid whatever the other threads do and the entry cannot die under it; it skips the
+  entries erased since it passed them and may or may not see the ones inserted meanwhile. An iterator is a tracked
+  object then, and lives where the map may.
+- An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that
+  cycle, it is found and visited like any other: the lag of any garbage collector.
+- The values are the map's own, destroyed with the node by the collector once nothing holds it, not at the erasure:
+  a value stays alive while an iterator holds its node, erased or swept or not, and a reference to it taken through
+  an iterator is valid while the iterator exists. A value holding a strong pointer to its own key keeps the key
+  alive, and the entry with it: there are no ephemerons.
+- `size()` counts the dead entries not yet swept, and under concurrent modification is a snapshot of no particular
+  moment ([README: The rules](README.md#the-rules), 5); `size()` and `empty()` are exact after a `sweep()` with the
+  threads quiet.
 - Non-copyable, non-movable: a shared structure has one place.
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the objects: any type a `tracked_ptr` points to, a class, an abstract base, `int`. It is neither hashed nor compared: the key is the object's identity. |
+| `T` | The type of the values: any object type constructible from the arguments of the insertion; it need not be copyable or movable, as `try_emplace` constructs it in the node. It may be, or hold, tracked pointers. |
 
-```cpp
-using key_type = Key;
-using key_pointer = tracked_ptr<Key>;
-using mapped_type = T;
-using weak_type = weak_ptr<Key>;
-using size_type = size_t;
-struct reference { key_pointer key; T& value; };   // what an iterator gives out
-using iterator = /* forward iterator over the live entries */;
-```
+## Member types
 
-`reference` is what `*it` returns: the object, held, and the value; `it->key`, `it->value`. There is no `const_iterator`, and `begin()`/`end()` are not `const`: standing on an entry holds its object, which is a write to the iterator, not to the map.
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `key_pointer` | `tracked_ptr<Key>` |
+| `mapped_type` | `T` |
+| `weak_type` | `weak_ptr<Key>` |
+| `size_type` | `size_t` |
+| `reference` | `struct { key_pointer key; T& value; }`: what an iterator gives out, the object, held, and its value |
+| `iterator` | a forward iterator over the live entries, of a class of the library; `*it` is a `reference`, `it->key`, `it->value` |
 
-### Constructors
+## Member functions
 
-```cpp
-weak_map();
-weak_map(const concurrent::weak_map&) = delete;
-```
+| Function | Description |
+|---|---|
+| [(constructor)](weak_map/weak_map.md) | constructs an empty map |
+| `(destructor)` | leaves the nodes, and the values in them, to the collector |
 
-### begin, end
+#### Iterators
 
-```cpp
-iterator begin() noexcept;
-iterator end() noexcept;
-```
+| Function | Description |
+|---|---|
+| [begin](weak_map/begin.md) | an iterator to the first live entry |
+| [end](weak_map/end.md) | an iterator past the last entry |
 
-The live entries, each once, in the order of the table's list (the bit reversal of the addresses' hashes); the dead ones are passed over without being dropped. Weakly consistent.
+#### Capacity
 
-```cpp
-struct Session { int id; };
-concurrent::weak_map<Session, tracked_ptr<Stats>> stats;   // shared by the workers
-for (auto [session, s] : stats) {   // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
-    println("{} {}", session->id, s->requests.load());
-}
-```
+| Function | Description |
+|---|---|
+| [empty](weak_map/empty.md) | checks whether the map holds an entry, a dead one included |
+| [size](weak_map/size.md) | the number of entries, the dead ones not yet swept included |
 
-### find, count, contains
+#### Modifiers
 
-```cpp
-iterator find(const key_pointer& object) noexcept;
-size_type count(const key_pointer& object) const noexcept;
-bool contains(const key_pointer& object) const noexcept;
-```
+| Function | Description |
+|---|---|
+| [clear](weak_map/clear.md) | erases every entry |
+| [insert](weak_map/insert.md) | inserts a value for an object, unless the object has one |
+| [emplace](weak_map/emplace.md) | the same as `try_emplace` |
+| [try_emplace](weak_map/try_emplace.md) | constructs a value for an object in place, unless the object has one |
+| [erase](weak_map/erase.md) | erases the entry of an object, or the one an iterator stands on |
+| [sweep](weak_map/sweep.md) | erases the entries whose objects are gone |
 
-The entry of the object, or `end()`; a null pointer has none, and an object that is gone has none. Wait-free; the iterator holds the node and the object.
+#### Lookup
 
-### try_emplace, emplace, insert
+| Function | Description |
+|---|---|
+| [count](weak_map/count.md) | the number of entries of an object, 0 or 1 |
+| [find](weak_map/find.md) | the entry of an object |
+| [contains](weak_map/contains.md) | checks whether an object has an entry |
 
-```cpp
-template<class... A> pair<iterator, bool> try_emplace(const key_pointer& object, A&&... a);
-template<class... A> pair<iterator, bool> emplace(const key_pointer& object, A&&... a);
-pair<iterator, bool> insert(const key_pointer& object, const T& value);
-pair<iterator, bool> insert(const key_pointer& object, T&& value);
-```
+## Complexity
 
-A value for the object, `T(a...)`, unless the object has one: the entry and whether one was added. One search: nothing is built, no weak cell either, when the object has an entry; of two threads inserting the same object exactly one gets `true`, the other the entry the first made. Every insertion counts towards the next sweep. A null pointer is not an object (debug builds assert).
+- `find`, `contains`, `count`, `erase`: constant on average, a walk of the object's bucket, which holds an entry or
+  two: the array of buckets doubles once the entries outnumber the buckets.
+- `insert`, `emplace`, `try_emplace`: constant on average, plus, every so many insertions, a sweep linear in the
+  number of entries: amortized constant, as the sweep comes after as many insertions as the map had entries.
+- `sweep`, `clear`: linear in the number of entries. `size`: constant.
+- `empty`, `begin`: constant when an entry stands near the head of the list; at worst linear in the number of
+  buckets in use, whose dummy nodes the walk to the first entry passes, and for `begin` in the dead entries before
+  the first live one. `end`: constant.
 
-```cpp
-auto [it, fresh] = stats.try_emplace(session, make_tracked<Stats>());   // one Stats per session, whoever gets there first
-++it->value->requests;
-```
+Across sixteen threads a lookup and an insertion take 3.8 ns per operation, against 51 for Java's `WeakHashMap`
+under `Collections.synchronizedMap`; on one thread 55 ns against Java's 35, a plain hash map against the
+split-ordered list ([Benchmarks: The bounded queue, the priority queue, intern and the weak
+map](benchmarks.md#the-bounded-queue-the-priority-queue-intern-and-the-weak-map)).
 
-### erase
+## Iterator invalidation
 
-```cpp
-size_type erase(const key_pointer& object);
-iterator erase(iterator pos);
-```
-
-The entry of the object, dropped: how many (0 or 1). By iterator: the entry the iterator stands on, if it is still there, and the next live entry. Lock-free; the node is marked, which is where one thread wins when several erase the same entry, then unlinked by a search.
-
-### sweep, clear
-
-```cpp
-size_type sweep();
-void clear();
-```
-
-`sweep()` drops the entries whose objects are gone and returns how many; the inserting threads do it by themselves every so many insertions, and a program that inserts little and wants the memory back calls it. It returns 0 at once when another thread's sweep is under way. `clear()` erases every entry there is at the time of the walk, dead or alive.
-
-### size, empty
-
-```cpp
-size_type size() const noexcept;
-bool empty() const noexcept;
-```
-
-The entries, the dead ones not yet swept included; a snapshot under concurrent modification, exact after a `sweep()` with the threads quiet.
+An iterator is never invalidated: it holds its node, and on a live entry its object, as tracked pointers. An entry
+erased while an iterator stands on it stays readable through it, its value included, and the iterator walks on from
+it to the entries after.
 
 ## Example
 
 ```cpp
-#include "sgcl/concurrent/concurrent.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/concurrent.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 struct Session {
-    explicit Session(int id) : id(id) {}
     int id;
 };
 
-// A counter attached to a session from outside, by any thread
 struct Stats {
     atomic<int> requests = 0;
 };
 
 int main() {
-    // Statistics per session, shared by the workers: the map holds the
-    // sessions weakly, so a session dropped by its owner takes its entry
-    // with it, and nobody removes stale ones by hand
-    concurrent::weak_map<Session, tracked_ptr<Stats>> stats;
-    tracked_ptr main_session = make_tracked<Session>(1);
-    {
-        tracked_ptr guest = make_tracked<Session>(2);
-        vector<thread> workers;
-        for (int t : range(4)) {
-            workers.emplace_back([&, t] {
-                for (int i : range(1000)) {
-                    tracked_ptr<Session> session = (i + t) % 3 ? main_session : guest;
-                    // one Stats per session, whoever gets there first
-                    auto [it, fresh] = stats.try_emplace(session, make_tracked<Stats>());
-                    ++it->value->requests;
-                }
-            });
-        }
-        for (auto& w : workers) {
-            w.join();
-        }
-        // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
-        for (auto [session, s] : stats) {
-            println("session {}: {} requests", session->id, s->requests.load());
-        }
-    }  // the guest's last strong pointer is gone
-    collector::clear_stack();  // the dead frame zeroed, so that the conservative scan keeps nothing
-    // optional, for the demonstration: the cycle clears the guest's entry
-    collector::force_collect(true);
-    println("{} entries, {} swept, {} left", stats.size(), stats.sweep(), stats.size());
+    concurrent::weak_map<Session, Stats> stats;  // shared by the workers
+    tracked_ptr user = make_tracked<Session>(1);
+    vector<thread> workers;
+    for (int t : range(4)) {
+        workers.emplace_back([&stats, &user, t] {
+            tracked_ptr guest = make_tracked<Session>(100 + t);  // gone with the thread
+            for (int i : range(1000)) {
+                tracked_ptr<Session> session = i % 2 ? user : guest;
+                ++stats.try_emplace(session).first->value.requests;  // one Stats per session
+            }
+        });
+    }
+    for (auto& w : workers) {
+        w.join();
+    }
+    println("{} entries", stats.size());
+
+    collector::force_collect(true);  // optional, for the demonstration: the guests are found dead
+    for (auto [session, s] : stats) {
+        println("session {}: {} requests", session->id, s.requests.load());
+    }
+    size_t swept = stats.sweep();
+    println("{} swept, {} left", swept, stats.size());
 }
 ```
 
-Sample output:
+Output:
 
 ```text
-session 1: 2666 requests
-session 2: 1334 requests
-2 entries, 1 swept, 1 left
+5 entries
+session 1: 2000 requests
+4 swept, 1 left
 ```
 
 ## See also
 
-- [Benchmarks](benchmarks.md#the-bounded-queue-the-priority-queue-intern-and-the-weak-map): measured against Go and Java
-
-- [concurrent::weak_set](weak_set.md): the objects alone; [intern](intern.md): a pool keyed by the contents of the objects, over the same weak entries
-- [weak_map](../core/weak_map.md): the sequential map, with `operator[]` and `insert_or_assign`; [weak_ptr](../core/weak_ptr.md): the key
-- [concurrent::sorted_map](sorted_map.md): the table underneath, and its rules
-- README: [Lock-free containers](README.md#lock-free-containers) (the weak containers and the pool at the end), [Weak containers](../core/README.md#weak-containers), [The rules](../core/README.md#the-rules)
-- `tests/concurrent/weak_map.cpp`: every behaviour above, checked, with the threads.
+- [concurrent::weak_set](weak_set.md): the objects alone
+- [intern](intern.md): a pool keyed by the contents of the objects, over the same weak entries
+- [weak_map](../core/weak_map.md): the sequential map, with `operator[]` and `insert_or_assign`
+- [weak_ptr](../core/weak_ptr.md): what holds the key
+- [concurrent::map](map.md): the hash table underneath, and its rules
+- [README: Weak containers](README.md#weak-containers), [README: Lock-free
+  containers](README.md#lock-free-containers), [core: Weak containers](../core/README.md#weak-containers)

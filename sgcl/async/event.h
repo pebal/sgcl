@@ -37,7 +37,7 @@ namespace sgcl::async {
         using State = detail::ChannelState<void>;
 
     public:
-        event()
+        event() noexcept
         : _s(detail::make_linked_state<void>()) {
         }
 
@@ -57,13 +57,15 @@ namespace sgcl::async {
         // Waits for the set: `e.wait()` on a thread, `co_await e` in a task,
         // as a task is waited for (DESIGN 221: a completion is waited for
         // by itself)
-        void wait() const {
+        // noexcept: nobody sends on the channel, the set closes it, so the
+        // receive wakes no sender (mutex.h: MutexState::lock)
+        void wait() const noexcept {
             assert(!detail::on_worker() && "wait() blocks the worker: co_await the event from a task");
             (void)_s->receive().wait();
         }
 
         class wait_op;
-        wait_op operator co_await() const;
+        wait_op operator co_await() const noexcept;
 
         // The awaiter of `co_await e`: the task resumed by the set
         class wait_op {
@@ -92,7 +94,7 @@ namespace sgcl::async {
         };
 
         template<class F>
-        auto on_set(F f) const {
+        auto on_set(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_receive(std::move(f));
         }
 
@@ -126,7 +128,7 @@ namespace sgcl::async {
         tracked_ptr<State> _s;
     };
 
-    inline event::wait_op event::operator co_await() const {
+    inline event::wait_op event::operator co_await() const noexcept {
         return wait_op(*_s);
     }
 

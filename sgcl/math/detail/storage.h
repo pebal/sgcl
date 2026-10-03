@@ -68,11 +68,11 @@ namespace sgcl::math::detail {
     using LimbObject = unique_ptr<void>;
 
     template<size_t N>
-    LimbObject make_limb_slot() {
+    LimbObject make_limb_slot() noexcept {
         return LimbObject(sgcl::detail::Maker<LimbSlot<N>>::make_tracked_data());
     }
 
-    using MakeLimbs = LimbObject (*)();
+    using MakeLimbs = LimbObject (*)() noexcept;
 
     template<size_t... Is>
     constexpr std::array<MakeLimbs, sizeof...(Is)> limb_small_entries(std::index_sequence<Is...>) {
@@ -116,7 +116,7 @@ namespace sgcl::math::detail {
             return n;
         }
 
-        static Slot make(size_t n) {
+        static Slot make(size_t n) noexcept {
             if (n <= LimbSmallClasses) {
                 return LimbSmallTable[n - 1]();
             }

@@ -45,19 +45,19 @@ namespace sgcl::io {
         shared_memory() noexcept = default;
 
         // A new object of `size` bytes (zeros) under the name, mapped for
-        // reading and writing: is_exists() when the name is taken, EINVAL
-        // for a size of 0 or a bad name
-        static expected<shared_memory, error> create(const string& name, size_t size);
+        // reading and writing: is_exists() when the name is taken,
+        // errc::invalid_path for a bad name, EINVAL for a size of 0
+        static expected<shared_memory, error> create(const string& name, size_t size) noexcept;
 
         // The object of the name, mapped for reading and writing:
         // is_not_found() when there is none. Its size is the object's as
         // the system keeps it, which macOS rounds up to a page
-        static expected<shared_memory, error> open(const string& name);
+        static expected<shared_memory, error> open(const string& name) noexcept;
 
         // The name taken away (shm_unlink): processes that mapped the
         // object keep it; a create of the name makes a new one.
         // is_not_found() when there is none. Nothing on Windows
-        static expected<void, error> remove(const string& name);
+        static expected<void, error> remove(const string& name) noexcept;
 
         // The region's bytes; empty once closed
         slice<byte> data() const noexcept {
@@ -78,7 +78,7 @@ namespace sgcl::io {
         // slice taken before; data() is empty after it. The object and its
         // name are untouched (remove(name)). The destructor unmaps a region
         // nobody closed; a second close does nothing
-        expected<void, error> close() const {
+        expected<void, error> close() const noexcept {
             return _get().close();
         }
 
@@ -147,19 +147,19 @@ namespace sgcl::io {
             return true;
         }
 
-        inline unexpected<error> bad_shared_name(const char* op, const string& name) {
+        inline unexpected<error> bad_shared_name(const char* op, const string& name) noexcept {
             return fail(error(errc::invalid_path, op, name));
         }
 
 #if defined(_WIN32)
-        inline std::wstring shared_name(const string& name) {
+        inline std::wstring shared_name(const string& name) noexcept {
             std::string n = "Local\\";
             n.append(name.data(), name.size());
             return win::wide<std::wstring>(n.data(), int(n.size()));
         }
 
         // The object's view mapped, the section kept with it
-        inline expected<shared_memory, error> map_section(win::Handle section, size_t size, const string& name) {
+        inline expected<shared_memory, error> map_section(win::Handle section, size_t size, const string& name) noexcept {
             void* base = win::MapViewOfFile(section, win::FileMapRead | win::FileMapWrite, 0, 0, size);
             if (!base) {
                 auto e = MappedRegion::windows_error("map", name);
@@ -179,7 +179,7 @@ namespace sgcl::io {
             return SharedMemoryAccess::make(make_tracked<MappedRegion>(base, size, static_cast<byte*>(base), size, win::InvalidHandle, section, true, true, name));
         }
 #else
-        inline std::string shared_name(const string& name) {
+        inline std::string shared_name(const string& name) noexcept {
             std::string n = "/";
             n.append(name.data(), name.size());
             return n;
@@ -187,7 +187,7 @@ namespace sgcl::io {
 
         // The object's descriptor mapped (the region's from now on);
         // `created`: removed again on failure
-        inline expected<shared_memory, error> map_shared(int fd, size_t size, const string& name, bool created) {
+        inline expected<shared_memory, error> map_shared(int fd, size_t size, const string& name, bool created) noexcept {
             auto give_back = [&] {
                 ::close(fd);
                 if (created) {
@@ -208,7 +208,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<shared_memory, error> shared_memory::create(const string& name, size_t size) {
+    inline expected<shared_memory, error> shared_memory::create(const string& name, size_t size) noexcept {
         if (!detail::valid_shared_name(name)) {
             return detail::bad_shared_name("create", name);
         }
@@ -243,7 +243,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<shared_memory, error> shared_memory::open(const string& name) {
+    inline expected<shared_memory, error> shared_memory::open(const string& name) noexcept {
         if (!detail::valid_shared_name(name)) {
             return detail::bad_shared_name("open", name);
         }
@@ -269,7 +269,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<void, error> shared_memory::remove(const string& name) {
+    inline expected<void, error> shared_memory::remove(const string& name) noexcept {
         if (!detail::valid_shared_name(name)) {
             return detail::bad_shared_name("remove", name);
         }

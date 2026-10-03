@@ -167,3 +167,117 @@ TEST(Case_Tests, TitleCaseThatIsTheFullUpperCase) {
     EXPECT_EQ(txt::to_title(string("ẖ")), string("H̱"));
     EXPECT_EQ(txt::to_title(string("ŉ")), string("ʼN"));
 }
+
+// DESIGN 408: the empty text, one code point, broken UTF-8, the
+// conditions of SpecialCasing at the very ends of a text, growth, a text
+// mapped into itself, and the tags a locale is read from
+TEST(Case_Tests, TheEdges) {
+    auto tr = txt::locale::turkish();
+    auto lt = txt::locale::lithuanian();
+    for (auto where : {txt::locale(), tr, lt}) {
+        EXPECT_EQ(txt::to_lower_full(string(), where), string());
+        EXPECT_EQ(txt::to_upper_full(string(), where), string());
+        EXPECT_EQ(txt::to_title(string(), where), string());
+    }
+    EXPECT_EQ(txt::fold_case(string()), string());
+
+    // Unchanged: an ASCII text with the root locale is the same object,
+    // any other text an equal one
+    string plain("abc 123");
+    EXPECT_EQ(txt::to_lower_full(plain).data(), plain.data());
+    EXPECT_EQ(txt::fold_case(plain).data(), plain.data());
+    string upper("ABC 123");
+    EXPECT_EQ(txt::to_upper_full(upper).data(), upper.data());
+    EXPECT_EQ(txt::to_lower_full(string("żółw")), string("żółw"));
+    EXPECT_EQ(txt::to_lower_full(plain, tr), plain);
+
+    // Broken UTF-8: a replacement a byte, the letters around it mapped
+    EXPECT_EQ(txt::to_upper_full(string("a\xFF" "b")), string("A�B"));
+    EXPECT_EQ(txt::to_lower_full(string("\xE2\x82" "A")), string("��a"));
+    EXPECT_EQ(txt::fold_case(string("\xC3")), string("�"));
+    EXPECT_EQ(txt::to_title(string("\xFF" "ab")), string("�Ab"));
+
+    // The final sigma: alone, last, first, before an invalid byte
+    EXPECT_EQ(txt::to_lower_full(string("Σ")), string("σ"));                  // no letter before it
+    EXPECT_EQ(txt::to_lower_full(string("ΑΣ")), string("ας"));                // the last code point of the text
+    EXPECT_EQ(txt::to_lower_full(string("ΣΑ")), string("σα"));
+    EXPECT_EQ(txt::to_lower_full(string("ΑΣ\xFF")), string("ας�"));     // a replacement is not cased
+    EXPECT_EQ(txt::to_lower_full(string("\xFFΣ")), string("�σ"));
+
+    // The conditions of Turkish and Lithuanian at the ends of the text
+    EXPECT_EQ(txt::to_lower_full(string("̇"), tr), string("̇"));   // a dot with no I before it
+    EXPECT_EQ(txt::to_lower_full(string("I"), lt), string("i"));             // no accent after it
+    EXPECT_EQ(txt::to_upper_full(string("̇"), lt), string("̇"));   // a dot with no i before it
+    EXPECT_EQ(txt::to_lower_full(string("Iİ"), tr), string("ıi"));
+
+    // Growth: each ß three times over, and a ligature into three letters
+    std::string many;
+    for (int i = 0; i < 1000; ++i) {
+        many += "ß";
+    }
+    auto grown = txt::to_upper_full(string(many.data(), many.size()));
+    EXPECT_EQ(grown.size(), 2000u);
+    EXPECT_EQ(txt::to_upper_full(string("ﬃ")), string("FFI"));
+    EXPECT_EQ(txt::fold_case(string("ﬃ")), string("ffi"));
+    EXPECT_TRUE(txt::equal_fold_full(string("ﬃ"), string("FFI")));
+    EXPECT_TRUE(txt::equal_fold_full(string("ß"), string("ss")));
+    EXPECT_FALSE(txt::equal_fold_full(string("ß"), string("s")));
+    EXPECT_FALSE(txt::equal_fold_full(string(), string("a")));
+
+    // Into itself
+    string self("Straße");
+    self = txt::to_upper_full(self);
+    EXPECT_EQ(self, string("STRASSE"));
+    self = txt::to_title(self);
+    EXPECT_EQ(self, string("Strasse"));
+    EXPECT_TRUE(txt::equal_fold_full(self, self));
+
+    // Tags: separators at the edges, lengths at the limits, other characters
+    EXPECT_EQ(txt::locale(string("tr-")), tr);
+    EXPECT_EQ(txt::locale(string("tr_TR")), tr);
+    EXPECT_EQ(txt::locale(string("-tr")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("t")), txt::locale::root());
+    EXPECT_NE(txt::locale(string("tur")), txt::locale::root());              // three letters are a subtag
+    EXPECT_NE(txt::locale(string("tur")), tr);
+    EXPECT_EQ(txt::locale(string("turk")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("t1")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("tr\0", 3)), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("\xC5\x82t")), txt::locale::root());
+    EXPECT_EQ(txt::locale::turkish().subtag(), (uint32_t('t') << 8) | 'r');
+    EXPECT_EQ(txt::locale::root().subtag(), 0u);
+    EXPECT_FALSE(txt::locale::lithuanian().dotted_i());
+    EXPECT_FALSE(txt::locale::turkish().keeps_dot());
+    EXPECT_TRUE(txt::locale::azerbaijani().dotted_i());
+}
+
+// A POSIX locale name, what LANG holds, is read up to the '.' of its
+// codeset and the '@' of its modifier too (after DESIGN 429)
+TEST(Case_Tests, APosixLocaleName) {
+    auto tr = txt::locale::turkish();
+    EXPECT_EQ(txt::locale(string("tr.UTF-8")), tr);
+    EXPECT_EQ(txt::locale(string("tr_TR.UTF-8")), tr);
+    EXPECT_EQ(txt::locale(string("tr_TR.ISO-8859-9@euro")), tr);
+    EXPECT_EQ(txt::locale(string("tr@euro")), tr);
+    EXPECT_EQ(txt::locale(string("TR.utf8")), tr);
+    EXPECT_EQ(txt::locale(string("tr.")), tr);
+    EXPECT_EQ(txt::locale(string("pl_PL.UTF-8")), txt::locale(string("pl")));
+    EXPECT_EQ(txt::locale(string("pl_PL.UTF-8")), txt::locale(string("pl-PL")));
+    EXPECT_EQ(txt::locale(string("lt_LT.UTF-8")), txt::locale::lithuanian());
+    EXPECT_EQ(txt::locale(string("az_AZ@latin")), txt::locale::azerbaijani());
+    // a modifier names nothing the type keeps: sr@latin is Serbian, as sr-Latn is
+    EXPECT_EQ(txt::locale(string("sr@latin")), txt::locale(string("sr")));
+    EXPECT_EQ(txt::locale(string("sr_RS@latin")), txt::locale(string("sr-Latn-RS")));
+    // the names that are no language
+    EXPECT_EQ(txt::locale(string("C.UTF-8")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("C")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("POSIX")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string(".UTF-8")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("@euro")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("t.UTF-8")), txt::locale::root());
+    EXPECT_EQ(txt::locale(string("turk.UTF-8")), txt::locale::root());
+    // and what the language does once read so
+    EXPECT_EQ(txt::to_upper_full(string("i"), txt::locale(string("tr_TR.UTF-8"))), string("İ"));
+    txt::collator danish(txt::locale(string("da_DK.UTF-8")));
+    EXPECT_TRUE(danish.tailored());
+    EXPECT_TRUE(danish.capitals_first());
+}

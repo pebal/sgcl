@@ -1,71 +1,93 @@
+[sgcl](../README.md) › [crypto](README.md)
+
 # sgcl::crypto::error
 
 ```cpp
-#include "sgcl/crypto/error.h"   // or "sgcl/crypto/crypto.h"
+#include "sgcl/crypto/error.h"   // or "sgcl/crypto.h"
 
 namespace sgcl::crypto {
-    enum class errc : uint8_t {
-        authentication = 1, invalid_key, invalid_signature, malformed, unsupported, verification
-    };
     class error;
-    const std::error_category& crypto_category() noexcept;
 }
 ```
 
-The error of the whole module: what went wrong in data it was given, returned in an `expected` (`open` of an AEAD, a key or a certificate parsed from bytes). A value, copied, compared, held in an `expected`.
+`sgcl::crypto::error` is the error of the whole module: what went wrong in data it was given, in the
+[expected](../core/expected.md) that a function taking such data returns — `open` of an AEAD, a key or a signature
+read from bytes, DER or PEM, a certificate chain verified. It holds a code of [errc](errc.md), the byte of the input
+where the error was found when the input is an encoding, why a chain does not verify, and a text that says more
+than the code's own words when there is more to say. Where Go returns a plain `error` whose kind is told by its
+type or by comparing with a sentinel, here the kind is the [code](error/code.md), read by a `switch`.
+
+A broken contract of the program is not an error of this kind: a key of the wrong length written into the program,
+a nonce of the wrong size, more output than an algorithm gives (`hkdf::expand` past 255 blocks), `update` of a SHAKE
+after a read, a `hash_id` outside the list, a key used after being moved from — each is an exception,
+`std::invalid_argument` or `std::logic_error`, thrown, as in the hash and compress modules. No random bytes from the
+system is neither: [random](random.md) ends the program.
 
 **The implementation has not been through an independent cryptographic audit.**
 
-| code | what |
+## Rules
+
+- A value: copied, compared, held in an `expected`. It holds a [string](../core/string.md), so it lives where a
+  string does: on a stack, in a managed object, in a container of the library.
+- What an error says is not secret: a failed `open` of an AEAD is `errc::authentication` and nothing more, so that
+  it tells nothing of which byte was wrong.
+
+## Member functions
+
+| Function | Description |
 |---|---|
-| `authentication` | an AEAD's tag does not match: the ciphertext, the associated data, the nonce or the key is not the sender's |
-| `invalid_key` | a key from data that cannot be one: a point off the curve, a zero shared secret, a wrong size |
-| `invalid_signature` | a signature that cannot be one: out of range, badly encoded |
-| `malformed` | DER, ASN.1 or PEM that cannot be read |
-| `unsupported` | an algorithm, a curve or a parameter the module does not do |
-| `verification` | a certificate chain that does not verify: `reason()` says why ([`x509`](x509.md)) |
+| [(constructor)](error/error.md) | constructs an error of a code, with an offset, a text, or the reason a chain does not verify |
 
-A broken contract is not an error of this list: a key of the wrong length given by the program, a nonce of the wrong size, more output than an algorithm gives (`hkdf::expand` past 255 blocks), `update` of a SHAKE after a read, a `hash_id` outside the list — each is `std::invalid_argument`, thrown, as in the hash and compress modules. No random bytes from the system is neither: [`random`](random.md) terminates.
+#### Observers
 
-## Members
+| Function | Description |
+|---|---|
+| [code](error/code.md) | the code |
+| [offset](error/offset.md) | the byte of the encoded input where the error was found |
+| [reason](error/reason.md) | why a certificate chain does not verify |
+| [message](error/message.md) | the error as a text |
 
-```cpp
-error();
-explicit error(errc code);
-error(errc code, const string& detail);                 // the detail said in place of the code's own words
-error(errc code, uint64_t offset);                      // at a byte of an encoded input
-error(errc code, uint64_t offset, const string& detail);
-error(x509::reason why, const string& detail);         // errc::verification and why
-errc code() const noexcept;
-uint64_t offset() const noexcept;                       // 0 for data that is not an encoding
-x509::reason reason() const noexcept;                   // why a chain does not verify; none for any other error
-string message() const;                                 // "message authentication failed", "offset 17: malformed data"
-friend bool operator==(const error&, const error&) noexcept;
-```
+## Non-member functions
 
-`make_error_code(errc)` and `crypto_category()` make an `error_code` of the category `"crypto"`.
+| Function | Description |
+|---|---|
+| [operator==](error/operator_cmp.md) | compares the codes, the reasons, the offsets and the texts |
+| [make_error_code](make_error_code.md) | a code of [errc](errc.md) as a `std::error_code` |
+| [crypto_category](crypto_category.md) | the `std::error_category` of the module, `"crypto"` |
 
 ## Example
 
 ```cpp
-#include "sgcl/crypto/crypto.h"
-#include "sgcl/io/io.h"
+#include "sgcl/crypto.h"
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
-    println(crypto::error(crypto::errc::authentication).message());
-    println(crypto::error(crypto::errc::malformed, 17).message());
+    auto short_key = crypto::x25519::public_key::from_bytes(encoding::hex::decode("00ff"));
+    println("{}", short_key.error().message());
+
+    // an Ed25519 key where an X25519 key is expected (RFC 8032's TEST 1)
+    auto ed = crypto::ed25519::private_key::from_seed(
+        encoding::hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"));
+    auto wrong = crypto::x25519::public_key::from_pkix_der(ed->public_key().to_pkix_der());
+    crypto::error e = wrong.error();
+    println("{} {}", e.code() == crypto::errc::unsupported, e.offset());
+    println("{}", e.message());
 }
 ```
 
 Output:
 
 ```text
-message authentication failed
-offset 17: malformed data
+an X25519 public key is 32 bytes
+true 6
+offset 6: the key is of another algorithm
 ```
 
 ## See also
 
-[The module](README.md); [`x509`](x509.md) (`reason()`); [`random`](random.md).
+- [errc](errc.md): the codes
+- [x509::reason](x509-reason.md): why a chain does not verify
+- [expected](../core/expected.md): the result that holds a value or the error

@@ -860,3 +860,174 @@ TEST(H2Server_Tests, BodiesSentInPlaceStayTheirOwn) {
         }
     }
 }
+
+// DESIGN 408: a writer kept past the end of its stream's response: its
+// writes go nowhere, a flush is io::errc::closed, and the connection's
+// next stream is answered whole
+TEST(H2Server_Tests, AWriterUsedAfterTheResponseEnded) {
+    async::event go, done;
+    static std::atomic<int> flushed{-1};
+    net::http::server s;
+    s.h2c = true;
+    s.route("/first", [go, done](net::http::request, net::http::response_writer w) {
+        w.write("first");
+        async::go([](net::http::response_writer w, async::event go, async::event done) -> async::task<> {
+            co_await go;
+            w.set_header("X-Late", "1");
+            w.write("late");
+            w.error(503, "late");
+            auto f = co_await w.async_flush();
+            flushed = f ? 0 : int(f.error().code() == io::errc::closed);
+            done.set();
+        }(w, go, done));
+    });
+    s.route("/second", [](net::http::request, net::http::response_writer w) { w.write("second"); });
+    Running r(s, false);
+    net::http::client c;
+    c.h2c = true;
+    const std::string base = "http://127.0.0.1:" + std::to_string(r.port);
+    auto first = c.get(sgcl::string(base + "/first"));
+    ASSERT_TRUE(first);
+    EXPECT_EQ(first->proto(), "HTTP/2.0");
+    EXPECT_EQ(*first->text(), "first");
+    go.set();
+    done.wait();
+    EXPECT_EQ(flushed.load(), 1);
+    auto second = c.get(sgcl::string(base + "/second"));
+    ASSERT_TRUE(second) << std::string(second.error().message().view());
+    EXPECT_EQ(second->status(), 200);
+    EXPECT_EQ(second->header("x-late"), "");
+    EXPECT_EQ(*second->text(), "second");
+}
+
+// DESIGN 408: a file of the body that cannot be read (a directory), with
+// nothing sent yet: 500 on the stream, as over HTTP/1.1
+TEST(H2Server_Tests, AFileThatCannotBeReadIs500) {
+    net::http::server s;
+    s.h2c = true;
+    static std::atomic<int> reported{0};
+    s.on_error = [](const sgcl::string& line) { reported += line.view().find("wrote a file that failed") != std::string_view::npos; };
+    const std::string dir = std::filesystem::temp_directory_path().string();
+    s.route("/dir", [dir](net::http::request, net::http::response_writer w) {
+        auto f = io::open(sgcl::string(dir));
+        if (f) {
+            w.write(*f);
+        }
+    });
+    Running r(s, false);
+    net::http::client c;
+    c.h2c = true;
+    auto res = c.get(sgcl::string("http://127.0.0.1:" + std::to_string(r.port) + "/dir"));
+    ASSERT_TRUE(res) << std::string(res.error().message().view());
+    EXPECT_EQ(res->proto(), "HTTP/2.0");
+    EXPECT_EQ(res->status(), 500);
+    EXPECT_EQ(*res->text(), "Internal Server Error\n");
+    EXPECT_EQ(reported.load(), 1);
+}
+
+// DESIGN 408: a stream reset by the client in the middle of its body: the
+// handler's read gives connection_reset, the connection serves the next
+// stream. A DATA frame of exactly SETTINGS_MAX_FRAME_SIZE (2^14) is read;
+// one byte more is the connection's FRAME_SIZE_ERROR
+TEST(H2Server_Tests, AResetMidBodyAndFramesAtTheMaxSize) {
+    static std::atomic<int> read_result{-1};
+    static std::atomic<bool> reading{false};
+    auto s = timed();
+    s.route("POST /read", [](net::http::request r, net::http::response_writer w) -> async::task<> {
+        reading = true;
+        auto body = co_await r.async_bytes();
+        read_result = body ? 0 : int(body.error().code() == std::errc::connection_reset);
+        w.write("read\n");
+    });
+    Running r(s, false);
+    RawClient c(r.port);
+    c.request(1, "POST", "/read", false);
+    c.data(1, 100, false);
+    for (int i = 0; i < 300 && !reading.load(); ++i) {   // the handler reads: the reset comes in the middle
+        std::this_thread::sleep_for(10ms);
+    }
+    ASSERT_TRUE(reading.load());
+    std::this_thread::sleep_for(20ms);
+    std::string rst;
+    h2::FrameWriter(rst).rst_stream(1, h2::ErrorCode::cancel);
+    c.send(rst);
+    for (int i = 0; i < 300 && read_result.load() < 0; ++i) {
+        std::this_thread::sleep_for(10ms);
+    }
+    EXPECT_EQ(read_result.load(), 1);
+    c.request(3, "POST", "/whole", false, "16384");
+    c.data(3, h2::DefaultMaxFrameSize, true);
+    auto whole = c.next([](auto& g) { return g.type == h2::FrameType::data && g.stream == 3; }, 3000ms);
+    ASSERT_TRUE(whole.has_value());
+    EXPECT_EQ(whole->payload, "got 16384\n");
+    c.request(5, "POST", "/whole", false);
+    c.data(5, h2::DefaultMaxFrameSize + 1, true);
+    auto away = c.next([](auto& g) { return g.type == h2::FrameType::goaway; }, 3000ms);
+    ASSERT_TRUE(away.has_value());
+    EXPECT_EQ(away->code, uint32_t(h2::ErrorCode::frame_size_error));
+}
+
+// DESIGN 408: max_concurrent_streams of 0 is taken as 1 (a server that
+// took no stream would answer nothing): streams in turn, each answered
+TEST(H2Server_Tests, MaxConcurrentStreamsZeroIsOne) {
+    auto s = handlers();
+    s.max_concurrent_streams = 0;
+    Running r(s, false);
+    net::http::client c;
+    c.h2c = true;
+    for (int i = 0; i < 3; ++i) {
+        auto res = c.get(sgcl::string("http://127.0.0.1:" + std::to_string(r.port) + "/hello"));
+        ASSERT_TRUE(res) << std::string(res.error().message().view());
+        EXPECT_EQ(*res->text(), "hello over HTTP/2.0\n");
+    }
+}
+
+namespace {
+    // A stream that gives its text and then fails
+    class FailingBody final : public io::mixin::reader<FailingBody> {
+    public:
+        explicit FailingBody(std::string s) : _text(std::move(s)), _s(_text) {}
+
+        expected<size_t, io::error> read(slice<byte> out) {
+            if (_s.empty()) {
+                return unexpected(io::error(std::make_error_code(std::errc::io_error), "read", "failing"));
+            }
+            size_t k = std::min(out.size(), _s.size());
+            std::memcpy(out.data(), _s.data(), k);
+            _s.remove_prefix(k);
+            return k;
+        }
+
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+            co_return read(out);
+        }
+
+    private:
+        std::string _text;   // its own: read after the expression that made it
+        std::string_view _s;
+    };
+}
+
+// DESIGN 408: a request body that fails half-way over HTTP/2: the send is
+// the stream's error, the stream is reset, and the connection goes on with
+// the next request
+TEST(H2Server_Tests, ARequestBodyThatFailsHalfWay) {
+    Running r(handlers(), false);
+    net::http::client c;
+    c.h2c = true;
+    const std::string base = "http://127.0.0.1:" + std::to_string(r.port);
+    net::http::request post("POST", sgcl::string(base + "/echo"));
+    post.set_body(io::reader(make_tracked<FailingBody>(std::string(40000, 'x'))));
+    auto failed = c.send(post);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code(), std::errc::io_error) << std::string(failed.error().message().view());
+    net::http::request shorter("POST", sgcl::string(base + "/echo"));
+    shorter.set_body(io::reader(make_tracked<io::buffer>("abc")), 10);   // ends before its length
+    auto cut = c.send(shorter);
+    ASSERT_FALSE(cut);
+    EXPECT_EQ(cut.error().code(), io::errc::unexpected_eof) << std::string(cut.error().message().view());
+    auto next = c.post(sgcl::string(base + "/echo"), "text/plain", "after");
+    ASSERT_TRUE(next) << std::string(next.error().message().view());
+    EXPECT_EQ(next->proto(), "HTTP/2.0");
+    EXPECT_EQ(*next->text(), "after");
+}

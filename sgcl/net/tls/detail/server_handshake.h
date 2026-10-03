@@ -58,7 +58,7 @@ namespace sgcl::net::tls::detail {
     // An identity of a certificate chain (DER, the leaf first) and a key of
     // the module; the key must outlive the identity
     template<class K>
-    ServerIdentity identity_of(const std::vector<std::vector<byte>>& chain, const K& key) {
+    ServerIdentity identity_of(const std::vector<std::vector<byte>>& chain, const K& key) noexcept {
         ServerIdentity id;
         id.chain = chain;
         if (!chain.empty()) {
@@ -75,7 +75,17 @@ namespace sgcl::net::tls::detail {
             id.schemes = {uint16_t(SignatureScheme::ecdsa_secp384r1_sha384)};
         } else {
             static_assert(std::is_same_v<K, crypto::rsa::private_key>, "a key of the module: ed25519, p256, p384 or rsa");
-            id.schemes = {uint16_t(SignatureScheme::rsa_pss_rsae_sha256), uint16_t(SignatureScheme::rsa_pss_rsae_sha384), uint16_t(SignatureScheme::rsa_pss_rsae_sha512)};
+            // the schemes whose digest and salt the key's encoding holds
+            // (a key of 1024 bits has no room for SHA-512's): one it does
+            // not is never chosen, so a client that offers it alone gets
+            // handshake_failure, never a signature that cannot be made
+            static constexpr SignatureScheme pss[] = {SignatureScheme::rsa_pss_rsae_sha256, SignatureScheme::rsa_pss_rsae_sha384, SignatureScheme::rsa_pss_rsae_sha512};
+            static constexpr size_t digest[] = {32, 48, 64};
+            for (size_t i = 0; i < 3; ++i) {
+                if (rsa_pss_fits(key.bits(), digest[i])) {
+                    id.schemes.push_back(uint16_t(pss[i]));
+                }
+            }
         }
         id.key = &key;
         id.sign = [](const void* k, uint16_t scheme, const Bytes& content, Builder& out) {
@@ -111,14 +121,17 @@ namespace sgcl::net::tls::detail {
 
     class ServerHandshake {
     public:
-        ServerHandshake(const ServerSettings& settings, const Entropy& entropy = Entropy())
+        ServerHandshake(const ServerSettings& settings, const Entropy& entropy = Entropy()) noexcept
         : _settings(settings), _entropy(entropy), _s(std::make_unique<Secrets>()) {
         }
 
         ServerHandshake(const ServerHandshake&) = delete;
         ServerHandshake& operator=(const ServerHandshake&) = delete;
 
-        // A whole handshake message from the client (header included)
+        // A whole handshake message from the client (header included); not
+        // noexcept: an RSA signature that does not verify under its own
+        // public key (a fault in the computation) is crypto's
+        // std::runtime_error (sign, signature.h)
         const Step& feed(const Bytes& message) {
             _s->step.clear();
             if (_state == State::failed) {
@@ -220,7 +233,7 @@ namespace sgcl::net::tls::detail {
         }
 
         template<class R>
-        static bool _has(const R& list, uint16_t v) {
+        static bool _has(const R& list, uint16_t v) noexcept {
             for (uint16_t x : list) {
                 if (x == v) {
                     return true;
@@ -386,11 +399,11 @@ namespace sgcl::net::tls::detail {
             return _server_flight(*shares->find(*group));
         }
 
-        expected<void, Alert> _choose_identity(const string& sni, const U16List& offered) {
+        expected<void, Alert> _choose_identity(const string& sni, const U16List& offered) noexcept {
             if (_settings.identities.empty()) {
                 return unexpected(_alert(AlertDescription::internal_error, "a server without an identity"));
             }
-            auto scheme_of = [&](const ServerIdentity& id) -> uint16_t {
+            auto scheme_of = [&](const ServerIdentity& id) noexcept -> uint16_t {
                 for (uint16_t s : id.schemes) {
                     if (offered.contains(s)) {
                         return s;
@@ -417,7 +430,7 @@ namespace sgcl::net::tls::detail {
 
         // A HelloRetryRequest for the group chosen (§4.1.4): the first
         // ClientHello becomes message_hash of it in the transcript (§4.4.1)
-        expected<void, Alert> _retry() {
+        expected<void, Alert> _retry() noexcept {
             uint8_t ch1[MaxHashSize];
             _s->transcript->value_to(ch1);
             Transcript fresh(_hash);
@@ -429,7 +442,7 @@ namespace sgcl::net::tls::detail {
             auto& out = _s->step.out;
             size_t at = out.size();
             Builder w(out);
-            write_server_hello(w, bytes_of(HelloRetryRandom, 32), bytes_of(_session_id, _session_id_size), uint16_t(_result.cipher), [&](Builder& w) {
+            write_server_hello(w, bytes_of(HelloRetryRandom, 32), bytes_of(_session_id, _session_id_size), uint16_t(_result.cipher), [&](Builder& w) noexcept {
                 {
                     auto e = w.extension(ExtensionType::key_share);
                     write_key_share_retry(w, uint16_t(_result.group));
@@ -496,7 +509,7 @@ namespace sgcl::net::tls::detail {
             // ServerHello
             size_t at = out.size();
             Builder w(out);
-            write_server_hello(w, bytes_of(_s->random, 32), bytes_of(_session_id, _session_id_size), uint16_t(_result.cipher), [&](Builder& w) {
+            write_server_hello(w, bytes_of(_s->random, 32), bytes_of(_session_id, _session_id_size), uint16_t(_result.cipher), [&](Builder& w) noexcept {
                 {
                     auto e = w.extension(ExtensionType::key_share);
                     write_key_share_selected(w, KeyShare{uint16_t(_result.group), bytes_of(share->public_share.data(), share->public_share.size())});
@@ -518,7 +531,7 @@ namespace sgcl::net::tls::detail {
             _push_install(Action::Kind::install_read, Epoch::handshake, k.client_handshake_traffic);
             // EncryptedExtensions, Certificate, CertificateVerify, Finished
             at = out.size();
-            write_encrypted_extensions(w, [&](Builder& w) {
+            write_encrypted_extensions(w, [&](Builder& w) noexcept {
                 if (!_settings.advertised_groups.empty()) {
                     auto e = w.extension(ExtensionType::supported_groups);
                     write_groups(w, _settings.advertised_groups);
@@ -542,7 +555,7 @@ namespace sgcl::net::tls::detail {
             const ServerIdentity& id = _settings.identities[_result.identity];
             at = out.size();
             {
-                std::vector<Bytes> ders;
+                std::vector<Bytes> ders;   // lint-handles: ok views of unmanaged bytes (bytes_of): no owner, no word
                 for (auto& d : id.chain) {
                     ders.push_back(bytes_of(d.data(), d.size()));
                 }
@@ -592,7 +605,7 @@ namespace sgcl::net::tls::detail {
 
         // --- the client's Finished ------------------------------------------------------
 
-        expected<void, Alert> _finished(const Bytes& message, const Bytes& body) {
+        expected<void, Alert> _finished(const Bytes& message, const Bytes& body) noexcept {
             const size_t n = hash_size(_hash);
             auto f = read_finished(body, n);
             if (!f) {
@@ -616,7 +629,7 @@ namespace sgcl::net::tls::detail {
 
         // After the handshake: KeyUpdate answered (§4.6.3); nothing else a
         // client sends then is taken in v1
-        expected<void, Alert> _after(HandshakeType type, const Bytes& body) {
+        expected<void, Alert> _after(HandshakeType type, const Bytes& body) noexcept {
             if (type != HandshakeType::key_update) {
                 return unexpected(_alert(AlertDescription::unexpected_message, "a handshake message after the handshake that v1 does not take"));
             }
@@ -640,26 +653,26 @@ namespace sgcl::net::tls::detail {
 
         uint16_t _client_record_size_limit = 0;
 
-        void _push_send(Epoch e, size_t offset, size_t size) {
+        void _push_send(Epoch e, size_t offset, size_t size) noexcept {
             Action a{Action::Kind::send, e};
             a.offset = offset;
             a.size = size;
             _s->step.actions.push_back(std::move(a));
         }
 
-        void _push_ccs() {
+        void _push_ccs() noexcept {
             _s->step.actions.push_back(Action{Action::Kind::change_cipher_spec, Epoch::initial});
             _ccs_sent = true;
         }
 
-        void _push_install(Action::Kind kind, Epoch e, const Secret& s) {
+        void _push_install(Action::Kind kind, Epoch e, const Secret& s) noexcept {
             Action a{kind, e, _result.cipher};
             std::memcpy(a.secret.bytes, s.bytes, sizeof s.bytes);
             a.secret.size = s.size;
             _s->step.actions.push_back(std::move(a));
         }
 
-        const Step& _fail(const Alert& a) {
+        const Step& _fail(const Alert& a) noexcept {
             _s->step.clear();
             Action x{Action::Kind::alert};
             x.alert = a.description;

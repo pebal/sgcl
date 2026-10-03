@@ -149,6 +149,8 @@ TEST(CodecFiles_Tests, ExtensionsNotWritten) {
         EXPECT_FALSE(exists(s / name)) << name;
         EXPECT_FALSE(exists(string::concat(s / name, ".part"))) << name;
     }
+    // a path with no extension: the message lists every extension written
+    EXPECT_EQ(im.save(s / "noextension").error().message(), "offset 0: codec: a path with no extension (.png, .jpg, .jpeg, .heic, .heif)");
 }
 
 TEST(CodecFiles_Tests, FailureLeavesNoPart) {
@@ -203,6 +205,74 @@ TEST(CodecFiles_Tests, LoadErrors) {
     auto rgba = codec::load(s / "named.jpg", {.want = pixel_format::rgba8});
     ASSERT_TRUE(rgba);
     EXPECT_EQ(rgba->format(), pixel_format::rgba8);
+}
+
+TEST(CodecFiles_Tests, AnImageTheFormatCannotHold) {
+    // a JPEG side past 65 535: errc::invalid_argument, no part and no file
+    Scratch s;
+    const codec::image wide(65536, 1, pixel_format::gray8);
+    auto r = wide.save(s / "wide.jpg");
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().code(), codec::errc::invalid_argument);
+    EXPECT_FALSE(exists(s / "wide.jpg"));
+    EXPECT_FALSE(exists(string::concat(s / "wide.jpg", ".part")));
+    EXPECT_TRUE(wide.save(s / "wide.png"));
+}
+
+TEST(CodecFiles_Tests, AMovedFromImageEncodesAsItsSource) {
+    // a moved-from image is another handle of the same image (a move
+    // copies the word): every function taking an image writes what it
+    // writes for the image moved into (DESIGN 408)
+    Scratch s;
+    codec::image moved = picture(pixel_format::rgb8);
+    const codec::image target = std::move(moved);
+    EXPECT_EQ(encoded(*codec::png::encode(moved)), encoded(*codec::png::encode(target)));
+    EXPECT_EQ(encoded(*codec::png::encode(moved, {.level = compress::level(1)})), encoded(*codec::png::encode(target, {.level = compress::level(1)})));
+    EXPECT_EQ(encoded(*codec::jpeg::encode(moved)), encoded(*codec::jpeg::encode(target)));
+    EXPECT_EQ(encoded(*codec::jpeg::encode(moved, {.quality = 90})), encoded(*codec::jpeg::encode(target, {.quality = 90})));
+    io::buffer png_out, jpeg_out;
+    ASSERT_TRUE(codec::png::encode(moved, png_out));
+    ASSERT_TRUE(codec::jpeg::encode(moved, jpeg_out));
+    auto png_held = png_out.data();
+    auto jpeg_held = jpeg_out.data();
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(png_held.data()), png_held.size()), encoded(*codec::png::encode(target)));
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(jpeg_held.data()), jpeg_held.size()), encoded(*codec::jpeg::encode(target)));
+    // HEIC (where the system writes it): the file decodes to the image's size
+    auto heic = codec::heif::encode(moved);
+    EXPECT_EQ(bool(heic), bool(codec::heif::encode(target)));
+    if (heic) {
+        auto back = codec::heif::decode(*heic);
+        ASSERT_TRUE(back);
+        EXPECT_EQ(back->width(), target.width());
+        EXPECT_EQ(back->height(), target.height());
+        io::buffer heif_out;
+        EXPECT_TRUE(codec::heif::encode(moved, heif_out, {.quality = 50}));
+    }
+    // the files: as the target's, byte for byte
+    ASSERT_TRUE(moved.save(s / "m.png"));
+    ASSERT_TRUE(codec::save(moved, s / "f.jpg", {.quality = 90}));
+    ASSERT_TRUE(target.save(s / "t.png"));
+    ASSERT_TRUE(target.save(s / "t.jpg", {.quality = 90}));
+    EXPECT_EQ(bytes_of(s / "m.png"), bytes_of(s / "t.png"));
+    EXPECT_EQ(bytes_of(s / "f.jpg"), bytes_of(s / "t.jpg"));
+    EXPECT_TRUE(moved.async_save(s / "a.png").wait());
+    EXPECT_TRUE(codec::async_save(moved, s / "b.png").wait());
+    EXPECT_EQ(bytes_of(s / "a.png"), bytes_of(s / "t.png"));
+    EXPECT_EQ(bytes_of(s / "b.png"), bytes_of(s / "t.png"));
+}
+
+TEST(CodecFiles_Tests, DefaultOptionsDoNotThrow) {
+    // the forms declared noexcept are noexcept with their default options:
+    // PNG's default level is a constant, not compress::level(int)
+    const codec::image im(1, 1, pixel_format::gray8);
+    const string path("a.png");
+    static_assert(std::is_nothrow_default_constructible_v<codec::png::options>);
+    static_assert(std::is_nothrow_default_constructible_v<codec::save_options>);
+    static_assert(noexcept(codec::png::encode(im)));
+    static_assert(noexcept(codec::async_save(im, path)));
+    static_assert(noexcept(im.async_save(path)));
+    EXPECT_EQ(codec::png::options{}.level, compress::level(7));
+    EXPECT_EQ(codec::save_options{}.level, compress::level(7));
 }
 
 TEST(CodecFiles_Tests, Tasks) {

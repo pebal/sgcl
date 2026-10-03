@@ -43,7 +43,7 @@ namespace sgcl::net::http {
         // A TLS config's ALPN list as serve_tls() uses it (Go's
         // adjustNextProtos): h2 added at the end when on and absent, or
         // taken out when off; http/1.1 added at the end when absent
-        inline net::tls::config adjusted_alpn(net::tls::config c, bool http2) {
+        inline net::tls::config adjusted_alpn(net::tls::config c, bool http2) noexcept {
             vector<string> out;
             bool h2 = false;
             bool h1 = false;
@@ -71,7 +71,7 @@ namespace sgcl::net::http {
         // One exchange: the head read and checked, the handler run, the
         // response finished and the body drained; whether the connection
         // goes on
-        inline async::task<Next> serve_one(tracked_ptr<ServerImpl> s, tracked_ptr<ServerSettings> cfg, tracked_ptr<ServerConn> node, tracked_ptr<Wire> wire) {
+        inline async::task<Next> serve_one(tracked_ptr<ServerImpl> s, tracked_ptr<ServerSettings> cfg, tracked_ptr<ServerConn> node, tracked_ptr<Wire> wire) noexcept {
             auto& c = node->c;
             auto start = sgcl::clock::now();
             auto read_limit = cfg->read_timeout > duration::zero() ? start + cfg->read_timeout : time_point();
@@ -225,6 +225,14 @@ namespace sgcl::net::http {
                     w->failed.reset();
                     w->fields = http::headers();
                     writer.error(status::internal_server_error);
+                } else if (w->failed) {
+                    // a file of the body that could not be read (write(file)),
+                    // nothing sent yet: answered as a field that cannot be
+                    cfg->report(string("a handler of ") + req->method + " " + string(req->target) + " wrote a file that failed: " + w->failed->message());
+                    w->close_after = true;
+                    w->failed.reset();
+                    w->fields = http::headers();
+                    writer.error(status::internal_server_error);
                 }
             }
             const uint64_t body_bytes = w->body_bytes();   // before the finish gives the blocks back
@@ -248,7 +256,7 @@ namespace sgcl::net::http {
             co_return !w->close_after ? Next::again : Next::end;
         }
 
-        inline async::task<> serve_connection(tracked_ptr<ServerImpl> s, tracked_ptr<ServerSettings> cfg, net::connection c) {
+        inline async::task<> serve_connection(tracked_ptr<ServerImpl> s, tracked_ptr<ServerSettings> cfg, net::connection c) noexcept {
             tracked_ptr node = make_tracked<ServerConn>(c, s->closing.token());
             s->link(node);
             tracked_ptr wire = make_tracked<Wire>(c);
@@ -365,9 +373,15 @@ namespace sgcl::net::http {
     // ends; the server goes on.
     class server {
     public:
-        server()
+        server() noexcept
         : _impl(make_tracked<detail::ServerImpl>()) {
         }
+
+        // A copy shares the routes and the connections and copies the
+        // settings. There is no move of its own: a moved-from server is
+        // the same server, its on_error and access log kept
+        server(const server&) = default;
+        server& operator=(const server&) = default;
 
         template<class Handler>
         server& route(const string& pattern, Handler handler) {
@@ -399,7 +413,7 @@ namespace sgcl::net::http {
             return async_serve(address).wait();
         }
 
-        async::task<expected<void, io::error>> async_serve(const string& address) const {
+        async::task<expected<void, io::error>> async_serve(const string& address) const noexcept {
             return _co_serve_address(_impl, _settings(), address);
         }
 
@@ -416,7 +430,7 @@ namespace sgcl::net::http {
             return async_serve_tls(address, c).wait();
         }
 
-        async::task<expected<void, io::error>> async_serve_tls(const string& address, const net::tls::config& c) const {
+        async::task<expected<void, io::error>> async_serve_tls(const string& address, const net::tls::config& c) const noexcept {
             return _co_serve_tls(_impl, _settings(), address, detail::adjusted_alpn(c, http2));
         }
 
@@ -425,7 +439,7 @@ namespace sgcl::net::http {
             return async_serve(l).wait();
         }
 
-        async::task<expected<void, io::error>> async_serve(const net::listener& l) const {
+        async::task<expected<void, io::error>> async_serve(const net::listener& l) const noexcept {
             return _co_serve(_impl, _settings(), l);
         }
 
@@ -437,7 +451,7 @@ namespace sgcl::net::http {
             async_shutdown().wait();
         }
 
-        async::task<> async_shutdown() const {
+        async::task<> async_shutdown() const noexcept {
             return _co_shutdown(_impl);
         }
 
@@ -460,7 +474,7 @@ namespace sgcl::net::http {
         duration idle_timeout = std::chrono::seconds(120);         // for the next request on a kept connection
         size_t max_header_bytes = 32 * 1024;                       // past it: 431
         uint64_t max_body_bytes = uint64_t(32) << 20;              // past it: 413; zero: none
-        function<void(const string&)> on_error;                    // a handler's exception, an accept's failure; a line on stderr by default
+        function<void(const string&)> on_error;                    // a handler's exception, a field or a file it could not send, an accept's failure; a line on stderr by default
         // HTTP/2 (RFC 9113) for a connection whose TLS agreed on "h2" by
         // ALPN: the listener's tls::config names it (alpn {"h2", "http/1.1"});
         // the same handlers, request::proto() "HTTP/2.0"
@@ -480,7 +494,7 @@ namespace sgcl::net::http {
         // batch per worker, DESIGN 283); a logger given is used as it is
         // (options::buffered in it for the batches). Read when serve() is called,
         // as the fields are
-        server& access_log(const slog::logger& log) {
+        server& access_log(const slog::logger& log) noexcept {
             _access_log.emplace(log);
             return *this;
         }
@@ -492,7 +506,7 @@ namespace sgcl::net::http {
 
     private:
         template<class H>
-        static detail::Handler _handler(H h) {
+        static detail::Handler _handler(H h) noexcept(std::is_nothrow_move_constructible_v<H>) {
             detail::Handler out;
             using R = std::invoke_result_t<H&, request, response_writer>;
             if constexpr (std::is_void_v<R>) {
@@ -504,7 +518,7 @@ namespace sgcl::net::http {
             return out;
         }
 
-        tracked_ptr<detail::ServerSettings> _settings() const {
+        tracked_ptr<detail::ServerSettings> _settings() const noexcept {
             tracked_ptr cfg = make_tracked<detail::ServerSettings>();
             cfg->read_header_timeout = read_header_timeout;
             cfg->read_timeout = read_timeout;
@@ -523,7 +537,7 @@ namespace sgcl::net::http {
         tracked_ptr<detail::ServerImpl> _impl;
         optional<slog::logger> _access_log;
 
-        static async::task<expected<void, io::error>> _co_serve(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, net::listener l) {
+        static async::task<expected<void, io::error>> _co_serve(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, net::listener l) noexcept {
             if (impl->shutting_down.load()) {
                 (void)l.close();
                 co_return io::detail::fail(net::detail::net_error(net::errc::server_closed, "serve", l.local_endpoint().to_string()));
@@ -550,7 +564,7 @@ namespace sgcl::net::http {
         }
 
         static async::task<expected<void, io::error>> _co_serve_tls(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, string address,
-                                                                    net::tls::config c) {
+                                                                    net::tls::config c) noexcept {
             auto l = co_await net::tls::async_listen(address, c);
             if (!l) {
                 co_return io::detail::fail(l);
@@ -558,7 +572,7 @@ namespace sgcl::net::http {
             co_return co_await _co_serve(impl, cfg, *l);
         }
 
-        static async::task<expected<void, io::error>> _co_serve_address(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, string address) {
+        static async::task<expected<void, io::error>> _co_serve_address(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, string address) noexcept {
             auto l = co_await net::tcp::async_listen(address);
             if (!l) {
                 co_return io::detail::fail(l);
@@ -566,7 +580,7 @@ namespace sgcl::net::http {
             co_return co_await _co_serve(impl, cfg, *l);
         }
 
-        static async::task<> _co_shutdown(tracked_ptr<detail::ServerImpl> impl) {
+        static async::task<> _co_shutdown(tracked_ptr<detail::ServerImpl> impl) noexcept {
             impl->shutting_down.store(true);
             impl->close_listeners();
             for (auto& n : impl->snapshot()) {

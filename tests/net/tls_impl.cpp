@@ -10,7 +10,9 @@
 // without waiting (start_write, as the http server writes) whose record the
 // socket takes in part, its tail sent before anything else and before the
 // close_notify of async_close; the read without a frame (try_read) the http
-// server's head takes, and read_line's buffer above the connection.
+// server's head takes, and read_line's buffer above the connection; the
+// alerts of a failed handshake as each side reads them (before the server's
+// hello, a chain the client refuses, a record the client cannot open).
 #include "tests/types.h"
 
 #include "sgcl/net/tls.h"
@@ -228,15 +230,17 @@ TEST(TlsImpl_Tests, TryReadAndReadLine) {
     (void)after;
 }
 
-// A server without TLS 1.3 (an AWS load balancer is one) answers a hello of
-// 1.3 alone with an alert in the clear, close_notify or another, before any
-// hello of its own: the error says so, the alert still there
+// An alert in the clear before the server's hello: the error names the
+// alert as the peer's, and only close_notify and protocol_version (what a
+// server without TLS 1.3, an AWS load balancer among them, answers a hello
+// of 1.3 alone with) add the guess that the server has no TLS 1.3
 TEST(TlsImpl_Tests, AnAlertBeforeTheServersHello) {
-    for (uint8_t description : {uint8_t(0), uint8_t(70)}) {   // close_notify, protocol_version
+    // close_notify, protocol_version, handshake_failure, no_application_protocol
+    for (uint8_t description : {uint8_t(0), uint8_t(70), uint8_t(40), uint8_t(120)}) {
         auto l = sgcl::net::tcp::listen("127.0.0.1:0");
         ASSERT_TRUE(l);
         sgcl::net::listener listener = *l;
-        std::thread server([listener, description] {
+        std::thread server([&listener, description] {   // by reference: no tracked handle in a std::thread's state
             auto c = listener.accept();
             if (!c) {
                 return;
@@ -254,10 +258,196 @@ TEST(TlsImpl_Tests, AnAlertBeforeTheServersHello) {
         (void)listener.close();
         ASSERT_FALSE(c) << int(description);
         const std::string m(c.error().message().view());
-        EXPECT_NE(m.find("tls: the server closed the handshake before its hello (no TLS 1.3?)"), std::string::npos) << m;
+        const char* want = description == 0 ? "remote error: tls: close notify, before the server's hello (no TLS 1.3?)"
+                         : description == 70 ? "remote error: tls: protocol version not supported, before the server's hello (no TLS 1.3?)"
+                         : description == 40 ? "remote error: tls: handshake failure, before the server's hello"
+                                             : "remote error: tls: no application protocol, before the server's hello";
+        EXPECT_NE(m.find(want), std::string::npos) << m;
+        if (description == 40 || description == 120) {
+            EXPECT_EQ(m.find("TLS 1.3"), std::string::npos) << m;
+        }
         EXPECT_TRUE(tls::is_remote(c.error()));
         ASSERT_TRUE(tls::alert_of(c.error()));
         EXPECT_EQ(int(*tls::alert_of(c.error())), int(description));
         EXPECT_FALSE(tls::certificate_reason(c.error()));
     }
+}
+
+namespace {
+    // A handshake of our client and our server over the loopback, each
+    // side's result
+    struct Outcome {
+        expected<net::connection, io::error> client, server;
+    };
+
+    Outcome handshake(const tls::config& ccfg, const tls::config& scfg) {
+        auto l = net::tcp::listen("127.0.0.1:0");
+        EXPECT_TRUE(l.has_value());
+        // the server's result made in a managed object, not in this thread's stack
+        auto served = make_tracked<expected<net::connection, io::error>>(unexpected(io::error(io::errc::closed, "accept", "")));
+        std::thread t([&] {
+            auto a = l->accept();
+            if (a) {
+                *served = tls::server(*a, scfg);
+            }
+        });
+        auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(l->local_endpoint().port())), ccfg);
+        t.join();
+        (void)l->close();
+        return Outcome{c, *served};
+    }
+
+    tls::config server_config() {
+        tls::config c;
+        c.identities = {tls::identity(sgcl::string(slurp(testdata("ecdsa.pem"))), sgcl::string(slurp(testdata("ecdsa.key"))))};
+        return c;
+    }
+
+    tls::config client_config(const char* name) {
+        tls::config c;
+        c.roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata("ca.pem"))));
+        c.server_name = sgcl::string(name);
+        return c;
+    }
+}
+
+// ALPN with nothing in common: the server refuses before its hello with
+// no_application_protocol, and the client's error says that, not "no TLS 1.3"
+TEST(TlsImpl_Tests, AnAlpnMismatchReadsAsWhatItIs) {
+    auto ccfg = client_config("localhost");
+    ccfg.alpn = {sgcl::string("http/1.1")};
+    auto scfg = server_config();
+    scfg.alpn = {sgcl::string("h2")};
+    auto o = handshake(ccfg, scfg);
+    ASSERT_FALSE(o.client);
+    ASSERT_FALSE(o.server);
+    const std::string m(o.client.error().message().view());
+    EXPECT_NE(m.find("remote error: tls: no application protocol"), std::string::npos) << m;
+    EXPECT_EQ(m.find("TLS 1.3"), std::string::npos) << m;
+    EXPECT_TRUE(tls::is_remote(o.client.error()));
+    EXPECT_EQ(tls::alert_of(o.client.error()), tls::alert::no_application_protocol);
+    EXPECT_EQ(tls::alert_of(o.server.error()), tls::alert::no_application_protocol);
+    EXPECT_FALSE(tls::is_remote(o.server.error()));
+}
+
+// A client that refuses the server's chain says why to the server: its
+// alert goes under the handshake keys the server reads with since its hello,
+// so the server's error is the client's alert (bad_certificate for a name
+// the certificate does not hold, unknown_ca for an authority the client does
+// not know), never "unexpected message"
+TEST(TlsImpl_Tests, TheServerSeesWhyTheClientRefusedItsChain) {
+    {
+        auto o = handshake(client_config("wrong.test"), server_config());
+        ASSERT_FALSE(o.client);
+        ASSERT_FALSE(o.server);
+        EXPECT_EQ(tls::certificate_reason(o.client.error()), crypto::x509::reason::hostname_mismatch);
+        const std::string m(o.server.error().message().view());
+        EXPECT_NE(m.find("remote error: tls: bad certificate"), std::string::npos) << m;
+        EXPECT_TRUE(tls::is_remote(o.server.error()));
+        EXPECT_EQ(tls::alert_of(o.server.error()), tls::alert::bad_certificate);
+    }
+    {
+        auto ccfg = client_config("localhost");
+        ccfg.roots = crypto::x509::certificate_pool();
+        auto o = handshake(ccfg, server_config());
+        ASSERT_FALSE(o.client);
+        ASSERT_FALSE(o.server);
+        EXPECT_EQ(tls::certificate_reason(o.client.error()), crypto::x509::reason::unknown_authority);
+        const std::string m(o.server.error().message().view());
+        EXPECT_NE(m.find("remote error: tls: unknown certificate authority"), std::string::npos) << m;
+        EXPECT_EQ(tls::alert_of(o.server.error()), tls::alert::unknown_ca);
+    }
+}
+
+// A record the client cannot open after the server's hello (a failure of the
+// record layer, not of the handshake machine): the client's bad_record_mac
+// goes under its handshake keys, a change_cipher_spec first, as the
+// machine's own alerts do, so the server reads it as the client's alert and
+// not as "unexpected message". A relay between the two flips the last byte
+// (the tag) of the server's first encrypted record, its EncryptedExtensions.
+TEST(TlsImpl_Tests, TheServerSeesTheClientsRecordFailure) {
+    auto front = net::tcp::listen("127.0.0.1:0");
+    auto back = net::tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(front);
+    ASSERT_TRUE(back);
+    // the server's result made in a managed object, not in this thread's stack
+    auto served = make_tracked<expected<net::connection, io::error>>(unexpected(io::error(io::errc::closed, "accept", "")));
+    std::thread server([&] {
+        auto a = back->accept();
+        if (a) {
+            *served = tls::server(*a, server_config());
+        }
+    });
+    std::atomic<bool> flipped = false;
+    std::thread relay([&] {
+        auto from_client = front->accept();
+        if (!from_client) {
+            return;
+        }
+        auto to_server = net::tcp::connect(back->local_endpoint());
+        if (!to_server) {
+            (void)from_client->close();
+            return;
+        }
+        net::connection c = *from_client, s = *to_server;
+        std::thread upstream([&c, &s] {
+            std::byte b[4096];
+            for (;;) {
+                auto n = c.read(b);
+                if (!n || *n == 0 || !s.write(sgcl::slice<const std::byte>(b, *n))) {
+                    break;
+                }
+            }
+            (void)s.close_write();
+        });
+        // downstream, record by record: the first of type application_data
+        // (23) after the hello gets its last byte flipped
+        std::vector<std::byte> pending;
+        std::byte b[4096];
+        for (;;) {
+            auto n = s.read(b);
+            if (!n || *n == 0) {
+                break;
+            }
+            pending.insert(pending.end(), b, b + *n);
+            size_t whole = 0;
+            while (pending.size() - whole >= 5) {
+                const size_t len = size_t(uint8_t(pending[whole + 3])) << 8 | uint8_t(pending[whole + 4]);
+                if (pending.size() - whole < 5 + len) {
+                    break;
+                }
+                if (uint8_t(pending[whole]) == 23 && !flipped.exchange(true)) {
+                    pending[whole + 5 + len - 1] ^= std::byte{1};
+                }
+                whole += 5 + len;
+            }
+            if (whole > 0 && !c.write(sgcl::slice<const std::byte>(pending.data(), whole))) {
+                break;
+            }
+            pending.erase(pending.begin(), pending.begin() + std::ptrdiff_t(whole));
+        }
+        // the server is done (it has read the client's alert): the client's
+        // end closed ends the upstream read
+        (void)c.close();
+        upstream.join();
+        (void)s.close();
+    });
+    auto ccfg = client_config("localhost");
+    auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(front->local_endpoint().port())), ccfg);
+    if (c) {
+        (void)c->close();
+    }
+    relay.join();
+    server.join();
+    (void)front->close();
+    (void)back->close();
+    EXPECT_TRUE(flipped.load());
+    ASSERT_FALSE(c);
+    EXPECT_EQ(tls::alert_of(c.error()), tls::alert::bad_record_mac);
+    EXPECT_FALSE(tls::is_remote(c.error()));
+    ASSERT_FALSE(*served);
+    const std::string m(served->error().message().view());
+    EXPECT_NE(m.find("remote error: tls: bad record MAC"), std::string::npos) << m;
+    EXPECT_TRUE(tls::is_remote(served->error()));
+    EXPECT_EQ(tls::alert_of(served->error()), tls::alert::bad_record_mac);
 }

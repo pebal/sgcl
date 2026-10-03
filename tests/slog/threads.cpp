@@ -11,6 +11,7 @@
 // once. Run under TSan as well (DESIGN 283).
 #include "common.h"
 
+#include <atomic>
 #include <set>
 #include <string>
 #include <thread>
@@ -137,4 +138,61 @@ TEST_F(SlogThreads_Tests, Buffered) {
     auto text = io::read_text(path());
     ASSERT_TRUE(text);
     check(std::string(text->data(), text->size()), Tasks + Threads);
+}
+
+// The default logger replaced while threads write through it (DESIGN 408):
+// every record goes whole to one of the loggers that were the default
+// while it was made, none lost or doubled; a logger taken before a
+// set_default keeps writing where it did; the default set to itself
+TEST_F(SlogThreads_Tests, TheDefaultReplacedWhileInUse) {
+    auto before = slog::default_logger();
+    slog::memory first, second;
+    const auto a = slog::logger(first);
+    const auto b = slog::logger(second);
+    slog::set_default(a);
+    const auto taken = slog::default_logger();
+    std::atomic<bool> stop{false};
+    std::thread swapper([&] {
+        for (int i = 0; !stop; ++i) {
+            slog::set_default(i % 2 ? a : b);
+            slog::set_default(slog::default_logger());   // onto itself
+        }
+    });
+    constexpr int Writers = 4;
+    constexpr int Each = 2000;
+    std::vector<std::thread> writers;
+    for (int t = 0; t < Writers; ++t) {
+        writers.emplace_back([t] {
+            for (int i = 0; i < Each; ++i) {
+                slog::info("swapped", "t", t, "i", i);
+            }
+        });
+    }
+    for (auto& w : writers) {
+        w.join();
+    }
+    stop = true;
+    swapper.join();
+    slog::set_default(before);
+    taken.info("taken");
+    std::set<std::pair<int64_t, int64_t>> seen;
+    size_t taken_lines = 0;
+    for (const auto* kept : {&first, &second}) {
+        for (const auto& r : kept->records()) {
+            const std::string msg(r.message().data(), r.message().size());
+            if (msg == "taken") {
+                ++taken_lines;
+                continue;
+            }
+            ASSERT_EQ(msg, "swapped");
+            ASSERT_EQ(r.size(), 2u);
+            auto it = r.begin();
+            const int64_t t = (*it).value().as_int();
+            const int64_t i = (*++it).value().as_int();
+            EXPECT_TRUE(seen.insert({t, i}).second) << "twice: " << t << " " << i;
+        }
+    }
+    EXPECT_EQ(seen.size(), size_t(Writers) * Each);
+    EXPECT_EQ(taken_lines, 1u);
+    EXPECT_EQ(taken_lines + seen.size(), first.size() + second.size());
 }

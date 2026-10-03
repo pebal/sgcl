@@ -1,146 +1,108 @@
+[sgcl](../README.md) › [codec](README.md)
+
 # sgcl::codec::image
 
 ```cpp
-#include "sgcl/codec/image.h"   // or "sgcl/codec/codec.h"
+#include "sgcl/codec/image.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    enum class pixel_format : uint8_t {
-        gray8, gray_alpha8, rgb8, rgba8,           // 8 bits a channel
-        gray16, gray_alpha16, rgb16, rgba16,       // 16 bits, in the byte order of the machine
-        cmyk8                                      // the ink of each channel, as a CMYK JPEG holds it
-    };
-
-    class image {
-    public:
-        image(uint32_t width, uint32_t height, pixel_format f);   // all zero; a side of 0: invalid_argument
-
-        uint32_t width() const noexcept;
-        uint32_t height() const noexcept;
-        pixel_format format() const noexcept;
-        size_t stride() const noexcept;                 // the bytes of a row: width × the bytes of a pixel
-
-        slice<byte> pixels();                           // every row, from the top
-        slice<const byte> pixels() const;
-        slice<byte> row(uint32_t y);                    // y past the last row: out_of_range
-        slice<const byte> row(uint32_t y) const;
-
-        image convert(pixel_format f) const;            // a new image of the same pixels in format f
-        image clone() const;                            // a new image of the same format
-
-        slice<const byte> exif() const noexcept;        // the file's EXIF (a TIFF structure) and ICC profile,
-        slice<const byte> icc() const noexcept;         // empty when it had none
-        uint8_t orientation() const noexcept;           // EXIF's 1..8; 1 when the file said nothing
-        image oriented() const;                         // turned and mirrored as orientation() says
-
-        expected<void, error> save(const string& path, const save_options& o = {}) const;   // the format by the extension
-        async::task<expected<void, error>> async_save(const string& path, const save_options& o = {}) const;
-    };
+    class image;
 }
 ```
 
-An image: its size, its pixel format and its pixels, row after row with no padding, plus the metadata the file had.
+`sgcl::codec::image` is an image in memory: its size, its [pixel format](pixel_format.md) and its pixels, row after
+row with no padding, plus the metadata of the file it came from, the EXIF block and the ICC profile as bytes and
+EXIF's orientation, which a program may set too. Every decoder of the module returns one and every encoder takes
+one. Where Go's `image.Image` is an interface with a type per layout of a pixel, an `image` is one class with the
+layout as a value; where a `std::vector<uint8_t>` with two sides would be copied, an `image` is shared.
 
-**A handle of one word.** Copies share the pixels; `clone()` makes new ones. The pixels live in one managed block. A slice of them, from `pixels()` or `row()`, keeps that block alive after the image is gone.
+It is a handle of one word: a `tracked_ptr` to its state, which holds the sizes, the format, the metadata and the
+pixels in one managed block of the exact size. A copy shares the pixels, so a write through one copy is seen through
+the other; [clone](image/clone.md) makes new ones. A slice of the pixels, from [pixels](image/pixels.md) or
+[row](image/row.md), keeps the block alive after the image is gone, as a Go slice keeps its array. There is no
+empty image: the constructor takes the sides and the format, and a decoder makes the image of a file. A move is a copy
+of the word, as the move of a [tracked_ptr](../core/tracked_ptr.md) is: a moved-from image is still the image, and
+its members and every function that takes an image work on it as on the image it was moved into.
 
-**Pixel formats.** Alpha is straight (not premultiplied), as PNG, GIF and WebP store it. 16-bit channels are in the byte order of the machine: the decoders turn PNG's big-endian samples around, and the encoders turn them back. `cmyk8` is the ink of each channel, 0 for none and 255 for full, as Go's `image.CMYK` has it.
+A decoder returns an [expected](../core/expected.md)`<image, codec::error>`: the image, or why the file is not one. A
+program that takes the image as it comes writes `codec::image photo = codec::png::decode(file);`, and a file that is
+not an image throws a [bad_expected_access](../core/bad_expected_access.md)`<codec::error>` that carries the error.
 
-**convert** always makes a copy, even to the same format:
+## Rules
 
-- Between depths a channel goes up as `v × 257` (255 becomes 65535) and down to the nearest value, `round(v / 257)`. This is libpng's `png_set_scale_16`. Go and libpng's `strip_16` truncate (`v >> 8`), so an image taken down to 8 bits by the module can differ from Go's by one level.
-- Color to gray is the luma of Rec. 601 (0.299, 0.587, 0.114 in 16-bit fixed point). A gray pixel keeps its value through color and back.
-- A format without alpha drops it; one with alpha gets it opaque where the source had none.
-- CMYK and RGB convert through each other with no color profile: each channel is `(1 − c)(1 − k)`.
+- An image holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, never in
+  `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
+  ([The rules](../core/README.md#the-rules), 1).
+- The pixels and the metadata are not synchronized: concurrent readers, or one writer, with the program's own
+  synchronization, and that counts every copy of the handle, since copies share them. [convert](image/convert.md),
+  [clone](image/clone.md), [oriented](image/oriented.md) and the encoders only read.
+- The decoders never turn an image: the rows are as the file stores them, and [orientation](image/orientation.md)
+  says how they are meant to be shown, as with Go and libjpeg. [oriented](image/oriented.md) turns them.
+- [save](image/save.md) is declared with the class and defined in `sgcl/codec/files.h`, with
+  [codec::save](save.md), which `sgcl/codec.h` brings.
 
-**save** writes the image to a file in the format the path's extension names (`.png`, `.jpg`/`.jpeg`, `.heic` on macOS), through `path + ".part"` and a rename. It is `codec::save(image, path, options)`, and the [module's page](README.md#files) has the rules. `save` comes with `codec.h`, which also brings the encoders; `image.h` alone declares it.
+## Member functions
 
-**oriented** returns the image as it is meant to be shown: mirrored and turned by EXIF's orientation, with width and height swapped for 5 to 8, and `orientation()` 1. The decoders never turn an image themselves (neither do Go and libjpeg). The EXIF bytes stay as they were.
+| Function | Description |
+|---|---|
+| [(constructor)](image/image.md) | an image of all-zero pixels |
 
-## Members
+#### Size and format
 
-### pixel_format
+| Function | Description |
+|---|---|
+| [width](image/width.md) | the width in pixels |
+| [height](image/height.md) | the height in pixels |
+| [format](image/format.md) | the pixel format |
+| [stride](image/stride.md) | the bytes of a row |
 
-```cpp
-enum class pixel_format : uint8_t {
-    gray8, gray_alpha8, rgb8, rgba8, gray16, gray_alpha16, rgb16, rgba16, cmyk8
-};
-```
+#### Pixels
 
-The layouts of a pixel: 8 or 16 bits a channel, alpha straight, 16-bit channels in the byte order of the machine, and CMYK's ink.
+| Function | Description |
+|---|---|
+| [pixels](image/pixels.md) | every row, from the top |
+| [row](image/row.md) | one row |
 
-### image
+#### New images
 
-```cpp
-image(uint32_t width, uint32_t height, pixel_format f);
-```
+| Function | Description |
+|---|---|
+| [convert](image/convert.md) | the same pixels in another format |
+| [clone](image/clone.md) | a copy of the pixels and the metadata |
+| [oriented](image/oriented.md) | the image turned and mirrored as it is meant to be shown |
 
-A new image of all-zero pixels; a side of 0 is `invalid_argument`.
+#### Metadata
 
-### width, height, format, stride
+| Function | Description |
+|---|---|
+| [exif](image/exif.md) | the file's EXIF block |
+| [icc](image/icc.md) | the file's ICC profile |
+| [orientation](image/orientation.md) | EXIF's orientation, 1 to 8 |
+| [set_exif](image/set_exif.md) | sets the EXIF block |
+| [set_icc](image/set_icc.md) | sets the ICC profile |
+| [set_orientation](image/set_orientation.md) | sets the orientation, and the tag of the EXIF block with it |
 
-```cpp
-uint32_t width() const noexcept;
-uint32_t height() const noexcept;
-pixel_format format() const noexcept;
-size_t stride() const noexcept;
-```
+#### Files
 
-The size, the pixel format, and the bytes of a row: the width times the bytes of a pixel, with no padding.
-
-### pixels, row
-
-```cpp
-slice<byte> pixels();
-slice<const byte> pixels() const;
-slice<byte> row(uint32_t y);
-slice<const byte> row(uint32_t y) const;
-```
-
-Every row from the top, or one row; `y` past the last row is `out_of_range`. A slice keeps the pixels alive after the image is gone.
-
-### convert, clone
-
-```cpp
-image convert(pixel_format f) const;
-image clone() const;
-```
-
-A new image of the same pixels in format `f` (a copy even to the same format), or in the same format.
-
-### exif, icc, orientation, oriented
-
-```cpp
-slice<const byte> exif() const noexcept;
-slice<const byte> icc() const noexcept;
-uint8_t orientation() const noexcept;
-image oriented() const;
-```
-
-The file's EXIF (a TIFF structure) and ICC profile, empty when it had none; EXIF's orientation, 1 to 8, 1 when the file said nothing; and the image turned and mirrored as the orientation says.
-
-### save, async_save
-
-```cpp
-expected<void, error> save(const string& path, const save_options& o = {}) const;
-async::task<expected<void, error>> async_save(const string& path, const save_options& o = {}) const;
-```
-
-The image written to a file in the format its extension names, through `path + ".part"` and a rename.
+| Function | Description |
+|---|---|
+| [save, async_save](image/save.md) | writes the image to a file in the format its extension names |
 
 ## Example
 
 ```cpp
-#include "sgcl/codec/codec.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/codec.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
     // a row of red, green and blue, and a row of white
     codec::image picture(3, 2, codec::pixel_format::rgb8);
-    const unsigned char values[] = {255, 0, 0, 0, 255, 0, 0, 0, 255,
-                                    255, 255, 255, 255, 255, 255, 255, 255, 255};
-    for (size_t i : range(sizeof values)) {
+    const int values[] = {255, 0, 0, 0, 255, 0, 0, 0, 255,
+                          255, 255, 255, 255, 255, 255, 255, 255, 255};
+    for (int i : range(18)) {
         picture.pixels()[i] = byte(values[i]);
     }
     codec::image luma = picture.convert(codec::pixel_format::gray8);
@@ -165,4 +127,8 @@ Output:
 
 ## See also
 
-[`load`](README.md#files) and [`decode`](decode.md) for images from files; [`png`](png.md), [`jpeg`](jpeg.md) and [`gif`](gif.md) for each format.
+- [pixel_format](pixel_format.md): the layouts of a pixel
+- [load](load.md), [decode](decode.md): an image of a file, of any format the module reads
+- [png](png.md), [jpeg](jpeg.md), [gif](gif.md), [webp](webp.md), [heif](heif.md): each format
+- [save](save.md): an image into a file
+- [sgcl::codec](README.md)

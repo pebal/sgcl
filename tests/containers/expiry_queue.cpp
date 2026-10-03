@@ -7,6 +7,7 @@
 // function gets it alive one last time.
 #include "tests/types.h"
 
+#include <functional>
 #include <set>
 
 namespace {
@@ -172,6 +173,8 @@ TEST(ExpiryQueue_Tests, DrainsByItselfEverySoManyWatches) {
     // the queue drained on its own along the way: the entries did not pile up
     EXPECT_LT(gone.size(), 300u);
     EXPECT_GT(released.size(), 200u);
+    collector::clear_stack();   // the dead frames of the loop may still hold the last round's pointers
+    settle();
     gone.drain();
     EXPECT_EQ(released.size(), 500u);
     EXPECT_TRUE(gone.empty());
@@ -293,4 +296,107 @@ TEST(ExpiryQueue_Tests, TheFunctionMayCaptureTrackedPointers) {
     EXPECT_EQ(gone.drain(), 1u);
     EXPECT_EQ(kept_by_queue->ids.size(), 1u);
     EXPECT_EQ(kept_by_queue->ids[0], 11);
+}
+
+// A function that is empty gets no entry, as a null object gets none: an
+// empty handle back, nothing in the queue (it was queued, and drain()
+// threw bad_function_call after it had dropped the entry)
+TEST(ExpiryQueue_Tests, AnEmptyFunctionGetsNoEntry) {
+    expiry_queue<Texture> gone;
+    tracked_ptr kept = make_tracked<Texture>(7);
+    void (*no_function)(tracked_ptr<Texture>) = nullptr;
+    EXPECT_FALSE(gone.watch(kept, no_function));
+    EXPECT_FALSE(gone.watch(kept, expiry_queue<Texture>::function_type()));
+    EXPECT_FALSE(gone.watch(kept, std::function<void(tracked_ptr<Texture>)>()));
+    EXPECT_FALSE(gone.watch(tracked_ptr<Texture>(), no_function));   // a null object and an empty function
+    EXPECT_EQ(gone.size(), 0u);
+    EXPECT_TRUE(gone.empty());
+    int calls = 0;
+    auto counted = gone.watch(kept, [&](tracked_ptr<Texture>) { ++calls; });
+    EXPECT_TRUE(counted);
+    EXPECT_EQ(gone.size(), 1u);
+    kept = nullptr;
+    settle();
+    EXPECT_NO_THROW(EXPECT_EQ(gone.drain(), 1u));
+    EXPECT_EQ(calls, 1);
+    EXPECT_TRUE(gone.empty());
+}
+
+// Boundaries (DESIGN 408)
+
+// A queue moved from (by construction and assignment), a default one and
+// a default entry: every member working on nothing, a move assignment to
+// itself keeping the entries
+TEST(ExpiryQueue_Tests, MovedFromAndEmptyWorkAsEmpty) {
+    expiry_queue<Texture>::entry none;
+    EXPECT_FALSE(none);
+    EXPECT_FALSE(none.cancel());
+    EXPECT_FALSE(none.expired());
+    EXPECT_TRUE(none.weak().expired());
+    expiry_queue<Texture> q;
+    EXPECT_EQ(q.drain(), 0u);
+    q.clear();
+    tracked_ptr kept = make_tracked<Texture>(10);
+    q.watch(kept, [](tracked_ptr<Texture>) {});
+    expiry_queue<Texture> to(std::move(q));
+    EXPECT_EQ(to.size(), 1u);
+    EXPECT_TRUE(q.empty());
+    EXPECT_EQ(q.drain(), 0u);
+    q.clear();
+    EXPECT_TRUE(q.watch(kept, [](tracked_ptr<Texture>) {}));
+    EXPECT_EQ(q.size(), 1u);
+    q = std::move(to);
+    EXPECT_EQ(q.size(), 1u);
+    EXPECT_TRUE(to.empty());
+    auto& self = q;
+    q = std::move(self);
+    EXPECT_EQ(q.size(), 1u);
+    EXPECT_EQ(q.drain(), 0u);
+}
+
+// A function that calls the queue itself: one that watches another object
+// (its entry made while the drain walks), one that drains again, one that
+// clears the queue under the drain; each is called once and the queue
+// stays whole
+TEST(ExpiryQueue_Tests, AFunctionThatCallsTheQueue) {
+    settle();
+    const int before = Texture::alive.load();
+    expiry_queue<Texture> q;
+    int calls = 0;
+    off_frame([&] {
+        for (int i = 0; i < 3; ++i) {
+            tracked_ptr t = make_tracked<Texture>(i);
+            q.watch(t, [&](tracked_ptr<Texture> object) {
+                ++calls;
+                if (object->id == 0) {
+                    q.watch(object, [&](tracked_ptr<Texture>) { ++calls; });   // the same object again
+                } else if (object->id == 1) {
+                    q.drain();   // nested: what is due is still called once
+                }
+            });
+        }
+    });
+    settle();
+    q.drain();
+    EXPECT_EQ(calls, 3);
+    EXPECT_EQ(q.size(), 1u);   // the object watched again from its function
+    settle();
+    q.drain();
+    EXPECT_EQ(calls, 4);
+    EXPECT_TRUE(q.empty());
+    off_frame([&] {
+        for (int i = 0; i < 3; ++i) {
+            tracked_ptr t = make_tracked<Texture>(20 + i);
+            q.watch(t, [&](tracked_ptr<Texture>) {
+                ++calls;
+                q.clear();   // the others let go uncalled
+            });
+        }
+    });
+    settle();
+    EXPECT_EQ(q.drain(), 1u);
+    EXPECT_EQ(calls, 5);
+    EXPECT_TRUE(q.empty());
+    settle();
+    EXPECT_EQ(Texture::alive.load(), before);
 }

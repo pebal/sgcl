@@ -53,17 +53,22 @@ namespace sgcl::detail {
         // between the two, without the lock, was lost until the sleep's
         // timeout (measured: a stepper made right after another waited
         // for a collector asleep for the long sleep time)
-        void waking_up() {
+        void waking_up() noexcept {
             std::lock_guard<std::mutex> lock(_mutex);
             _waking_up_locked();
         }
 
-        void _waking_up_locked() {
+        void _waking_up_locked() noexcept {
             sleep_flag.store(false, std::memory_order_release);
             sleep_cv.notify_one();
         }
 
         bool force_collect(bool wait) noexcept {
+#if defined(SGCL_TSAN)
+            if (auto head = current_thread_ptr) {
+                SGCL_TSAN_RELEASE(head->barrier_word);   // the caller's history before the cycle it asks for (_mark_stack_roots)
+            }
+#endif
 #if SGCL_LOG_PRINT_LEVEL > 0
             diagnostic_line(1, std::string("[sgcl] force collect ") + (wait ? "and wait " : "") + "from id: " + diagnostic_thread_id());
 #endif
@@ -136,7 +141,7 @@ namespace sgcl::detail {
             };
         }
 
-        void force_short_sleep() {
+        void force_short_sleep() noexcept {
             _short_sleep = true;
         }
 
@@ -150,7 +155,7 @@ namespace sgcl::detail {
             return _terminating.load();
         }
 
-        inline static bool created() {
+        inline static bool created() noexcept {
             return _created.load(std::memory_order_acquire);
         }
 
@@ -709,6 +714,14 @@ namespace sgcl::detail {
 #endif
         };
 
+        // A page of objects with no pointer words left in their map
+        // (child_pointers.h: the map only loses offsets, so a stale true
+        // costs a trace that finds nothing); an array's element type is in
+        // its own header, so a buffer is never taken for childless here
+        static bool _childless(const Page* page) noexcept {
+            return !page->is_array && !page->metadata->child_pointers.any.load(std::memory_order_relaxed);
+        }
+
         void _found(Marker& m, void* ptr) noexcept {
             ++m.live;
             if (_share_live_objects) {
@@ -773,6 +786,11 @@ namespace sgcl::detail {
                 }
                 auto ptr = page->pointer_of(index);
                 _found(m, ptr);
+                // an object of a type without children is marked and done:
+                // not on the stack, not prefetched, not traced
+                if (_childless(page)) {
+                    return;
+                }
                 m.work.push_back({page, ptr});
 #ifdef SGCL_MARK_STATS
                 ++m.via_stack;
@@ -847,6 +865,13 @@ namespace sgcl::detail {
                 }
             }
             for (auto thread : _scanned_threads) {
+                // What the thread did up to its last barrier or allocation is
+                // before this scan, and so before the sweep that destroys what
+                // the scan no longer found: the order the stack read gives,
+                // which the thread sanitizer does not see (the read is not
+                // instrumented, the fences are not modelled). Nothing outside
+                // a TSan build (os.h).
+                SGCL_TSAN_ACQUIRE(&thread->in_barrier);
                 thread->stack_scan.store(false, std::memory_order_release);
             }
         }
@@ -1026,6 +1051,15 @@ namespace sgcl::detail {
                     if (start == ptr || word != start || _held_by(childs, ptr, start) || _ends_held(childs, ptr, word)) {
                         continue;
                     }
+                    // the word and the owners were read at different moments:
+                    // a holder rewritten or destroyed meanwhile (a slice
+                    // assigned, or gone from a container's slot) showed a raw
+                    // word of before beside owners of after. Reported only
+                    // when the word is still the one read
+                    std::atomic_thread_fence(std::memory_order_acquire);
+                    if ((const void*)os::load_word((RawPointer*)ptr + offset) != word) {
+                        continue;
+                    }
                     childs.warned.store(true, std::memory_order_relaxed);
                     std::fprintf(stderr, "[sgcl] type %s: the word at byte offset %zu was classified as data but holds a pointer to a managed object; a tracked_ptr sharing storage with data is not supported\n", childs.type.name(), offset * sizeof(RawPointer));
                     return;
@@ -1035,14 +1069,22 @@ namespace sgcl::detail {
 
         // Whether word is one past the end of an object a word of the object
         // still taken for a pointer names (the object holding word - 1 may be
-        // on the page before: a buffer ending at a page's end)
+        // on the page before: a buffer ending at a page's end). The word of
+        // the holder naming that object is the evidence, not its slot's
+        // registration, which lags a cycle behind an object made after the
+        // flip: a buffer just allocated and held would be taken for nothing
+        // (the HTTP/2 owned slices, DESIGN 440)
         static bool _ends_held(ChildPointers& childs, void* ptr, const void* word) noexcept {
             auto last = (const char*)word - 1;
             auto page = Heap::page_of_checked(last);
-            if (!page || page->is_root_holder || !_is_registered(page, last)) {
+            if (!page || page->is_root_holder) {
                 return false;
             }
-            return _held_by(childs, ptr, page->pointer_of(page->index_of(last)));
+            auto index = page->index_of(last);
+            if (index >= page->object_count) {
+                return false;
+            }
+            return _held_by(childs, ptr, page->pointer_of(index));
         }
 
         // Whether a word of the object still taken for a pointer names the
@@ -1376,6 +1418,7 @@ namespace sgcl::detail {
             auto flags = page->flags();
             auto count = page->flags_count();
             const bool is_array = page->is_array;
+            const bool childless = _childless(page);
             m.current = page;
             std::atomic_ref<uint8_t>(page->reachable).store(m.id, std::memory_order_relaxed);   // a dealt page is Listed until here
 #ifdef SGCL_MARK_STATS
@@ -1406,7 +1449,7 @@ namespace sgcl::detail {
                                 ahead &= ahead - 1;
                             }
                             for (auto b = bits; b; b &= b - 1) {
-                                if (ahead) {
+                                if (ahead && !childless) {
                                     __builtin_prefetch(page->pointer_of(offset + std::countr_zero(ahead)));
                                     ahead &= ahead - 1;
                                 }
@@ -1419,7 +1462,9 @@ namespace sgcl::detail {
                                 }
                                 auto ptr = page->pointer_of(offset + std::countr_zero(b));
                                 _found(m, ptr);
-                                _trace<true>(page, ptr, is_array, m);
+                                if (!childless) {
+                                    _trace<true>(page, ptr, is_array, m);
+                                }
                             }
                         }
                     }
@@ -2703,8 +2748,11 @@ namespace sgcl::detail {
                 // the released states read by the registration (relaxed, a
                 // release store on the mutator's side: page.h,
                 // set_state_released) order the words and the cards stored
-                // before them ahead of the marking and the dirty pass
-                std::atomic_thread_fence(std::memory_order_acquire);
+                // before them ahead of the marking and the dirty pass.
+                // seq_cst: the fence of the Dekker pair with the barrier's
+                // slow path (page.h: _set_reachable_slow), between the
+                // lowered flags and the pass over the states
+                std::atomic_thread_fence(std::memory_order_seq_cst);
                 _release_cell_blocks();
                 phase(0);
                 phase(1);
@@ -2798,7 +2846,6 @@ namespace sgcl::detail {
                 MemoryCounters::end_cycle();
                 _clear_own_stack();
                 phase(7);
-                _gate(Gate::Released);
 #ifdef SGCL_MARK_STATS
                 std::fprintf(stderr, "[cycle] %s register %.1f states %.1f roots %.1f mark %.1f updated %.1f sweep %.1f release %.1f trim %.1f ms, removed %zu, rounds %u (all-pages passes %u, list pages %zu of %zu)\n", _full ? "full" : "young", phase_ms[0], phase_ms[1], phase_ms[2], phase_ms[3], phase_ms[4], phase_ms[5], phase_ms[6], phase_ms[7], last_objects_removed, rounds, all_passes, list_pages, _pages.size());
 #endif
@@ -2835,6 +2882,9 @@ namespace sgcl::detail {
                           << ",    total time:" << std::setw(10) << std::fixed << std::setprecision(3) << total_time << "ms";
                 diagnostic_line(2, line.str());
 #endif
+                // The end of the cycle, its statistics stored: a stepper at
+                // `released` reads the cycle it has let through
+                _gate(Gate::Released);
                 bool can_sleep = true;
                 if (_young_collect_count.load(std::memory_order_acquire)) {
                     if (_young_collect_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
@@ -3043,12 +3093,12 @@ namespace sgcl::detail {
         friend inline void delete_unique(const void*) noexcept;
     };
 
-    inline Collector& collector_instance() {
+    inline Collector& collector_instance() noexcept {
         static Collector collector_instance;
         return collector_instance;
     }
 
-    inline void collector_init() {
+    inline void collector_init() noexcept {
         collector_instance();
     }
 
@@ -3068,8 +3118,8 @@ namespace sgcl::detail {
     // for, may free enough. Not on a thread that is sweeping: a destructor
     // run by the sweep that allocates would wait for the cycle it is part
     // of (the collector thread, or a helper the collector waits for), and
-    // the allocation throws bad_alloc there instead.
-    inline void collect_before_bad_alloc() {
+    // the program ends there at once (heap.h: out_of_managed_memory).
+    inline void collect_for_allocation() noexcept {
         if (sweeping) {
             return;
         }

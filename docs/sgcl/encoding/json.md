@@ -1,202 +1,229 @@
+[sgcl](../README.md) › [encoding](README.md)
+
 # sgcl::encoding::json
 
 ```cpp
-#include "sgcl/encoding/json.h"   // or "sgcl/encoding/encoding.h", "sgcl/sgcl.h"
+#include "sgcl/encoding/json.h"   // or "sgcl/encoding.h"
 
 namespace sgcl::encoding {
-    class json;            // one JSON value: null, a boolean, a number, a string, an array or an object
-    struct json::member;   // a member of an object: key and value
-    class json::builder;   // an array or an object made in a loop
-    struct json::options;  // what parse and the reader accept
-    struct json::style;    // how a value is written
+    class json;
 }
 ```
 
-One JSON value ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)): null, a boolean, a number, a string, an array or an object. It is **immutable**, as a [`string`](../core/string.md) is: a copy is a copy of the handle, a value is shared between threads with no lock, and a change — `set`, `erase`, `push_back`, `set_path` — returns a new value and leaves the old one as it was. It is read with methods, `doc["user"]["name"].as_string()`, and a lookup that finds nothing gives null, so a chain of lookups never fails half-way. What Go's `any` from `json.Unmarshal` is, and nlohmann's `json` without the writes through `operator[]`.
+`sgcl::encoding::json` is one JSON value ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)): null, a boolean,
+a number, a string, an array or an object. It is immutable, as a [string](../core/string.md) is: a copy is a copy
+of the handle, a value is shared between threads with no lock, and a change — [set](json/set.md),
+[erase](json/erase.md), [push_back](json/push_back.md), [set_path](json/set_path.md) — returns a new value and
+leaves the old one as it was. A value is read with methods, `doc["user"]["name"].as_string()`, and a lookup that
+finds nothing gives null, so a chain of lookups never fails half-way. An array or an object made in a loop is made
+with a [builder](json-builder.md), without a copy per step.
 
-A value from a file and to a file is one call: `json::load<T>(path)` and `json::load(path)` (the tree), `json::save(path, value)` and a tree's `j.save(path)`; below, [files](#files).
+It is what Go's `any` from `json.Unmarshal` is, and nlohmann's `json` without the writes through `operator[]`;
+`std` has no JSON. Where Go's `any` makes every number a `float64`, an integer here keeps its value exactly.
+
+The same class reads and writes the program's own types: [parse](json/parse.md)`<T>`,
+[stringify](json/stringify.md), [from](json/from.md) and [as](json/as.md)`<T>` take a type described by its fields
+([field_list](field_list.md)) or any kind a field may have, and a file is one call each way,
+[load](json/load.md) and [save](json/save.md). A text too large to hold whole, or a stream of values, is read a
+piece at a time by a [reader](json-reader.md) and written by a [writer](json-writer.md). What fails in the input is
+an [error](error.md) with the place it failed at, never an exception.
 
 ## Rules
 
-- **Numbers keep their value.** An integer literal is an `int64` when one holds it, else an `uint64`, else it is kept as its text — `123456789012345678901234567890` is never rounded, where Go's `any` makes it a float64. Any other number is a double, rounded once from the decimal (`1e400` is `out_of_range`, `1e-400` is 0); with `options::keep_number_text` it is kept as its literal, for amounts that cannot pass through a double, and `number_text()` gives the digits. `-0` is the double −0.
-- **A number is written as JavaScript and Go write it**: the shortest digits that read back as the same double, fixed from 1e-6 to 1e21 and with an exponent outside (`1e+21`, `1e-7`), no `.0` on an integer, −0 as `-0`. A double past 2^53 that is an integer is written as the integer (`1e20` is `100000000000000000000`) and read back as one.
-- **`as_int()` and the others give the value exactly or not at all**: `2.0` is 2, `2.5` and 2^63 are `nullopt` for `as_int()`; `as_double()` gives any number, rounded.
-- **Equal by value.** Two integers compare exactly; an integer and a double compare as doubles (`1 == 1.0`, and an integer past 2^53 equals the double it rounds to — what a double is written as, read back, equals it); two numbers kept as text compare by their digits. Objects compare as sets of members, in any order, as JSON means them; arrays in order. Equal values hash alike.
-- **An object keeps the order of its input**, members side by side; past 16 members it has a hash index too, keyed (the hash of `sgcl::string`, which a text from outside cannot aim at). A key given twice is an error when parsing (`options::allow_duplicate_keys`: the last one wins); `object()` and the `builder` keep the last one.
-- **The text is always there**: `to_string()` cannot fail. A string's invalid UTF-8 is written as U+FFFD, and a json never holds NaN or an infinity (made from one, it is an assertion in a debug build and null in a release one, as `JSON.stringify` writes them).
-- **Deep values cost no stack.** Parsing, writing, comparing and hashing walk the tree with a stack of their own: `max_depth` (512) bounds what a parse takes, and a value built by hand may be deeper.
-- **JSON Pointer** ([RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)): `at_path("/users/0/name")`, with `~1` for `/` and `~0` for `~` in a key. `set_path` replaces a member or an element, adds a member, appends with `-` or with the index of the end, and makes the missing objects on the way (null on the way becomes an object); a pointer through a number, a string or a boolean, past the end of an array, or not a pointer at all gives the value unchanged.
-- **The keys of one parse are made once**: a thousand objects with the same fields share each key's string.
+- **A json is 24 bytes:** a tracked pointer to what does not fit in a word, a word for a boolean or a number, and
+  the kind. It holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, in a
+  container of the library ([the rules of core](../core/README.md#the-rules), 1). A string is its
+  [string](../core/string.md)'s object; an array is its elements side by side in one managed buffer, an object
+  its members side by side, so [elements](json/elements.md) and [members](json/members.md) are slices of the
+  buffer and walk it in order. A number costs nothing past the 24 bytes. The tree of a text in memory takes about
+  the text's size to three times it: numbers in short arrays cost the most (a buffer each), objects of repeated
+  keys the least (the keys shared).
+- **Numbers keep their value.** An integer literal is an `int64_t` when one holds it, else an `uint64_t`, else it
+  is kept as its text — `123456789012345678901234567890` is never rounded, where Go's `any` makes it a
+  `float64`. Any other number is a `double`, rounded once from the decimal (`1e400` is `out_of_range`, `1e-400`
+  is 0); with [options](json-options.md)`::keep_number_text` it is kept as its literal, for amounts that cannot
+  pass through a double, and [number_text](json/number_text.md) gives the digits. `-0` is the double −0.
+- **A number is written as JavaScript and Go write it:** the shortest digits that read back as the same double,
+  fixed from 1e-6 to 1e21 and with an exponent outside (`1e+21`, `1e-7`), no `.0` on an integer, −0 as `-0`. A
+  double of an integer below 1e21 is written in digits without an exponent (`1e20` is `100000000000000000000`)
+  and read back as an integer equal to it.
+- **[as_int](json/as_int.md) and the others give the value exactly or not at all:** `2.0` is 2, `2.5` and 2^63
+  are `nullopt` for `as_int()`; [as_double](json/as_double.md) gives any number, rounded.
+- **Equal by value** ([operator==](json/operator_cmp.md)). Two integers compare exactly; an integer and a double
+  compare as doubles (`1 == 1.0`, and an integer past 2^53 equals the double it rounds to — what a double is
+  written as, read back, equals it); two numbers kept as text compare by their digits. Objects compare as sets of
+  members, in any order, as JSON means them; arrays in order. Equal values [hash](json/hash.md) alike.
+- **An object keeps the order of its input,** members side by side; past 16 members it has a hash index too, a
+  table of `uint32_t` indexes keyed by the hash of `sgcl::string`, which a text from outside cannot aim at. A key
+  given twice is an error when parsing (`options::allow_duplicate_keys`: the last one wins);
+  [object](json/object.md) and the [builder](json-builder.md) keep the last one.
+- **The text is always there:** [to_string](json/to_string.md) cannot fail on the value. A string's invalid UTF-8
+  is written as U+FFFD, and a json never holds NaN or an infinity (made from one, it is an assertion in a debug
+  build and null in a release one, as `JSON.stringify` writes them).
+- **Deep values cost no stack.** Parsing, writing, comparing and hashing walk the tree with a stack of their own:
+  `options::max_depth` (512) bounds what a parse takes, and a value built by hand may be deeper.
+- **JSON Pointer** ([RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)) names a value inside another:
+  [at_path](json/at_path.md) reads it, [set_path](json/set_path.md) makes the value with it replaced or added.
+- **The keys of one parse are made once:** a thousand objects with the same fields share each key's string. The
+  parser keeps, per thread and between calls, its stacks and a table of up to 256 keys of at most 32 bytes each,
+  so that a key met in one document is shared with the next; a longer key is never kept.
+- **A program's types go through their fields:** an error of [parse](json/parse.md)`<T>` or [as](json/as.md)`<T>`
+  carries the path of the value that failed (`3:14 /manager/age: expected an integer, found a string`), and
+  [stringify](json/stringify.md) fails where a value has no text: NaN, an enum's value past its names, nesting
+  past 512 (a cycle of pointers).
+- **What waits:** `parse` of a stream reads it on the thread that calls it, `co_await async_parse(in)` in a task;
+  the whole stream is one value. `load` and `save` work on the calling thread, their `async_` forms on the
+  [blocking pool](../async/spawn_blocking.md).
 
-## Members
+### From code written for Go
 
-```cpp
-class json {
-public:
-    using error = encoding::error;
-    enum class kind : uint8_t { null, boolean, number, string, array, object };
-    struct member { string key; json value; };
-    struct options {
-        uint32_t max_depth = 512;
-        bool allow_duplicate_keys = false;
-        bool allow_invalid_utf8 = false;
-        bool keep_number_text = false;
-        bool reject_unknown_fields = false;   // parse<T>: a key no field has is an error
-        size_t max_token_size = 64 << 20;     // what a reader of a stream holds at once, a token or a value read whole: errc::out_of_range past it
-    };
-    struct style {
-        uint8_t indent = 0;                   // 0: compact
-        bool escape_html = false;             // <, >, & as <, >, &
-        bool sort_keys = true;                // the keys of a hash map of a typed value
-    };
-    class builder;
-    class reader;                             // json-reader.md
-    class writer;                             // json-writer.md
-    class token;
-    static const style compact;
-    static const style pretty;                // an indent of 2
+| With Go | With sgcl::encoding |
+|---|---|
+| `json.Unmarshal(b, &v)` with `v any` | `json::parse(text)`: immutable; integers exact where Go makes them `float64`; the defaults are v2's |
+| `json.Unmarshal(b, &s)` into a struct | `json::parse<T>(text)`, `v.as<T>()`: the fields by `describe` ([field_list](field_list.md)); an integer field takes `1.0` and `1e2`, which v2 refuses |
+| struct tags, `json.Marshal(s)` of a struct | `describe(field_list&)` and `json::stringify(s)`: one description for every format; the text Go writes, the fields in order, the keys of a map sorted |
+| `json.Marshal(v)`, `json.MarshalIndent(v, "", "  ")` | `v.to_string()`, `v.to_string(json::pretty)`: the same text |
+| `json.Number`, `UseNumber` | `options::keep_number_text`, `number_text()`; integers are never rounded anyway |
+| `map[string]any` lookups, type switches | `doc["a"]`, `as_int()`, `type()`: null for what is not there |
+| v2 `AllowDuplicateNames`, `AllowInvalidUTF8` | `options::allow_duplicate_keys`, `allow_invalid_utf8`; the defaults are v2's |
+| `SetEscapeHTML` | `style::escape_html`, off by default, as in v2 |
+| x/exp `jsonpointer` | `at_path`, `set_path`: RFC 6901 |
+| `json.Valid` | `json::reader(text).skip()` and no `more()` after it ([reader](json-reader.md)) |
 
-    json() noexcept;                          // null
-    json(std::nullptr_t) noexcept;
-    json(bool b) noexcept;
-    json(I v) noexcept;                       // any integer type but bool and the character types
-    json(double d) noexcept;
-    json(float f) noexcept;
-    json(const string& s) noexcept;
-    json(const char* s);
-    json(const slice<const char>& s);
-    static json array(std::initializer_list<json> elements);
-    static json array(const R& elements);     // any range of values a json is made of
-    static json object(std::initializer_list<member> members);
+## Member types
 
-    static expected<json, error> parse(const string& text);
-    static expected<json, error> parse(const string& text, const options& o);
-    static expected<json, error> parse(const io::reader& in);
-    static expected<json, error> parse(const io::reader& in, const options& o);
-    static task<expected<json, error>> async_parse(const io::reader& in);
-    static task<expected<json, error>> async_parse(io::reader in, options o);
-    string to_string(const style& s = compact) const;
+| Type | Definition |
+|---|---|
+| `error` | [encoding::error](error.md) |
+| [kind](json-kind.md) | the kind of a value, an enumeration: `null`, `boolean`, `number`, `string`, `array`, `object` |
+| [member](json-member.md) | a member of an object: its key and its value |
+| [options](json-options.md) | what a parse and a reader accept |
+| [style](json-style.md) | how a value is written |
+| [builder](json-builder.md) | an array or an object made in a loop |
+| [reader](json-reader.md) | JSON read a piece at a time, from a text or a stream |
+| [writer](json-writer.md) | JSON written a piece at a time into a stream |
+| [token](json-token.md) | a piece of JSON the reader gives |
 
-    // typed values: a type described by its fields (fields.md) or any a field may have
-    template<class T> static expected<T, error> parse(const string& text);
-    template<class T> static expected<T, error> parse(const string& text, const options& o);
-    template<class T> static expected<T, error> parse(const io::reader& in);
-    template<class T> static expected<T, error> parse(const io::reader& in, const options& o);
-    template<class T> static task<expected<T, error>> async_parse(const io::reader& in);
-    template<class T> static task<expected<T, error>> async_parse(io::reader in, options o);
-    template<class T> static expected<string, error> stringify(const T& value);
-    template<class T> static expected<string, error> stringify(const T& value, const style& s);
-    template<class T> static expected<json, error> from(const T& value);   // the value of a T, as xml::from (through its text)
-    template<class T> expected<T, error> as() const;
-    template<class T> expected<T, error> as(const options& o) const;
+## Member objects
 
-    kind type() const noexcept;
-    bool is_null() const noexcept;
-    bool is_bool() const noexcept;
-    bool is_number() const noexcept;
-    bool is_integer() const noexcept;         // a number an int64 or an uint64 holds exactly
-    bool is_string() const noexcept;
-    bool is_array() const noexcept;
-    bool is_object() const noexcept;
+| Object | Description |
+|---|---|
+| `compact` | `static const style`: no space at all, the default of [to_string](json/to_string.md) and [stringify](json/stringify.md) |
+| `pretty` | `static const style`: an indent of 2 |
 
-    optional<bool> as_bool() const noexcept;
-    optional<int64_t> as_int() const noexcept;
-    optional<uint64_t> as_uint() const noexcept;
-    optional<double> as_double() const noexcept;
-    optional<string> as_string() const noexcept;
-    bool as_bool(bool fallback) const noexcept;               // the same with a value for when there is none:
-    int64_t as_int(int64_t fallback) const noexcept;          // doc["user"]["name"].as_string("?")
-    uint64_t as_uint(uint64_t fallback) const noexcept;
-    double as_double(double fallback) const noexcept;
-    string as_string(const string& fallback) const noexcept;
-    optional<string> number_text() const;     // the literal of a number kept as text
+## Member functions
 
-    const json& operator[](const string& key) const noexcept;    // null when there is none
-    const json& operator[](const char (&key)[N]) const noexcept;
-    const json& operator[](size_t index) const noexcept;         // null past the end
-    bool contains(const string& key) const noexcept;
-    size_t size() const noexcept;             // the elements or the members; 0 for the rest
-    bool empty() const noexcept;
-    slice<const json> elements() const noexcept;
-    slice<const member> members() const noexcept;               // in the order of the input
-    optional<json> at_path(const string& pointer) const;
+| Function | Description |
+|---|---|
+| [(constructor)](json/json.md) | null, a boolean, a number or a string |
+| `(destructor)` | drops the handle; what it held is left to the collector |
 
-    json set(const string& key, const json& value) const;
-    json erase(const string& key) const;
-    json set(size_t index, const json& value) const;
-    json push_back(const json& value) const;
-    json set_path(const string& pointer, const json& value) const;
+#### Making a value
 
-    friend bool operator==(const json& a, const json& b);
-    size_t hash() const;
-};
+| Function | Description |
+|---|---|
+| [array](json/array.md) | an array of values (static) |
+| [object](json/object.md) | an object of members (static) |
+| [from](json/from.md) | the value of a program's type (static) |
 
-class json::builder {
-public:
-    builder& push_back(const json& value);           // the elements of an array
-    builder& set(const string& key, const json& v);  // the members of an object: a key twice keeps the last
-    size_t size() const noexcept;
-    json build();                                     // the value; the builder empty again ([] when nothing was added)
-};
-```
+#### Reading and writing
 
-`parse<T>`, `stringify`, `from` and `as<T>` read and write a type of the program by its fields — [`field_list`](fields.md) says how: `json::parse<user>(text)` is `expected<user, error>`, and an error carries the path of the value that failed (`3:14 /manager/age: expected an integer, found a string`). `stringify` fails where a value has no text: NaN, an enum's value past its names, nesting past 512 (a cycle of pointers). `parse` of a stream reads it on the thread that calls it, `co_await json::async_parse(in)` in a task; the whole stream is one value. Mixing `push_back` and `set` in one builder is `logic_error`.
+| Function | Description |
+|---|---|
+| [parse, async_parse](json/parse.md) | the value of a text or a stream, or a program's type of it (static) |
+| [to_string](json/to_string.md) | the text of the value |
+| [stringify](json/stringify.md) | the text of a program's value (static) |
+| [as](json/as.md) | the value as a program's type |
+| [load, async_load](json/load.md) | the value of a file, or a program's type of it (static) |
+| [save, async_save](json/save.md) | a program's value, or this value, into a file |
 
-## files
+#### Kind
 
-```cpp
-static expected<json, error> load(const string& path);                        // + async_load(string)
-template<class T> static expected<T, error> load(const string& path);         // + async_load<T>(string)
-template<class T> static expected<void, error> save(const string& path, const T& value);   // + async_save(string, T)
-expected<void, error> save(const string& path) const;                         // + async_save(string)
-```
+| Function | Description |
+|---|---|
+| [type](json/type.md) | the kind of the value |
+| [is_null](json/is_null.md) | checks whether the value is null |
+| [is_bool](json/is_bool.md) | checks whether the value is a boolean |
+| [is_number](json/is_number.md) | checks whether the value is a number |
+| [is_integer](json/is_integer.md) | checks whether the value is a number an `int64_t` or an `uint64_t` holds exactly |
+| [is_string](json/is_string.md) | checks whether the value is a string |
+| [is_array](json/is_array.md) | checks whether the value is an array |
+| [is_object](json/is_object.md) | checks whether the value is an object |
 
-`load` is `parse` of the file, read as it comes; `save` is `stringify` (a tree's `to_string`) into the file, made or written over, with a new line after the text. A file that cannot be opened or written is `errc::io`, with the [io error](../io/error.md) inside (`io_error()`); a text that does not parse is `parse`'s error. The `async_` forms run on the [blocking pool](../async/blocking.md). For another style or other options, `stringify(value, json::pretty)` with [`io::write_file`](../io/file.md), and `parse(reader, options)`. Tested in `tests/encoding/files.cpp`.
+#### Value
+
+| Function | Description |
+|---|---|
+| [as_bool](json/as_bool.md) | the boolean |
+| [as_int](json/as_int.md) | the number as an `int64_t`, exactly |
+| [as_uint](json/as_uint.md) | the number as an `uint64_t`, exactly |
+| [as_double](json/as_double.md) | the number as a `double`, rounded |
+| [as_string](json/as_string.md) | the string |
+| [number_text](json/number_text.md) | the literal of a number kept as text |
+
+#### Element access
+
+| Function | Description |
+|---|---|
+| [operator[]](json/operator_at.md) | a member by its key, an element by its index; null when there is none |
+| [at_path](json/at_path.md) | the value at a JSON Pointer |
+| [elements](json/elements.md) | the elements of an array, as a slice |
+| [members](json/members.md) | the members of an object, as a slice |
+
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [contains](json/contains.md) | checks whether an object has a member under a key |
+
+#### Capacity
+
+| Function | Description |
+|---|---|
+| [empty](json/empty.md) | checks whether the value has no elements or members |
+| [size](json/size.md) | the number of elements or members |
+
+#### New versions
+
+| Function | Description |
+|---|---|
+| [set](json/set.md) | the value with a member or an element set |
+| [erase](json/erase.md) | the object without a member |
+| [push_back](json/push_back.md) | the array with an element appended |
+| [set_path](json/set_path.md) | the value with the one at a JSON Pointer replaced or added |
+
+#### Hashing
+
+| Function | Description |
+|---|---|
+| [hash](json/hash.md) | the hash of the value, alike for equal values |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](json/operator_cmp.md) | compares two values by value |
+
+## Complexity
+
+- A lookup by key: linear in the number of members up to 16, constant on average past them (the hash index).
+- A lookup by index, the kind and the value of a scalar: constant.
+- A new version: linear in the size of the array or the object it changes, which it copies; `set_path` that for
+  every container on the path. The elements themselves are handles, copied without their contents.
+- Parsing, writing, comparing and hashing: linear in the size of the text or of the tree.
 
 ## Example
 
 ```cpp
-#include "sgcl/encoding/encoding.h"
-#include "sgcl/io/io.h"
-
-using namespace sgcl;
-
-struct server {
-    string host = "localhost";
-    int64_t port = 8080;
-    bool tls = false;
-
-    void describe(encoding::field_list& f) {
-        f.add("host", host);
-        f.add("port", port);
-        f.add("tls", tls);
-    }
-};
-
-int main() {
-    encoding::json::save("server.json", server{"example.com", 443, true});
-    server s = encoding::json::load<server>("server.json");
-    println("{}:{} tls {}", s.host, s.port, s.tls);
-    print("{}", io::read_text("server.json").value_or(string("?")));
-}
-```
-
-Output:
-
-```text
-example.com:443 tls true
-{"host":"example.com","port":443,"tls":true}
-```
-
-```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/encoding/encoding.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
-    encoding::json doc = encoding::json::parse(R"({"user": {"name": "Ala", "tags": ["a", "b"]}, "count": 3, "id": 123456789012345678901})");
+    encoding::json doc = encoding::json::parse(
+        R"({"user": {"name": "Ala", "tags": ["a","b"]}, "count": 3, "id": 123456789012345678901})");
 
     string name = doc["user"]["name"].as_string("?");
     int64_t count = doc["count"].as_int(0);
@@ -214,10 +241,11 @@ int main() {
     println(renamed["user"].to_string(encoding::json::pretty));
 
     encoding::json::builder squares;
-    for (auto i : range(5)) {
+    for (int i : range(5)) {
         squares.push_back(i * i);
     }
-    auto report = encoding::json::object({{"count", 5}, {"squares", squares.build()}, {"ratio", 0.1}});
+    auto report = encoding::json::object(
+        {{"count", 5}, {"squares", squares.build()}, {"ratio", 0.1}});
     println(report.to_string());
 
     auto bad = encoding::json::parse("{\"a\": [1, 2,]}");
@@ -247,25 +275,10 @@ null
 1:13: invalid character ']' where a value was expected
 ```
 
-## Memory
-
-24 bytes: a tracked pointer to what does not fit in a word, a word for a boolean or a number, and the kind. A string is its [`string`](../core/string.md)'s object; an array is its elements side by side in one managed buffer, an object its members side by side (with a table of `uint32_t` indexes past 16 members), so `elements()` and `members()` are slices of the buffer and walk it in order. A number costs nothing past the 24 bytes. The tree of a text in memory takes about the text's size to three times it: numbers in short arrays cost the most (a buffer each), objects of repeated keys the least (the keys shared). The parser keeps, per thread and between calls, its stacks and a table of up to 256 keys of at most 32 bytes each, so that a key met in one document is shared with the next; a longer key is never kept.
-
-## SGCL and Go
-
-| Go | SGCL | note |
-|---|---|---|
-| `json.Unmarshal(b, &v)` with `v any` | `json::parse(text)` | immutable; integers exact (Go: float64) |
-| `json.Unmarshal(b, &s)` into a struct | `json::parse<T>(text)`, `v.as<T>()` | the fields by `describe` ([fields](fields.md)); an integer field takes `1.0` and `1e2` (v2 refuses them) |
-| `json.Marshal(s)` of a struct | `json::stringify(s)` | the text Go writes: the fields in order, map keys sorted |
-| `json.Marshal(v)`, `MarshalIndent(v, "", "  ")` | `v.to_string()`, `v.to_string(json::pretty)` | the same text |
-| `json.Number`, `UseNumber` | `options::keep_number_text`, `number_text()` | integers are never rounded anyway |
-| `map[string]any` lookups, type switches | `doc["a"]`, `as_int()`, `type()` | null for what is not there |
-| v2 `AllowDuplicateNames`, `AllowInvalidUTF8` | `options::allow_duplicate_keys`, `allow_invalid_utf8` | the defaults are v2's |
-| `SetEscapeHTML` | `style::escape_html` | off by default, as in v2 |
-| x/exp `jsonpointer` | `at_path`, `set_path` | RFC 6901 |
-| `json.Valid` | `json::reader(text).skip()` and no `more()` | [`json::reader`](json-reader.md) |
-
 ## See also
 
-[`field_list`](fields.md), the types of the program; [`json::reader`](json-reader.md), [`json::writer`](json-writer.md); [`error`](error.md); [`string`](../core/string.md).
+- [field_list](field_list.md): the program's types, described by their fields
+- [reader](json-reader.md), [writer](json-writer.md): JSON a piece at a time
+- [error](error.md): why a text is not JSON, and where
+- [string](../core/string.md): the other immutable value of the library
+- [sgcl::encoding](README.md)

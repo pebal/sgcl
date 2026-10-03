@@ -75,7 +75,7 @@ namespace {
     void x25519_share(tls::Builder& w) {
         auto e = w.extension(tls::ExtensionType::key_share);
         uint8_t key[32] = {9};
-        std::vector<tls::KeyShare> shares = {{0x001D, tls::bytes_of(key, 32)}};
+        std::vector<tls::KeyShare> shares = {{0x001D, tls::bytes_of(key, 32)}};   // lint-handles: ok slices over unmanaged bytes, no owner
         tls::write_key_shares(w, shares);
     }
 }
@@ -342,7 +342,7 @@ TEST(TlsMessages_Tests, KeyShareRefusals) {
     auto shares = [](std::vector<std::pair<uint16_t, bytes_t>> list) {
         std::vector<sgcl::byte> out;
         tls::Builder w(out);
-        std::vector<tls::KeyShare> s;
+        std::vector<tls::KeyShare> s;   // lint-handles: ok slices over unmanaged bytes, no owner
         for (auto& [g, k] : list) {
             s.push_back({g, view(k)});
         }

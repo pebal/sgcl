@@ -21,7 +21,9 @@
 //     sides by alpha alone; pixels not compared where a lossy frame's
 //     coefficients go past what an encoder makes (libwebp's C, NEON and
 //     SSE2 paths differ from each other there: vp8::Decoder);
-//   - the frames read from memory and through a stream of pieces alike.
+//   - the frames read from memory and through a stream of pieces alike;
+//   - the loop count libwebp's, known before the first frame and the same
+//     after the last.
 //
 // Canvases past 4 million pixels are left to the module's limit (neither
 // side decodes them). A difference aborts.
@@ -213,6 +215,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // every frame, from memory and through a stream of pieces
     std::vector<std::string> ours;
     bool ours_all = true, lossy = false, too_large = false;
+    uint32_t loops = 1;   // the loop count, known before the first frame
     // VP8X's animation flag: canvases blended, compared within the blend's error
     const bool animated = size >= 21 && std::memcmp(data + 12, "VP8X", 4) == 0 && (data[20] & 0x02);
     {
@@ -222,6 +225,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             lossy = unsupported(f.error());
             too_large = f.error().code() == codec::errc::too_large;
         } else {
+            loops = f->loop_count();
             for (int i = 0; i < 256; ++i) {
                 auto n = f->next();
                 if (!n) {
@@ -235,6 +239,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 }
                 ours.push_back(pixels_of((*n)->picture));
             }
+            check(!ours_all || f->loop_count() == loops, "the loop count changes as the frames are read");
         }
         // the stream: memory's frames, and where memory reads them all, its
         // end (memory refuses a file shorter than its RIFF size at once, a
@@ -273,6 +278,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     check(ours_all == t.all || damaged, ours_all ? "frames takes what libwebp refuses" : "frames refuses what libwebp takes");
     check(bool(first) == (t.demuxed && t.first) || damaged, first ? "decode takes what libwebp refuses" : "decode refuses what libwebp takes");
     const bool wide = (ours_all || first) && beyond_encoders(bytes);
+    if (ours_all && t.all && animated) {
+        check(loops == t.loops, "a loop count unlike libwebp's");
+    }
     if (ours_all && animated && !wide) {
         check(ours.size() == t.canvases.size(), "another count of frames");
         for (size_t i = 0; i < ours.size(); ++i) {

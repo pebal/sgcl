@@ -1,154 +1,100 @@
+[sgcl](../../README.md) › [net](../README.md) › [http](README.md)
+
 # sgcl::net::http::response
 
 ```cpp
-#include "sgcl/net/http/response.h"   // or "sgcl/net/http/http.h", "sgcl/sgcl.h"
+#include "sgcl/net/http/response.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    class response;   // what a client receives; a handle of one word
+    class response;
 }
 ```
 
-A response as [`client`](client.md) returns it: the status and the head read, the body still on the connection. A 4xx or a 5xx is a response and not an error, as in Go: `ok()` tells a 2xx.
+`sgcl::net::http::response` is a response as the [client](client.md) returns it, Go's `http.Response`: the status and
+the head read, the body still on the connection. A 4xx or a 5xx is a response and not an error, as in Go:
+[ok](response/ok.md) tells a 2xx. The body is read once, as text, bytes, JSON, into a file or as a stream, and its end
+gives the connection back to the client's pool, with no close; Go asks for `resp.Body.Close()` too.
+
+A `response` is a handle of one word: a copy is the same response, and a response passed by value into a task keeps
+it, and its connection, alive. The program does not make one: the client does.
 
 ## Rules
 
-- **The body** is read once, with `text()`, `bytes()`, `json()`, `save(path)` or the stream `body()`, and its end gives the connection back to the client's pool, with no close. In a task, `co_await res.async_text()`; `text()` blocks the thread.
-- **`close()`** gives the body up without waiting: when the rest of it is already in the connection's buffer it is dropped and the connection goes back to the pool, otherwise the connection is closed. A response neither read nor closed keeps its connection out of the pool until the collector finds it. The stream `body()` has no close of its own (`has_close()` is `false`, and its `close()` does nothing): the body is given up by the response's `close()`, not by Go's `resp.Body.Close()`.
-- A body cut short is `io::errc::unexpected_eof`, a chunked framing broken `malformed_response`, a total `timeout` of the client passing while it is read `ETIMEDOUT`.
-- `url()` is the URL the response came from, the last of the redirects; `trailers()` holds the trailer fields of a chunked body once it has been read.
-- **`proto()`** is the protocol the response came over, as Go's `resp.Proto`: `"HTTP/2.0"`, `"HTTP/1.1"` or `"HTTP/1.0"`. Over HTTP/2 the body is the stream's DATA, its window given back to the server as it is read. `close()` of a body not read to its end resets the stream (`CANCEL`) and leaves the connection to the other requests. The trailers are the fields the server sent after the body, and a stream the server resets while its body is read is `std::errc::connection_reset`.
+- A response holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global
+  or a `std` container, a [rooted](../../core/rooted.md) of it ([The rules](../../core/README.md#the-rules), 1).
+- **The body** is read once, with [text](response/text.md), [bytes](response/bytes.md), [json](response/json.md),
+  [save](response/save.md) or the stream [body](response/body.md), and its end gives the connection back to the
+  client's pool. In a task, `co_await res.async_text()`; `text()` blocks the thread.
+- **[close](response/close.md)** gives the body up without waiting: when the rest of it is already in the connection's
+  buffer it is dropped and the connection goes back to the pool, otherwise the connection is closed. A response
+  neither read nor closed keeps its connection out of the pool until the collector finds it. The stream `body()` has
+  no close of its own: the body is given up by the response's `close()`, not by Go's `resp.Body.Close()`.
+- A body cut short is `io::errc::unexpected_eof`, a chunked framing broken `net::errc::malformed_response`, a total
+  `timeout` of the client passing while it is read `ETIMEDOUT`.
+- **Over HTTP/2** ([proto](response/proto.md) is `"HTTP/2.0"`) the body is the stream's DATA, its window given back to
+  the server as it is read. `close()` of a body not read to its end resets the stream (`CANCEL`) and leaves the
+  connection to the other requests. A stream the server resets while its body is read is
+  `std::errc::connection_reset`.
 
-## Members
+## Member functions
 
-```cpp
-int status() const noexcept;
-string proto() const;                    // "HTTP/1.1", "HTTP/1.0" or "HTTP/2.0": the protocol it came over (Go's resp.Proto)
-bool ok() const noexcept;                          // 200 to 299
-string header(const string& name) const;           // "" when there is none
-const http::headers& headers() const noexcept;
-optional<uint64_t> content_length() const noexcept;
-net::url url() const;
-expected<string, io::error> text() const;
-async::task<expected<string, io::error>> async_text() const;
-expected<vector<byte>, io::error> bytes() const;
-async::task<expected<vector<byte>, io::error>> async_bytes() const;
-expected<encoding::json, io::error> json() const;          // the body as JSON
-template<class T> expected<T, io::error> json() const;     // through describe()
-expected<uint64_t, io::error> save(const string& path) const;   // into the file, through path + ".part"
-// + async_json(), async_json<T>(), async_save(path)
-io::reader body() const;
-http::headers trailers() const;
-void close() const;
-```
+| Function | Description |
+|---|---|
+| `(constructor)` | the copy and the move constructors: the same response; a response is made by the client |
+| `(destructor)` | drops the handle |
+| `operator=` | makes the handle refer to another response |
 
-## Examples
+#### The head
 
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
+| Function | Description |
+|---|---|
+| [status](response/status.md) | the status code |
+| [ok](response/ok.md) | checks whether the status is 2xx |
+| [proto](response/proto.md) | the protocol the response came over |
+| [header](response/header.md) | the first value of a field |
+| [headers](response/headers.md) | the fields |
+| [content_length](response/content_length.md) | the length of the body as the response declared it |
+| [url](response/url.md) | the URL the response came from, the last of the redirects |
 
-using namespace sgcl;
+#### The body
 
-int main() {
-    net::http::client web;
-    net::http::response res = web.get("https://www.apache.org/licenses/LICENSE-2.0.txt");
-    println("{} {}, {} bytes declared", res.status(), res.ok(), res.content_length().value_or(0));
-    string text = res.text();
-    println("{} bytes read", text.size());
-}
-```
+| Function | Description |
+|---|---|
+| [text, async_text](response/text.md) | the whole body as text |
+| [bytes, async_bytes](response/bytes.md) | the whole body as bytes |
+| [json, async_json](response/json.md) | the body read as JSON: a value, or a struct of the program's |
+| [save, async_save](response/save.md) | the body streamed into a file |
+| [body](response/body.md) | the body as a stream |
+| [trailers](response/trailers.md) | the trailer fields of a chunked body |
+| [close](response/close.md) | gives the body up |
 
-Output:
-
-```text
-200 true, 11357 bytes declared
-11357 bytes read
-```
-
-### JSON
-
-`json()` gives the body as an [`encoding::json`](../../encoding/json.md) value, `json<T>()` as a struct of the program's, through its `describe`:
+## Example
 
 ```cpp
-#include "sgcl/encoding/encoding.h"
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-
-using namespace sgcl;
-
-struct echo {
-    string data;
-
-    void describe(encoding::field_list& f) {
-        f.add("data", data);
-    }
-};
-
-int main() {
-    net::http::client web;
-    net::http::response res = web.post("https://httpbin.org/post", "text/plain", "buy milk");
-    echo reply = res.json<echo>();
-    println("{} {}", res.status(), reply.data);
-}
-```
-
-Output:
-
-```text
-200 buy milk
-```
-
-### Into a file
-
-`save(path)` writes the body through `path + ".part"`, renamed at its end, and gives the number of bytes; unlike `download` it saves any status:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-
-using namespace sgcl;
-
-int main() {
-    net::http::client web;
-    net::http::response res = web.get("https://www.apache.org/licenses/LICENSE-2.0.txt");
-    uint64_t saved = res.save("LICENSE-2.0.txt");
-    println("{}, {} bytes saved", res.status(), saved);
-}
-```
-
-Output:
-
-```text
-200, 11357 bytes saved
-```
-
-### Statuses and redirects
-
-A 4xx or a 5xx is a response, not an error; `url()` is where the redirects ended; `close()` gives a body up unread:
-
-```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-#include "sgcl/net/net.h"
+#include "sgcl/async.h"
+#include "sgcl/io.h"
+#include "sgcl/net/http.h"
+#include "sgcl/net.h"
 
 using namespace sgcl;
 
 int main() {
     net::http::server srv;
-    srv.route("GET /old", [](net::http::request, net::http::response_writer w) { w.redirect("/new"); });
-    srv.route("GET /new", [](net::http::request, net::http::response_writer w) { w.write("moved here\n"); });
+    srv.route("GET /old", [](net::http::request, net::http::response_writer w) {
+        w.redirect("/new");
+    });
+    srv.route("GET /new", [](net::http::request, net::http::response_writer w) {
+        w.set_header("Content-Type", "text/plain");
+        w.write("moved here\n");
+    });
     net::listener listener = net::tcp::listen("127.0.0.1:0");
     auto serving = async::spawn(srv.async_serve(listener));
-    auto base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
+    string base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
 
     net::http::client web;
-    net::http::response moved = web.get(base + "/old");
-    println("{} {}", moved.status(), moved.url().path());
-    moved.close();
-    net::http::response missing = web.get(base + "/nothing");
-    println("{} {}", missing.status(), missing.ok());
-    missing.close();
+    net::http::response res = web.get(base + "/old");
+    println("{} {} {} {}", res.status(), res.ok(), res.url().path(), res.header("Content-Type"));
+    print("{}", res.text().value());
     srv.close();
 }
 ```
@@ -156,10 +102,12 @@ int main() {
 Output:
 
 ```text
-200 /new
-404 false
+200 true /new text/plain
+moved here
 ```
 
 ## See also
 
-- [client](client.md): where it comes from; [headers](headers.md), [cookie](cookie.md) (`cookie::parse` of a `Set-Cookie`)
+- [client](client.md): where it comes from; [request](request.md): what was sent
+- [headers](headers.md); [cookie](cookie.md): `cookie::parse` of a `Set-Cookie` field
+- [status](status.md): the codes as constants

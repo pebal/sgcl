@@ -99,15 +99,21 @@ namespace sgcl {
     // equal to it; an exchange for a change of contents loads, decides,
     // and exchanges against what it loaded. Lives where the handle does:
     // on a stack or inside a managed object.
+    // The word's operations are a private base: what the atomic shows
+    // takes and gives the handle, never the word (no conversion to it).
     template<req::handle H>
     class atomic<H>
-    : public detail::AtomicWord<atomic<H>, detail::HandleStateOf<H>> {
+    : private detail::AtomicWord<atomic<H>, detail::HandleStateOf<H>> {
         using State = detail::HandleStateOf<H>;   // the word without its const: the object is never written through the atomic
         using Base = detail::AtomicWord<atomic, State>;
         using Word = tracked_ptr<State>;
 
     public:
         using value_type = H;
+        using Base::is_always_lock_free;
+        using Base::is_lock_free;
+        using Base::notify_one;
+        using Base::notify_all;
 
         atomic(const atomic&) = delete;
         atomic& operator=(const atomic&) = delete;

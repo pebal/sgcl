@@ -11,6 +11,8 @@ using namespace sgcl::async;
 
 #include <latch>
 #include <stdexcept>
+#include <thread>
+#include <utility>
 
 namespace {
     struct Node {
@@ -155,4 +157,73 @@ TEST(Thread_Tests, KeptInAVectorSharingAnObject) {
         result = sum->total.load();
     });
     EXPECT_EQ(result, 4 * 999 * 1000 / 2 + 1000 * (0 + 1 + 2 + 3) * 1000);
+}
+
+// Types of the numbering test below and of nothing else: their first
+// allocation in the process is the one the test races. Of different
+// sizes, so that an object made by another type's allocator shows in its
+// size as well as in its type.
+namespace {
+    template<int N>
+    struct Fresh {
+        Fresh(int t, int i) : thread(t), index(i) {}
+        int thread;
+        int index;
+        char pad[16 * (N + 1)] = {};
+        tracked_ptr<Fresh> next;
+    };
+
+    template<int N>
+    SGCL_NOINLINE bool make_and_check_fresh(int t, int count) {
+        tracked_ptr<Fresh<N>> head;
+        for (int i = 0; i < count; ++i) {
+            tracked_ptr<Fresh<N>> p = make_tracked<Fresh<N>>(t, i);
+            p->next = head;
+            head = p;
+        }
+        collector::force_collect(false);
+        int i = count;
+        for (auto p = head; p; p = p->next) {
+            --i;
+            if (p->thread != t || p->index != i || p.type() != typeid(Fresh<N>)
+                || sgcl::detail::Pointer::object_size(p.get()) != sizeof(Fresh<N>)) {
+                return false;
+            }
+        }
+        return i == 0;
+    }
+
+    template<int... N>
+    bool make_and_check_fresh_all(int t, int count, std::integer_sequence<int, N...>) {
+        return (make_and_check_fresh<N>(t, count) & ...);
+    }
+}
+
+// Threads that allocate a type never allocated before at the same moment
+// race to number it (thread.h: _slot_index, a CAS from 0): one number
+// wins, every thread gets an allocator of that type's own pool in that
+// slot. Eight types, eight threads released together; every
+// object is checked for its values, its type and its size after a cycle.
+TEST(Thread_Tests, ThreadsNumberANewTypeAtOnce) {
+    constexpr int Threads = 8;
+    constexpr int Count = 3000;   // more objects than one page holds of every one of them
+    // the heap and the collector made before the race (run alone, the
+    // test would otherwise also race the heap's construction against the
+    // debug assertion of tracked_ptr's constructor, which reads its range)
+    (void)make_tracked<int>();
+    std::latch go(Threads);
+    std::atomic<int> failed = {0};
+    std::vector<std::thread> workers;
+    for (int t = 0; t < Threads; ++t) {
+        workers.emplace_back([&, t] {
+            go.arrive_and_wait();
+            if (!make_and_check_fresh_all(t, Count, std::make_integer_sequence<int, 8>())) {
+                failed.fetch_add(1);
+            }
+        });
+    }
+    for (auto& w : workers) {
+        w.join();
+    }
+    EXPECT_EQ(failed.load(), 0);
 }

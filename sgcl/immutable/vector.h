@@ -10,10 +10,12 @@
 #include "../core/mixin/mixin.h"
 #include "../core/tracked_ptr.h"
 #include "../core/unique_ptr.h"
+#include "detail/nothrow_iteration.h"
 
 #include <algorithm>
 #include <cassert>
 #include <compare>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -47,13 +49,13 @@ namespace sgcl::immutable {
         struct VectorBranch {
             tracked_ptr<void> children[32];
 
-            static unique_ptr<VectorBranch> make() {
+            static unique_ptr<VectorBranch> make() noexcept {
                 return make_tracked<VectorBranch>();
             }
 
             // The copy: its words taken without the barrier, then, the
             // copy complete, the source shaded
-            static unique_ptr<VectorBranch> make(const VectorBranch& from) {
+            static unique_ptr<VectorBranch> make(const VectorBranch& from) noexcept {
                 unique_ptr<VectorBranch> copy = make_tracked<VectorBranch>(from);
                 ((tracked_ptr<const VectorBranch>)&from).shade();
                 return copy;
@@ -138,7 +140,8 @@ namespace sgcl::immutable {
     // threads is read by all of them without a lock, and a version is
     // published, and replaced by the next, through a copy_on_write or an
     // atomic; a state of a program is such a vector, and the next state a
-    // new one, the two compared by their roots (README: The im module).
+    // new one, the two compared by their roots (the description in
+    // docs/sgcl/immutable/README.md).
     //
     // The vector is four words: the size, the height of the trie, a
     // tracked_ptr to the root and one to the tail. It lives where a
@@ -167,6 +170,14 @@ namespace sgcl::immutable {
         static constexpr unsigned Bits = 5;         // the bits of the position one level consumes
         static constexpr size_t Width = 1 << Bits;  // the children of a branch, the elements of a leaf
         static constexpr size_t Mask = Width - 1;
+
+        // What a change may throw: an element's copy (a leaf or the tail
+        // copied) and its construction from the arguments. Out of memory
+        // ends the program (make_tracked) and throws nothing.
+        static constexpr bool NothrowCopy = std::is_nothrow_copy_constructible_v<T>;
+
+        template<class... A>
+        static constexpr bool NothrowMake = NothrowCopy && std::is_nothrow_constructible_v<T, A...>;
 
     public:
         using value_type = T;
@@ -298,7 +309,7 @@ namespace sgcl::immutable {
         vector() noexcept = default;
 
         template<std::input_iterator InputIt>
-        vector(InputIt first, InputIt last) {
+        vector(InputIt first, InputIt last) noexcept(detail::nothrow_iteration<InputIt> && std::is_nothrow_constructible_v<T, std::iter_reference_t<InputIt>>) {
             for (; first != last; ++first) {
                 auto count = _tail_count();
                 if (count == Width) {   // the tail full: into the trie, a new one begun
@@ -313,7 +324,7 @@ namespace sgcl::immutable {
             }
         }
 
-        vector(std::initializer_list<T> ilist)
+        vector(std::initializer_list<T> ilist) noexcept(NothrowCopy)
         : vector(ilist.begin(), ilist.end()) {
         }
 
@@ -395,23 +406,23 @@ namespace sgcl::immutable {
         // The vector with `value` after its last element: the tail copied
         // with one more element (a full tail is first hung on the trie as
         // it is, along a copied path, and the new tail holds `value` alone)
-        vector push_back(const T& value) const {
+        vector push_back(const T& value) const noexcept(NothrowCopy) {
             return _push_back(value);
         }
 
-        vector push_back(T&& value) const {
+        vector push_back(T&& value) const noexcept(NothrowMake<T&&>) {
             return _push_back(std::move(value));
         }
 
         template<class... A>
-        vector emplace_back(A&&... a) const {
+        vector emplace_back(A&&... a) const noexcept(NothrowMake<A...>) {
             return _push_back(std::forward<A>(a)...);
         }
 
         // The vector without its last element: the tail copied one element
         // shorter, or, when the tail held one element, the trie's last
         // leaf taken out along a copied path to be the tail
-        vector pop_back() const {
+        vector pop_back() const noexcept(NothrowCopy) {
             assert(_size > 0);
             if (_size == 1) {
                 return vector();
@@ -442,14 +453,28 @@ namespace sgcl::immutable {
             return _set(i, std::move(value));
         }
 
-        friend bool operator==(const vector& a, const vector& b) {
+        // The vector with f(element) in place of the element at `i`: set
+        // of what f gives of the old one, f called once, out_of_range
+        // when i >= size() (f not called). The value is made before the
+        // path is copied, so f may read this vector
+        template<class F>
+        requires std::invocable<F&, const T&> && std::convertible_to<std::invoke_result_t<F&, const T&>, T>
+        vector update(size_type i, F f) const {
+            if (i >= _size) {
+                throw out_of_range("sgcl::immutable::vector::update");
+            }
+            T value(f(_at(i)));
+            return _set(i, std::move(value));
+        }
+
+        friend bool operator==(const vector& a, const vector& b) requires req::equatable<T> {
             if (a._root == b._root && a._tail == b._tail && a._size == b._size) {   // the same trie and tail: a version and its copy
                 return true;
             }
             return a._size == b._size && std::equal(a.begin(), a.end(), b.begin());
         }
 
-        friend bool operator!=(const vector& a, const vector& b) {
+        friend bool operator!=(const vector& a, const vector& b) requires req::equatable<T> {
             return !(a == b);
         }
 
@@ -507,7 +532,7 @@ namespace sgcl::immutable {
         // that an exception on the way destroys what was constructed. A
         // leaf of the trie, or a Tail for a tail that is not full
         template<class L = Leaf>
-        static unique_ptr<L> _make_leaf() {
+        static unique_ptr<L> _make_leaf() noexcept {
             unique_ptr<L> leaf = make_tracked<L>();
             leaf->count = 0;
             return leaf;
@@ -515,14 +540,14 @@ namespace sgcl::immutable {
 
         // One more element constructed in a leaf, the count raised after
         template<class... A>
-        static void _append(Leaf& leaf, A&&... a) {
+        static void _append(Leaf& leaf, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             ::new (static_cast<void*>(&leaf.values[leaf.count])) T(std::forward<A>(a)...);
             ++leaf.count;
         }
 
         // A leaf holding copies of the first n elements of `from`
         template<class L = Leaf>
-        static unique_ptr<L> _copy_leaf(const Leaf& from, uint32_t n) {
+        static unique_ptr<L> _copy_leaf(const Leaf& from, uint32_t n) noexcept(NothrowCopy) {
             unique_ptr<L> leaf = _make_leaf<L>();
             for (uint32_t i = 0; i < n; ++i) {
                 _append(*leaf, from.values[i]);
@@ -532,7 +557,7 @@ namespace sgcl::immutable {
 
         // The same with the element at `at` replaced by `value`
         template<class L = Leaf, class U>
-        static unique_ptr<L> _copy_leaf(const Leaf& from, uint32_t n, uint32_t at, U&& value) {
+        static unique_ptr<L> _copy_leaf(const Leaf& from, uint32_t n, uint32_t at, U&& value) noexcept(NothrowMake<U&&>) {
             unique_ptr<L> leaf = _make_leaf<L>();
             for (uint32_t i = 0; i < n; ++i) {
                 if (i == at) {
@@ -546,7 +571,7 @@ namespace sgcl::immutable {
 
         // A path of branches from `level` down to the leaf, each holding
         // the next as its first child
-        static tracked_ptr<void> _new_path(size_t level, const tracked_ptr<void>& leaf) {
+        static tracked_ptr<void> _new_path(size_t level, const tracked_ptr<void>& leaf) noexcept {
             if (level == 0) {
                 return leaf;
             }
@@ -557,7 +582,7 @@ namespace sgcl::immutable {
 
         // The subtrie under `node` (at `level`) with `leaf` hung at
         // position `index`: the branches on the path copied, the rest shared
-        static unique_ptr<Branch> _push_leaf(size_t level, const Branch& node, size_t index, const tracked_ptr<void>& leaf) {
+        static unique_ptr<Branch> _push_leaf(size_t level, const Branch& node, size_t index, const tracked_ptr<void>& leaf) noexcept {
             unique_ptr<Branch> copy = Branch::make(node);
             auto i = (index >> level) & Mask;
             if (level == Bits) {
@@ -572,7 +597,7 @@ namespace sgcl::immutable {
 
         // The subtrie under `node` without the leaf holding position
         // `index`, its last: the path copied; null when nothing is left
-        static unique_ptr<Branch> _pop_leaf(size_t level, const Branch& node, size_t index) {
+        static unique_ptr<Branch> _pop_leaf(size_t level, const Branch& node, size_t index) noexcept {
             auto i = (index >> level) & Mask;
             if (level == Bits) {
                 if (i == 0) {
@@ -593,7 +618,7 @@ namespace sgcl::immutable {
 
         // The subtrie under `node` with the element at `index` replaced
         template<class U>
-        static unique_ptr<Branch> _set_in(size_t level, const Branch& node, size_t index, U&& value) {
+        static unique_ptr<Branch> _set_in(size_t level, const Branch& node, size_t index, U&& value) noexcept(NothrowMake<U&&>) {
             unique_ptr<Branch> copy = Branch::make(node);
             auto i = (index >> level) & Mask;
             if (level == Bits) {
@@ -608,7 +633,7 @@ namespace sgcl::immutable {
         // The full tail hung on the trie as its next leaf, on a vector
         // nobody else holds (one being built): the root replaced, the
         // trie given a level when it is full at its height
-        void _absorb_tail() {
+        void _absorb_tail() noexcept {
             auto index = _size - Width;   // where the tail begins
             if (!_root) {
                 unique_ptr<Branch> root = Branch::make();
@@ -627,7 +652,7 @@ namespace sgcl::immutable {
         }
 
         template<class... A>
-        vector _push_back(A&&... a) const {
+        vector _push_back(A&&... a) const noexcept(NothrowMake<A...>) {
             vector v = *this;
             auto count = _tail_count();
             if (count == Width) {

@@ -22,6 +22,9 @@ namespace sgcl {
     , public mixin::enumerable<multiset<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>>;
 
+        static_assert(detail::nothrow_function_object<Hash, const Key&>, "sgcl::multiset: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::multiset: KeyEqual must be noexcept");
+
     public:
         using key_type = Key;
         using value_type = typename Base::value_type;

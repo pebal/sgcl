@@ -47,15 +47,32 @@
 #if defined(__clang__)
 #define SGCL_NO_SANITIZE __attribute__((no_sanitize("address", "thread", "undefined")))
 #define SGCL_NOINLINE __attribute__((noinline))
+#define SGCL_COLD __attribute__((cold, noinline))
 #define SGCL_ALWAYS_INLINE __attribute__((always_inline)) inline
 #elif defined(__GNUC__)
 #define SGCL_NO_SANITIZE __attribute__((no_sanitize_address, no_sanitize_thread, no_sanitize_undefined))
 #define SGCL_NOINLINE __attribute__((noinline))
+#define SGCL_COLD __attribute__((cold, noinline))
 #define SGCL_ALWAYS_INLINE __attribute__((always_inline)) inline
 #else
 #define SGCL_NO_SANITIZE
 #define SGCL_NOINLINE __declspec(noinline)
+#define SGCL_COLD __declspec(noinline)
 #define SGCL_ALWAYS_INLINE __forceinline
+#endif
+
+// An inline thread_local with a dynamic initializer or a destructor keeps
+// default visibility: under -fvisibility=hidden (the Release flags of the
+// sgcl CMake target, SGCL_HIDDEN_VISIBILITY) clang emits its thread-local
+// initialization routine hidden and not weak, so every translation unit
+// that touches the variable defines it and the program does not link
+// (duplicate symbol). Default visibility keeps the routine weak, one copy
+// merged by the linker, and the variable one per thread across the images
+// of a process.
+#if defined(__clang__) || defined(__GNUC__)
+#define SGCL_VISIBLE __attribute__((visibility("default")))
+#else
+#define SGCL_VISIBLE
 #endif
 
 // The engine synchronizes some of the collector's reads with fences (a
@@ -118,6 +135,24 @@ namespace sgcl::detail::os {
 
     [[noreturn]] inline void fail_after_fork(const char* what) noexcept {
         std::fprintf(stderr, "[sgcl] %s in the child of a fork: the collector does not run there; the child may read the managed heap and exec or exit, not allocate managed objects or collect\n", what);
+        std::terminate();
+    }
+
+    // Plain memory the system would not give — a malloc or realloc of the
+    // library's own (a scratch array, a log line, gathered bytes), or an
+    // object of the system's a call needs — ends the program, as managed
+    // memory does when it runs out (DESIGN 356, 357, 391): nothing a
+    // caller could do with the error would need less memory than what was
+    // refused, and a throw would make every loop that grows such a buffer
+    // potentially throwing. One line on stderr names what was refused, and
+    // its size when there is one; out of line and cold, so the growth
+    // keeps only the call.
+    [[noreturn]] SGCL_COLD inline void memory_refused(const char* what, size_t bytes = 0) noexcept {
+        if (bytes) {
+            std::fprintf(stderr, "sgcl: out of memory: %s of %zu bytes was refused\n", what, bytes);
+        } else {
+            std::fprintf(stderr, "sgcl: out of memory: %s was refused\n", what);
+        }
         std::terminate();
     }
 

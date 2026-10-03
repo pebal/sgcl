@@ -236,3 +236,99 @@ TEST(Array_Tests, ThePastSixtyFourTakesAnyConvertingArguments) {
     sgcl::array<Point2, 2> p = {{1, 2}, {3, 4}};
     EXPECT_EQ(p[1].y, 4);
 }
+
+namespace {
+    template<class A, class... U>
+    concept BracesTake = requires(U... u) { A{u...}; };
+}
+
+// Fewer arguments than elements, as an aggregate takes them: the rest
+// value-initialized (zero for a number), the arguments converted
+TEST(Array_Tests, FewerArgumentsThanElementsValueInitializeTheRest) {
+    EXPECT_TRUE((BracesTake<sgcl::array<char, 7>, char>));
+    EXPECT_TRUE((BracesTake<sgcl::array<int, 3>, int, int>));
+    EXPECT_FALSE((BracesTake<sgcl::array<int, 2>, int, int, int>));   // a third is still an error
+    sgcl::array<char, 7> css = {'#'};
+    EXPECT_EQ(css[0], '#');
+    EXPECT_EQ(css[6], '\0');
+    sgcl::array<int, 4> two = {1, 2};
+    EXPECT_EQ(two[1], 2);
+    EXPECT_EQ(two[3], 0);
+    sgcl::array<std::string, 3> words = {"a"};
+    EXPECT_EQ(words[0], "a");
+    EXPECT_TRUE(words[2].empty());
+    constexpr sgcl::array<int, 3> c = {7};
+    static_assert(c[0] == 7 && c[2] == 0);
+    sgcl::array<int, 100> big = {1, 2};
+    EXPECT_EQ(big[1], 2);
+    EXPECT_EQ(big[99], 0);
+}
+
+// array<T, 0> has the interface of the others: a free swap, crbegin and
+// crend; as_slice past the end names array's own function
+TEST(Array_Tests, TheEmptyArrayAndTheSliceOfAPosition) {
+    sgcl::array<int, 0> a, b;
+    swap(a, b);
+    EXPECT_EQ(a.crbegin(), a.crend());
+    sgcl::array<int, 3> three = {1, 2, 3};
+    try {
+        (void)three.as_slice(4);
+        ADD_FAILURE();
+    } catch (const sgcl::out_of_range& e) {
+        EXPECT_STREQ(e.what(), "sgcl::array::as_slice");
+    }
+    EXPECT_EQ(three.as_slice(3).size(), 0u);
+}
+
+// Boundaries (DESIGN 408)
+
+// The positions at the ends: at and as_slice at and past the size and at
+// SIZE_MAX, a length past the end taken to it; an array of one and of none
+TEST(Array_Tests, PositionsAtTheEnds) {
+    sgcl::array<int, 3> a = {1, 2, 3};
+    EXPECT_EQ(a.max_size(), 3u);
+    EXPECT_THROW(a.at(3), std::out_of_range);
+    EXPECT_THROW(a.at(SIZE_MAX), std::out_of_range);
+    EXPECT_EQ(std::as_const(a).at(2), 3);
+    EXPECT_THROW(a.as_slice(SIZE_MAX), std::out_of_range);
+    EXPECT_EQ(a.as_slice(0, SIZE_MAX).size(), 3u);
+    EXPECT_EQ(a.as_slice(2, SIZE_MAX).size(), 1u);
+    EXPECT_EQ(a.as_slice(1, 0).size(), 0u);
+    sgcl::array<std::string, 1> one = {"only"};
+    EXPECT_EQ(&one.front(), &one.back());
+    EXPECT_FALSE(one.empty());
+    EXPECT_EQ(std::next(one.begin()), one.end());
+    sgcl::array<int, 0> none;
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(none.size(), 0u);
+    EXPECT_EQ(none.max_size(), 0u);
+    EXPECT_EQ(none.data(), nullptr);
+    EXPECT_EQ(none.begin(), none.end());
+    EXPECT_THROW(none.at(0), std::out_of_range);
+    EXPECT_EQ(none.as_slice().size(), 0u);
+    EXPECT_EQ(none.as_slice(0, SIZE_MAX).size(), 0u);
+    EXPECT_THROW(none.as_slice(1), std::out_of_range);
+    none.fill(1);
+    EXPECT_TRUE((none == sgcl::array<int, 0>()));
+    EXPECT_FALSE((none < sgcl::array<int, 0>()));
+}
+
+// The array on both sides: a copy assignment to itself, a move one that
+// leaves it valid, swap with itself, and fill with one of its own elements
+TEST(Array_Tests, AnArrayOnBothSidesKeepsItself) {
+    sgcl::array<std::string, 3> a = {"one long enough for the heap", "two", "three"};
+    const auto before = a;
+    auto& self = a;
+    a = self;
+    EXPECT_EQ(a, before);
+    a = std::move(self);   // each element moved to itself: valid, its value as std::string leaves it
+    a = before;
+    a.swap(self);
+    swap(a, self);
+    EXPECT_EQ(a, before);
+    a.fill(a[1]);
+    EXPECT_EQ(a, (sgcl::array<std::string, 3>{"two", "two", "two"}));
+    sgcl::array<int, 4> b = {1, 2, 3, 4};
+    b.fill(b[3]);
+    EXPECT_EQ(b, (sgcl::array<int, 4>{4, 4, 4, 4}));
+}

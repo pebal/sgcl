@@ -1,80 +1,128 @@
+[sgcl](../README.md) › [time](README.md)
+
 # sgcl::time::zone
 
 ```cpp
-#include "sgcl/time/zone.h"   // or "sgcl/time/time.h"
+#include "sgcl/time/zone.h"   // or "sgcl/time.h"
 
 namespace sgcl::time {
-    class zone;   // UTC, a fixed offset, or a zone of the tz database; a tracked pointer to its data
+    class zone;
 }
 ```
 
-A time zone: the rules that give a place's clock its offset from UTC at every moment, the abbreviation it shows (`CEST`) and whether it is daylight saving time. Go's `*time.Location`, Java's `ZoneId`, the `const time_zone*` of C++20's `tzdb` — which the C++ library of this system does not have: libc++ ships `<chrono>`'s calendar but no time zones, so the zones here are the module's own, read from the files every Unix system keeps.
+`sgcl::time::zone` is a time zone: the rules that give a place's clock its offset from UTC at every moment, the
+abbreviation it shows (`CEST`) and whether it is daylight saving time. It is Go's `*time.Location`, Java's
+`ZoneId`, the `const time_zone*` of C++20's `tzdb` — which the C++ library of this system does not have: libc++
+ships `<chrono>`'s calendar but no time zones, so the zones here are the module's own, read from the files every
+Unix system keeps.
 
-There are five ways to one:
+There are five ways to one: [utc](zone/utc.md) (and a default-constructed zone); [fixed](zone/fixed.md), always so
+far east of UTC; [load](zone/load.md), a zone of the system's tz database by its name, `"Europe/Warsaw"`, with the
+[constructor](zone/zone.md) for a name the program itself writes, `time::zone warsaw("Europe/Warsaw")`;
+[from_tzif](zone/from_tzif.md), a zone from the bytes of a TZif file of any origin; and
+[from_posix](zone/from_posix.md), a zone from a POSIX TZ string alone. And [local](zone/local.md), the zone of
+this computer.
 
-- `zone::utc()` (and a default-constructed `zone`);
-- `zone::fixed(offset)`: always so far east of UTC, named for it (`"+05:30"`);
-- `zone::load(name)`: a zone of the system's tz database by its name, `"Europe/Warsaw"`, `"America/New_York"`, read from `/usr/share/zoneinfo` (on macOS a link to `/var/db/timezone/zoneinfo`; the other places systems keep it are tried after) the first time and from memory every time after; a name the program itself writes constructs the zone, `time::zone warsaw("Europe/Warsaw")`, which throws `load`'s error for a name the system does not know, as `std::chrono::locate_zone` throws, and `load` is for a name from outside (a setting, the user);
-- `zone::from_tzif(bytes, name)`: a zone from the bytes of a TZif file of any origin (versions 1 to 4, RFC 9636), a database of one's own, one carried over the network;
-- `zone::from_posix(rule)`: a zone from a POSIX TZ string alone, `"CET-1CEST,M3.5.0,M10.5.0/3"`.
+A zone is one word, a `tracked_ptr` to its data, so it lives where a `tracked_ptr` may — on a stack, in a managed
+object, in a container of the library — as a [string](../core/string.md) does, and a function of this module takes
+one as `const zone&`. The zones of the database and the fixed offsets are kept for the rest of the program in a
+registry, finitely many of both, as `std::chrono::tzdb` keeps its `time_zone`s: the second `load` of a name finds
+the first one's zone and reads nothing, from any thread. A zone made from bytes or a string of any origin
+(`from_tzif`, `from_posix`) is kept by the zones and datetimes that have it, and by nothing else: the collector
+takes it with the last of them.
 
-And `zone::local()`, the zone of this computer: the `TZ` variable of the environment if it is set (`":Europe/Warsaw"`, `"Europe/Warsaw"`, a path to a TZif file, a POSIX TZ string; empty means UTC; one that names nothing, UTC), else the zone `/etc/localtime` is, named for the file of the database it links to, else UTC. It is settled once, the first time it is asked for, as Go settles `time.Local`.
-
-A zone is one word: a `tracked_ptr` to its data, so it lives where a `tracked_ptr` may — on a stack, in a managed object, in a container of the library — as a [string](../core/string.md) does, and a function of this module takes one as `const zone&`. `zone()`, UTC, is the null pointer and allocates nothing. The zones of the database and the fixed offsets are kept for the rest of the program in a registry, finitely many of both, as `std::chrono::tzdb` keeps its `time_zone`s: the second `load` of a name finds the first one's zone and reads nothing, from any thread. A zone made from bytes or a string of any origin (`from_tzif`, `from_posix`) is kept by the zones and datetimes that have it, and by nothing else: the collector takes it with the last of them. Two zones are equal when they are the same zone: the same name loaded twice, the same offset, the same bytes under the same name; `Poland` and `Europe/Warsaw`, one a link to the other, are two zones with the same rules.
-
-The reading is written from RFC 9636 (which replaced RFC 8536) and POSIX. A file is checked whole before anything is built from it — the counts against the length, the transitions in order, every index in range, every designation ended — and a file that is not one is an error with the byte it stopped on; the footer of versions 2 and later is the POSIX TZ string that gives the time after the last transition, with version 3's hours from -167 to 167 and daylight saving time all year (`"EST5EDT,0/0,J365/25"`). A zone's table drops the transitions that change nothing and carries the footer's rule to the year 2100, so that every time to then is found by a binary search; a later one asks the rule.
-
-What a zone says about an instant is asked of a [datetime](datetime.md): `z.offset_at(t)`, `z.abbreviation_at(t)`, `z.is_dst_at(t)`, and `z.next_transition(t)`, `z.previous_transition(t)` — the changes of the zone strictly after and before `t`, which Go has no way to ask for. A datetime asks its own zone the same (`t.offset()`, `t.abbreviation()`).
+What a zone says about an instant is asked with a [datetime](datetime.md): the offset, the abbreviation, daylight
+saving time, and the changes of the zone strictly after and before the instant, which Go has no way to ask for. A
+datetime asks its own zone the same (`t.offset()`, `t.abbreviation()`).
 
 ## Rules
 
-- Nothing waits once a zone is loaded. `load`, `local()` and `available()` read files on the thread that asks, once for each name; a task that loads a zone of the database for the first time blocks its worker for the read of a file of some kilobytes.
-- A name of the database is letters, digits, `/`, `_`, `-`, `+` and `.`, without `..` and without a leading `/` or `.`: `load("../../etc/passwd")` is an error, not a read. `"UTC"` is `zone::utc()`.
-- Before a zone's first transition its time is the file's first type (RFC 9636), the local mean time of the 19th century for most zones (Warsaw: `LMT`, +01:24); after the last, the footer's rule, or the last type where there is no footer.
-- A zone made by `from_tzif` or `from_posix` lives while a zone or a datetime has it, and while it lives the same bytes under the same name, or the same string, give the same zone. Once nothing has it, it is gone, and its entry in the registry with it (swept by the threads that make zones, a pass spread over the insertions that made the dead entries): a server that makes a zone of every string a client sends keeps only the ones still in use.
-- `fixed(offset)` takes whole seconds (the rest dropped) of less than a day either way, and throws `invalid_argument` otherwise, as a mistake of the program; `fixed(0)` is UTC. Its name is the offset, `"+05:30"`, `"-03:30"`, `"+05:30:15"` where there are seconds.
-- A transition is a change of the offset, of daylight saving time or of the abbreviation. `next_transition` and `previous_transition` are nothing for UTC and a fixed offset, before the first change of a zone and after the last change of one that stopped changing (`Asia/Tokyo` since 1951).
-- `available()` lists the files of the database that start with `TZif`, sorted, leaving out the copies of the whole database for other uses (`posix/`, `right/`) and `posixrules`: 598 names on this machine.
-- A file of the `right/` kind (with leap seconds counted in its times) is read as POSIX time, its leap-second records checked and passed over, as Go and `std::chrono::sys_time` treat time.
-- Windows has no such directory; there `load` finds nothing, and `from_tzif` takes a database one carries.
+- A zone is one word; `zone()`, UTC, is the null pointer and allocates nothing.
+- Nothing waits once a zone is loaded. `load`, the constructor from a name, `local` and `available` read files on
+  the thread that asks, `load` once for each name; a task that loads a zone of the database for the first time
+  blocks its worker for the read of a file of some kilobytes.
+- The reading is written from RFC 9636 (which replaced RFC 8536) and POSIX. A file is checked whole before
+  anything is built from it, and a file that is not one is an [error](error.md) with the byte it stopped on.
+- A zone's table drops the transitions that change nothing and carries the rule of the file's footer to the year
+  2100, so that every time to then is found by a binary search; a later one asks the rule.
+- Before a zone's first transition its time is the file's first type (RFC 9636), the local mean time of the 19th
+  century for most zones (Warsaw: `LMT`, +01:24); after the last, the footer's rule, or the last type where there
+  is no footer.
+- A transition is a change of the offset, of daylight saving time or of the abbreviation.
+- Two zones are equal when they are the same zone: the same name loaded twice, the same offset, the same bytes
+  under the same name, the same TZ string. `Poland` and `Europe/Warsaw`, one a link to the other, are two zones
+  with the same rules.
+- Windows has no directory of the database; there `load` finds nothing, and `from_tzif` takes a database one
+  carries.
 
-## Members
+### From code written for Go
 
-```cpp
-constexpr zone() noexcept;                                  // UTC
-static constexpr zone utc() noexcept;
-static zone fixed(duration offset);                         // whole seconds, |offset| < 24h
-static expected<zone, error> load(const string& name);      // "Europe/Warsaw", from the system's database
-explicit zone(const string& name);                          // a name the program writes: load(name), or bad_expected_access<time::error> with its message (DESIGN 234)
-static expected<zone, error> from_tzif(const slice<const byte>& data, const string& name);
-static expected<zone, error> from_posix(const string& rule);
-static zone local();                                        // TZ, /etc/localtime, UTC; settled once
-static vector<string> available();                          // the names of the database, sorted
+| With Go | With sgcl::time |
+|---|---|
+| `*time.Location` | `time::zone`, one word |
+| `time.LoadLocation(name)` | `zone::load(name)`, loaded once per name where Go reads the file at every `LoadLocation`; a name the program writes is constructed, `time::zone z(name)`, which throws |
+| `time.FixedZone(name, offset)` | `zone::fixed(offset)`, named for the offset |
+| `time.UTC` | `zone::utc()` |
+| `time.Local` | `zone::local()`, whose `name()` is the database's, `"Europe/Warsaw"`, not `"Local"` |
+| `time.LoadLocationFromTZData(name, data)` | `zone::from_tzif(data, name)`; and `zone::from_posix(rule)`, which Go has not |
+| — | `z.offset_at(t)`, `next_transition`, `previous_transition`, `zone::available()`: Go cannot list the changes of a zone or the zones |
+| `time/tzdata`, a database built in | none: later, with Windows; `from_tzif` takes a database one carries |
 
-string name() const;                                        // "Europe/Warsaw", "UTC", "+05:30", the TZ string
-duration offset_at(const datetime& t) const;                // +2h in Warsaw in summer
-string abbreviation_at(const datetime& t) const;            // "CEST"; UTC "UTC", a fixed offset its name
-bool is_dst_at(const datetime& t) const;
-optional<datetime> next_transition(const datetime& t) const;       // strictly after t, in this zone
-optional<datetime> previous_transition(const datetime& t) const;   // strictly before t
-// ==
-```
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](zone/zone.md) | UTC, or the zone of a name the program writes |
+
+#### Making a zone
+
+| Function | Description |
+|---|---|
+| [utc](zone/utc.md) | UTC (static) |
+| [fixed](zone/fixed.md) | a fixed offset from UTC (static) |
+| [load](zone/load.md) | a zone of the system's database by its name (static) |
+| [from_tzif](zone/from_tzif.md) | a zone from the bytes of a TZif file (static) |
+| [from_posix](zone/from_posix.md) | a zone from a POSIX TZ string (static) |
+| [local](zone/local.md) | the zone of this computer (static) |
+| [available](zone/available.md) | the names of the system's database (static) |
+
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [offset_at](zone/offset_at.md) | the offset from UTC at an instant |
+| [abbreviation_at](zone/abbreviation_at.md) | the abbreviation at an instant |
+| [is_dst_at](zone/is_dst_at.md) | whether it is daylight saving time at an instant |
+| [next_transition](zone/next_transition.md) | the first change after an instant |
+| [previous_transition](zone/previous_transition.md) | the last change before an instant |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [name](zone/name.md) | the name of the zone |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](zone/operator_cmp.md) | whether two zones are the same zone |
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/time/time.h"
+#include "sgcl/io.h"
+#include "sgcl/time.h"
 
 using namespace sgcl;
 
 int main() {
-    time::zone warsaw("Europe/Warsaw");                              // a name the program writes
+    time::zone warsaw("Europe/Warsaw");
     auto summer = time::date(2026, 7, 1).at(12, 0, warsaw);
     println("{} {} {} {}", warsaw.name(), warsaw.abbreviation_at(summer), warsaw.offset_at(summer),
             warsaw.is_dst_at(summer));
 
-    // The changes around a time, which Go cannot list
+    // The changes around a time
     auto next = warsaw.next_transition(summer).value();
     auto previous = warsaw.previous_transition(summer).value();
     println("{} .. {}", previous, next);
@@ -85,16 +133,9 @@ int main() {
     println("{} {}", summer.in(lord_howe), summer.in(kathmandu));
 
     // A zone of a POSIX TZ string, and a fixed offset
-    time::zone rule = time::zone::from_posix("CET-1CEST,M3.5.0,M10.5.0/3");
+    time::zone rule = time::zone::from_posix("CET-1CEST,M3.5.0,M10.5.0/3").value();
     println("{} {}", rule.offset_at(summer) == warsaw.offset_at(summer),
             time::zone::fixed(-(3 * hour + 30 * minute)).name());
-
-    for (auto name : {"Europe/Warsw", "../../etc/passwd"}) {         // names from outside: loaded
-        auto z = time::zone::load(name);
-        println(z.error().message());
-    }
-    println(time::zone::available().size() > 400);
-    return 0;
 }
 ```
 
@@ -105,12 +146,11 @@ Europe/Warsaw CEST 2h0m0s true
 2026-03-29T03:00:00+02:00 .. 2026-10-25T02:00:00+01:00
 2026-07-01T20:30:00+10:30 2026-07-01T15:45:00+05:45
 true -03:30
-unknown time zone "Europe/Warsw"
-not a name of a time zone: "../../etc/passwd"
-true
 ```
 
 ## See also
 
 - [datetime](datetime.md): an instant and the zone it is seen in
-- [time](README.md): the module, its errors, the table of Go's names
+- [date::at](date/at.md): a time of a day in a zone
+- [error](error.md): why a name or a file is not a zone
+- [sgcl::time](README.md)

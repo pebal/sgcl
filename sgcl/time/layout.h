@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 // The text of the module's values. Two ways to say how: a pattern of '%'
 // specifiers, the language of std::format for <chrono> (and of C's
@@ -553,7 +554,7 @@ namespace sgcl::time {
             // The moment of t handed to f (every zone's abbreviation is in its
             // data, a fixed offset's and UTC's their names)
             template<class F>
-            static void with_moment(const datetime& t, F&& f) {
+            static void with_moment(const datetime& t, F&& f) noexcept(std::is_nothrow_invocable_v<F&, const detail::moment&>) {
                 f(moment_of(t));
             }
 
@@ -568,7 +569,7 @@ namespace sgcl::time {
         // stack, and again into a string of the size that took when it
         // did not fit
         template<class Write>
-        string written(Write&& write) {
+        string written(Write&& write) noexcept(std::is_nothrow_invocable_v<Write&, txt::format_sink&>) {
             char room[128];
             txt::format_sink first(room, sizeof room);
             write(first);
@@ -576,7 +577,7 @@ namespace sgcl::time {
                 return string(room, first.size());
             }
             const size_t n = first.size();
-            return sgcl::detail::StringAccess::bounded<string>(n, [&](char* chars) {   // the second pass in place
+            return sgcl::detail::StringAccess::bounded<string>(n, [&](char* chars) noexcept {   // the second pass in place
                 txt::format_sink second(chars, n);
                 write(second);
                 return std::min(second.size(), n);
@@ -584,23 +585,23 @@ namespace sgcl::time {
         }
     }
 
-    inline string datetime::format(layout format) const {
-        return detail::written([&](txt::format_sink& out) { detail::layout_writer::write(out, *this, format); });
+    inline string datetime::format(layout format) const noexcept {
+        return detail::written([&](txt::format_sink& out) noexcept { detail::layout_writer::write(out, *this, format); });
     }
 
-    inline string datetime::format(const string& pattern) const {
+    inline string datetime::format(const string& pattern) const noexcept {
         std::string_view p(pattern);
         string out;
-        detail::layout_writer::with_moment(*this, [&](const detail::moment& m) {
-            out = detail::written([&](txt::format_sink& sink) { detail::write_pattern(sink, p, m); });
+        detail::layout_writer::with_moment(*this, [&](const detail::moment& m) noexcept {
+            out = detail::written([&](txt::format_sink& sink) noexcept { detail::write_pattern(sink, p, m); });
         });
         return out;
     }
 
-    inline string date::format(const string& pattern) const {
+    inline string date::format(const string& pattern) const noexcept {
         std::string_view p(pattern);
         detail::moment m = detail::layout_writer::moment_of(*this);
-        return detail::written([&](txt::format_sink& sink) { detail::write_pattern(sink, p, m); });
+        return detail::written([&](txt::format_sink& sink) noexcept { detail::write_pattern(sink, p, m); });
     }
 }
 
@@ -625,13 +626,13 @@ namespace sgcl::txt {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, true, true);
         }
 
-        static void write(format_sink& out, const time::datetime& t, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, const time::datetime& t, const format_spec& spec, std::string_view pattern) noexcept {
             detail::put_body_in_field(out, spec, [&](format_sink& to) {
                 if (!pattern.data()) {
                     time::detail::layout_writer::write(to, t, time::rfc3339_nano);
                     return;
                 }
-                time::detail::layout_writer::with_moment(t, [&](const time::detail::moment& m) { time::detail::write_pattern(to, pattern, m); });
+                time::detail::layout_writer::with_moment(t, [&](const time::detail::moment& m) noexcept { time::detail::write_pattern(to, pattern, m); });
             });
         }
     };
@@ -650,7 +651,7 @@ namespace sgcl::txt {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, false, false);
         }
 
-        static void write(format_sink& out, const time::date& d, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, const time::date& d, const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::layout_writer::moment_of(d);
             detail::put_body_in_field(out, spec, [&](format_sink& to) {
                 time::detail::write_pattern(to, pattern.data() ? pattern : std::string_view("%F"), m);
@@ -692,7 +693,7 @@ namespace sgcl::txt {
             return true;
         }
 
-        static void write(format_sink& out, time::weekday d, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, time::weekday d, const format_spec& spec, std::string_view pattern) noexcept {
             unsigned n = static_cast<unsigned>(d);
             if (n < 1 || n > 7) {
                 string text = time::to_string(d);
@@ -742,7 +743,7 @@ namespace sgcl::txt {
             return true;
         }
 
-        static void write(format_sink& out, time::month mo, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, time::month mo, const format_spec& spec, std::string_view pattern) noexcept {
             unsigned n = static_cast<unsigned>(mo);
             if (n < 1 || n > 12) {
                 string text = time::to_string(mo);
@@ -907,7 +908,7 @@ namespace sgcl::time {
             bool utc = true;            // Z, GMT, UT, +00:00: UTC; any other offset: a fixed zone
         };
 
-        inline expected<datetime, error> instant_of_fields(const read_fields& f, size_t date_at, size_t time_at) {
+        inline expected<datetime, error> instant_of_fields(const read_fields& f, size_t date_at, size_t time_at) noexcept {
             if (!time::date::is_valid(f.year, f.month, f.day)) {
                 return unexpected(error("a day that the month has expected", date_at));
             }
@@ -928,7 +929,7 @@ namespace sgcl::time {
                 return unexpected(error("an instant within the years 1677 to 2262 expected", date_at));
             }
             int64_t ns = int64_t(v);
-            return expected<datetime, error>(std::in_place, made_in_place(), ns, f.utc ? utc_data() : fixed_zone(f.offset));
+            return expected<datetime, error>(zone_access::make_datetime<datetime>(ns, f.utc ? utc_data() : fixed_zone(f.offset)));
         }
 
         // 1*DIGIT after a point: the nanoseconds, digits past the ninth
@@ -955,7 +956,7 @@ namespace sgcl::time {
         }
 
         // RFC 3339 5.6: date-time
-        inline expected<datetime, error> parse_rfc3339(std::string_view text) {
+        inline expected<datetime, error> parse_rfc3339(std::string_view text) noexcept {
             text_reader r{text};
             read_fields f;
             size_t date_at = 0;
@@ -1009,7 +1010,7 @@ namespace sgcl::time {
 
         // A year of two digits as RFC 9110 reads one: the latest year
         // with those digits that is not more than 50 years ahead of now
-        inline int year_of_two_digits(int yy) {
+        inline int year_of_two_digits(int yy) noexcept {
             int now = datetime::from_unix_nano(now_nanos(), time::zone::utc()).year();   // the year in UTC: no zone to read for it
             int y = now - now % 100 + yy;
             if (y > now + 50) {
@@ -1019,7 +1020,7 @@ namespace sgcl::time {
         }
 
         // RFC 9110 5.6.7: IMF-fixdate, rfc850-date, asctime-date
-        inline expected<datetime, error> parse_http(std::string_view text) {
+        inline expected<datetime, error> parse_http(std::string_view text) noexcept {
             text_reader r{text};
             read_fields f;
             size_t length = 0;
@@ -1125,7 +1126,7 @@ namespace sgcl::time {
             }
         }
 
-        inline expected<datetime, error> parse_email(std::string_view text) {
+        inline expected<datetime, error> parse_email(std::string_view text) noexcept {
             static constexpr const char* Zones[] = {"UT", "GMT", "EST", "EDT", "CST", "CDT", "MST", "MDT", "PST", "PDT"};
             static constexpr int ZoneHours[] = {0, 0, -5, -4, -6, -5, -7, -6, -8, -7};
             text_reader r{text};
@@ -1209,7 +1210,7 @@ namespace sgcl::time {
         //----------------------------------------------------------------
         // ISO 8601
         //----------------------------------------------------------------
-        inline expected<datetime, error> parse_iso8601(std::string_view text) {
+        inline expected<datetime, error> parse_iso8601(std::string_view text) noexcept {
             // The date up to 'T', read by date::parse, which knows its three
             // forms
             size_t t_at = text.find_first_of("Tt");
@@ -1687,7 +1688,7 @@ namespace sgcl::time {
         }
 
         // The date the fields name, with every field read agreeing
-        inline expected<time::date, error> date_of_fields(const pattern_fields& f, size_t at) {
+        inline expected<time::date, error> date_of_fields(const pattern_fields& f, size_t at) noexcept {
             optional<int64_t> year = f.year;
             if (f.year && f.short_year && (*f.year < 0 ? -*f.year : *f.year) % 100 != *f.short_year) {
                 return unexpected(error("a year of two digits that is not the year's", at));
@@ -1722,8 +1723,11 @@ namespace sgcl::time {
                 int first = f.week_sunday ? (7 - jan1_weekday % 7) % 7 : (8 - jan1_weekday) % 7;   // days to the first such day
                 int week = f.week_sunday ? *f.week_sunday : *f.week_monday;
                 int offset_in_week = f.week_sunday ? *f.weekday % 7 : *f.weekday - 1;
-                d = jan1.add_days(first + (week - 1) * 7 + offset_in_week);
-                if (d->year() != *year) {
+                int days = first + (week - 1) * 7 + offset_in_week;
+                d = jan1.add_days(days);
+                // Past either end of the calendar add_days stops at the end,
+                // a day of the year asked for but not the one named
+                if (d->year() != *year || jan1.days_until(*d) != days) {
                     return unexpected(error("a week and a day that the year has expected", at));
                 }
             } else if ((f.iso_year || f.iso_short_year) && f.iso_week && f.weekday) {
@@ -1753,7 +1757,7 @@ namespace sgcl::time {
     : datetime(parse(text, format).value()) {
     }
 
-    inline expected<datetime, error> datetime::parse(const string& text, layout format) {
+    inline expected<datetime, error> datetime::parse(const string& text, layout format) noexcept {
         std::string_view s(text);
         switch (detail::layout_access::kind(format)) {
         case detail::Rfc3339:
@@ -1828,7 +1832,7 @@ namespace sgcl::time::detail {
 
     // The unit of a duration as std::format's %q writes it
     template<class Period>
-    std::string unit_of() {
+    std::string unit_of() noexcept {
         using namespace std;
         if constexpr (is_same_v<Period, atto>) return "as";
         else if constexpr (is_same_v<Period, femto>) return "fs";
@@ -1859,7 +1863,7 @@ namespace sgcl::time::detail {
     // it, which is as a stream does (six significant digits, %g:
     // 2.46898e+08)
     template<class Rep>
-    std::string count_of(Rep r, bool streamed = false) {
+    std::string count_of(Rep r, bool streamed = false) noexcept {
         char text[64];
         if constexpr (std::is_floating_point_v<Rep>) {
             if (!streamed) {
@@ -1875,7 +1879,7 @@ namespace sgcl::time::detail {
     }
 
     template<class Rep, class Period>
-    moment moment_of_duration(std::chrono::duration<Rep, Period> d, std::string& count, std::string& unit) {
+    moment moment_of_duration(std::chrono::duration<Rep, Period> d, std::string& count, std::string& unit) noexcept {
         using namespace std::chrono;
         moment m;
         m.is_duration = true;
@@ -1937,7 +1941,7 @@ namespace sgcl::txt {
         // The field of a value of <chrono>: its pattern written, or its
         // default one
         inline void write_chrono(format_sink& out, const format_spec& spec, std::string_view pattern,
-                                 std::string_view fallback, const time::detail::moment& m, std::string_view tail = {}) {
+                                 std::string_view fallback, const time::detail::moment& m, std::string_view tail = {}) noexcept {
             put_body_in_field(out, spec, [&](format_sink& to) {
                 time::detail::write_pattern(to, pattern.data() ? pattern : fallback, m);
                 if (!pattern.data() && tail.size()) {
@@ -1965,7 +1969,7 @@ namespace sgcl::txt {
         }
 
         static void write(format_sink& out, const std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<Rep, Period>>& t,
-                          const format_spec& spec, std::string_view pattern) {
+                          const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::moment_of_since(t.time_since_epoch(), true, true);
             m.has_zone = true;
             m.abbreviation = "UTC";
@@ -1990,7 +1994,7 @@ namespace sgcl::txt {
         }
 
         static void write(format_sink& out, const std::chrono::time_point<std::chrono::local_t, std::chrono::duration<Rep, Period>>& t,
-                          const format_spec& spec, std::string_view pattern) {
+                          const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::moment_of_since(t.time_since_epoch(), true, true);
             detail::write_chrono(out, spec, pattern, std::ratio_greater_equal_v<Period, std::ratio<86400>> ? "%F" : "%F %T", m);
         }
@@ -2049,7 +2053,7 @@ namespace sgcl::txt {
             return formatter<time::weekday>::takes_layout(pattern);
         }
 
-        static void write(format_sink& out, const std::chrono::weekday& d, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, const std::chrono::weekday& d, const format_spec& spec, std::string_view pattern) noexcept {
             if (!d.ok()) {
                 string text(std::to_string(d.c_encoding()) + " is not a valid weekday");
                 detail::put_padded(out, std::string_view(text), spec);
@@ -2077,7 +2081,7 @@ namespace sgcl::txt {
             return !pattern.data() || time::detail::pattern_ok(pattern, false, true, false);
         }
 
-        static void write(format_sink& out, const std::chrono::hh_mm_ss<D>& h, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, const std::chrono::hh_mm_ss<D>& h, const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::moment_of_since(h.to_duration() < D::zero() ? -h.to_duration() : h.to_duration(), false, true);
             m.second_of_day = int64_t(h.hours().count()) * 3600 + int64_t(h.minutes().count()) * 60 + int64_t(h.seconds().count());
             m.negative = h.is_negative();
@@ -2106,7 +2110,7 @@ namespace sgcl::txt {
             return !pattern.data() || time::detail::pattern_ok(pattern, false, true, false, true);
         }
 
-        static void write(format_sink& out, const std::chrono::duration<Rep, Period>& d, const format_spec& spec, std::string_view pattern) {
+        static void write(format_sink& out, const std::chrono::duration<Rep, Period>& d, const format_spec& spec, std::string_view pattern) noexcept {
             std::string count;
             std::string unit;
             time::detail::moment m = time::detail::moment_of_duration(d, count, unit);
@@ -2127,7 +2131,7 @@ namespace sgcl::txt {
 }
 
 namespace sgcl::time {
-    inline expected<datetime, error> datetime::parse(const string& text, const string& pattern, const time::zone& z) {
+    inline expected<datetime, error> datetime::parse(const string& text, const string& pattern, const time::zone& z) noexcept {
         detail::text_reader r{std::string_view(text)};
         detail::pattern_fields f;
         if (!detail::read_pattern(r, std::string_view(pattern), f, false)) {
@@ -2205,7 +2209,7 @@ namespace sgcl::time {
         return datetime::from_unix_nano(int64_t(ns), z);
     }
 
-    inline expected<date, error> date::parse(const string& text, const string& pattern) {
+    inline expected<date, error> date::parse(const string& text, const string& pattern) noexcept {
         detail::text_reader r{std::string_view(text)};
         detail::pattern_fields f;
         if (!detail::read_pattern(r, std::string_view(pattern), f, true)) {

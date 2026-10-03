@@ -7,6 +7,7 @@
 
 #include "../constant_time.h"
 #include "words.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -397,13 +398,13 @@ namespace sgcl::crypto::detail {
             // The bytes past n are XORed too and thrown away: zeros, so
             // that nothing reads memory never written
             unsigned char buffer[512] = {};
-            std::memcpy(buffer, in, n);
+            sgcl::detail::copy_bytes(buffer, in, n);
             if (n > 256) {
                 chacha_xor_groups<2>(s, counter, buffer, buffer);
             } else {
                 chacha_xor_groups<1>(s, counter, buffer, buffer);
             }
-            std::memcpy(out, buffer, n);
+            sgcl::detail::copy_bytes(out, buffer, n);
             secure_zero(buffer, sizeof buffer);
             return;
         }
@@ -427,9 +428,9 @@ namespace sgcl::crypto::detail {
         if (n > 128) {
             // as on NEON: the bytes past n XORed too, zeros, thrown away
             unsigned char buffer[256] = {};
-            std::memcpy(buffer, in, n);
+            sgcl::detail::copy_bytes(buffer, in, n);
             chacha_xor_four_x86(s, counter, buffer, buffer);
-            std::memcpy(out, buffer, n);
+            sgcl::detail::copy_bytes(out, buffer, n);
             secure_zero(buffer, sizeof buffer);
             return;
         }
@@ -462,6 +463,8 @@ namespace sgcl::crypto::detail {
 #if SGCL_CRYPTO_NEON
         if (n > 64) {
             const size_t made = n > 448 ? 576 : n > 192 ? 512 : 256;
+            // libc, not fill_bytes: 256 to 576 zeros in cache on every
+            // message, where libc zeroes whole cache lines (DESIGN 393)
             std::memset(ks, 0, made);
             if (made == 576) {
                 chacha_xor_nine(s, 0, ks, ks);

@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "copy.h"
 #include "../error.h"
 #include "../../core/detail/bytes.h"
 
@@ -456,6 +457,11 @@ namespace sgcl::compress::detail {
                         // into the next header. Only the counted bits stay.
                         bitbuf = bitcnt ? bitbuf & ((uint64_t(1) << bitcnt) - 1) : 0;
                         size_t n = std::min<size_t>({size_t(s.stored_left), size_t(in_end - in), capacity - p});
+                        // A stored block, up to 64 KB, into a result perhaps not in
+                        // the cache: libc's copy, as copy.h says why (one-shot
+                        // inflate of stored blocks 19.1 GB/s, 15.0 by copy_bytes).
+                        // Not copy_out: its branch here, in the decoder's loop,
+                        // made that case 0.4-1.0x from run to run.
                         std::memcpy(out + p, in, n);
                         p += n;
                         in += n;

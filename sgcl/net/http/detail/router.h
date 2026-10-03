@@ -279,7 +279,7 @@ namespace sgcl::net::http::detail {
         static constexpr size_t Inline = 32;
         static constexpr size_t Buffer = 512;
 
-        explicit PathSegments(std::string_view path) {
+        explicit PathSegments(std::string_view path) noexcept {
             size_t n = 1;
             if (!path.empty() && path.front() == '/') {
                 n = size_t(std::count(path.begin() + 1, path.end(), '/')) + 1;
@@ -337,7 +337,7 @@ namespace sgcl::net::http::detail {
     private:
         // One segment: itself when nothing in it is escaped, else unescaped
         // (the standard's percent-decode, as url_unescape) into the buffer
-        std::string_view _segment(std::string_view s, size_t rest) {
+        std::string_view _segment(std::string_view s, size_t rest) noexcept {
             if (s.find('%') == std::string_view::npos) {
                 return s;
             }
@@ -380,7 +380,7 @@ namespace sgcl::net::http::detail {
     };
 
     // Whether the path matches the pattern's, and the values of its wildcards
-    inline bool match_path(const RoutePattern& p, const PathSegments::List& segs, vector<pair<string, string>>* values, const vector<string>* names = nullptr) {
+    inline bool match_path(const RoutePattern& p, const PathSegments::List& segs, vector<pair<string, string>>* values, const vector<string>* names = nullptr) noexcept {
         // a wildcard's name: the table's string, a word copied (one made
         // per value per request before)
         auto name_of = [&](const RouteSegment& s) {
@@ -492,7 +492,7 @@ namespace sgcl::net::http::detail {
         // wildcard and the path with a '/' added matches exactly, which is a
         // redirect there (the subtree named without its slash); failing a
         // match, the methods the path would match with make a 405
-        Found find(std::string_view method, std::string_view host, std::string_view path) const {
+        Found find(std::string_view method, std::string_view host, std::string_view path) const noexcept {
             Found f;
             PathSegments parts(path);
             auto segs = parts.list();
@@ -609,7 +609,7 @@ namespace sgcl::net::http::detail {
             return segs.size() == k + 1 && segs[k].empty();
         }
 
-        optional<size_t> _best(std::string_view method, std::string_view host, const PathSegments::List& segs) const {
+        optional<size_t> _best(std::string_view method, std::string_view host, const PathSegments::List& segs) const noexcept {
             optional<size_t> best;
             bool best_host = false;
             for (size_t i = 0; i < _patterns.size(); ++i) {

@@ -151,6 +151,18 @@ TEST(NetIp_Tests, LiteralsConstruct) {
     static_assert(!std::is_convertible_v<string, endpoint>, "explicit");
 }
 
+// txt::format (and println) write what to_string gives, in the field's width
+TEST(NetIp_Tests, Formatted) {
+    EXPECT_EQ(txt::format("{}", ip_address("2001:db8::1")), "2001:db8::1");
+    EXPECT_EQ(txt::format("{}", ip_address("fe80::1%en0")), "fe80::1%en0");
+    EXPECT_EQ(txt::format("{}", ip_address()), ip_address().to_string());
+    EXPECT_EQ(txt::format("{}", ip_network("10.0.0.0/8")), "10.0.0.0/8");
+    EXPECT_EQ(txt::format("{} and {}", endpoint("[::1]:443"), endpoint("10.0.0.1:80")), "[::1]:443 and 10.0.0.1:80");
+    EXPECT_EQ(txt::format("[{:>12}]", ip_address("10.0.0.1")), "[    10.0.0.1]");
+    EXPECT_EQ(txt::format("[{:*<14}]", endpoint("10.0.0.1:80")), "[10.0.0.1:80***]");
+    EXPECT_EQ(txt::format("[{:^14}]", ip_network("10.0.0.0/8")), "[  10.0.0.0/8  ]");
+}
+
 TEST(NetIp_Tests, ParseGivesTheReason) {
     auto a = ip_address::parse("10.0.0.x");
     ASSERT_FALSE(a);

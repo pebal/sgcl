@@ -15,6 +15,59 @@ using namespace sgcl::async;
 namespace {
     using namespace std::chrono_literals;
     using Clock = std::chrono::steady_clock;
+
+    template<class C>
+    concept closable = requires(const C& c) { c.close(); };
+
+    template<class C>
+    concept sendable = requires(const C& c) { c.try_send(); c.send(); };
+
+    // A function that only listens takes the receiving end
+    bool stopped_now(sgcl::async::receive_channel<void> stop) {
+        return stop.closed();
+    }
+}
+
+// The token's channel is the receiving end of the stop's channel: the
+// program may wait on it and select on it, but not close it or send on
+// it, which would read as a stop that stopped nothing (the children, the
+// deadline)
+TEST(StopToken_Test, TheTokensChannelOnlyReceives) {
+    sgcl::async::stop_source src;
+    auto stop = src.token().channel();
+    static_assert(std::is_same_v<decltype(stop), sgcl::async::receive_channel<void>>);
+    static_assert(!closable<decltype(stop)>);
+    static_assert(!sendable<decltype(stop)>);
+    static_assert(closable<sgcl::async::channel<void>> && sendable<sgcl::async::channel<void>>);
+    static_assert(sgcl::req::handle<sgcl::async::receive_channel<int>> && sgcl::req::handle<sgcl::async::receive_channel<void>>);
+    sgcl::async::stop_source child(src.token());
+    EXPECT_FALSE(stop.closed());
+    EXPECT_FALSE(stop.try_receive());
+    EXPECT_FALSE(stopped_now(stop));
+    EXPECT_TRUE(stop == src.token().channel());   // the same channel, the stop's
+    src.request_stop();
+    EXPECT_TRUE(stop.closed());
+    EXPECT_TRUE(stopped_now(stop));
+    EXPECT_FALSE(stop.receive().wait());           // closed: at once, nothing
+    EXPECT_TRUE(child.stop_requested());
+    sgcl::async::channel<void> own(1);             // a channel converts to its receiving end
+    EXPECT_FALSE(stopped_now(own));
+    sgcl::async::receive_channel<void> end = own;
+    EXPECT_TRUE(end == own);
+    EXPECT_TRUE(own.try_send());
+    EXPECT_TRUE(end.try_receive());
+    sgcl::async::channel<int> numbers(2);
+    sgcl::async::receive_channel<int> in = numbers;
+    numbers.try_send(1);
+    numbers.try_send(2);
+    numbers.close();
+    int sum = 0;
+    for (int v : in) {
+        sum += v;
+    }
+    EXPECT_EQ(sum, 3);
+    EXPECT_EQ(in.capacity(), 2u);
+    EXPECT_TRUE(in.empty());
 }
 
 TEST(StopToken_Test, ATokenIsACaseOfASelect) {

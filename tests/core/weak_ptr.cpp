@@ -81,7 +81,7 @@ TEST(WeakGcTrackedPtr_Tests, ConvertsToABaseClass) {
     weak_ptr<Bar> base = baz;
     ASSERT_TRUE(base.lock());
     EXPECT_EQ(base.lock()->get_value(), 5);
-    weak_ptr<Bar> from_weak = weak_ptr<Baz>(baz);
+    weak_ptr<Bar> from_weak = weak_ptr<Baz>(baz).lock();   // a weak_ptr reaches a base through lock()
     EXPECT_EQ(from_weak.lock().get(), baz.get());
 }
 

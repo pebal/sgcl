@@ -40,7 +40,7 @@ namespace sgcl::net::detail {
     // The interface index of a zone: a number as it stands ("%4"), a name
     // through if_nametoindex ("%en0"); 0 when there is none, or no such
     // interface
-    inline uint32_t scope_of(const ip_address& a) {
+    inline uint32_t scope_of(const ip_address& a) noexcept {
         if (!a.has_zone()) {
             return 0;
         }
@@ -64,7 +64,7 @@ namespace sgcl::net::detail {
     // address on an IPv6 socket as the mapped one (a dual-stack socket
     // reaches IPv4 so); false for an IPv6 address on an IPv4 socket, and
     // for a zone that names no interface
-    inline bool to_sockaddr(const endpoint& e, int family, SockAddr& out) {
+    inline bool to_sockaddr(const endpoint& e, int family, SockAddr& out) noexcept {
         out = SockAddr();
         auto a = e.address();
         if (family == AF_INET) {
@@ -105,7 +105,7 @@ namespace sgcl::net::detail {
     // (what a dual-stack socket reports for an IPv4 peer) as the IPv4 one,
     // a scope as the zone (the interface's name, or its number when it has
     // none); the empty endpoint for any other family
-    inline endpoint from_sockaddr(const sockaddr* sa) {
+    inline endpoint from_sockaddr(const sockaddr* sa) noexcept {
         if (sa->sa_family == AF_INET) {
             auto* s = reinterpret_cast<const sockaddr_in*>(sa);
             auto* b = reinterpret_cast<const uint8_t*>(&s->sin_addr);
@@ -149,7 +149,7 @@ namespace sgcl::net::detail {
     }
 
     // The endpoint the socket is bound to (getsockname); empty for a unix socket
-    inline endpoint local_of(int fd) {
+    inline endpoint local_of(int fd) noexcept {
         SockAddr a;
         if (::getsockname(fd, a.get(), &a.size) != 0) {
             return endpoint();
@@ -157,7 +157,7 @@ namespace sgcl::net::detail {
         return from_sockaddr(a.get());
     }
 
-    inline endpoint remote_of(int fd) {
+    inline endpoint remote_of(int fd) noexcept {
         SockAddr a;
         if (::getpeername(fd, a.get(), &a.size) != 0) {
             return endpoint();

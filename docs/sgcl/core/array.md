@@ -1,184 +1,206 @@
-# sgcl::array
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::array\<T, N\>
 
 ```cpp
-#include "sgcl/core/array.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/array.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class T, size_t N>
-    class array;                              // the N elements inline, with the braces of an aggregate
+    class array;
+
+    template<class T>
+    class array<T, 0>;
 }
 ```
 
-`sgcl::array<T, N>` is `std::array`: the `N` elements inline, no memory of its own, the tuple interface (`std::tuple_size`, `std::tuple_element`, `sgcl::get<I>`, structured bindings), `constexpr` throughout. It exists so that a fixed set of `tracked_ptr`s can be written as one object, `sgcl::array<sgcl::tracked_ptr<T>, 4> roots = {}`, that lives wherever its elements may and costs nothing beyond them, and so that a fixed set of anything has the members of every range of the library: `a.sort()`, `a.contains(x)`, `a.min()` ([the mixins](mixin/README.md)). `array<T, 0>` has the same interface over no elements. For a count known only at run time, in a managed buffer: [dynamic_array](dynamic_array.md).
+`sgcl::array<T, N>` is `std::array`: the `N` elements inline, no memory of its own, the tuple interface
+(`std::tuple_size`, `std::tuple_element`, `sgcl::get<I>`, structured bindings), `constexpr` throughout. It exists
+so that a fixed set of `tracked_ptr`s can be written as one object,
+`sgcl::array<sgcl::tracked_ptr<T>, 4> roots = {}`, that lives wherever its elements may and costs nothing beyond
+them, and so that a fixed set of anything has the members of every range of the library: `a.sort()`,
+`a.contains(x)`, `a.min()` ([the mixins](mixin/README.md)).
+`array<T, 0>` has the same interface over no elements. An array is made from a built-in array by
+[to_array](to_array.md). For a count known only at run time, in a managed buffer: [dynamic_array](dynamic_array.md).
 
-Unlike `std::array` it is not an aggregate — a class with the mixins as its bases, which an aggregate cannot carry — but it keeps the aggregate's braces: `array<int, 3> a = {1, 2, 3}`, and the rest of what an aggregate gives (a trivial default constructor, trivial copies, `sizeof == N * sizeof(T)`).
+Unlike `std::array` it is not an aggregate — a class with the mixins as its bases, which an aggregate cannot
+carry — but it keeps the aggregate's braces: `array<int, 3> a = {1, 2, 3}` ([constructor](array/array.md)), and
+the rest of what an aggregate gives: a trivial default constructor, trivial copies, `sizeof == N * sizeof(T)`.
 
 ## Rules
 
-- `array<T, N>` lives wherever its elements may: when `T` is or contains a `tracked_ptr`, on a stack or inside a managed object only ([The rules](README.md#the-rules), 1).
-- Iterators are raw pointers in a thin class (`std::contiguous_iterator`), cheap to copy, at home in any container.
-- Thread safety is that of a `std::array`: concurrent readers, or one writer, with the program's own synchronization.
+- `array<T, N>` lives wherever its elements may: when `T` is or contains a `tracked_ptr`, on a stack or inside a
+  managed object only ([The rules](README.md#the-rules), 1).
+- Iterators are raw pointers in a thin class (`std::contiguous_iterator`), cheap to copy, at home in any
+  container; the array carries the contiguous category ([req::contiguous](req/contiguous.md)).
+- Thread safety is that of a `std::array`: concurrent readers, or one writer, with the program's own
+  synchronization.
 
-## Members
-### Types
+## Template parameters
 
-```cpp
-using value_type = T;  using reference = T&;  using const_reference = const T&;
-using pointer = T*;  using const_pointer = const T*;
-using size_type = size_t;  using difference_type = ptrdiff_t;
-using iterator = detail::ContiguousIterator<T>;  using const_iterator = detail::ContiguousIterator<const T>;
-using reverse_iterator = std::reverse_iterator<iterator>;  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-```
+| Parameter | Description |
+|---|---|
+| `T` | The type of the elements: any object type that is not a reference or an array. An operation that copies or moves elements requires `T` to be copyable or movable. |
+| `N` | The number of elements. `array<T, 0>` is a [specialization](#specializations). |
 
-### Constructors
+## Member types
 
-```cpp
-constexpr array() = default;                 // trivial: the elements uninitialized, as an aggregate's; `= {}` zeroes them
-constexpr array(T... elements);              // N <= 64: N parameters of type T, one per element: {1, 2, 3}
-template<class... U>
-constexpr array(U&&... elements);            // N > 64: N arguments, each converting to T implicitly
-```
+| Type | Definition |
+|---|---|
+| `value_type` | `T` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `reference` | `T&` |
+| `const_reference` | `const T&` |
+| `pointer` | `T*` |
+| `const_pointer` | `const T*` |
+| `iterator` | a pointer to `T` in a class of the library, `std::contiguous_iterator` |
+| `const_iterator` | the same over `const T` |
+| `reverse_iterator` | `std::reverse_iterator<iterator>` |
+| `const_reverse_iterator` | `std::reverse_iterator<const_iterator>` |
 
-The braces of an aggregate, as a constructor. Each element is constructed in place from its argument; a fourth argument for an `array<T, 3>` is an error at compile time; an element that only moves is moved in; an element that is itself an aggregate takes its brace, `array<point, 2> p = {{1, 2}, {3, 4}}`, one level for one level; `array<double, 2> d = {1, 2}` as for an aggregate. Past 64 elements the constructor is a template, which takes the same arguments but a brace without a type (`{{1, 2}, ...}` for points is refused there, `{point{1, 2}, ...}` is not) and does not refuse a narrowing one (`1.5` for an `int`). Neither form puts anything but `T` and `N` into the type: `array<std::byte, 32768>` has a name of a few dozen characters. What the constructor does not do that the aggregate did: fill in the rest when fewer elements are given — `array<int, 3> a = {7}` is an error, `= {}` the way to zero.
+## Member functions
 
-```cpp
-array<int, 3> a = {1, 2, 3};
-array<tracked_ptr<int>, 2> roots = {};             // two null pointers, on the stack
-roots[0] = make_tracked<int>(5);
-constexpr array<int, 2> c = {4, 5};                    // constexpr: everything is
-static_assert(c[1] == 5 && c.size() == 2 && c.contains(4));
-array<std::unique_ptr<int>, 2> owned = {std::make_unique<int>(1), std::make_unique<int>(2)};   // moved in
-array<int, 4> raw;                                     // uninitialized, as int[4]
-```
+| Function | Description |
+|---|---|
+| [(constructor)](array/array.md) | constructs the array from its elements, or leaves them uninitialized |
+| `(destructor)` | destroys the elements; implicitly declared |
+| `operator=` | assigns every element from the other array's; implicitly declared |
 
-### at, operator[]
+#### Element access
 
-```cpp
-constexpr reference at(size_type pos);  constexpr const_reference at(size_type pos) const;
-constexpr reference operator[](size_type pos) noexcept;  constexpr const_reference operator[](size_type pos) const noexcept;
-```
+| Function | Description |
+|---|---|
+| [at](array/at.md) | access the element at a position, with bounds checking |
+| [operator[]](array/operator_at.md) | access the element at a position |
+| [front](array/front.md) | access the first element |
+| [back](array/back.md) | access the last element |
+| [data](array/data.md) | the elements as a plain pointer |
+| [as_slice, operator slice](array/as_slice.md) | the elements, or a part of them, as a slice |
 
-`at` throws `out_of_range` for `pos >= N` (always, for `array<T, 0>`); `operator[]` does not check. `array<T, 0>` has no `operator[]`.
+#### Iterators
 
-### front, back, data
+| Function | Description |
+|---|---|
+| [begin, cbegin](array/begin.md) | an iterator to the beginning |
+| [end, cend](array/end.md) | an iterator to the end |
+| [rbegin, crbegin](array/rbegin.md) | a reverse iterator to the beginning |
+| [rend, crend](array/rend.md) | a reverse iterator to the end |
 
-```cpp
-constexpr reference front() noexcept;  constexpr const_reference front() const noexcept;    // N > 0
-constexpr reference back() noexcept;   constexpr const_reference back() const noexcept;
-constexpr T* data() noexcept;  constexpr const T* data() const noexcept;                   // nullptr for N == 0
-```
+#### Capacity
 
-`front` and `back` require an element; `array<T, 0>` does not have them.
+| Function | Description |
+|---|---|
+| [empty](array/empty.md) | checks whether the array is empty |
+| [size](array/size.md) | the number of elements |
+| [max_size](array/max_size.md) | the largest number of elements, `N` |
 
-### as_slice, the conversion to a slice
+#### Operations
 
-```cpp
-slice<T> as_slice() noexcept;  slice<const T> as_slice() const noexcept;
-slice<T> as_slice(size_type pos, size_type n = size_type(-1));  slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const;   // out_of_range for pos > N
-operator slice<T>() noexcept;  operator slice<const T>() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [fill](array/fill.md) | assigns a value to every element |
+| [swap](array/swap.md) | swaps the elements with another array's |
 
-The elements as a [slice](slice.md) without an owner, as a C array and a `std::array` give one: the array lives on a stack or inside an object, and whoever holds that keeps the elements. A function that takes a `slice` takes an array as it is (`big_endian::write_u32(header, v)`), and `slice s(a)` deduces `slice<T>`, or `slice<const T>` from a const array.
+#### From mixin::enumerable
 
-### Iterators
+The questions asked of the elements, carried by every container of the library
+([mixin::enumerable](mixin/enumerable.md)). They are `constexpr`, so a table built at compile time can be searched
+at compile time.
 
-```cpp
-constexpr iterator begin() noexcept;                      constexpr const_iterator begin() const noexcept;
-constexpr const_iterator cbegin() const noexcept;
-constexpr iterator end() noexcept;                        constexpr const_iterator end() const noexcept;
-constexpr const_iterator cend() const noexcept;
-constexpr reverse_iterator rbegin() noexcept;             constexpr const_reverse_iterator rbegin() const noexcept;
-constexpr const_reverse_iterator crbegin() const noexcept;
-constexpr reverse_iterator rend() noexcept;               constexpr const_reverse_iterator rend() const noexcept;
-constexpr const_reverse_iterator crend() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [contains](mixin/enumerable/contains.md) | checks whether an element is equal to a value |
+| `index_of` | the position of the first element equal to a value |
+| `last_index_of` | the position of the last element equal to a value |
+| `find_if` | a pointer to the first element the predicate accepts |
+| `find_index` | the position of the first element the predicate accepts |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `min`, `max` | the smallest, the largest element |
+| `for_each` | calls a function with every element |
 
-Contiguous iterators over the elements, raw pointers: `std::ranges` algorithms work. An iterator dying in a frame nulls its word, so a temporary left behind does not root anything under the conservative stack scan. `array<T, 0>` has no `crbegin`/`crend`.
+#### From mixin::ordered
 
-### empty, size, max_size
+The order of the elements ([mixin::ordered](mixin/ordered.md)).
 
-```cpp
-[[nodiscard]] constexpr bool empty() const noexcept;    // N == 0
-constexpr size_type size() const noexcept;              // N
-constexpr size_type max_size() const noexcept;          // N
-```
+| Function | Description |
+|---|---|
+| `sort` | sorts the elements |
+| `sort_by` | sorts the elements by a projection |
+| `stable_sort` | sorts the elements, keeping the order of equal ones |
+| `is_sorted` | checks whether the elements are sorted |
+| `binary_search` | checks whether a sorted array holds a value |
+| `lower_bound`, `upper_bound` | the first element not less than, greater than a value, in a sorted array |
+| `sorted_index_of` | the position of a value in a sorted array |
 
-### The mixins
+#### From mixin::sequence
 
-`array<T, N>` carries [mixin::enumerable](mixin/enumerable.md), [mixin::equatable](mixin/equatable.md), [mixin::comparable](mixin/comparable.md), [mixin::ordered](mixin/ordered.md), [mixin::sequence](mixin/sequence.md) and the contiguous category: everything a `vector` answers, `constexpr`, so a table built at compile time can be searched at compile time.
+The writes over every element ([mixin::sequence](mixin/sequence.md)); the array's own [fill](array/fill.md)
+hides the mixin's.
 
-```cpp
-constexpr array primes = {2, 3, 5, 7, 11};
-static_assert(primes.is_sorted() && primes.binary_search(7) && primes.sorted_index_of(11) == 4 && primes.max() == 11);
-array a = {5, 3, 9, 3};
-assert(a.contains(9) && a.index_of(3) == 1 && a.find_index([](int x) { return x > 4; }) == 0);
-if (int* big = a.find_if([](int x) { return x > 8; })) {
-    *big = 8;
-}
-a.sort();                                        // 3 3 5 8
-a.reverse();                                     // 8 5 3 3
-a.fill(0);
-```
+| Function | Description |
+|---|---|
+| `reverse` | reverses the order of the elements |
 
-### fill, swap
+## Non-member functions
 
-```cpp
-constexpr void fill(const T& value);
-constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<T>);   // element by element
-friend constexpr void swap(array& l, array& r) noexcept(noexcept(l.swap(r)));
-```
+| Function | Description |
+|---|---|
+| [operator==, operator\<=\>](array/operator_cmp.md) | compare the elements lexicographically |
+| [swap](array/swap2.md) | swaps the elements of two arrays |
+| [get](array/get.md) | the element at a position given at compile time |
 
-### Comparisons
-
-`==` and `<=>` come with [mixin::equatable](mixin/equatable.md) and [mixin::comparable](mixin/comparable.md): element-wise, as for `std::array`, `<=>` lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), and only for elements that compare. Two `array<T, 0>` are equal.
-
-```cpp
-array<double, 2> e = {1.0, 2.0}, f = {1.0, 3.0};
-bool less = e < f;                                    // true
-bool equal = (e <=> f) == std::partial_ordering::less;   // true: double's ordering
-```
-
-### Deduction guide
+## Deduction guides
 
 ```cpp
 template<class T, class... U>
-array(T, U...) -> array<T, 1 + sizeof...(U)>;                  // all of the same type
+array(T, U...) -> array<std::enable_if_t<(std::is_same_v<T, U> && ...), T>, 1 + sizeof...(U)>;
+
+template<class T, size_t N>
+slice(array<T, N>&) -> slice<T>;
+
+template<class T, size_t N>
+slice(const array<T, N>&) -> slice<const T>;
 ```
 
-```cpp
-array fixed = {1.5, 2.5};                         // array<double, 2>
-```
+The first deduces an array from its elements, all of one type: `array fixed = {1.5, 2.5}` is an
+`array<double, 2>`, and `array mixed = {1, 2.5}` is an error. The two others, declared with the array, let a
+[slice](slice.md) deduce its type from an array: `slice s(a)` is a `slice<T>`, or a `slice<const T>` from a const
+array.
 
-### get, to_array, the tuple interface
+## Specializations
 
-```cpp
-template<size_t I, class T, size_t N> constexpr T& get(array<T, N>& a) noexcept;
-template<size_t I, class T, size_t N> constexpr const T& get(const array<T, N>& a) noexcept;
-template<size_t I, class T, size_t N> constexpr T&& get(array<T, N>&& a) noexcept;
+`array<T, 0>` has the interface of the primary template over no elements, but for the members that would need an
+element: it has no `operator[]`, `front` or `back`. Its `at` always throws `out_of_range`, `data()` is
+`nullptr`, `empty()` is `true`, `fill` and `swap` (the member and the free one) do nothing; two `array<T, 0>` are
+equal. It holds nothing: `sizeof` is 1, as for any empty class.
 
-template<class T, size_t N> constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N]);
-template<class T, size_t N> constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]);
+The tuple interface, in `std`:
 
-namespace std {
-    template<class T, size_t N> struct tuple_size<array<T, N>>;                    // N
-    template<size_t I, class T, size_t N> struct tuple_element<I, array<T, N>>;   // T
-}
-```
+| Specialization | Definition |
+|---|---|
+| `std::tuple_size<sgcl::array<T, N>>` | `N` |
+| `std::tuple_element<I, sgcl::array<T, N>>` | `T` |
 
-`get<I>` is the `I`-th element with a `static_assert` on the range, `to_array` builds an array from a built-in array (copying or moving the elements), and the `std` specializations make structured bindings work.
+With [get](array/get.md) they make structured bindings work: `auto [x, y, z] = a`.
 
-```cpp
-array<int, 3> a = {1, 2, 3};
-auto [x, y, z] = a;                          // structured bindings
-get<1>(a) = 20;
-auto b = to_array({3, 2, 1});            // array<int, 3>
-```
+## Complexity
+
+- Access to an element: constant.
+- `fill`, `swap`, the comparisons, a copy: linear in `N`.
+
+## Iterator invalidation
+
+An iterator, a pointer or a reference to an element is valid as long as the array: nothing an array does moves
+an element. After `swap` an iterator still points into its own array, at the value the other array had there.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -188,17 +210,16 @@ struct Node {
 };
 
 struct Holder {
-    array<tracked_ptr<Node>, 3> nodes;      // three pointers inline, traced with the object
+    array<tracked_ptr<Node>, 3> nodes;  // three pointers inline, traced with the object
 };
 
 int main() {
     // A fixed set of roots on the stack, as one object
     array<tracked_ptr<Node>, 8> roots = {};
     for (int i : range(8)) {
-        roots[i] = make_tracked<Node>();
-        roots[i]->value = i;
+        roots[i] = make_tracked<Node>(i);
         if (i) {
-            roots[i]->next = roots[i - 1];          // a chain, rooted through the array
+            roots[i]->next = roots[i - 1];  // a chain, rooted through the array
         }
     }
 
@@ -207,27 +228,33 @@ int main() {
     h->nodes[2] = roots[7];
 
     tracked_ptr<Node> keep = roots[3];
-    roots.fill(nullptr);                            // the chain lives on behind keep and h->nodes[2]
+    roots.fill(nullptr);  // the chain lives on behind keep and h->nodes[2]
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
+    println("node behind keep {}, held by h {}", keep->next->value, h->nodes[2]->value);
 
     // A table known at compile time, searched at compile time
     constexpr array squares = {0, 1, 4, 9, 16, 25};
-    static_assert(squares.binary_search(16) && squares.sorted_index_of(9) == 3);
-    println("node behind keep {}, squares up to {}, {} even", keep->next->value, squares.max(), squares.count_of([](int x) { return x % 2 == 0; }));
-    return keep->next->value == 2 && h->nodes[2]->value == 7 ? 0 : 1;
+    constexpr bool found = squares.binary_search(16);
+    constexpr size_t nine = squares.sorted_index_of(9);
+    int even = squares.count_of([](int x) { return x % 2 == 0; });
+    println("{} {}, squares up to {}, {} even", found, nine, squares.max(), even);
 }
 ```
 
 Output:
 
 ```text
-node behind keep 2, squares up to 25, 3 even
+node behind keep 2, held by h 7
+true 3, squares up to 25, 3 even
 ```
 
 ## See also
 
-- [dynamic_array](dynamic_array.md): a count fixed at creation, in a managed buffer; [vector](vector.md): a buffer that grows
+- [dynamic_array](dynamic_array.md): a count fixed at creation, in a managed buffer
+- [vector](vector.md): a buffer that grows
+- [to_array](to_array.md): an array from a built-in array
+- [slice](slice.md): a view of elements
 - [the mixins and the requirements](mixin/README.md), [tracked_ptr](tracked_ptr.md), [make_tracked](make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](README.md#the-rules)

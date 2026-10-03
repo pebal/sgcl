@@ -24,6 +24,11 @@
 #include <utility>
 #include <vector>
 
+namespace sgcl::io {
+    class mapping;         // the slices of a mapped region (io/mapping.h, io/shared_memory.h)
+    class shared_memory;
+}
+
 namespace sgcl {
     template<class CharT, class Traits>
     class basic_string;
@@ -216,22 +221,18 @@ namespace sgcl {
         : slice(owner, first, first + n) {
         }
 
-        // The elements [first, last) of memory outside the managed object
-        // `owner`, which keeps that memory alive for as long as it lives
-        // (detail::OutsideOwner: a mapped region); the slice holds it
-        slice(const tracked_ptr<const void>& owner, T* first, T* last, detail::OutsideOwner) noexcept
-        : slice(owner, first, last, Unchecked{}) {
-            assert((!owner || detail::note_outside_owner(detail::Page::metadata_of(owner.get()).type_info)) && "the owner's type noted");
-        }
-
         // From the std containers and views: no owner
         slice(std::span<T> s) noexcept
         : slice(s.data(), s.data() + s.size()) {
         }
 
+        // An array: all of it; an array of const characters (a literal) is
+        // text, read up to its first NUL or its end, as every member of
+        // mixin::text reads one, so that "ab" is two characters and not the
+        // terminator too
         template<size_t N>
         slice(T (&a)[N]) noexcept
-        : slice(a, a + N) {
+        : slice(a, a + _array_length(a)) {
         }
 
         template<class U, size_t N>
@@ -496,23 +497,23 @@ namespace sgcl {
         }
 
         // The characters to trim as code points: trim(U"«»")
-        slice trim(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+        slice trim(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             auto from = this->find_first_not_of(set);
             if (from == npos) {
                 return slice(_object, _begin, _begin, Unchecked{});
             }
             auto last = this->find_last_not_of(set);
-            return slice(_object, _begin + from, _begin + last + this->decode(last).second, Unchecked{});
+            return slice(_object, _begin + from, _begin + last + this->_width_at(last), Unchecked{});
         }
 
-        slice trim_left(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+        slice trim_left(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             auto from = this->find_first_not_of(set);
             return from == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin + from, _end, Unchecked{});
         }
 
-        slice trim_right(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+        slice trim_right(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             auto last = this->find_last_not_of(set);
-            return last == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin, _begin + last + this->decode(last).second, Unchecked{});
+            return last == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin, _begin + last + this->_width_at(last), Unchecked{});
         }
 
         slice trim_prefix(detail::TextView<T> prefix) const noexcept requires detail::IsCharacter<value_type> {
@@ -539,7 +540,7 @@ namespace sgcl {
             return detail::SliceBase<T, slice>::contains(c);
         }
 
-        bool contains(char32_t c) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+        bool contains(char32_t c) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             return detail::SliceBase<T, slice>::contains(c);
         }
 
@@ -551,6 +552,28 @@ namespace sgcl {
 
     private:
         struct Unchecked {};
+
+        // The library's own: the elements [first, last) of memory outside
+        // the managed object `owner`, which keeps that memory alive for as
+        // long as it lives (detail::OutsideOwner: a mapped region, io's
+        // mapping and shared_memory); the slice holds it
+        slice(const tracked_ptr<const void>& owner, T* first, T* last, detail::OutsideOwner) noexcept
+        : slice(owner, first, last, Unchecked{}) {
+            assert((!owner || detail::note_outside_owner(detail::Page::metadata_of(owner.get()).type_info)) && "the owner's type noted");
+        }
+
+        friend class io::mapping;
+        friend class io::shared_memory;
+
+        template<size_t N>
+        static constexpr size_t _array_length(T (&a)[N]) noexcept {
+            if constexpr (std::is_const_v<T> && detail::IsCharacter<value_type>) {
+                const value_type* nul = std::char_traits<value_type>::find(a, N, value_type());
+                return nul ? size_t(nul - a) : N;
+            } else {
+                return N;
+            }
+        }
 
         // The characters of an array before its first NUL, all n without one
         static size_t _up_to_nul(const char* text, size_t n) noexcept {

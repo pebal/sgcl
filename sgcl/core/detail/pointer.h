@@ -11,6 +11,11 @@
 #include <cstring>
 
 namespace sgcl::detail {
+    // The type of no object: what Pointer::type_info<NoObject> answers for
+    // a null pointer, so that is<U>() of null is false for every U a
+    // program names (DESIGN 418) at no cost to a pointer that is not null
+    struct NoObject {};
+
     // The word behind every tracked_ptr, atomic and containers' pointers:
     // one atomic word holding the address of a managed object (or of an
     // element of a container's buffer: base_address_of, data_base_address_of
@@ -228,11 +233,11 @@ namespace sgcl::detail {
         }
 
         // The dynamic type of the object at p (a buffer's: its element
-        // type's array), or T for a null pointer
+        // type's array), or T for a null pointer (NoObject for is<U>())
         template<class T>
         inline static const std::type_info& type_info(const void* p) noexcept {
             if (p) {
-                auto metadata = Page::metadata_of(p);
+                auto& metadata = Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (ArrayBase*)Page::base_address_of(p);
                     auto metadata = array->metadata;
@@ -266,7 +271,7 @@ namespace sgcl::detail {
 
         inline static size_t object_size(const void* p) noexcept {
             if (p) {
-                auto metadata = detail::Page::metadata_of(p);
+                auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
                     auto metadata = array->metadata;
@@ -285,7 +290,7 @@ namespace sgcl::detail {
 
         inline static size_t size(const void* p) noexcept {
             if (p) {
-                auto metadata = detail::Page::metadata_of(p);
+                auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
                     return array->capacity;
@@ -298,7 +303,7 @@ namespace sgcl::detail {
 
         inline static size_t capacity(const void* p) noexcept {
             if (p) {
-                auto metadata = detail::Page::metadata_of(p);
+                auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
                     return array->capacity;
@@ -311,7 +316,7 @@ namespace sgcl::detail {
 
         inline static const size_t* capacity_ptr(const void* p) noexcept {
             if (p) {
-                auto metadata = detail::Page::metadata_of(p);
+                auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
                     return &array->capacity;

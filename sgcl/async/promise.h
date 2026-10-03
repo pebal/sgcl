@@ -47,7 +47,7 @@ namespace sgcl::async {
         // The state and the waiting, shared by promise<T> and promise<void>
         class PromiseBase {
         public:
-            PromiseBase() = default;
+            PromiseBase() noexcept = default;
             PromiseBase(const PromiseBase&) = delete;
             PromiseBase& operator=(const PromiseBase&) = delete;
 
@@ -58,7 +58,7 @@ namespace sgcl::async {
 
             // A case of a select: f() once the promise is done
             template<class F>
-            auto on_done(F f) {
+            auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
                 return _done.on_receive(std::move(f));
             }
 
@@ -136,7 +136,7 @@ namespace sgcl::async {
         public:
             using value_type = T;
 
-            PromiseState() = default;
+            PromiseState() noexcept = default;
 
             // The value in, the waiters woken; the first setter only
             void set_value(const T& v) {
@@ -148,6 +148,7 @@ namespace sgcl::async {
             }
 
             void set_exception(std::exception_ptr e) {
+                assert(e && "a promise is set with an exception, never with a null exception_ptr: result() would have neither");
                 if (_claim()) {
                     _error = std::move(e);
                     _publish();
@@ -232,7 +233,7 @@ namespace sgcl::async {
         public:
             using value_type = void;
 
-            PromiseState() = default;
+            PromiseState() noexcept = default;
 
             void set_value() {
                 if (_claim()) {
@@ -241,6 +242,7 @@ namespace sgcl::async {
             }
 
             void set_exception(std::exception_ptr e) {
+                assert(e && "a promise is set with an exception, never with a null exception_ptr: result() would have neither");
                 if (_claim()) {
                     _error = std::move(e);
                     _publish();
@@ -313,7 +315,7 @@ namespace sgcl::async {
         using value_type = T;
         using awaiter = typename State::awaiter;
 
-        promise()
+        promise() noexcept
         : _s(make_tracked<State>()) {
             _s->link();   // before the state is given to anyone
         }
@@ -343,7 +345,7 @@ namespace sgcl::async {
 
         // A case of a select: f() once the promise is done
         template<class F>
-        auto on_done(F f) const {
+        auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_done(std::move(f));
         }
 
@@ -396,7 +398,7 @@ namespace sgcl::async {
         using value_type = void;
         using awaiter = State::awaiter;
 
-        promise()
+        promise() noexcept
         : _s(make_tracked<State>()) {
             _s->link();   // before the state is given to anyone
         }
@@ -419,7 +421,7 @@ namespace sgcl::async {
         }
 
         template<class F>
-        auto on_done(F f) const {
+        auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_done(std::move(f));
         }
 

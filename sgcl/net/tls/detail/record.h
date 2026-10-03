@@ -69,7 +69,7 @@ namespace sgcl::net::tls::detail {
     // block when it grows, the whole block when it dies
     class SecureBuffer {
     public:
-        explicit SecureBuffer(size_t capacity)
+        explicit SecureBuffer(size_t capacity) noexcept
         : _data(new uint8_t[capacity]()), _capacity(capacity) {
         }
 
@@ -94,7 +94,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // At least n bytes of room, the first `used` kept
-        void reserve(size_t n, size_t used) {
+        void reserve(size_t n, size_t used) noexcept {
             if (n <= _capacity) {
                 return;
             }
@@ -138,7 +138,7 @@ namespace sgcl::net::tls::detail {
 
         // The keys of a traffic secret (§7.3) for the cipher suite; the
         // secret is kept for update()
-        void install(Cipher cipher, const Secret& traffic_secret) {
+        void install(Cipher cipher, const Secret& traffic_secret) noexcept {
             _cipher = cipher;
             _hash = hash_of(cipher);
             std::memcpy(_secret.bytes, traffic_secret.bytes, sizeof _secret.bytes);
@@ -233,6 +233,8 @@ namespace sgcl::net::tls::detail {
             }
             body[n] = uint8_t(type);
             if (padding > 0) {
+                // libc, not fill_bytes: padding may run to 2^14 zeros, where
+                // libc zeroes whole cache lines (DESIGN 393)
                 std::memset(body + n + 1, 0, padding);
             }
             _header(out, ContentType::application_data, Tls12, inner + TagSize);
@@ -255,7 +257,7 @@ namespace sgcl::net::tls::detail {
         // HeaderSize (in place) or a buffer of at least size - HeaderSize
         // bytes that overlaps no byte of the record. Errors: bad_record_mac,
         // record_overflow, unexpected_message, decode_error.
-        [[nodiscard]] expected<Opened, Alert> open(uint8_t* record, size_t size, uint8_t* out) {
+        [[nodiscard]] expected<Opened, Alert> open(uint8_t* record, size_t size, uint8_t* out) noexcept {
             if (size < HeaderSize || size - HeaderSize != (size_t(record[3]) << 8 | record[4])) {
                 return unexpected(record_alert(AlertDescription::decode_error, "a record's length does not match its header"));
             }
@@ -334,7 +336,7 @@ namespace sgcl::net::tls::detail {
             return Opened{inner, bytes_of(out, n)};
         }
 
-        [[nodiscard]] expected<Opened, Alert> open(uint8_t* record, size_t size) {
+        [[nodiscard]] expected<Opened, Alert> open(uint8_t* record, size_t size) noexcept {
             return open(record, size, record + HeaderSize);
         }
 
@@ -368,7 +370,7 @@ namespace sgcl::net::tls::detail {
         optional<crypto::aes_gcm> _gcm;
         optional<crypto::chacha20_poly1305> _chacha;
 
-        void _derive() {
+        void _derive() noexcept {
             _drop_keys();
             TrafficKeys keys;
             traffic_keys(_hash, keys, _secret, key_size(_cipher));
@@ -405,7 +407,7 @@ namespace sgcl::net::tls::detail {
             out[4] = uint8_t(length);
         }
 
-        expected<Opened, Alert> _failed(size_t length) {
+        expected<Opened, Alert> _failed(size_t length) noexcept {
             if (_skipping && length <= _skip_left) {
                 _skip_left -= length;
                 return Opened{};
@@ -428,7 +430,7 @@ namespace sgcl::net::tls::detail {
         static constexpr size_t Large = 2 * MaxRecord;
         static constexpr size_t Kept = 64;
 
-        static uint8_t* take(size_t size) {
+        static uint8_t* take(size_t size) noexcept {
             auto& list = _list(size);
             if (!list.empty()) {
                 uint8_t* p = list.back();
@@ -454,7 +456,7 @@ namespace sgcl::net::tls::detail {
         struct Lists {
             std::vector<uint8_t*> small, large;
 
-            Lists() {
+            Lists() noexcept {
                 small.reserve(Kept);
                 large.reserve(Kept);
             }
@@ -498,7 +500,7 @@ namespace sgcl::net::tls::detail {
 
         // The free room at the end, after moving the bytes still to be
         // framed to the front; never empty while no whole record waits
-        slice<byte> room() {
+        slice<byte> room() noexcept {
             _drop();
             if (!_data) {
                 _data = RecordBlocks::take(RecordBlocks::Small);
@@ -592,7 +594,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        void _grow() {
+        void _grow() noexcept {
             uint8_t* d = RecordBlocks::take(Capacity);
             const size_t rest = _end - _start;
             std::memcpy(d, _data + _start, rest);
@@ -631,7 +633,7 @@ namespace sgcl::net::tls::detail {
         HandshakeAssembler(const HandshakeAssembler&) = delete;
         HandshakeAssembler& operator=(const HandshakeAssembler&) = delete;
 
-        [[nodiscard]] expected<void, Alert> push(const slice<const byte>& fragment, Epoch epoch) {
+        [[nodiscard]] expected<void, Alert> push(const slice<const byte>& fragment, Epoch epoch) noexcept {
             _drop();
             if (fragment.empty()) {
                 return unexpected(record_alert(AlertDescription::unexpected_message, "an empty handshake fragment"));

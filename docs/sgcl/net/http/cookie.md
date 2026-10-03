@@ -1,68 +1,80 @@
+[sgcl](../../README.md) › [net](../README.md) › [http](README.md)
+
 # sgcl::net::http::cookie
 
 ```cpp
-#include "sgcl/net/http/cookie.h"   // or "sgcl/net/http/http.h"
+#include "sgcl/net/http/cookie.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    class cookie;   // a cookie and its attributes as fields (RFC 6265)
+    class cookie;
 }
 ```
 
-A cookie as a server sets it (`Set-Cookie`, RFC 6265 §4.1) and as a client reads one back (§5.2): a value type with its attributes as public fields, Go's `http.Cookie`. There is no jar: which cookies go to which request needs the public suffix list, which is not in the library yet. A request's `Cookie` field is read by [`request::cookie(name)`](request.md).
+`sgcl::net::http::cookie` is a cookie as a server sets it (`Set-Cookie`, RFC 6265 §4.1) and as a client reads one
+back (§5.2): a value type with its attributes as public fields, Go's `http.Cookie`. [to_string](cookie/to_string.md)
+writes the value of a `Set-Cookie` field, [parse](cookie/parse.md) reads one; a handler sends one with the
+[response_writer](response_writer.md)'s `add_cookie`, and a request's `Cookie` field is read by
+[request::cookie](request/cookie.md).
+
+There is no jar: which cookies go to which request needs the public suffix list, which is not in the library yet.
+`Expires` is a [time::datetime](../../time/README.md), written as IMF-fixdate in GMT and read by the cookie-date
+algorithm of RFC 6265 §5.1.1, which takes what browsers take.
 
 ## Rules
 
-- **`to_string`** writes a `Set-Cookie` value: a name that is not a token is `invalid_argument`; a byte of the value no cookie may hold is dropped and a value with a space or a comma is quoted, as Go does; a `Path` loses its `;` and controls; a `Domain` that is not a host name is left out; `Max-Age` of zero or less is written `Max-Age=0` (the cookie is deleted now).
-- **`parse`** reads one as a browser does: the attributes it does not understand, and those that are malformed (a `Max-Age` that is not a number, a `Path` that does not begin with `/`, a `SameSite` of another value), are ignored, and the error (`net::errc::invalid_cookie`) comes back only for a first pair without a `=` or with a name that is not a token. A leading `.` of a `Domain` is dropped and the domain lowercased; quotes around a value are taken off.
-- **`Expires`** is a [`time::datetime`](../../time/README.md): written as IMF-fixdate in GMT, and read by the cookie-date algorithm of RFC 6265 §5.1.1, which takes what browsers take (`Wed, 09 Jun 2021 10:18:14 GMT`, Netscape's `Wed, 09-Jun-2021 10:18:14 GMT`, RFC 850, asctime): the first time, day, month and year among the tokens, a year of two digits 1970 to 2069, nothing before 1601; a date past 2262 (a "never" of 9999) is the end of `datetime`'s range. Where both are given, `Max-Age` wins (a browser's rule, the cookie keeps both fields).
+- A `cookie` is a value: a copy is a cookie of its own, and a moved-from one keeps its fields (a string's move
+  copies its word). It holds strings, so it lives where a `tracked_ptr` may: on a
+  stack, in a task, in a managed object; in a global or a `std` container, a [rooted](../../core/rooted.md) of it.
+- **Written**, a name that is not a token is `invalid_argument`; a byte of the value no cookie may hold is dropped and
+  a value with a space or a comma is quoted, as Go does; a `Path` loses its `;` and controls; a `Domain` that is not
+  a host name is left out; a `Max-Age` of zero or less is written `Max-Age=0` (the cookie is deleted now)
+  ([to_string](cookie/to_string.md)).
+- **Read** as a browser reads it: the attributes it does not understand, and those that are malformed, are ignored,
+  and the error (`net::errc::invalid_cookie`) comes back only for a first pair without a `=` or with a name that is
+  not a token ([parse](cookie/parse.md)).
+- Where both `Expires` and `Max-Age` are given, `Max-Age` wins (a browser's rule; the cookie keeps both fields).
 
-## Members
+## Member objects
 
-### Fields
+| Member | Description |
+|---|---|
+| `string name` | the name, a token of RFC 6265 |
+| `string value` | the value |
+| `string path` | `Path`: the cookie goes to this path and below; `""`, the default, for the default path |
+| `string domain` | `Domain`: the host and its subdomains (`example.com`); `""`, the default, for the host alone |
+| `optional<time::datetime> expires` | `Expires`; `nullopt` by default |
+| `optional<duration> max_age` | `Max-Age`, in whole seconds: zero or less deletes the cookie now; `nullopt` by default |
+| `bool secure` | `Secure`: sent over https only; `false` by default |
+| `bool http_only` | `HttpOnly`: not given to scripts; `false` by default |
+| `bool partitioned` | `Partitioned` (CHIPS): kept apart for each top-level site; `false` by default |
+| `string same_site` | `SameSite`: `"Strict"`, `"Lax"`, `"None"`, or `""`, the default, for none |
 
-```cpp
-string name;
-string value;
-string path;
-string domain;
-optional<time::datetime> expires;
-optional<duration> max_age;
-bool secure = false;
-bool http_only = false;
-bool partitioned = false;
-string same_site;                    // "Strict", "Lax", "None", or ""
-```
+## Member functions
 
-The name and value, and the attributes of RFC 6265 by their names: empty, `nullopt` or `false` for an attribute not given. `same_site` is written as it is set.
-
-### Construction and text
-
-```cpp
-cookie();
-cookie(const string& name, const string& value);
-explicit cookie(const string& field);      // a Set-Cookie literal of the program; throws where parse fails
-string to_string() const;
-static expected<cookie, io::error> parse(const string& field);
-```
-
-A cookie of a name and a value, or of a `Set-Cookie` value written in the program; `to_string` and `parse` are the two directions of the field, by the rules above.
+| Function | Description |
+|---|---|
+| [(constructor)](cookie/cookie.md) | constructs a cookie: empty, of a name and a value, or of a `Set-Cookie` literal |
+| `(destructor)` | drops the strings |
+| `operator=` | copies or moves another cookie |
+| [to_string](cookie/to_string.md) | the value of a `Set-Cookie` field |
+| [parse](cookie/parse.md) | reads the value of a `Set-Cookie` field (static) |
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-#include "sgcl/time/time.h"
+#include "sgcl/io.h"
+#include "sgcl/net/http.h"
+#include "sgcl/time.h"
 
 using namespace sgcl;
 
 int main() {
-    net::http::cookie c("session", "abc 123");
-    c.path = "/";
-    c.max_age = std::chrono::hours(1);
-    c.http_only = true;
-    c.same_site = "Lax";
-    println("{}", c.to_string());
+    net::http::cookie session("session", "abc 123");
+    session.path = "/";
+    session.max_age = std::chrono::hours(1);
+    session.http_only = true;
+    session.same_site = "Lax";
+    println("{}", session.to_string());
 
     net::http::cookie back("id=42; Domain=.Example.COM; Secure; Max-Age=oops; "
                            "Expires=Wed, 09-Jun-2021 10:18:14 GMT");
@@ -82,4 +94,6 @@ id=42 example.com true false
 
 ## See also
 
-- [response_writer](response_writer.md) (`add_cookie`), [request](request.md) (`cookie`)
+- [response_writer](response_writer.md): `add_cookie`, a cookie sent by a handler
+- [request::cookie](request/cookie.md): a cookie of a request's `Cookie` field
+- [headers](headers.md): the `Set-Cookie` fields of a response, by `get_all`

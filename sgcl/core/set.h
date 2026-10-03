@@ -21,10 +21,15 @@ namespace sgcl {
     , public mixin::enumerable<set<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true>>;
 
+        static_assert(detail::nothrow_function_object<Hash, const Key&>, "sgcl::set: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::set: KeyEqual must be noexcept");
+
     public:
         using key_type = Key;
         using value_type = typename Base::value_type;
         using size_type = typename Base::size_type;
+
+        using typename Base::insert_return_type;
 
         using Base::Base;
 

@@ -6,10 +6,12 @@
 #pragma once
 
 #include "detail/bytes.h"
+#include "detail/words.h"
 #include "hmac.h"
 #include "secret.h"
 #include "secure_zero.h"
 #include "../core/aliases.h"
+#include "../core/detail/bytes.h"
 #include "../core/slice.h"
 #include "../core/vector.h"
 
@@ -33,9 +35,8 @@
 // password and every Uj costs two runs of the digest's compression.
 namespace sgcl::crypto {
     template<class H>
+    requires detail::digest_type<H>
     class pbkdf2 {
-        static_assert(detail::digest_type<H>, "pbkdf2<H> takes a digest of the module: sha256, sha512...");
-
     public:
         // n bytes derived from password and salt (bytes or text) in
         // `iterations` rounds. iterations of 0 is std::invalid_argument
@@ -49,9 +50,14 @@ namespace sgcl::crypto {
         }
 
         // derive() into the caller's buffer: out.size() bytes, no
-        // allocation
+        // allocation. The salt is read again for every block, so an out
+        // that overlaps it is std::invalid_argument (the password is read
+        // whole before the first byte is written: out may lie over it)
         static void derive_to(const slice<byte>& out, const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations) {
             _check(iterations, out.size());
+            if (detail::overlap(out.data(), out.size(), salt.data(), salt.size())) {
+                throw invalid_argument("sgcl::crypto::pbkdf2: the output overlaps the salt, which every block reads");
+            }
             _derive(out.data(), out.size(), password, salt, iterations);
         }
 
@@ -60,8 +66,10 @@ namespace sgcl::crypto {
             if (iterations == 0) {
                 throw invalid_argument("sgcl::crypto::pbkdf2: no iterations");
             }
-            // RFC 8018 §5.2: at most 2^32 - 1 blocks of hLen bytes
-            if ((uint64_t(n) + H::digest_size - 1) / H::digest_size > 0xffffffffull) {
+            // RFC 8018 §5.2: at most 2^32 - 1 blocks of hLen bytes, so n at
+            // most (2^32 - 1)·hLen (n rounded up to whole blocks first wrapped
+            // for n near 2^64 and let it through)
+            if (uint64_t(n) > 0xffffffffull * H::digest_size) {
                 throw invalid_argument("sgcl::crypto::pbkdf2: more than 2^32 - 1 blocks asked");
             }
         }
@@ -92,7 +100,7 @@ namespace sgcl::crypto {
                     }
                 }
                 size_t take = std::min(size, n - done);
-                std::memcpy(out + done, t, take);
+                sgcl::detail::copy_bytes(out + done, t, take);
                 done += take;
             }
             detail::secure_zero(u, sizeof u);

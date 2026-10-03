@@ -164,17 +164,6 @@ namespace {
         return !yes;
     }
 
-    bool other_digits(const std::string& s) {
-        for (size_t i = 0; i < s.size();) {
-            auto [c, n] = utf8::decode(std::string_view(s), i);
-            i += n;
-            if (u_getIntPropertyValue(UChar32(c), UCHAR_NUMERIC_TYPE) == U_NT_DIGIT) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     bool odd_marks(const std::u16string& s) {
         for (int32_t i = 0; i < int32_t(s.size());) {
             UChar32 c;
@@ -471,7 +460,7 @@ namespace {
         // and not honoured by the library: collate.md) are not among them
         static const char* tags[] = {"", "de", "sv", "da", "tr", "pl", "cs", "es", "fi", "ro", "lt", "vi", "sq", "lv", "ln", "sk", "hu", "is", "mt", "tk", "cy", "fil", "et", "se"};
         const char* tag = tags[pick % (sizeof(tags) / sizeof(tags[0]))];
-        txt::options how;
+        txt::collator::options how;
         how.strength = txt::strength(mode & 3);
         UCollator* icu = icu_collator(tag);
         UErrorCode e = U_ZERO_ERROR;
@@ -519,14 +508,6 @@ namespace {
         // "S U+0327" at the second level: ICU -1, and 1 with its
         // normalization on, as the library): such texts left out
         if (not_fcd(a) || not_fcd(b)) {
-            ucol_close(icu);
-            return;
-        }
-        // numeric, a number weighs from the first weight of its digit zero
-        // on in the library and below it in ICU, which parts only against
-        // the digits that are no decimal digits (₀, ¹, ①: Numeric_Type
-        // Digit), whose first weight is a digit's: those left out
-        if (how.numeric && (other_digits(a) || other_digits(b))) {
             ucol_close(icu);
             return;
         }

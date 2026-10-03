@@ -128,7 +128,7 @@ namespace sgcl::net::http {
             std::atomic<bool> shutting_down = {false};
             std::atomic<bool> closed = {false};
 
-            void link(const tracked_ptr<ServerConn>& n) {
+            void link(const tracked_ptr<ServerConn>& n) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 n->next = connections;
                 if (connections) {
@@ -137,7 +137,7 @@ namespace sgcl::net::http {
                 connections = n;
             }
 
-            void unlink(const tracked_ptr<ServerConn>& n) {
+            void unlink(const tracked_ptr<ServerConn>& n) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 if (n->prev) {
                     n->prev->next = n->next;
@@ -151,7 +151,7 @@ namespace sgcl::net::http {
                 n->next = tracked_ptr<ServerConn>();
             }
 
-            vector<tracked_ptr<ServerConn>> snapshot() {
+            vector<tracked_ptr<ServerConn>> snapshot() noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 vector<tracked_ptr<ServerConn>> all;
                 for (auto n = connections; n; n = n->next) {
@@ -172,11 +172,11 @@ namespace sgcl::net::http {
             }
         };
 
-        inline time_point deadline_after(duration d) {
+        inline time_point deadline_after(duration d) noexcept {
             return d > duration::zero() ? sgcl::clock::now() + d : time_point();
         }
 
-        inline time_point earlier(time_point a, time_point b) {
+        inline time_point earlier(time_point a, time_point b) noexcept {
             if (a == time_point()) {
                 return b;
             }
@@ -193,7 +193,7 @@ namespace sgcl::net::http {
         // (RFC 9110 §9.3.2: no content in an answer to HEAD — a client
         // reads none, and bytes after the head would be taken for the
         // next answer)
-        inline std::string refusal(int code, std::string_view extra, bool head_request) {
+        inline std::string refusal(int code, std::string_view extra, bool head_request) noexcept {
             std::string body = std::to_string(code) + " " + reason(code) + "\n";
             std::string h = "HTTP/1.1 " + std::to_string(code) + " " + reason(code) + "\r\n";
             h += "Content-Type: text/plain; charset=utf-8\r\n";
@@ -203,15 +203,15 @@ namespace sgcl::net::http {
             return head_request ? h : h + body;
         }
 
-        inline std::string refusal(int code, std::string_view extra = {}) {
+        inline std::string refusal(int code, std::string_view extra = {}) noexcept {
             return refusal(code, extra, false);
         }
 
-        inline async::task<> linger(net::connection c);
+        inline async::task<> linger(net::connection c) noexcept;
 
         // The refusal sent, and the connection lingered on: whatever the
         // client was still sending must not reset the connection under it
-        inline async::task<> send_refusal(net::connection c, int code, bool head_request) {
+        inline async::task<> send_refusal(net::connection c, int code, bool head_request) noexcept {
             std::string bytes = refusal(code, {}, head_request);
             slice<const byte> data(reinterpret_cast<const byte*>(bytes.data()), bytes.size());
             if (co_await c.async_write(data)) {
@@ -219,11 +219,11 @@ namespace sgcl::net::http {
             }
         }
 
-        inline async::task<> send_refusal(net::connection c, int code) {
+        inline async::task<> send_refusal(net::connection c, int code) noexcept {
             co_await send_refusal(c, code, false);
         }
 
-        inline async::task<expected<void, io::error>> send_continue(net::connection c) {
+        inline async::task<expected<void, io::error>> send_continue(net::connection c) noexcept {
             static constexpr std::string_view line = "HTTP/1.1 100 Continue\r\n\r\n";
             slice<const byte> data(reinterpret_cast<const byte*>(line.data()), line.size());
             auto r = co_await c.async_write(data);
@@ -240,7 +240,7 @@ namespace sgcl::net::http {
         // second, 1 MB at most), so that the client reads the response
         // before the close, which with its bytes still unread would be a
         // reset that loses it (Go's closeWrite and wait)
-        inline async::task<> linger(net::connection c) {
+        inline async::task<> linger(net::connection c) noexcept {
             (void)c.close_write();
             c.set_read_deadline(sgcl::clock::now() + std::chrono::milliseconds(500));
             auto block = std::make_unique_for_overwrite<byte[]>(config::io_buffer_size);   // scratch: unmanaged, the frame's while it runs
@@ -270,7 +270,7 @@ namespace sgcl::net::http {
             string options = "OPTIONS";
         };
 
-        inline string method_name(std::string_view m) {
+        inline string method_name(std::string_view m) noexcept {
             static root_ptr<MethodNames>* names = new root_ptr<MethodNames>(make_tracked<MethodNames>());
             auto& n = **names;
             switch (m.size()) {

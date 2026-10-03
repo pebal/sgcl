@@ -35,12 +35,14 @@
 // and the hmac goes on, copy_from() reads a stream into it.
 namespace sgcl::crypto {
     template<class H>
+    requires detail::digest_type<H>
     class pbkdf2;
 
     template<class H>
     requires detail::digest_type<H>
     class hmac : public hash::mixin::hasher<hmac<H>> {
-        template<class>
+        template<class D>
+        requires detail::digest_type<D>
         friend class pbkdf2;
 
     public:

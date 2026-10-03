@@ -15,11 +15,15 @@
 
 #include <atomic>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <unistd.h>
 
 using namespace sgcl;
 using namespace std::chrono_literals;
@@ -544,4 +548,260 @@ TEST(HttpServer_Tests, NothingOfAThousandClosedRequestsStaysAlive) {
     }
     EXPECT_EQ(requests, 0u);
     EXPECT_EQ(writers, 0u);
+}
+
+// DESIGN 408: the head at max_header_bytes exactly (the request line long,
+// or one field long) is served, one byte more is 431; a limit of zero is
+// taken as 1, so every head is past it
+TEST(HttpServer_Tests, TheHeadAtItsLimit) {
+    net::http::server s;
+    s.max_header_bytes = 256;
+    s.route("/", [](net::http::request req, net::http::response_writer w) { w.write(sgcl::string(std::to_string(req.url().path().size()))); });
+    Running r(s);
+    const std::string tail = " HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n";
+    auto line = [&](size_t head) { return "GET /" + std::string(head - 5 - tail.size(), 'a') + tail; };
+    ASSERT_EQ(line(256).size(), 256u);
+    auto at = talk(r, line(256));
+    EXPECT_EQ(at.substr(0, 17), "HTTP/1.1 200 OK\r\n") << at;
+    EXPECT_NE(at.find("\r\n\r\n" + std::to_string(256 - 4 - tail.size())), std::string::npos) << at;
+    EXPECT_EQ(talk(r, line(257)).substr(0, 12), "HTTP/1.1 431");
+    const std::string start = "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\nX: ";
+    auto field = [&](size_t head) { return start + std::string(head - start.size() - 4, 'v') + "\r\n\r\n"; };
+    ASSERT_EQ(field(256).size(), 256u);
+    EXPECT_EQ(talk(r, field(256)).substr(0, 17), "HTTP/1.1 200 OK\r\n");
+    EXPECT_EQ(talk(r, field(257)).substr(0, 12), "HTTP/1.1 431");
+    // empty lines before a request line count toward the limit, not the head
+    EXPECT_EQ(talk(r, std::string(100, '\n') + field(256)).substr(0, 17), "HTTP/1.1 200 OK\r\n");
+    EXPECT_EQ(talk(r, std::string(257, '\n')).substr(0, 12), "HTTP/1.1 431");
+    net::http::server none;
+    none.max_header_bytes = 0;
+    none.route("/", [](net::http::request, net::http::response_writer w) { w.write("x"); });
+    Running z(none);
+    EXPECT_EQ(talk(z, "GET / HTTP/1.1\r\nHost: x\r\n\r\n").substr(0, 12), "HTTP/1.1 431");
+}
+
+// DESIGN 408: empty bodies on the server's side: a Content-Length of 0,
+// chunked with no chunk (with and without a trailer), none at all, each
+// read whole and as a stream, and the next request on the same connection
+TEST(HttpServer_Tests, EmptyBodies) {
+    net::http::server s;
+    s.route("POST /", [](net::http::request req, net::http::response_writer w) -> async::task<> {
+        auto cl = req.content_length();
+        auto t = co_await req.async_text();
+        tracked_ptr block = make_tracked<array<byte, 8>>();
+        auto n = co_await req.body().async_read(slice<byte>(block, block->data(), 8));
+        w.write(sgcl::string((cl ? std::to_string(*cl) : std::string("none")) + "|" + (t ? std::string(t->view()) : "err") + "|"
+                             + (n ? std::to_string(*n) : "err") + "|" + std::to_string(req.trailers().size())));
+    });
+    s.route("GET /", [](net::http::request, net::http::response_writer) {});   // nothing written: 200, Content-Length: 0
+    Running r(s);
+    auto all = talk(r, "POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n"
+                       "POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n"
+                       "POST / HTTP/1.1\r\nHost: x\r\n\r\n"
+                       "POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nT: 1\r\n\r\n"
+                       "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    EXPECT_EQ(count(all, "HTTP/1.1 200 OK\r\n"), 5u) << all;
+    EXPECT_NE(all.find("\r\n\r\n0||0|0HTTP/1.1"), std::string::npos) << all;
+    EXPECT_NE(all.find("\r\n\r\nnone||0|0HTTP/1.1"), std::string::npos) << all;
+    EXPECT_NE(all.find("\r\n\r\nnone||0|1HTTP/1.1"), std::string::npos) << all;   // the trailer of zero chunks
+    EXPECT_NE(all.find("Content-Length: 0\r\n"), std::string::npos) << all;
+    EXPECT_EQ(all.substr(all.size() - 4), "\r\n\r\n") << all;                   // the GET's: a head and no body
+}
+
+// DESIGN 408: the writer at its ends: the status's range, a redirect's,
+// nothing written (whole and flushed), an empty file, a file at its end,
+// a file that cannot be read, an error after a flush, a second hijack
+TEST(HttpServer_Tests, TheWritersBoundaries) {
+    static std::atomic<int> refused{0};
+    auto dir = std::filesystem::temp_directory_path() / ("sgcl_http_writer_" + std::to_string(::getpid()));
+    std::filesystem::create_directories(dir);
+    { std::ofstream(dir / "empty"); }
+    { std::ofstream(dir / "three") << "abc"; }
+    const std::string root = dir.string();
+    net::http::server s;
+    s.on_error = [](const sgcl::string&) {};
+    s.route("/status", [](net::http::request, net::http::response_writer w) {
+        for (int code : {199, 1000, -1, 0}) {
+            try {
+                w.set_status(code);
+            } catch (const std::invalid_argument&) {
+                ++refused;
+            }
+        }
+        for (int code : {299, 400, 200}) {
+            try {
+                w.redirect("/r", code);
+            } catch (const std::invalid_argument&) {
+                ++refused;
+            }
+        }
+        w.redirect("/r", 399);
+        w.set_status(999);
+        w.write("").write(slice<const byte>());
+    });
+    s.route("/flushed", [](net::http::request, net::http::response_writer w) -> async::task<> {
+        (void)co_await w.async_flush();                         // nothing written: the head alone
+        w.set_status(500);                                      // after the head: ignored
+        w.set_header("X-After", "1");
+        w.error(404, "added");                                  // after the head: the line added
+        auto h = w.hijack();
+        w.write(h ? "hijacked" : "|not hijacked");
+    });
+    s.route("/empty", [root](net::http::request, net::http::response_writer w) { w.write(*io::open(sgcl::string(root + "/empty"))); });
+    s.route("/at-end", [root](net::http::request, net::http::response_writer w) {
+        auto f = *io::open(sgcl::string(root + "/three"));
+        (void)io::read_all(f);
+        w.write(f);
+    });
+    s.route("/dir", [root](net::http::request, net::http::response_writer w) {
+        auto f = io::open(sgcl::string(root));
+        if (f) {
+            w.write(*f);
+        } else {
+            w.write("not opened");
+        }
+    });
+    s.route("/hijack", [](net::http::request, net::http::response_writer w) -> async::task<> {
+        auto first = w.hijack();
+        auto second = w.hijack();
+        if (first && !second && second.error().code() == io::errc::closed) {
+            auto [c, rest] = *first;
+            (void)co_await c.async_write(sgcl::string("once"));
+            (void)co_await c.async_close();
+        }
+    });
+    Running r(s);
+    auto status = talk(r, "GET /status HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    EXPECT_EQ(refused.load(), 7);
+    EXPECT_EQ(status.substr(0, 13), "HTTP/1.1 999 ") << status;
+    EXPECT_NE(status.find("Location: /r\r\n"), std::string::npos) << status;
+    EXPECT_NE(status.find("Content-Length: 0\r\n"), std::string::npos) << status;
+    auto flushed = talk(r, "GET /flushed HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    EXPECT_EQ(flushed.substr(0, 17), "HTTP/1.1 200 OK\r\n") << flushed;
+    EXPECT_EQ(flushed.find("X-After"), std::string::npos) << flushed;
+    EXPECT_NE(flushed.find("Transfer-Encoding: chunked\r\n"), std::string::npos) << flushed;
+    EXPECT_NE(flushed.find("\r\n\r\n13\r\nadded\n|not hijacked\r\n0\r\n\r\n"), std::string::npos) << flushed;
+    auto empty = talk(r, "GET /empty HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    EXPECT_NE(empty.find("Content-Length: 0\r\n"), std::string::npos) << empty;
+    EXPECT_EQ(empty.substr(empty.size() - 4), "\r\n\r\n") << empty;
+    auto at_end = talk(r, "GET /at-end HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    EXPECT_NE(at_end.find("Content-Length: 0\r\n"), std::string::npos) << at_end;
+    auto unread = talk(r, "GET /dir HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    EXPECT_EQ(unread.substr(0, 12), "HTTP/1.1 500") << unread;   // the page: a read that failed, 500 when nothing was sent
+    EXPECT_EQ(talk(r, "GET /hijack HTTP/1.1\r\nHost: x\r\n\r\n"), "once");
+    std::filesystem::remove_all(dir);
+}
+
+// DESIGN 408: a writer kept past the end of its response (a task the
+// handler started holds it): its writes go nowhere, a flush is
+// io::errc::closed, and nothing of it reaches the connection, which has
+// gone on to the next request
+TEST(HttpServer_Tests, AWriterUsedAfterTheResponseEnded) {
+    async::event go, done;
+    static std::atomic<int> flushed{-1}, hijacked{-1}, status{0};
+    static std::atomic<bool> sent{false};
+    net::http::server s;
+    s.route("/first", [go, done](net::http::request, net::http::response_writer w) {
+        w.write("first");
+        async::go([](net::http::response_writer w, async::event go, async::event done) -> async::task<> {
+            co_await go;
+            w.set_status(500);
+            w.set_header("X-Late", "1");
+            w.write("late");
+            w.write(sgcl::string("late"));
+            w.error(503, "late");
+            auto f = co_await w.async_flush();
+            flushed = f ? 0 : int(f.error().code() == io::errc::closed);
+            hijacked = w.hijack() ? 0 : 1;
+            sent = w.header_sent();
+            status = w.status();
+            done.set();
+        }(w, go, done));
+    });
+    s.route("/second", [](net::http::request, net::http::response_writer w) { w.write("second"); });
+    Running r(s);
+    auto c = r.connect();
+    (void)c.write(sgcl::string("GET /first HTTP/1.1\r\nHost: x\r\n\r\n"));
+    std::string got;
+    tracked_ptr block = make_tracked<array<byte, 4096>>();
+    while (got.find("\r\n\r\nfirst") == std::string::npos) {
+        auto n = c.read(slice<byte>(block, block->data(), block->size()));
+        ASSERT_TRUE(n && *n);
+        got.append(reinterpret_cast<const char*>(block->data()), *n);
+    }
+    go.set();
+    done.wait();
+    EXPECT_EQ(flushed.load(), 1);
+    EXPECT_EQ(hijacked.load(), 1);
+    EXPECT_TRUE(sent.load());
+    EXPECT_EQ(status.load(), 200);                              // the status that was sent
+    (void)c.write(sgcl::string("GET /second HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"));
+    auto rest = c.read_all_text();
+    ASSERT_TRUE(rest);
+    auto second = text(*rest);
+    EXPECT_EQ(second.substr(0, 17), "HTTP/1.1 200 OK\r\n") << second;
+    EXPECT_EQ(second.find("late"), std::string::npos) << second;
+    EXPECT_EQ(second.substr(second.size() - 10), "\r\n\r\nsecond") << second;
+}
+
+// DESIGN 408: a server moved from is the same server: the routes shared,
+// the settings kept, on_error among them; into itself the same. Closed
+// before it serves, and closed or shut down twice, it says server_closed
+TEST(HttpServer_Tests, AMovedFromServerIsTheSameServer) {
+    static std::atomic<int> told{0};
+    net::http::server s;
+    s.on_error = [](const sgcl::string&) { ++told; };
+    s.max_body_bytes = 5;
+    s.route("/throw", [](net::http::request, net::http::response_writer) { throw std::runtime_error("boom"); });
+    net::http::server to(std::move(s));
+    to.route("/late", [](net::http::request, net::http::response_writer w) { w.write("late"); });
+    auto& self = s;
+    s = self;
+    {
+        Running r(s);
+        EXPECT_EQ(talk(r, "GET /throw HTTP/1.1\r\nHost: x\r\n\r\n").substr(0, 12), "HTTP/1.1 500");
+        EXPECT_EQ(told.load(), 1);                                  // its own on_error, kept
+        EXPECT_EQ(talk(r, "POST /late HTTP/1.1\r\nHost: x\r\nContent-Length: 6\r\n\r\n123456").substr(0, 12), "HTTP/1.1 413");
+        auto late = talk(r, "GET /late HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+        EXPECT_EQ(late.substr(late.size() - 4), "late") << late;   // a route added through the other copy
+    }
+    // closed (by Running), then served again, closed and shut down again
+    auto l = *net::tcp::listen("127.0.0.1:0");
+    auto again = s.serve(l);
+    ASSERT_FALSE(again);
+    EXPECT_EQ(again.error().code(), net::errc::server_closed);
+    s.close();
+    s.shutdown();
+    net::http::server fresh;
+    fresh.shutdown();                                               // never served: at once
+    auto after = fresh.serve(*net::tcp::listen("127.0.0.1:0"));
+    ASSERT_FALSE(after);
+    EXPECT_EQ(after.error().code(), net::errc::server_closed);
+    net::http::server bad;
+    auto nowhere = bad.serve("not an address");
+    EXPECT_FALSE(nowhere);
+}
+
+// DESIGN 408: a received request's readers at their ends: cookies (an
+// empty name, the first of two, one without '=', a bad value passed over,
+// two Cookie fields), the query (an empty name, an empty value, none), a
+// path value that is not the route's, the URL of the absolute form
+TEST(HttpServer_Tests, TheRequestsReadersAtTheirEnds) {
+    net::http::server s;
+    s.route("/r/{id}", [](net::http::request req, net::http::response_writer w) {
+        std::string out;
+        for (const char* name : {"", "a", "b", "c", "d", "e"}) {
+            out += "[" + std::string(req.cookie(name).view()) + "]";
+        }
+        out += "|" + std::string(req.query("").view()) + "|" + std::string(req.query("q").view()) + "|"
+               + std::string(req.query("none").view()) + "|" + std::string(req.path_value("id").view()) + "|"
+               + std::string(req.path_value("other").view()) + "|" + std::string(req.url().to_string().view());
+        w.write(sgcl::string(out));
+    });
+    Running r(s);
+    auto a = talk(r, "GET /r/7?=x&q= HTTP/1.1\r\nHost: h\r\n"
+                     "Cookie: =z; a=1; a=2; b; c=\"x; c=ok\r\nCookie: d=\"q\"; e=v v,w\r\nConnection: close\r\n\r\n");
+    EXPECT_NE(a.find("\r\n\r\n[][1][][ok][q][v v,w]|x|||7||http://h/r/7?=x&q="), std::string::npos) << a;
+    auto absolute = talk(r, "GET http://other:8080/r/8 HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    EXPECT_NE(absolute.find("|8||http://other:8080/r/8"), std::string::npos) << absolute;
 }

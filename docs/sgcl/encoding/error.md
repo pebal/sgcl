@@ -1,97 +1,134 @@
-# sgcl::encoding::error, sgcl::encoding::errc
+[sgcl](../README.md) › [encoding](README.md)
+
+# sgcl::encoding::error
 
 ```cpp
-#include "sgcl/encoding/error.h"   // or "sgcl/encoding/encoding.h"
+#include "sgcl/encoding/error.h"   // or "sgcl/encoding.h"
 
 namespace sgcl::encoding {
-    enum class errc : uint8_t;   // what went wrong, one list for every format
-    class error;                 // the code, where, and the stream's error
-    const std::error_category& encoding_category() noexcept;
-    error_code make_error_code(errc e) noexcept;
+    class error;
 }
 ```
 
-The error of every format of the module, one type under each format's name: `encoding::base64::error`, `encoding::hex::error`, `encoding::pem::error`, `encoding::varint::error`, and later `json::error`, `csv::error`, `xml::error`. One type to learn, and the name in the code says where the error came from.
+`sgcl::encoding::error` is why an input is not what its format says: the [code](error/code.md) of what went wrong
+(an [errc](errc.md)), the byte of the input it was found at, the line and the column when the format has lines, the
+path inside the structure when it has one (JSON, XML), and the error of the stream when a stream failed. It is the
+one error of every format of the module, under each format's name — `encoding::base64::error`,
+`encoding::base32::error`, `encoding::hex::error`, `encoding::ascii85::error`, `encoding::pem::error`,
+`encoding::varint::error`, `encoding::json::error`, `encoding::csv::error`, `encoding::xml::error` are all this
+type: one type to learn, and the name in the code says where the error came from. Go has an error type of each
+package (`base64.CorruptInputError`, `csv.ParseError`, `json.SyntaxError`); one `switch` over the codes here handles
+the errors of several formats.
+
+Nothing in the module throws on its input. A function that reads a whole input returns an
+[expected](../core/expected.md)`<T, error>`: the value or the error. A reader of a format a piece at a time (a
+[csv::reader](csv-reader.md), a [json::reader](json-reader.md)) stops at the first mistake and keeps the error in
+its `last_error()`; a decoder read as an [io::reader](../io/reader.md) fails its read with an
+[io::error](../io/error.md) whose code is the error's [errc](errc.md), and keeps the whole error, offset included, in
+its `last_error()`.
 
 ## Rules
 
-- A value: copied, compared, held in an `expected`. Nothing in the module throws on its input; a function that reads a whole input returns `expected<T, error>`.
-- The offset is the byte of the input where the input stops being the start of something valid: the character outside the alphabet, the padding where the data cannot end, the first character after the padding, and the end of the input when it is cut. A strict base64 or base32 refuses bits past the data at the character that carries them.
-- The line and the column are counted after the fact, from the offset and the text, and only when something failed: `locate(text)`. A decoding that succeeds never counts a line ending. A format without lines (base64 of one string, varint) leaves them 0, and the message says the offset instead.
-- The column counts code points, not bytes: it is read by a person looking at the line. The byte is `offset()`.
-- `errc` is an error-code enumeration of the category `"encoding"`: when a decoder is read as an [`io::reader`](../io/stream.md), its read fails with an `io::error` whose code is the `errc`, and `last_error()` of the decoder holds the `error` with its offset.
+- An error is a value: copied, compared, held in an `expected`. It holds two [strings](../core/string.md) and an
+  optional `io::error`, so it lives where a `tracked_ptr` may.
+- **The offset is where the input stops being the start of something valid**: the character outside the alphabet,
+  the padding where the data cannot end, the first character after the padding, and the end of the input when it is
+  cut — `QQ=x` fails at the `x`, `QUJ` at its end. A strict base64 or base32 refuses bits past the data at the
+  character that carries them.
+- **A position costs nothing until something fails.** The offset is what a decoder has anyway; the line and the
+  column are counted from the text after the fact, on the path of the error alone ([locate](error/locate.md)), so
+  that a decoding that succeeds never counts a line ending. A format without lines (base64 of one string, varint)
+  leaves them 0, and the message says the offset instead.
+- **The column counts code points, not bytes**: it is read by a person looking at the line. The byte is
+  [offset()](error/offset.md).
+- [message()](error/message.md) is the position (`line:column` when known, `offset N` otherwise), the path when
+  there is one, and what went wrong — the detail the format gave, or the words of the code; the error of the stream
+  follows when there was one: `offset 3: invalid character '*'`, `4:10: END B does not match BEGIN A`.
+- **An error that did not come from an input text has no position**: what `stringify`, `from` and `as` of
+  [json](json.md) and [xml](xml.md) give, written from a value or read from a tree, a mistake of the calls to an
+  [xml::writer](xml-writer.md), and the error of a file of `load` or `save` of json, xml and csv that does not
+  open, read or write. Its line, column and offset are 0, and its message is the path and the words:
+  `/x: NaN is not a JSON number`, `'two words' is not a qualified name`,
+  `input/output error: open cfg.json: No such file or directory`.
+- What throws is a mistake in the program, not in its input: an alphabet with a repeated character
+  (`invalid_argument`, an error at compile time in a constant), a caller's buffer smaller than the size the codec
+  asked for (`length_error`), a PEM type that is not a label, a CSV separator that cannot be one
+  (`invalid_argument`).
+- The constructors and the setters are for the formats built on this type and for a program that reads an input of
+  its own and wants its errors in the same shape.
 
-## Members
+### From code written for Go
 
-```cpp
-enum class errc : uint8_t {
-    syntax = 1,          // a character the grammar does not allow here
-    unexpected_end,      // the input ends in the middle of a value
-    invalid_character,   // a byte outside the alphabet
-    invalid_utf8,
-    invalid_escape,
-    depth_limit,
-    duplicate_key,
-    out_of_range,        // a varint past 64 bits, an ascii85 group past 32
-    type_mismatch,
-    missing_field,
-    unknown_field,
-    unsupported_value,
-    field_count,
-    mismatched_tag,
-    undefined_entity,
-    unsupported_encoding,
-    io                   // the source or the sink failed: io_error()
-};
-```
+| With Go | With sgcl::encoding |
+|---|---|
+| `base64.CorruptInputError`, `hex.InvalidByteError`, `ascii85.CorruptInputError` | `encoding::base64::error` and the others, this type: the code, the offset and a message |
+| `csv.ParseError`, `json.SyntaxError`, `xml.SyntaxError` | the same type: the line and the column, in code points, from [line()](error/line.md) and [column()](error/column.md) |
+| `errors.Is(err, csv.ErrFieldCount)` | `e.code() == encoding::errc::field_count` |
 
-The codes from `invalid_utf8` to `unsupported_encoding` belong to JSON, CSV and XML, the next stages of the module; the list is one from the start, so that a program handling the errors of several formats does it with one `switch`.
+## Member functions
 
-```cpp
-class error {
-public:
-    error() = default;
-    error(errc code, uint64_t offset, const string& detail = {});   // detail: what message() says instead of the code's words
-    error(const io::error& e, uint64_t offset);                             // code io
+| Function | Description |
+|---|---|
+| [(constructor)](error/error.md) | an error of a code and an offset, or of a stream's error |
 
-    errc code() const noexcept;
-    uint64_t offset() const noexcept;                   // bytes from the start of the input
-    uint32_t line() const noexcept;                     // from 1; 0 when not known
-    uint32_t column() const noexcept;                   // from 1, in code points
-    const string& path() const noexcept;                // "/users/3/age" (JSON Pointer), "" when it does not apply
-    const optional<io::error>& io_error() const noexcept;
-    string message() const;                             // "offset 17: invalid character '*'", "3:14 /users/3/age: ..."
+#### Observers
 
-    error& locate(const string& text) noexcept;              // the line and the column of offset() in the text
-    error& set_position(uint32_t line, uint32_t column) noexcept;
-    error& set_path(const string& path);
-};
-```
+| Function | Description |
+|---|---|
+| [code](error/code.md) | what went wrong |
+| [offset](error/offset.md) | the byte of the input it was found at |
+| [line](error/line.md) | the line, from 1; 0 when not known |
+| [column](error/column.md) | the column, from 1, in code points |
+| [path](error/path.md) | where inside the structure: a JSON Pointer, an XML path |
+| [io_error](error/io_error.md) | the stream's error, when a stream failed |
+| [message](error/message.md) | the position, the path and the words |
 
-`message()` is the position (`line:column` when known, `offset N` otherwise), the path when there is one, and what went wrong — the detail the format gave, or the words of the code; the error of the stream follows when there was one. The setters are for the formats built on this type and for a program that reads an input of its own and wants its errors in the same shape.
+#### Modifiers
+
+| Function | Description |
+|---|---|
+| [locate](error/locate.md) | the line and the column of the offset in the text |
+| [set_position](error/set_position.md) | sets the line and the column |
+| [set_path](error/set_path.md) | sets the path |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](error/operator_cmp.md) | the same code, place, words and stream's error |
 
 ## Example
 
 ```cpp
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
+
 using namespace sgcl;
 
-auto r = encoding::base64::standard.decode("QUJ*");
-if (!r) {
-    auto& e = r.error();
-    e.code();        // errc::invalid_character
-    e.offset();      // 3
-    e.message();     // "offset 3: invalid character '*'"
+int main() {
+    auto decoded = encoding::base64::standard.decode("QUJ*");
+    const encoding::error& e = decoded.error();
+    println("{} {} {}", e.code() == encoding::errc::invalid_character, e.offset(), e.message());
+
+    auto block = encoding::pem::parse("x\n-----BEGIN A-----\nQUJD\n-----END B-----\n");
+    println("{}:{} {}", block.error().line(), block.error().column(), block.error().message());
+
+    encoding::error mine(encoding::errc::syntax, 5, "unexpected ','");
+    println("{}", mine.locate("[1,\n2,,3]").message());
 }
+```
 
-auto p = encoding::pem::parse("x\n-----BEGIN A-----\nQUJD\n-----END B-----\n");
-p.error().line();     // 4
-p.error().column();   // 10
-p.error().message();  // "4:10: END B does not match BEGIN A"
+Output:
 
-error mine(errc::syntax, 5, "unexpected ','");
-mine.locate("[1,\n2,,3]").message();   // "2:2: unexpected ','"
+```text
+true 3 offset 3: invalid character '*'
+4:10 4:10: END B does not match BEGIN A
+2:2: unexpected ','
 ```
 
 ## See also
 
-[`io::error`](../io/error.md), which carries an `errc` when a decoder fails as a stream; [the module](README.md).
+- [errc](errc.md): the codes and the formats that raise them
+- [io::error](../io/error.md): what a decoder read as a stream fails with, its code an `errc`
+- [expected](../core/expected.md): the value or the error
+- [sgcl::encoding](README.md)

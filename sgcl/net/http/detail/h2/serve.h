@@ -32,7 +32,7 @@
 // DATA without END_STREAM). One task writes: whatever the machine has to
 // send is taken under the lock and written by it, in order.
 namespace sgcl::net::http::detail::h2 {
-    inline int64_t now_ns() {
+    inline int64_t now_ns() noexcept {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(sgcl::clock::now().time_since_epoch()).count();
     }
 
@@ -47,7 +47,7 @@ namespace sgcl::net::http::detail::h2 {
         int64_t read_by = 0;           // the request's body whole by then (ns; 0: no limit, or it came)
         int64_t write_by = 0;          // the response whole by then (ns; 0: no limit)
 
-        ServerStream(uint32_t id, tracked_ptr<StreamOwner> owner)
+        ServerStream(uint32_t id, tracked_ptr<StreamOwner> owner) noexcept
         : StreamState(id, std::move(owner)) {
         }
     };
@@ -113,7 +113,7 @@ namespace sgcl::net::http::detail::h2 {
 
         static constexpr size_t Initial = 64;
 
-        ServerStreams()
+        ServerStreams() noexcept
         : _slots(Initial) {
         }
 
@@ -129,7 +129,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void insert_or_assign(uint32_t id, tracked_ptr<ServerStream> st) {
+        void insert_or_assign(uint32_t id, tracked_ptr<ServerStream> st) noexcept {
             if (Slot* s = _at(id)) {
                 s->st = std::move(st);
                 return;
@@ -216,7 +216,7 @@ namespace sgcl::net::http::detail::h2 {
             s[i].st = std::move(st);
         }
 
-        void _grow() {
+        void _grow() noexcept {
             vector<Slot> old = std::move(_slots);
             _slots = vector<Slot>(old.size() * 2);
             for (auto& x : old) {
@@ -232,7 +232,7 @@ namespace sgcl::net::http::detail::h2 {
 
     class ServerH2 final : public StreamOwner {
     public:
-        ServerH2(net::connection c, tracked_ptr<ServerImpl> s, tracked_ptr<detail::ServerSettings> cfg, tracked_ptr<ServerConn> node)
+        ServerH2(net::connection c, tracked_ptr<ServerImpl> s, tracked_ptr<detail::ServerSettings> cfg, tracked_ptr<ServerConn> node) noexcept
         : _c(std::move(c))
         , _s(std::move(s))
         , _cfg(std::move(cfg))
@@ -244,7 +244,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // --- the machine's events (under the lock) ----------------------------
 
-        ErrorCode on_request(uint32_t id, Block&& b, bool end_stream, bool start) {
+        ErrorCode on_request(uint32_t id, Block&& b, bool end_stream, bool start) noexcept {
             // §8.3.1, §8.2, §8.1.1: a malformed request is the stream's
             // PROTOCOL_ERROR (request_check.h)
             RequestHead head;
@@ -306,7 +306,7 @@ namespace sgcl::net::http::detail::h2 {
             return ErrorCode::no_error;
         }
 
-        void on_start(uint32_t id) {
+        void on_start(uint32_t id) noexcept {
             if (auto st = _find(id)) {
                 _turn(*st);
             } else {
@@ -316,7 +316,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A request's turn to run: now, or with its body's first bytes
         // (SmallBody)
-        void _turn(ServerStream& st) {
+        void _turn(ServerStream& st) noexcept {
             if (st.small_body && !st.body_came) {
                 st.deferred = true;
                 return;
@@ -325,7 +325,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // Its body's first bytes (or its end) came: a deferred start is due
-        void _body_came(ServerStream& st) {
+        void _body_came(ServerStream& st) noexcept {
             st.body_came = true;
             if (st.deferred) {
                 st.deferred = false;
@@ -393,10 +393,10 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_goaway(uint32_t, ErrorCode) {
+        void on_goaway(uint32_t, ErrorCode) noexcept {
         }
 
-        void on_ping_ack(const uint8_t*) {
+        void on_ping_ack(const uint8_t*) noexcept {
         }
 
         // --- StreamOwner ---------------------------------------------------------
@@ -471,11 +471,11 @@ namespace sgcl::net::http::detail::h2 {
             return taken;
         }
 
-        async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) override {
+        async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) noexcept override {
             return _send_data(tracked_ptr<ServerH2>(this), id, std::move(data), end_stream, false);
         }
 
-        async::task<expected<void, io::error>> send_block(uint32_t id, slice<const byte> data, bool end_stream) override {
+        async::task<expected<void, io::error>> send_block(uint32_t id, slice<const byte> data, bool end_stream) noexcept override {
             return _send_data(tracked_ptr<ServerH2>(this), id, std::move(data), end_stream, true);
         }
 
@@ -502,15 +502,14 @@ namespace sgcl::net::http::detail::h2 {
 
         // Under the lock: a block's piece as DATA in place when it is worth
         // a piece of the write of its own, else copied
-        size_t _send_block_now(uint32_t id, const slice<const byte>& s, bool end_stream) {
-            const uint8_t* p = reinterpret_cast<const uint8_t*>(s.data());
+        size_t _send_block_now(uint32_t id, const slice<const byte>& s, bool end_stream) noexcept {
             if (s.size() < InPlaceMin) {
-                return _m.send_data(id, p, s.size(), end_stream);
+                return _m.send_data(id, reinterpret_cast<const uint8_t*>(s.data()), s.size(), end_stream);
             }
-            return _m.send_data_in_place(id, p, s.size(), end_stream);
+            return _m.send_data_in_place(id, s, end_stream);
         }
 
-        static async::task<expected<void, io::error>> _send_data(tracked_ptr<ServerH2> h, uint32_t id, slice<const byte> data, bool end_stream, bool in_place) {
+        static async::task<expected<void, io::error>> _send_data(tracked_ptr<ServerH2> h, uint32_t id, slice<const byte> data, bool end_stream, bool in_place) noexcept {
             const uint8_t* p = reinterpret_cast<const uint8_t*>(data.data());
             size_t at = 0;
             for (;;) {
@@ -524,7 +523,7 @@ namespace sgcl::net::http::detail::h2 {
                         dead = true;
                     } else {
                         if (in_place) {
-                            at += h->_send_block_now(id, slice<const byte>(data.data() + at, data.size() - at), end_stream);
+                            at += h->_send_block_now(id, data.last(data.size() - at), end_stream);   // a slice of the block's owner
                         } else {
                             at += h->_m.send_data(id, p + at, data.size() - at, end_stream);
                         }
@@ -568,7 +567,7 @@ namespace sgcl::net::http::detail::h2 {
         // --- the connection's tasks -----------------------------------------------
 
         // The connection's reader: frames fed to the machine until the end
-        static async::task<> serve(tracked_ptr<ServerH2> h, tracked_ptr<Wire> wire) {
+        static async::task<> serve(tracked_ptr<ServerH2> h, tracked_ptr<Wire> wire) noexcept {
             auto& c = h->_c;
             {
                 std::lock_guard<std::mutex> g(h->_lock);
@@ -680,7 +679,7 @@ namespace sgcl::net::http::detail::h2 {
         std::vector<uint32_t> _malformed;    // streams to reset PROTOCOL_ERROR once feed returns
         std::string _block;                  // a field block being encoded (under the lock)
         std::string _send;                   // the output's own bytes, taken by the writer (swapped with the machine's)
-        std::vector<ServerConnection<ServerH2>::OutPiece> _send_pieces;   // the DATA payloads in place among them
+        vector<ServerConnection<ServerH2>::OutPiece> _send_pieces;   // the DATA payloads in place among them, slices of their blocks
         vector<slice<const byte>> _parts;    // the write's pieces in order (the writer's, kept for its room)
         tracked_ptr<ByteChunk> _retired;     // body blocks queued in place, back to the pool after the next write (under the lock)
         tracked_ptr<ByteChunk> _retired_last;
@@ -694,14 +693,14 @@ namespace sgcl::net::http::detail::h2 {
         net::endpoint _remote;
         bool _closing = false;
 
-        static h2::ServerSettings _machine_settings(const detail::ServerSettings& cfg) {
+        static h2::ServerSettings _machine_settings(const detail::ServerSettings& cfg) noexcept {
             h2::ServerSettings m;
             m.max_concurrent_streams = cfg.max_concurrent_streams;
             m.max_header_list_size = uint32_t(std::min<size_t>(cfg.max_header_bytes, 0xFFFFFFFFu));
             return m;
         }
 
-        tracked_ptr<ServerStream> _find(uint32_t id) {
+        tracked_ptr<ServerStream> _find(uint32_t id) noexcept {
             return _streams.find(id);
         }
 
@@ -711,14 +710,14 @@ namespace sgcl::net::http::detail::h2 {
 
         // The pieces of the write in order: the output's own bytes up to
         // each payload in place, the payload, and the bytes after the last
-        void _gather() {
+        void _gather() noexcept {
             const byte* bytes = reinterpret_cast<const byte*>(_send.data());
             size_t at = 0;
             for (auto& q : _send_pieces) {
                 if (q.at > at) {
                     _parts.push_back(slice<const byte>(bytes + at, q.at - at));
                 }
-                _parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(q.p), q.n));
+                _parts.push_back(q.piece);
                 at = q.at;
             }
             if (_send.size() > at) {
@@ -777,7 +776,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // One request: routed, its handler run, its response finished
-        static async::task<> _run(tracked_ptr<ServerH2> h, tracked_ptr<ServerStream> st) {
+        static async::task<> _run(tracked_ptr<ServerH2> h, tracked_ptr<ServerStream> st) noexcept {
             const auto start = sgcl::clock::now();
             tracked_ptr<RequestImpl> req = st->req;
             tracked_ptr w = make_tracked<WriterImpl>();
@@ -836,6 +835,12 @@ namespace sgcl::net::http::detail::h2 {
                     w->failed.reset();
                     w->fields = http::headers();
                     writer.error(status::internal_server_error);
+                } else if (w->failed) {
+                    // a file of the body that could not be read, nothing sent yet
+                    h->_cfg->report(string("a handler of ") + req->method + " " + string(req->target) + " wrote a file that failed: " + w->failed->message());
+                    w->failed.reset();
+                    w->fields = http::headers();
+                    writer.error(status::internal_server_error);
                 }
             }
             // the rest of the response: at once when the windows take it
@@ -866,7 +871,7 @@ namespace sgcl::net::http::detail::h2 {
         // (a sendmsg; over TLS sealed from where they lie). The body
         // blocks retired before the take go back to the pool once that
         // write is done: every piece of them was in it or in one before
-        static async::task<> _pump(tracked_ptr<ServerH2> h) {
+        static async::task<> _pump(tracked_ptr<ServerH2> h) noexcept {
             bool open = true;
             while (open) {
                 open = co_await h->_wake.receive();
@@ -925,7 +930,7 @@ namespace sgcl::net::http::detail::h2 {
         // The ticker holds the connection weakly: asleep, it keeps nothing
         // of it alive, and a connection that has ended is garbage at once,
         // not a tick later (with its server, its buffers, its TLS state)
-        static int64_t _tick_period(const detail::ServerSettings& cfg) {
+        static int64_t _tick_period(const detail::ServerSettings& cfg) noexcept {
             int64_t period = 1'000'000'000;
             for (auto t : {cfg.read_timeout, cfg.write_timeout}) {
                 if (t > duration::zero()) {
@@ -935,7 +940,7 @@ namespace sgcl::net::http::detail::h2 {
             return period;
         }
 
-        static async::task<> _ticker(weak_ptr<ServerH2> weak, int64_t period) {
+        static async::task<> _ticker(weak_ptr<ServerH2> weak, int64_t period) noexcept {
             for (;;) {
                 co_await async::after(std::chrono::nanoseconds(period));
                 tracked_ptr<ServerH2> h = weak.lock();
@@ -986,7 +991,7 @@ namespace sgcl::net::http::detail::h2 {
 
     // The connection's HTTP/2, from its first byte (the wire holds what
     // was read of it already)
-    inline async::task<> serve(tracked_ptr<ServerImpl> s, tracked_ptr<detail::ServerSettings> cfg, tracked_ptr<ServerConn> node, tracked_ptr<Wire> wire) {
+    inline async::task<> serve(tracked_ptr<ServerImpl> s, tracked_ptr<detail::ServerSettings> cfg, tracked_ptr<ServerConn> node, tracked_ptr<Wire> wire) noexcept {
         tracked_ptr h = make_tracked<ServerH2>(node->c, s, cfg, node);
         co_await ServerH2::serve(h, wire);
     }

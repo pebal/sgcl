@@ -4,9 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
+#include "tests/concurrent/together.h"
 
 #include <algorithm>
 #include <atomic>
+#include <climits>
 #include <functional>
 #include <memory>
 #include <random>
@@ -437,7 +439,7 @@ namespace {
         inline static size_t base = 0;
         inline static size_t seen = 0;
 
-        bool operator()(long a, long b) const {
+        bool operator()(long a, long b) const noexcept {
             if (armed) {
                 armed = false;
                 seen = live_buffer_bytes<size_t>() - base;
@@ -485,4 +487,128 @@ TEST(ConcurrentSortedMap_Test, ValueOrWithAFallback) {
     EXPECT_EQ(p.value_or(1, none), one);
     EXPECT_EQ(p.value_or(2, none), none);
     static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
+}
+
+// insert of an element whose key is taken leaves its argument as it was,
+// as std::map::insert does: the search comes first and the node is built
+// only for an absent key, by rvalue (the element, a pair of the key and
+// another value type, the elements of a moved range) as by copy
+TEST(ConcurrentSortedMap_Test, InsertOfATakenKeyLeavesTheArgument) {
+    const std::string long_value(64, 'x');   // past the small-string buffer: a move empties it
+    sgcl::concurrent::sorted_map<int, std::string> m;
+    EXPECT_TRUE(m.insert({1, "one"}).second);
+    EXPECT_TRUE(m.insert({2, "two"}).second);
+
+    std::pair<const int, std::string> element(1, long_value);
+    EXPECT_FALSE(m.insert(std::move(element)).second);
+    EXPECT_EQ(element.second, long_value);
+
+    std::pair<int, std::string> other(2, long_value);
+    EXPECT_FALSE(m.insert(std::move(other)).second);
+    EXPECT_EQ(other.second, long_value);
+
+    std::vector<std::pair<const int, std::string>> range;
+    range.emplace_back(1, long_value);
+    range.emplace_back(3, long_value);
+    m.insert(std::make_move_iterator(range.begin()), std::make_move_iterator(range.end()));
+    EXPECT_EQ(range[0].second, long_value);   // key 1 taken: left as it was
+    EXPECT_EQ(m.find(3)->second, long_value);   // key 3 absent: moved in
+
+    std::pair<const int, std::string> fresh(4, long_value);
+    EXPECT_TRUE(m.insert(std::move(fresh)).second);
+    EXPECT_EQ(m.find(4)->second, long_value);
+    EXPECT_EQ(m.find(1)->second, "one");
+    EXPECT_EQ(m.find(2)->second, "two");
+    EXPECT_EQ(keys_of(m), (std::vector<int>{1, 2, 3, 4}));
+}
+
+// Boundaries (DESIGN 408)
+
+// The build from a range of elements whose keys move (the key of a pair
+// is const and copied, the value moved), one key more than once: the
+// first of each key kept, the range copied
+TEST(ConcurrentSortedMap_Test, RangeConstructorOfMovableKeysKeepsTheFirstOfEach) {
+    const std::string a(64, 'a'), b(64, 'b');
+    std::vector<std::pair<std::string, int>> in = {{b, 1}, {a, 2}, {b, 3}, {a, 4}};
+    sgcl::concurrent::sorted_map<std::string, int> m(in.begin(), in.end());
+    EXPECT_EQ(m.size(), 2u);
+    EXPECT_EQ(m.find(a)->second, 2);
+    EXPECT_EQ(m.find(b)->second, 1);
+    EXPECT_EQ(in[0].first, b);
+}
+
+// An empty map (default, from an empty range, from an empty list) and a
+// map of one element: the lookups at the ends, value_or, the erasures of
+// nothing
+TEST(ConcurrentSortedMap_Test, EmptyAndOneElement) {
+    std::vector<std::pair<int, int>> none;
+    sgcl::concurrent::sorted_map<int, int> d;
+    sgcl::concurrent::sorted_map<int, int> r(none.begin(), none.end());
+    sgcl::concurrent::sorted_map<int, int> l = {};
+    for (auto* m : {&d, &r, &l}) {
+        EXPECT_TRUE(m->empty());
+        EXPECT_EQ(m->size(), 0u);
+        EXPECT_EQ(m->begin(), m->end());
+        EXPECT_EQ(m->find(0), m->end());
+        EXPECT_FALSE(m->contains(INT_MAX));
+        EXPECT_EQ(m->count(INT_MIN), 0u);
+        EXPECT_EQ(m->lower_bound(INT_MIN), m->end());
+        EXPECT_EQ(m->upper_bound(INT_MIN), m->end());
+        EXPECT_EQ(m->value_or(0, -1), -1);
+        EXPECT_EQ(m->erase(0), 0u);
+        m->clear();
+        m->insert(none.begin(), none.end());
+        EXPECT_TRUE(m->empty());
+    }
+    d.try_emplace(INT_MIN, 1);
+    EXPECT_EQ(d.lower_bound(INT_MIN)->first, INT_MIN);
+    EXPECT_EQ(d.upper_bound(INT_MIN), d.end());
+    EXPECT_EQ(d.value_or(INT_MIN, -1), 1);
+    EXPECT_EQ(d.erase(d.begin()), d.end());
+    EXPECT_TRUE(d.empty());
+}
+
+// An element of the map as the argument: its key to try_emplace and
+// erase, the element itself to insert, its value as value_or's fallback
+TEST(ConcurrentSortedMap_Test, ItsOwnElementAsTheArgument) {
+    const std::string k(64, 'k'), v(64, 'v');
+    sgcl::concurrent::sorted_map<std::string, std::string> m = {{k, v}};
+    auto it = m.begin();
+    EXPECT_FALSE(m.try_emplace(it->first, "other").second);
+    EXPECT_FALSE(m.insert(*it).second);
+    EXPECT_EQ(m.value_or(std::string(64, 'z'), it->second), v);
+    EXPECT_EQ(m.erase(it->first), 1u);
+    auto [again, inserted] = m.insert(*it);   // the erased element, alive in the iterator
+    EXPECT_TRUE(inserted);
+    EXPECT_EQ(again->first, k);
+    EXPECT_EQ(again->second, v);
+    EXPECT_TRUE(m.try_emplace(std::string(it->second), it->first).second);   // the key and the value swapped
+    EXPECT_EQ(m.find(v)->second, k);
+    EXPECT_EQ(m.size(), 2u);
+}
+
+// Two threads at the last element, many rounds: one erasure returns 1;
+// two try_emplace of one key into the empty map insert once, and both
+// read the one element
+TEST(ConcurrentSortedMap_Test, TwoThreadsAtTheLastElement) {
+    sgcl::concurrent::sorted_map<int, int> m;
+    for (int round = 0; round < together::Rounds; ++round) {
+        std::atomic<int> erased = {0}, inserted = {0}, sum = {0};
+        m.try_emplace(round, round);
+        together::run(2, [&](int) {
+            erased += int(m.erase(round));
+        });
+        EXPECT_EQ(erased.load(), 1);
+        EXPECT_TRUE(m.empty());
+        together::run(2, [&](int i) {
+            auto [it, ok] = m.try_emplace(round, i + 1);
+            inserted += int(ok);
+            sum += it->second;
+        });
+        EXPECT_EQ(inserted.load(), 1);
+        int value = m.value_or(round, 0);
+        EXPECT_EQ(sum.load(), 2 * value);   // both saw the element that won
+        m.clear();
+        EXPECT_TRUE(m.empty());
+    }
 }

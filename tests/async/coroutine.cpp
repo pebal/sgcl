@@ -11,6 +11,7 @@ using namespace sgcl::async;
 
 #include <coroutine>
 #include <stdexcept>
+#include <type_traits>
 
 namespace {
     struct Node {
@@ -55,6 +56,15 @@ namespace {
             collector::force_collect(true);
         }
     }
+
+    // What a program can reach of a task and of an operation
+    template<class T>
+    concept CanLetGo = requires (T& t) { t._let_go(); };
+
+    template<class F>
+    concept MakesAnOperation = std::is_constructible_v<sgcl::async::operation<F>, F>;
+
+    auto a_callable = [](auto) { return 0; };
 }
 
 TEST(Coroutine_Tests, ALocalOfASuspendedFrameIsARoot) {
@@ -216,4 +226,94 @@ TEST(Coroutine_Tests, AFramePtrsReleaseGivesTheHandleBack) {
     EXPECT_EQ(n, 1);
     EXPECT_TRUE(h.done());
     h.destroy();                         // the coroutine the frame_ptr let go of: its owner's to destroy
+}
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+
+    template<class F>
+    bool soon(F&& f) {
+        auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!f()) {
+            if (std::chrono::steady_clock::now() > until) {
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
+    }
+}
+
+// A co_await of a task nobody started, from a task run by hand with the
+// workers stopped: the start of the awaited task has to start the workers,
+// and when it cannot, the std::system_error comes out of the co_await, in
+// the awaiting task, where its try catches it (not std::terminate)
+TEST(Coroutine_Tests, AnAwaitThatCannotStartTheTaskThrowsAtTheAwait) {
+    sgcl::async::scheduler::stop();
+    auto outer = []() -> task<int> {
+        try {
+            co_return co_await []() -> task<int> { co_return 1; }();
+        } catch (const std::system_error&) {
+            co_return -1;
+        }
+    }();
+    sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    outer.resume();                      // by hand: the await would start the workers
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    ASSERT_TRUE(outer.done());
+    EXPECT_EQ(outer.result(), -1);
+    sgcl::async::scheduler::stop();      // the inner task, queued, ran on the workers its let-go started
+}
+
+// A task that ends where the workers are stopped (run by hand) and cannot
+// start them for the task that awaits it: the awaiting task is not lost
+// (the end of a task is noexcept): queued, it runs when the workers next
+// start
+TEST(Coroutine_Tests, AnEndThatCannotStartTheWorkersLosesNoAwaiter) {
+    sgcl::async::scheduler::stop();
+    auto inner = []() -> task<int> {
+        co_await std::suspend_always{};
+        co_return 2;
+    }();
+    inner.resume();                      // by hand, to its suspension
+    auto outer = [](task<int>& inner) -> task<int> {
+        co_return co_await inner + 1;
+    }(inner);
+    outer.resume();                      // by hand: awaits inner, started already
+    sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    inner.resume();                      // by hand to its end, which makes outer ready
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_TRUE(inner.done());
+    EXPECT_FALSE(outer.done());
+    (void)sgcl::async::scheduler::workers();
+    ASSERT_TRUE(soon([&] { return outer.done(); }));
+    EXPECT_EQ(outer.result(), 3);
+    sgcl::async::scheduler::stop();
+}
+
+// A task's let-go is what its destructor and its assignment do, not a
+// member of the interface
+TEST(Coroutine_Tests, ATasksLetGoIsNotPublic) {
+    static_assert(!CanLetGo<task<int>>);
+    static_assert(!CanLetGo<task<>>);
+    task<> t = nothing();
+    t.resume();
+    EXPECT_TRUE(t.done());
+}
+
+// An operation comes from the module's functions: its constructor from the
+// callable, which the library calls with tags of its own, is not public;
+// moving one is
+TEST(Coroutine_Tests, AnOperationIsMadeOnlyByTheLibrary) {
+    static_assert(!MakesAnOperation<decltype(a_callable)>);
+    sgcl::async::channel<int> ch(1);
+    auto send = ch.send(5);
+    static_assert(std::is_move_constructible_v<decltype(send)>);
+    auto kept = std::move(send);
+    EXPECT_TRUE(std::move(kept).wait());
+    EXPECT_EQ(*ch.receive().wait(), 5);
 }

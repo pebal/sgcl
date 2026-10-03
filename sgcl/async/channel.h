@@ -20,7 +20,10 @@
 #include <bit>
 #include <coroutine>
 #include <cstdint>
+#include <exception>
 #include <iterator>
+#include <limits>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -91,6 +94,8 @@ namespace sgcl::async {
     namespace detail {
     template<class T>
     class ChannelState {
+        struct NoError {};
+
         // A waiting thread or coroutine: claimed with a compare-exchange
         // by the side that serves it (a sender gives it the element, a
         // receiver takes the element it holds), or cancelled by its own
@@ -118,6 +123,12 @@ namespace sgcl::async {
             bool closed = false; // woken by close()
             tracked_ptr<detail::SelectState> select;   // the select this waiter is a case of, if any: the state is there
             size_t index = 0;                          // the case's index in it
+            // What the move of this waiter's element threw on the other
+            // side's thread (a waiting sender's element into the ring, an
+            // element into a waiting receiver): woken with it, its
+            // operation rethrows it. Nothing for an element whose move
+            // cannot throw
+            [[no_unique_address]] std::conditional_t<std::is_nothrow_move_constructible_v<T>, NoError, std::exception_ptr> error;
 
             bool claim() noexcept {
                 if (select) {
@@ -244,14 +255,14 @@ namespace sgcl::async {
             , counted(counted) {
             }
 
-            void push(const WaiterPtr& w) {
+            void push(const WaiterPtr& w) noexcept {
                 list.push(w);
                 if (counted) {
                     count.fetch_add(1, std::memory_order_seq_cst);
                 }
             }
 
-            optional<WaiterPtr> try_pop() {
+            optional<WaiterPtr> try_pop() noexcept {
                 auto w = list.try_pop();
                 if (w && counted) {
                     count.fetch_sub(1, std::memory_order_relaxed);
@@ -300,9 +311,21 @@ namespace sgcl::async {
         struct NoSlots {};
         using InlineSlots = std::conditional_t<InlineRing, Slot[MinSlots], NoSlots>;
 
-        static size_t _ring_size(size_t capacity) noexcept {
+        // A power of two of slots, at least the capacity: a capacity past
+        // the largest power of two has none (std::bit_ceil's precondition),
+        // and is the length_error of an array too large; one below it and
+        // past the largest array of slots is the array's own
+        static size_t _ring_size(size_t capacity) {
+            if (capacity > (size_t(1) << (std::numeric_limits<size_t>::digits - 1))) [[unlikely]] {
+                throw length_error("sgcl::async::channel");
+            }
             return std::bit_ceil(capacity < MinSlots ? MinSlots : capacity);
         }
+
+        // The element's own operations, the only ones that may throw on
+        // the paths that wake nobody (a wake may start the scheduler)
+        static constexpr bool NothrowMove = std::is_nothrow_move_constructible_v<T>;
+        static constexpr bool NothrowCopy = std::is_nothrow_copy_constructible_v<T> && NothrowMove;
 
     public:
         using value_type = T;
@@ -341,16 +364,19 @@ namespace sgcl::async {
         // Sends the element: delivered, and true; or false when the
         // channel is closed, before or while the send waits. An operation:
         // `co_await ch.send(v)` in a task, `ch.send(v).wait()` on a thread
-        auto send(const T& value) {
+        auto send(const T& value) noexcept(NothrowCopy) {
             return _send_operation(T(value));
         }
 
-        auto send(T&& value) {
+        auto send(T&& value) noexcept(NothrowMove) {
             return _send_operation(T(std::move(value)));
         }
 
         // Sends without waiting: false when the channel is closed or full
-        // (for a rendezvous: when no receiver waits)
+        // (for a rendezvous: when no receiver waits). The element is moved
+        // only when it is delivered (_try_send moves it into the receiver
+        // or the slot it won): a send that fails leaves the argument as
+        // it was
         bool try_send(const T& value) {
             if (_closed.load(std::memory_order_acquire)) {
                 return false;
@@ -363,15 +389,14 @@ namespace sgcl::async {
             if (_closed.load(std::memory_order_acquire)) {
                 return false;
             }
-            T v(std::move(value));
-            return _try_send(v);
+            return _try_send(value);
         }
 
         // Receives the next element, waiting for one; nothing once the
         // channel is closed and drained. An operation: `co_await
         // ch.receive()` in a task, `ch.receive().wait()` on a thread
-        auto receive() {
-            return operation([this](auto how) -> decltype(auto) {
+        auto receive() noexcept {
+            return detail::make_operation([this](auto how) -> decltype(auto) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return receive_op(*this);
                 } else {
@@ -399,6 +424,11 @@ namespace sgcl::async {
                     continue;
                 }
                 me->park();
+                if constexpr (!NothrowMove) {
+                    if (me->error) {
+                        std::rethrow_exception(me->error);   // the move of its element into this waiter threw (_try_send: _serve_receiver)
+                    }
+                }
                 if (me->value) {
                     return optional<T>(std::in_place, std::move(*me->value));
                 }
@@ -464,6 +494,11 @@ namespace sgcl::async {
                 if (_value) {
                     return optional<T>(std::in_place, std::move(*_value));
                 }
+                if constexpr (!NothrowMove) {
+                    if (_me && _me->error) {
+                        std::rethrow_exception(_me->error);
+                    }
+                }
                 if (_me && _me->value) {
                     return optional<T>(std::in_place, std::move(*_me->value));
                 }
@@ -525,8 +560,13 @@ namespace sgcl::async {
                 }
             }
 
-            bool await_resume() noexcept {
+            bool await_resume() noexcept(NothrowMove) {
                 if (_me) {
+                    if constexpr (!NothrowMove) {
+                        if (_me->error) {
+                            std::rethrow_exception(_me->error);   // the move of its element into the buffer threw (_refill)
+                        }
+                    }
                     return !(_me->closed && _me->value);   // the element left with a receiver or the buffer, unless the channel closed on it
                 }
                 return _result;
@@ -547,8 +587,8 @@ namespace sgcl::async {
         };
 
     private:
-        auto _send_operation(T value) {
-            return operation([this, value = std::move(value)](auto how) mutable -> decltype(auto) {
+        auto _send_operation(T value) noexcept(NothrowMove) {
+            return detail::make_operation([this, value = std::move(value)](auto how) mutable -> decltype(auto) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return send_op(*this, std::move(value));
                 } else {
@@ -678,7 +718,7 @@ namespace sgcl::async {
             using channel_type = ChannelState;
             static constexpr bool is_send = false;
 
-            receive_case(ChannelState& ch, F f)
+            receive_case(ChannelState& ch, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
             : _ch(&ch)
             , _f(std::move(f)) {
             }
@@ -709,7 +749,7 @@ namespace sgcl::async {
             using channel_type = ChannelState;
             static constexpr bool is_send = true;
 
-            send_case(ChannelState& ch, T value, F f)
+            send_case(ChannelState& ch, T value, F f) noexcept(NothrowMove && std::is_nothrow_move_constructible_v<F>)
             : _ch(&ch)
             , _value(std::move(value))
             , _f(std::move(f)) {
@@ -738,17 +778,17 @@ namespace sgcl::async {
         };
 
         template<class F>
-        receive_case<F> on_receive(F f) {
+        receive_case<F> on_receive(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return receive_case<F>(*this, std::move(f));
         }
 
         template<class F = void (*)()>
-        send_case<F> on_send(const T& value, F f = [] {}) {
+        send_case<F> on_send(const T& value, F f = [] {}) noexcept(NothrowCopy && std::is_nothrow_move_constructible_v<F>) {
             return send_case<F>(*this, T(value), std::move(f));
         }
 
         template<class F = void (*)()>
-        send_case<F> on_send(T&& value, F f = [] {}) {
+        send_case<F> on_send(T&& value, F f = [] {}) noexcept(NothrowMove && std::is_nothrow_move_constructible_v<F>) {
             return send_case<F>(*this, T(std::move(value)), std::move(f));
         }
 
@@ -781,10 +821,24 @@ namespace sgcl::async {
                 if (!w) {
                     return nullopt;
                 }
-                auto v = _pop();   // the element moved in, or one another receiver left behind; either way the sender is released now
-                w->wake();
-                if (v) {
-                    return v;
+                if constexpr (NothrowMove) {
+                    auto v = _pop();   // the element moved in, or one another receiver left behind; either way the sender is released now
+                    w->wake();
+                    if (v) {
+                        return v;
+                    }
+                } else {
+                    optional<T> v;
+                    try {
+                        v = _pop();
+                    } catch (...) {
+                        w->wake();   // its element was delivered into the buffer: the move out of it is this receive's
+                        throw;
+                    }
+                    w->wake();
+                    if (v) {
+                        return v;
+                    }
                 }
             }
         }
@@ -796,7 +850,16 @@ namespace sgcl::async {
         bool _try_send(T& v) {
             if (_ring_empty() && (!_capacity || !_receivers.empty())) {
                 if (auto w = _take(_receivers)) {
-                    w->value.emplace(std::move(v));
+                    if constexpr (NothrowMove) {
+                        w->value.emplace(std::move(v));
+                    } else {
+                        try {
+                            w->value.emplace(std::move(v));
+                        } catch (...) {
+                            _requeue(_receivers, w);   // the move is this send's: the receiver waits on
+                            throw;
+                        }
+                    }
                     w->wake();
                     return true;
                 }
@@ -819,18 +882,50 @@ namespace sgcl::async {
                 // finishes it is the one that finds them)
                 auto w = _receivers.empty() ? WaiterPtr() : _take(_receivers);
                 while (w) {
-                    if (auto x = _try_receive()) {
-                        w->value.emplace(std::move(*x));
-                        w->wake();
+                    if constexpr (NothrowMove) {
+                        if (auto x = _try_receive()) {
+                            w->value.emplace(std::move(*x));
+                            w->wake();
+                        } else {
+                            _requeue(_receivers, w);
+                            std::atomic_thread_fence(std::memory_order_seq_cst);
+                        }
                     } else {
-                        _requeue(_receivers, w);
-                        std::atomic_thread_fence(std::memory_order_seq_cst);
+                        try {
+                            _serve_receiver(w);
+                        } catch (...) {
+                            _fail(w, std::current_exception());   // this send is done: the move of the element taken for the receiver is the receiver's
+                        }
                     }
                     w = _can_pop() && !_receivers.empty() ? _take(_receivers) : WaiterPtr();
                 }
                 return true;
             }
             return false;
+        }
+
+        // A claimed receiver served from the ring on its behalf, or put
+        // back when the ring had nothing for it after all (_try_send, for
+        // an element whose move may throw)
+        void _serve_receiver(const WaiterPtr& w) {
+            if (auto x = _try_receive()) {
+                w->value.emplace(std::move(*x));
+                w->wake();
+            } else {
+                _requeue(_receivers, w);
+                std::atomic_thread_fence(std::memory_order_seq_cst);
+            }
+        }
+
+        // A claimed waiter whose element could not be moved on another
+        // side's thread: woken with what the move threw, which its own
+        // operation rethrows (an element whose move cannot throw never
+        // comes here)
+        void _fail(const WaiterPtr& w, std::exception_ptr e) {
+            if constexpr (!NothrowMove) {
+                w->error = std::move(e);
+                w->wake();
+            }
         }
 
         bool _send(T v) {
@@ -850,6 +945,11 @@ namespace sgcl::async {
                     continue;
                 }
                 me->park();
+                if constexpr (!NothrowMove) {
+                    if (me->error) {
+                        std::rethrow_exception(me->error);   // the move of its element into the buffer threw (_refill)
+                    }
+                }
                 return !(me->closed && me->value);   // false only if the channel closed with the element still in hand
             }
         }
@@ -877,7 +977,31 @@ namespace sgcl::async {
             WaiterPtr first;
             auto w = _take(_senders);
             while (w) {
-                if (_push(*w->value, limit)) {
+                if constexpr (!NothrowMove) {
+                    bool pushed;
+                    try {
+                        pushed = _push(*w->value, limit);
+                    } catch (...) {
+                        _fail(w, std::current_exception());   // the move of its element: its send throws it, this receive goes on (the slot was passed over: _push)
+                        w = _can_push(limit) ? _take(_senders) : WaiterPtr();
+                        continue;
+                    }
+                    if (!pushed) {
+                        _requeue(_senders, w);
+                        std::atomic_thread_fence(std::memory_order_seq_cst);
+                        w = _can_push(limit) ? _take(_senders) : WaiterPtr();
+                        continue;
+                    }
+                    w->value.reset();
+                    if (!first) {
+                        first = w;
+                    } else {
+                        w->wake();
+                    }
+                    if (!_capacity) {
+                        break;
+                    }
+                } else if (_push(*w->value, limit)) {
                     w->value.reset();
                     if (!first) {
                         first = w;
@@ -913,7 +1037,7 @@ namespace sgcl::async {
         // elements in the ring, false when full; a pop of the head's
         // element, nothing when the ring is empty or its head not yet
         // written
-        bool _push(T& v, size_t limit) {
+        bool _push(T& v, size_t limit) noexcept(NothrowMove) {
             detail::Backoff<RingBackoffMax> backoff;
             auto pos = _tail.load(std::memory_order_relaxed);
             for (;;) {
@@ -930,7 +1054,16 @@ namespace sgcl::async {
                 auto dif = (intptr_t)seq - (intptr_t)pos;
                 if (dif == 0) {
                     if (_tail.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
-                        slot.value.emplace(std::move(v));
+                        if constexpr (NothrowMove) {
+                            slot.value.emplace(std::move(v));
+                        } else {
+                            try {
+                                slot.value.emplace(std::move(v));
+                            } catch (...) {
+                                slot.seq.store(pos + 1, std::memory_order_release);   // the position won: published without an element, which the pop that reaches it passes over (concurrent::bounded_queue does the same)
+                                throw;
+                            }
+                        }
                         slot.seq.store(pos + 1, std::memory_order_release);
                         return true;
                     }
@@ -943,7 +1076,7 @@ namespace sgcl::async {
             }
         }
 
-        optional<T> _pop() {
+        optional<T> _pop() noexcept(NothrowMove) {
             detail::Backoff<RingBackoffMax> backoff;
             auto pos = _head.load(std::memory_order_relaxed);
             for (;;) {
@@ -952,10 +1085,29 @@ namespace sgcl::async {
                 auto dif = (intptr_t)seq - (intptr_t)(pos + 1);
                 if (dif == 0) {
                     if (_head.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
-                        optional<T> v(std::in_place, std::move(*slot.value));
-                        slot.value.reset();
-                        slot.seq.store(pos + _slot_count, std::memory_order_release);
-                        return v;
+                        if constexpr (NothrowMove) {
+                            optional<T> v(std::in_place, std::move(*slot.value));
+                            slot.value.reset();
+                            slot.seq.store(pos + _slot_count, std::memory_order_release);
+                            return v;
+                        } else {
+                            if (!slot.value) {   // published without an element (_push): released and passed over
+                                slot.seq.store(pos + _slot_count, std::memory_order_release);
+                                pos = _head.load(std::memory_order_relaxed);
+                                continue;
+                            }
+                            optional<T> v;
+                            try {
+                                v.emplace(std::move(*slot.value));
+                            } catch (...) {
+                                slot.value.reset();   // the element lost, its slot released: the ring is otherwise intact
+                                slot.seq.store(pos + _slot_count, std::memory_order_release);
+                                throw;
+                            }
+                            slot.value.reset();
+                            slot.seq.store(pos + _slot_count, std::memory_order_release);
+                            return v;
+                        }
                     }
                 } else if (dif < 0) {
                     return nullopt;
@@ -1024,7 +1176,7 @@ namespace sgcl::async {
         // comes round to it again gives up for now (the claimer's requeue
         // or wake settles it, and a taker that then registers looks at
         // the list again: _something_to_receive, _something_to_send_to)
-        static WaiterPtr _take(Waiters& waiters) {
+        static WaiterPtr _take(Waiters& waiters) noexcept {
             Waiter* seen = nullptr;
             while (auto w = waiters.try_pop()) {
                 if ((*w)->claim()) {
@@ -1105,7 +1257,7 @@ namespace sgcl::async {
         }
 
         // An operation: co_await or wait() gives whether the signal went
-        auto send() {
+        auto send() noexcept {
             return _ch.send(Signal{});
         }
 
@@ -1114,8 +1266,8 @@ namespace sgcl::async {
         }
 
         // An operation: co_await or wait() gives whether a signal came
-        auto receive() {
-            return operation([this](auto how) -> decltype(auto) {
+        auto receive() noexcept {
+            return detail::make_operation([this](auto how) -> decltype(auto) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return receive_op(_ch);
                 } else {
@@ -1157,12 +1309,12 @@ namespace sgcl::async {
         // The cases of a select: f() on a signal and on the close alike
         // (both end a wait for a signal); the send case as for any channel
         template<class F>
-        auto on_receive(F f) {
+        auto on_receive(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _ch.on_receive([f = std::move(f)](optional<Signal>) mutable { f(); });
         }
 
         template<class F = void (*)()>
-        auto on_send(F f = [] {}) {
+        auto on_send(F f = [] {}) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _ch.on_send(Signal{}, std::move(f));
         }
 
@@ -1251,8 +1403,9 @@ namespace sgcl::async {
         template<class F>
         using send_case = typename State::template send_case<F>;
 
-        // A rendezvous
-        channel()
+        // A rendezvous (noexcept: a ring of a capacity of zero is never
+        // too large, the one throw of the state's constructor)
+        channel() noexcept
         : _s(detail::make_linked_state<T>()) {
         }
 
@@ -1270,11 +1423,11 @@ namespace sgcl::async {
         // The operations of the state (detail::ChannelState): an operation
         // for send and receive (`co_await ch.send(v)` in a task,
         // `ch.send(v).wait()` on a thread), the rest at once
-        auto send(const T& value) const {
+        auto send(const T& value) const noexcept(noexcept(std::declval<State&>().send(value))) {
             return _get()->send(value);
         }
 
-        auto send(T&& value) const {
+        auto send(T&& value) const noexcept(noexcept(std::declval<State&>().send(std::move(value)))) {
             return _get()->send(std::move(value));
         }
 
@@ -1286,7 +1439,7 @@ namespace sgcl::async {
             return _get()->try_send(std::move(value));
         }
 
-        auto receive() const {
+        auto receive() const noexcept {
             return _get()->receive();
         }
 
@@ -1325,17 +1478,17 @@ namespace sgcl::async {
 
         // The cases of a select (select.h)
         template<class F>
-        auto on_receive(F f) const {
+        auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _get()->on_receive(std::move(f));
         }
 
         template<class F = void (*)()>
-        auto on_send(const T& value, F f = [] {}) const {
+        auto on_send(const T& value, F f = [] {}) const noexcept(noexcept(std::declval<State&>().on_send(value, std::move(f)))) {
             return _get()->on_send(value, std::move(f));
         }
 
         template<class F = void (*)()>
-        auto on_send(T&& value, F f = [] {}) const {
+        auto on_send(T&& value, F f = [] {}) const noexcept(noexcept(std::declval<State&>().on_send(std::move(value), std::move(f)))) {
             return _get()->on_send(std::move(value), std::move(f));
         }
 
@@ -1384,7 +1537,7 @@ namespace sgcl::async {
         using size_type = size_t;
         using receive_op = typename State::receive_op;
 
-        channel()
+        channel() noexcept
         : _s(detail::make_linked_state<void>()) {
         }
 
@@ -1397,7 +1550,7 @@ namespace sgcl::async {
         channel& operator=(const channel&) noexcept = default;
         channel& operator=(channel&&) noexcept = default;
 
-        auto send() const {
+        auto send() const noexcept {
             return _get()->send();
         }
 
@@ -1405,7 +1558,7 @@ namespace sgcl::async {
             return _get()->try_send();
         }
 
-        auto receive() const {
+        auto receive() const noexcept {
             return _get()->receive();
         }
 
@@ -1414,12 +1567,12 @@ namespace sgcl::async {
         }
 
         template<class F>
-        auto on_receive(F f) const {
+        auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _get()->on_receive(std::move(f));
         }
 
         template<class F = void (*)()>
-        auto on_send(F f = [] {}) const {
+        auto on_send(F f = [] {}) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _get()->on_send(std::move(f));
         }
 
@@ -1476,6 +1629,9 @@ namespace sgcl::async {
         tracked_ptr<State> _s;
     };
 
+    template<class T>
+    class receive_channel;
+
     namespace detail {
         // A handle over a state the library made (a timer's, the
         // reactor's, a signal's), and the state under a handle: the one
@@ -1490,6 +1646,186 @@ namespace sgcl::async {
             static const tracked_ptr<ChannelState<T>>& state(const channel<T>& c) noexcept {
                 return c._s;
             }
+
+            template<class T>
+            static const tracked_ptr<ChannelState<T>>& state(const receive_channel<T>& c) noexcept {
+                return c._s;
+            }
         };
     }
+
+    // A channel seen from its receiving end, Go's `<-chan T`: the same
+    // channel as the handle it was made from (one word, the state's),
+    // with the receive, its case and the looks, and no send and no close.
+    // What the library hands out where the program only listens
+    // (stop_token::channel: a close of the stop's channel would read as a
+    // stop that stopped nothing), and what a function that only receives
+    // takes: a channel<T> converts to it.
+    template<class T>
+    class receive_channel {
+        using State = detail::ChannelState<T>;
+
+    public:
+        using value_type = T;
+        using size_type = size_t;
+        using iterator = typename State::iterator;
+        using receive_op = typename State::receive_op;
+        template<class F>
+        using receive_case = typename State::template receive_case<F>;
+
+        // The receiving end of the channel: the same state
+        receive_channel(const channel<T>& ch) noexcept
+        : _s(detail::ChannelAccess::state(ch)) {
+        }
+
+        receive_channel(const receive_channel&) noexcept = default;
+        receive_channel(receive_channel&&) noexcept = default;
+        receive_channel& operator=(const receive_channel&) noexcept = default;
+        receive_channel& operator=(receive_channel&&) noexcept = default;
+
+        auto receive() const noexcept {
+            return _get()->receive();
+        }
+
+        optional<T> try_receive() const {
+            return _get()->try_receive();
+        }
+
+        bool closed() const noexcept {
+            return _get()->closed();
+        }
+
+        size_type capacity() const noexcept {
+            return _get()->capacity();
+        }
+
+        size_type size() const noexcept {
+            return _get()->size();
+        }
+
+        bool empty() const noexcept {
+            return _get()->empty();
+        }
+
+        iterator begin() const {
+            return _get()->begin();
+        }
+
+        iterator end() const noexcept {
+            return iterator();
+        }
+
+        template<class F>
+        auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+            return _get()->on_receive(std::move(f));
+        }
+
+        // The same channel: the same state (a channel<T> compared through
+        // its receiving end)
+        friend bool operator==(const receive_channel& a, const receive_channel& b) noexcept {
+            return a._s == b._s;
+        }
+
+    private:
+        friend struct detail::ChannelAccess;
+
+        State* _get() const noexcept {
+            return _s.get();
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        receive_channel(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<State>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<State>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<State> _s;
+    };
+
+    // The receiving end of a channel of signals: receive() is whether one
+    // came (false once closed)
+    template<>
+    class receive_channel<void> {
+        using State = detail::ChannelState<void>;
+
+    public:
+        using value_type = void;
+        using size_type = size_t;
+        using receive_op = typename State::receive_op;
+
+        receive_channel(const channel<void>& ch) noexcept
+        : _s(detail::ChannelAccess::state(ch)) {
+        }
+
+        receive_channel(const receive_channel&) noexcept = default;
+        receive_channel(receive_channel&&) noexcept = default;
+        receive_channel& operator=(const receive_channel&) noexcept = default;
+        receive_channel& operator=(receive_channel&&) noexcept = default;
+
+        auto receive() const noexcept {
+            return _get()->receive();
+        }
+
+        bool try_receive() const {
+            return _get()->try_receive();
+        }
+
+        bool closed() const noexcept {
+            return _get()->closed();
+        }
+
+        size_type capacity() const noexcept {
+            return _get()->capacity();
+        }
+
+        size_type size() const noexcept {
+            return _get()->size();
+        }
+
+        bool empty() const noexcept {
+            return _get()->empty();
+        }
+
+        template<class F>
+        auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+            return _get()->on_receive(std::move(f));
+        }
+
+        friend bool operator==(const receive_channel& a, const receive_channel& b) noexcept {
+            return a._s == b._s;
+        }
+
+    private:
+        friend struct detail::ChannelAccess;
+
+        State* _get() const noexcept {
+            return _s.get();
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        receive_channel(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<State>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<State>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<State> _s;
+    };
 }

@@ -66,7 +66,7 @@ namespace sgcl::net::http {
         }
 
         // The line of a moment, made: its bytes and their count
-        inline size_t make_date_line(const time::datetime& now, char (&out)[DateCache::Words * 8]) {
+        inline size_t make_date_line(const time::datetime& now, char (&out)[DateCache::Words * 8]) noexcept {
             auto text = now.format(time::http);
             auto v = text.view();
             size_t n = 0;
@@ -81,7 +81,7 @@ namespace sgcl::net::http {
             return n;
         }
 
-        inline void append_date_line(std::string& head) {
+        inline void append_date_line(std::string& head) noexcept {
             auto now = time::now();
             int64_t second = now.unix();
             auto& c = date_cache();
@@ -130,16 +130,16 @@ namespace sgcl::net::http {
             const http::headers& fields;
             optional<uint64_t> length;
 
-            ResponseFields(int status, const http::headers& fields, optional<uint64_t> length)
+            ResponseFields(int status, const http::headers& fields, optional<uint64_t> length) noexcept
             : status(status), fields(fields), length(length) {
             }
 
-            static bool connection_field(std::string_view n) {
+            static bool connection_field(std::string_view n) noexcept {
                 return iequal(n, "connection") || iequal(n, "keep-alive") || iequal(n, "proxy-connection") || iequal(n, "transfer-encoding") ||
                        iequal(n, "upgrade") || iequal(n, "content-length");
             }
 
-            void encode(h2::Encoder& e, std::string& out) const override {
+            void encode(h2::Encoder& e, std::string& out) const noexcept override {
                 char code[4] = {char('0' + status / 100 % 10), char('0' + status / 10 % 10), char('0' + status % 10), 0};
                 e.encode(out, ":status", std::string_view(code, 3));
                 thread_local std::string lower;   // scratch: the names' lower case, kept with its capacity
@@ -193,6 +193,7 @@ namespace sgcl::net::http {
             uint64_t flushed = 0;             // body bytes handed to flushes (the access log's count; sent counts the framing too)
             bool touched = false;             // a status set or a byte written
             bool hijacked = false;
+            bool ended = false;               // the response finished (finish_start): a writer kept past it writes nothing
             optional<io::error> failed;       // a write that failed
             io::file file;                    // write(file) with nothing else written: the body, sent after the head by sendfile
             uint64_t file_at = 0;             // its bytes: from file_at, file_n of them
@@ -248,7 +249,7 @@ namespace sgcl::net::http {
 
             // A file kept by write(file) read into the body: something else
             // is written after it, or it goes out by a flush
-            void take_file() {
+            void take_file() noexcept {
                 if (!has_file) {
                     return;
                 }
@@ -277,7 +278,7 @@ namespace sgcl::net::http {
             // (over TLS its blocks sealed where they lie); a file that
             // shrank since is short of the Content-Length sent, and the
             // connection ends after it
-            static async::task<expected<void, io::error>> _sent_file(tracked_ptr<WriterImpl> self) {
+            static async::task<expected<void, io::error>> _sent_file(tracked_ptr<WriterImpl> self) noexcept {
                 auto& c = net::detail::ConnectionAccess::impl(self->wire->connection());
                 const std::string& out = self->wire->out;
                 auto head = co_await c.async_write(slice<const byte>(reinterpret_cast<const byte*>(out.data()), out.size()));
@@ -296,7 +297,7 @@ namespace sgcl::net::http {
             // The head, with the framing decided, at the end of `h` (the
             // wire's buffer): `length` for a whole body known now, nullopt
             // for a flush (chunked, the handler's length, or to the close)
-            void head_to(std::string& h, optional<uint64_t> length) {
+            void head_to(std::string& h, optional<uint64_t> length) noexcept {
                 if (h.capacity() < 256) {
                     h.reserve(256);   // once a connection: the buffer is kept
                 }
@@ -352,7 +353,7 @@ namespace sgcl::net::http {
             }
 
             // The handler's Content-Length, when it gave one that is a number
-            optional<uint64_t> handler_length() const {
+            optional<uint64_t> handler_length() const noexcept {
                 optional<uint64_t> cl;
                 if (!HeadersAccess::count(fields, "content-length") || !content_length(fields, cl)) {
                     return nullopt;
@@ -479,13 +480,13 @@ namespace sgcl::net::http {
                 return nullopt;
             }
 
-            static async::task<expected<void, io::error>> _sent_parts(tracked_ptr<WriterImpl> self, async::task<expected<size_t, io::error>> rest) {
+            static async::task<expected<void, io::error>> _sent_parts(tracked_ptr<WriterImpl> self, async::task<expected<size_t, io::error>> rest) noexcept {
                 auto r = co_await rest;
                 self->body.release();
                 co_return self->sent_result(r);
             }
 
-            expected<void, io::error> sent_result(const expected<size_t, io::error>& r) {
+            expected<void, io::error> sent_result(const expected<size_t, io::error>& r) noexcept {
                 if (!r) {
                     failed = r.error();
                     close_after = true;
@@ -496,7 +497,7 @@ namespace sgcl::net::http {
 
             // The rest of a send that would wait; the writer (and its bytes)
             // held by the task
-            static async::task<expected<void, io::error>> _sent(tracked_ptr<WriterImpl> self, async::task<expected<size_t, io::error>> rest) {
+            static async::task<expected<void, io::error>> _sent(tracked_ptr<WriterImpl> self, async::task<expected<size_t, io::error>> rest) noexcept {
                 auto r = co_await rest;
                 co_return self->sent_result(r);
             }
@@ -517,7 +518,7 @@ namespace sgcl::net::http {
                 return true;
             }
 
-            async::task<expected<void, io::error>> flush() {
+            async::task<expected<void, io::error>> flush() noexcept {
                 if (failed) {
                     co_return io::detail::fail(*failed);
                 }
@@ -545,7 +546,7 @@ namespace sgcl::net::http {
             }
 
             // After the handler: the rest of the response
-            async::task<expected<void, io::error>> finish() {
+            async::task<expected<void, io::error>> finish() noexcept {
                 expected<void, io::error> now;
                 if (auto rest = finish_start(now)) {
                     co_return co_await *rest;
@@ -557,6 +558,7 @@ namespace sgcl::net::http {
             // and sent as far as the connection takes it at once (the
             // result in `now`), a task only for what would wait
             optional<async::task<expected<void, io::error>>> finish_start(expected<void, io::error>& now) {
+                ended = true;
                 if (hijacked) {
                     now = expected<void, io::error>();
                     return nullopt;
@@ -621,7 +623,7 @@ namespace sgcl::net::http {
             // its block and sent in place by the connection, then retired;
             // the bytes held inside the buffer itself are copied), END_STREAM
             // with the last when asked; the first `skip` bytes already sent
-            async::task<expected<void, io::error>> _h2_send(BodyBuffer data, bool end_stream, size_t skip = 0) {
+            async::task<expected<void, io::error>> _h2_send(BodyBuffer data, bool end_stream, size_t skip = 0) noexcept {
                 size_t left = data.size() - skip;
                 expected<void, io::error> r;
                 if (left == 0) {
@@ -691,7 +693,7 @@ namespace sgcl::net::http {
 
             // A flush: the head (with the handler's length, if it set one)
             // and what is buffered, as DATA without END_STREAM
-            async::task<expected<void, io::error>> _h2_flush() {
+            async::task<expected<void, io::error>> _h2_flush() noexcept {
                 if (!head_sent) {
                     set_optional(declared, handler_length());
                 }
@@ -745,6 +747,11 @@ namespace sgcl::net::http {
     // set before a flush is honoured, and a body that does not match it
     // closes the connection after it). "Connection: close" among the
     // handler's fields ends the connection after the response.
+    //
+    // A writer kept past its response (a task the handler started holds a
+    // copy) writes nowhere once the server has sent the response: a write
+    // or an error() is dropped, a flush is io::errc::closed, and the
+    // connection, gone on to the next request, never sees its bytes.
     class response_writer {
     public:
         // 200 unless set; 100 to 199 are not the handler's (invalid_argument),
@@ -764,12 +771,12 @@ namespace sgcl::net::http {
             return _impl->status;
         }
 
-        response_writer& set_header(const string& name, const string& value) {
+        response_writer& set_header(const string& name, const string& value) noexcept {
             _impl->fields.set(name, value);
             return *this;
         }
 
-        response_writer& add_header(const string& name, const string& value) {
+        response_writer& add_header(const string& name, const string& value) noexcept {
             _impl->fields.add(name, value);
             return *this;
         }
@@ -787,14 +794,20 @@ namespace sgcl::net::http {
             return _impl->fields;
         }
 
-        response_writer& write(const string& text) {
+        response_writer& write(const string& text) noexcept {
+            if (_impl->ended) {
+                return *this;   // the response has gone: a writer kept past it writes nowhere
+            }
             _impl->take_file();
             _impl->body.append(text.view());
             _impl->touched = true;
             return *this;
         }
 
-        response_writer& write(const slice<const byte>& data) {
+        response_writer& write(const slice<const byte>& data) noexcept {
+            if (_impl->ended) {
+                return *this;
+            }
             _impl->take_file();
             _impl->body.append(data.data(), data.size());
             _impl->touched = true;
@@ -810,26 +823,29 @@ namespace sgcl::net::http {
         // bytes are taken as write(bytes) takes them. Only the body:
         // Content-Type and the rest are the handler's
         response_writer& write(const io::file& f) {
-            _impl->write_file(f);
+            if (!_impl->ended) {
+                _impl->write_file(f);
+            }
             return *this;
         }
 
         // A literal, a character array, a std::string_view: as a string
         // (an exact match, else the conversions to a string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        response_writer& write(const T& text) {
+        response_writer& write(const T& text) noexcept {
             return write(slice<const byte>(text));
         }
 
         // Sends now: the head, if it has not gone, and what is buffered.
         // A handler runs on a worker, so it flushes as a task does, `co_await
         // w.async_flush()`; flush() blocks a thread (a response written from
-        // one of the program's threads, never a worker)
+        // one of the program's threads, never a worker). After the
+        // response has ended (or been hijacked): io::errc::closed
         expected<void, io::error> flush() const {
             return _co_flush(_impl).wait();
         }
 
-        async::task<expected<void, io::error>> async_flush() const {
+        async::task<expected<void, io::error>> async_flush() const noexcept {
             return _co_flush(_impl);
         }
 
@@ -841,6 +857,9 @@ namespace sgcl::net::http {
 
         void error(int code, const string& message) {
             set_status(code);
+            if (_impl->ended) {
+                return;
+            }
             if (!_impl->head_sent) {
                 _impl->file = io::file();
                 _impl->has_file = false;
@@ -867,7 +886,7 @@ namespace sgcl::net::http {
         // (the bytes the server had read past this request first). The
         // server sends nothing more on it and does not close it. Only
         // before the head has gone: io::errc::closed after.
-        expected<pair<net::connection, io::reader>, io::error> hijack() {
+        expected<pair<net::connection, io::reader>, io::error> hijack() noexcept {
             if (_impl->h2) {
                 // an HTTP/2 stream is not a connection (Go: no Hijacker in HTTP/2)
                 return io::detail::fail(io::error(std::make_error_code(std::errc::operation_not_supported), "hijack", "HTTP/2 response"));
@@ -894,8 +913,8 @@ namespace sgcl::net::http {
 
         tracked_ptr<detail::WriterImpl> _impl;
 
-        static async::task<expected<void, io::error>> _co_flush(tracked_ptr<detail::WriterImpl> impl) {
-            if (impl->hijacked) {
+        static async::task<expected<void, io::error>> _co_flush(tracked_ptr<detail::WriterImpl> impl) noexcept {
+            if (impl->hijacked || impl->ended) {
                 co_return io::detail::fail(io::error(io::errc::closed, "flush", "response"));
             }
             co_return co_await impl->flush();
@@ -904,7 +923,7 @@ namespace sgcl::net::http {
 
     namespace detail {
         struct WriterAccess {
-            static response_writer make(const tracked_ptr<WriterImpl>& impl) {
+            static response_writer make(const tracked_ptr<WriterImpl>& impl) noexcept {
                 return response_writer(impl);
             }
         };

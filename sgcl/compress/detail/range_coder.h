@@ -45,7 +45,7 @@ namespace sgcl::compress::detail {
         struct PriceTable {
             uint32_t v[ProbOne >> PriceShift];
 
-            PriceTable() {
+            PriceTable() noexcept {
                 for (uint32_t i = 0; i < (ProbOne >> PriceShift); ++i) {
                     // the middle of the 16 probabilities the entry stands for
                     double p = (double(i << PriceShift) + double(1 << (PriceShift - 1))) / double(ProbOne);
@@ -54,7 +54,7 @@ namespace sgcl::compress::detail {
             }
         };
 
-        inline const PriceTable& prices() {
+        inline const PriceTable& prices() noexcept {
             static const PriceTable table;
             return table;
         }
@@ -115,7 +115,7 @@ namespace sgcl::compress::detail {
             _pending = 1;
         }
 
-        SGCL_LZMA_INLINE void bit(uint16_t& prob, uint32_t bit) {
+        SGCL_LZMA_INLINE void bit(uint16_t& prob, uint32_t bit) noexcept {
             uint32_t bound = (_range >> rc::ProbBits) * prob;
             if (bit == 0) {
                 _range = bound;
@@ -134,7 +134,7 @@ namespace sgcl::compress::detail {
         // The form PPMd uses in 7z: a symbol of frequency size at start
         // of total, and a bit whose 0 has size0 of 2^shift (the range
         // divided first, where LZMA's bit multiplies a probability)
-        void encode(uint32_t start, uint32_t size, uint32_t total) {
+        void encode(uint32_t start, uint32_t size, uint32_t total) noexcept {
             _range /= total;
             _low += uint64_t(start) * _range;
             _range *= size;
@@ -144,7 +144,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void encode_bit(uint32_t bit, uint32_t size0, uint32_t shift) {
+        void encode_bit(uint32_t bit, uint32_t size0, uint32_t shift) noexcept {
             uint32_t bound = (_range >> shift) * size0;
             if (bit == 0) {
                 _range = bound;
@@ -159,7 +159,7 @@ namespace sgcl::compress::detail {
         }
 
         // Bits at a probability of one half, top bit first
-        void direct(uint32_t value, uint32_t bits) {
+        void direct(uint32_t value, uint32_t bits) noexcept {
             while (bits--) {
                 _range >>= 1;
                 _low += _range & (0 - ((value >> bits) & 1));
@@ -170,7 +170,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void tree(uint16_t* probs, uint32_t bits, uint32_t symbol) {
+        void tree(uint16_t* probs, uint32_t bits, uint32_t symbol) noexcept {
             uint32_t m = 1;
             while (bits--) {
                 uint32_t b = (symbol >> bits) & 1;
@@ -179,7 +179,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void reverse_tree(uint16_t* probs, uint32_t bits, uint32_t symbol) {
+        void reverse_tree(uint16_t* probs, uint32_t bits, uint32_t symbol) noexcept {
             uint32_t m = 1;
             while (bits--) {
                 uint32_t b = symbol & 1;
@@ -190,7 +190,7 @@ namespace sgcl::compress::detail {
         }
 
         // The last bytes: every bit of low out
-        void finish() {
+        void finish() noexcept {
             for (int i = 0; i < 5; ++i) {
                 _shift();
             }
@@ -205,7 +205,7 @@ namespace sgcl::compress::detail {
         // The top byte of low goes out, unless it may still take a carry:
         // a 0xFF waits (counted) until a byte under it settles whether
         // the carry comes
-        SGCL_LZMA_INLINE void _shift() {
+        SGCL_LZMA_INLINE void _shift() noexcept {
             if (uint32_t(_low) < 0xFF000000u || (_low >> 32) != 0) {
                 uint8_t carry = uint8_t(_low >> 32);
                 uint8_t b = _cache;

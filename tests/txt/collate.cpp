@@ -233,7 +233,7 @@ namespace {
     // the row does not give is the language's own, which is what the
     // four languages that carry one are there to check.
     txt::collator collator_of(const ucd::OptionOrder& row) {
-        txt::options how;
+        txt::collator::options how;
         how.strength = txt::strength(row.strength);
         if (row.punctuation >= 0) {
             how.punctuation = txt::punctuation(row.punctuation);
@@ -304,7 +304,7 @@ TEST(Collate_Tests, AKeyIsTheComparisonWhateverTheSettings) {
     size_t checked = 0;
     for (auto where : languages) {
         for (int bits = 0; bits < 64; ++bits) {
-            txt::options how;
+            txt::collator::options how;
             how.strength = txt::strength(bits & 3);
             how.punctuation = (bits & 4) ? txt::punctuation::shifted : txt::punctuation::counted;
             how.case_order = (bits & 8) ? txt::case_order::upper_first : txt::case_order::lower_first;
@@ -336,7 +336,7 @@ TEST(Collate_Tests, AKeyIsTheComparisonWhateverTheSettings) {
 
 TEST(Collate_Tests, ARunOfDigitsIsANumber) {
     txt::collator plain;
-    txt::collator numeric{txt::options{.numeric = true}};
+    txt::collator numeric{txt::collator::options{.numeric = true}};
 
     // what the option is for
     EXPECT_LT(numeric.compare(string("plik9"), string("plik10")), 0);
@@ -381,10 +381,69 @@ TEST(Collate_Tests, ARunOfDigitsIsANumber) {
     EXPECT_GT(numeric.compare(string("12"), string("-")), 0);
 }
 
+// UTS #35 (Collation, Numeric Ordering): the weights a number is given
+// are all at the start of the digits' group, below the weight of every
+// digit read as a character — of ⓪, ₀ and ↉, which are no decimal
+// digits and weigh as the digit zero does. CLDR's own example is
+// "a$" < "a0" < "a2" < "a12" < "a⓪" < "aa"; ICU orders so.
+TEST(Collate_Tests, NumbersWeighBelowEveryDigit) {
+    txt::collator numeric{txt::collator::options{.numeric = true}};
+    const char* order[] = {"a$", "a0", "a2", "a12", "a⓪", "aa"};
+    for (size_t i = 0; i + 1 < std::size(order); ++i) {
+        EXPECT_LT(numeric.compare(string(order[i]), string(order[i + 1])), 0) << order[i] << " " << order[i + 1];
+        EXPECT_LT(by_bytes(numeric.key(string(order[i])), numeric.key(string(order[i + 1]))), 0) << order[i];
+    }
+    EXPECT_LT(numeric.compare(string("8"), string("↉")), 0);           // VULGAR FRACTION ZERO THIRDS: 0⁄3
+    EXPECT_LT(numeric.compare(string("9"), string("₀")), 0);
+    EXPECT_LT(numeric.compare(string("�8"), string("�↉")), 0);   // the fuzzer's case
+    txt::collator danish{txt::locale(string("da")), {.strength = txt::strength::secondary, .numeric = true}};
+    EXPECT_LT(danish.compare(string("�8"), string("�↉")), 0);
+    // and still above what comes before the digits
+    EXPECT_GT(numeric.compare(string("0"), string("$")), 0);
+    EXPECT_GT(numeric.compare(string("0"), string("-")), 0);
+}
+
+// The boundaries of the numeric order below the digits (DESIGN 408)
+TEST(Collate_Tests, NumbersBelowTheDigitsAtTheirBoundaries) {
+    txt::collator numeric{txt::collator::options{.numeric = true}};
+    auto less = [&numeric](const string& a, const string& b) {
+        int c = numeric.compare(a, b);
+        EXPECT_EQ(by_bytes(numeric.key(a), numeric.key(b)) < 0, c < 0) << a.view() << " " << b.view();
+        return c < 0;
+    };
+    // nothing, and one character either side
+    EXPECT_TRUE(less(string(), string("0")));
+    EXPECT_TRUE(less(string(), string("\u24EA")));
+    EXPECT_TRUE(less(string("0"), string("\u24EA")));
+    EXPECT_TRUE(less(string("9"), string("\u2189")));
+    EXPECT_EQ(numeric.compare(string(), string()), 0);
+    // the zeros alone are the number nought, and still below the digit
+    EXPECT_TRUE(less(string("000"), string("\u24EA")));
+    EXPECT_EQ(numeric.compare(string("000"), string("0")), 0);
+    // the longest numbers there are: four hundred digits stay below ⓪
+    // and above what sorts before the digits
+    string big(std::string(400, '9').c_str());
+    EXPECT_TRUE(less(big, string("\u24EA")));
+    EXPECT_TRUE(less(string("$"), big));
+    EXPECT_TRUE(less(string("\U0001D7CE"), string("\u2080")));   // MATHEMATICAL BOLD DIGIT ZERO, Nd
+    // a text against itself
+    string same("a12\u24EA\u2189");
+    EXPECT_EQ(numeric.compare(same, same), 0);
+    EXPECT_EQ(numeric.key(same), numeric.key(same));
+    // out of the specification: an ill-formed byte before the number
+    EXPECT_TRUE(less(string("\x80" "8"), string("\x80\u2189")));
+    EXPECT_TRUE(less(string("\xFF" "12"), string("\xFF\u24EA")));
+    // a collator copied or moved keeps the order (it is a value)
+    txt::collator moved = std::move(numeric);
+    EXPECT_LT(moved.compare(string("a12"), string("a\u24EA")), 0);
+    txt::collator plain;
+    EXPECT_GT(plain.compare(string("a12"), string("a\u24EA")), 0);   // no numeric order: 1 after ⓪
+}
+
 TEST(Collate_Tests, PunctuationShiftedAside) {
     txt::collator counted;
-    txt::collator shifted{txt::options{.punctuation = txt::punctuation::shifted}};
-    txt::collator fourth{txt::options{.strength = txt::strength::quaternary,
+    txt::collator shifted{txt::collator::options{.punctuation = txt::punctuation::shifted}};
+    txt::collator fourth{txt::collator::options{.strength = txt::strength::quaternary,
                                       .punctuation = txt::punctuation::shifted}};
 
     // look as though the hyphen were not there
@@ -412,8 +471,8 @@ TEST(Collate_Tests, PunctuationShiftedAside) {
 
 TEST(Collate_Tests, TheCaseOnALevelOfItsOwn) {
     txt::collator plain;
-    txt::collator cased{txt::options{.strength = txt::strength::primary, .case_level = true}};
-    txt::collator upper{txt::options{.case_order = txt::case_order::upper_first}};
+    txt::collator cased{txt::collator::options{.strength = txt::strength::primary, .case_level = true}};
+    txt::collator upper{txt::collator::options{.case_order = txt::case_order::upper_first}};
 
     // the letters and the case, and nothing else: what a search over
     // names wants when it must still tell IBM from ibm
@@ -436,7 +495,7 @@ TEST(Collate_Tests, TheCaseOnALevelOfItsOwn) {
     EXPECT_TRUE(danish.capitals_first());
     EXPECT_LT(danish.compare(string("Ala"), string("ala")), 0);
     txt::collator danish_lower{txt::locale(string("da")),
-                               txt::options{.case_order = txt::case_order::lower_first}};
+                               txt::collator::options{.case_order = txt::case_order::lower_first}};
     EXPECT_GT(danish_lower.compare(string("Ala"), string("ala")), 0);
     EXPECT_EQ(danish_lower.compare(string("æble"), string("øl")),
               danish.compare(string("æble"), string("øl")));      // the letters are still Danish
@@ -450,8 +509,8 @@ TEST(Collate_Tests, TheCaseOnALevelOfItsOwn) {
 // Unicode 16 the two agree but for the half-width voiced marks, which
 // are no letters: collate.md)
 TEST(Collate_Tests, SmallAndNormalKanaAsCases) {
-    txt::collator cased{txt::options{.strength = txt::strength::primary, .case_level = true}};
-    txt::collator upper{txt::options{.case_order = txt::case_order::upper_first}};
+    txt::collator cased{txt::collator::options{.strength = txt::strength::primary, .case_level = true}};
+    txt::collator upper{txt::collator::options{.case_order = txt::case_order::upper_first}};
     txt::collator plain;
     struct Pair {
         const char* small;
@@ -505,16 +564,16 @@ TEST(Collate_Tests, ALanguagesContractionPastAMarkOfALowerClass) {
     EXPECT_LT(sv.compare(string("ô"), string("ô̴")), 0);   // ICU: -1, the same letter and one more mark
     EXPECT_GT(sv.compare(string("Z"), string("ŏ̂")), 0);        // ICU: 1, blocked by a mark of the same class
     EXPECT_LT(by_bytes(sv.key(string("Z")), sv.key(string("ô̴"))), 0);
-    txt::collator sv_primary{txt::locale(string("sv")), txt::options{.strength = txt::strength::primary}};
+    txt::collator sv_primary{txt::locale(string("sv")), txt::collator::options{.strength = txt::strength::primary}};
     EXPECT_EQ(sv_primary.compare(string("ô"), string("ô̴")), 0);   // ICU: 0
     EXPECT_EQ(sv_primary.key(string("ô")), sv_primary.key(string("ô̴")));
     txt::collator fi{txt::locale(string("fi"))};
     EXPECT_LT(fi.compare(string("z"), string("ạ̊")), 0);        // ICU: -1, å past a dot below (class 220)
     txt::collator da{txt::locale(string("da"))};
     EXPECT_LT(da.compare(string("z"), string("å̴")), 0);        // ICU: -1
-    txt::collator pl{txt::locale(string("pl")), txt::options{.strength = txt::strength::primary}};
+    txt::collator pl{txt::locale(string("pl")), txt::collator::options{.strength = txt::strength::primary}};
     EXPECT_EQ(pl.compare(string("ę"), string("ę̴")), 0);  // ICU: 0, ę past a tilde overlay
-    txt::collator cs{txt::locale(string("cs")), txt::options{.strength = txt::strength::primary}};
+    txt::collator cs{txt::locale(string("cs")), txt::collator::options{.strength = txt::strength::primary}};
     EXPECT_EQ(cs.compare(string("č"), string("č̣")), 0);  // ICU: 0, č past a dot below
 }
 
@@ -527,10 +586,10 @@ TEST(Collate_Tests, ALanguagesContractionPastAMarkOfALowerClass) {
 // weights, and ㍱ is a small h, a capital P and a small a. The answers
 // are ICU 78.3's
 TEST(Collate_Tests, TheCaseOfEachElementOfALetterThatExpands) {
-    txt::collator cased{txt::options{.strength = txt::strength::primary, .case_level = true}};
-    txt::collator cased_upper{txt::options{.strength = txt::strength::primary, .case_order = txt::case_order::upper_first,
+    txt::collator cased{txt::collator::options{.strength = txt::strength::primary, .case_level = true}};
+    txt::collator cased_upper{txt::collator::options{.strength = txt::strength::primary, .case_order = txt::case_order::upper_first,
                                            .case_level = true}};
-    txt::collator upper{txt::options{.case_order = txt::case_order::upper_first}};
+    txt::collator upper{txt::collator::options{.case_order = txt::case_order::upper_first}};
     EXPECT_EQ(cased.compare(string("ǅ"), string("Dž")), 0);           // ICU: 0
     EXPECT_EQ(cased.key(string("ǅ")), cased.key(string("Dž")));
     EXPECT_EQ(cased_upper.compare(string("ǅ"), string("Dž")), 0);     // ICU: 0
@@ -542,9 +601,9 @@ TEST(Collate_Tests, TheCaseOfEachElementOfALetterThatExpands) {
     EXPECT_EQ(cased.compare(string("㍱"), string("hPa")), 0);               // ICU: 0, ㍱
     // a language's own letter keeps the case of its code points: Danish
     // "Aa" is neither a capital nor a small letter (ICU: 1 and -1)
-    txt::collator da_cased{txt::locale(string("da")), txt::options{.strength = txt::strength::primary, .case_level = true}};
+    txt::collator da_cased{txt::locale(string("da")), txt::collator::options{.strength = txt::strength::primary, .case_level = true}};
     EXPECT_GT(da_cased.compare(string("Aa"), string("Å")), 0);
-    txt::collator da_upper{txt::locale(string("da")), txt::options{.case_order = txt::case_order::upper_first}};
+    txt::collator da_upper{txt::locale(string("da")), txt::collator::options{.case_order = txt::case_order::upper_first}};
     EXPECT_LT(da_upper.compare(string("Aa"), string("å")), 0);
 }
 
@@ -553,7 +612,7 @@ TEST(Collate_Tests, AccentsFromTheEndOfTheWord) {
     // it uses: read from the front, an accent early in the word settles
     // it; read from the end, a late one does.
     txt::collator forwards;
-    txt::collator backwards{txt::options{.backwards = true}};
+    txt::collator backwards{txt::collator::options{.backwards = true}};
     const char* words[] = {"cote", "coté", "côte", "côté"};
 
     EXPECT_LT(forwards.compare(string("cote"), string("coté")), 0);
@@ -581,7 +640,7 @@ TEST(Collate_Tests, AccentsFromTheEndOfTheWord) {
     // and what a collator settled on is asked of it as a question,
     // never by unwrapping the optional it was given
     txt::collator asked{txt::locale(string("da")),
-                        txt::options{.case_order = txt::case_order::lower_first,
+                        txt::collator::options{.case_order = txt::case_order::lower_first,
                                      .numeric = true}};
     EXPECT_FALSE(asked.capitals_first());       // the caller overruled the language
     EXPECT_TRUE(asked.numeric());
@@ -600,7 +659,7 @@ TEST(Collate_Tests, AccentsFromTheEndOfTheWord) {
 
 TEST(Collate_Tests, FindingOneTextInsideAnother) {
     string text = "Le résumé du candidat";
-    txt::collator search{txt::options{.strength = txt::strength::primary}};
+    txt::collator search{txt::collator::options{.strength = txt::strength::primary}};
 
     // the point of a search by collation: the accent is not a
     // difference, and the answer is in the bytes of the text as it was
@@ -640,20 +699,20 @@ TEST(Collate_Tests, FindingOneTextInsideAnother) {
 
     // nor may it cut a contraction: to a Czech "ch" is one letter, and
     // a "c" is not the first half of it
-    txt::collator czech{txt::locale(string("cs")), txt::options{.strength = txt::strength::primary}};
+    txt::collator czech{txt::locale(string("cs")), txt::collator::options{.strength = txt::strength::primary}};
     EXPECT_TRUE(czech.contains(string("chyba"), string("ch")));
     EXPECT_FALSE(czech.contains(string("chyba"), string("c")));
     EXPECT_TRUE(search.contains(string("chyba"), string("c")));       // the root has no such letter
 
     // what the settings do to a search: with the punctuation shifted a
     // hyphen is not there to be found around
-    txt::collator shifted{txt::options{.strength = txt::strength::primary,
+    txt::collator shifted{txt::collator::options{.strength = txt::strength::primary,
                                        .punctuation = txt::punctuation::shifted}};
     ASSERT_TRUE(shifted.find(string("un re-sume ici"), string("resume")).has_value());
     EXPECT_EQ(shifted.find(string("un re-sume ici"), string("resume"))->size, 7u);
     EXPECT_FALSE(search.contains(string("un re-sume ici"), string("resume")));
     // and with the numeric order a number is found as a number
-    txt::collator numeric{txt::options{.strength = txt::strength::primary, .numeric = true}};
+    txt::collator numeric{txt::collator::options{.strength = txt::strength::primary, .numeric = true}};
     EXPECT_TRUE(numeric.contains(string("plik0042.txt"), string("42")));
     EXPECT_FALSE(numeric.contains(string("plik0042.txt"), string("4")));
 
@@ -669,7 +728,7 @@ TEST(Collate_Tests, ASearchPreparedOnceAndAskedMany) {
     // The text weighed once and asked many times, and every occurrence
     // as a range — the shapes search.h has for its two searches, here
     // over the collator's idea of equal
-    txt::collator search{txt::options{.strength = txt::strength::primary}};
+    txt::collator search{txt::collator::options{.strength = txt::strength::primary}};
     string text = "Résumé, resume, RESUME: le résumé du candidat.";
     txt::collated_text weighed{search, text};
 
@@ -732,7 +791,7 @@ TEST(Collate_Tests, AMatchTakesWholeLetters) {
     // what one letter weighs. A "ß" weighs as two s at primary
     // strength, which is the whole of what it is; "ss" finds it and "s"
     // does not find half of one.
-    txt::collator search{txt::options{.strength = txt::strength::primary}};
+    txt::collator search{txt::collator::options{.strength = txt::strength::primary}};
     string strasse = "straße";
     EXPECT_TRUE(search.contains(strasse, string("ss")));
     EXPECT_EQ(search.find(strasse, string("ss"))->size, 2u);     // the two bytes of ß
@@ -749,7 +808,7 @@ TEST(Collate_Tests, AMatchTakesWholeLetters) {
     // and the same of a letter a language weighs as two: Danish reads
     // an "aa" as an "å", so an "a" is not half of one
     txt::collator danish{txt::locale(string("da")),
-                         txt::options{.strength = txt::strength::primary}};
+                         txt::collator::options{.strength = txt::strength::primary}};
     EXPECT_TRUE(danish.contains(string("Aarhus"), string("aa")));
     EXPECT_TRUE(danish.contains(string("Aarhus"), string("å")));
     EXPECT_FALSE(danish.contains(string("Aarhus"), string("a")));
@@ -835,9 +894,9 @@ TEST(Collate_Tests, TwoSpellingsOfOneTextAnswerTheSame) {
 // shifted a hyphen does not. "-resume" contained "resume" and did not
 // start with it.
 TEST(Collate_Tests, TheEndsOfATextAreWhatTheCollatorLooksAt) {
-    txt::collator shifted{txt::options{.strength = txt::strength::primary,
+    txt::collator shifted{txt::collator::options{.strength = txt::strength::primary,
                                        .punctuation = txt::punctuation::shifted}};
-    txt::collator counted{txt::options{.strength = txt::strength::primary}};
+    txt::collator counted{txt::collator::options{.strength = txt::strength::primary}};
     struct { const char* text; bool starts, ends; } cases[] = {
         {"resume",    true,  true},
         {"-resume",   true,  true},
@@ -921,7 +980,7 @@ TEST(Collate_Tests, EndsWithLooksWhereTheMatchWouldHaveToBegin) {
     EXPECT_FALSE(primary.ends_with(string("straß"), string("s")));
 
     // a contraction at the end, which is one letter and not two
-    txt::collator czech{txt::locale(string("cs")), txt::options{.strength = txt::strength::primary}};
+    txt::collator czech{txt::locale(string("cs")), txt::collator::options{.strength = txt::strength::primary}};
     EXPECT_TRUE(czech.ends_with(string("chyba ch"), string("ch")));
     EXPECT_FALSE(czech.ends_with(string("chyba ch"), string("h")));
     EXPECT_TRUE(czech.ends_with(string("chyba"), string("yba")));
@@ -953,13 +1012,13 @@ TEST(Collate_Tests, EndsWithLooksWhereTheMatchWouldHaveToBegin) {
 // text weighs the pattern again with its own, so the answer is the one a
 // pattern of the text's own making would have given.
 TEST(Collate_Tests, APatternWeighedByAnotherCollatorIsWeighedAgain) {
-    txt::collator counted{txt::options{.strength = txt::strength::primary}};
-    txt::collator shifted{txt::options{.strength = txt::strength::primary,
+    txt::collator counted{txt::collator::options{.strength = txt::strength::primary}};
+    txt::collator shifted{txt::collator::options{.strength = txt::strength::primary,
                                        .punctuation = txt::punctuation::shifted}};
     txt::collator exact;                                  // tertiary, counted
     ASSERT_FALSE(counted == shifted);
     ASSERT_FALSE(counted == exact);
-    ASSERT_TRUE(counted == txt::collator{txt::options{.strength = txt::strength::primary}});
+    ASSERT_TRUE(counted == txt::collator{txt::collator::options{.strength = txt::strength::primary}});
 
     // the pattern has a hyphen the shifted collator dropped; the text
     // counts hyphens, and once found "re-sume" inside "resume" that way
@@ -997,12 +1056,12 @@ TEST(Collate_Tests, APatternWeighedByAnotherCollatorIsWeighedAgain) {
     // and where the two agree nothing is weighed twice: the same
     // searcher, used against a text made with an equal collator that is
     // not the same object, answers as its own would
-    txt::collator twin{txt::options{.strength = txt::strength::primary}};
+    txt::collator twin{txt::collator::options{.strength = txt::strength::primary}};
     txt::collated_text other{twin, text};
     EXPECT_TRUE(other.find(txt::collated_searcher{counted, string("resume")}).has_value());
 
     // a language is part of it: the root has no Czech "ch"
-    txt::collator czech{txt::locale(string("cs")), txt::options{.strength = txt::strength::primary}};
+    txt::collator czech{txt::locale(string("cs")), txt::collator::options{.strength = txt::strength::primary}};
     ASSERT_FALSE(czech == counted);
     txt::collated_text root_text{counted, string("chyba")};
     EXPECT_TRUE(root_text.find(txt::collated_searcher{czech, string("c")}).has_value());
@@ -1123,6 +1182,20 @@ TEST(Collate_Tests, ARangeHoldsItsTextAsAString) {
     EXPECT_EQ(it.pos(), 0u);
     EXPECT_EQ(std::string((*it).data(), (*it).size()), "Résumé");
 }
+
+TEST(Collate_Tests, ADefaultRangeIsAnEmptyOne) {
+    // A range made with nothing is an empty text and an empty pattern
+    // under the root collator: its text and its pattern read a null state
+    txt::collated_matches range;
+    EXPECT_EQ(range.text().size(), 0u);
+    EXPECT_TRUE(range.pattern().empty());
+    EXPECT_EQ(range.pattern().pattern(), "");
+    EXPECT_TRUE(range.pattern().by() == txt::collator());
+    EXPECT_TRUE(range.empty());
+    EXPECT_EQ(range.count(), 0u);
+    EXPECT_TRUE(range.begin() == range.end());
+}
+
 // The same character the page carried as a limit, asked of the collated
 // search. Here the answer depends on the strength, and both answers are
 // right: at the first strength the marks are not looked at, so the base is
@@ -1215,7 +1288,7 @@ TEST(Collate_Tests, ThePositionsOfTheElementsAscend) {
     size_t checked = 0;
     for (auto where : languages) {
         for (int bits = 0; bits < 8; ++bits) {
-            txt::options how;
+            txt::collator::options how;
             how.strength = txt::strength(bits & 3);
             how.punctuation = (bits & 4) ? txt::punctuation::shifted : txt::punctuation::counted;
             how.numeric = (bits & 4) != 0;
@@ -1300,4 +1373,198 @@ TEST(Collate_Tests, PastTheInlineBuffers) {
     ASSERT_TRUE(hit);
     EXPECT_EQ(hit->at, 3u);
     EXPECT_EQ(hit->size, needle.size());
+}
+
+// DESIGN 408: the empty text and pattern, broken UTF-8 against the
+// replacement it stands for, a start far past the end, the key into a
+// buffer one byte short, and numbers whose digit count crosses a piece
+TEST(Collate_Tests, TheEdges) {
+    txt::collator root;
+    EXPECT_EQ(root.where(), txt::locale::root());
+    EXPECT_EQ(root.level(), txt::strength::tertiary);
+    EXPECT_FALSE(root.tailored() || root.numeric() || root.shifts_punctuation() || root.backwards());
+    EXPECT_TRUE(root == txt::collator(txt::locale()));
+    EXPECT_FALSE(root == txt::collator(txt::strength::primary));
+
+    // Empty: before everything, equal to itself and to what weighs nothing
+    EXPECT_EQ(root.compare(string(), string()), 0);
+    EXPECT_LT(root.compare(string(), string("a")), 0);
+    EXPECT_GT(root.compare(string("a"), string()), 0);
+    EXPECT_EQ(root.compare(string(), string("​")), 0);        // a code point the collator does not look at
+    EXPECT_EQ(by_bytes(root.key(string()), root.key(string("​"))), 0);
+    EXPECT_FALSE(root(string(), string()));
+    EXPECT_TRUE(root.equal(string(), string()));
+
+    // Broken UTF-8 is U+FFFD, a byte each: equal to the character written
+    EXPECT_EQ(root.compare(string("\xFF"), string("�")), 0);
+    EXPECT_EQ(root.compare(string("a\xE2\x82"), string("a��")), 0);
+    EXPECT_EQ(by_bytes(root.key(string("\xC3")), root.key(string("�"))), 0);
+    EXPECT_TRUE(root.contains(string("x\xFFy"), string("�")));
+
+    // find over nothing and with nothing, and from past the end
+    EXPECT_EQ(root.find(string(), string()) ->at, 0u);
+    EXPECT_FALSE(root.find(string(), string("a")));
+    EXPECT_FALSE(root.find(string("abc"), string(), 4));
+    EXPECT_FALSE(root.find(string("abc"), string("a"), npos));
+    EXPECT_FALSE(root.find(string("abc"), string("c"), 3));
+    EXPECT_EQ(root.find(string("abc"), string("c"), 2)->at, 2u);
+    EXPECT_TRUE(root.starts_with(string("abc"), string()));
+    EXPECT_TRUE(root.ends_with(string("abc"), string()));
+    EXPECT_FALSE(root.starts_with(string(), string("a")));
+    EXPECT_FALSE(root.ends_with(string(), string("a")));
+    EXPECT_TRUE(root.starts_with(string("abc"), string("abc")));      // the pattern is the text
+    EXPECT_TRUE(root.ends_with(string("abc"), string("abc")));
+    EXPECT_FALSE(root.ends_with(string("bc"), string("abc")));        // longer than the text
+    txt::collated_text text(root, string("a-a-a"));
+    EXPECT_EQ(text.count(string("a")), 3u);
+    EXPECT_EQ(text.count(string()), 0u);
+    EXPECT_FALSE(text.find(string("a"), npos));
+    EXPECT_EQ(text.find(string(), 5)->at, 5u);
+    EXPECT_FALSE(text.find(string(), 6));
+    EXPECT_EQ(txt::collated_matches(root, string("a-a-a"), string("a")).count(), 3u);
+    EXPECT_TRUE(txt::collated_matches(root, string(), string("a")).empty());
+
+    // Default-constructed and moved-from prepared text
+    txt::collated_text none;
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(none.size(), 0u);
+    EXPECT_EQ(none.find(string())->at, 0u);
+    EXPECT_FALSE(none.contains(string("a")));
+    EXPECT_FALSE(none.starts_with(string("a")));
+    EXPECT_FALSE(none.ends_with(string("a")));
+    EXPECT_EQ(none.text().size(), 0u);
+    auto moved = std::move(text);
+    EXPECT_EQ(moved.count(string("a")), 3u);
+    (void)text.count(string("a"));                            // usable, whatever it holds
+    txt::collated_searcher nothing(root, string());
+    EXPECT_TRUE(nothing.empty());
+    EXPECT_EQ(nothing.size(), 0u);
+
+    // The key into a buffer: exactly its size is written, one byte less
+    // writes nothing at all
+    string word("Zażółć");
+    auto whole = root.key(word);
+    std::vector<byte> buffer(whole.size(), byte(0xEE));
+    EXPECT_EQ(root.key_to(slice<byte>(buffer.data(), buffer.size()), word), whole.size());
+    EXPECT_TRUE(std::equal(buffer.begin(), buffer.end(), whole.begin()));
+    std::vector<byte> short_one(whole.size() - 1, byte(0xEE));
+    EXPECT_EQ(root.key_to(slice<byte>(short_one.data(), short_one.size()), word), whole.size());
+    EXPECT_TRUE(std::all_of(short_one.begin(), short_one.end(), [](byte b) { return b == byte(0xEE); }));
+    EXPECT_EQ(root.key_to(slice<byte>(), word), whole.size());
+    EXPECT_EQ(root.key_to(slice<byte>(), string()), root.key(string()).size());
+
+    // Numbers whose count of digits crosses a piece of the count (60000):
+    // a longer number is the larger, the key agrees
+    txt::collator numeric{txt::collator::options{.numeric = true}};
+    sgcl::vector<string> ordered;
+    for (size_t digits : {size_t(1), size_t(4), size_t(5), size_t(59999), size_t(60000), size_t(60001),
+                          size_t(120001)}) {
+        std::string n(digits, '9');
+        n[0] = '1';
+        ordered.push_back(string(n.data(), n.size()));
+    }
+    for (size_t i = 0; i + 1 < ordered.size(); ++i) {
+        EXPECT_LT(numeric.compare(ordered[i], ordered[i + 1]), 0) << ordered[i].size();
+        EXPECT_GT(numeric.compare(ordered[i + 1], ordered[i]), 0) << ordered[i].size();
+        EXPECT_LT(by_bytes(numeric.key(ordered[i]), numeric.key(ordered[i + 1])), 0) << ordered[i].size();
+        EXPECT_EQ(numeric.compare(ordered[i], ordered[i]), 0);
+    }
+    // the same count of digits, the last one differing
+    std::string a(60001, '5'), b(60001, '5');
+    b.back() = '6';
+    EXPECT_LT(numeric.compare(string(a.data(), a.size()), string(b.data(), b.size())), 0);
+    // leading zeros of any length are no part of it
+    std::string zeros(70000, '0');
+    zeros += "7";
+    EXPECT_EQ(numeric.compare(string(zeros.data(), zeros.size()), string("7")), 0);
+}
+
+namespace {
+    // a = std::move(a) without the compiler's warning about it
+    template<class T>
+    void move_into_itself(T& a) {
+        T& same = a;
+        a = std::move(same);
+    }
+}
+
+// A prepared pattern, text or range moved from is the empty one under the
+// root collator, its pattern or text empty too (after DESIGN 429)
+TEST(Collate_Tests, AMovedFromObjectIsTheEmptyOne) {
+    txt::collator primary(txt::strength::primary);
+    string text("résumé, RESUME");
+    txt::collated_searcher s(primary, string("resume"));
+    auto s_moved = std::move(s);
+    EXPECT_EQ(s_moved.pattern(), string("resume"));
+    EXPECT_TRUE(s.empty());                                    // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(s.size(), 0u);
+    EXPECT_TRUE(s.pattern().empty());
+    EXPECT_TRUE(s.by() == txt::collator());
+    txt::collated_text weighed(primary, text);
+    EXPECT_EQ(weighed.count(s_moved), 2u);
+    EXPECT_EQ(weighed.find(s)->at, 0u);                        // the empty pattern, found where looked for
+    EXPECT_EQ(weighed.count(s), 0u);
+    s = txt::collated_searcher(primary, string("RESUME"));
+    EXPECT_EQ(weighed.count(s), 2u);
+    move_into_itself(s);
+    EXPECT_EQ(weighed.count(s), 2u);
+
+    auto weighed_moved = std::move(weighed);
+    EXPECT_EQ(weighed_moved.count(s), 2u);
+    EXPECT_TRUE(weighed.empty());                              // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(weighed.size(), 0u);
+    EXPECT_EQ(weighed.text().size(), 0u);
+    EXPECT_TRUE(weighed.by() == txt::collator());
+    EXPECT_EQ(weighed.find(string())->at, 0u);
+    EXPECT_FALSE(weighed.find(string(), 1));
+    EXPECT_FALSE(weighed.contains(string("a")));
+    EXPECT_EQ(weighed.count(string("a")), 0u);
+    weighed = txt::collated_text(primary, string("a-a"));
+    EXPECT_EQ(weighed.count(string("A")), 2u);
+    move_into_itself(weighed);
+    EXPECT_EQ(weighed.count(string("A")), 2u);
+    auto copy = weighed;
+    EXPECT_EQ(copy.count(string("A")), 2u);
+
+    txt::collated_matches m(primary, text, string("resume"));
+    auto m_moved = std::move(m);
+    EXPECT_EQ(m_moved.count(), 2u);
+    EXPECT_TRUE(m.empty());                                    // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(m.count(), 0u);
+    EXPECT_TRUE(m.begin() == m.end());
+    EXPECT_EQ(m.text().size(), 0u);
+    EXPECT_TRUE(m.pattern().pattern().empty());
+    m = txt::collated_matches(primary, string("a a"), string("A"));
+    EXPECT_EQ(m.count(), 2u);
+    move_into_itself(m);
+    EXPECT_EQ(m.count(), 2u);
+}
+
+// A collator of a tag: what the locale of that tag gives, BCP-47 and
+// POSIX alike, with a strength and with options; an unknown tag, an empty
+// one and one past a subtag's length are the root
+TEST(Collate_Tests, ACollatorOfATag) {
+    txt::collator polish("pl");
+    EXPECT_EQ(polish.where(), txt::locale(string("pl")));
+    EXPECT_EQ(polish.level(), txt::strength::tertiary);
+    EXPECT_LT(polish.compare(string("zebra"), string("żaba")), 0);
+    EXPECT_LT(polish.compare(string("lody"), string("łódź")), 0);
+    for (const char* tag : {"pl-PL", "pl_PL.UTF-8", "PL", "pl@euro"}) {
+        txt::collator c{string(tag)};
+        EXPECT_EQ(c.where(), polish.where()) << tag;
+        EXPECT_EQ(c.key(string("żaba")), polish.key(string("żaba"))) << tag;
+    }
+    txt::collator primary("pl", txt::strength::primary);
+    EXPECT_EQ(primary.level(), txt::strength::primary);
+    EXPECT_EQ(primary.compare(string("Żaba"), string("żaba")), 0);
+    txt::collator numeric("pl", {.numeric = true});
+    EXPECT_LT(numeric.compare(string("plik9"), string("plik10")), 0);
+    EXPECT_EQ(numeric.where(), polish.where());
+    for (const char* tag : {"", "klingon", "C.UTF-8", "x", "1234"}) {
+        txt::collator c{string(tag)};
+        EXPECT_EQ(c.where(), txt::locale()) << tag;
+        EXPECT_EQ(c.key(string("żaba")), txt::collator().key(string("żaba"))) << tag;
+    }
+    static_assert(noexcept(txt::collator(std::declval<const string&>())));   // the text made of "pl" is the caller's
+    static_assert(!std::is_convertible_v<const char*, txt::locale>);   // a locale is never made of text by itself
 }

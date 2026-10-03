@@ -95,7 +95,7 @@ namespace sgcl::encoding {
             return encode(slice<const byte>(text));
         }
 
-        expected<vector<byte>, error> decode(const string& text) const {
+        expected<vector<byte>, error> decode(const string& text) const noexcept {
             return detail::decode_text(_radix, text);
         }
 
@@ -140,8 +140,8 @@ namespace sgcl::encoding {
         // A writer that encodes what is written to it into out (close()
         // writes the last group and leaves out open), and a reader of the
         // bytes the text of in decodes to
-        encoder encoder_to(const io::writer& out) const;
-        decoder decoder_from(const io::reader& in) const;
+        encoder encoder_to(const io::writer& out) const noexcept;
+        decoder decoder_from(const io::reader& in) const noexcept;
 
     private:
         constexpr explicit base64(const detail::Radix<6>& r) noexcept
@@ -170,11 +170,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline base64::encoder base64::encoder_to(const io::writer& out) const {
+    inline base64::encoder base64::encoder_to(const io::writer& out) const noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<6>>>(_radix, out));
     }
 
-    inline base64::decoder base64::decoder_from(const io::reader& in) const {
+    inline base64::decoder base64::decoder_from(const io::reader& in) const noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<6>>>(_radix, in));
     }
 }

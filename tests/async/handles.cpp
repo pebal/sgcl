@@ -182,7 +182,7 @@ TEST(AsyncHandles_Test, AGuardInATaskFrameThroughACollection) {
         }
         locked->store(true);
         co_await proceed;                                     // suspended holding the guard alone
-        sgcl::async::mutex owner = held->owner();
+        sgcl::async::mutex owner = *held->owner();
         bool was_locked = !owner.try_lock();
         held.reset();                                         // the guard's end: unlocked
         bool unlocked = owner.try_lock();

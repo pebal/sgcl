@@ -33,7 +33,7 @@ namespace sgcl::async {
             std::coroutine_handle<> consumer;               // the coroutine waiting in next()
             tracked_ptr<detail::FrameWord> consumer_frame;   // its frame, held for the length of the wait
 
-            generator get_return_object() {
+            generator get_return_object() noexcept {
                 return generator(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
@@ -69,7 +69,7 @@ namespace sgcl::async {
                 }
             };
 
-            to_consumer yield_value(T v) {
+            to_consumer yield_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 value.emplace(std::move(v));
                 return {};
             }
@@ -153,7 +153,7 @@ namespace sgcl::async {
         }
 
     private:
-        explicit generator(std::coroutine_handle<promise_type> h)
+        explicit generator(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 

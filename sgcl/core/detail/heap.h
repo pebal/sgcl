@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <bit>
 #include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <mutex>
@@ -421,6 +422,14 @@ namespace sgcl::detail {
 
         // Splits a chunk-aligned run of 32 pages out of the free ranges.
         void* _alloc_range_locked(size_t pages) {
+            // more pages than the whole heap: refused before anything is
+            // computed from the count. Past it pages < 2^32 (the range is
+            // under 2^48 bytes of 64 KB pages), so the bin below stays under
+            // 32 for the shift of the mask and the counts fit the tags'
+            // 32 bits; no sum of the count passes the range's pages
+            if (pages > _page_count) [[unlikely]] {
+                return nullptr;
+            }
             size_t first;
             bool found = false;
             // the smallest bin that can hold the request, first fit inside
@@ -615,4 +624,20 @@ namespace sgcl::detail {
         std::atomic<size_t> _limit = {0};
         alignas(config::cache_line_size) std::mutex _mutex;
     };
+
+    // A managed allocation refused after the full collection: the program
+    // ends. Nothing can be done with the error (the memory a handler would
+    // need is the memory that ran out), so it is not thrown; one line on
+    // stderr says why. Out of line and cold: the allocators' slow paths
+    // keep only the call.
+    [[noreturn]] SGCL_COLD inline void out_of_managed_memory() noexcept {
+        auto& heap = Heap::instance();
+        auto limit = heap.memory_limit();
+        if (limit) {
+            std::fprintf(stderr, "sgcl: out of managed memory: %zu bytes committed, limit %zu\n", heap.committed_bytes(), limit);
+        } else {
+            std::fprintf(stderr, "sgcl: out of managed memory: %zu bytes committed, no limit\n", heap.committed_bytes());
+        }
+        std::terminate();
+    }
 }

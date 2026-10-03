@@ -38,7 +38,7 @@ namespace sgcl::crypto {
                 return "crypto";
             }
 
-            std::string message(int c) const override {
+            std::string message(int c) const noexcept override {
                 switch (static_cast<errc>(c)) {
                     case errc::authentication: return "message authentication failed";
                     case errc::invalid_key: return "invalid key";
@@ -101,25 +101,25 @@ namespace sgcl::crypto {
     public:
         error() = default;
 
-        explicit error(errc code)
+        explicit error(errc code) noexcept
         : _code(code) {
         }
 
-        error(errc code, const string& detail)
+        error(errc code, const string& detail) noexcept
         : _code(code), _detail(detail) {
         }
 
         // A chain that does not verify: errc::verification and why
-        error(x509::reason why, const string& detail)
+        error(x509::reason why, const string& detail) noexcept
         : _code(errc::verification), _reason(why), _detail(detail) {
         }
 
         // The code at a byte of an encoded input
-        error(errc code, uint64_t offset)
+        error(errc code, uint64_t offset) noexcept
         : _code(code), _offset(offset) {
         }
 
-        error(errc code, uint64_t offset, const string& detail)
+        error(errc code, uint64_t offset, const string& detail) noexcept
         : _code(code), _offset(offset), _detail(detail) {
         }
 
@@ -141,7 +141,7 @@ namespace sgcl::crypto {
 
         // "message authentication failed", "offset 17: malformed data",
         // "offset 4: DER: length past the end"
-        string message() const {
+        string message() const noexcept {
             std::string m;
             if (_offset != 0) {
                 m = "offset ";

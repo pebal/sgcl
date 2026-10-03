@@ -1,194 +1,129 @@
-# sgcl::unique_ptr
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::unique_ptr\<T\>
 
 ```cpp
-#include "sgcl/core/unique_ptr.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/unique_ptr.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class T>
-    class unique_ptr : public std::unique_ptr<T, detail::UniqueDeleter>;
+    class unique_ptr;   // derives from std::unique_ptr<T, deleter_type>
 }
 ```
 
-`unique_ptr<T>` is what [`make_tracked<T>(...)`](make_tracked.md) returns: a `std::unique_ptr` whose object lives on the managed heap and whose deleter destroys it there. It behaves like any `std::unique_ptr`: sole owner, move-only, the object destroyed at scope exit, deterministically, on the thread that drops it. What it adds is the collector's side of the deal: while a `unique_ptr` owns an object, that object is a root, and so is everything reachable from it; and the `unique_ptr` converts into a [`tracked_ptr`](tracked_ptr.md), after which the object belongs to the collector, destroyed when nothing reaches it any more.
+`sgcl::unique_ptr<T>` is what [make_tracked](make_tracked.md)`<T>(...)` returns: a `std::unique_ptr` whose object
+lives on the managed heap and whose deleter destroys it there. It behaves like any `std::unique_ptr`: sole owner,
+move-only, the object destroyed at scope exit, deterministically, on the thread that drops it. What it adds is the
+collector's side of the deal: while a `unique_ptr` owns an object, that object is a root, and so is everything
+reachable from it; and the `unique_ptr` converts into a [tracked_ptr](tracked_ptr.md), after which the object
+belongs to the collector, destroyed when nothing reaches it any more. Go has no such owner: there every object is
+the collector's, as here every object handed to a `tracked_ptr` is.
 
-The class derives from `std::unique_ptr<T, detail::UniqueDeleter>`, so `get()`, `release()`, `reset()`, `swap()`, `operator*`, `operator->`, `operator bool`, the comparisons and `std::hash` are the standard ones. On top it has the dynamic type of its object (`type()`, `is<U>()`, `as<U>()`), a conversion to `unique_ptr<void>&`, and the three pointer casts as free functions.
+The class derives publicly from `std::unique_ptr` with a deleter of the library's own (`deleter_type`), so `get()`,
+`release()`, `reset()`, `swap()`, `operator*`, `operator->`, `operator bool`, the comparisons and `std::hash` are the
+standard ones. On top it has the dynamic type of its object (`type()`, `is<U>()`, `as<U>()`), a conversion to
+`unique_ptr<void>&`, and the three pointer casts as free functions. There is no constructor from a raw pointer: an
+object enters a `unique_ptr` through `make_tracked` only.
 
 ## Rules
 
-- A `unique_ptr` may live anywhere: on a stack, inside a managed object, in `new`/`malloc` memory, a `std` container, a global or a `thread_local`. The object it owns is a root by its state, wherever its owner is. A global root is a `unique_ptr` ([The rules](README.md#the-rules)); its object dies with the static destructors, after the main thread has stopped the collector, and may still make objects and copy pointers then. A `thread_local` `unique_ptr` of another thread is destroyed with that thread's other `thread_local`s, in the reverse order of their construction: one constructed before the thread's first contact with the library outlives the thread's registration, and its object's destructor may not use the library any more (destroy the object, copy no pointer, make none).
-- The object a `unique_ptr` owns may not be addressed by a `tracked_ptr` or a [`weak_ptr`](weak_ptr.md): the owner's delete would leave them dangling. Debug builds assert it. Hand the object to the collector first (move the `unique_ptr` into a `tracked_ptr`), then take as many pointers as needed ([The rules](README.md#the-rules), 4).
-- The destructor destroys the object at once, on the calling thread, like `std::unique_ptr`. A `unique_ptr` member of a managed object is destroyed with the object, wherever that happens, on a stack or in a sweep on a collector thread; a destructor may use its `unique_ptr` members freely, unlike its `tracked_ptr` members ([The rules](README.md#the-rules), 5).
-- The `tracked_ptr` members of the owned object follow the rules of `tracked_ptr`: the object is on the managed heap, so they may live in it, and the collector traces them for as long as the owner lives.
+- A `unique_ptr` may live anywhere: on a stack, inside a managed object, in `new`/`malloc` memory, a `std`
+  container, a global or a `thread_local`. The object it owns is a root by its state, wherever its owner is. A
+  global root is a `unique_ptr` ([The rules](README.md#the-rules)); its object dies with the static destructors,
+  after the main thread has stopped the collector, and may still make objects and copy pointers then. A
+  `thread_local` `unique_ptr` of another thread is destroyed with that thread's other `thread_local`s, in the
+  reverse order of their construction: one constructed before the thread's first contact with the library outlives
+  the thread's registration, and its object's destructor may not use the library any more (destroy the object,
+  copy no pointer, make none).
+- The object a `unique_ptr` owns may not be addressed by a `tracked_ptr` or a [weak_ptr](weak_ptr.md): the owner's
+  delete would leave them dangling. Debug builds assert it. Hand the object to the collector first (move the
+  `unique_ptr` into a `tracked_ptr`), then take as many pointers as needed ([The rules](README.md#the-rules), 4).
+- The destructor destroys the object at once, on the calling thread, like `std::unique_ptr`: its destructor runs,
+  and its slot goes back to the managed heap. Anything the object reached through `tracked_ptr`s lives on if
+  something else reaches it, and becomes garbage otherwise. A `unique_ptr` member
+  of a managed object is destroyed with the object, wherever that happens, on a stack or in a sweep on a collector
+  thread; a destructor may use its `unique_ptr` members freely, unlike its `tracked_ptr` members
+  ([The rules](README.md#the-rules), 5).
+- The `tracked_ptr` members of the owned object follow the rules of `tracked_ptr`: the object is on the managed
+  heap, so they may live in it, and the collector traces them for as long as the owner lives.
 - Thread safety is that of `std::unique_ptr`: one thread at a time, or the program's own synchronization.
-- Where it belongs: at the edge of the managed world, holding an object from unmanaged memory or for the moment between `make_tracked` and the `tracked_ptr` that takes the object. Inside a managed object it buys only a deterministic destructor for the sub-object, and it costs what a `tracked_ptr` member does not: the owned object is a root the collector finds by its state in every cycle, and the owner's word is one the marking visits. A structure of managed objects is held by `tracked_ptr`s; a million `unique_ptr` members is a million roots, and a full cycle pays for each.
-- `unique_ptr<T[]>` is declared but not defined: managed arrays belong to the containers ([vector](vector.md), [array](array.md)).
+- Where it belongs: at the edge of the managed world, holding an object from unmanaged memory or for the moment
+  between `make_tracked` and the `tracked_ptr` that takes the object. Inside a managed object it buys only a
+  deterministic destructor for the sub-object, and it costs what a `tracked_ptr` member does not: the owned object
+  is a root the collector finds by its state in every cycle, and the owner's word is one the marking visits. A
+  structure of managed objects is held by `tracked_ptr`s; a million `unique_ptr` members is a million roots, and a
+  full cycle pays for each.
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `T` | The type of the object: an object type, `const` or not, or `void`. Not an array: `unique_ptr<T[]>` is declared but not defined ([Specializations](#specializations)). |
 
-```cpp
-using element_type = T;
-using pointer = T*;                          // from std::unique_ptr
-using deleter_type = detail::UniqueDeleter;  // from std::unique_ptr
-```
+## Member types
 
-### Constructors
+| Type | Definition |
+|---|---|
+| `element_type` | `T` |
+| `pointer` | `T*`, from `std::unique_ptr` |
+| `deleter_type` | the library's deleter, which destroys the object on the managed heap, from `std::unique_ptr` |
 
-```cpp
-unique_ptr() = default;
-constexpr unique_ptr(std::nullptr_t) noexcept;
-unique_ptr(unique_ptr&& p) noexcept;         // implicit, from std::unique_ptr
-template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-unique_ptr(detail::UniquePtr<U>&& p) noexcept;
-```
+## Member functions
 
-The default and the `nullptr` constructors make an empty pointer. The move constructors take the object over, from a `unique_ptr<T>` or from a `unique_ptr<U>` with `U*` convertible to `T*` (a base class, or `void`); the source is null afterwards. There is no constructor from a raw pointer: an object enters a `unique_ptr` through `make_tracked` only.
+| Function | Description |
+|---|---|
+| [(constructor)](unique_ptr/unique_ptr.md) | constructs the owner |
+| `(destructor)` | destroys the object, if any, at once and on the calling thread |
+| [operator=](unique_ptr/operator_assign.md) | destroys the object, if any, and takes another over |
 
-```cpp
-struct Base { virtual ~Base() = default; };
-struct Item : Base { int value = 7; };
+#### Modifiers
 
-unique_ptr item = make_tracked<Item>();       // unique_ptr<Item>
-unique_ptr<Base> base = std::move(item);           // the Item, as its base; item is null now
-unique_ptr<Item> none;                             // empty
-assert(!item && base && !none);
-```
+| Function | Description |
+|---|---|
+| [release](unique_ptr/release.md) | hands the raw pointer out and leaves the owner empty |
+| [reset](unique_ptr/reset.md) | destroys the object, or replaces it |
+| [swap](unique_ptr/swap.md) | exchanges the objects of two owners |
 
-### Destructor
+#### Observers
 
-```cpp
-~unique_ptr();   // from std::unique_ptr
-```
+| Function | Description |
+|---|---|
+| [get](unique_ptr/get.md) | the raw pointer |
+| [operator\*, operator->](unique_ptr/operator_deref.md) | the object |
+| [operator bool](unique_ptr/operator_bool.md) | checks whether there is an object |
+| [operator unique_ptr\<void\>&](unique_ptr/operator_conv.md) | the same owner without its type |
+| `get_deleter` | the deleter, from `std::unique_ptr` |
 
-Destroys the owned object, if any, at once and on the calling thread: its destructor runs, and its slot goes back to the managed heap. Anything the object reached through `tracked_ptr`s lives on if something else reaches it, and becomes garbage otherwise.
+#### Dynamic type
 
-### operator=
+| Function | Description |
+|---|---|
+| [type](unique_ptr/type.md) | the type the object was created with |
+| [is](unique_ptr/is.md) | checks whether the object was created as a given type |
+| [as](unique_ptr/as.md) | moves the object into an owner of a given type, when it is one |
 
-```cpp
-unique_ptr& operator=(unique_ptr&& p) noexcept;                                    // implicit
-template<class U, class E>
-std::unique_ptr<T, deleter_type>& operator=(std::unique_ptr<U, E>&& p) noexcept;   // from std::unique_ptr, U* convertible to T*
-std::unique_ptr<T, deleter_type>& operator=(std::nullptr_t) noexcept;              // from std::unique_ptr
-```
+## Non-member functions
 
-The assignments of `std::unique_ptr`: the current object, if any, is destroyed, the new one taken over (a `unique_ptr<U>` with `U*` convertible to `T*` converts), or the pointer left empty for `nullptr`.
+| Function | Description |
+|---|---|
+| [operator==, operator\<=\>](unique_ptr/operator_cmp.md) | the comparisons of `std::unique_ptr`, on the addresses |
+| [static_pointer_cast, const_pointer_cast, dynamic_pointer_cast](unique_ptr/pointer_cast.md) | the casts, moving the ownership into the result |
 
-```cpp
-unique_ptr number = make_tracked<int>(1);
-number = make_tracked<int>(2);     // the 1 is destroyed here
-number = nullptr;                      // the 2 is destroyed here
-```
+## Specializations
 
-### operator unique_ptr<void>&
+- `unique_ptr<T[]>` is declared but not defined: managed arrays belong to the containers ([vector](vector.md),
+  [array](array.md)).
+- `std::hash<unique_ptr<T>>` is the hash of the address, `std::hash<T*>`.
 
-```cpp
-operator unique_ptr<void>&() noexcept;
-operator const unique_ptr<void>&() const noexcept;
-```
+## Complexity
 
-Every `unique_ptr<T>` is a `unique_ptr<void>&`: the same owner seen without its type. `type()`, `is<U>()` and `as<U>()` still work on it.
-
-```cpp
-unique_ptr number = make_tracked<int>(1);
-unique_ptr<void>& any = number;
-assert(any.is<int>());
-```
-
-### get, release, reset, swap, operator*, operator->, operator bool
-
-```cpp
-pointer get() const noexcept;                 // from std::unique_ptr
-pointer release() noexcept;
-void reset(pointer p = pointer()) noexcept;
-void swap(unique_ptr& p) noexcept;
-T& operator*() const;
-pointer operator->() const noexcept;
-explicit operator bool() const noexcept;
-```
-
-The interface of `std::unique_ptr`, unchanged. `get()` is the raw pointer, valid while the `unique_ptr` owns the object. `release()` hands the raw pointer out and leaves the `unique_ptr` empty: the object is then owned by nobody and is not tracked either, so `release()` is for handing the object to something that will own it (a `tracked_ptr` does it for you; see its constructor from a `unique_ptr&&`). `reset()` destroys the object; `reset(p)` with a raw pointer to a managed object that nothing owns takes it over. `operator*` and `operator->` are not for `unique_ptr<void>`.
-
-```cpp
-struct Point { int x, y; };
-unique_ptr p = make_tracked<Point>(1, 2);
-p->x = (*p).y;
-Point* raw = p.get();       // valid while p owns the Point
-assert(raw->x == 2 && p);
-p.reset();                  // the Point is destroyed here
-assert(!p);
-```
-
-### is, as, type
-
-```cpp
-template<class U>
-bool is() const noexcept;
-
-template<class U>
-unique_ptr<U> as() noexcept;
-
-const std::type_info& type() const noexcept;
-```
-
-The dynamic type of the object, read from the metadata of its page, without virtual functions. `type()` is the `std::type_info` of the type the object was created with (`make_tracked<U>`), whatever the pointer's `T`; for an empty pointer it is `typeid(T)`. `is<U>()` is `type() == typeid(U)`: an exact match, not an "is derived from" test. `as<U>()` moves the object into a `unique_ptr<U>` when `is<U>()`, leaving this pointer empty; when the type does not match it returns null and keeps the object.
-
-```cpp
-struct Shape { virtual ~Shape() = default; };
-struct Circle : Shape { double r = 1; };
-struct Square : Shape { double a = 1; };
-
-unique_ptr<Shape> shape = make_tracked<Circle>();
-assert(shape.type() == typeid(Circle));
-assert(shape.is<Circle>() && !shape.is<Shape>());
-unique_ptr square = shape.as<Square>();     // null: not a Square, shape keeps the object
-unique_ptr circle = shape.as<Circle>();     // unique_ptr<Circle>: the object moved, shape is empty
-assert(!square && circle && !shape);
-```
-
-### Comparisons, std::hash
-
-```cpp
-// from std::unique_ptr: ==, !=, <, <=, >, >=, <=> between two unique_ptrs and with nullptr
-template<class T> struct std::hash<unique_ptr<T>>;
-```
-
-The comparisons of `std::unique_ptr`, on the addresses. `std::hash<sgcl::unique_ptr<T>>` is the hash of the address, `std::hash<T*>`.
-
-```cpp
-unique_ptr a = make_tracked<int>(1);
-unique_ptr b = make_tracked<int>(1);
-assert(a != b && a != nullptr && nullptr < a);
-size_t h = std::hash<unique_ptr<int>>{}(a);
-(void)h;
-```
-
-### static_pointer_cast, const_pointer_cast, dynamic_pointer_cast
-
-```cpp
-template<class T, class U> unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept;
-template<class T, class U> unique_ptr<T> const_pointer_cast(unique_ptr<U>&& r) noexcept;
-template<class T, class U> unique_ptr<T> dynamic_pointer_cast(unique_ptr<U>&& r) noexcept;
-```
-
-The casts, on an rvalue: the object is released from `r` and owned by the result. A failed `dynamic_cast` returns null, and the object is lost with it (it was released before the cast): test with `is<U>()` or `as<U>()` first when the type is in doubt.
-
-```cpp
-struct Shape { virtual ~Shape() = default; };
-struct Circle : Shape { double r = 1; };
-
-unique_ptr<const Shape> shape = make_tracked<Circle>();
-unique_ptr mutable_shape = const_pointer_cast<Shape>(std::move(shape));          // unique_ptr<Shape>
-unique_ptr circle = dynamic_pointer_cast<Circle>(std::move(mutable_shape));      // unique_ptr<Circle>
-unique_ptr<Shape> back = static_pointer_cast<Shape>(std::move(circle));
-assert(!shape && !mutable_shape && !circle && back);
-```
+Every operation is constant; a destruction is what the destructor of `T` costs.
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
-#include <cassert>
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -199,31 +134,25 @@ struct Node {
     tracked_ptr<Node> next;
 };
 
-// A registry that owns its root: a unique_ptr may live in a global, and
-// everything reachable from the Node it owns lives with it.
-static unique_ptr registry = make_tracked<Node>(0);
+// a registry that owns its root: a unique_ptr may live in a global, and
+// everything reachable from the Node it owns lives with it
+unique_ptr registry = make_tracked<Node>(0);
 
-// A helper that creates and returns an object: the caller decides whether
-// it stays deterministic (kept as a unique_ptr) or goes to the collector
-// (moved into a tracked_ptr).
+// the caller decides whether the object stays deterministic (kept as a
+// unique_ptr) or goes to the collector (moved into a tracked_ptr)
 unique_ptr<Node> make_node(int id) {
     return make_tracked<Node>(id);
 }
 
 int main() {
     {
-        unique_ptr scoped = make_node(1);     // unique_ptr<Node>
-        scoped->next = make_node(2);              // the 2 belongs to the collector, rooted by the 1
-        assert(scoped.is<Node>());
-    }   // "Node 1 destroyed", here and now; the 2 is garbage, for the collector
+        unique_ptr scoped = make_node(1);
+    }  // destroyed here, on this thread
 
-    tracked_ptr shared = make_node(3);        // the 3 belongs to the collector
-    registry->next = shared;                      // and is reachable from the global root
-    shared = nullptr;                             // still alive: the registry keeps it
-
-    collector::force_collect(true);           // optional, for the demonstration only: "Node 2 destroyed", on a collector thread
+    tracked_ptr shared = make_node(3);  // the collector's Node
+    registry->next = shared;            // reachable from the global root
+    shared = nullptr;
     println("registry -> {}", registry->next->id);
-    return 0;
 }
 ```
 
@@ -231,13 +160,14 @@ Output:
 
 ```text
 Node 1 destroyed
-Node 2 destroyed
 registry -> 3
 Node 0 destroyed
 ```
 
 ## See also
 
-- [make_tracked](make_tracked.md), [tracked_ptr](tracked_ptr.md), [weak_ptr](weak_ptr.md)
-- README: [The classes](README.md#the-classes), [make_tracked](README.md#make_tracked), [The rules](README.md#the-rules), [Pointer maps](../../garbage_collector/overview.md#pointer-maps)
-- `examples/example.cpp`
+- [make_tracked](make_tracked.md): creates a managed object, owned by a `unique_ptr`
+- [tracked_ptr](tracked_ptr.md): the pointer the collector follows
+- [weak_ptr](weak_ptr.md): a pointer that keeps nothing alive
+- [README: Pointers](README.md#pointers), [README: The rules](README.md#the-rules),
+  [Pointer maps](../../garbage_collector/overview.md#pointer-maps)

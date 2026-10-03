@@ -11,6 +11,7 @@
 #include "coroutine.h"
 
 #include <coroutine>
+#include <system_error>
 #include <utility>
 
 namespace sgcl::async {
@@ -35,7 +36,9 @@ namespace sgcl::async {
         // The state of a mutex: a channel holding one signal. lock() is a
         // receive, unlock() a send
         struct MutexState {
-            MutexState()
+            // noexcept: a channel just made has nobody to wake, and a ring
+            // of one is never too large
+            MutexState() noexcept
             : ch(1) {
                 ch.try_send();
             }
@@ -44,18 +47,22 @@ namespace sgcl::async {
             // and puts the one permit in, before the state is given to
             // anyone (a MutexState that is a field of another object, a
             // shared_mutex's, is made as above)
-            explicit MutexState(ChannelLinked)
+            explicit MutexState(ChannelLinked) noexcept
             : ch(ChannelLinked{}, 1) {
             }
 
             MutexState(const MutexState&) = delete;
             MutexState& operator=(const MutexState&) = delete;
 
-            void lock() {
+            // noexcept: a receive is potentially throwing only for the
+            // wake of a sender waiting on the channel (a wake may start
+            // the workers), and this channel never has one: unlock is a
+            // try_send, which never waits
+            void lock() noexcept {
                 (void)ch.receive().wait();
             }
 
-            bool try_lock() {
+            bool try_lock() noexcept {
                 return ch.try_receive();
             }
 
@@ -74,7 +81,7 @@ namespace sgcl::async {
     // by its constructor; there is no empty mutex.
     class mutex {
     public:
-        mutex()
+        mutex() noexcept
         : _s(make_tracked<detail::MutexState>(detail::ChannelLinked{})) {
             _s->ch.link();   // before the state is given to anyone
             _s->ch.try_send();   // unlocked
@@ -87,11 +94,11 @@ namespace sgcl::async {
 
         // The standard's Lockable, blocking (std::lock_guard, std::unique_lock);
         // a task takes the mutex with `co_await m.scoped_lock()`
-        void lock() const {
+        void lock() const noexcept {
             _s->lock();
         }
 
-        bool try_lock() const {
+        bool try_lock() const noexcept {
             return _s->try_lock();
         }
 
@@ -101,7 +108,7 @@ namespace sgcl::async {
 
         // A case of a select: f() with the mutex locked
         template<class F>
-        auto on_lock(F f) const {
+        auto on_lock(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->ch.on_receive(std::move(f));
         }
 
@@ -132,23 +139,38 @@ namespace sgcl::async {
             guard(const guard&) = delete;
             guard& operator=(const guard&) = delete;
 
+            // noexcept, as a destructor is. The unlock's one throw is the
+            // std::system_error of a start of the workers its wake of the
+            // next holder needed and could not make (the workers stopped);
+            // the woken task is queued before the start, and runs at the
+            // next one, so the error is let go of here
             ~guard() {
                 if (_m) {
-                    _m->unlock();
+                    try {
+                        _m->unlock();
+                    } catch (const std::system_error&) {
+                    }
                 }
             }
 
             // The mutex held: what a condition_variable lets go of and
-            // takes back around its wait
-            mutex owner() const noexcept {
+            // takes back around its wait; nothing for an empty guard (moved
+            // from or released), since there is no mutex without a state
+            optional<mutex> owner() const noexcept {
+                if (!_m) {
+                    return nullopt;
+                }
                 return mutex(tracked_ptr<detail::MutexState>(_m));
             }
 
             // The mutex let go of by the guard, still locked: the caller
-            // unlocks it (std::unique_lock::release)
-            mutex release() noexcept {
-                mutex m{tracked_ptr<detail::MutexState>(_m)};
-                _m = nullptr;
+            // unlocks it (std::unique_lock::release); nothing for an empty
+            // guard
+            optional<mutex> release() noexcept {
+                if (!_m) {
+                    return nullopt;
+                }
+                mutex m{tracked_ptr<detail::MutexState>(std::exchange(_m, nullptr))};
                 return m;
             }
 
@@ -197,8 +219,8 @@ namespace sgcl::async {
 
         // The lock held for a scope: `auto g = co_await m.scoped_lock();` in
         // a task, `auto g = m.scoped_lock().wait();` on a thread
-        auto scoped_lock() const {
-            return operation([s = _s.get()](auto how) {
+        auto scoped_lock() const noexcept {
+            return detail::make_operation([s = _s.get()](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return scoped_lock_op(s);
                 } else {

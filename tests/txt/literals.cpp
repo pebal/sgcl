@@ -81,7 +81,7 @@ TEST(TxtLiteral_Tests, FoldedAndNormalizedTextTakeALiteral) {
     txt::folded_text folded("Straße, STRASSE");
     EXPECT_EQ(folded.text(), "Straße, STRASSE");         // not the zero after it
     EXPECT_EQ(folded.count(string("strasse")), 2u);
-    EXPECT_EQ(folded.find(string("STRASSE"), 1), 9u);
+    EXPECT_EQ(folded.find(string("STRASSE"), 1)->pos, 9u);
 
     txt::normalized_text normalized("café café");
     EXPECT_EQ(normalized.count(string("café")), 2u);
@@ -131,7 +131,7 @@ TEST(TxtLiteral_Tests, BidiRunsTakeALiteral) {
 }
 
 TEST(TxtLiteral_Tests, CollatedTextTakesALiteral) {
-    txt::collator search{txt::options{.strength = txt::strength::primary}};
+    txt::collator search{txt::collator::options{.strength = txt::strength::primary}};
     txt::collated_text weighed(search, "Résumé, resume");
     EXPECT_EQ(weighed.text().size(), string("Résumé, resume").size());
     EXPECT_EQ(weighed.count(string("RESUME")), 2u);

@@ -160,7 +160,7 @@ TEST(Stack_Tests, ThreadExitDuringScan) {
 // unmanaged heap is a bug, not a slow path.
 TEST(Stack_Tests, UnmanagedHeapIsRejectedInDebug) {
     EXPECT_DEATH({
-        auto p = new tracked_ptr<Payload>();
+        auto p = new tracked_ptr<Payload>();   // lint-handles: ok the death test of this very rule
         (void)p;
     }, "stack or inside a managed object");
 }

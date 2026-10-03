@@ -26,8 +26,13 @@
 // running (an input of 2 KB that decodes in 5.5 s alone); the time is the
 // system's, not the module's.
 //
+// A file the system's decoder does not survive is refused before ImageIO
+// sees it (detail/heif_guard.h): an HEVC slice whose entry points lie past
+// its data made VideoToolbox wait for ever (regress_entry_point_past_slice*,
+// the fuzzer's own).
+//
 // Seeds: seeds/heif_decode/ (PngSuite images made HEIC by sips, AVIF by
-// ImageIO, and the module's own HEIC); the dictionary
+// ImageIO, the module's own HEIC, and the regressions); the dictionary
 // tests/fuzz/dict/heif_decode.dict (the boxes of ISOBMFF and HEIF).
 #include "sgcl/codec/codec.h"
 

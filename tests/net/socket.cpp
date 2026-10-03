@@ -164,9 +164,9 @@ TEST(NetSocket_Tests, ReadFullAndPiecesAcrossWrites) {
     auto end = b.read(buf);   // the end of the stream is a read of 0
     ASSERT_TRUE(end);
     EXPECT_EQ(*end, 0u);
-    auto partial = b.read_full(buf);   // the end before the first byte: fewer than asked, as Go's ReadFull
-    ASSERT_FALSE(partial);
-    EXPECT_TRUE(partial.error().is_eof());
+    auto none = b.read_full(buf);   // the end before the first byte: 0, as Go's ReadFull gives io.EOF
+    ASSERT_TRUE(none);
+    EXPECT_EQ(*none, 0u);
     b.close();
 }
 
@@ -779,6 +779,31 @@ TEST(NetSocket_Tests, AStreamOutlivesTheHandle) {
 // load, store and exchange by identity
 static_assert(sgcl::req::handle<net::connection>);
 static_assert(sgcl::req::handle<net::listener>);
+static_assert(sgcl::req::handle<net::udp::socket>);
+// The handles are made by the module: no public constructor takes the object
+// inside, a type of detail
+static_assert(!std::is_constructible_v<net::connection, const sgcl::tracked_ptr<net::detail::ConnImpl>&>);
+static_assert(!std::is_constructible_v<net::listener, const sgcl::tracked_ptr<net::detail::ListenerImpl>&>);
+static_assert(!std::is_constructible_v<net::udp::socket, const sgcl::tracked_ptr<net::detail::UdpImpl>&>);
+
+TEST(NetSocket_Tests, AnAtomicUdpSocketByIdentity) {
+    auto a = net::udp::bind("127.0.0.1:0");
+    auto b = net::udp::bind("127.0.0.1:0");
+    ASSERT_TRUE(a && b);
+    sgcl::atomic<net::udp::socket> current;
+    current.store(*a);
+    EXPECT_TRUE(current.load() == *a);
+    EXPECT_TRUE(current.exchange(*b) == *a);
+    EXPECT_TRUE(current.load() == *b);
+    ASSERT_TRUE(a->send_to(sgcl::as_bytes(sgcl::string("x").as_slice()), b->local_endpoint()));
+    std::byte buffer[8];
+    auto got = current.load().receive_from(buffer);
+    ASSERT_TRUE(got);
+    EXPECT_EQ(got->size, 1u);
+    EXPECT_EQ(got->from, a->local_endpoint());
+    EXPECT_TRUE(a->close());
+    EXPECT_TRUE(b->close());
+}
 
 TEST(NetSocket_Tests, AnAtomicConnectionByIdentity) {
     auto [c, s] = tcp_pair();
@@ -938,4 +963,22 @@ TEST(NetSocket_Tests, SendfileKeepsTheDeadlineAndNoSignal) {
         EXPECT_TRUE(code == std::errc::broken_pipe || code == std::errc::connection_reset || code == std::errc::not_connected) << sent.error().message();
         client.close();
     }
+}
+
+// What cannot fail but by a broken contract is noexcept: the close of a
+// connection and of a listener, and the deadlines, as udp::socket's are
+TEST(NetSocket_Tests, CloseAndDeadlinesAreNoexcept) {
+    const connection c;
+    const listener l;
+    const sgcl::time_point t;
+    static_assert(noexcept(c.close()));
+    static_assert(noexcept(c.set_deadline(t)));
+    static_assert(noexcept(c.set_read_deadline(t)));
+    static_assert(noexcept(c.set_write_deadline(t)));
+    static_assert(noexcept(l.close()));
+    static_assert(!noexcept(c.close_write()));   // TLS sends its close_notify and waits for the socket
+    auto [a, b] = connection::in_memory();
+    a.set_deadline(sgcl::clock::now() + std::chrono::seconds(5));
+    EXPECT_TRUE(a.close());
+    EXPECT_TRUE(b.close());
 }

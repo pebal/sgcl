@@ -155,9 +155,13 @@ namespace sgcl {
         // A call of f with the index as a compile-time constant, through a
         // table of one function per index
         template<class F, size_t... Is>
-        decltype(auto) variant_dispatch(size_t index, F&& f, std::index_sequence<Is...>) {
+        inline constexpr bool variant_dispatch_nothrow = (noexcept(std::declval<F>()(std::integral_constant<size_t, Is>())) && ...);
+
+        template<class F, size_t... Is>
+        decltype(auto) variant_dispatch(size_t index, F&& f, std::index_sequence<Is...>) noexcept(variant_dispatch_nothrow<F, Is...>) {
             using R = decltype(std::forward<F>(f)(std::integral_constant<size_t, 0>()));
-            constexpr R (*table[])(F&&) = {[](F&& f) -> R { return std::forward<F>(f)(std::integral_constant<size_t, Is>()); }...};
+            constexpr bool Nothrow = variant_dispatch_nothrow<F, Is...>;
+            constexpr R (*table[])(F&&) noexcept(Nothrow) = {[](F&& f) noexcept(Nothrow) -> R { return std::forward<F>(f)(std::integral_constant<size_t, Is>()); }...};
             return table[index](std::forward<F>(f));
         }
     }
@@ -206,13 +210,21 @@ namespace sgcl {
         template<class U>
         static constexpr size_t selected = detail::VariantSelected<U, Ts...>::value;
 
+        // An lvalue assigned may lie in the alternative it replaces
+        // (`v = get<failure>(v).message`): when an alternative's destructor
+        // does something (a tracked word nulled), the new one is made from
+        // it first, into a temporary moved in; an rvalue, or alternatives
+        // all trivially destructible, go in place
+        template<class U>
+        static constexpr bool may_alias = std::is_lvalue_reference_v<U> && !(std::is_trivially_destructible_v<Ts> && ...);
+
     public:
         variant() noexcept(std::is_nothrow_default_constructible_v<Alt<0>>)
         requires std::is_default_constructible_v<Alt<0>> {
             _construct<0>();
         }
 
-        variant(const variant& o)
+        variant(const variant& o) noexcept((std::is_nothrow_copy_constructible_v<Ts> && ...))
         requires (std::is_copy_constructible_v<Ts> && ...) {
             _construct_from(o);
         }
@@ -232,33 +244,33 @@ namespace sgcl {
 
         template<class T, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, A...>
-        explicit variant(std::in_place_type_t<T>, A&&... a) {
+        explicit variant(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             _construct<index_of<T>>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        explicit variant(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) {
+        explicit variant(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>) {
             _construct<index_of<T>>(il, std::forward<A>(a)...);
         }
 
         template<size_t I, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, A...>
-        explicit variant(std::in_place_index_t<I>, A&&... a) {
+        explicit variant(std::in_place_index_t<I>, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
             _construct<I>(std::forward<A>(a)...);
         }
 
         template<size_t I, class U, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, std::initializer_list<U>&, A...>
-        explicit variant(std::in_place_index_t<I>, std::initializer_list<U> il, A&&... a) {
+        explicit variant(std::in_place_index_t<I>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, std::initializer_list<U>&, A...>) {
             _construct<I>(il, std::forward<A>(a)...);
         }
 
-        ~variant() {
+        ~variant() noexcept {
             _destroy();
         }
 
-        variant& operator=(const variant& o)
+        variant& operator=(const variant& o) noexcept(((std::is_nothrow_copy_constructible_v<Ts> && std::is_nothrow_copy_assignable_v<Ts>) && ...))
         requires ((std::is_copy_constructible_v<Ts> && std::is_copy_assignable_v<Ts>) && ...) {
             if (this == &o) {
                 return *this;
@@ -304,7 +316,7 @@ namespace sgcl {
             constexpr size_t J = selected<U>;
             if (_index == J) {
                 _get<J>() = std::forward<U>(u);
-            } else if constexpr(std::is_nothrow_constructible_v<Alt<J>, U> || !std::is_nothrow_move_constructible_v<Alt<J>>) {
+            } else if constexpr((std::is_nothrow_constructible_v<Alt<J>, U> && !(may_alias<U> && std::is_nothrow_move_constructible_v<Alt<J>>)) || !std::is_nothrow_move_constructible_v<Alt<J>>) {
                 emplace<J>(std::forward<U>(u));
             } else {
                 emplace<J>(Alt<J>(std::forward<U>(u)));
@@ -314,26 +326,26 @@ namespace sgcl {
 
         template<class T, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, A...>
-        T& emplace(A&&... a) {
+        T& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             return emplace<index_of<T>>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        T& emplace(std::initializer_list<U> il, A&&... a) {
+        T& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>) {
             return emplace<index_of<T>>(il, std::forward<A>(a)...);
         }
 
         template<size_t I, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, A...>
-        Alt<I>& emplace(A&&... a) {
+        Alt<I>& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
             _destroy();
             return _construct<I>(std::forward<A>(a)...);
         }
 
         template<size_t I, class U, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, std::initializer_list<U>&, A...>
-        Alt<I>& emplace(std::initializer_list<U> il, A&&... a) {
+        Alt<I>& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, std::initializer_list<U>&, A...>) {
             _destroy();
             return _construct<I>(il, std::forward<A>(a)...);
         }
@@ -397,15 +409,17 @@ namespace sgcl {
         // The alternative constructed in its place; valueless while the
         // constructor runs, in case it throws
         template<size_t I, class... A>
-        Alt<I>& _construct(A&&... a) {
+        Alt<I>& _construct(A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
             _index = Npos;
             auto p = ::new(_slot<I>()) Alt<I>(std::forward<A>(a)...);
             _index = I;
             return *p;
         }
 
+        // As noexcept as the copy (from an lvalue) or the move of every
+        // alternative
         template<class V>
-        void _construct_from(V&& o) {
+        void _construct_from(V&& o) noexcept(std::is_rvalue_reference_v<V&&> ? (std::is_nothrow_move_constructible_v<Ts> && ...) : (std::is_nothrow_copy_constructible_v<Ts> && ...)) {
             if (o.valueless_by_exception()) {
                 _index = Npos;
                 return;
@@ -617,8 +631,10 @@ namespace sgcl {
     }
 
     namespace detail {
+        // The indices equal and the variants not valueless: get<I> finds
+        // its alternative and does not throw
         template<class F, class... Ts>
-        bool variant_compare(const variant<Ts...>& l, const variant<Ts...>& r, F&& f) {
+        bool variant_compare(const variant<Ts...>& l, const variant<Ts...>& r, F&& f) noexcept((noexcept(f(std::declval<const Ts&>(), std::declval<const Ts&>())) && ...)) {
             return variant_dispatch(l.index(), [&]<size_t I>(std::integral_constant<size_t, I>) {
                 return f(get<I>(l), get<I>(r));
             }, std::make_index_sequence<sizeof...(Ts)>());
@@ -627,25 +643,25 @@ namespace sgcl {
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a == b } -> std::convertible_to<bool>; } && ...)
-    bool operator==(const variant<Ts...>& l, const variant<Ts...>& r) {
+    bool operator==(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...)) {
         if (l.index() != r.index()) {
             return false;
         }
         if (l.valueless_by_exception()) {
             return true;
         }
-        return detail::variant_compare(l, r, [](const auto& a, const auto& b) { return a == b; });
+        return detail::variant_compare(l, r, [](const auto& a, const auto& b) noexcept(noexcept(bool(a == b))) { return a == b; });
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a == b } -> std::convertible_to<bool>; } && ...)
-    bool operator!=(const variant<Ts...>& l, const variant<Ts...>& r) {
+    bool operator!=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...)) {
         return !(l == r);
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator<(const variant<Ts...>& l, const variant<Ts...>& r) {
+    bool operator<(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         if (r.valueless_by_exception()) {
             return false;
         }
@@ -655,30 +671,30 @@ namespace sgcl {
         if (l.index() != r.index()) {
             return l.index() < r.index();
         }
-        return detail::variant_compare(l, r, [](const auto& a, const auto& b) { return a < b; });
+        return detail::variant_compare(l, r, [](const auto& a, const auto& b) noexcept(noexcept(bool(a < b))) { return a < b; });
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator>(const variant<Ts...>& l, const variant<Ts...>& r) {
+    bool operator>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         return r < l;
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator<=(const variant<Ts...>& l, const variant<Ts...>& r) {
+    bool operator<=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         return !(r < l);
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator>=(const variant<Ts...>& l, const variant<Ts...>& r) {
+    bool operator>=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         return !(l < r);
     }
 
     template<class... Ts>
     requires (std::three_way_comparable<Ts> && ...)
-    std::common_comparison_category_t<std::compare_three_way_result_t<Ts>...> operator<=>(const variant<Ts...>& l, const variant<Ts...>& r) {
+    std::common_comparison_category_t<std::compare_three_way_result_t<Ts>...> operator<=>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(std::declval<const Ts&>() <=> std::declval<const Ts&>()) && ...)) {
         using R = std::common_comparison_category_t<std::compare_three_way_result_t<Ts>...>;
         if (l.valueless_by_exception() && r.valueless_by_exception()) {
             return R::equivalent;
@@ -708,7 +724,7 @@ namespace std {
     template<class... Ts>
     requires (is_default_constructible_v<hash<remove_const_t<Ts>>> && ...)
     struct hash<sgcl::variant<Ts...>> {
-        size_t operator()(const sgcl::variant<Ts...>& v) const {
+        size_t operator()(const sgcl::variant<Ts...>& v) const noexcept((noexcept(hash<remove_const_t<Ts>>()(std::declval<const Ts&>())) && ...)) {
             if (v.valueless_by_exception()) {
                 return 0x9E3779B97F4A7C15ull;
             }

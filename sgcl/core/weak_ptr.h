@@ -33,28 +33,35 @@ namespace sgcl {
 
         // The constructors and assignments of std::weak_ptr, from a strong
         // pointer and from a weak_ptr (a copy shares the cell; a weak_ptr
-        // from a strong pointer gets one)
+        // from a strong pointer gets one), except that a weak_ptr does not
+        // convert to a base or to void (below)
         constexpr weak_ptr() noexcept = default;
 
         constexpr weak_ptr(std::nullptr_t) noexcept {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr(const tracked_ptr<U>& p)
+        weak_ptr(const tracked_ptr<U>& p) noexcept
         : _cell(_make_cell(static_cast<element_type*>(p.get()))) {
         }
 
         // From a root_ptr: the root's conversion to its tracked_ptr is one
         // the template above cannot deduce through
         template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
-        weak_ptr(const root_ptr<U>& r)
+        weak_ptr(const root_ptr<U>& r) noexcept
         : weak_ptr(r.ptr()) {
         }
 
         weak_ptr(const weak_ptr&) noexcept = default;
         weak_ptr(weak_ptr&&) noexcept = default;
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U>::element_type*, element_type*>, int> = 0>
+        // From a weak_ptr of the same type with const added: the cell
+        // shared. Not to a base or to void: the cell holds the address
+        // lock() returns, and a base's address may need an offset that only
+        // the derived type or the live object gives (a virtual base), so the
+        // conversion would be a hidden lock(). Convert the locked pointer,
+        // weak_ptr<Base>(w.lock()), or make the weak_ptr from a tracked_ptr.
+        template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
         weak_ptr(const weak_ptr<U>& w) noexcept
         : _cell(w._cell) {
         }
@@ -62,14 +69,14 @@ namespace sgcl {
         weak_ptr& operator=(const weak_ptr&) noexcept = default;
         weak_ptr& operator=(weak_ptr&&) noexcept = default;
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U>::element_type*, element_type*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
         weak_ptr& operator=(const weak_ptr<U>& w) noexcept {
             _cell = w._cell;
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr& operator=(const tracked_ptr<U>& p) {
+        weak_ptr& operator=(const tracked_ptr<U>& p) noexcept {
             _cell = _make_cell(static_cast<element_type*>(p.get()));
             return *this;
         }
@@ -97,7 +104,7 @@ namespace sgcl {
             element_type* t;
             do {
                 t = l;
-                thread.set_hazard_pointer(l);
+                thread.set_hazard_pointer(const_cast<void*>(static_cast<const void*>(l)));   // T may be const
                 l = (element_type*)cell->target.load(std::memory_order_seq_cst);
             } while(l != t);
             pointer_type p(l, detail::OnRegisteredThread{});
@@ -123,7 +130,7 @@ namespace sgcl {
 
     private:
         // The cell, constructed before its slot is published (maker.h)
-        static tracked_ptr<detail::WeakCell> _make_cell(element_type* p, unsigned flags = 0) {
+        static tracked_ptr<detail::WeakCell> _make_cell(element_type* p, unsigned flags = 0) noexcept {
             if (!p) {
                 return {};
             }

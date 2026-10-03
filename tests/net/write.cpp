@@ -30,7 +30,7 @@ namespace {
         assert(r == 0);
         auto wrap = [](int fd) {
             net::detail::prepare_socket(fd);
-            return net::connection(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(fd, false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
+            return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(fd, false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
         };
         return {wrap(p[0]), wrap(p[1])};
     }

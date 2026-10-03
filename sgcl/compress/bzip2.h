@@ -24,11 +24,11 @@ namespace sgcl::compress {
         class reader;
 
         // Every stream, one after another, up to the limit
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
             return decompress(data, limits{});
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) noexcept {
             const uint8_t* p = detail::bytes(data);
             const uint8_t* end = p + data.size();
             auto d = std::make_unique<detail::Bzip2Decoder>();
@@ -52,7 +52,7 @@ namespace sgcl::compress {
                 }
                 size_t grown = size_t(std::min<uint64_t>({uint64_t(capacity) * 2, ceiling, uint64_t(SIZE_MAX)}));
                 std::unique_ptr<uint8_t[]> bigger(new uint8_t[grown]);
-                std::memcpy(bigger.get(), out.get(), total);
+                sgcl::detail::copy_bytes(bigger.get(), out.get(), total);
                 out = std::move(bigger);
                 capacity = grown;
             }
@@ -81,7 +81,7 @@ namespace sgcl::compress {
 
     public:
 
-        explicit reader(const io::reader& in)
+        explicit reader(const io::reader& in) noexcept
         : _in(in)
         , _decoder(std::make_unique<detail::Bzip2Decoder>())
         , _input(InputBytes) {
@@ -90,8 +90,29 @@ namespace sgcl::compress {
 
         reader(const reader&) = delete;
         reader& operator=(const reader&) = delete;
-        reader(reader&&) noexcept = default;
-        reader& operator=(reader&&) noexcept = default;
+
+        // The other left without a stream, its decoder and its input gone
+        // with the move: its reads give io::errc::closed, its close closes
+        // nothing, and a reset gives it a new stream
+        reader(reader&& o) noexcept
+        : _in(std::move(o._in))
+        , _decoder(std::move(o._decoder))
+        , _input(std::move(o._input))
+        , _in_begin(o._in_begin)
+        , _in_end(o._in_end)
+        , _source_ended(o._source_ended)
+        , _ended(o._ended)
+        , _error(std::move(o._error)) {
+            o._in = io::reader();
+            o._input = detail::InputBuffer<ManagedInputBytes>(InputBytes);
+            o._in_begin = o._in_end = 0;
+            o._ended = true;
+            o._error = detail::moved_from_error("bzip2");
+        }
+
+        reader& operator=(reader&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
 
         expected<size_t, io::error> read(const slice<byte>& out) {
             size_t pos = 0;
@@ -116,7 +137,7 @@ namespace sgcl::compress {
             }
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             size_t pos = 0;
             for (;;) {
                 if (_error) {
@@ -148,7 +169,7 @@ namespace sgcl::compress {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
@@ -156,10 +177,23 @@ namespace sgcl::compress {
             return _error;
         }
 
+        // A new stream from in: the decoder's memory kept
+        void reset(const io::reader& in) noexcept {
+            _in = in;
+            if (!_decoder) {
+                _decoder = std::make_unique<detail::Bzip2Decoder>();   // moved from: the decoder went with the move
+            }
+            _decoder->reset();
+            _in_begin = _in_end = 0;
+            _source_ended = false;
+            _ended = false;
+            _error = nullopt;
+        }
+
     private:
         // Decodes what the input holds into out[pos, cap); true when it
         // needs more input
-        bool _step(const slice<byte>& out, size_t& pos, size_t cap) {
+        bool _step(const slice<byte>& out, size_t& pos, size_t cap) noexcept {
             const uint8_t* p = _input.data() + _in_begin;
             auto st = _decoder->decode(p, _input.data() + _in_end, _source_ended, reinterpret_cast<uint8_t*>(out.data()), pos, cap);
             _in_begin = size_t(p - _input.data());
@@ -186,14 +220,14 @@ namespace sgcl::compress {
             return _took(r);
         }
 
-        async::task<optional<io::error>> _async_fill() {
+        async::task<optional<io::error>> _async_fill() noexcept {
             _in_begin = _in_end = 0;
             _input.to_managed(0);   // the read may run on the pool: into a managed block of 32 KB, which the slice holds
             auto r = co_await _in.async_read(_input.room(0, _input.size()));
             co_return _took(r);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r) {
+        optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _decoder->offset());
                 return r.error();

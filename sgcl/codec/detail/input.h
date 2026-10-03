@@ -8,6 +8,7 @@
 #include "../error.h"
 #include "../../core/aliases.h"
 #include "../../core/config.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/make_tracked.h"
 #include "../../core/slice.h"
 #include "../../core/tracked_ptr.h"
@@ -17,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace sgcl::codec::detail {
     // Where a decoder's bytes come from, one shape for memory and for a
@@ -79,7 +81,7 @@ namespace sgcl::codec::detail {
         bool eof = false;
         optional<error> failure;
 
-        explicit ReaderInput(const io::reader& r)
+        explicit ReaderInput(const io::reader& r) noexcept
         : in(r)
         , block(make_tracked<InputBlock>()) {
         }
@@ -109,7 +111,9 @@ namespace sgcl::codec::detail {
         // stream ends; nullopt when it failed
         optional<slice<const byte>> head(size_t n) {
             if (pos > 0) {
-                std::memmove(_data(), _data() + pos, len - pos);
+                // the bytes kept overlap where they go when fewer are
+                // dropped than kept
+                sgcl::detail::move_bytes(_data(), _data() + pos, len - pos);
                 base += pos;
                 len -= pos;
                 pos = 0;
@@ -142,4 +146,11 @@ namespace sgcl::codec::detail {
             return true;
         }
     };
+
+    // Whether reading an input can throw: memory's peek cannot, a stream's
+    // reaches the program's io::reader. A decoder over an input is
+    // noexcept(NothrowInput<Input>) where reading is its only throw
+    template<class Input>
+    inline constexpr bool NothrowInput = noexcept(std::declval<Input&>().peek(size_t(), std::declval<const uint8_t*&>(), std::declval<size_t&>()));
 }
+

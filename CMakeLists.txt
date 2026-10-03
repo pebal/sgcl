@@ -4,10 +4,21 @@ project(SGCL LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# ccache for the builds of this tree (tests, benchmarks), when it is
+# installed and this is the top-level project: a program that adds sgcl as
+# a subdirectory keeps its own compiler. Worktrees share the cache when
+# ccache's base_dir is the tree's parent directory (ccache --set-config).
+option(SGCL_CCACHE "Compile this tree through ccache when it is installed" ON)
+if(SGCL_CCACHE AND CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    find_program(SGCL_CCACHE_PROGRAM ccache)
+    if(SGCL_CCACHE_PROGRAM)
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${SGCL_CCACHE_PROGRAM}")
+    endif()
+endif()
+
 option(SGCL_BUILD_TESTS "Build unit and stress tests (requires external/googletest)" ON)
-option(SGCL_BUILD_EXAMPLES "Build examples" ON)
 option(SGCL_BUILD_BENCHMARKS "Build benchmarks (always optimized)" ON)
-set(SGCL_SANITIZER "" CACHE STRING "Sanitizer for tests/examples: address, thread or empty")
+set(SGCL_SANITIZER "" CACHE STRING "Sanitizer for tests: address, thread or empty")
 set_property(CACHE SGCL_SANITIZER PROPERTY STRINGS "" address thread)
 
 file(GLOB_RECURSE SGCL_SOURCES "sgcl/*.h")
@@ -38,6 +49,26 @@ if(APPLE)
     )
 endif()
 
+# Release builds of a program that links sgcl: no exported symbols and no
+# local symbol table. The library is header-only, so every inline function
+# and template it instantiates would otherwise be a weak exported symbol of
+# the program, with its mangled name in the string table and a binding for
+# dyld (the async example program: 1.43 MB, 788 KB with these flags, the
+# code itself unchanged). The flags apply to the whole program that links
+# sgcl, not to sgcl alone: turn the option off for a shared library whose
+# own API must stay exported, and for a process in which more than one image
+# (the program and a .dylib/.so) uses sgcl, since hidden symbols give each
+# image a collector of its own (docs/sgcl/core/config.md).
+option(SGCL_HIDDEN_VISIBILITY "Release: hide the symbols of programs linking sgcl and drop their local symbol table" ON)
+if(SGCL_HIDDEN_VISIBILITY AND NOT MSVC)
+    target_compile_options(sgcl INTERFACE
+        $<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CXX>>:-fvisibility=hidden -fvisibility-inlines-hidden>
+    )
+    target_link_options(sgcl INTERFACE
+        $<$<CONFIG:Release>:-Wl,-x>
+    )
+endif()
+
 # One subdirectory per module (core, containers, concurrent, async, io),
 # each with its own detail/; the includes inside are relative to the
 # including file, so the headers work from any include path.
@@ -57,7 +88,7 @@ install(EXPORT sgclTargets
     DESTINATION lib/cmake/SGCL
 )
 
-# Sanitizer flags applied to everything built in this tree (tests, examples,
+# Sanitizer flags applied to everything built in this tree (tests, benchmarks,
 # googletest), never exported with the interface library.
 if(SGCL_SANITIZER)
     if(MSVC)
@@ -107,10 +138,6 @@ if(SGCL_LIBLZMA AND EXISTS "${SGCL_XZ_ROOT}/include/lzma.h")
 else()
     set(SGCL_HAVE_LIBLZMA FALSE)
     message(STATUS "SGCL: no liblzma at SGCL_XZ_ROOT (${SGCL_XZ_ROOT}): the LZMA tests against it are skipped")
-endif()
-
-if(SGCL_BUILD_EXAMPLES)
-    add_subdirectory(examples)
 endif()
 
 if(SGCL_BUILD_BENCHMARKS)

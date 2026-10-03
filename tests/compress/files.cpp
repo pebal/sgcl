@@ -17,6 +17,7 @@
 #include "common.h"
 
 #include <map>
+#include <thread>
 
 using namespace compress_test;
 
@@ -367,6 +368,266 @@ TEST(CompressFiles_Tests, GzipFilesWithGzip) {
     write_file(s / "junk.gz", "not gzip at all");
     EXPECT_FALSE(compress::gzip::decompress_file(string(s / "junk.gz")));
     EXPECT_FALSE(std::filesystem::exists(s / "junk"));
+}
+
+// A .gz whose data is damaged fails where the damage is, with the words
+// the reader gives (as gzip::decompress gives them for the same bytes),
+// never at offset 0
+TEST(CompressFiles_Tests, GzipFileErrorsSayWhere) {
+    Scratch s;
+    std::string text;
+    for (int i = 0; i < 5000; ++i) {
+        text += "line " + std::to_string(i) + "\n";
+    }
+    auto gz = compress::gzip::compress(bytes(text));
+    std::string good(reinterpret_cast<const char*>(gz.data()), gz.size());
+    std::string crc = good;
+    crc[crc.size() - 8] ^= 1;   // the trailer's CRC-32
+    std::string data = good;
+    data[data.size() / 2] ^= 0x55;   // the middle of the DEFLATE data
+    for (auto& damaged : {crc, data}) {
+        write_file(s / "d.txt.gz", damaged);
+        auto in_memory = compress::gzip::decompress(bytes(damaged));
+        ASSERT_FALSE(in_memory);
+        auto r = compress::gzip::decompress_file(string(s / "d.txt.gz"));
+        ASSERT_FALSE(r);
+        EXPECT_EQ(r.error().code(), in_memory.error().code());
+        EXPECT_GT(r.error().offset(), 0u);
+        EXPECT_EQ(r.error().message(), in_memory.error().message());
+        EXPECT_FALSE(std::filesystem::exists(s / "d.txt"));
+    }
+}
+
+namespace {
+    // An error that did not come from the data: offset 0, and no place in
+    // its message, which is the words alone
+    void expect_no_place(const compress::error& e, const std::string& message) {
+        EXPECT_EQ(e.offset(), 0u) << message;
+        EXPECT_EQ(std::string(e.message().view()), message);
+    }
+
+    // The same for a failure of a file: the io error's words after the code's
+    void expect_file_error(const compress::error& e) {
+        ASSERT_TRUE(e.io_error());
+        expect_no_place(e, "input/output error: " + std::string(e.io_error()->message().view()));
+    }
+}
+
+// A file that does not open or cannot be made, a name refused, a usage
+// mistake: no place in the data, so the message is the words alone
+// ("input/output error: open missing.zip: ...", not "offset 0: ...");
+// an error of the data keeps its offset
+TEST(CompressFiles_Tests, ErrorsNotFromTheDataHaveNoPlace) {
+    Scratch s;
+    const string missing(s / "missing");
+    const string nowhere(s / "no-such-directory/out");
+    auto z = compress::zip::archive::open(missing + ".zip");
+    ASSERT_FALSE(z);
+    expect_file_error(z.error());
+    EXPECT_NE(z.error(), compress::error(z.error().io_error().value(), 0));   // no place is not offset 0
+    auto seven = compress::sevenzip::archive::open(missing + ".7z");
+    ASSERT_FALSE(seven);
+    expect_file_error(seven.error());
+    auto zx = compress::zip::extract(missing + ".zip", string(s / "out"));
+    ASSERT_FALSE(zx);
+    expect_file_error(zx.error());
+    auto tx = compress::tar::extract(missing + ".tar", string(s / "out"));
+    ASSERT_FALSE(tx);
+    expect_file_error(tx.error());
+    auto sx = compress::sevenzip::extract(missing + ".7z", string(s / "out"));
+    ASSERT_FALSE(sx);
+    expect_file_error(sx.error());
+    std::filesystem::create_directories(s / "src");
+    write_file(s / "src/a.txt", "a\n");
+    auto zc = compress::zip::create(string(s / "src"), nowhere + ".zip");
+    ASSERT_FALSE(zc);
+    expect_file_error(zc.error());
+    auto tc = compress::tar::create(string(s / "src"), nowhere + ".tar");
+    ASSERT_FALSE(tc);
+    expect_file_error(tc.error());
+    auto sc = compress::sevenzip::create(string(s / "src"), nowhere + ".7z");
+    ASSERT_FALSE(sc);
+    expect_file_error(sc.error());
+    auto tb = compress::tar::create(string(s / "src"), string(s / "a.tar.bz2"));
+    ASSERT_FALSE(tb);
+    expect_no_place(tb.error(), "tar: bzip2 is read, not written: " + (s / "a.tar.bz2"));
+    {
+        compress::sevenzip::writer w(nowhere + ".7z");
+        w.add("a.txt", "a");
+        auto r = w.close();
+        ASSERT_FALSE(r);
+        expect_file_error(r.error());
+    }
+    // gzip's file functions
+    auto gc = compress::gzip::compress_file(missing);
+    ASSERT_FALSE(gc);
+    expect_file_error(gc.error());
+    auto gd = compress::gzip::decompress_file(missing + ".gz");
+    ASSERT_FALSE(gd);
+    expect_file_error(gd.error());
+    auto gn = compress::gzip::decompress_file(string(s / "src/a.txt"));
+    ASSERT_FALSE(gn);
+    expect_no_place(gn.error(), "gzip: a name that does not end in .gz: " + (s / "src/a.txt"));
+    // what the archive does not hold, what the caller's limit refuses
+    write_file(s / "big.txt", std::string(100, 'x'));
+    ASSERT_TRUE(compress::zip::create(string(s / "src"), string(s / "a.zip")));
+    auto za = compress::zip::archive::open(string(s / "a.zip"));
+    ASSERT_TRUE(za);
+    auto none = za->read(string("none.txt"));
+    ASSERT_FALSE(none);
+    expect_no_place(none.error(), "zip: no entry none.txt");
+    ASSERT_TRUE(za->close());
+    ASSERT_TRUE(compress::sevenzip::create(string(s / "src"), string(s / "a.7z")));
+    auto sa = compress::sevenzip::archive::open(string(s / "a.7z"));
+    ASSERT_TRUE(sa);
+    auto snone = sa->read(string("none.txt"));
+    ASSERT_FALSE(snone);
+    expect_no_place(snone.error(), "7z: no entry none.txt");
+    auto slimit = sa->read(string("a.txt"), compress::limits{1});
+    ASSERT_FALSE(slimit);
+    expect_no_place(slimit.error(), "7z: entry a.txt: larger than the limit");
+    ASSERT_TRUE(sa->close());
+    auto tl = compress::tar::create(string(s / "src"), string(s / "a.tar"));
+    ASSERT_TRUE(tl);
+    auto tm = compress::tar::extract(string(s / "a.tar"), string(s / "out"), {.max_size = 1});
+    ASSERT_FALSE(tm);
+    expect_no_place(tm.error(), "tar: the files are larger than max_size");
+    // an error of the data keeps its place
+    auto bad = compress::zip::archive::from(bytes("not a zip at all"));
+    ASSERT_FALSE(bad);
+    EXPECT_EQ(std::string(bad.error().message().view()).rfind("offset ", 0), 0u) << bad.error().message();
+}
+
+// A writer's mistake, or a failure of what it writes into, is not a place
+// in any data: the words alone
+TEST(CompressFiles_Tests, WriterMistakesHaveNoPlace) {
+    {
+        sgcl::io::buffer b;
+        compress::zip::writer w(b);
+        ASSERT_TRUE(w.add("a.txt", bytes("abc")));
+        auto r = w.set_comment(string(std::string(70000, 'c')));
+        ASSERT_FALSE(r);
+        expect_no_place(r.error(), "zip: comment longer than 65535 bytes");
+        expect_no_place(*w.last_error(), "zip: comment longer than 65535 bytes");
+    }
+    {
+        sgcl::io::buffer b;
+        compress::zip::writer w(b);
+        ASSERT_TRUE(w.close());
+        auto r = w.create(string("late.txt"));
+        ASSERT_FALSE(r);
+        expect_no_place(r.error(), "zip: create after close");
+    }
+    {
+        sgcl::io::buffer b;
+        compress::tar::writer w(b);
+        compress::tar::entry e;
+        e.name = "a.txt";
+        e.size = 3;
+        ASSERT_TRUE(w.write_header(e));
+        ASSERT_TRUE(w.write(bytes("abc")));
+        compress::tar::entry nameless;
+        auto r = w.write_header(nameless);
+        ASSERT_FALSE(r);
+        expect_no_place(r.error(), "tar: an entry with no name");
+    }
+    {
+        sgcl::io::buffer b;
+        compress::sevenzip::writer w(b);
+        w.add("a.txt", bytes("abc"));
+        w.add("", bytes("x"));
+        auto r = w.close();
+        ASSERT_FALSE(r);
+        expect_no_place(r.error(), "7z: an entry name that is empty, has a NUL or is not UTF-8");
+    }
+}
+
+// A source file whose read fails stops the create with the read's error,
+// without a place, and the archive is removed: zip, tar and 7z alike. The
+// failure: b.txt, a file when the tree is listed, is made a directory
+// once the archive exists (the listing is over by then), while the
+// encoder is still at a.bin, random bytes that keep it ~150 ms (eight
+// megabytes for deflate, one for xz and LZMA2); b.txt then opens and
+// its read fails (EISDIR). 7z's create ignored that read and wrote the
+// archive without b.txt's bytes, with no error
+TEST(CompressFiles_Tests, CreateStopsAtAFailedRead) {
+    namespace fs = std::filesystem;
+    Scratch s;
+    std::string noise(size_t(8) << 20, '\0');
+    std::mt19937 rng(11);
+    for (auto& c : noise) {
+        c = char(rng());
+    }
+    auto attempt = [&](const std::string& name, size_t size, auto create) {
+        SCOPED_TRACE(name);
+        const std::string src = s / ("src-" + name);
+        const std::string archive = s / name;
+        fs::create_directories(src);
+        write_file(src + "/a.bin", noise.substr(0, size));
+        write_file(src + "/b.txt", "b\n");
+        std::atomic<bool> done{false};
+        std::atomic<bool> swapped{false};
+        std::thread swap([&] {
+            while (!done.load() && !fs::exists(archive)) {
+            }
+            std::error_code ec;
+            if (!done.load() && fs::remove(src + "/b.txt", ec) && fs::create_directory(src + "/b.txt", ec)) {
+                swapped = true;
+            }
+        });
+        auto r = create(string(src), string(archive));
+        done = true;
+        swap.join();
+        ASSERT_TRUE(swapped.load());
+        ASSERT_FALSE(r);
+        expect_file_error(r.error());
+        EXPECT_EQ(r.error().io_error()->code(), std::errc::is_a_directory) << std::string_view(r.error().message());
+        EXPECT_FALSE(fs::exists(archive));
+    };
+    attempt("a.zip", size_t(8) << 20, [](const string& d, const string& a) { return compress::zip::create(d, a); });
+    attempt("a.tar.xz", size_t(1) << 20, [](const string& d, const string& a) { return compress::tar::create(d, a); });
+    attempt("a.7z", size_t(1) << 20, [](const string& d, const string& a) { return compress::sevenzip::create(d, a); });
+}
+
+// A name past ISO 8859-1 is written as the bytes of the file's name, as
+// gzip(1) writes it: the same header as gzip's own, gunzip -N restoring
+// the name from it; read back, the header's name is the file's, and
+// decompress_file makes the file of that name again
+TEST(CompressFiles_Tests, GzipFileNamePastLatin1AsGzip) {
+    Scratch s;
+    const std::string euro = "\xE2\x82\xAC.txt";   // €.txt
+    write_file(s / euro, "euro\n");
+    auto done = compress::gzip::compress_file(string(s / euro), {.keep = false});
+    ASSERT_TRUE(done) << std::string(done.error().message().view());
+    EXPECT_FALSE(std::filesystem::exists(s / euro));
+    std::string gz = tree_of(s.dir)[euro + ".gz"].data;
+    ASSERT_GT(gz.size(), 10u);
+    EXPECT_EQ(gz[3] & 8, 8);   // FNAME
+    EXPECT_EQ(gz.substr(10, euro.size() + 1), euro + std::string(1, '\0'));
+    {
+        io::reader file = *io::open(string(s / (euro + ".gz")));
+        compress::gzip::reader r(file);
+        auto h = r.header();
+        ASSERT_TRUE(h);
+        EXPECT_EQ(std::string(h->name.view()), euro);
+        (void)r.close();
+    }
+    ASSERT_TRUE(compress::gzip::decompress_file(string(s / (euro + ".gz")), {.keep = false}));
+    EXPECT_EQ(tree_of(s.dir)[euro].data, "euro\n");
+    if (!have("gzip")) {
+        GTEST_SKIP() << "no gzip";
+    }
+    // gzip's header for the same file names it with the same bytes
+    ASSERT_EQ(run("gzip -k " + q(s / euro)), 0);
+    std::string theirs = tree_of(s.dir)[euro + ".gz"].data;
+    ASSERT_GT(theirs.size(), 10u);
+    EXPECT_EQ(theirs.substr(10, euro.size() + 1), euro + std::string(1, '\0'));
+    // and gunzip -N takes the name from ours
+    std::filesystem::remove(s / (euro + ".gz"));
+    ASSERT_TRUE(compress::gzip::compress_file(string(s / euro), {.keep = false}));
+    std::filesystem::rename(s / (euro + ".gz"), s / "renamed.gz");
+    ASSERT_EQ(run("cd " + q(s.dir) + " && gzip -dN renamed.gz"), 0);
+    EXPECT_EQ(tree_of(s.dir)[euro].data, "euro\n");
 }
 
 TEST(CompressFiles_Tests, GzipAsyncForms) {

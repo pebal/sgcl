@@ -6,9 +6,11 @@
 #include "tests/types.h"
 
 #include <algorithm>
+#include <iterator>
 #include <numeric>
 #include <random>
 #include <ranges>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -489,4 +491,245 @@ TEST(ImVector_Tests, ReadersUnderAtomic) {
     });
     EXPECT_FALSE(bad.load());
     EXPECT_EQ(current.load()->size(), 10000u);
+}
+
+// Out of memory throws nothing (it ends the program): a change is
+// noexcept as far as the elements' copies and constructions are
+TEST(ImVector_Tests, NoexceptFollowsTheElements) {
+    using V = sgcl::immutable::vector<int>;
+    using S = sgcl::immutable::vector<std::string>;   // a copy that can throw, a move that cannot
+    std::vector<int> ints;
+    int i = 0;
+    std::string str;
+    static_assert(noexcept(V().push_back(i)) && noexcept(V().push_back(1)) && noexcept(V().emplace_back(1)));
+    static_assert(noexcept(V().pop_back()));
+    static_assert(noexcept(V(ints.begin(), ints.end())) && noexcept(V({1, 2})));
+    static_assert(!noexcept(V().set(0, 1)) && !noexcept(V().at(0)));   // out_of_range
+    static_assert(!noexcept(S().push_back(str)) && !noexcept(S().push_back(std::string())));   // the tail's copy
+    static_assert(!noexcept(S().emplace_back()) && !noexcept(S().pop_back()));
+    std::istringstream in("1 2");
+    static_assert(!noexcept(V(std::istream_iterator<int>(in), std::istream_iterator<int>())));   // the iterator reads a stream
+    SUCCEED();
+}
+
+// A vector moved from keeps its version, as the copy does (vector.md (5),
+// operator_assign.md (2)), and every member works on it; an assignment of
+// a vector to itself, by a copy or a move, changes nothing
+TEST(ImVector_Tests, MovedFromAndSelfAssignment) {
+    for (int n : {0, 1, 32, 33, 1057}) {
+        auto v = counted(n);
+        const auto copy = v;
+        auto moved = std::move(v);
+        EXPECT_EQ(v, copy) << n;
+        EXPECT_EQ(moved, copy) << n;
+        EXPECT_EQ(v.size(), size_t(n));
+        EXPECT_EQ(std::distance(v.begin(), v.end()), n);
+        EXPECT_EQ(v.push_back(n).size(), size_t(n + 1));
+        if (n > 0) {
+            EXPECT_EQ(v.back(), n - 1);
+            EXPECT_EQ(v.pop_back().size(), size_t(n - 1));
+            EXPECT_EQ(v.set(0, -1)[0], -1);
+        }
+        sgcl::immutable::vector<int> w;
+        w = std::move(v);
+        EXPECT_EQ(v, copy) << n;
+        EXPECT_EQ(w, copy) << n;
+        auto& alias = v;   // through a reference: the compiler's warning would see `v = v`
+        v = alias;
+        EXPECT_EQ(v, copy) << n;
+        v = std::move(alias);
+        EXPECT_EQ(v, copy) << n;
+        EXPECT_EQ(v.depth(), copy.depth());
+    }
+}
+
+// The edges of an empty vector and of one of one element: the iterators
+// meet, the reverse ones too; a push into the empty vector and the pop
+// back to empty, which holds no node again
+TEST(ImVector_Tests, EmptyAndOneElement) {
+    sgcl::immutable::vector<int> e;
+    EXPECT_EQ(e.cbegin(), e.cend());
+    EXPECT_EQ(e.rbegin(), e.rend());
+    EXPECT_EQ(e.crbegin(), e.crend());
+    EXPECT_EQ(e.end() - e.begin(), 0);
+    EXPECT_EQ(sgcl::immutable::vector<int>::const_iterator(), sgcl::immutable::vector<int>::const_iterator());
+    EXPECT_EQ(sgcl::immutable::vector<int>({}), e);
+    std::vector<int> none;
+    EXPECT_TRUE(sgcl::immutable::vector<int>(none.begin(), none.end()).empty());
+    std::istringstream nothing("");
+    EXPECT_TRUE(sgcl::immutable::vector<int>(std::istream_iterator<int>(nothing), std::istream_iterator<int>()).empty());
+    std::istringstream three("1 2 3");   // a range read once
+    sgcl::immutable::vector<int> read(std::istream_iterator<int>(three), std::istream_iterator<int>{});
+    EXPECT_EQ(std::vector<int>(read.begin(), read.end()), (std::vector<int>{1, 2, 3}));
+    const size_t before = collector::get_live_object_count();
+    off_frame([&] {
+        auto one = e.push_back(7);
+        EXPECT_EQ(one.size(), 1u);
+        EXPECT_EQ(one.front(), 7);
+        EXPECT_EQ(&one.front(), &one.back());
+        EXPECT_EQ(one[0], 7);
+        EXPECT_EQ(one.at(0), 7);
+        EXPECT_THROW(one.at(1), std::out_of_range);
+        EXPECT_EQ(one.depth(), 0u);
+        EXPECT_EQ(*one.rbegin(), 7);
+        EXPECT_EQ(std::next(one.rbegin()), one.rend());
+        EXPECT_EQ(one.set(0, 8)[0], 8);
+        EXPECT_EQ(one[0], 7);
+        auto none_again = one.pop_back();
+        EXPECT_TRUE(none_again.empty());
+        EXPECT_EQ(none_again, e);
+        EXPECT_EQ(none_again.depth(), 0u);
+        EXPECT_EQ(one.emplace_back(8).back(), 8);
+    });
+    settle();
+    EXPECT_EQ(collector::get_live_object_count(), before);   // the tails of the frame collected, none for the empty vector
+}
+
+// The positions at and past the end: at and set throw out_of_range for
+// size() and for the largest size_type, whatever the vector's shape, and
+// the vector is left as it was (at.md, set.md)
+TEST(ImVector_Tests, PositionsPastTheEnd) {
+    for (int n : {0, 1, 32, 33, 1056, 1057}) {
+        auto v = counted(n);
+        for (size_t i : {size_t(n), size_t(n) + 1, size_t(n) + 32, SIZE_MAX}) {
+            EXPECT_THROW(v.at(i), std::out_of_range) << n << " " << i;
+            EXPECT_THROW(v.set(i, -1), std::out_of_range) << n << " " << i;
+            const int x = -1;
+            EXPECT_THROW(v.set(i, x), std::out_of_range) << n << " " << i;
+        }
+        EXPECT_EQ(v, counted(n));
+        if (n > 0) {
+            EXPECT_EQ(v.at(size_t(n - 1)), n - 1);   // the last position, in the tail
+            EXPECT_EQ(v.set(size_t(n - 1), -1).back(), -1);
+        }
+    }
+}
+
+// An argument that is an element of the vector itself: push_back,
+// emplace_back and set read it from the version they were called on,
+// which holds it while the new one is made, and a result assigned to the
+// same variable replaces that version only after; a vector built from
+// its own iterators is equal to it. Strings, whose copy reads what it
+// copies, at every shape of the tail
+TEST(ImVector_Tests, ArgumentsFromTheVectorItself) {
+    auto text = [](int i) {
+        return std::string(24, char('a' + i % 26)) + std::to_string(i);
+    };
+    for (int n : {1, 31, 32, 33, 64, 1056, 1057}) {
+        sgcl::immutable::vector<std::string> v;
+        std::vector<std::string> o;
+        for (int i = 0; i < n; ++i) {
+            v = v.push_back(text(i));
+            o.push_back(text(i));
+        }
+        auto last = size_t(n - 1);
+        auto pushed = v.push_back(v.back());
+        EXPECT_EQ(pushed.back(), o.back()) << n;
+        EXPECT_EQ(pushed.size(), size_t(n + 1));
+        EXPECT_EQ(v.push_back(v.front()).back(), o.front()) << n;
+        EXPECT_EQ(v.emplace_back(v[last / 2]).back(), o[last / 2]) << n;
+        EXPECT_EQ(v.set(0, v[last])[0], o[last]) << n;
+        EXPECT_EQ(v.set(last, v[0])[last], o[0]) << n;
+        EXPECT_EQ(v.set(last, v[last]), v) << n;
+        sgcl::immutable::vector<std::string> again(v.begin(), v.end());
+        EXPECT_EQ(again, v) << n;
+        auto w = v;
+        auto wo = o;
+        w = w.push_back(w.back());   // the variable's own version read, then replaced
+        wo.push_back(wo.back());
+        w = w.set(0, w[last]);
+        wo[0] = wo[last];
+        w = w.pop_back().push_back(w.front());
+        wo.pop_back();
+        wo.push_back(wo.front());
+        EXPECT_TRUE(same(w, wo)) << n;
+        EXPECT_TRUE(same(v, o)) << n;
+    }
+}
+
+// Elements without a default constructor and with a destructor: a leaf
+// constructs them one by one in its storage, a full leaf of the trie and
+// a tail alike
+TEST(ImVector_Tests, ElementsWithoutADefaultConstructor) {
+    struct Named {
+        explicit Named(int i)
+        : name(std::to_string(i)) {
+        }
+
+        std::string name;
+    };
+    static_assert(!std::is_default_constructible_v<Named>);
+    sgcl::immutable::vector<Named> v;
+    for (int i : range(100)) {
+        v = v.emplace_back(i);
+    }
+    v = v.set(5, Named(-5)).pop_back();
+    EXPECT_EQ(v.size(), 99u);
+    EXPECT_EQ(v[5].name, "-5");
+    EXPECT_EQ(v.back().name, "98");
+    std::vector<Named> o = {Named(1), Named(2)};
+    EXPECT_EQ(sgcl::immutable::vector<Named>(o.begin(), o.end())[1].name, "2");
+}
+
+// A walk backwards and from the end, across the tail's boundary and the
+// leaves': the iterator looks its leaf up again whenever it leaves one
+TEST(ImVector_Tests, IteratorsAcrossTheBoundaries) {
+    for (int n : {1, 31, 32, 33, 64, 65, 1056, 1057}) {
+        auto v = counted(n);
+        std::vector<int> back(v.rbegin(), v.rend());
+        std::vector<int> o((size_t)n);
+        std::iota(o.rbegin(), o.rend(), 0);
+        EXPECT_EQ(back, o) << n;
+        EXPECT_EQ(v.end()[-1], n - 1);
+        EXPECT_EQ(*(v.end() - n), 0);
+        auto it = v.end();
+        for (int i = n - 1; i >= 0; --i) {
+            --it;
+            ASSERT_EQ(*it, i) << n;
+        }
+        EXPECT_EQ(it, v.begin());
+        for (int i = 0; i < n; i += 31) {   // jumps of 31: into another leaf at nearly every step
+            ASSERT_EQ(v.begin()[i], i) << n;
+            ASSERT_EQ(*(v.end() - (n - i)), i) << n;
+        }
+    }
+}
+
+// update: f of the element at a position, set in its place, f called
+// once: at the first and the last position, in the tail and in the trie,
+// at the sizes around a leaf and a level; past the end out_of_range and f
+// not called; f that reads the vector itself; f that throws leaves the
+// vector and gives nothing
+TEST(ImVector_Tests, Update) {
+    for (int n : {0, 1, 32, 33, 1056, 1057, 33000}) {
+        auto v = counted(n);
+        for (int i : {0, 31, 32, n / 2, n - 1}) {
+            if (i < 0 || i >= n) {
+                continue;
+            }
+            int calls = 0;
+            auto u = v.update(size_t(i), [&](int x) { ++calls; return x * 10 + 1; });
+            EXPECT_EQ(calls, 1);
+            EXPECT_EQ(u.size(), size_t(n));
+            EXPECT_EQ(u[size_t(i)], i * 10 + 1) << n << " " << i;
+            EXPECT_EQ(u.set(size_t(i), i), v);
+            // f reads the vector it updates
+            auto r = v.update(size_t(i), [&](int x) { return x + v.front() + int(v.size()); });
+            EXPECT_EQ(r[size_t(i)], i + n);
+        }
+        int calls = 0;
+        for (size_t i : {size_t(n), size_t(n) + 1, SIZE_MAX}) {
+            EXPECT_THROW((void)v.update(i, [&](int x) { ++calls; return x; }), std::out_of_range);
+        }
+        EXPECT_EQ(calls, 0);
+        EXPECT_EQ(v, counted(n));
+    }
+    auto v = counted(40);
+    EXPECT_THROW((void)v.update(35, [](int) -> int { throw std::runtime_error("f"); }), std::runtime_error);
+    EXPECT_THROW((void)v.update(3, [](int) -> int { throw std::runtime_error("f"); }), std::runtime_error);
+    EXPECT_EQ(v, counted(40));
+    sgcl::immutable::vector<std::string> words{"a", "b"};
+    EXPECT_EQ(words.update(1, [](const std::string& w) { return w + w; })[1], "bb");
+    auto moved = std::move(v);
+    EXPECT_EQ(v.update(0, [](int x) { return x - 1; })[0], -1);
 }

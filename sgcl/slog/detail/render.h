@@ -29,7 +29,10 @@ namespace sgcl::slog::detail {
 
     // How deep a value of the program is followed (a cycle of pointers):
     // the rest is written as "..." in text and fails in JSON, as a cycle
-    // fails json.Marshal
+    // fails json.Marshal; a described type (a Record) under MaxDepth
+    // others is left out, as an empty group is. A group of the program's
+    // own (slog::group, a logger's group) is finite and followed whole:
+    // the depth counts the Records above a value, not the groups
     inline constexpr int MaxDepth = 64;
 
     // The attributes of the call, where a logger's own kept as a tree
@@ -149,6 +152,16 @@ namespace sgcl::slog::detail {
         return v.kind == Kind::Group || v.kind == Kind::Record;
     }
 
+    // Whether a value at depth (the Records above it) is past the limit
+    inline bool too_deep(const Value& v, int depth) noexcept {
+        return v.kind == Kind::Record && depth > MaxDepth;
+    }
+
+    // The depth of the attributes of a group at depth
+    inline int child_depth(const Value& v, int depth) noexcept {
+        return depth + (v.kind == Kind::Record);
+    }
+
     // Every attribute of a group, the call's in place of a Splice
     template<class F>
     void for_each_child(const Value& v, const Tail& t, F&& f) {
@@ -168,15 +181,13 @@ namespace sgcl::slog::detail {
         }
     }
 
-    // A group of no attributes, or of empty groups only: left out, as
-    // slog leaves it
+    // A group of no attributes, or of empty groups only (a described type
+    // past the limit among them): left out, as slog leaves it
     inline bool group_empty(const Value& v, const Tail& t, int depth = 0) {
-        if (depth > MaxDepth) {
-            return false;
-        }
+        const int d = child_depth(v, depth);
         bool empty = true;
         for_each_child(v, t, [&](const Attr& a) {
-            if (empty && !(is_groupish(a.value) && group_empty(a.value, t, depth + 1))) {
+            if (empty && !(is_groupish(a.value) && (too_deep(a.value, d) || group_empty(a.value, t, d)))) {
                 empty = false;
             }
         });
@@ -483,7 +494,7 @@ namespace sgcl::slog::detail {
     }
 
     // What slog writes in place of a value json.Marshal refused
-    inline void json_error(Buf& b, const JsonFail& fail) {
+    inline void json_error(Buf& b, const JsonFail& fail) noexcept {
         Buf& out = b;
         char text[64];
         size_t n;
@@ -577,7 +588,7 @@ namespace sgcl::slog::detail {
     }
 
     // prefix + key, quoted as one text when either part needs it
-    inline void text_key(Buf& b, const Buf& prefix, const char* key, size_t n) {
+    inline void text_key(Buf& b, const Buf& prefix, const char* key, size_t n) noexcept {
         const bool quote = (prefix.size() == 0 && n == 0) || text_needs_quoting(key, n)
                         || (prefix.size() && text_needs_quoting(prefix.data(), prefix.size()));
         if (!quote) {
@@ -614,7 +625,7 @@ namespace sgcl::slog::detail {
             return false;
         }
         if (is_groupish(a.value)) {
-            if (depth > MaxDepth || group_empty(a.value, t)) {
+            if (too_deep(a.value, depth) || group_empty(a.value, t, depth)) {
                 return false;
             }
             size_t mark = w.prefix.size();
@@ -623,8 +634,9 @@ namespace sgcl::slog::detail {
                 w.prefix.put('.');
             }
             bool any = false;
+            const int d = child_depth(a.value, depth);
             for_each_child(a.value, t, [&](const Attr& c) {
-                any |= text_attr(w, c, t, depth + 1);
+                any |= text_attr(w, c, t, d);
             });
             w.prefix.resize_down(mark);
             return any;
@@ -725,13 +737,14 @@ namespace sgcl::slog::detail {
         }
         Buf& b = w.line;
         if (is_groupish(a.value)) {
-            if (depth > MaxDepth || group_empty(a.value, t)) {
+            if (too_deep(a.value, depth) || group_empty(a.value, t, depth)) {
                 return false;
             }
+            const int d = child_depth(a.value, depth);
             if (!a.key_n) {
                 bool any = false;
                 for_each_child(a.value, t, [&](const Attr& c) {
-                    any |= json_attr(w, c, first, t, depth + 1);
+                    any |= json_attr(w, c, first, t, d);
                 });
                 return any;
             }
@@ -743,7 +756,7 @@ namespace sgcl::slog::detail {
             b.put(":{", 2);
             bool inner = true;
             for_each_child(a.value, t, [&](const Attr& c) {
-                json_attr(w, c, inner, t, depth + 1);
+                json_attr(w, c, inner, t, d);
             });
             b.put('}');
             return true;

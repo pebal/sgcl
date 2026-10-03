@@ -55,7 +55,7 @@ namespace sgcl::crypto {
         struct WipingPolicy {
             static inline void (*probe)(const void* block, size_t n) noexcept = nullptr;
 
-            static void* allocate(size_t bytes) {
+            static void* allocate(size_t bytes) noexcept {
                 return ::operator new(bytes);
             }
 

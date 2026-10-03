@@ -65,6 +65,17 @@ namespace sgcl::crypto::detail {
     // Two buffers that overlap other than by starting at the same byte:
     // in-place work is allowed (out == in), a shifted overlap is not, as
     // Go's cipher packages panic on it
+    // Two buffers that share a byte, at any place: for an output written
+    // while an input is still to be read again (HKDF's info, PBKDF2's salt)
+    inline bool overlap(const void* out, size_t out_size, const void* in, size_t in_size) noexcept {
+        if (out_size == 0 || in_size == 0) {
+            return false;
+        }
+        auto o = reinterpret_cast<uintptr_t>(out);
+        auto i = reinterpret_cast<uintptr_t>(in);
+        return o < i + in_size && i < o + out_size;
+    }
+
     inline bool inexact_overlap(const void* out, size_t out_size, const void* in, size_t in_size) noexcept {
         if (out_size == 0 || in_size == 0 || out == in) {
             return false;

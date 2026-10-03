@@ -1,74 +1,154 @@
-# sgcl::concurrent::weak_set
+[sgcl](../README.md) › [concurrent](README.md)
+
+# sgcl::concurrent::weak_set\<Key\>
 
 ```cpp
-#include "sgcl/concurrent/weak_set.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/weak_set.h"   // or "sgcl/concurrent.h"
 
-namespace sgcl {
+namespace sgcl::concurrent {
     template<class Key>
     class weak_set;
 }
 ```
 
-`concurrent::weak_set<Key>` is the [weak_set](../core/weak_set.md) shared by any number of threads without a lock: a set of objects that does not keep them alive, the [`concurrent::weak_map`](weak_map.md) of nothing but keys, over the lock-free hash table of [concurrent::sorted_set](sorted_set.md). An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](../core/weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep, which the inserting threads run by themselves every so many insertions. Objects registered from several threads without being owned there: the open connections, the listeners, the instances of a class, a set that forgets. Hashing, equality, the sweeps and the rules are those of `concurrent::weak_map`.
+`sgcl::concurrent::weak_set<Key>` is the [weak_set](../core/weak_set.md) shared by any number of threads without a
+lock: a set of objects that does not keep them alive, the [concurrent::weak_map](weak_map.md) of nothing but keys,
+over the lock-free hash table of [concurrent::set](set.md), the split-ordered list of Shalev and Shavit. An object
+is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [weak_ptr](../core/weak_ptr.md); an entry
+whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a
+sweep. Objects registered from several threads without being owned there: the open connections, the listeners, the
+instances of a class, a set that forgets.
 
-## Members
+Hashing, equality and the sweeps are those of `concurrent::weak_map`: the entries are hashed and compared by the
+object's address, which the collector clears from the weak pointer's cell before the address can be handed out
+again, so a dead entry equals nothing; an entry carries the hash it was placed with, and is erased from where it was
+put; and the insertion that brings the count since the last sweep to as many as the set had entries after it (16 at
+least) sweeps the dead entries out, one sweep at a time and no thread waiting for it.
 
-```cpp
-using key_type = Key;
-using key_pointer = tracked_ptr<Key>;
-using weak_type = weak_ptr<Key>;
-using size_type = size_t;
-using reference = key_pointer;               // what an iterator gives out: the object, held
-using iterator = /* forward iterator over the live objects */;
+What differs from `std::unordered_set`: the element is the object, compared by identity, not by value, and held only
+while an iterator stands on it. What differs from the sequential `weak_set`: there is no `const_iterator`, and the
+set is neither copied nor moved. What differs from Java, which has no weak set of its own and makes one with
+`Collections.newSetFromMap(new WeakHashMap<>())` under `Collections.synchronizedSet`: the set is shared without a
+lock, and compares by identity, not by `equals`. Go's library has no weak set.
 
-weak_set();
-weak_set(const concurrent::weak_set&) = delete;
+## Rules
 
-iterator begin() noexcept;                   // the live objects, each once; weakly consistent
-iterator end() noexcept;
-iterator find(const key_pointer& object) noexcept;         // wait-free
-size_type count(const key_pointer& object) const noexcept;
-bool contains(const key_pointer& object) const noexcept;
-pair<iterator, bool> insert(const key_pointer& object);    // whether it was added: of two threads, exactly one gets true
-size_type erase(const key_pointer& object);                // lock-free
-iterator erase(iterator pos);
-size_type sweep();                           // drops the dead entries: how many; 0 at once when another thread's sweep is under way
-void clear();
-size_type size() const noexcept;             // the dead ones not yet swept included
-bool empty() const noexcept;
-```
+- The set holds tracked pointers (the table's array of buckets, its head and the counters), so it lives on a
+  thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); the one a program shares
+  goes into a managed object under a [root_ptr](../core/root_ptr.md).
+- Every member function may be called from any thread at any time, and none waits. `find`, `contains` and `count`
+  are wait-free and write nothing once the object's bucket has its dummy node, which the first lookup or insertion
+  in the bucket makes (an allocation and a compare-exchange, lock-free, once per bucket for the array's life).
+  `insert` and `erase` are lock-free and linearizable at the table's compare-exchange: of two threads inserting the
+  same object, exactly one gets `true`. `sweep` and `clear` are walks of lock-free erasures.
+- Iteration is weakly consistent: an iterator holds its node and, on a live entry, the object as a strong pointer,
+  so it is valid whatever the other threads do and the object cannot die under it; it skips the entries erased since
+  it passed them and may or may not see the ones inserted meanwhile. An iterator is a tracked object then, and lives
+  where the set may.
+- An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that
+  cycle, it is found and visited like any other: the lag of any garbage collector.
+- `size()` counts the dead entries not yet swept, and under concurrent modification is a snapshot of no particular
+  moment ([README: The rules](README.md#the-rules), 5); `size()` and `empty()` are exact after a `sweep()` with the
+  threads quiet.
+- Non-copyable, non-movable: a shared structure has one place.
 
-`*it` is the object as a `key_pointer`, held while the iterator stands on it; `it->` is the pointer's own `->`, so `(*it)->member`. A null pointer is not an object: `insert` asserts in debug builds, the lookups find nothing.
+## Template parameters
+
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the objects: any type a `tracked_ptr` points to, a class, an abstract base, `int`. It is neither hashed nor compared: the element is the object's identity. |
+
+## Member types
+
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `key_pointer` | `tracked_ptr<Key>` |
+| `weak_type` | `weak_ptr<Key>` |
+| `size_type` | `size_t` |
+| `reference` | `key_pointer`: what an iterator gives out, the object, held |
+| `iterator` | a forward iterator over the live objects, of a class of the library; `*it` is a `key_pointer`, `(*it)->member` |
+
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](weak_set/weak_set.md) | constructs an empty set |
+| `(destructor)` | leaves the nodes to the collector |
+
+#### Iterators
+
+| Function | Description |
+|---|---|
+| [begin](weak_set/begin.md) | an iterator to the first live object |
+| [end](weak_set/end.md) | an iterator past the last entry |
+
+#### Capacity
+
+| Function | Description |
+|---|---|
+| [empty](weak_set/empty.md) | checks whether the set holds an entry, a dead one included |
+| [size](weak_set/size.md) | the number of entries, the dead ones not yet swept included |
+
+#### Modifiers
+
+| Function | Description |
+|---|---|
+| [clear](weak_set/clear.md) | erases every entry |
+| [insert](weak_set/insert.md) | inserts an object, unless the set holds it |
+| [erase](weak_set/erase.md) | erases an object, or the entry an iterator stands on |
+| [sweep](weak_set/sweep.md) | erases the entries whose objects are gone |
+
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [count](weak_set/count.md) | the number of entries of an object, 0 or 1 |
+| [find](weak_set/find.md) | the entry of an object |
+| [contains](weak_set/contains.md) | checks whether the set holds an object |
+
+## Complexity
+
+- `find`, `contains`, `count`, `erase`: constant on average, a walk of the object's bucket, which holds an entry or
+  two: the array of buckets doubles once the entries outnumber the buckets.
+- `insert`: constant on average, plus, every so many insertions, a sweep linear in the number of entries: amortized
+  constant, as the sweep comes after as many insertions as the set had entries.
+- `sweep`, `clear`: linear in the number of entries. `size`: constant.
+- `empty`, `begin`: constant when an entry stands near the head of the list; at worst linear in the number of
+  buckets in use, whose dummy nodes the walk to the first entry passes, and for `begin` in the dead entries before
+  the first live one. `end`: constant.
+
+## Iterator invalidation
+
+An iterator is never invalidated: it holds its node, and on a live entry its object, as tracked pointers. An entry
+erased while an iterator stands on it stays readable through it, and the iterator walks on from it to the entries
+after.
 
 ## Example
 
 ```cpp
-#include "sgcl/concurrent/concurrent.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/concurrent.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 struct Connection {
-    explicit Connection(int id) : id(id) {}
     int id;
     atomic<int> notices = 0;
 };
 
 int main() {
-    // Every open connection, registered by the thread that accepts it and
-    // owned there alone: a connection closed is gone from the set by
-    // itself, and a broadcast reaches the ones still open
-    concurrent::weak_set<Connection> open;
-    concurrent::queue<tracked_ptr<Connection>> kept;   // the connections still open, handed to main
+    concurrent::weak_set<Connection> open;  // every open connection, owned elsewhere
+    concurrent::queue<tracked_ptr<Connection>> kept;  // the connections that stay open
     vector<thread> acceptors;
     for (int t : range(4)) {
-        acceptors.emplace_back([&, t] {
+        acceptors.emplace_back([&open, &kept, t] {
             for (int i : range(100)) {
                 tracked_ptr c = make_tracked<Connection>(t * 100 + i);
                 open.insert(c);
                 if (i % 50 == 0) {
-                    kept.push(c);            // stays open; the rest are closed when the iteration ends
+                    kept.push(c);  // the rest are closed when their thread drops them
                 }
             }
         });
@@ -76,27 +156,32 @@ int main() {
     for (auto& a : acceptors) {
         a.join();
     }
-    collector::force_collect(true);    // optional, for the demonstration: the closed connections found unreachable
+
+    collector::force_collect(true);  // optional, for the demonstration: the closed ones die
     int reached = 0;
-    for (auto c : open) {                    // tracked_ptr<Connection>, held: the open ones only
+    for (tracked_ptr c : open) {  // the open connections alone, each held
         ++c->notices;
         ++reached;
     }
-    println("{} connections reached, {} entries, {} swept, {} left", reached, open.size(), open.sweep(), open.size());
+    println("{} connections reached", reached);
+
+    open.sweep();
+    println("{} entries after a sweep", open.size());
 }
 ```
 
 Output:
 
 ```text
-8 connections reached, 400 entries, 392 swept, 8 left
+8 connections reached
+8 entries after a sweep
 ```
-
-The 400 entries before the sweep: the inserting threads swept at 16, 32, 64, 128 and 256 insertions, while every connection was still open, and found nothing to drop.
 
 ## See also
 
-- [concurrent::weak_map](weak_map.md): the rules; [weak_set](../core/weak_set.md): the sequential set; [weak_ptr](../core/weak_ptr.md)
-- [concurrent::sorted_set](sorted_set.md): the table underneath
-- README: [Lock-free containers](README.md#lock-free-containers), [Weak containers](../core/README.md#weak-containers)
-- `tests/concurrent/weak_map.cpp`: the set's behaviour, checked with the map's.
+- [concurrent::weak_map](weak_map.md): a value for each object
+- [weak_set](../core/weak_set.md): the sequential set
+- [weak_ptr](../core/weak_ptr.md): what holds the object
+- [concurrent::set](set.md): the hash table underneath, and its rules
+- [README: Weak containers](README.md#weak-containers), [README: Lock-free
+  containers](README.md#lock-free-containers), [core: Weak containers](../core/README.md#weak-containers)

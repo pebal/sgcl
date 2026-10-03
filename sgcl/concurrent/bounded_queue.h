@@ -13,6 +13,7 @@
 #include "../core/tracked_ptr.h"
 #include "../core/detail/backoff.h"
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <new>
@@ -83,6 +84,10 @@ namespace sgcl::concurrent {
 
         static constexpr size_t Empty = size_t(1) << (sizeof(size_t) * 8 - 1);   // on a sequence: published without an element
 
+        // The most cells a ring is made of: the largest power of two
+        // whose buffer stays within the bytes of an address space
+        static constexpr size_t MaxCells = std::bit_floor(size_t(PTRDIFF_MAX) / sizeof(Cell));
+
     public:
         using value_type = T;
         using size_type = size_t;
@@ -90,9 +95,12 @@ namespace sgcl::concurrent {
         // A queue of the capacity rounded up to a power of two, at least
         // two (in a ring of one, a cell published at a position and free
         // at the next would carry one number); the cells free, numbered
-        // from zero
-        explicit bounded_queue(size_type capacity)
-        : _mask(std::bit_ceil(capacity < 2 ? size_type(2) : capacity) - 1)
+        // from zero. A capacity past MaxCells is taken as MaxCells, a
+        // buffer the heap refuses, so that the program ends as at any
+        // refused managed allocation (DESIGN 356): rounded up as it is,
+        // its power of two would be undefined and its bytes wrap around
+        explicit bounded_queue(size_type capacity) noexcept
+        : _mask(std::bit_ceil(std::clamp(capacity, size_type(2), MaxCells)) - 1)
         , _cells(unique_ptr<Cell>(detail::Maker<Cell[]>::make_tracked_data(_mask + 1))) {
             for (size_type i = 0; i <= _mask; ++i) {
                 _cell(i).sequence.store(i, std::memory_order_relaxed);
@@ -121,17 +129,17 @@ namespace sgcl::concurrent {
 
         // The element appended, or false when the queue is full at the
         // moment of the exchange
-        bool try_push(const T& value) {
+        bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return try_emplace(value);
         }
 
-        bool try_push(T&& value) {
+        bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return try_emplace(std::move(value));
         }
 
         // The element constructed from the arguments in its cell
         template<class... A>
-        bool try_emplace(A&&... a) {
+        bool try_emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             size_type pos, seq;
             return _try_push(pos, seq, std::forward<A>(a)...);
         }
@@ -139,17 +147,17 @@ namespace sgcl::concurrent {
         // The element appended, waiting for room while the queue is
         // full: on the sequence of the cell at the enqueue position,
         // which the consumer releasing it notifies
-        void push(const T& value) {
+        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             _push(value);
         }
 
-        void push(T&& value) {
+        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             _push(std::move(value));
         }
 
         // The first element, or nothing when the queue is empty at the
         // moment of the look
-        optional<T> try_pop() {
+        optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             size_type pos, seq;
             return _try_pop(pos, seq);
         }
@@ -157,7 +165,7 @@ namespace sgcl::concurrent {
         // The first element, waiting for one while the queue is empty:
         // on the sequence of the cell at the dequeue position, which
         // the producer publishing it notifies
-        T pop() {
+        T pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             for (;;) {
                 size_type pos, seq;
                 if (auto value = _try_pop(pos, seq)) {

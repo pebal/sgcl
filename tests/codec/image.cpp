@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <random>
 #include <vector>
 
@@ -51,6 +52,24 @@ namespace {
         codec::image converted = one.convert(to);
         auto px = converted.pixels();
         return std::vector<std::byte>(px.begin(), px.end());
+    }
+
+    // An EXIF block of one entry in IFD0, orientation o, big- or
+    // little-endian; without the entry when o is 0 (a tag 0x0110, the model)
+    std::vector<std::byte> exif_block(unsigned o, bool big) {
+        const std::string be = std::string("MM\0*\0\0\0\x08\0\x01", 10) + std::string("\x01\x12\0\x03\0\0\0\x01\0", 9) + char(o) + std::string(2, '\0') + std::string(4, '\0');
+        const std::string le = std::string("II*\0\x08\0\0\0\x01\0", 10) + std::string("\x12\x01\x03\0\x01\0\0\0", 8) + char(o) + std::string(3, '\0') + std::string(4, '\0');
+        std::string s = big ? be : le;
+        if (o == 0) {
+            s[big ? 11 : 10] = 0x10;
+        }
+        std::vector<std::byte> out(s.size());
+        std::memcpy(out.data(), s.data(), s.size());
+        return out;
+    }
+
+    unsigned exif_tag(const codec::image& im) {
+        return codec::detail::exif_orientation(reinterpret_cast<const uint8_t*>(im.exif().data()), im.exif().size());
     }
 
     void fill_random(codec::image& im, uint32_t seed) {
@@ -247,7 +266,7 @@ TEST(CodecImage_Tests, MetadataTravelsWithCopies) {
     s.exif.push_back(byte{'M'});
     s.exif.push_back(byte{'M'});
     s.icc.push_back(byte{7});
-    codec::detail::ImageAccess::set_orientation(picture, 6);
+    picture.set_orientation(6);
     for (codec::image other : {picture.clone(), picture.convert(pixel_format::gray16)}) {
         EXPECT_EQ(other.exif().size(), 2u);
         EXPECT_EQ(other.icc().size(), 1u);
@@ -263,6 +282,117 @@ TEST(CodecImage_Tests, MetadataTravelsWithCopies) {
     EXPECT_EQ(picture.orientation(), 1u);
     codec::detail::ImageAccess::set_orientation(picture, 0);
     EXPECT_EQ(picture.orientation(), 1u);
+}
+
+TEST(CodecImage_Tests, TheMetadataSetters) {
+    codec::image picture(3, 2, pixel_format::rgb8);
+    // the orientation, 1 to 8; one outside a contract, the image untouched
+    picture.set_orientation(6);
+    EXPECT_EQ(picture.orientation(), 6u);
+    EXPECT_THROW(picture.set_orientation(0), std::invalid_argument);
+    EXPECT_THROW(picture.set_orientation(9), std::invalid_argument);
+    EXPECT_EQ(picture.orientation(), 6u);
+    // the ICC profile and the EXIF block, copies of the bytes given
+    std::vector<std::byte> profile(300, std::byte{7});
+    picture.set_icc(slice<const byte>(profile.data(), profile.size()));
+    profile[0] = std::byte{1};
+    ASSERT_EQ(picture.icc().size(), 300u);
+    EXPECT_EQ(picture.icc()[0], std::byte{7});
+    picture.set_icc({});
+    EXPECT_TRUE(picture.icc().empty());
+    for (bool big : {true, false}) {
+        // a block with the tag: orientation() becomes its value, and the
+        // tag follows set_orientation
+        const auto block = exif_block(3, big);
+        picture.set_exif(slice<const byte>(block.data(), block.size()));
+        ASSERT_EQ(picture.exif().size(), block.size());
+        EXPECT_EQ(picture.orientation(), 3u);
+        picture.set_orientation(8);
+        EXPECT_EQ(exif_tag(picture), 8u);
+        EXPECT_EQ(picture.exif().size(), block.size());
+        // a block without it leaves orientation() as it was
+        const auto bare = exif_block(0, big);
+        picture.set_exif(slice<const byte>(bare.data(), bare.size()));
+        EXPECT_EQ(picture.orientation(), 8u);
+        picture.set_orientation(2);
+        EXPECT_EQ(std::memcmp(picture.exif().data(), bare.data(), bare.size()), 0);
+        picture.set_exif({});
+        EXPECT_TRUE(picture.exif().empty());
+        EXPECT_EQ(picture.orientation(), 2u);
+    }
+    // a handle: copies share the metadata as they share the pixels
+    codec::image other = picture;
+    other.set_orientation(5);
+    EXPECT_EQ(picture.orientation(), 5u);
+    static_assert(noexcept(picture.set_exif({})));
+    static_assert(noexcept(picture.set_icc({})));
+}
+
+TEST(CodecImage_Tests, AnOrientationOutsideOneToEightIsOne) {
+    // what a file may say past 1 to 8 is 1, the image as stored: the
+    // decoders' path (ImageIO's number for HEIF is a long long), and the
+    // EXIF tag as set_exif and the PNG and JPEG decoders read it
+    codec::image picture(3, 2, pixel_format::rgb8);
+    for (long long v : {0ll, 9ll, 255ll, 65535ll, -1ll, -255ll, (1ll << 32) + 6, (1ll << 32) + 1, std::numeric_limits<long long>::min()}) {
+        codec::detail::ImageAccess::set_orientation(picture, 6);
+        codec::detail::ImageAccess::set_orientation(picture, v);
+        EXPECT_EQ(picture.orientation(), 1u) << v;
+    }
+    for (long long v = 1; v <= 8; ++v) {
+        codec::detail::ImageAccess::set_orientation(picture, v);
+        EXPECT_EQ(picture.orientation(), unsigned(v));
+    }
+    for (bool big : {true, false}) {
+        for (unsigned v : {0u, 9u, 255u, 0x0106u}) {
+            auto block = exif_block(1, big);
+            block[18] = static_cast<std::byte>(big ? v >> 8 : v & 0xFF);
+            block[19] = static_cast<std::byte>(big ? v & 0xFF : v >> 8);
+            codec::image tagged(3, 2, pixel_format::rgb8);
+            tagged.set_orientation(6);
+            tagged.set_exif(slice<const byte>(block.data(), block.size()));
+            EXPECT_EQ(tagged.orientation(), 1u) << v;
+            // written with the tag as it is, read again as 1
+            auto png = codec::png::decode(codec::png::encode(tagged));
+            ASSERT_TRUE(png);
+            EXPECT_EQ(png->exif().size(), block.size());
+            EXPECT_EQ(png->orientation(), 1u) << v;
+            auto jpg = codec::jpeg::decode(codec::jpeg::encode(tagged));
+            ASSERT_TRUE(jpg);
+            EXPECT_EQ(jpg->exif().size(), block.size());
+            EXPECT_EQ(jpg->orientation(), 1u) << v;
+        }
+    }
+}
+
+TEST(CodecImage_Tests, OrientedSaysNormalInItsExif) {
+    // the tag of the oriented image's EXIF block is 1, so that a file
+    // written from it is not turned twice; the source's block as it was
+    for (bool big : {true, false}) {
+        codec::image picture(3, 2, pixel_format::rgb8);
+        fill_random(picture, 5);
+        const auto block = exif_block(6, big);
+        picture.set_exif(slice<const byte>(block.data(), block.size()));
+        ASSERT_EQ(picture.orientation(), 6u);
+        codec::image upright = picture.oriented();
+        EXPECT_EQ(upright.orientation(), 1u);
+        EXPECT_EQ(exif_tag(upright), 1u);
+        ASSERT_EQ(upright.exif().size(), block.size());
+        EXPECT_EQ(exif_tag(picture), 6u);
+        EXPECT_EQ(std::memcmp(picture.exif().data(), block.data(), block.size()), 0);
+        // written and read again: as it is shown, with nothing left to turn
+        codec::image png = *codec::png::decode(codec::png::encode(upright));
+        EXPECT_EQ(png.width(), 2u);
+        EXPECT_EQ(png.orientation(), 1u);
+        EXPECT_TRUE(png.oriented().width() == 2u);
+        codec::image jpg = *codec::jpeg::decode(codec::jpeg::encode(upright));
+        EXPECT_EQ(jpg.height(), 3u);
+        EXPECT_EQ(jpg.orientation(), 1u);
+        // an image with no block, or a block without the tag
+        codec::image bare(3, 2, pixel_format::gray8);
+        bare.set_orientation(8);
+        EXPECT_TRUE(bare.oriented().exif().empty());
+        EXPECT_EQ(bare.oriented().orientation(), 1u);
+    }
 }
 
 TEST(CodecImage_Tests, TheEightOrientations) {
@@ -289,7 +419,7 @@ TEST(CodecImage_Tests, TheEightOrientations) {
             }
         }
         for (const auto& c : cases) {
-            codec::detail::ImageAccess::set_orientation(picture, c.orientation);
+            picture.set_orientation(c.orientation);
             codec::image shown = picture.oriented();
             ASSERT_EQ(shown.width(), c.w) << c.orientation;
             ASSERT_EQ(shown.height(), c.h) << c.orientation;
@@ -309,7 +439,7 @@ TEST(CodecImage_Tests, OrientationsCompose) {
     // 5 is 2 after 6, 7 is 2 after 8, 4 is 2 after 3
     auto turn = [](const codec::image& im, unsigned o) {
         codec::image copy = im.clone();
-        codec::detail::ImageAccess::set_orientation(copy, o);
+        copy.set_orientation(o);
         return copy.oriented();
     };
     for (pixel_format f : {pixel_format::gray8, pixel_format::rgb8, pixel_format::rgba16}) {
@@ -331,6 +461,57 @@ TEST(CodecImage_Tests, OrientationsCompose) {
     EXPECT_EQ(turn(line, 6).width(), 1u);
     EXPECT_EQ(turn(line, 6).height(), 5u);
     EXPECT_TRUE(same_pixels(turn(turn(line, 6), 8), line));
+}
+
+TEST(CodecImage_Tests, AMovedFromImageIsStillTheImage) {
+    // a move copies the word, as a tracked_ptr's does: the moved-from
+    // image is another handle of the same image, every member as on it
+    // (DESIGN 408: the moved-from object of each member)
+    codec::image source(3, 2, pixel_format::rgb8);
+    fill_random(source, 7);
+    const auto block = exif_block(6, true);
+    source.set_exif(slice<const byte>(block.data(), block.size()));
+    std::vector<std::byte> profile(5, std::byte{9});
+    source.set_icc(slice<const byte>(profile.data(), profile.size()));
+    codec::image target = std::move(source);
+    codec::image assigned(1, 1, pixel_format::gray8);
+    codec::image from_assign = target;
+    assigned = std::move(from_assign);
+    for (const codec::image* moved : {&source, &from_assign}) {
+        const codec::image& m = *moved;
+        EXPECT_EQ(m.width(), 3u);
+        EXPECT_EQ(m.height(), 2u);
+        EXPECT_EQ(m.format(), pixel_format::rgb8);
+        EXPECT_EQ(m.stride(), 9u);
+        EXPECT_EQ(m.pixels().data(), target.pixels().data());
+        EXPECT_EQ(m.pixels().size(), 18u);
+        EXPECT_EQ(m.row(1).data(), target.row(1).data());
+        EXPECT_THROW((void)m.row(2), std::out_of_range);
+        EXPECT_EQ(m.exif().data(), target.exif().data());
+        EXPECT_EQ(m.icc().data(), target.icc().data());
+        EXPECT_EQ(m.orientation(), 6u);
+        EXPECT_TRUE(same_pixels(m.clone(), target));
+        EXPECT_TRUE(same_pixels(m.convert(pixel_format::gray8), target.convert(pixel_format::gray8)));
+        EXPECT_TRUE(same_pixels(m.oriented(), target.oriented()));
+        EXPECT_THROW((void)m.convert(static_cast<pixel_format>(9)), std::invalid_argument);
+    }
+    EXPECT_EQ(assigned.pixels().data(), target.pixels().data());
+    // the setters through a moved-from image reach the image
+    source.set_orientation(3);
+    EXPECT_EQ(target.orientation(), 3u);
+    EXPECT_EQ(exif_tag(target), 3u);
+    EXPECT_THROW(source.set_orientation(9), std::invalid_argument);
+    source.set_icc({});
+    EXPECT_TRUE(target.icc().empty());
+    source.set_exif({});
+    EXPECT_TRUE(target.exif().empty());
+    source.pixels()[0] = std::byte{200};
+    EXPECT_EQ(target.pixels()[0], std::byte{200});
+    // moved onto itself: the same image
+    codec::image& self = target;
+    target = std::move(self);
+    EXPECT_EQ(target.pixels().data(), source.pixels().data());
+    EXPECT_EQ(target.width(), 3u);
 }
 
 TEST(CodecImage_Tests, AnImageIsTwoObjects) {
@@ -403,6 +584,32 @@ TEST(CodecError_Tests, CodeOffsetAndMessage) {
     EXPECT_EQ(codec::detail::to_io_error(failed, "png"), *failed.io_error());
 }
 
+TEST(CodecError_Tests, DefaultAndCopies) {
+    // what an error is before anything is assigned to it: no code of the
+    // list, and words that say so
+    codec::error none;
+    EXPECT_EQ(none.code(), codec::errc{});
+    EXPECT_EQ(none.offset(), 0u);
+    EXPECT_EQ(none.message(), "no error");
+    EXPECT_EQ(none, codec::error());
+    EXPECT_NE(none, codec::error(codec::errc::corrupt, 0));
+    // a value copied without a throw, the stream's error with it
+    static_assert(std::is_nothrow_copy_constructible_v<codec::error>);
+    static_assert(std::is_nothrow_copy_assignable_v<codec::error>);
+    static_assert(std::is_nothrow_move_constructible_v<codec::error>);
+    static_assert(std::is_nothrow_move_assignable_v<codec::error>);
+    codec::error failed(io::error(std::make_error_code(std::errc::io_error), "read", "photo.png"), 512);
+    codec::error copy = failed;
+    EXPECT_EQ(copy, failed);
+    ASSERT_TRUE(copy.io_error());
+    codec::error assigned;
+    assigned = failed;
+    EXPECT_EQ(assigned.message(), failed.message());
+    assigned = codec::error(codec::errc::checksum, 7, "png: CRC-32 of chunk IHDR");
+    EXPECT_FALSE(assigned.io_error());
+    EXPECT_EQ(assigned.message(), "offset 7: png: CRC-32 of chunk IHDR");
+}
+
 TEST(CodecLimits_Tests, TheSizeAFileClaims) {
     codec::limits l;
     EXPECT_EQ(l.max_pixels, 100'000'000u);
@@ -415,6 +622,16 @@ TEST(CodecLimits_Tests, TheSizeAFileClaims) {
     auto huge = codec::detail::check_size(0xFFFFFFFFu, 0xFFFFFFFFu, l, 0);   // no overflow in the product
     ASSERT_TRUE(huge);
     EXPECT_EQ(huge->code(), codec::errc::too_large);
+    // with no limit, the size an image's buffer can be at 8 bytes a pixel
+    // (rgba16) and no more: too_large past it, never the image's length_error
+    const codec::limits none{.max_pixels = UINT64_MAX};
+    EXPECT_FALSE(codec::detail::check_size(1u << 30, (1u << 30) - 1, none, 0));
+    auto past = codec::detail::check_size(1u << 30, 1u << 30, none, 8);
+    ASSERT_TRUE(past);
+    EXPECT_EQ(past->code(), codec::errc::too_large);
+    EXPECT_EQ(past->offset(), 8u);
+    EXPECT_TRUE(codec::detail::check_size(0x7FFFFFFFu, 0x7FFFFFFFu, none, 0));
+    EXPECT_TRUE(codec::detail::check_size(0xFFFFFFFFu, 0xFFFFFFFFu, none, 0));
     auto zero = codec::detail::check_size(0, 5, l, 16);
     ASSERT_TRUE(zero);
     EXPECT_EQ(zero->code(), codec::errc::corrupt);

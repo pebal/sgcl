@@ -31,10 +31,10 @@ namespace sgcl::txt::detail {
     inline constexpr uint16_t DefaultSecondary = 0x0020;
     inline constexpr uint16_t DefaultTertiary = 0x0002;
 
-    // The weight of the digit zero, where a run of digits read as a
-    // number weighs when the numeric order is asked for: the places
-    // between it and the digit one are free, no root weight falling
-    // between two neighbouring ones.
+    // The weight of the digit zero. A run of digits read as a number,
+    // when the numeric order is asked for, weighs just below it, at
+    // the start of the digits' group (UTS #35, Numeric Ordering): no
+    // weight of the root falls there.
     inline constexpr uint16_t DigitZero = 0x217D;
 
     // An entry of the index: where its elements begin in the pool

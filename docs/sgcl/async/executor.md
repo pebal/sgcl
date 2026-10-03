@@ -1,141 +1,115 @@
-# sgcl::async::executor, sgcl::async::strand, sgcl::async::on, sgcl::async::on_workers
+[sgcl](../README.md) › [async](README.md)
+
+# sgcl::async::executor
 
 ```cpp
-#include "sgcl/async/executor.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/executor.h"   // or "sgcl/async.h"
 
-namespace sgcl {
-    class executor;      // a queue of tasks that one thread runs: the thread of the program's choosing
-    class strand;        // an executor with no thread of its own: its tasks run on the workers, one at a time, in order
-    class on;            // co_await on(ex): the task goes on on the executor or the strand
-    struct on_workers;   // co_await on_workers(): the task goes on on the pool
-    template<class T, class Executor> async::task<T> async::spawn(async::task<T> t, Executor& ex);   // ex.spawn(t)
-    template<class T, class Executor> void async::go(async::task<T> t, Executor& ex);         // ex.go(t)
+namespace sgcl::async {
+    class executor;
 }
 ```
 
-The [scheduler](scheduler.md) runs a task on whichever worker is free. A platform's UI toolkit (Cocoa, Win32, GTK, the browser) and many a C library demand one thread, usually the main one, for every call into them; an `executor` is a queue of frames that only the thread running the executor resumes. `ex.run()` is that thread's loop: what is queued, run to its next suspension; nothing queued, parked; until `stop()`. `ex.run(task)` is the loop until the task is done, and the task's result, which makes a program one task on the main thread: `int main() { sgcl::async::executor main; return main.run(program()); }`. `ex.poll()` is one pass over what is queued and a return, for a loop that is not the library's, a `CFRunLoop`, a `GMainLoop`, a game's frame, which calls it when it has a moment. A task moves to an executor with `co_await sgcl::async::on(ex)` (Kotlin's `withContext(Dispatchers.Main)`) and back to the pool with `co_await sgcl::async::on_workers()` (`withContext(Dispatchers.Default)`); `ex.spawn(t)` starts a task on it.
+`sgcl::async::executor` runs tasks on a thread of the program's choosing. The [scheduler](scheduler.md) runs a task
+on whichever worker is free; a platform's UI toolkit (Cocoa, Win32, GTK, the browser) and many a C library demand
+one thread, usually the main one, for every call into them. An executor is a queue of frames that only the thread
+running the executor resumes. [run](executor/run.md) is that thread's loop: what is queued runs to its next
+suspension, an empty queue parks the thread, until [stop](executor/stop.md); `run(t)` is the loop until the task
+`t` is done, and its result, which makes a program one task on the main thread:
+`int main() { async::executor main; return main.run(program()); }`. [poll](executor/poll.md) is one pass over what
+is queued and a return, for a loop that is not the library's (a `CFRunLoop`, a `GMainLoop`, a game's frame), which
+calls it when it has a moment.
 
-A task on an executor stays on it. Its frame remembers the executor (a word of the header at the front of every managed frame's buffer, `detail::FrameHeader`: the executor, the task-locals, and the link of the executor's queue), and every wake of the frame, whatever woke it, a channel, a timer, a task it awaited, a `yield`, a `select`, an event, goes through the scheduler's `enqueue`, which routes the frame to the executor's queue when it has one. So a task that does `co_await async::sleep(1s)` on the main thread is resumed on the main thread, though the timer fired on the timer thread; a task on the main thread that awaits a channel is resumed on the main thread, though a worker served it. A task that the task awaits (`co_await f()` of a task nobody started) runs where the awaiter runs, as a call would: on the main thread for a main-thread task, on the strand for a strand's task, so that what the awaiter guarantees holds for what it awaits; a task it starts with `sgcl::async::spawn` or `sgcl::async::go` runs on the pool, one it starts with `ex.spawn` or `ex.go` on the executor.
+A task moves to an executor with `co_await async::on(ex)` ([on](on.md); Kotlin's
+`withContext(Dispatchers.Main)`) and back to the pool with `co_await async::on_workers()` ([on_workers](on_workers.md);
+`withContext(Dispatchers.Default)`); [spawn](executor/spawn.md) starts a task on it. A task on an executor stays on
+it. Its frame remembers the executor (a word of the header at the front of every managed frame, beside the
+[task-locals](task_local.md)), and every wake of the frame, whatever woke it (a channel, a timer, a task it awaited,
+a [yield](yield.md), a select, an event), goes through the scheduler, which routes the frame to the executor's queue.
+So a task that sleeps on the main thread is resumed on the main thread though the timer fired on the timer thread,
+and a task on the main thread that awaits a channel is resumed on the main thread though a worker served it. A task
+that the task awaits (`co_await f()` of a task nobody started) runs where the awaiter runs, as a call would; a task
+it starts with [spawn](spawn.md) or [go](go.md) runs on the pool, one it starts with the executor's `spawn` or `go`
+on the executor.
 
-A `strand` is an executor with no thread of its own (Boost.Asio's strand): its tasks run on the workers, never two at once, in the order they were queued. Serial access to something without a lock: the handler of a connection, the owner of a document, a log three tasks append to. The strand is a queue whose head is handed to the workers when the strand goes from idle to busy, and whose next is handed when the running task suspends or finishes; between the two nothing of the strand runs anywhere. A task on a strand that waits leaves the strand to the next task and comes back through the strand's queue when it is woken, behind whoever is queued by then: the strand is held between two suspensions of a task and never across one, so a task that reads a structure, awaits, and writes it does not find it as it left it (a [mutex](mutex.md) is what holds across a wait).
-
-The executor's thread parks when the queue is empty, on the queue's own word, and a push wakes it, after the spin of `config::worker_spin_microseconds` every worker does before it sleeps, so that a task that hops to the main thread and back does not pay two trips through the kernel. What a hop costs, measured once on an M-series laptop (`bench_async`): a round trip `co_await on(ex)` from a worker to an executor and `co_await on_workers()` back, about 640 ns; a round trip `co_await on_workers()` and `co_await on(s)` between the pool and a strand about 85 ns; a `yield` on an executor about 45 ns, against 26 ns for a `yield` on a worker (a ring). The queue of an executor or a strand is a list linked through the frames themselves, so a push allocates nothing: an exchange of the tail and a store of a link.
+The executor's thread parks when the queue is empty, on the queue's own word, and a push wakes it, after the spin
+every worker does before it sleeps ([set_worker_spin](scheduler/set_worker_spin.md)), so that a task that hops to the
+main thread and back does not pay two trips through the kernel. The queue is a list linked through the frames
+themselves, so a push allocates nothing. A [strand](strand.md) is the same queue with no thread of its own.
 
 ## Rules
 
-- An executor is run by one thread at a time (`run`, `run_until`, `run` of a task, `poll`); debug builds assert on a second. Which thread is the program's choice: the main thread for a UI, any thread for a library that wants one.
-- `stop()` stops the loop, not the tasks: `run()` returns after the frame it is resuming, the tasks stay queued, suspended, and the next `run()` or `poll()` resumes them; a `stop()` with no run in progress makes the next `run()` return at once. From any thread.
-- An executor destroyed leaves its tasks suspended for good: the queue is a managed object every frame on it holds through its header, so nothing dangles, a wake of such a task lands on a queue nobody runs, and the frames are the collector's once nothing else holds them, their destructors never run, as with a task the scheduler was stopped under ([scheduler](scheduler.md)). A program that wants its tasks finished runs the executor until they are.
-- `run_until(t)` and `run(t)` await the task through a task of the executor: nobody else `co_await`s it meanwhile. `run(t)` returns `t.result()`; a `stop()` before `t` ends leaves nothing to return (debug builds assert).
-- A task on a worker waits with `co_await`, and so does a task on an executor: a blocking call there (`ch.receive().wait()`, `t.wait()`) blocks the executor's thread and every task queued on it.
-- The executor and the strand live anywhere (a local of `main`, a global, a member): each holds its queue through a root. Neither is copyable.
-- A task on a strand that never suspends holds the strand, and its worker, until it does; a task on an executor holds the executor's thread the same way. Cooperative, as every task is.
+- An executor is run by one thread at a time (`run`, `run_until`, `poll`); debug builds assert on a second. Which
+  thread is the program's choice: the main thread for a UI, any thread for a library that wants one.
+- [stop](executor/stop.md) stops the loop, not the tasks: `run()` returns after the frame it is resuming, the tasks
+  stay queued, suspended, and the next `run()` or `poll()` resumes them; a `stop()` with no run in progress makes the
+  next `run()` return at once. From any thread.
+- An executor destroyed leaves its tasks suspended for good: the queue is a managed object every frame on it holds
+  through its header, so nothing dangles, a wake of such a task lands on a queue nobody runs, and the frames are the
+  collector's once nothing else holds them, their destructors never run, as with a task the scheduler was stopped
+  under. A program that wants its tasks finished runs the executor until they are.
+- [run_until](executor/run_until.md) and `run(t)` wait for the task through a task of the executor: nobody else
+  awaits it meanwhile.
+- A task on an executor waits with `co_await`, as a task on a worker does: a blocking call there
+  (`ch.receive().wait()`, `t.wait()`) blocks the executor's thread and every task queued on it.
+- A task on an executor that never suspends holds the executor's thread until it does. Cooperative, as every task is.
+- The executor holds its queue through a root: it lives anywhere (a local of `main`, a global, a member).
+  Neither copyable nor movable.
 
-## Members
+## Member functions
 
-### executor
+| Function | Description |
+|---|---|
+| [(constructor)](executor/executor.md) | constructs an executor with an empty queue |
+| `(destructor)` | leaves the tasks still queued suspended for good |
 
-```cpp
-executor();
+#### Observers
 
-void run();                                    // the calling thread's loop, until stop()
-template<class T> T run(async::task<T> t);            // the loop until t is done, and t.result(); starts t here if nobody has
-void run(async::task<> t);
-template<class T> void run_until(async::task<T>& t);  // the loop until t is done (or stop()); starts t here if nobody has
-size_t poll();                                 // one pass: the frames queued at the call run, their number returned
-void stop();                                   // run() returns; the tasks stay queued
-bool running() const noexcept;                 // a run() or a poll() in progress
-template<class T> [[nodiscard]] async::task<T> async::spawn(async::task<T> t);   // started on this executor
-template<class T> void async::go(async::task<T> t);          // spawn and detach
-template<class F> [[nodiscard]] auto async::spawn(F f);   // a coroutine function with captures, uncalled (scheduler.md: spawn)
-template<class F> void async::go(F f);
-```
+| Function | Description |
+|---|---|
+| [running](executor/running.md) | checks whether a `run` or a `poll` is in progress |
 
-`poll()` runs what was queued when it was called, each frame to its next suspension; a frame queued meanwhile, a task that yielded included, waits for the next call, so a loop that calls `poll()` once per frame of its own is never held by a task that keeps yielding.
+#### Operations
 
-```cpp
-async::executor ui;
-auto t = ui.spawn(refresh(widgets));      // queued; runs when the thread runs the executor
-while (window_open()) {
-    handle_events();
-    ui.poll();                            // the tasks queued since the last frame, to their next wait
-    draw();
-}
-```
+| Function | Description |
+|---|---|
+| [run](executor/run.md) | the calling thread's loop, until a stop or the end of a task |
+| [run_until](executor/run_until.md) | the loop until a task is done |
+| [poll](executor/poll.md) | one pass over what is queued |
+| [stop](executor/stop.md) | makes `run` return; the tasks stay queued |
 
-### strand
+#### Starting tasks
 
-```cpp
-strand();
+| Function | Description |
+|---|---|
+| [spawn](executor/spawn.md) | starts a task on the executor |
+| [go](executor/go.md) | starts a task on the executor and lets go of it |
 
-template<class T> [[nodiscard]] async::task<T> async::spawn(async::task<T> t);   // started on this strand, run by a worker in its turn
-template<class T> void async::go(async::task<T> t);
-template<class F> [[nodiscard]] auto async::spawn(F f);   // a coroutine function with captures, uncalled (scheduler.md: spawn)
-template<class F> void async::go(F f);
-bool busy() const noexcept;                    // a task of the strand runs or is queued
-```
+## Complexity
 
-```cpp
-async::strand owner;                       // the tasks of one document
-async::go(load(doc), owner);
-async::go(index(doc), owner);              // after load's first wait at the earliest, never at the same time
-```
-
-### on
-
-```cpp
-explicit on(async::executor& ex) noexcept;
-explicit on(async::strand& s) noexcept;
-bool await_ready() const noexcept;
-template<class P> bool await_suspend(std::coroutine_handle<P>);
-void await_resume() const noexcept;
-```
-
-`co_await sgcl::async::on(ex)`: the task goes on on the executor from the next line, and what it awaits from then on wakes it there; at once, without a hop, when it is there already. From a strand to another strand, from an executor to a strand, from the pool to either.
-
-### on_workers
-
-```cpp
-bool await_ready() const noexcept;
-template<class P> bool await_suspend(std::coroutine_handle<P>);
-void await_resume() const noexcept;
-```
-
-`co_await sgcl::async::on_workers()`: the task goes on on the pool, from the next line; at once when it is on a worker with no executor.
-
-```cpp
-async::task<> on_click(async::executor& ui) {   // a handler on the UI thread
-    co_await on_workers();              // the heavy part on the pool
-    auto image = co_await decode(file);       // where the awaiter is: the pool
-    co_await on(ui);                    // the widget on the UI thread
-    show(image);
-}
-```
+A push on the queue (a spawn, a wake, an `on`) is an exchange of the tail and a store of a link, with no
+allocation, and a wake of the parked thread when it sleeps. A resume is a call.
 
 ## Example
 
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
-#include <thread>
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
-
-// A program that is one task on the main thread, the way a program with
-// a UI is: the widgets are touched on the main thread only, the work
-// runs on the pool, and a strand serializes the tasks that share a
-// counter. Every wait of the main-thread task, a task it awaits, a
-// sleep, brings it back to the main thread.
 using namespace std::chrono_literals;
 
-static std::thread::id main_thread;
+// A program that is one task on the main thread, the way a program with a UI
+// is: the widgets on the main thread only, the work on the pool, and a strand
+// for the tasks that share a counter.
+thread::id main_thread;
 
-static bool on_main() {
-    return std::this_thread::get_id() == main_thread;
+bool on_main() {
+    return this_thread::get_id() == main_thread;
 }
 
-async::task<long> compute(int n) {                       // an awaited task runs where its awaiter runs
+async::task<long> compute(int n) {  // an awaited task runs where its awaiter runs
     long sum = 0;
     for (int i : range(n)) {
         sum += i;
@@ -143,11 +117,11 @@ async::task<long> compute(int n) {                       // an awaited task runs
     co_return sum;
 }
 
-async::task<> increment(int& counter, int n) {           // on a strand: a plain int, no lock
+async::task<> increment(int& counter, int n) {  // on a strand: a plain int, no lock
     for (int i : range(n)) {
         ++counter;
         if (i % 100 == 99) {
-            co_await async::yield();                     // leaves the strand to the next task, comes back in its turn
+            co_await async::yield();  // the strand to the next task
         }
     }
 }
@@ -159,28 +133,25 @@ async::task<int> program(async::executor& main, async::strand& serial) {
     long sum = co_await compute(1000);
     co_await async::on(main);
     println("back on the main thread: {}, the sum {}", on_main(), sum);
-    co_await async::sleep(1ms);                   // the timer thread wakes it: on the main thread
+    co_await async::sleep(1ms);  // the timer thread wakes it, on the main thread
     println("after a sleep, on the main thread: {}", on_main());
     int counter = 0;
     vector<async::task<>> tasks;
-    for (int t : range(3)) {
-        (void)t;
+    for (int i : range(3)) {
         tasks.push_back(serial.spawn(increment(counter, 1000)));
     }
     for (auto& t : tasks) {
-        co_await t;                              // the end of a task on the strand: resumed on the main thread
+        co_await t;
     }
-    println("the counter, three tasks on a strand, no lock: {}, on the main thread: {}", counter, on_main());
-    co_return counter == 3000 ? 0 : 1;
+    println("three tasks on a strand: {}, on the main thread: {}", counter, on_main());
+    co_return 0;
 }
 
 int main() {
-    main_thread = std::this_thread::get_id();
+    main_thread = this_thread::get_id();
     async::executor main;
     async::strand serial;
-    int code = main.run(program(main, serial));         // the program is one task on this thread
-    async::scheduler::stop();
-    return code;
+    return main.run(program(main, serial));
 }
 ```
 
@@ -191,12 +162,14 @@ starts on the main thread: true
 computes on a worker: true
 back on the main thread: true, the sum 499500
 after a sleep, on the main thread: true
-the counter, three tasks on a strand, no lock: 3000, on the main thread: true
+three tasks on a strand: 3000, on the main thread: true
 ```
 
 ## See also
 
-- [scheduler](scheduler.md): the pool of workers, `spawn`, `yield`; [task_local](task_local.md): a value a task and its children see, inherited the way the executor is remembered
-- [coroutine](coroutine.md): `task`, the frame's header; [managed_frame](../core/coroutine.md): the managed frame under it; [mutex](mutex.md): what must hold across a wait
+- [strand](strand.md): an executor with no thread of its own
+- [on](on.md), [on_workers](on_workers.md): a task moved to an executor and back
+- [scheduler](scheduler.md): the pool of workers
+- [task_local](task_local.md): a value a task and its children see, kept in the same header of the frame
+- [mutex](mutex.md): what holds across a wait
 - [README: Coroutines](README.md#coroutines)
-- `tests/async/executor.cpp`: every behaviour above, checked.

@@ -11,6 +11,7 @@
 #include "ppmd7.h"
 #include "sevenzip_aes.h"
 #include "sevenzip_header.h"
+#include "../../core/detail/bytes.h"
 
 #include <chrono>
 #include <cstddef>
@@ -59,7 +60,7 @@ namespace sgcl::compress::detail {
         // does not decide: a file named .exe that is not a PE gets nothing.
         inline FilterChoice detect(const uint8_t* h, size_t n) noexcept {
             FilterChoice none;
-            auto pick = [](SimpleKind k) {
+            auto pick = [](SimpleKind k) noexcept {
                 FilterChoice f;
                 f.on = true;
                 f.kind = k;
@@ -172,7 +173,7 @@ namespace sgcl::compress::detail {
         }
 
         // UTF-8 to UTF-16LE's code units; false for bytes that are not UTF-8
-        inline bool utf8_to_utf16(std::string_view s, std::u16string& out) {
+        inline bool utf8_to_utf16(std::string_view s, std::u16string& out) noexcept {
             out.clear();
             for (size_t i = 0; i < s.size();) {
                 uint8_t c = uint8_t(s[i]);
@@ -244,7 +245,7 @@ namespace sgcl::compress::detail {
         // writer, its memory kept from folder to folder
         class FolderEncoder {
         public:
-            FolderEncoder(Method m, int level)
+            FolderEncoder(Method m, int level) noexcept
             : _method(m), _level(level) {
                 if (m == Method::lzma || m == Method::lzma2) {
                     _settings = LzmaEncoderSettings::of(level, false);
@@ -257,7 +258,7 @@ namespace sgcl::compress::detail {
             // With a password: every folder encrypted, 7zAES the coder of
             // its packed stream; one salt a writer (one key), a fresh IV a
             // folder
-            void encrypt(crypto::secret<32> key, const uint8_t* salt) {
+            void encrypt(crypto::secret<32> key, const uint8_t* salt) noexcept {
                 _key = std::make_unique<crypto::secret<32>>(std::move(key));
                 std::memcpy(_salt, salt, 16);
             }
@@ -270,7 +271,7 @@ namespace sgcl::compress::detail {
                 return _salt;
             }
 
-            void start(const FilterChoice& f) {
+            void start(const FilterChoice& f) noexcept {
                 _filter = f;
                 _chain.clear();
                 if (_key) {
@@ -323,7 +324,7 @@ namespace sgcl::compress::detail {
                 return _unpacked;
             }
 
-            void write(const uint8_t* p, size_t n, std::vector<uint8_t>& out) {
+            void write(const uint8_t* p, size_t n, std::vector<uint8_t>& out) noexcept {
                 _unpacked += n;
                 size_t base = _begin(out);
                 if (_chain.empty()) {
@@ -343,7 +344,7 @@ namespace sgcl::compress::detail {
                 _seal(out, base, false);
             }
 
-            void finish(std::vector<uint8_t>& out) {
+            void finish(std::vector<uint8_t>& out) noexcept {
                 size_t base = _begin(out);
                 if (!_chain.empty()) {
                     _chain.run(true);
@@ -376,7 +377,7 @@ namespace sgcl::compress::detail {
             // The folder's coders as 7-Zip lists them: the coder of the
             // packed stream (its dictionary no larger than the folder), then
             // the filter, fed by it
-            std::vector<CoderRecord> coders() const {
+            std::vector<CoderRecord> coders() const noexcept {
                 std::vector<CoderRecord> c;
                 CoderRecord m;
                 switch (_method) {
@@ -429,7 +430,7 @@ namespace sgcl::compress::detail {
 
             // Each coder's output, as coders() lists them: the encrypted
             // coder's (unpadded), the data's
-            std::vector<uint64_t> coder_sizes() const {
+            std::vector<uint64_t> coder_sizes() const noexcept {
                 std::vector<uint64_t> s;
                 if (_key) {
                     s.push_back(_coded);
@@ -458,7 +459,7 @@ namespace sgcl::compress::detail {
         private:
             // Where the coder's bytes of this call start in out; the bytes
             // held from the last call (short of a block) put back before them
-            size_t _begin(std::vector<uint8_t>& out) {
+            size_t _begin(std::vector<uint8_t>& out) noexcept {
                 size_t base = out.size();
                 _carried = _held;
                 if (_cbc && _held) {
@@ -470,7 +471,7 @@ namespace sgcl::compress::detail {
 
             // The whole blocks from base encrypted in place, the rest held
             // (the last call pads it with zeros to a block)
-            void _seal(std::vector<uint8_t>& out, size_t base, bool last) {
+            void _seal(std::vector<uint8_t>& out, size_t base, bool last) noexcept {
                 if (!_cbc) {
                     return;
                 }
@@ -483,11 +484,11 @@ namespace sgcl::compress::detail {
                 size_t whole = n & ~size_t(15);
                 _cbc->encrypt(out.data() + base, whole);
                 _held = n - whole;
-                std::memcpy(_hold, out.data() + base + whole, _held);
+                sgcl::detail::copy_bytes(_hold, out.data() + base + whole, _held);
                 out.resize(base + whole);
             }
 
-            void _code(const uint8_t* p, size_t n, std::vector<uint8_t>& out) {
+            void _code(const uint8_t* p, size_t n, std::vector<uint8_t>& out) noexcept {
                 switch (_method) {
                     case Method::lzma2:
                         while (n) {
@@ -541,7 +542,7 @@ namespace sgcl::compress::detail {
 
         // A number of the header: the leading 1 bits of the first byte
         // count the bytes after it, the rest of it the top
-        inline void put_number(std::vector<uint8_t>& out, uint64_t v) {
+        inline void put_number(std::vector<uint8_t>& out, uint64_t v) noexcept {
             uint8_t first = 0;
             uint8_t mask = 0x80;
             int i = 0;
@@ -559,7 +560,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        inline void put_bits(std::vector<uint8_t>& out, const std::vector<uint8_t>& bits) {
+        inline void put_bits(std::vector<uint8_t>& out, const std::vector<uint8_t>& bits) noexcept {
             uint8_t b = 0;
             size_t k = 0;
             for (auto v : bits) {
@@ -575,7 +576,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        inline void put_coder(std::vector<uint8_t>& out, const CoderRecord& c) {
+        inline void put_coder(std::vector<uint8_t>& out, const CoderRecord& c) noexcept {
             uint8_t id[8];
             size_t n = 0;
             uint64_t m = c.method;
@@ -595,7 +596,7 @@ namespace sgcl::compress::detail {
 
         // One folder's coders: a chain, each fed by the one before it, the
         // packed stream into the first (the input nothing binds)
-        inline void put_folder(std::vector<uint8_t>& out, const std::vector<CoderRecord>& coders) {
+        inline void put_folder(std::vector<uint8_t>& out, const std::vector<CoderRecord>& coders) noexcept {
             put_number(out, coders.size());
             for (auto& c : coders) {
                 put_coder(out, c);
@@ -607,7 +608,7 @@ namespace sgcl::compress::detail {
         }
 
         // The plain header of these folders and files
-        inline std::vector<uint8_t> header(const std::vector<FolderRecord>& folders, const std::vector<FileRecord>& files) {
+        inline std::vector<uint8_t> header(const std::vector<FolderRecord>& folders, const std::vector<FileRecord>& files) noexcept {
             std::vector<uint8_t> h;
             h.push_back(kHeader);
             if (!folders.empty()) {
@@ -769,7 +770,7 @@ namespace sgcl::compress::detail {
         // stream lies `pack_pos` bytes after the signature header; with a
         // key, the packed bytes encrypted too (7zAES before LZMA)
         inline void packed_header(const std::vector<uint8_t>& plain, uint64_t pack_pos, std::vector<uint8_t>& packed, std::vector<uint8_t>& encoded,
-                                  const crypto::secret<32>* key = nullptr, const uint8_t* salt = nullptr) {
+                                  const crypto::secret<32>* key = nullptr, const uint8_t* salt = nullptr) noexcept {
             auto s = LzmaEncoderSettings::of(5, false);
             s.props.dictionary = uint32_t(1) << 20;
             auto enc = std::make_unique<LzmaEncoder>(s);
@@ -823,7 +824,7 @@ namespace sgcl::compress::detail {
 
         // The signature header of an archive whose header lies `offset`
         // bytes after it
-        inline std::vector<uint8_t> signature(uint64_t offset, const std::vector<uint8_t>& header) {
+        inline std::vector<uint8_t> signature(uint64_t offset, const std::vector<uint8_t>& header) noexcept {
             std::vector<uint8_t> s(Signature, Signature + 6);
             s.push_back(0);
             s.push_back(4);

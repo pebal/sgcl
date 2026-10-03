@@ -52,7 +52,7 @@ namespace sgcl::codec {
         };
 
         // The file in memory, read in place
-        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) {
+        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
             detail::MemoryInput in(data);
             return detail::JpegDecoder<detail::MemoryInput>(in, o).run();
         }
@@ -65,23 +65,24 @@ namespace sgcl::codec {
             return detail::JpegDecoder<detail::ReaderInput>(source, o).run();
         }
 
-        // The file as bytes: a valid image always encodes; a quality
-        // outside 1..100 is invalid_argument (a contract). (The overloads
-        // without options stand for a default argument, which a nested
-        // struct with member initializers cannot be inside its class.)
-        static vector<byte> encode(const image& im) {
-            return encode(im, options{});
+        // The file as bytes: errc::invalid_argument for a side past 65 535
+        // pixels, which SOF cannot hold (any other image encodes); a
+        // quality outside 1..100 or a subsampling outside the list is a
+        // thrown invalid_argument (a contract).
+        // (The overloads without options stand for a default argument,
+        // which a nested struct with member initializers cannot be inside
+        // its class.)
+        static expected<vector<byte>, error> encode(const image& im) noexcept {
+            return _encode(im, _settings(options{}));
         }
 
-        static vector<byte> encode(const image& im, const options& o) {
-            vector<byte> out;
-            detail::VectorSink sink{out, nullopt};
-            detail::JpegEncoder<detail::VectorSink>(im, _settings(o), sink).run();
-            return out;
+        static expected<vector<byte>, error> encode(const image& im, const options& o) {
+            return _encode(im, _settings(o));
         }
 
-        // The file into a stream: errc::io when the stream fails, at the
-        // offset of the bytes written before
+        // The file into a stream: errc::invalid_argument for a side past
+        // 65 535 pixels, nothing written; errc::io when the stream fails, at
+        // the offset of the bytes written before
         static expected<void, error> encode(const image& im, const io::writer& out) {
             return encode(im, out, options{});
         }
@@ -95,9 +96,21 @@ namespace sgcl::codec {
         }
 
     private:
+        static expected<vector<byte>, error> _encode(const image& im, const detail::JpegEncodeSettings& s) noexcept {
+            vector<byte> out;
+            detail::VectorSink sink{out, nullopt};
+            if (!detail::JpegEncoder<detail::VectorSink>(im, s, sink).run()) {
+                return unexpected(*sink.failure);
+            }
+            return out;
+        }
+
         static detail::JpegEncodeSettings _settings(const options& o) {
             if (o.quality < 1 || o.quality > 100) {
                 throw invalid_argument("sgcl::codec::jpeg::encode: quality outside 1..100");
+            }
+            if (o.subsampling != subsampling::s444 && o.subsampling != subsampling::s422 && o.subsampling != subsampling::s420) {
+                throw invalid_argument("sgcl::codec::jpeg::encode: subsampling outside the list");
             }
             detail::JpegEncodeSettings s;
             s.quality = o.quality;

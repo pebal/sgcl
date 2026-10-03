@@ -13,8 +13,11 @@
 //     std::vformat takes the pattern too, the text is std's — widths of
 //     controls, joiners and leading marks included; not compared: text
 //     that is not UTF-8 (its width is the implementation's) or holds
-//     CR LF (one cluster, two to libc++), and {:#g}
-//     below one, where libc++ counts the zero before the point;
+//     CR LF (one cluster, two to libc++) or a control right before an
+//     emoji or a regional indicator (libc++ forgets GB11 and GB12 there), {:#g}
+//     below one, where libc++ counts the zero before the point, and a
+//     width or a precision a value gives ({:>{}}) outside 0..32767,
+//     which this holds within a field's bounds and std does not;
 //   - graphemes, word_breaks, sentences and line_breaks cut the text into
 //     pieces that are its bytes in order, none empty; words are among the
 //     word pieces; grapheme_count counts the graphemes, and grapheme_next
@@ -44,6 +47,51 @@ namespace {
         if (!ok) {
             __builtin_trap();
         }
+    }
+
+    // A control (CR, LF, Control) right before an Extended_Pictographic or
+    // a Regional_Indicator code point. The cluster after a control starts
+    // afresh (GB4, GB5), and an emoji ZWJ sequence or a flag in it is one
+    // cluster (GB11, GB12) — "\x02👨‍👩" is two clusters, as grapheme_count
+    // says; libc++ does not carry the rule over the break and counts the
+    // two emoji, or the two indicators, apart: a column or two wider
+    bool control_before_pictographic(std::string_view text) {
+        using txt::detail::gcb;
+        bool after_control = false;
+        for (size_t i = 0; i < text.size();) {
+            auto [c, n] = utf8::decode(text, i);
+            i += n;
+            auto k = txt::detail::gcb_of(c);
+            if (after_control && (k == gcb::regional_indicator || txt::detail::is_emoji_fn(c))) {
+                return true;
+            }
+            after_control = k == gcb::cr || k == gcb::lf || k == gcb::control;
+        }
+        return false;
+    }
+
+    // Whether a field of the pattern takes its width or its precision from
+    // a value: a '{' inside the specification of a field
+    bool takes_a_size(std::string_view pattern) {
+        bool field = false, spec = false;
+        for (size_t i = 0; i < pattern.size(); ++i) {
+            char c = pattern[i];
+            if (!field) {
+                if (c == '{' && i + 1 < pattern.size() && pattern[i + 1] == '{') {
+                    ++i;
+                } else if (c == '{') {
+                    field = true;
+                    spec = false;
+                }
+            } else if (c == ':') {
+                spec = true;
+            } else if (c == '{' && spec) {
+                return true;
+            } else if (c == '}') {
+                field = false;
+            }
+        }
+        return false;
     }
 
     void formatting(std::string_view pattern, std::string_view text, int64_t n, double d, bool b) {
@@ -79,11 +127,24 @@ namespace {
         if (text.find("\r\n") != std::string_view::npos) {
             return;
         }
+        // an emoji sequence or a flag right after a control, one cluster
+        // to UAX #29 (GB11, GB12) and two to libc++
+        if (control_before_pictographic(text)) {
+            return;
+        }
         // libc++ counts the zero before the point of a value below one
         // among the digits of {:#g} ({:#.3g} of 0.5 is "0.50" there,
         // "0.500" in printf and here): '#' with g is not compared
         if (pattern.find('#') != std::string_view::npos
             && (pattern.find('g') != std::string_view::npos || pattern.find('G') != std::string_view::npos)) {
+            return;
+        }
+        // a width or a precision a value gives ({:>{}}) is held to what a
+        // field holds, 0 to 65535 columns and a precision to 32767, where
+        // std pads to whatever it is told (two thousand million columns of
+        // a number read from the text) and throws for a negative one: not
+        // compared outside those bounds, and std not asked to pad that far
+        if ((n < 0 || n > 32767) && takes_a_size(pattern)) {
             return;
         }
         std::string theirs;

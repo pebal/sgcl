@@ -1,186 +1,166 @@
-# sgcl::concurrent::sorted_map
+[sgcl](../README.md) › [concurrent](README.md)
+
+# sgcl::concurrent::sorted_map\<Key, T, Compare\>
 
 ```cpp
-#include "sgcl/concurrent/sorted_map.h"   // or "sgcl/concurrent/concurrent.h"
+#include "sgcl/concurrent/sorted_map.h"   // or "sgcl/concurrent.h"
 
-namespace sgcl {
+namespace sgcl::concurrent {
     template<class Key, class T, class Compare = std::less<Key>>
     class sorted_map;
 }
 ```
 
-`sgcl::concurrent::sorted_map<Key, T, Compare>` is a lock-free sorted map shared by any number of threads: a skip list with the algorithm of Herlihy and Shavit (*The Art of Multiprocessor Programming*, the lock-free skip list), the structure Java's `ConcurrentSkipListMap` is. The bottom level is a sorted singly linked list holding every element; each node also stands in a random number of the levels above (a quarter of the nodes of one level in the next), so that a search descends from the top level in logarithmic time and finishes on the bottom list, which alone decides what the map holds. A logical deletion is a marker node linked after the deleted one at each of its levels, Java's way of marking a link without stealing a bit from the pointer (which the collector's pointer maps could not follow); the marked node is unlinked by the next search that passes it. No node is reused while a thread holds it, so there is no ABA and no reclamation scheme ([README: Lock-free containers](README.md#lock-free-containers)). The interface has the names of `std::map`, restricted to what a lock-free map can offer: `find`, `contains`, `count`, `lower_bound`, `upper_bound`, `insert`, `emplace`, `try_emplace`, `erase`, `clear`, `size`, `empty`, iteration in key order. There is no `operator[]`, no `at`, no `insert_or_assign` and no node handles: an element's mapped value is replaced through the reference the iterator gives, which is the program's own race to manage, as in Java.
+`sgcl::concurrent::sorted_map<Key, T, Compare>` is a lock-free sorted map shared by any number of threads: a skip
+list with the algorithm of Herlihy and Shavit (*The Art of Multiprocessor Programming*, the lock-free skip list),
+the structure Java's `ConcurrentSkipListMap` is. The bottom level is a sorted singly linked list holding every
+element; each node also stands in a random number of the levels above, a quarter of the nodes of one level in the
+next, up to 32 levels, so that a search descends from the top level in logarithmic time and finishes on the
+bottom list, which alone decides what the map holds. An insertion links its node into the bottom list with a
+compare-exchange, then into its upper levels.
 
-A node is one managed object: the bottom link and the element, then the links of its upper levels, as many as its height, so that a search steps through one object per node at any level.
+A logical deletion is a marker node linked after the deleted one at each of its levels, Java's way of marking a
+link without stealing a bit from the pointer, which the collector's pointer maps could not follow; the marked node
+is unlinked by the next insertion or erasure whose search passes it, while a lookup steps over it without writing.
+No node is reused while a thread holds it, so there is no ABA and no reclamation scheme
+([README: Lock-free containers](README.md#lock-free-containers)). A node is one managed object: the bottom link
+and the element, then the links of its upper levels, as many as its height, so that a search steps through one
+object per node at any level.
+
+What differs from `std::map`: the interface has its names, restricted to what a lock-free map can offer. There is
+no `operator[]`, no `at`, no `insert_or_assign` and no node handle; the iterators are forward iterators, valid
+whatever the other threads do; `size()` counts in linear time; and an erased element is destroyed by the
+collector, once nothing holds its node, not at the erase. A mapped value is replaced through the reference an
+iterator gives, which is the program's own race to manage, as in Java. What differs from Java's
+`ConcurrentSkipListMap`: `try_emplace` is its `putIfAbsent`, `lower_bound` and `upper_bound` its `ceilingEntry`
+and `higherEntry`, and an iterator gives the element itself, not a copy of the entry. Go's library has no sorted
+map for many goroutines; its `sync.Map` is a hash map.
 
 ## Rules
 
-- The container holds the head node (a sentinel of the maximum height, no element) by a `tracked_ptr` and the number of levels in use, so it lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr` and live where the map may.
-- `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node into the bottom list, an erasure at the one that marks it there. `find`, `contains`, `count`, `lower_bound` and `upper_bound` are wait-free and never write. A key given by rvalue is looked up first and moved only into a node of its own; when another thread inserts the same key between that look and the link, the key has been moved into a node that is dropped: the one case where the standard's promise of no move for a key already there does not hold.
-- Iteration is weakly consistent, as Java's: an iterator is valid whatever the other threads do, it skips the elements erased since it passed them, and it may or may not see the ones inserted meanwhile. The element an iterator addresses stays alive for as long as the iterator does, erased or not: its key is immutable, its mapped value is what the threads make of it.
-- An element is destroyed by the collector with its node, once nothing holds the node: not at the erase, which other threads may be reading it across. This is the one container of the library whose elements outlive their erasure ([Containers](../core/README.md#containers)); an element that must be released promptly is held by a `tracked_ptr` whose object does its own cleanup, or watched by an [expiry_queue](../core/expiry_queue.md).
-- `size()` counts the elements: linear, and a snapshot of no particular moment when other threads modify the map, as Java's `size` is. `empty()` is a step from the head.
-- A `tracked_ptr` may not address an element or a node ([The rules](../core/README.md#the-rules), 4); an iterator holds the node, and a reference or a raw pointer to an element is valid while some iterator or the map holds it.
+- The container holds the head node, a sentinel of the maximum height and no element, by a `tracked_ptr`, and the
+  number of levels in use, so it lives where a `tracked_ptr` may: on a thread's stack or inside a managed object
+  ([The rules](../core/README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr` and live where
+  the map may.
+- Every member function may be called from any thread at any time. `insert`, `emplace`, `try_emplace`, `erase` and
+  `clear` are lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node
+  into the bottom list, an erasure at the one that marks it there. `find`, `contains`, `count`, `lower_bound`,
+  `upper_bound` and `value_or` are wait-free and never write. Nothing waits.
+- Iteration is weakly consistent, as Java's: an iterator is valid whatever the other threads do, it skips the
+  elements erased since it passed them, and it may or may not see the ones inserted meanwhile. The element an
+  iterator addresses stays alive for as long as the iterator does, erased or not: its key is immutable, its mapped
+  value is what the threads make of it.
+- An element is destroyed by the collector with its node, once nothing holds the node: not at the erase, which
+  other threads may be reading it across. The maps and sets of this module are the containers of the library
+  whose elements outlive their erasure ([Containers](../core/README.md#containers)); an element that must be
+  released promptly is held by a `tracked_ptr` whose object does its own cleanup, or watched by an
+  [expiry_queue](../core/expiry_queue.md).
+- A `tracked_ptr` may not address an element or a node ([The rules](../core/README.md#the-rules), 4); an iterator
+  holds the node, and a reference or a raw pointer to an element is valid while an iterator holds its node or the
+  element is in the map.
 - Non-copyable, non-movable: a shared structure has one place.
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the keys, ordered by `Compare`. A key in the map is never changed. |
+| `T` | The type of the mapped values. `value_or` requires it to be copyable. |
+| `Compare` | A strict weak ordering of the keys, `std::less<Key>` by default. When it declares `is_transparent` (as `std::less` of a [string](../core/string.md) does), the lookups and `erase` take a key of another type. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. |
 
-```cpp
-using key_type = Key;
-using mapped_type = T;
-using value_type = pair<const Key, T>;   // pair, the alias of std::pair (sgcl/core/aliases.h)
-using key_compare = Compare;
-using size_type = size_t;
-using difference_type = ptrdiff_t;
-using iterator = /* forward iterator over value_type */;
-using const_iterator = /* forward iterator over const value_type */;
-```
+## Member types
 
-An iterator is a forward iterator holding its node by a `tracked_ptr<...>` word; `*it` is a `value_type&` (a `const value_type&` for a `const_iterator`), `it->first` the key, `it->second` the mapped value. An `iterator` converts to a `const_iterator`.
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `mapped_type` | `T` |
+| `value_type` | `pair<const Key, T>` ([aliases](../core/aliases.md)) |
+| `key_compare` | `Compare` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `iterator` | a forward iterator over `value_type`, holding its node by a `tracked_ptr`; `*it` is a `value_type&`, `it->first` the key, `it->second` the mapped value |
+| `const_iterator` | the same over `const value_type`; an `iterator` converts to it |
 
-### Constructors
+## Member functions
 
-```cpp
-sorted_map();
-explicit sorted_map(const Compare& comp);
-template<std::input_iterator InputIt> concurrent::sorted_map(InputIt first, InputIt last, const Compare& comp = Compare());
-concurrent::sorted_map(std::initializer_list<value_type> ilist, const Compare& comp = Compare());
-sorted_map(const concurrent::sorted_map&) = delete;
-```
+| Function | Description |
+|---|---|
+| [(constructor)](sorted_map/sorted_map.md) | constructs an empty map, or one built at once from a range or a list |
+| `(destructor)` | leaves the nodes, and the elements in them, to the collector |
 
-An empty map (the head node on the managed heap), or one built at once from a range or a list: the elements sorted (the first of two with one key kept, as `insert` keeps it) and every node linked behind the last at each of its levels, a store each and no search, which is what the inserts would cost, a search each; 110 to 200 ns per element for 200,000 random keys against 380 to 600 by the inserts.
+#### Iterators
 
-```cpp
-concurrent::sorted_map<int, tracked_ptr<Session>> sessions;              // a global: 
-concurrent::sorted_map<string, int, std::greater<string>> by_name_desc;
-concurrent::sorted_map<int, int> m = {{1, 10}, {2, 20}};
-```
+| Function | Description |
+|---|---|
+| [begin, cbegin](sorted_map/begin.md) | an iterator to the first element |
+| [end, cend](sorted_map/end.md) | an iterator past the last element |
 
-### begin, end, cbegin, cend
+#### Capacity
 
-```cpp
-iterator begin() noexcept;
-const_iterator begin() const noexcept;
-const_iterator cbegin() const noexcept;
-iterator end() noexcept;
-const_iterator end() const noexcept;
-const_iterator cend() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [empty](sorted_map/empty.md) | checks whether the map holds an element |
+| [size](sorted_map/size.md) | counts the elements |
 
-The elements in key order, weakly consistent; `end()` holds no node.
+#### Modifiers
 
-```cpp
-for (auto& [id, session] : sessions) {   // a walk while other threads insert and erase
-    session->touch();
-}
-```
+| Function | Description |
+|---|---|
+| [clear](sorted_map/clear.md) | erases every element there is |
+| [insert](sorted_map/insert.md) | inserts an element, or the elements of a range, unless the key is taken |
+| [emplace](sorted_map/emplace.md) | constructs an element in a node of its own and inserts it unless the key is taken |
+| [try_emplace](sorted_map/try_emplace.md) | constructs and inserts an element only when the key is absent, with one search |
+| [erase](sorted_map/erase.md) | erases the element under a key, or the one an iterator addresses |
 
-### empty, size
+#### Lookup
 
-```cpp
-bool empty() const noexcept;
-size_type size() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [count](sorted_map/count.md) | the number of elements under a key, 0 or 1 |
+| [find](sorted_map/find.md) | finds the element under a key |
+| [contains](sorted_map/contains.md) | checks whether the map holds a key |
+| [lower_bound](sorted_map/lower_bound.md) | the first element whose key is not less than a key |
+| [upper_bound](sorted_map/upper_bound.md) | the first element whose key is greater than a key |
+| [value_or](sorted_map/value_or.md) | a copy of the value under a key, or a fallback |
 
-### find, contains, count
+#### Observers
 
-```cpp
-iterator find(const Key& key) noexcept;
-const_iterator find(const Key& key) const noexcept;
-bool contains(const Key& key) const noexcept;
-size_type count(const Key& key) const noexcept;
-template<class K> iterator find(const K& key) noexcept;        // when Compare::is_transparent: and const, contains, count
-V value_or(const Key& key, const V& fallback) const;
-template<class K> V value_or(const K& key, const V& fallback) const;   // when Compare::is_transparent
-```
+| Function | Description |
+|---|---|
+| [key_comp](sorted_map/key_comp.md) | the comparison of the keys |
 
-The element under `key`, or `end()`; wait-free. With a transparent comparator (`is_transparent`, as `std::less` of a [string](../core/string.md) is) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search. `value_or(key, fallback)` returns a copy of the value under `key`, or `fallback` when it is absent (one word for a `tracked_ptr` value), as [`mixin::lookup`](../core/mixin/lookup.md)'s `value_or` of the other maps; an element erased by another thread after the search found it is read as it was.
+## Complexity
 
-```cpp
-if (auto it = sessions.find(42); it != sessions.end()) {
-    it->second->touch();                 // the node is held by `it` for as long as it exists
-}
-```
+- `find`, `contains`, `count`, `lower_bound`, `upper_bound`, `value_or`: logarithmic in the size, expected (the
+  heights are random).
+- `insert`, `emplace`, `try_emplace`, `erase`: logarithmic in the size, expected, plus a search again after each
+  compare-exchange lost to another thread.
+- `begin`, `empty`, an iterator's `++`: constant, plus the erased nodes not unlinked yet. `size`, `clear`: linear.
+- The constructors from a range or a list: the sort of the elements, then a store per link and no search; 110 to
+  200 ns per element for 200,000 random keys, against 380 to 600 by the inserts.
 
-### lower_bound, upper_bound
+A node is allocated per element and a marker per level of an erased node. A search loads some thirty links over
+200,000 keys, each through a hazard pointer: 322 ns per lookup on one thread against 197 for `std::map` under an
+uncontended mutex, and from four threads up faster than `std::map` under either lock on every operation (27 ns
+per lookup at sixteen threads against 237;
+[Benchmarks: Concurrent containers](benchmarks.md#concurrent-containers)).
 
-```cpp
-iterator lower_bound(const Key& key) noexcept;
-const_iterator lower_bound(const Key& key) const noexcept;
-iterator upper_bound(const Key& key) noexcept;
-const_iterator upper_bound(const Key& key) const noexcept;
-template<class K> iterator lower_bound(const K& key) noexcept;   // when Compare::is_transparent: and const, upper_bound
-```
+## Iterator invalidation
 
-The first element whose key is not less than `key`, and the first whose key is greater; wait-free; with a transparent comparator, by a key of another type.
+| Operations | Invalidated |
+|---|---|
+| all, in any thread | never |
 
-```cpp
-for (auto it = m.lower_bound(10); it != m.end() && it->first < 20; ++it) {   // the keys in [10, 20)
-    println("{}", it->first);
-}
-```
-
-### insert, emplace, try_emplace
-
-```cpp
-pair<iterator, bool> insert(const value_type& value);
-pair<iterator, bool> insert(value_type&& value);
-template<class P> pair<iterator, bool> insert(P&& value);
-template<std::input_iterator InputIt> void insert(InputIt first, InputIt last);
-void insert(std::initializer_list<value_type> ilist);
-template<class... A> pair<iterator, bool> emplace(A&&... a);
-template<class... A> pair<iterator, bool> try_emplace(const Key& key, A&&... a);
-template<class... A> pair<iterator, bool> try_emplace(Key&& key, A&&... a);
-```
-
-Inserts an element unless its key is taken: the element and `true`, or the one already there and `false`, as `std::map`. `emplace` builds the element from `a...` first, in a node of its own, and drops the node when the key turns out to be taken (the collector reclaims it); `try_emplace` searches once and builds nothing when the key is there: the element is built from the key and `a...` only when it is absent, and linked between the neighbours that search found (an insertion of a key that may be present costs one search, not a lookup and then one, which is what `emplace` cannot do, its key being inside the element it builds). A concurrent insertion of the same key wins or loses at the compare-exchange on the bottom list: exactly one of them returns `true`.
-
-```cpp
-auto [it, inserted] = sessions.try_emplace(42, make_tracked<Session>());
-if (!inserted) {
-    // another thread's session under 42: it->second
-}
-```
-
-### erase
-
-```cpp
-size_type erase(const Key& key);
-template<class K> size_type erase(const K& key);   // when Compare::is_transparent
-iterator erase(const_iterator pos);
-```
-
-Erases the element under `key` (1 or 0 erased), or the element `pos` addresses if it is still there (the next element in key order is returned). The node is marked at each of its levels, the bottom one last, which is where one thread wins when several erase the same element, then unlinked by a search; the element itself lives on for as long as some iterator holds its node, and dies with the node at a sweep.
-
-```cpp
-sessions.erase(42);
-for (auto it = sessions.begin(); it != sessions.end();) {
-    it = it->second->expired() ? sessions.erase(it) : std::next(it);
-}
-```
-
-### clear
-
-```cpp
-void clear();
-```
-
-Erases every element there is at the time of the walk.
-
-### key_comp
-
-```cpp
-key_compare key_comp() const;
-```
+An iterator holds its node by a `tracked_ptr`: the node, and the element in it, live for as long as the iterator
+does. After the element is erased the iterator still reads it, and `++` steps to the next element not erased.
+`end()` holds no node.
 
 ## Example
 
 ```cpp
-#include "sgcl/concurrent/concurrent.h"
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/concurrent.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -188,12 +168,12 @@ using namespace sgcl;
 // readers look up and walk, nobody locks and nobody frees
 struct Entry {
     int id;
-    int hits = 0;
+    atomic<int> hits = 0;
 };
 
 int main() {
-    concurrent::sorted_map<int, tracked_ptr<Entry>> registry;  // could as well be a global
-    atomic<long> found = 0;
+    concurrent::sorted_map<int, tracked_ptr<Entry>> registry;
+    atomic<long> found = 0, out_of_order = 0;
     vector<thread> threads;
     for (int w : range(4)) {
         threads.emplace_back([&, w] {
@@ -201,8 +181,8 @@ int main() {
                 int id = i * 4 + w;  // 1000 keys between the four writers
                 registry.try_emplace(id, make_tracked<Entry>(id));
             }
-            for (int id = w; id < 1000; id += 8) {
-                registry.erase(id);  // half of this writer's keys taken out again
+            for (int i : range(125)) {
+                registry.erase(i * 8 + w);  // half of this writer's keys taken out again
             }
         });
         threads.emplace_back([&] {
@@ -212,30 +192,34 @@ int main() {
                     ++found;
                 }
             }
-            long walked = 0;
-            for (auto& [id, entry] : registry) {  // weakly consistent: sorted, live at the time
-                walked += entry->id == id;
+            int last = -1;
+            for (auto& [id, entry] : registry) {  // weakly consistent, and sorted
+                out_of_order += id <= last;
+                last = id;
             }
-            found += walked > 0;
         });
     }
     for (auto& t : threads) {
         t.join();
     }
-    println("{} entries, {} lookups hit", registry.size(), found.load());
-    return registry.size() == 500 ? 0 : 1;
+    println("{} entries, {} out of order", registry.size(), out_of_order.load());
+    println("{} lookups hit", found.load());
 }
 ```
 
 Sample output:
 
 ```text
-500 entries, 18438 lookups hit
+500 entries, 0 out of order
+18438 lookups hit
 ```
 
 ## See also
 
-- [concurrent::queue](queue.md), [concurrent::stack](stack.md) for the lock-free sequences
-- [sorted_map](../core/sorted_map.md), the sequential map with the full `std::map` interface
-- [atomic](../core/atomic.md), what every link is; [expiry_queue](../core/expiry_queue.md) for a cleanup when an erased element's node dies
-- [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)
+- [sorted_set](sorted_set.md): the same skip list with the key as the element
+- [map](map.md): the lock-free hash map, unordered, a lookup in a few steps
+- [sorted_map](../core/sorted_map.md): the sequential map with the whole interface of `std::map`
+- [queue](queue.md), [stack](stack.md): the lock-free sequences
+- [atomic](../core/atomic.md): what every link is; [expiry_queue](../core/expiry_queue.md): a cleanup when an
+  erased element's node dies
+- [README: Lock-free containers](README.md#lock-free-containers)

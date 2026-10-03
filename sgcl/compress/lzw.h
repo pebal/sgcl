@@ -39,7 +39,7 @@ namespace sgcl::compress::detail {
         uint32_t bits = 0;
         uint32_t count = 0;
 
-        void put(uint32_t code, uint32_t width, std::vector<uint8_t>& out) {
+        void put(uint32_t code, uint32_t width, std::vector<uint8_t>& out) noexcept {
             if (msb) {
                 bits = bits << width | code;
                 count += width;
@@ -58,7 +58,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void flush(std::vector<uint8_t>& out) {
+        void flush(std::vector<uint8_t>& out) noexcept {
             if (count) {
                 out.push_back(msb ? uint8_t(bits << (8 - count)) : uint8_t(bits));
             }
@@ -78,7 +78,7 @@ namespace sgcl::compress::detail {
     // next code with.
     class LzwEncoder {
     public:
-        LzwEncoder(bool msb, int literal_width)
+        LzwEncoder(bool msb, int literal_width) noexcept
         : _clear(1u << literal_width)
         , _literal_width(uint32_t(literal_width))
         , _slots(std::make_unique<uint32_t[]>(Slots)) {
@@ -88,7 +88,7 @@ namespace sgcl::compress::detail {
 
         // The bytes compressed into out; false at a byte the literal width
         // cannot hold (the bytes before it are compressed)
-        bool write(const uint8_t* p, size_t n, std::vector<uint8_t>& out) {
+        bool write(const uint8_t* p, size_t n, std::vector<uint8_t>& out) noexcept {
             if (!_started) {
                 _started = true;
                 _out.put(_clear, _width, out);
@@ -119,8 +119,18 @@ namespace sgcl::compress::detail {
             return true;
         }
 
+        // A new stream with the same settings: the table cleared, nothing
+        // of the old stream's string or bits kept
+        void reset() noexcept {
+            _current = None;
+            _started = false;
+            _out.bits = 0;
+            _out.count = 0;
+            _start_over();
+        }
+
         // The last string, the end code, and the last bits to a byte
-        void finish(std::vector<uint8_t>& out) {
+        void finish(std::vector<uint8_t>& out) noexcept {
             if (!_started) {
                 _started = true;
                 _out.put(_clear, _width, out);
@@ -140,7 +150,7 @@ namespace sgcl::compress::detail {
 
         // A new code, after a code went out: false when the table was full
         // and a clear code went out in its place
-        bool _make(std::vector<uint8_t>& out) {
+        bool _make(std::vector<uint8_t>& out) noexcept {
             uint32_t code = _next++;
             if (code == (1u << _width)) {
                 ++_width;
@@ -202,7 +212,7 @@ namespace sgcl::compress::detail {
         errc error = errc::corrupt;
         const char* error_text = nullptr;
 
-        LzwDecoder(bool msb, int literal_width)
+        LzwDecoder(bool msb, int literal_width) noexcept
         : _msb(msb)
         , _clear(1u << literal_width)
         , _literal_width(uint32_t(literal_width)) {
@@ -232,7 +242,7 @@ namespace sgcl::compress::detail {
 
         // Decodes from [in, end) into out[pos, cap); final says that no
         // input follows end
-        LzwStatus decode(const uint8_t*& in, const uint8_t* end, bool final, uint8_t* out, size_t& pos, size_t cap) {
+        LzwStatus decode(const uint8_t*& in, const uint8_t* end, bool final, uint8_t* out, size_t& pos, size_t cap) noexcept {
             if (_failed) {
                 return LzwStatus::failed;
             }
@@ -397,7 +407,7 @@ namespace sgcl::compress {
                 }
                 size_t grown = size_t(std::min<uint64_t>({uint64_t(capacity) * 2 + detail::LzwCodes, l.max_size, uint64_t(SIZE_MAX)}));
                 std::unique_ptr<uint8_t[]> bigger(new uint8_t[grown]);
-                std::memcpy(bigger.get(), out.get(), total);
+                sgcl::detail::copy_bytes(bigger.get(), out.get(), total);
                 out = std::move(bigger);
                 capacity = grown;
             }
@@ -409,7 +419,7 @@ namespace sgcl::compress {
     // task's form yields between them); close() writes the end code and
     // leaves out open, as Go's does. LZW has no point to flush at short of
     // the end. A failure of out, or a byte the literal width cannot hold,
-    // is kept for good.
+    // is kept for good (last_error()) until a reset.
     class lzw::writer final
     : public io::mixin::writer<lzw::writer> {
     public:
@@ -422,13 +432,37 @@ namespace sgcl::compress {
 
         writer(const io::writer& out, order o, int literal_width)
         : _out(out)
-        , _encoder((detail::lzw_check_width(literal_width), std::make_unique<detail::LzwEncoder>(o == order::msb, literal_width))) {
+        , _encoder((detail::lzw_check_width(literal_width), std::make_unique<detail::LzwEncoder>(o == order::msb, literal_width)))
+        , _order(o)
+        , _literal_width(literal_width) {
         }
 
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
-        writer(writer&&) noexcept = default;
-        writer& operator=(writer&&) noexcept = default;
+
+        // The other left closed, its stream and its encoder gone with the
+        // move (its order and width kept): its writes give
+        // io::errc::closed, its close does nothing, and a reset gives it a
+        // new stream
+        writer(writer&& o) noexcept
+        : _out(std::move(o._out))
+        , _encoder(std::move(o._encoder))
+        , _pending(std::move(o._pending))
+        , _stage(std::move(o._stage))
+        , _error(std::move(o._error))
+        , _closed(o._closed)
+        , _order(o._order)
+        , _literal_width(o._literal_width) {
+            o._out = io::writer();
+            o._pending = std::vector<uint8_t>();
+            o._stage = detail::OutputStage();
+            o._error = nullopt;
+            o._closed = true;
+        }
+
+        writer& operator=(writer&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
 
         expected<size_t, io::error> write(const slice<const byte>& data) {
             if (auto e = _check("write")) {
@@ -451,7 +485,7 @@ namespace sgcl::compress {
             return data.size();
         }
 
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
             if (auto e = _check("write")) {
                 co_return io::detail::fail(*e);
             }
@@ -491,7 +525,7 @@ namespace sgcl::compress {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             if (_closed && !_error) {
                 co_return expected<void, io::error>();
             }
@@ -510,18 +544,39 @@ namespace sgcl::compress {
             return _closed;
         }
 
+        // The first failure (of out, or a byte past the literal width), kept
+        const optional<io::error>& last_error() const noexcept {
+            return _error;
+        }
+
+        // A new stream into out with the same order and width: the
+        // encoder's memory (the table) kept, nothing of the old stream
+        // carried over
+        void reset(const io::writer& out) noexcept {
+            _out = out;
+            if (_encoder) {
+                _encoder->reset();
+            } else {
+                _encoder = std::make_unique<detail::LzwEncoder>(_order == order::msb, _literal_width);   // moved from: its encoder went with the move
+            }
+            _pending.clear();
+            _closed = false;
+            _error = nullopt;
+        }
+
     private:
-        optional<io::error> _check(const char* op) const {
+        optional<io::error> _check(const char* op) noexcept {
             if (_error) {
                 return _error;
             }
             if (_closed) {
-                return io::error(io::errc::closed, op, "lzw");
+                _error = io::error(io::errc::closed, op, "lzw");   // kept as every error
+                return _error;
             }
             return nullopt;
         }
 
-        optional<io::error> _invalid(const char* op) {
+        optional<io::error> _invalid(const char* op) noexcept {
             _error = io::error(make_error_code(errc::invalid_argument), op, "lzw");
             return _error;
         }
@@ -539,7 +594,7 @@ namespace sgcl::compress {
             return nullopt;
         }
 
-        async::task<optional<io::error>> _async_drain() {
+        async::task<optional<io::error>> _async_drain() noexcept {
             if (_pending.empty()) {
                 co_return nullopt;
             }
@@ -558,6 +613,8 @@ namespace sgcl::compress {
         detail::OutputStage _stage;   // the pending bytes for a task's write (detail/block.h)
         optional<io::error> _error;
         bool _closed = false;
+        order _order;
+        int _literal_width;
     };
 
     // What the data read from in decompresses to, up to the end code. It
@@ -578,13 +635,44 @@ namespace sgcl::compress {
         : _in(in)
         , _decoder((detail::lzw_check_width(literal_width), std::make_unique<detail::LzwDecoder>(o == order::msb, literal_width)))
         , _input(InputBytes)
-        , _output(OutputBytes) {
+        , _output(OutputBytes)
+        , _order(o)
+        , _literal_width(literal_width) {
         }
 
         reader(const reader&) = delete;
         reader& operator=(const reader&) = delete;
-        reader(reader&&) noexcept = default;
-        reader& operator=(reader&&) noexcept = default;
+
+        // The other left without a stream, its decoder and its buffers gone
+        // with the move (its order and width kept): its reads give
+        // io::errc::closed, its close closes nothing, and a reset gives it
+        // a new stream
+        reader(reader&& o) noexcept
+        : _in(std::move(o._in))
+        , _decoder(std::move(o._decoder))
+        , _input(std::move(o._input))
+        , _output(std::move(o._output))
+        , _pos(o._pos)
+        , _from(o._from)
+        , _in_begin(o._in_begin)
+        , _in_end(o._in_end)
+        , _source_ended(o._source_ended)
+        , _ended(o._ended)
+        , _error(std::move(o._error))
+        , _since_yield(o._since_yield)
+        , _order(o._order)
+        , _literal_width(o._literal_width) {
+            o._in = io::reader();
+            o._input = detail::InputBuffer<InputBytes>(InputBytes);
+            o._output = std::vector<uint8_t>();
+            o._pos = o._from = o._in_begin = o._in_end = 0;
+            o._ended = true;
+            o._error = detail::moved_from_error("lzw");
+        }
+
+        reader& operator=(reader&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
 
         expected<size_t, io::error> read(const slice<byte>& out) {
             for (;;) {
@@ -605,7 +693,7 @@ namespace sgcl::compress {
             }
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             for (;;) {
                 if (size_t n = _hand_out(out)) {
                     // decoding is work, not a wait: every 64 KB handed out
@@ -637,7 +725,7 @@ namespace sgcl::compress {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
@@ -645,11 +733,29 @@ namespace sgcl::compress {
             return _error;
         }
 
+        // A new stream from in, with the same order and width: the
+        // decoder's memory kept
+        void reset(const io::reader& in) noexcept {
+            _in = in;
+            if (_decoder) {
+                _decoder->reset();
+            } else {
+                // moved from: the decoder and the output went with the move
+                _decoder = std::make_unique<detail::LzwDecoder>(_order == order::msb, _literal_width);
+                _output.assign(OutputBytes, 0);
+            }
+            _pos = _from = 0;
+            _in_begin = _in_end = 0;
+            _source_ended = false;
+            _ended = false;
+            _error = nullopt;
+        }
+
     private:
         size_t _hand_out(const slice<byte>& out) noexcept {
             size_t n = std::min(out.size(), _pos - _from);
             if (n) {
-                std::memcpy(out.data(), _output.data() + _from, n);
+                sgcl::detail::copy_bytes(out.data(), _output.data() + _from, n);
                 _from += n;
                 if (_from == _pos) {
                     _from = _pos = 0;
@@ -659,7 +765,7 @@ namespace sgcl::compress {
         }
 
         // Decodes into the empty output buffer; true when it needs more input
-        bool _step() {
+        bool _step() noexcept {
             const uint8_t* p = _input.data() + _in_begin;
             auto st = _decoder->decode(p, _input.data() + _in_end, _source_ended, _output.data(), _pos, _output.size());
             _in_begin = size_t(p - _input.data());
@@ -685,14 +791,14 @@ namespace sgcl::compress {
             return _took(r);
         }
 
-        async::task<optional<io::error>> _async_fill() {
+        async::task<optional<io::error>> _async_fill() noexcept {
             _in_begin = _in_end = 0;
             _input.to_managed(0);   // the read may run on the pool: into managed memory, which the slice holds
             auto r = co_await _in.async_read(_input.room(0, _input.size()));
             co_return _took(r);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r) {
+        optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _decoder->offset());
                 return r.error();
@@ -717,5 +823,7 @@ namespace sgcl::compress {
         optional<error> _error;
         static constexpr size_t YieldEvery = size_t(64) << 10;
         size_t _since_yield = 0;   // bytes handed out by the task's reads since it last let the worker go
+        order _order;
+        int _literal_width;
     };
 }

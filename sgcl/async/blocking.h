@@ -17,6 +17,7 @@
 #include "timer.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
@@ -32,7 +33,8 @@ namespace sgcl::async {
     // A blocking call from a task: `T r = co_await spawn_blocking(f);`
     // runs f on a pool of threads apart from the scheduler's workers and
     // hands what it returns (or throws) back through a promise
-    // (promise.h), the task holding no thread meanwhile. A worker runs
+    // (promise.h), the task holding no thread meanwhile; `go_blocking(f);`
+    // runs it with no handle, what it throws to on_unhandled. A worker runs
     // every task that is ready; a call that blocks it (a file read
     // without the reactor, getaddrinfo, a C library, a database driver)
     // takes it from all of them for as long as the call lasts, so such a
@@ -73,6 +75,11 @@ namespace sgcl::async {
         struct BlockingJobBase {
             virtual ~BlockingJobBase() = default;
             virtual void run() noexcept = 0;
+
+            // Set under the pool's lock when its submit could start no
+            // thread and threw: never run, passed by when a thread pops
+            // it (a thread that pops it is started under the lock later)
+            std::atomic<bool> dropped = {false};
         };
 
         // A job with its result: the promise the task awaits
@@ -84,7 +91,7 @@ namespace sgcl::async {
         // A job with its closure: what it returns or throws goes to the promise
         template<class F, class T>
         struct BlockingJobOf : BlockingJob<T> {
-            explicit BlockingJobOf(F f)
+            explicit BlockingJobOf(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
             : f(std::move(f)) {
             }
 
@@ -103,6 +110,37 @@ namespace sgcl::async {
 
             F f;
         };
+
+        // A job of go_blocking, with no promise: nobody reads what f
+        // gives, so what it returns is dropped and what it throws goes to
+        // on_unhandled's handler (coroutine.h), on the thread of the pool
+        // that ran it, as a detached task's goes there from the worker
+        // that ends it (the default's line names the pool: thread_place)
+        template<class F>
+        struct BlockingJobDetached : BlockingJobBase {
+            explicit BlockingJobDetached(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+            : f(std::move(f)) {
+            }
+
+            void run() noexcept override {
+                std::exception_ptr error;
+                try {
+                    (void)f();
+                } catch (...) {
+                    error = std::current_exception();
+                }
+                if (error) {
+                    unhandled_handler.load(std::memory_order_acquire)(error);
+                }
+            }
+
+            F f;
+        };
+
+        // Called by the pool before it makes a thread, when set: a test's
+        // way to have the start fail as std::thread's does (it throws
+        // std::system_error); tests/async/blocking.cpp
+        inline std::atomic<void (*)()> blocking_start_test_hook = {nullptr};
 
         class BlockingPool {
         public:
@@ -143,7 +181,7 @@ namespace sgcl::async {
                     lock.unlock();
                     _cv.notify_one();
                 } else if (_threads.size() < _cap()) {
-                    _start(lock);
+                    _start(lock, job);
                 }
                 // every thread busy and the pool at its cap: the job waits
                 // in the queue for the next thread to finish its job
@@ -224,13 +262,45 @@ namespace sgcl::async {
                 return _cap_asked ? _cap_asked : std::max(64u, 4 * std::thread::hardware_concurrency());
             }
 
-            // A thread started, under the lock: the handles of the threads
-            // that exited on their own are joined first (they are done)
-            void _start(std::unique_lock<std::mutex>& lock) {
+            // A thread started for the job, under the lock: the handles of
+            // the threads that exited on their own are joined after (they
+            // are done). A thread that cannot be started (std::thread's
+            // std::system_error) leaves no entry, which stop() would wait
+            // for and the cap would count. With another thread there the
+            // job waits for it in the queue, as at the cap: every thread
+            // looks at the queue before it parks or leaves, and none is
+            // idle (a submit with one idle wakes it and starts nothing).
+            // With none the job could only wait for the next submit: it is
+            // dropped instead, owed to nobody (_pending), and the throw is
+            // its submitter's, so a spawn_blocking that throws never runs
+            // its function
+            void _start(std::unique_lock<std::mutex>& lock, const tracked_ptr<BlockingJobBase>& job) {
                 auto finished = std::move(_finished);
                 _finished.clear();
                 auto it = _threads.emplace(_threads.end());
-                *it = std::thread([this, it] { _run(it); });
+                try {
+                    if (auto hook = blocking_start_test_hook.load(std::memory_order_relaxed)) [[unlikely]] {
+                        hook();
+                    }
+                    *it = std::thread([this, it] { _run(it); });
+                } catch (...) {
+                    _threads.erase(it);
+                    bool alone = _threads.empty();
+                    if (alone) {
+                        job->dropped.store(true, std::memory_order_relaxed);
+                        if (--_pending == 0) {
+                            _idle_cv.notify_all();
+                        }
+                    }
+                    lock.unlock();
+                    for (auto& t : finished) {
+                        t.join();
+                    }
+                    if (alone) {
+                        throw;
+                    }
+                    return;
+                }
                 lock.unlock();
                 for (auto& t : finished) {
                     t.join();
@@ -289,9 +359,12 @@ namespace sgcl::async {
             // pointer and the temporaries of the call, which an unoptimized
             // build keeps in the frame and not in a register — is in the
             // dead stack clear_dead_stack zeroes, not in _run's live frame
-            SGCL_NOINLINE unsigned _run_jobs() {
+            SGCL_NOINLINE unsigned _run_jobs() noexcept {
                 unsigned ran = 0;
                 while (auto job = _queue->jobs.try_pop()) {
+                    if ((*job)->dropped.load(std::memory_order_relaxed)) {
+                        continue;   // its submit threw (_start): not run, and not owed
+                    }
                     (*job)->run();
                     ++ran;
                 }
@@ -305,7 +378,7 @@ namespace sgcl::async {
             // never counts a thread that is neither idle nor going to look
             // at the queue again (it would neither wake nor start one, and
             // the job would wait for the next submit)
-            void _leave(Threads::iterator it) {
+            void _leave(Threads::iterator it) noexcept {
                 _finished.splice(_finished.end(), _threads, it);
                 if (_threads.empty()) {
                     _exit_cv.notify_all();
@@ -412,16 +485,19 @@ namespace sgcl::async {
 
         // A case of a select: f() once the job ran
         template<class F>
-        auto on_done(F f) {
+        auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _job->result.on_done(std::move(f));
         }
+
+    private:
+        template<class F>
+        friend auto spawn_blocking(F f);
 
         // From the job, by spawn_blocking
         explicit blocking_task(const tracked_ptr<detail::BlockingJob<T>>& job) noexcept
         : _job(job) {
         }
 
-    private:
         root_ptr<detail::BlockingJob<T>> _job;
     };
 
@@ -439,10 +515,18 @@ namespace sgcl::async {
         return blocking_task<T>(job);
     }
 
-    // The same, where it reads better: `co_await sgcl::async::blocking([&] { return read(fd, buf, n); })`
+    // f queued for the pool and let go of, go()'s counterpart for a
+    // blocking call: `sgcl::async::go_blocking(f);` runs f on a thread of
+    // the pool, keeps no handle, drops what f returns, and gives what f
+    // throws to on_unhandled's handler, which a dropped handle of
+    // spawn_blocking would leave in a promise nobody reads. The same job
+    // and the same pool as spawn_blocking's, so the same rules: f may
+    // capture tracked pointers, and what it captures by reference must
+    // outlive the job; the call throws as spawn_blocking's does
     template<class F>
-    auto blocking(F f) {
-        return spawn_blocking(std::move(f));
+    void go_blocking(F f) {
+        tracked_ptr<detail::BlockingJobDetached<F>> job = make_tracked<detail::BlockingJobDetached<F>>(std::move(f));
+        detail::blocking_pool_instance().submit(job);
     }
 
     // The pool as the program sees it

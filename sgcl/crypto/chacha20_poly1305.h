@@ -228,7 +228,7 @@ namespace sgcl::crypto {
         }
 
         // The key from data: a wrong length is errc::invalid_key
-        static expected<chacha20_poly1305, error> from_key(const slice<const byte>& key) {
+        static expected<chacha20_poly1305, error> from_key(const slice<const byte>& key) noexcept {
             if (key.size() != key_size) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("chacha20_poly1305", key.size()))));
             }
@@ -281,7 +281,7 @@ namespace sgcl::crypto {
         : ChachaKey(key) {
         }
 
-        static expected<xchacha20_poly1305, error> from_key(const slice<const byte>& key) {
+        static expected<xchacha20_poly1305, error> from_key(const slice<const byte>& key) noexcept {
             if (key.size() != key_size) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("xchacha20_poly1305", key.size()))));
             }

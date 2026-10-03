@@ -10,6 +10,7 @@
 #include "detail/xml_scanner.h"
 #include "../async/coroutine.h"
 #include "../core/aliases.h"
+#include "../core/detail/os.h"
 #include "../core/dynamic_array.h"
 #include "../core/expected.h"
 #include "../core/generator.h"
@@ -92,19 +93,13 @@ namespace sgcl::encoding {
         // space normalized (XML 1.0, 3.3.3), and the namespace the prefix
         // stands for ("" for a name without one; xmlns attributes are in
         // http://www.w3.org/2000/xmlns/)
-        struct attribute {
+        struct attr {
             string name;
             string value;
             string namespace_uri;
 
-            friend bool operator==(const attribute&, const attribute&) = default;
+            friend bool operator==(const attr&, const attr&) = default;
         };
-
-    private:
-        // the struct by a name the method attribute() below does not hide
-        using attribute_type = attribute;
-
-    public:
 
         // What a parse or a reader accepts
         struct options {
@@ -142,7 +137,7 @@ namespace sgcl::encoding {
         // <name>text</name>
         xml(const string& name, const string& text);
 
-        static xml text_node(const string& text);
+        static xml text_node(const string& text) noexcept;
 
         // A comment; text holding "--" or ending with '-', which a comment
         // cannot, is invalid_argument
@@ -164,8 +159,8 @@ namespace sgcl::encoding {
         static expected<xml, error> parse(const io::reader& in, const options& o);
 
         // The same in a task: `co_await xml::async_parse(in)`
-        static async::task<expected<xml, error>> async_parse(const io::reader& in);
-        static async::task<expected<xml, error>> async_parse(io::reader in, options o);   // o by value: a task is lazy (json the same)
+        static async::task<expected<xml, error>> async_parse(const io::reader& in) noexcept;
+        static async::task<expected<xml, error>> async_parse(io::reader in, options o) noexcept;   // o by value: a task is lazy (json the same)
 
         // --- a program's own types (describe(field_list&), detail/xml_fields.h) ---
 
@@ -181,9 +176,9 @@ namespace sgcl::encoding {
         template<class T>
         static expected<T, error> parse(const io::reader& in, const options& o);
         template<class T>
-        static async::task<expected<T, error>> async_parse(const io::reader& in);
+        static async::task<expected<T, error>> async_parse(const io::reader& in) noexcept;
         template<class T>
-        static async::task<expected<T, error>> async_parse(io::reader in, options o);
+        static async::task<expected<T, error>> async_parse(io::reader in, options o) noexcept;
 
         // This element as a value of T
         template<class T>
@@ -203,9 +198,9 @@ namespace sgcl::encoding {
         static expected<xml, error> load(const string& path);
         template<class T>
         static expected<T, error> load(const string& path);
-        static async::task<expected<xml, error>> async_load(string path);
+        static async::task<expected<xml, error>> async_load(string path) noexcept;
         template<class T>
-        static async::task<expected<T, error>> async_load(string path);
+        static async::task<expected<T, error>> async_load(string path) noexcept;
 
         // The element `name` of a value into a file, made or written over,
         // a new line after it: xml::save("feed.xml", "feed", f); the
@@ -213,9 +208,9 @@ namespace sgcl::encoding {
         template<class T>
         static expected<void, error> save(const string& path, const string& name, const T& value);
         template<class T>
-        static async::task<expected<void, error>> async_save(string path, string name, T value);
+        static async::task<expected<void, error>> async_save(string path, string name, T value) noexcept(std::is_nothrow_move_constructible_v<T>);
         expected<void, error> save(const string& path) const;
-        async::task<expected<void, error>> async_save(string path) const;
+        async::task<expected<void, error>> async_save(string path) const noexcept;
 
         // --- what it is ---
 
@@ -244,33 +239,34 @@ namespace sgcl::encoding {
         string local_name() const noexcept;
 
         // The namespace the name's prefix (or the default namespace)
-        // stands for where the element was read; "" for none
+        // stands for where the element was read, or, for one made, what
+        // its own xmlns declaration gives it (set, the builder); "" for none
         string namespace_uri() const noexcept;
 
         // --- inside an element ---
 
         // The value of the attribute of this name ("id", "xlink:href",
         // "{http://www.w3.org/1999/xlink}href"); nullopt when there is none
-        optional<string> attribute(const string& name) const;
+        optional<string> attribute(const string& name) const noexcept;
 
         // The same with a value for when there is none: e.attribute("lang", "en")
-        string attribute(const string& name, const string& fallback) const {
+        string attribute(const string& name, const string& fallback) const noexcept {
             auto a = attribute(name);
             return a ? *a : fallback;
         }
 
         // In the order of the document; empty for a node that is not an element
-        slice<const struct attribute> attributes() const noexcept;
+        slice<const attr> attributes() const noexcept;
 
         // Every node inside, in order: elements, texts, and the comments
         // and instructions a tree keeps
         slice<const xml> children() const noexcept;
 
         // The first element of this name inside, or xml() when there is none
-        xml child(const string& name) const;
+        xml child(const string& name) const noexcept;
 
         // The elements of this name inside, in order
-        generator<xml> children(const string& name) const;
+        generator<xml> children(const string& name) const noexcept;
 
         // The text: of a text node, a comment and an instruction their
         // own; of an element, every text inside it and its descendants,
@@ -295,7 +291,7 @@ namespace sgcl::encoding {
 
         // The same node: kinds, names, namespaces, values, children in
         // order; attributes in any order, as XML has them
-        friend bool operator==(const xml& a, const xml& b) {
+        friend bool operator==(const xml& a, const xml& b) noexcept {
             return _equal(a, b);
         }
 
@@ -307,8 +303,8 @@ namespace sgcl::encoding {
         friend class builder;
 
         // nodes the reader makes, of text it has checked
-        static xml comment_of(const string& text);
-        static xml instruction_of(const string& target, const string& data);
+        static xml comment_of(const string& text) noexcept;
+        static xml instruction_of(const string& target, const string& data) noexcept;
 
         static expected<xml, error> _parse_with(reader& r);
 
@@ -317,13 +313,13 @@ namespace sgcl::encoding {
 
         template<class T>
         static expected<T, error> _typed(reader& r);
-        static generator<xml> _children(xml self, string wanted);
+        static generator<xml> _children(xml self, string wanted) noexcept;
 
         explicit xml(const tracked_ptr<const detail::XmlNode>& node) noexcept
         : _node(node) {
         }
 
-        static bool _equal(const xml& a, const xml& b);
+        static bool _equal(const xml& a, const xml& b) noexcept;
         static bool _matches(std::string_view qname, const string& local, const string& uri, std::string_view wanted) noexcept;
 
         tracked_ptr<const detail::XmlNode> _node;
@@ -347,7 +343,7 @@ namespace sgcl::encoding {
             string name;
             string local;
             string uri;
-            dynamic_array<struct xml::attribute> attributes;
+            dynamic_array<xml::attr> attributes;
             dynamic_array<xml> children;
         };
 
@@ -399,18 +395,18 @@ namespace sgcl::encoding {
         }
 
         // Of a start: in the order of the tag
-        slice<const struct xml::attribute> attributes() const noexcept {
+        slice<const xml::attr> attributes() const noexcept {
             return _attributes;
         }
 
         // The same with a value for when there is none
-        string attribute(const string& name, const string& fallback) const {
+        string attribute(const string& name, const string& fallback) const noexcept {
             auto a = attribute(name);
             return a ? *a : fallback;
         }
 
         // By name as written or {namespace}local; nullopt when absent
-        optional<string> attribute(const string& name) const {
+        optional<string> attribute(const string& name) const noexcept {
             for (auto& a : _attributes) {
                 if (xml::_matches(a.name.view(), string(detail::xml_local(a.name.view())), a.namespace_uri, name.view())) {
                     return a.value;
@@ -443,7 +439,7 @@ namespace sgcl::encoding {
         string _local;
         string _uri;
         string _text;
-        dynamic_array<struct xml::attribute> _attributes;
+        dynamic_array<xml::attr> _attributes;
     };
 
     namespace detail {
@@ -456,7 +452,7 @@ namespace sgcl::encoding {
             using token = typename Xml::token;
             using kind = typename token::kind;
 
-            explicit XmlTreeBuilder(const typename Xml::options& o)
+            explicit XmlTreeBuilder(const typename Xml::options& o) noexcept
             : _keep_comments(o.keep_comments), _keep_whitespace(o.keep_whitespace) {
             }
 
@@ -551,7 +547,7 @@ namespace sgcl::encoding {
                 string name;
                 string local;
                 string uri;
-                dynamic_array<typename Xml::attribute_type> attributes;
+                dynamic_array<typename Xml::attr> attributes;
                 size_t first = 0;
             };
 
@@ -620,19 +616,19 @@ namespace sgcl::encoding {
     // a text or a comment at a time, up to options::max_token_size.
     class xml::reader {
     public:
-        explicit reader(const string& text)
+        explicit reader(const string& text) noexcept
         : reader(text, options()) {
         }
 
-        reader(const string& text, const options& o)
+        reader(const string& text, const options& o) noexcept
         : _scanner(text, o), _options(o) {
         }
 
-        explicit reader(const io::reader& in)
+        explicit reader(const io::reader& in) noexcept
         : reader(in, options()) {
         }
 
-        reader(const io::reader& in, const options& o)
+        reader(const io::reader& in, const options& o) noexcept
         : _scanner(o), _in(in), _options(o) {
         }
 
@@ -690,7 +686,7 @@ namespace sgcl::encoding {
             _scanner.received(_in.read(_scanner.room()));
         }
 
-        async::task<void> _async_fill() {
+        async::task<void> _async_fill() noexcept {
             if (!_in) {
                 _scanner.received(expected<size_t, io::error>(size_t(0)));
                 co_return;
@@ -726,7 +722,7 @@ namespace sgcl::encoding {
             return true;
         }
 
-        async::task<bool> _async_front() {
+        async::task<bool> _async_front() noexcept {
             if (_typed_error) {
                 co_return false;
             }
@@ -753,7 +749,7 @@ namespace sgcl::encoding {
             co_return true;
         }
 
-        token _take() {
+        token _take() noexcept {
             token t = std::move(*_peeked);
             _peeked.reset();
             return t;
@@ -784,7 +780,7 @@ namespace sgcl::encoding {
         }
 
         // The same in a task: `co_await r.async_next()`
-        async::task<optional<token>> async_next() {
+        async::task<optional<token>> async_next() noexcept {
             if (!co_await _async_front()) {
                 co_return nullopt;
             }
@@ -799,7 +795,7 @@ namespace sgcl::encoding {
             return *_peeked;
         }
 
-        async::task<optional<token>> async_peek() {
+        async::task<optional<token>> async_peek() noexcept {
             if (!co_await _async_front()) {
                 co_return nullopt;
             }
@@ -879,9 +875,9 @@ namespace sgcl::encoding {
         optional<T> read();
 
         template<class T>
-        async::task<optional<T>> async_read();
+        async::task<optional<T>> async_read() noexcept;
 
-        async::task<optional<xml>> async_read() {
+        async::task<optional<xml>> async_read() noexcept {
             detail::XmlTreeBuilder<xml> b(_options);
             for (;;) {
                 bool done = false;
@@ -896,7 +892,7 @@ namespace sgcl::encoding {
     private:
         // One turn of skip(): as read(), with the depth counted in place
         // of a tree built
-        bool _skip_turn(bool front, uint32_t& depth, bool& text, bool& done) {
+        bool _skip_turn(bool front, uint32_t& depth, bool& text, bool& done) noexcept {
             if (!front) {
                 done = true;
                 return !last_error() && depth == 0 && text;
@@ -951,7 +947,7 @@ namespace sgcl::encoding {
             }
         }
 
-        async::task<bool> async_skip() {
+        async::task<bool> async_skip() noexcept {
             uint32_t depth = 0;
             bool text = false;
             for (;;) {
@@ -985,14 +981,14 @@ namespace sgcl::encoding {
         // and the first mistake kept
         class XmlOut {
         public:
-            explicit XmlOut(uint8_t indent)
+            explicit XmlOut(uint8_t indent) noexcept
             : _indent(indent) {
             }
 
             std::string out;
             optional<error> failure;
 
-            void declaration() {
+            void declaration() noexcept {
                 if (_any) {
                     return _fail(errc::syntax, "the XML declaration after something was written");
                 }
@@ -1003,13 +999,24 @@ namespace sgcl::encoding {
             // `held`: the name's characters outlive the element's end (a
             // node of a tree node() walks, whose names the tree holds), so
             // the level keeps a view of them; otherwise (a writer's name,
-            // which may be a temporary) a copy in _names
-            void start(std::string_view name, bool held = false) {
+            // which may be a temporary) a copy in _names. The prefix xmlns
+            // (section 3) is weighed for a writer's name alone, and only
+            // for a name the check of the name found starting with 'x' (no
+            // test of its own on the usual path): a tree's names were
+            // weighed once, when the tree was made (xml(name), the builder,
+            // the reader)
+            void start(std::string_view name, bool held = false) noexcept {
                 if (failure) {
                     return;
                 }
-                if (!xml_qname(name)) {
-                    return _fail(errc::syntax, "'" + std::string(name) + "' is not a qualified name");
+                uint8_t kind = xml_qname_kind(name);
+                if (!(kind & XmlNamePlain)) [[unlikely]] {
+                    if (!kind) {
+                        return _fail_qname(name);
+                    }
+                    if (!held && xml_xmlns_element(name)) {
+                        return _fail_xmlns(name, std::string_view(), nullptr);
+                    }
                 }
                 _close_tag();
                 _break(_open.size());
@@ -1027,15 +1034,26 @@ namespace sgcl::encoding {
                 _any = true;
             }
 
-            void attribute(std::string_view name, std::string_view value, bool held = false) {
+            // A namespace declaration (section 3) is weighed as start
+            // weighs the prefix xmlns: a writer's attribute alone, found by
+            // the check of the name (set and the builder weighed a tree's)
+            void attribute(std::string_view name, std::string_view value, bool held = false) noexcept {
                 if (failure) {
                     return;
                 }
                 if (!_tag_open) {
                     return _fail(errc::syntax, "an attribute with no start tag open to hold it");
                 }
-                if (!xml_qname(name)) {
-                    return _fail(errc::syntax, "'" + std::string(name) + "' is not a qualified name");
+                uint8_t kind = xml_qname_kind(name);
+                if (!(kind & XmlNamePlain)) [[unlikely]] {
+                    if (!kind) {
+                        return _fail_qname(name);
+                    }
+                    if (!held) {
+                        if (const char* wrong = xml_declaration_wrong(name, value)) {
+                            return _fail_xmlns(name, value, wrong);
+                        }
+                    }
                 }
                 // pairwise for a few, through a set for many: a tag of a
                 // hundred thousand attributes read from somewhere is not
@@ -1070,7 +1088,7 @@ namespace sgcl::encoding {
                 out += '"';
             }
 
-            void text(std::string_view t) {
+            void text(std::string_view t) noexcept {
                 if (failure || t.empty()) {
                     return;
                 }
@@ -1082,7 +1100,7 @@ namespace sgcl::encoding {
                 _any = true;
             }
 
-            void cdata(std::string_view t) {
+            void cdata(std::string_view t) noexcept {
                 if (failure) {
                     return;
                 }
@@ -1106,7 +1124,7 @@ namespace sgcl::encoding {
                 _any = true;
             }
 
-            void comment(std::string_view t) {
+            void comment(std::string_view t) noexcept {
                 if (failure) {
                     return;
                 }
@@ -1121,7 +1139,7 @@ namespace sgcl::encoding {
                 _content();
             }
 
-            void instruction(std::string_view target, std::string_view data) {
+            void instruction(std::string_view target, std::string_view data) noexcept {
                 if (failure) {
                     return;
                 }
@@ -1130,6 +1148,9 @@ namespace sgcl::encoding {
                 }
                 if (data.find("?>") != std::string_view::npos) {
                     return _fail(errc::syntax, "an instruction's data cannot hold \"?>\"");
+                }
+                if (!data.empty() && xml_space(data[0])) {
+                    return _fail(errc::syntax, "an instruction's data cannot start with white space");
                 }
                 _close_tag();
                 _break(_open.size());
@@ -1143,7 +1164,7 @@ namespace sgcl::encoding {
                 _content();
             }
 
-            void end() {
+            void end() noexcept {
                 if (failure) {
                     return;
                 }
@@ -1169,7 +1190,7 @@ namespace sgcl::encoding {
                 _content();
             }
 
-            void node(const xml& n);
+            void node(const xml& n) noexcept;
 
             size_t depth() const noexcept {
                 return _open.size();
@@ -1207,20 +1228,46 @@ namespace sgcl::encoding {
                 return a.held ? std::string_view(a.held, a.size) : std::string_view(_attribute_chars.data() + a.at, a.size);
             }
 
-            void _fail(errc code, const std::string& what) {
+            // A mistake of the calls, not of an input text: no place
+            void _fail(errc code, const std::string& what) noexcept {
                 if (!failure) {
-                    failure = error(code, out.size(), string(what));
+                    failure = error(code, 0, string(what));
+                    ErrorAccess::without_place(*failure);
                 }
             }
 
-            void _close_tag() {
+            // A name of start or attribute that is no QName; its text made
+            // out of their line (no copy of the name's view kept on their
+            // stack for it)
+            SGCL_COLD void _fail_qname(std::string_view name) noexcept {
+                _fail(errc::syntax, "'" + std::string(name) + "' is not a qualified name");
+            }
+
+            // A mistake of section 3: an element of the prefix xmlns (no
+            // `wrong`) or a declaration it forbids; its text made out of
+            // the line of start and attribute
+            SGCL_COLD void _fail_xmlns(std::string_view name, std::string_view value, const char* wrong) noexcept {
+                if (!wrong) {
+                    return _fail(errc::syntax, "'" + std::string(name) + "': an element with the prefix xmlns");
+                }
+                _fail(errc::syntax, std::string(name) + "=\"" + std::string(value) + "\": " + wrong);
+            }
+
+            // The text passed the limit: let go, and the writing stops
+            SGCL_COLD void _stop_too_long() noexcept {
+                _fail(errc::out_of_range, "a text longer than a string holds");
+                too_long = true;
+                out.clear();
+            }
+
+            void _close_tag() noexcept {
                 if (_tag_open) {
                     out += '>';
                     _tag_open = false;
                 }
             }
 
-            void _content() {
+            void _content() noexcept {
                 if (!_open.empty()) {
                     _open.back().content = true;
                 }
@@ -1230,9 +1277,12 @@ namespace sgcl::encoding {
             // A new line and the indentation of `level`, where one goes: in
             // an element without text of its own, or between the nodes
             // outside every element
-            void _break(size_t level) {
+            void _break(size_t level) noexcept {
                 if (!_indent) {
                     return;
+                }
+                if (out.size() > limit) [[unlikely]] {
+                    return _stop_too_long();
                 }
                 if (_open.empty() || level == 0) {
                     if (_any) {
@@ -1256,7 +1306,7 @@ namespace sgcl::encoding {
             // normalization as character references, and a character XML
             // cannot hold at all (a control, an invalid byte of UTF-8) as
             // U+FFFD, as Go writes it
-            void _escape(std::string_view t, bool attribute) {
+            void _escape(std::string_view t, bool attribute) noexcept {
                 const char* p = t.data();
                 const char* e = p + t.size();
                 uint8_t plain = attribute ? XmlValue : XmlText;
@@ -1289,7 +1339,7 @@ namespace sgcl::encoding {
 
             // Text written as it is (a comment, an instruction, CDATA), with
             // what XML cannot hold as U+FFFD
-            void _clean(std::string_view t) {
+            void _clean(std::string_view t) noexcept {
                 const char* p = t.data();
                 const char* e = p + t.size();
                 while (p < e) {
@@ -1307,7 +1357,7 @@ namespace sgcl::encoding {
 
             // One character that is a control or not ASCII: as it is when
             // XML holds it, U+FFFD otherwise; the bytes it took
-            size_t _character(const char* p, const char* e) {
+            size_t _character(const char* p, const char* e) noexcept {
                 if (uint8_t(*p) < 0x80) {
                     out += "\xEF\xBF\xBD";
                     return 1;
@@ -1331,6 +1381,17 @@ namespace sgcl::encoding {
             size_t _attribute_count = 0;
             std::unordered_set<std::string> _tag_set;   // past AttributesInline: a tag of many attributes
             friend class XmlLent;
+
+        public:
+            // The longest text the writing may make: a string's, for
+            // to_string. An indented text grows with the square of the
+            // depth (a tree 100000 deep indented by 255 is 1.3e12
+            // characters), so it is measured at every line it begins and the
+            // writing stops once it passes, as at a mistake (too_long). Last
+            // in the object: the members the writing reads at every element
+            // keep their places
+            size_t limit = SIZE_MAX;
+            bool too_long = false;
         };
 
         // The text and the buffers of a one-shot writing (xml::to_string),
@@ -1396,7 +1457,7 @@ namespace sgcl::encoding {
         // A node and everything inside it, walked with a stack of its own
         // rather than recursion: a tree a program built may be deeper than
         // a thread's stack would take
-        inline void XmlOut::node(const xml& root) {
+        inline void XmlOut::node(const xml& root) noexcept {
             struct Item {
                 const XmlElementNode* element;
                 size_t next;
@@ -1416,7 +1477,7 @@ namespace sgcl::encoding {
                     return count <= 32 ? inline_items[count - 1] : deeper[count - 33];
                 }
 
-                void push_back(const Item& i) {
+                void push_back(const Item& i) noexcept {
                     if (count < 32) {
                         inline_items[count] = i;
                     } else {
@@ -1489,52 +1550,59 @@ namespace sgcl::encoding {
     // declarations of its own: an xmlns attribute is an attribute.
     class xml::writer {
     public:
-        explicit writer(const io::writer& out, const style& s = compact)
+        explicit writer(const io::writer& out, const style& s = compact) noexcept
         : _out(out), _core(s.indent) {
             if (s.declaration) {
                 _core.declaration();
             }
         }
 
+        // One writer for its text, as one reader for its document: a copy
+        // would hold the same pending text and write it twice
+        writer(const writer&) = delete;
+        writer& operator=(const writer&) = delete;
+        writer(writer&&) noexcept = default;
+        writer& operator=(writer&&) noexcept = default;
+
         // <?xml version="1.0" encoding="UTF-8"?>: only first
-        writer& declaration() {
+        writer& declaration() noexcept {
             _core.declaration();
             return *this;
         }
 
-        writer& start(const string& name) {
+        writer& start(const string& name) noexcept {
             _core.start(name.view());
             return *this;
         }
 
-        writer& attribute(const string& name, const string& value) {
+        writer& attribute(const string& name, const string& value) noexcept {
             _core.attribute(name.view(), value.view());
             return *this;
         }
 
-        writer& text(const string& t) {
+        writer& text(const string& t) noexcept {
             _core.text(t.view());
             return *this;
         }
 
         // A CDATA section; one holding "]]>" is written as two
-        writer& cdata(const string& t) {
+        writer& cdata(const string& t) noexcept {
             _core.cdata(t.view());
             return *this;
         }
 
-        writer& comment(const string& t) {
+        writer& comment(const string& t) noexcept {
             _core.comment(t.view());
             return *this;
         }
 
-        writer& instruction(const string& target, const string& data = {}) {
+        writer& instruction(const string& target, const string& data = {}) noexcept {
             _core.instruction(target.view(), data.view());
             return *this;
         }
 
         // The end of the element started last
-        writer& end() {
+        writer& end() noexcept {
             _core.end();
             return *this;
         }
@@ -1546,13 +1614,17 @@ namespace sgcl::encoding {
         writer& value(const string& name, const T& v);
 
         // A node of a tree, whole
-        writer& node(const xml& n) {
+        writer& node(const xml& n) noexcept {
             _core.node(n);
             return *this;
         }
 
         const optional<error>& last_error() const noexcept {
-            return _core.failure;
+            // a stream that failed stops the writing through the core's
+            // failure, but is no mistake of the document's: a flush can
+            // fail only when no mistake was made before it
+            static const optional<error> none;   // lint-handles: ok always empty: no word is ever made in it
+            return _failed ? none : _core.failure;
         }
 
         // The elements open
@@ -1561,7 +1633,7 @@ namespace sgcl::encoding {
         }
 
     private:
-        optional<expected<void, io::error>> _before_flush() {
+        optional<expected<void, io::error>> _before_flush() noexcept {
             if (_core.failure) {
                 auto& e = *_core.failure;
                 return expected<void, io::error>(io::detail::fail(e.io_error() ? *e.io_error() : io::error(make_error_code(e.code()), "encode", "xml")));
@@ -1579,6 +1651,19 @@ namespace sgcl::encoding {
             return slice<const byte>(reinterpret_cast<const byte*>(_core.out.data()), _core.out.size());
         }
 
+        // The stream failed for good: the writing stops as at a mistake
+        // (the core's failure, which last_error() does not show), and what
+        // was gathered is let go, so that nothing more is gathered for a
+        // flush that would never write it
+        void _stop(const io::error& e) noexcept {
+            _failed = e;
+            if (!_core.failure) {
+                _core.failure = error(e, 0);
+                detail::ErrorAccess::without_place(*_core.failure);
+            }
+            std::string().swap(_core.out);
+        }
+
     public:
         // Writes what was gathered: the error of the stream, or the first
         // mistake made (errc of the encoding category inside the io::error;
@@ -1590,14 +1675,14 @@ namespace sgcl::encoding {
             auto w = _out.write(_pending());
             _core.out.clear();
             if (!w) {
-                _failed = w.error();
+                _stop(w.error());
                 return io::detail::fail(w);
             }
             return {};
         }
 
         // The same in a task: `co_await w.async_flush()`
-        async::task<expected<void, io::error>> async_flush() {
+        async::task<expected<void, io::error>> async_flush() noexcept {
             if (auto r = _before_flush()) {
                 co_return std::move(*r);
             }
@@ -1607,7 +1692,7 @@ namespace sgcl::encoding {
             _stage.done();
             _core.out.clear();
             if (!w) {
-                _failed = w.error();
+                _stop(w.error());
                 co_return io::detail::fail(w);
             }
             co_return expected<void, io::error>();
@@ -1637,11 +1722,11 @@ namespace sgcl::encoding {
         builder& push_back(const xml& child);
 
         // The element; the builder is left empty, with the same name
-        xml build();
+        xml build() noexcept;
 
     private:
         string _name;
-        vector<struct xml::attribute> _attributes;
+        vector<xml::attr> _attributes;
         vector<xml> _children;
     };
 }
@@ -1656,9 +1741,26 @@ namespace sgcl::encoding {
             }
         }
 
+        // An element's name: a qualified name, not of the prefix xmlns
+        inline void xml_check_element(const string& name) {
+            xml_check_name(name);
+            if (xml_xmlns_element(name.view())) {
+                throw invalid_argument("sgcl::encoding::xml: '" + std::string(name.view()) + "': an element with the prefix xmlns");
+            }
+        }
+
+        // An attribute: a qualified name, and a namespace declaration
+        // section 3 of Namespaces in XML lets a document hold
+        inline void xml_check_attribute(const string& name, const string& value) {
+            xml_check_name(name);
+            if (const char* wrong = xml_declaration_wrong(name.view(), value.view())) {
+                throw invalid_argument("sgcl::encoding::xml: " + std::string(name.view()) + "=\"" + std::string(value.view()) + "\": " + wrong);
+            }
+        }
+
         // The namespace a new attribute's prefix stands for, as far as the
         // element itself tells: its own declarations and its own prefix
-        inline string xml_attribute_namespace(std::string_view name, const XmlElementNode* e) {
+        inline string xml_attribute_namespace(std::string_view name, const XmlElementNode* e) noexcept {
             if (name == "xmlns" || name.starts_with("xmlns:")) {
                 return string(XmlnsNamespace);
             }
@@ -1684,7 +1786,40 @@ namespace sgcl::encoding {
             return string();
         }
 
-        inline tracked_ptr<XmlElementNode> xml_element_copy(const XmlElementNode& from) {
+        // A namespace declaration: xmlns, xmlns:p
+        inline bool xml_declaration(std::string_view name) noexcept {
+            return name == "xmlns" || name.starts_with("xmlns:");
+        }
+
+        // The namespace the element's own declaration (the attribute
+        // `declaration`, or none when it is gone) gives its prefix, put on
+        // the element when its name has that prefix (or none, for xmlns)
+        // and on its attributes of that prefix: what a parse gives an
+        // element that declares it, as far as the element tells
+        inline void xml_bind(XmlElementNode& e, std::string_view declaration) noexcept {
+            std::string_view prefix = declaration.size() > 6 ? declaration.substr(6) : std::string_view();
+            string uri;
+            for (auto& a : e.attributes) {
+                if (a.name.view() == declaration) {
+                    uri = a.value;
+                    break;
+                }
+            }
+            auto c = e.name.view().find(':');
+            if ((c == std::string_view::npos ? std::string_view() : e.name.view().substr(0, c)) == prefix) {
+                e.uri = uri;
+            }
+            if (!prefix.empty()) {
+                for (auto& a : e.attributes) {
+                    auto ac = a.name.view().find(':');
+                    if (ac != std::string_view::npos && a.name.view().substr(0, ac) == prefix) {
+                        a.namespace_uri = uri;
+                    }
+                }
+            }
+        }
+
+        inline tracked_ptr<XmlElementNode> xml_element_copy(const XmlElementNode& from) noexcept {
             auto e = make_tracked<XmlElementNode>();
             e->kind = uint8_t(xml::kind::element);
             e->name = from.name;
@@ -1695,7 +1830,7 @@ namespace sgcl::encoding {
     }
 
     inline xml::xml(const string& name) {
-        detail::xml_check_name(name);
+        detail::xml_check_element(name);
         auto e = make_tracked<detail::XmlElementNode>();
         e->kind = uint8_t(kind::element);
         e->name = name;
@@ -1714,14 +1849,14 @@ namespace sgcl::encoding {
         }
     }
 
-    inline xml xml::comment_of(const string& text) {
+    inline xml xml::comment_of(const string& text) noexcept {
         auto n = make_tracked<detail::XmlTextNode>();
         n->kind = uint8_t(kind::comment);
         n->text = text;
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
     }
 
-    inline xml xml::instruction_of(const string& target, const string& data) {
+    inline xml xml::instruction_of(const string& target, const string& data) noexcept {
         auto n = make_tracked<detail::XmlInstructionNode>();
         n->kind = uint8_t(kind::instruction);
         n->target = target;
@@ -1729,7 +1864,7 @@ namespace sgcl::encoding {
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
     }
 
-    inline xml xml::text_node(const string& text) {
+    inline xml xml::text_node(const string& text) noexcept {
         auto n = make_tracked<detail::XmlTextNode>();
         n->kind = uint8_t(kind::text);
         n->text = text;
@@ -1754,6 +1889,9 @@ namespace sgcl::encoding {
         }
         if (data.view().find("?>") != std::string_view::npos) {
             throw invalid_argument("sgcl::encoding::xml: an instruction's data cannot hold \"?>\"");
+        }
+        if (!data.empty() && detail::xml_space(data.view()[0])) {
+            throw invalid_argument("sgcl::encoding::xml: an instruction's data cannot start with white space");
         }
         auto n = make_tracked<detail::XmlInstructionNode>();
         n->kind = uint8_t(kind::instruction);
@@ -1797,7 +1935,7 @@ namespace sgcl::encoding {
         return qname == wanted;
     }
 
-    inline optional<string> xml::attribute(const string& name) const {
+    inline optional<string> xml::attribute(const string& name) const noexcept {
         auto e = detail::xml_element(_node);
         if (!e) {
             return nullopt;
@@ -1812,9 +1950,9 @@ namespace sgcl::encoding {
         return nullopt;
     }
 
-    inline slice<const struct xml::attribute> xml::attributes() const noexcept {
+    inline slice<const xml::attr> xml::attributes() const noexcept {
         auto e = detail::xml_element(_node);
-        return e ? e->attributes.as_slice() : slice<const struct xml::attribute>();
+        return e ? e->attributes.as_slice() : slice<const xml::attr>();
     }
 
     inline slice<const xml> xml::children() const noexcept {
@@ -1822,7 +1960,7 @@ namespace sgcl::encoding {
         return e ? e->children.as_slice() : slice<const xml>();
     }
 
-    inline xml xml::child(const string& name) const {
+    inline xml xml::child(const string& name) const noexcept {
         auto e = detail::xml_element(_node);
         if (!e) {
             return xml();
@@ -1836,13 +1974,13 @@ namespace sgcl::encoding {
         return xml();
     }
 
-    inline generator<xml> xml::children(const string& name) const {
+    inline generator<xml> xml::children(const string& name) const noexcept {
         // the node and the name by value, into the frame: the body runs
         // later, when the caller's temporaries are gone
         return _children(*this, name);
     }
 
-    inline generator<xml> xml::_children(xml self, string wanted) {
+    inline generator<xml> xml::_children(xml self, string wanted) noexcept {
         auto e = detail::xml_element(self._node);
         if (!e) {
             co_return;
@@ -1905,7 +2043,7 @@ namespace sgcl::encoding {
         if (!e) {
             throw invalid_argument("sgcl::encoding::xml::set: not an element");
         }
-        detail::xml_check_name(name);
+        detail::xml_check_attribute(name, value);
         auto n = detail::xml_element_copy(*e);
         size_t count = e->attributes.size();
         size_t at = count;
@@ -1915,7 +2053,7 @@ namespace sgcl::encoding {
                 break;
             }
         }
-        n->attributes = dynamic_array<struct attribute>(at == count ? count + 1 : count);
+        n->attributes = dynamic_array<attr>(at == count ? count + 1 : count);
         for (size_t k = 0; k < count; ++k) {
             n->attributes[k] = e->attributes[k];
         }
@@ -1923,6 +2061,9 @@ namespace sgcl::encoding {
             n->attributes[at] = {name, value, detail::xml_attribute_namespace(name.view(), e)};
         } else {
             n->attributes[at].value = value;
+        }
+        if (detail::xml_declaration(name.view())) {
+            detail::xml_bind(*n, name.view());
         }
         n->children = e->children;
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
@@ -1946,12 +2087,15 @@ namespace sgcl::encoding {
         }
         auto n = detail::xml_element_copy(*e);
         if (count > 1) {
-            n->attributes = dynamic_array<struct attribute>(count - 1);
+            n->attributes = dynamic_array<attr>(count - 1);
             for (size_t k = 0, o = 0; k < count; ++k) {
                 if (k != at) {
                     n->attributes[o++] = e->attributes[k];
                 }
             }
+        }
+        if (detail::xml_declaration(name.view())) {
+            detail::xml_bind(*n, name.view());
         }
         n->children = e->children;
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
@@ -1979,14 +2123,18 @@ namespace sgcl::encoding {
     inline string xml::to_string(const style& s) const {
         detail::XmlOut o(s.indent);
         detail::XmlLent lent(o);   // the thread's buffers: nothing allocated but the string
+        o.limit = string::max_size();
         if (s.declaration) {
             o.declaration();
         }
         o.node(*this);
+        if (o.too_long) {
+            throw length_error("sgcl::encoding::xml: a text longer than a string can hold");
+        }
         return string(std::string_view(o.out));
     }
 
-    inline bool xml::_equal(const xml& a, const xml& b) {
+    inline bool xml::_equal(const xml& a, const xml& b) noexcept {
         std::vector<std::pair<const xml*, const xml*>> work{{&a, &b}};
         while (!work.empty()) {
             auto [x, y] = work.back();
@@ -2037,14 +2185,14 @@ namespace sgcl::encoding {
                             }
                         }
                     } else {
-                        std::vector<const struct attribute*> pa, qa;
+                        std::vector<const attr*> pa, qa;
                         for (auto& t : p->attributes) {
                             pa.push_back(&t);
                         }
                         for (auto& t : q->attributes) {
                             qa.push_back(&t);
                         }
-                        auto by_name = [](const struct attribute* l, const struct attribute* r) { return l->name.view() < r->name.view(); };
+                        auto by_name = [](const attr* l, const attr* r) { return l->name.view() < r->name.view(); };
                         std::sort(pa.begin(), pa.end(), by_name);
                         std::sort(qa.begin(), qa.end(), by_name);
                         for (size_t k = 0; k < n; ++k) {
@@ -2087,7 +2235,7 @@ namespace sgcl::encoding {
         return parse(in, options());
     }
 
-    inline async::task<expected<xml, xml::error>> xml::async_parse(const io::reader& in) {
+    inline async::task<expected<xml, xml::error>> xml::async_parse(const io::reader& in) noexcept {
         return async_parse(in, options());
     }
 
@@ -2101,7 +2249,7 @@ namespace sgcl::encoding {
         return _parse_with(r);
     }
 
-    inline async::task<expected<xml, xml::error>> xml::async_parse(io::reader in, options o) {
+    inline async::task<expected<xml, xml::error>> xml::async_parse(io::reader in, options o) noexcept {
         reader r(std::move(in), o);
         xml root;
         while (auto n = co_await r.async_read()) {
@@ -2117,11 +2265,11 @@ namespace sgcl::encoding {
 
     inline xml::builder::builder(const string& name)
     : _name(name) {
-        detail::xml_check_name(name);
+        detail::xml_check_element(name);
     }
 
     inline xml::builder& xml::builder::set(const string& name, const string& value) {
-        detail::xml_check_name(name);
+        detail::xml_check_attribute(name, value);
         for (auto& a : _attributes) {
             if (a.name == name) {
                 a.value = value;
@@ -2140,13 +2288,18 @@ namespace sgcl::encoding {
         return *this;
     }
 
-    inline xml xml::builder::build() {
+    inline xml xml::builder::build() noexcept {
         xml base(_name);
         auto e = static_pointer_cast<detail::XmlElementNode>(const_pointer_cast<detail::XmlNode>(base._node));
         if (!_attributes.empty()) {
-            e->attributes = dynamic_array<struct xml::attribute>(_attributes.begin(), _attributes.end());
+            e->attributes = dynamic_array<xml::attr>(_attributes.begin(), _attributes.end());
             for (auto& a : e->attributes) {
                 a.namespace_uri = detail::xml_attribute_namespace(a.name.view(), e.get());
+            }
+            for (auto& a : _attributes) {
+                if (detail::xml_declaration(a.name.view())) {
+                    detail::xml_bind(*e, a.name.view());
+                }
             }
         }
         if (!_children.empty()) {
@@ -2165,7 +2318,7 @@ namespace sgcl::encoding {
 
 namespace sgcl::encoding {
     namespace detail {
-        inline async::task<expected<void, xml::error>> xml_save_task(string path, xml value) {
+        inline async::task<expected<void, xml::error>> xml_save_task(string path, xml value) noexcept {
             co_return co_await async::spawn_blocking([path, value] { return value.save(path); });
         }
     }
@@ -2179,12 +2332,12 @@ namespace sgcl::encoding {
         return detail::with_file(path, [](const io::reader& in) { return xml::parse<T>(in); });
     }
 
-    inline async::task<expected<xml, xml::error>> xml::async_load(string path) {
+    inline async::task<expected<xml, xml::error>> xml::async_load(string path) noexcept {
         co_return co_await async::spawn_blocking([path] { return xml::load(path); });
     }
 
     template<class T>
-    async::task<expected<T, xml::error>> xml::async_load(string path) {
+    async::task<expected<T, xml::error>> xml::async_load(string path) noexcept {
         co_return co_await async::spawn_blocking([path] { return xml::load<T>(path); });
     }
 
@@ -2198,7 +2351,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<expected<void, xml::error>> xml::async_save(string path, string name, T value) {
+    async::task<expected<void, xml::error>> xml::async_save(string path, string name, T value) noexcept(std::is_nothrow_move_constructible_v<T>) {
         co_return co_await async::spawn_blocking([path, name, value] { return xml::save(path, name, value); });
     }
 
@@ -2206,7 +2359,7 @@ namespace sgcl::encoding {
         return detail::save_text(path, to_string());
     }
 
-    inline async::task<expected<void, xml::error>> xml::async_save(string path) const {
+    inline async::task<expected<void, xml::error>> xml::async_save(string path) const noexcept {
         return detail::xml_save_task(std::move(path), *this);
     }
 }

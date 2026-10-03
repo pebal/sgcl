@@ -107,3 +107,28 @@ TEST(When_Test, WhenAnyRethrowsTheWinners) {
     std::this_thread::sleep_for(100ms);
     sgcl::async::scheduler::stop();
 }
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+}
+
+// when_all run by hand with the workers stopped: the start of a task it
+// awaits has to start the workers, and when it cannot, the
+// std::system_error is when_all's (not std::terminate)
+TEST(When_Test, AWhenAllThatCannotStartATaskThrowsIt) {
+    sgcl::async::scheduler::stop();
+    sgcl::vector<sgcl::async::task<int>> tasks;
+    tasks.push_back([]() -> sgcl::async::task<int> { co_return 1; }());
+    tasks.push_back([]() -> sgcl::async::task<int> { co_return 2; }());
+    auto all = sgcl::async::when_all(std::move(tasks));
+    sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    all.resume();                                              // by hand: its first await starts the first task
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    ASSERT_TRUE(all.done());
+    EXPECT_THROW(all.result(), std::system_error);
+    sgcl::async::scheduler::stop();
+}

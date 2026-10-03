@@ -109,25 +109,28 @@ namespace sgcl::async {
             return (bool)_s;
         }
 
-        // The channel closed by the stop: a case of a select, or a wait; a
-        // handle to the channel inside the stop's state, which it keeps
-        async::channel<void> channel() const noexcept {
+        // The channel closed by the stop, from its receiving end: a case
+        // of a select, or a wait; a handle to the channel inside the
+        // stop's state, which it keeps. Receive-only: a close of it would
+        // read as a stop that stopped neither the children nor the
+        // deadline, and a send would wake a task in stopped() with no stop
+        receive_channel<void> channel() const noexcept {
             assert(_s && "an empty stop_token has no channel: stop_possible() says");
             return detail::ChannelAccess::make(tracked_ptr<detail::ChannelState<void>>(&_s->signal));
         }
 
         // The case of a select served by the stop: `token.on_stop([&] { running = false; })`
         template<class F>
-        auto on_stop(F f) const {
+        auto on_stop(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             assert(_s && "an empty stop_token has no case: stop_possible() says");
             return _s->signal.on_receive(std::move(f));
         }
 
         // Waits for the stop, and gives nothing: `co_await token.stopped()`
         // in a task, `token.stopped().wait()` on a thread
-        auto stopped() const {
+        auto stopped() const noexcept {
             assert(_s && "an empty stop_token has nothing to await: stop_possible() says");
-            return operation([s = _s](auto how) -> decltype(auto) {
+            return detail::make_operation([s = _s](auto how) -> decltype(auto) {
                 if constexpr (detail::is_awaited<decltype(how)>) {
                     return stop_wait(s->signal);
                 } else {
@@ -181,7 +184,7 @@ namespace sgcl::async {
 
     class stop_source {
     public:
-        stop_source()
+        stop_source() noexcept
         : _s(make_tracked<detail::StopState>()) {
             _s->link();   // before the state is given to anyone
         }

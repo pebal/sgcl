@@ -168,7 +168,11 @@ TEST(Rooted_Tests, InAStdContainer) {
     });
     settle();
     EXPECT_EQ(Node::alive.load(), 3);
-    EXPECT_EQ((*v)[2]->value, 2);
+    // read in a frame of its own: the address of the node would stay in this
+    // frame's spill slots (Debug, TSan), which the conservative scan reads
+    off_frame([&] {
+        EXPECT_EQ((*v)[2]->value, 2);
+    });
     delete v;
     settle();
     EXPECT_EQ(Node::alive.load(), 0);

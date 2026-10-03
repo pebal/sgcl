@@ -5,8 +5,10 @@
 //------------------------------------------------------------------------------
 #include "sgcl/core/forward_list.h"
 #include "tests/types.h"
+#include "tests/containers/boundary.h"
 
 #include <algorithm>
+#include <atomic>
 #include <forward_list>
 #include <iterator>
 #include <random>
@@ -23,6 +25,14 @@ static_assert(std::ranges::forward_range<const sgcl::forward_list<int>>);
 static_assert(std::is_trivially_copyable_v<sgcl::forward_list<int>::iterator>);
 static_assert(std::is_trivially_copyable_v<sgcl::forward_list<int>::const_iterator>);
 static_assert(std::is_nothrow_default_constructible_v<sgcl::forward_list<int>::iterator>);
+// Running out of memory ends the program: an insertion throws only what
+// the element's construction throws (DESIGN 356)
+static_assert(noexcept(std::declval<sgcl::forward_list<int>&>().push_front(1)));
+static_assert(noexcept(std::declval<sgcl::forward_list<int>&>().insert_after(std::declval<sgcl::forward_list<int>&>().cbefore_begin(), 3, 1)));
+static_assert(noexcept(std::declval<sgcl::forward_list<int>&>().erase_after(std::declval<sgcl::forward_list<int>&>().cbefore_begin())));
+static_assert(noexcept(std::declval<sgcl::forward_list<int>&>().resize(4)));
+static_assert(noexcept(std::declval<sgcl::forward_list<std::string>&>().push_front(std::string())));
+static_assert(!noexcept(std::declval<sgcl::forward_list<std::string>&>().push_front(std::declval<const std::string&>())));
 static_assert(sizeof(sgcl::forward_list<int>::iterator) == sizeof(void*));
 
 namespace {
@@ -658,6 +668,35 @@ TEST(ForwardList_Test, RemoveAndUnique) {
     EXPECT_EQ(collector::get_live_object_count(), 4u);
 }
 
+// The value may be an element of the list: it is read for every comparison
+// and removed last. The destructor marks the element dead, so that a
+// comparison against a destroyed one shows.
+namespace {
+    struct Marked {
+        std::atomic<int> v;
+        Marked(int x) noexcept : v(x) {}
+        Marked(const Marked& o) noexcept : v(o.v.load()) {}
+        Marked& operator=(const Marked& o) noexcept { v.store(o.v.load()); return *this; }
+        ~Marked() { v.store(-1); }
+        bool operator==(const Marked& o) const noexcept { return v.load() == o.v.load(); }
+    };
+}
+
+TEST(ForwardList_Test, RemoveOwnElement) {
+    sgcl::forward_list<Marked> lst({1, 2, 1, 1});
+    EXPECT_EQ(lst.remove(lst.front()), 3u);
+    ASSERT_FALSE(lst.empty());
+    EXPECT_EQ(lst.front().v.load(), 2);
+    EXPECT_EQ(std::next(lst.begin()), lst.end());
+    sgcl::forward_list<Marked> tail({3, 1, 1, 2, 1});
+    EXPECT_EQ(tail.remove(*std::next(tail.begin(), 2)), 3u);   // an element whose predecessor goes first
+    std::vector<int> left;
+    for (const Marked& m : tail) {
+        left.push_back(m.v.load());
+    }
+    EXPECT_EQ(left, (std::vector<int>{3, 2}));
+}
+
 TEST(ForwardList_Test, Reverse) {
     sgcl::forward_list<Int> lst;
     lst.reverse();
@@ -1149,4 +1188,245 @@ TEST(ForwardList_Test, AnEmptyListAllocatesNothing) {
     a.pop_front();
     EXPECT_EQ(a.front(), 3);
     EXPECT_EQ(std::distance(a.begin(), a.end()), 3);
+}
+
+// The count constructors and the free erase and erase_if are as noexcept
+// as what they do: the element's construction, its == with the value, the
+// predicate's copy and call (they were potentially-throwing for every T).
+// The edges: a count of zero, a copy that throws half-way (the elements
+// made before it destroyed, nothing left alive), an empty list, a value
+// that is no element's, a value that is the list's own element.
+namespace {
+    struct CopyMayThrowF {
+        static inline int alive = 0;
+        static inline int fail_at = 0;               // the copy that throws, counted down; 0: none
+        int v = 0;
+
+        CopyMayThrowF(int value = 0) noexcept : v(value) { ++alive; }
+        CopyMayThrowF(const CopyMayThrowF& other) : v(other.v) {
+            if (fail_at && --fail_at == 0) {
+                throw std::runtime_error("copy");
+            }
+            ++alive;
+        }
+        ~CopyMayThrowF() { --alive; }
+        CopyMayThrowF& operator=(const CopyMayThrowF&) = default;
+        bool operator==(const CopyMayThrowF& other) const { return v == other.v; }   // may throw, as far as noexcept says
+    };
+}
+
+TEST(ForwardList_Test, CountConstructorsAndFreeEraseNoexceptAndEdges) {
+    using Ints = sgcl::forward_list<int>;
+    using Values = sgcl::forward_list<CopyMayThrowF>;
+    static_assert(std::is_nothrow_constructible_v<Ints, size_t>);
+    static_assert(std::is_nothrow_constructible_v<Ints, size_t, const int&>);
+    static_assert(std::is_nothrow_constructible_v<Values, size_t>);   // the default constructor cannot throw
+    static_assert(!std::is_nothrow_constructible_v<Values, size_t, const CopyMayThrowF&>);
+    Ints ints = {1, 2, 1, 3};
+    Values values;
+    auto odd = [](int x) noexcept { return x % 2 == 1; };
+    auto odd_may_throw = [](int x) { return x % 2 == 1; };
+    static_assert(noexcept(erase(ints, 1)));
+    static_assert(noexcept(erase_if(ints, odd)));
+    static_assert(!noexcept(erase_if(ints, odd_may_throw)));
+    static_assert(!noexcept(erase(values, CopyMayThrowF(1))));   // its == is not noexcept
+
+    EXPECT_TRUE(Ints(0).empty());
+    EXPECT_TRUE(Ints(0, 7).empty());
+    EXPECT_EQ(std::ranges::distance(Ints(3)), 3);
+
+    CopyMayThrowF seed(5);
+    for (int k : {1, 2, 3}) {
+        CopyMayThrowF::fail_at = k;
+        EXPECT_THROW(Values(3, seed), std::runtime_error);
+        EXPECT_EQ(CopyMayThrowF::alive, 1);       // the seed alone: what was made is destroyed
+    }
+    CopyMayThrowF::fail_at = 0;
+    {
+        Values three(3, seed);
+        EXPECT_EQ(CopyMayThrowF::alive, 4);
+    }
+    EXPECT_EQ(CopyMayThrowF::alive, 1);
+
+    Ints none;
+    EXPECT_EQ(erase(none, 1), 0u);
+    EXPECT_EQ(erase_if(none, odd), 0u);
+    EXPECT_EQ(erase(ints, 9), 0u);
+    EXPECT_EQ(erase(ints, ints.front()), 2u);           // the list's own element as the value
+    EXPECT_EQ(erase_if(ints, odd), 1u);
+    EXPECT_EQ(std::ranges::distance(ints), 1);
+    EXPECT_EQ(ints.front(), 2);
+}
+
+// Boundaries (DESIGN 408)
+
+// A count no memory holds: no length_error (max_size() is a bound, as
+// std's), the nodes are made until the heap refuses one
+TEST(ForwardList_Test, ACountNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    auto resize = [] {
+        collector::set_memory_limit(collector::get_committed_memory() + (size_t(64) << 20));   // refused at 64 MB more
+        sgcl::forward_list<int> l;
+        l.resize(SIZE_MAX, 1);
+    };
+    EXPECT_DEATH(resize(), "sgcl: out of managed memory");
+    EXPECT_EQ(sgcl::forward_list<char>().max_size(), size_t(PTRDIFF_MAX));
+}
+
+namespace {
+    // Every member on an empty list (default, moved from, of no element)
+    template<class T>
+    void expect_forward_list_works_empty(sgcl::forward_list<T>& l, const T& value) {
+        EXPECT_TRUE(l.empty());
+        EXPECT_EQ(l.begin(), l.end());
+        EXPECT_EQ(std::next(l.before_begin()), l.end());
+        EXPECT_EQ(l.erase_after(l.before_begin()), l.end());
+        EXPECT_EQ(l.erase_after(l.before_begin(), l.end()), l.end());
+        EXPECT_EQ(l.remove(value), 0u);
+        EXPECT_EQ(l.remove_if([](const T&) { return true; }), 0u);
+        EXPECT_EQ(l.unique(), 0u);
+        EXPECT_EQ(sgcl::erase(l, value), 0u);
+        l.sort();
+        l.reverse();
+        l.resize(0);
+        l.assign(0, value);
+        EXPECT_TRUE(l == sgcl::forward_list<T>());
+        EXPECT_FALSE(l < sgcl::forward_list<T>());
+        sgcl::forward_list<T> copy(l);
+        EXPECT_TRUE(copy.empty());
+        sgcl::forward_list<T> other = {value};
+        l.merge(other);
+        EXPECT_FALSE(l.empty());
+        other.splice_after(other.before_begin(), l);
+        EXPECT_TRUE(l.empty());
+        l.splice_after(l.before_begin(), other, other.before_begin());
+        EXPECT_FALSE(l.empty());
+        l.swap(other);
+        EXPECT_TRUE(l.empty());
+        l.clear();
+        l.push_front(value);
+        l.pop_front();
+        EXPECT_TRUE(l.empty());
+    }
+}
+
+TEST(ForwardList_Test, MovedFromAndDefaultWorkAsEmpty) {
+    sgcl::forward_list<std::string> l = {"a", "b"};
+    sgcl::forward_list<std::string> to(std::move(l));
+    EXPECT_FALSE(to.empty());
+    expect_forward_list_works_empty(l, std::string("x"));
+    sgcl::forward_list<std::string> assigned = {"c"};
+    assigned = std::move(to);
+    EXPECT_EQ(std::distance(assigned.begin(), assigned.end()), 2);
+    expect_forward_list_works_empty(to, std::string("y"));
+    sgcl::forward_list<int> none(0);
+    expect_forward_list_works_empty(none, 1);
+    sgcl::forward_list<int> none_of(0, 3);
+    expect_forward_list_works_empty(none_of, 1);
+}
+
+// The list on both sides: a copy and a move assignment to itself, swap,
+// merge and splice of itself keep its nodes; a splice of its own element
+// after itself or after the one before it changes nothing
+TEST(ForwardList_Test, AListOnBothSidesKeepsItself) {
+    sgcl::forward_list<std::string> l = {"one", "two", "three"};
+    const auto before = l;
+    auto first = l.begin();
+    auto& self = l;
+    l = self;
+    l = std::move(self);
+    l.swap(self);
+    swap(l, self);
+    l.merge(self);
+    l.merge(std::move(self), std::greater<>());
+    l.splice_after(l.before_begin(), self);
+    EXPECT_EQ(l, before);
+    EXPECT_EQ(l.begin(), first);
+    l.splice_after(first, self, l.before_begin());   // "one" after itself
+    l.splice_after(l.before_begin(), self, l.before_begin());   // after the one before it
+    EXPECT_EQ(l, before);
+    l.splice_after(l.before_begin(), self, first);   // "two" to the front
+    EXPECT_EQ(l, (sgcl::forward_list<std::string>{"two", "one", "three"}));
+    l.splice_after(l.before_begin(), self, l.before_begin(), l.begin());   // an empty range
+    EXPECT_EQ(l.front(), "two");
+}
+
+// erase(l, value) with an element of l as the value: it went through
+// remove_if, which destroyed that element and compared the rest with it;
+// it now goes through remove, which erases that element last
+TEST(ForwardList_Test, EraseOfAValueThatIsAnElement) {
+    using boundary::Poisoned;
+    sgcl::forward_list<Poisoned> l = {1, 2, 1, 3, 1};
+    EXPECT_EQ(sgcl::erase(l, l.front()), 3u);
+    EXPECT_EQ(l, (sgcl::forward_list<Poisoned>{2, 3}));
+    sgcl::forward_list<Poisoned> m = {4, 4};
+    EXPECT_EQ(std::erase(m, *std::next(m.begin())), 2u);
+    EXPECT_TRUE(m.empty());
+}
+
+// The list's own element as the argument: assign and resize of copies of
+// an element, shrinking past it and growing; insertions of an element
+// after itself
+TEST(ForwardList_Test, ItsOwnElementAsTheArgument) {
+    using boundary::Poisoned;
+    sgcl::forward_list<Poisoned> l = {1, 2, 3, 4};
+    l.assign(2, *std::next(l.begin(), 3));
+    EXPECT_EQ(l, (sgcl::forward_list<Poisoned>{4, 4}));
+    l.assign(4, *std::next(l.begin()));
+    EXPECT_EQ(l, (sgcl::forward_list<Poisoned>{4, 4, 4, 4}));
+    l.front() = 1;
+    l.resize(6, l.front());
+    EXPECT_EQ(*std::next(l.begin(), 5), Poisoned(1));
+    l.resize(1, *std::next(l.begin(), 5));
+    EXPECT_EQ(l, (sgcl::forward_list<Poisoned>{1}));
+    l.insert_after(l.begin(), l.front());
+    l.emplace_after(l.begin(), l.front());
+    l.insert_after(l.before_begin(), 2, l.front());
+    EXPECT_EQ(l, (sgcl::forward_list<Poisoned>{1, 1, 1, 1, 1}));
+    EXPECT_EQ(l.unique(), 4u);
+    EXPECT_EQ(l.remove(l.front()), 1u);
+    EXPECT_TRUE(l.empty());
+}
+
+// One element and empty ranges: an empty range erased after any node, an
+// insertion of nothing returning its position, erase_after the last node
+TEST(ForwardList_Test, OneElementAndEmptyRanges) {
+    sgcl::forward_list<int> l = {5};
+    EXPECT_EQ(l.erase_after(l.begin()), l.end());   // nothing after the last
+    EXPECT_EQ(l.erase_after(l.before_begin(), l.begin()), l.begin());
+    EXPECT_EQ(l.erase_after(l.begin(), l.end()), l.end());
+    std::vector<int> none;
+    EXPECT_EQ(l.insert_after(l.begin(), none.begin(), none.end()), l.begin());
+    EXPECT_EQ(l.insert_after(l.before_begin(), 0, 1), l.before_begin());
+    l.sort();
+    l.reverse();
+    EXPECT_EQ(l.unique(), 0u);
+    EXPECT_EQ(l.front(), 5);
+    EXPECT_EQ(std::next(l.begin()), l.end());
+    l.pop_front();
+    EXPECT_TRUE(l.empty());
+}
+
+// The iterators as the page states them: insertions keep all, erasures
+// keep the others, merge and splice take an iterator along with its node,
+// before_begin() is the list object's own and end() is null
+TEST(ForwardList_Test, IteratorsAsThePageStatesThem) {
+    sgcl::forward_list<int> l = {1, 2, 3};
+    auto two = std::next(l.begin());
+    auto bb = l.before_begin();
+    l.push_front(0);
+    l.insert_after(two, 9);
+    l.erase_after(l.begin());   // the 1
+    EXPECT_EQ(*two, 2);
+    EXPECT_EQ(bb, l.before_begin());
+    sgcl::forward_list<int> a = {1, 3};
+    sgcl::forward_list<int> b = {2, 4};
+    auto b_two = b.begin();
+    a.merge(b);
+    EXPECT_EQ(std::next(a.begin()), b_two);
+    sgcl::forward_list<int> moved(std::move(a));
+    EXPECT_EQ(std::next(moved.begin()), b_two);
+    EXPECT_NE(moved.before_begin(), a.before_begin());   // each object's own sentinel
+    EXPECT_EQ(a.begin(), a.end());
+    EXPECT_EQ(moved.end(), sgcl::forward_list<int>::iterator());
 }

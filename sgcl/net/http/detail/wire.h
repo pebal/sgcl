@@ -38,7 +38,7 @@ namespace sgcl::net::http::detail {
     // connection after a head: what hijack hands over.
     class Wire final : public io::mixin::reader<Wire> {
     public:
-        explicit Wire(const net::connection& c)
+        explicit Wire(const net::connection& c) noexcept
         : _c(c), _data(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _cap(config::io_buffer_size) {
         }
 
@@ -70,7 +70,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Room for at least n bytes buffered (HTTP/2: a frame whole)
-        void reserve(size_t n) {
+        void reserve(size_t n) noexcept {
             if (n > _cap) {
                 _grow(n);
             }
@@ -89,7 +89,7 @@ namespace sgcl::net::http::detail {
 
         // More bytes from the connection into the buffer: how many, 0 at
         // the end of the stream
-        async::task<expected<size_t, io::error>> fill() {
+        async::task<expected<size_t, io::error>> fill() noexcept {
             if (_end == _cap) {
                 if (_begin == 0) {
                     co_return size_t(0);   // full: the caller's limit decides
@@ -163,7 +163,7 @@ namespace sgcl::net::http::detail {
         // string of its size, the empty lines before it skipped; nullopt
         // when the stream ended before a byte of it; header_too_large past
         // max bytes; io::errc::unexpected_eof when it ended inside
-        async::task<expected<optional<string>, io::error>> read_head(size_t max) {
+        async::task<expected<optional<string>, io::error>> read_head(size_t max) noexcept {
             size_t searched = 0;
             for (;;) {
                 size_t skip = leading_empty_lines(reinterpret_cast<const char*>(_data.get()) + _begin, buffered());
@@ -225,7 +225,7 @@ namespace sgcl::net::http::detail {
             return async_read(out).wait();
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             if (out.empty()) {
                 co_return size_t(0);
             }
@@ -249,7 +249,7 @@ namespace sgcl::net::http::detail {
         }
 
         // A buffer of at least `want` bytes, the buffered ones moved in
-        void _grow(size_t want) {
+        void _grow(size_t want) noexcept {
             if (want <= _cap) {
                 _compact();
                 return;
@@ -280,7 +280,7 @@ namespace sgcl::net::http::detail {
             return size_t(0);
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte>) const {
+        async::task<expected<size_t, io::error>> async_read(slice<byte>) const noexcept {
             co_return size_t(0);
         }
     };
@@ -301,7 +301,7 @@ namespace sgcl::net::http::detail {
     // no connection to drain.
     class Body : public io::mixin::reader<Body> {
     public:
-        Body(tracked_ptr<Wire> wire, BodyFraming framing, uint64_t limit, bool response)
+        Body(tracked_ptr<Wire> wire, BodyFraming framing, uint64_t limit, bool response) noexcept
         : _wire(std::move(wire)), _framing(framing), _limit(limit), _response(response) {
             _remaining = framing.length;
             if (framing.kind == Framing::none) {
@@ -312,7 +312,7 @@ namespace sgcl::net::http::detail {
         // The body of an HTTP/2 stream; its content-length, when the head
         // gave one, lets read_everything read it straight into a vector
         // of its size (as a body of HTTP/1.1 with a length)
-        Body(tracked_ptr<h2::StreamState> stream, uint64_t limit, bool response, optional<uint64_t> length = nullopt)
+        Body(tracked_ptr<h2::StreamState> stream, uint64_t limit, bool response, optional<uint64_t> length = nullopt) noexcept
         : _framing{length ? Framing::length : Framing::until_close, length ? *length : 0}, _limit(limit), _response(response), _h2(std::move(stream)) {
             _remaining = _framing.length;
         }
@@ -321,7 +321,7 @@ namespace sgcl::net::http::detail {
             return async_read(out).wait();
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             if (_failed) {
                 co_return fail(*_failed);
             }
@@ -363,7 +363,7 @@ namespace sgcl::net::http::detail {
         // declared read straight into the string's object, of its size;
         // any other body gathered and copied once into a string of its
         // size (a vector first and a string of it was two of each)
-        async::task<expected<string, io::error>> read_text() {
+        async::task<expected<string, io::error>> read_text() noexcept {
             static constexpr uint64_t ExactUpTo = uint64_t(1) << 20;
             if (_framing.kind == Framing::length && _read_total == 0 && !_done && _framing.length && _framing.length <= ExactUpTo) {
                 const size_t n = static_cast<size_t>(_framing.length);
@@ -402,7 +402,7 @@ namespace sgcl::net::http::detail {
             }
         }
 
-        async::task<expected<vector<byte>, io::error>> read_everything() {
+        async::task<expected<vector<byte>, io::error>> read_everything() noexcept {
             static constexpr uint64_t ExactUpTo = uint64_t(1) << 20;
             if (_framing.kind == Framing::length && _read_total == 0 && !_done && _framing.length && _framing.length <= ExactUpTo) {
                 vector<byte> all(static_cast<size_t>(_framing.length));
@@ -472,7 +472,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Called once, before the first read: the server's 100 Continue
-        void set_before_first_read(function<async::task<expected<void, io::error>>()> f) {
+        void set_before_first_read(function<async::task<expected<void, io::error>>()> f) noexcept {
             _before = std::move(f);
         }
 
@@ -489,7 +489,7 @@ namespace sgcl::net::http::detail {
         // The bytes are dropped where they lie, in the wire's buffer, which
         // is refilled when they are gone: no block of its own, nothing
         // copied; counted against the limit as a read is.
-        async::task<bool> discard(uint64_t most) {
+        async::task<bool> discard(uint64_t most) noexcept {
             if (_h2) {
                 co_return _h2_discard();
             }
@@ -594,7 +594,7 @@ namespace sgcl::net::http::detail {
             return false;
         }
 
-        async::task<expected<size_t, io::error>> _read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> _read(slice<byte> out) noexcept {
             if (_h2) {
                 auto r = co_await _h2->read(out);
                 if (r && (*r == 0 || _h2->ended())) {
@@ -662,7 +662,7 @@ namespace sgcl::net::http::detail {
         // The body's bytes in the wire's buffer dropped, as far as they go
         // (to its end at most): how many of the body's own there were, the
         // framing's left out; the framing broken is an error
-        expected<size_t, io::error> _drop_buffered() {
+        expected<size_t, io::error> _drop_buffered() noexcept {
             size_t n = 0;
             while (!_done && _wire->buffered()) {
                 if (_framing.kind == Framing::chunked) {
@@ -701,7 +701,7 @@ namespace sgcl::net::http::detail {
         // stays in the buffer until the caller has copied it (the buffer is
         // consumed past it at once, which is safe: nothing refills it
         // before the copy)
-        Chunk _chunked_step(size_t room) {
+        Chunk _chunked_step(size_t room) noexcept {
             if (!_chunked) {
                 _chunked.emplace();
             }
@@ -722,7 +722,7 @@ namespace sgcl::net::http::detail {
             return c;
         }
 
-        io::error _framing_error() {
+        io::error _framing_error() noexcept {
             if (_response) {
                 return net::detail::net_error(net::errc::malformed_response, "read", "body");
             }

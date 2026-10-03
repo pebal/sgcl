@@ -113,10 +113,10 @@ namespace {
             codec::image rgb = codec::decode(as_bytes(load(dir + "/rgb8.png")));
             const double pixels = double(rgb.width()) * rgb.height();
             if (c == "png-enc") {
-                run(c, pixels, [&] { return uint64_t(codec::png::encode(rgb).size()); });
+                run(c, pixels, [&] { return uint64_t(codec::png::encode(rgb)->size()); });
             } else {
                 const codec::jpeg::options o{.quality = 90, .subsampling = codec::jpeg::subsampling::s420, .optimize = c == "jpeg-enc-opt"};
-                run(c, pixels, [&] { return uint64_t(codec::jpeg::encode(rgb, o).size()); });
+                run(c, pixels, [&] { return uint64_t(codec::jpeg::encode(rgb, o)->size()); });
             }
             return 0;
         }

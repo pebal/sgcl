@@ -78,7 +78,7 @@ namespace sgcl::net::tls {
         // ("PRIVATE KEY") of each kind, SEC 1 ("EC PRIVATE KEY"), PKCS #1
         // ("RSA PRIVATE KEY"); the DER is the caller's secret_bytes, read
         // in place
-        inline bool read_key(IdentityKey& k, std::string_view label, const slice<const byte>& der) {
+        inline bool read_key(IdentityKey& k, std::string_view label, const slice<const byte>& der) noexcept {
             if (label == "PRIVATE KEY") {
                 if (auto e = crypto::ed25519::private_key::from_pkcs8_der(der)) {
                     k.ed25519.emplace(std::move(*e));
@@ -120,7 +120,7 @@ namespace sgcl::net::tls {
 
         // Whether the key is the leaf's: a signature of the key verified
         // under the certificate's public key
-        inline bool key_matches(const IdentityKey& k, const crypto::x509::certificate& leaf) {
+        inline bool key_matches(const IdentityKey& k, const crypto::x509::certificate& leaf) noexcept {
             static constexpr uint8_t probe[] = "sgcl::net::tls identity";
             const auto content = tls::detail::bytes_of(probe, sizeof probe);
             std::vector<byte> sig;
@@ -160,7 +160,7 @@ namespace sgcl::net::tls {
         // (a string converts too, but its bytes are managed: the caller's
         // choice). The key's first block is taken (PRIVATE KEY, EC PRIVATE
         // KEY, RSA PRIVATE KEY; others passed over).
-        static expected<identity, io::error> from_pem(const string& certificate_chain_pem, const slice<const byte>& key_pem) {
+        static expected<identity, io::error> from_pem(const string& certificate_chain_pem, const slice<const byte>& key_pem) noexcept {
             auto s = make_tracked<detail::IdentityState>();
             s->key = std::make_unique<detail::IdentityKey>();
             auto blocks = encoding::pem::parse_all(certificate_chain_pem);
@@ -226,7 +226,7 @@ namespace sgcl::net::tls {
             return _s;
         }
 
-        static io::error _error(const char* what) {
+        static io::error _error(const char* what) noexcept {
             return io::error(crypto::errc::malformed, "identity", string(what));
         }
 
@@ -268,7 +268,7 @@ namespace sgcl::net::tls {
         // The client's settings of a config: the shares of the first group
         // (and of X25519 beside the hybrid, as Go and the browsers send
         // them), compatibility mode on (§D.4), no record_size_limit
-        inline ClientSettings client_settings(const config& c) {
+        inline ClientSettings client_settings(const config& c) noexcept {
             ClientSettings s;
             s.server_name = c.server_name;
             s.roots = c.roots;
@@ -294,11 +294,11 @@ namespace sgcl::net::tls {
             return s;
         }
 
-        inline io::error config_error(const char* what) {
+        inline io::error config_error(const char* what) noexcept {
             return io::error(std::make_error_code(std::errc::invalid_argument), "tls", string(what));
         }
 
-        inline optional<io::error> check_client(const config& c) {
+        inline optional<io::error> check_client(const config& c) noexcept {
             if (c.ciphers.empty() || c.groups.empty()) {
                 return config_error("a config without cipher suites or groups");
             }
@@ -323,10 +323,10 @@ namespace sgcl::net::tls {
                 (void)transport.close();
                 return unexpected(r.error());
             }
-            return net::connection(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
+            return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
         }
 
-        inline async::task<expected<net::connection, io::error>> co_client(net::connection transport, config c, time_point deadline) {
+        inline async::task<expected<net::connection, io::error>> co_client(net::connection transport, config c, time_point deadline) noexcept {
             if (auto e = check_client(c)) {
                 co_return unexpected(*e);
             }
@@ -336,11 +336,11 @@ namespace sgcl::net::tls {
                 (void)transport.close();
                 co_return unexpected(r.error());
             }
-            co_return net::connection(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
+            co_return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
         }
 
         // The config with the address's host for a server name when it has none
-        inline expected<config, io::error> for_address(const string& address, const config& c) {
+        inline expected<config, io::error> for_address(const string& address, const config& c) noexcept {
             config out = c;
             if (out.server_name.empty()) {
                 auto t = net::detail::parse_target(address, "dial tls");
@@ -352,7 +352,7 @@ namespace sgcl::net::tls {
             return out;
         }
 
-        inline async::task<expected<net::connection, io::error>> co_connect(string address, config c) {
+        inline async::task<expected<net::connection, io::error>> co_connect(string address, config c) noexcept {
             auto cfg = for_address(address, c);
             if (!cfg) {
                 co_return unexpected(cfg.error());
@@ -373,7 +373,7 @@ namespace sgcl::net::tls {
         return detail::co_connect(address, c).wait();
     }
 
-    inline async::task<expected<net::connection, io::error>> async_connect(string address, config c = {}) {
+    inline async::task<expected<net::connection, io::error>> async_connect(string address, config c = {}) noexcept {
         return detail::co_connect(std::move(address), std::move(c));
     }
 
@@ -385,7 +385,7 @@ namespace sgcl::net::tls {
         return detail::block_client(transport, c, sgcl::clock::now() + c.handshake_timeout);
     }
 
-    inline async::task<expected<net::connection, io::error>> async_client(net::connection transport, config c) {
+    inline async::task<expected<net::connection, io::error>> async_client(net::connection transport, config c) noexcept {
         const time_point deadline = sgcl::clock::now() + c.handshake_timeout;
         return detail::co_client(std::move(transport), std::move(c), deadline);
     }
@@ -401,7 +401,7 @@ namespace sgcl::net::tls {
             vector<tracked_ptr<const void>> keep;
         };
 
-        inline ServerSetup server_setup(const config& c) {
+        inline ServerSetup server_setup(const config& c) noexcept {
             ServerSetup s;
             s.settings.ciphers.clear();
             for (auto x : c.ciphers) {
@@ -434,7 +434,7 @@ namespace sgcl::net::tls {
             return s;
         }
 
-        inline optional<io::error> check_server(const config& c) {
+        inline optional<io::error> check_server(const config& c) noexcept {
             if (c.ciphers.empty() || c.groups.empty()) {
                 return config_error("a config without cipher suites or groups");
             }
@@ -449,14 +449,14 @@ namespace sgcl::net::tls {
             return nullopt;
         }
 
-        inline async::task<expected<net::connection, io::error>> co_server(net::connection transport, ServerSetup setup, time_point deadline) {
+        inline async::task<expected<net::connection, io::error>> co_server(net::connection transport, ServerSetup setup, time_point deadline) noexcept {
             auto impl = make_tracked<TlsImpl>(transport, setup.settings, setup.keep);
             auto r = co_await impl->async_handshake(deadline);
             if (!r) {
                 (void)transport.close();
                 co_return unexpected(r.error());
             }
-            co_return net::connection(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
+            co_return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
         }
 
         // A listener whose accept gives connections after their handshake:
@@ -466,7 +466,7 @@ namespace sgcl::net::tls {
         // handshake that fails is dropped (its connection closed, counted)
         class TlsListenerImpl final : public net::detail::ListenerImpl {
         public:
-            TlsListenerImpl(const net::listener& inner, ServerSetup setup, duration timeout)
+            TlsListenerImpl(const net::listener& inner, ServerSetup setup, duration timeout) noexcept
             : _inner(inner)
             , _setup(std::move(setup))
             , _timeout(timeout)
@@ -486,7 +486,7 @@ namespace sgcl::net::tls {
                 return *c;
             }
 
-            async::task<expected<net::connection, io::error>> _co_accept() override {
+            async::task<expected<net::connection, io::error>> _co_accept() noexcept override {
                 auto c = co_await _ready.receive();
                 if (!c) {
                     co_return unexpected(net::detail::closed_error("accept", describe()));
@@ -494,11 +494,12 @@ namespace sgcl::net::tls {
                 co_return *c;
             }
 
-            expected<void, io::error> close() override {
+            expected<void, io::error> close() noexcept override {
                 auto r = _inner.close();
                 _ready.close();
-                // the connections ready and not taken
-                while (auto c = _ready.receive().wait()) {
+                // the connections ready and not taken: what the closed
+                // channel still holds, taken without a wait
+                while (auto c = _ready.try_receive()) {
                     (void)c->close();
                 }
                 return r;
@@ -512,11 +513,11 @@ namespace sgcl::net::tls {
                 return _inner.local_endpoint();
             }
 
-            string path() const override {
+            string path() const noexcept override {
                 return _inner.path();
             }
 
-            string describe() const override {
+            string describe() const noexcept override {
                 return string("tls ") + _inner.local_endpoint().to_string();
             }
 
@@ -526,7 +527,7 @@ namespace sgcl::net::tls {
             }
 
         private:
-            static async::task<void> _loop(tracked_ptr<TlsListenerImpl> self) {
+            static async::task<void> _loop(tracked_ptr<TlsListenerImpl> self) noexcept {
                 for (;;) {
                     auto c = co_await self->_inner.async_accept();
                     if (!c) {
@@ -540,7 +541,7 @@ namespace sgcl::net::tls {
                 }
             }
 
-            static async::task<void> _handshake(tracked_ptr<TlsListenerImpl> self, net::connection c) {
+            static async::task<void> _handshake(tracked_ptr<TlsListenerImpl> self, net::connection c) noexcept {
                 auto r = co_await co_server(c, self->_setup, sgcl::clock::now() + self->_timeout);
                 if (!r) {
                     self->_failed.fetch_add(1, std::memory_order_relaxed);
@@ -561,7 +562,7 @@ namespace sgcl::net::tls {
         inline expected<net::listener, io::error> make_listener(const net::listener& inner, const config& c) {
             tracked_ptr<TlsListenerImpl> impl = make_tracked<TlsListenerImpl>(inner, server_setup(c), c.handshake_timeout);
             TlsListenerImpl::start(impl);
-            return net::listener(tracked_ptr<net::detail::ListenerImpl>(std::move(impl)));
+            return net::detail::ListenerAccess::make(tracked_ptr<net::detail::ListenerImpl>(std::move(impl)));
         }
     }
 
@@ -580,7 +581,7 @@ namespace sgcl::net::tls {
         return detail::make_listener(*l, c);
     }
 
-    inline async::task<expected<net::listener, io::error>> async_listen(string address, config c) {
+    inline async::task<expected<net::listener, io::error>> async_listen(string address, config c) noexcept {
         if (auto e = detail::check_server(c)) {
             co_return unexpected(*e);
         }
@@ -607,10 +608,10 @@ namespace sgcl::net::tls {
             (void)transport.close();
             return unexpected(r.error());
         }
-        return net::connection(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
+        return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(std::move(impl)));
     }
 
-    inline async::task<expected<net::connection, io::error>> async_server(net::connection transport, config c) {
+    inline async::task<expected<net::connection, io::error>> async_server(net::connection transport, config c) noexcept {
         if (auto e = detail::check_server(c)) {
             co_return unexpected(*e);
         }
@@ -619,7 +620,7 @@ namespace sgcl::net::tls {
 
     // What the handshake of a TLS connection settled; nullopt for a
     // connection without TLS
-    inline optional<state> state_of(const net::connection& c) {
+    inline optional<state> state_of(const net::connection& c) noexcept {
         if (!c) {
             return nullopt;
         }

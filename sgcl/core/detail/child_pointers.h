@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../config.h"
+#include "os.h"
 #include "types.h"
 
 #include <atomic>
@@ -14,6 +15,8 @@
 #include <vector>
 
 namespace sgcl::detail {
+    struct TypeRecord;   // metadata.h
+
     // Where the pointers are in an object of one type: one bit per word of
     // the object, built by the collector by elimination. The map starts full
     // (every word may be a pointer); a word found holding a non-zero value
@@ -41,6 +44,16 @@ namespace sgcl::detail {
             }
             any.store(count != 0, std::memory_order_relaxed);
         }
+
+        // The map of a type or of a pool, on the heap and never freed (the
+        // Metadata that names it is not): one function for all of them
+        SGCL_NOINLINE static ChildPointers* make(bool may_contain, size_t object_size, const std::type_info& type, bool conservative) {
+            return new ChildPointers(may_contain, object_size, type, conservative);
+        }
+
+        // The map of a type, from its record, made on the type's first use
+        // (defined in metadata.h, after the record)
+        SGCL_NOINLINE static ChildPointers& of_type(TypeRecord& r);
 
         uint64_t word(size_t w) const noexcept {
             return map[w].load(std::memory_order_relaxed);

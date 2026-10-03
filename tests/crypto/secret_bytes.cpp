@@ -314,9 +314,32 @@ TEST(Crypto_SecretBytes, TheSecretsOfTheModuleAreSecretBytes) {
     ASSERT_EQ(opened->size(), message.size());
     EXPECT_EQ(std::memcmp(opened->data(), message.data(), message.size()), 0);
     secret_bytes unwrapped(message.size());
-    auto n = aead.open_to(unwrapped.as_slice(), bytes_of(nonce), sealed);
+    auto n = aead.open_to(unwrapped, bytes_of(nonce), sealed);
     ASSERT_TRUE(n);
     EXPECT_EQ(std::memcmp(unwrapped.as_slice().data(), message.data(), message.size()), 0);
+}
+
+// A secret_bytes the program may write is taken where the module writes
+// (an AEAD's open_to, RSA's decrypt_oaep_to, random::fill) without
+// as_slice(); a const one, and one about to go (an rvalue, whose bytes no
+// one would read), are not
+TEST(Crypto_SecretBytes, TakenAsTheOutput) {
+    EXPECT_TRUE((std::is_convertible_v<secret_bytes&, slice<std::byte>>));
+    EXPECT_FALSE((std::is_convertible_v<const secret_bytes&, slice<std::byte>>));
+    EXPECT_FALSE((std::is_convertible_v<secret_bytes&&, slice<std::byte>>));
+    EXPECT_TRUE((std::is_convertible_v<secret_bytes&, slice<const std::byte>>));
+    EXPECT_TRUE((std::is_convertible_v<const secret_bytes&, slice<const std::byte>>));
+    EXPECT_TRUE((std::is_convertible_v<secret_bytes&&, slice<const std::byte>>));
+    // a key unwrapped with RSA-OAEP straight into one
+    auto rsa = crypto::rsa::private_key::generate(2048);
+    secret_bytes key(32);
+    crypto::random::fill(key);
+    auto wrapped = rsa.public_key().encrypt_oaep(crypto::hash_id::sha256, key);
+    secret_bytes unwrapped(rsa.public_key().max_oaep_message_size(crypto::hash_id::sha256));
+    auto n = rsa.decrypt_oaep_to(unwrapped, crypto::hash_id::sha256, wrapped);
+    ASSERT_TRUE(n);
+    unwrapped.resize(*n);
+    EXPECT_TRUE(unwrapped == key);
 }
 
 TEST(Crypto_SecretBytes, ReadSecret) {

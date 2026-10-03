@@ -8,6 +8,7 @@
 using namespace sgcl::async;
 
 #include <chrono>
+#include <memory>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -37,6 +38,21 @@ namespace {
         for (int i = 0; i < n; ++i) {
             co_await sgcl::async::yield();
             co_yield sgcl::make_tracked<Int>(i);
+        }
+    }
+
+    struct Owned {
+        explicit Owned(int v) : value(v) { ++alive; }
+        ~Owned() { --alive; }
+        int value;
+        inline static sgcl::atomic<int> alive = {0};
+    };
+
+    // Yields values that can only be moved, waiting before each
+    sgcl::async::generator<std::unique_ptr<Owned>> owned(int n) {
+        for (int i = 0; i < n; ++i) {
+            co_await sgcl::async::yield();
+            co_yield std::make_unique<Owned>(i);
         }
     }
 }
@@ -94,6 +110,36 @@ TEST(AsyncGenerator_Test, TheValuesAreHeldWhileYielded) {
         co_return sum;
     }());
     EXPECT_EQ(t.wait(), 49 * 50 / 2);
+    sgcl::async::scheduler::stop();
+}
+
+TEST(AsyncGenerator_Test, AYieldedUniquePtrIsMovedToTheConsumer) {
+    std::vector<std::unique_ptr<Owned>> taken;
+    int alive_after_drop = -1;
+    auto t = sgcl::async::spawn([](std::vector<std::unique_ptr<Owned>>& taken, int& alive_after_drop) -> sgcl::async::task<> {
+        {
+            auto g = owned(5);
+            for (int i = 0; i < 2; ++i) {
+                auto v = co_await g.next();
+                taken.push_back(std::move(*v));
+            }
+        }                                                    // dropped midway: 2, 3, 4 never made
+        alive_after_drop = Owned::alive.load();
+        auto g = owned(3);
+        while (auto v = co_await g.next()) {
+            taken.push_back(std::move(*v));
+        }
+    }(taken, alive_after_drop));
+    t.wait();
+    EXPECT_EQ(alive_after_drop, 2);                          // nothing left behind in the dropped frame
+    ASSERT_EQ(taken.size(), 5u);
+    const int expected[] = {0, 1, 0, 1, 2};
+    for (int i = 0; i < 5; ++i) {
+        EXPECT_EQ(taken[i]->value, expected[i]);
+    }
+    EXPECT_EQ(Owned::alive.load(), 5);                       // the moved values outlive their generators
+    taken.clear();
+    EXPECT_EQ(Owned::alive.load(), 0);
     sgcl::async::scheduler::stop();
 }
 

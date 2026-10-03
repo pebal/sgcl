@@ -147,7 +147,7 @@ flowchart TB
     J --> A
 ```
 
-The gates of [`collector::stepper`](../sgcl/core/collector.md#stepper) sit at these boundaries: `flipped`, `registered`, `roots`, `marked` (after the weak phase), `swept`, `released`.
+The gates of [`collector::stepper`](../sgcl/core/collector-stepper.md) sit at these boundaries: `flipped`, `registered`, `roots`, `marked` (after the weak phase), `swept`, `released`.
 
 **The flip** advances the epoch: one atomic store of the new `Reachable|parity` value the barrier will use from now on. Every state of the old parity is out of date from this moment, without a pass over the heap.
 

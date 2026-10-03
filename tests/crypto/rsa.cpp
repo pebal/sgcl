@@ -1173,6 +1173,11 @@ TEST(Crypto_Rsa, SecretsAreZeroed) {
         EXPECT_THROW((void)key->to_pkcs8_der(), std::logic_error);
         EXPECT_THROW((void)key->public_key(), std::logic_error);
         EXPECT_THROW((void)key->clone(), std::logic_error);
+        // bits() and size() too: they once gave the old key's values
+        EXPECT_THROW((void)key->bits(), std::logic_error);
+        EXPECT_THROW((void)key->size(), std::logic_error);
+        EXPECT_FALSE(noexcept(key->bits()));
+        EXPECT_FALSE(noexcept(key->size()));
         EXPECT_EQ(hex(to_bytes(moved.to_pkcs8_der())), hex(tk.pkcs8));
         auto g = ProbeKey::generate(2048);
         (void)g.sign_digest(hash_id::sha256, view(d));
@@ -1186,6 +1191,20 @@ TEST(Crypto_Rsa, SecretsAreZeroed) {
     EXPECT_THROW((void)a.to_pkix_der(), std::logic_error);
     bytes_t d = ossl_digest(hash_id::sha256, text("x"));
     EXPECT_THROW((void)a.verify_digest(hash_id::sha256, view(d), view(d)), std::logic_error);
+    // bits(), size(), exponent(), max_oaep_message_size() and == too: they
+    // once gave the old key's values and compared the empty modulus
+    EXPECT_THROW((void)a.bits(), std::logic_error);
+    EXPECT_THROW((void)a.size(), std::logic_error);
+    EXPECT_THROW((void)a.exponent(), std::logic_error);
+    EXPECT_THROW((void)a.max_oaep_message_size(hash_id::sha256), std::logic_error);
+    EXPECT_THROW((void)(a == b), std::logic_error);
+    EXPECT_THROW((void)(b == a), std::logic_error);
+    EXPECT_FALSE(noexcept(a.bits()));
+    EXPECT_FALSE(noexcept(a.size()));
+    EXPECT_FALSE(noexcept(a.exponent()));
+    EXPECT_FALSE(noexcept(a == b));
+    EXPECT_EQ(b.bits(), 2048u);
+    EXPECT_TRUE(b == our_public(test_key(2048)));
 }
 
 // A fault in one half of CRT (a bit of dP changed after the key's checks)
@@ -1372,4 +1391,216 @@ TEST(Crypto_Wycheproof, RsaOaep) {
     wycheproof_oaep("rsa_oaep_2048_sha1_mgf1sha1_test.json");
     wycheproof_oaep("rsa_oaep_3072_sha256_mgf1sha256_test.json");
     wycheproof_oaep("rsa_oaep_misc_test.json");
+}
+
+// --- the smallest and the largest moduli (DESIGN 408) ------------------------------------------
+
+namespace {
+    // A key of 16384 bits, the largest read: made once by OpenSSL 3
+    // (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:16384),
+    // since making one takes a minute or more
+    bytes_t largest_key_pem() {
+        std::string f = __FILE__;
+        std::ifstream in(f.substr(0, f.rfind('/')) + "/data/rsa16384.pem", std::ios::binary);
+        return bytes_t(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+
+    // An odd number of exactly `bits` bits, as a modulus's bytes
+    bytes_t odd_of_bits(size_t bits) {
+        bytes_t n((bits + 7) / 8, 0xa5);
+        n[0] = (unsigned char)(1u << ((bits - 1) % 8));
+        n.back() |= 1;
+        return n;
+    }
+}
+
+// The bounds of the modulus, bit for bit: 1023 bits is refused and 1024
+// read, 16384 read and 16385 refused, through from_modulus and through a
+// key OpenSSL made; leading zero bytes do not count
+TEST(Crypto_Rsa, TheBoundsOfTheModulus) {
+    for (size_t bits : {size_t(1023), size_t(16385)}) {
+        auto k = PK::from_modulus(view(odd_of_bits(bits)), 65537);
+        ASSERT_FALSE(k.has_value()) << bits;
+        EXPECT_EQ(k.error().code(), crypto::errc::unsupported) << bits;
+    }
+    for (size_t bits : {size_t(1024), size_t(16384)}) {
+        auto n = odd_of_bits(bits);
+        auto k = PK::from_modulus(view(n), 65537);
+        ASSERT_TRUE(k.has_value()) << bits;
+        EXPECT_EQ(k->bits(), bits);
+        EXPECT_EQ(k->size(), bits / 8);
+        bytes_t padded(5, 0);
+        padded.insert(padded.end(), n.begin(), n.end());
+        auto p = PK::from_modulus(view(padded), 65537);
+        ASSERT_TRUE(p.has_value()) << bits;
+        EXPECT_TRUE(*p == *k);
+        EXPECT_EQ(hex(to_bytes(p->modulus())), hex(n));
+        // the DER written is read back, by us and by OpenSSL
+        auto spki = to_bytes(k->to_pkix_der());
+        auto back = PK::from_pkix_der(view(spki));
+        ASSERT_TRUE(back.has_value()) << bits;
+        EXPECT_TRUE(*back == *k);
+        EXPECT_TRUE(ossl_public_from_spki(spki)) << bits;
+    }
+    // a key of 1023 bits that OpenSSL made, in PKCS #8 and as an SPKI
+    Pkey small = ossl_generate(1023);
+    EXPECT_EQ(error_of(SK::from_pkcs8_der(view(ossl_pkcs8(small)))).code(), crypto::errc::unsupported);
+    EXPECT_EQ(error_of(PK::from_pkix_der(view(ossl_spki(small)))).code(), crypto::errc::unsupported);
+}
+
+// The smallest key: every hash signs in PKCS #1 v1.5; PSS refuses SHA-512,
+// whose digest and salt do not fit 1024 bits, and takes SHA-384; OAEP under
+// SHA-512 has no room for any message (the maximum is 0, an empty message
+// is refused, a decryption is the one error)
+TEST(Crypto_Rsa, TheSmallestKey) {
+    const TestKey& tk = test_key(1024);
+    auto key = our_key(tk);
+    auto pub = key.public_key();
+    EXPECT_EQ(key.bits(), 1024u);
+    for (hash_id id : all_hashes) {
+        bytes_t digest = ossl_digest(id, {'m'});
+        auto sig = to_bytes(key.sign_digest(id, view(digest)));
+        EXPECT_TRUE(ossl_verify(tk.ossl, id, digest, sig, false)) << int(id);
+        EXPECT_TRUE(pub.verify_digest(id, view(digest), view(sig))) << int(id);
+    }
+    bytes_t d512 = ossl_digest(hash_id::sha512, {'m'});
+    EXPECT_THROW((void)key.sign_digest_pss(hash_id::sha512, view(d512)), std::invalid_argument);
+    bytes_t d384 = ossl_digest(hash_id::sha384, {'m'});
+    auto pss = to_bytes(key.sign_digest_pss(hash_id::sha384, view(d384)));
+    EXPECT_TRUE(ossl_verify(tk.ossl, hash_id::sha384, d384, pss, true));
+    EXPECT_TRUE(pub.verify_digest_pss(hash_id::sha384, view(d384), view(pss)));
+    // OAEP: SHA-384 leaves 128 - 98 = 30 bytes, SHA-512 nothing at all
+    EXPECT_EQ(pub.max_oaep_message_size(hash_id::sha384), 30u);
+    bytes_t thirty(30, 7);
+    auto ct = to_bytes(pub.encrypt_oaep(hash_id::sha384, view(thirty)));
+    auto theirs = ossl_decrypt_oaep(tk.ossl, hash_id::sha384, hash_id::sha384, ct, {});
+    ASSERT_TRUE(theirs.has_value());
+    EXPECT_EQ(hex(*theirs), hex(thirty));
+    EXPECT_THROW((void)pub.encrypt_oaep(hash_id::sha384, view(bytes_t(31))), std::invalid_argument);
+    EXPECT_EQ(pub.max_oaep_message_size(hash_id::sha512), 0u);
+    EXPECT_THROW((void)pub.encrypt_oaep(hash_id::sha512, view(bytes_t())), std::invalid_argument);
+    EXPECT_THROW((void)pub.encrypt_oaep(hash_id::sha512, sgcl::slice<const byte>()), std::invalid_argument);
+    bytes_t any(128, 1);
+    EXPECT_EQ(error_of(key.decrypt_oaep(hash_id::sha512, view(any))).code(), crypto::errc::authentication);
+    sgcl::slice<byte> nowhere;
+    EXPECT_EQ(error_of(key.decrypt_oaep_to(nowhere, hash_id::sha512, view(any))).code(), crypto::errc::authentication);
+}
+
+// A key moved onto itself is the same key, as every other key of the
+// module is (a move out of one: Crypto_Rsa.SecretsAreZeroed and the
+// logic_error of a moved-from key, Crypto_Rsa.PrivateOperation)
+TEST(Crypto_Rsa, KeysMovedOntoThemselves) {
+    auto key = our_key(test_key(2048));
+    auto pub = key.public_key();
+    bytes_t digest = ossl_digest(hash_id::sha256, {'s'});
+    auto sig = to_bytes(key.sign_digest(hash_id::sha256, view(digest)));
+    SK& same_key = key;
+    key = std::move(same_key);
+    PK& same_pub = pub;
+    pub = std::move(same_pub);
+    EXPECT_EQ(key.bits(), 2048u);
+    EXPECT_EQ(hex(to_bytes(key.sign_digest(hash_id::sha256, view(digest)))), hex(sig));
+    EXPECT_TRUE(pub.verify_digest(hash_id::sha256, view(digest), view(sig)));
+    EXPECT_TRUE(pub == key.public_key());
+    // a key moved from, then given one again
+    SK other = std::move(key);
+    EXPECT_THROW((void)key.bits(), std::logic_error);
+    key = std::move(other);
+    EXPECT_EQ(hex(to_bytes(key.sign_digest(hash_id::sha256, view(digest)))), hex(sig));
+}
+
+// The largest key, 16384 bits: read from PEM, its PKCS #8 and PKCS #1
+// written as OpenSSL writes them (the writer's room is sized for it),
+// signatures both ways, OAEP at its longest message
+TEST(Crypto_Rsa, TheLargestKey) {
+    bytes_t pem = largest_key_pem();
+    ASSERT_FALSE(pem.empty()) << "tests/crypto/data/rsa16384.pem";
+    auto read = SK::from_pem(view(pem));
+    ASSERT_TRUE(read.has_value()) << text_of(read.error());
+    auto key = std::move(*read);
+    EXPECT_EQ(key.bits(), 16384u);
+    EXPECT_EQ(key.size(), 2048u);
+    bytes_t p8 = to_bytes(key.to_pkcs8_der());
+    EXPECT_LE(p8.size(), crypto::detail::Rsa::der_capacity);
+    Pkey ossl = ossl_private_from_der(p8);
+    ASSERT_TRUE(ossl);
+    EXPECT_EQ(hex(ossl_pkcs8(ossl)), hex(p8));
+    EXPECT_EQ(hex(to_bytes(key.to_pkcs1_der())), hex(ossl_pkcs1_private(ossl)));
+    auto again = SK::from_pem(key.to_pem().as_slice());
+    ASSERT_TRUE(again.has_value());
+    EXPECT_EQ(hex(to_bytes(again->to_pkcs8_der())), hex(p8));
+    auto pub = key.public_key();
+    EXPECT_EQ(hex(to_bytes(pub.to_pkix_der())), hex(ossl_spki(ossl)));
+    EXPECT_EQ(hex(to_bytes(pub.to_pkcs1_der())), hex(ossl_pkcs1_public(ossl)));
+    // signatures, ours checked by OpenSSL and theirs by us
+    bytes_t digest = ossl_digest(hash_id::sha512, {'x'});
+    auto sig = to_bytes(key.sign_digest(hash_id::sha512, view(digest)));
+    EXPECT_EQ(sig.size(), 2048u);
+    EXPECT_TRUE(ossl_verify(ossl, hash_id::sha512, digest, sig, false));
+    auto pss = to_bytes(key.sign_digest_pss(hash_id::sha512, view(digest)));
+    EXPECT_TRUE(ossl_verify(ossl, hash_id::sha512, digest, pss, true));
+    auto theirs = ossl_sign(ossl, hash_id::sha512, digest, true);
+    EXPECT_TRUE(pub.verify_digest_pss(hash_id::sha512, view(digest), view(theirs)));
+    // OAEP at its longest message under SHA-256: 2048 - 66 bytes
+    const size_t max = pub.max_oaep_message_size(hash_id::sha256);
+    EXPECT_EQ(max, 2048u - 66u);
+    bytes_t msg(max, 0x5c);
+    auto ct = to_bytes(pub.encrypt_oaep(hash_id::sha256, view(msg)));
+    auto back = ossl_decrypt_oaep(ossl, hash_id::sha256, hash_id::sha256, ct, {});
+    ASSERT_TRUE(back.has_value());
+    EXPECT_EQ(hex(*back), hex(msg));
+    auto ours = key.decrypt_oaep(hash_id::sha256, view(ossl_encrypt_oaep(ossl, hash_id::sha256, hash_id::sha256, msg, {})));
+    ASSERT_TRUE(ours.has_value());
+    EXPECT_EQ(hex(to_bytes(*ours)), hex(msg));
+    EXPECT_THROW((void)pub.encrypt_oaep(hash_id::sha256, view(bytes_t(max + 1))), std::invalid_argument);
+}
+
+// sign, sign_pss, verify and verify_pss of a message, hashed inside: for
+// every hash and the messages of no bytes (empty and null), one, and
+// longer than a block, what the digest's forms give of OpenSSL's digest
+// (PKCS #1 v1.5 byte for byte with OpenSSL; PSS verified by OpenSSL); a
+// message changed by a bit, a signature of another hash, a salt length
+// fixed, an id that is none of hash_id's, the smallest key too small for
+// PSS-SHA-512, a key moved from
+TEST(Crypto_Rsa, SignAndVerifyAMessage) {
+    random_source r(41);
+    const TestKey& tk = test_key(2048);
+    auto key = our_key(tk);
+    auto pub = key.public_key();
+    for (hash_id id : all_hashes) {
+        for (size_t n : {size_t(0), size_t(1), size_t(200)}) {
+            bytes_t m = r.bytes(n);
+            bytes_t d = ossl_digest(id, m);
+            bytes_t sig = to_bytes(key.sign(id, view(m)));
+            EXPECT_EQ(hex(sig), hex(ossl_sign(tk.ossl, id, d, false))) << int(id) << " " << n;
+            EXPECT_TRUE(pub.verify(id, view(m), view(sig)));
+            EXPECT_TRUE(pub.verify_digest(id, view(d), view(sig)));
+            bytes_t pss = to_bytes(key.sign_pss(id, view(m)));
+            EXPECT_TRUE(ossl_verify(tk.ossl, id, d, pss, true, RSA_PSS_SALTLEN_DIGEST)) << int(id) << " " << n;
+            EXPECT_TRUE(pub.verify_pss(id, view(m), view(pss)));
+            EXPECT_TRUE(pub.verify_pss(id, view(m), view(pss), crypto::digest_size(id)));
+            EXPECT_FALSE(pub.verify_pss(id, view(m), view(pss), crypto::digest_size(id) + 1));
+            EXPECT_FALSE(pub.verify(id, view(m), view(pss)));   // a PSS signature is no PKCS #1 v1.5 one
+            bytes_t changed = m;
+            changed.push_back(0);
+            EXPECT_FALSE(pub.verify(id, view(changed), view(sig)));
+            EXPECT_FALSE(pub.verify_pss(id, view(changed), view(pss)));
+        }
+    }
+    auto empty = to_bytes(key.sign(hash_id::sha256, sgcl::slice<const byte>()));
+    EXPECT_TRUE(pub.verify(hash_id::sha256, view(bytes_t()), view(empty)));
+    EXPECT_FALSE(pub.verify(hash_id::sha384, view(bytes_t()), view(empty)));
+    EXPECT_FALSE(pub.verify(hash_id::sha256, view(bytes_t()), sgcl::slice<const byte>()));
+    EXPECT_THROW((void)key.sign(hash_id(200), view(bytes_t(1))), std::invalid_argument);
+    EXPECT_THROW((void)key.sign_pss(hash_id(0), view(bytes_t(1))), std::invalid_argument);
+    EXPECT_THROW((void)pub.verify(hash_id(200), view(bytes_t(1)), view(empty)), std::invalid_argument);
+    EXPECT_THROW((void)pub.verify_pss(hash_id(200), view(bytes_t(1)), view(empty)), std::invalid_argument);
+    auto small = our_key(test_key(1024));
+    EXPECT_THROW((void)small.sign_pss(hash_id::sha512, view(bytes_t(1))), std::invalid_argument);
+    EXPECT_TRUE(small.public_key().verify(hash_id::sha512, view(bytes_t(1)), view(to_bytes(small.sign(hash_id::sha512, view(bytes_t(1)))))));
+    SK gone = std::move(key);
+    EXPECT_THROW((void)key.sign(hash_id::sha256, view(bytes_t(1))), std::logic_error);
+    EXPECT_THROW((void)key.sign_pss(hash_id::sha256, view(bytes_t(1))), std::logic_error);
+    PK moved_pub = std::move(pub);
+    EXPECT_THROW((void)pub.verify(hash_id::sha256, view(bytes_t(1)), view(empty)), std::logic_error);
 }

@@ -1,11 +1,13 @@
-# Benchmarks: the lock-free containers
+[sgcl](../README.md) › [concurrent](README.md)
+
+# Benchmarks: concurrent
 
 The setup, the machine, the environments and how the timers and the memory are read are described with [the benchmarks of the engine](../../garbage_collector/benchmarks.md); the numbers here were taken the same way, and retaken whole on 18 September 2026, after the reviews of the concurrent and async modules, with `benchmarks/compare.sh` (the best of three runs of every cell, the machine under its desktop load); where a cell moved for a reason, the reason is with it. The rows at 32 and 64 threads were added later, from one run of the same script on the same machine, which has 24 cores (16 performance and 8 efficiency): those two counts oversubscribe it, the case a lock-free structure exists for, since no thread there waits for a thread that was descheduled holding a word. The channel, a class of the [async](../async/README.md) module, is measured with the containers it is built on, at the end of the second section (the rest of that module, a hop, a wait and a race on the scheduler, is on [its own page](../async/benchmarks.md)); the single-producer queue and the cache, which have no counterpart in Go's or Java's library, close the page against what C++ has.
 
 ## Lock-free stack
-A Treiber stack (the shape of `examples/lock_free_stack.cpp`): a compare-exchange on the head, with a collector free of ABA because a node is never reused while a thread holds it, and with the backoff of Herlihy and Shavit after a lost exchange, a wait that doubles up to `config::backoff_max` pause instructions, some 40 µs on any platform (`sgcl/core/detail/backoff.h`). Go's variant uses `atomic.Pointer`, Java's `AtomicReference`, each with the same backoff and the same pause: Go has no pause intrinsic, so the wait is an `isb` from an assembly stub (what Go's own runtime spins on), and Java's `Thread.onSpinWait()` is run as `isb` with `-XX:OnSpinWaitInst=isb` (HotSpot's default on arm64 is `yield`, a no-op on Apple silicon). The `shared_ptr` variant uses the standard library's atomic operations on a `shared_ptr` (`std::atomic_load`, `std::atomic_compare_exchange_weak`), which it implements with a lock, with the backoff; the `unique_ptr` variant, where every node has one owner, is a stack under a mutex, the classic answer without a collector. Every thread pushes a node and pops one, a million times; nanoseconds per push or pop:
+A Treiber stack (`benchmarks/concurrent/lockfree_stack.cpp`): a compare-exchange on the head, with a collector free of ABA because a node is never reused while a thread holds it, and with the backoff of Herlihy and Shavit after a lost exchange, a wait that doubles up to `config::backoff_max` pause instructions, some 40 µs on any platform (`sgcl/core/detail/backoff.h`). Go's variant uses `atomic.Pointer`, Java's `AtomicReference`, each with the same backoff and the same pause: Go has no pause intrinsic, so the wait is an `isb` from an assembly stub (what Go's own runtime spins on), and Java's `Thread.onSpinWait()` is run as `isb` with `-XX:OnSpinWaitInst=isb` (HotSpot's default on arm64 is `yield`, a no-op on Apple silicon). The `shared_ptr` variant uses the standard library's atomic operations on a `shared_ptr` (`std::atomic_load`, `std::atomic_compare_exchange_weak`), which it implements with a lock, with the backoff; the `unique_ptr` variant, where every node has one owner, is a stack under a mutex, the classic answer without a collector. Every thread pushes a node and pops one, a million times; nanoseconds per push or pop:
 
-| threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
+| Threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|
 | 1 | 9.9 | 18.1 | 39.0 | 10.8 | 12.8 |
 | 4 | 9.8 | 50.7 | 120.8 | 11.6 | 28.5 |
@@ -18,7 +20,7 @@ The stack costs SGCL the same 9 to 11 ns on one thread and on sixteen: without t
 ## Concurrent containers
 The lock-free containers ([Lock-free containers](README.md#lock-free-containers)) shared by every thread, holding pointers to objects of one `long` (the sets the `long`s themselves; `benchmarks/concurrent/concurrent.cpp`, `benchmarks/go/concurrent`, `benchmarks/java/Concurrent.java`). Java's are the structures the library's are modelled on, `ConcurrentLinkedQueue`, `ConcurrentLinkedDeque` used at one end, `ConcurrentSkipListMap`, `ConcurrentSkipListSet` and `ConcurrentHashMap`; Go has one of them in its library, `sync.Map` (a hash map with reads from a snapshot and writes under a lock, its keys boxed in `any`), so that is its hash-map column, and the others are the same algorithms written on `atomic.Pointer`, which its collector makes as short as SGCL does. The classic C++ answers, with the objects shared the way C++ shares them, by `shared_ptr`: the `std` container of `shared_ptr` under a `std::mutex`, and, for the queue and the stack, the same lock-free algorithm on the standard library's atomic operations on `shared_ptr`, which it implements with a lock; for the maps and the set, the `std` container under a `std::mutex` and under a `std::shared_mutex` with the lookups as readers. Every thread pushes an element and pops one, 200,000 times; nanoseconds per push or pop:
 
-| container, threads | SGCL | `std::shared_ptr` | atomic `shared_ptr` | Go | Java ZGC |
+| Container, threads | SGCL | `std::shared_ptr` | Atomic `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|
 | queue, 1 | 25.5 | 21.3 | 71.0 | 15.3 | 36.5 |
 | queue, 4 | 100.0 | 61.8 | 198.8 | 75.8 | 116.9 |
@@ -33,29 +35,29 @@ The lock-free containers ([Lock-free containers](README.md#lock-free-containers)
 
 The maps and the set: 200,000 keys inserted by the threads (disjoint, interleaved), then 200,000 lookups per thread of random keys present, then 200,000 mixed operations per thread over twice the key range, 80% lookups, 10% insertions, 10% erasures; nanoseconds per insertion / lookup / mixed operation. The `std` columns are `std::map`, `std::unordered_map` and `std::set` under the lock named:
 
-| container, threads | SGCL | `std`, `std::mutex` | `std`, `std::shared_mutex` | Go | Java ZGC |
+| Container, threads | SGCL | `std`, `std::mutex` | `std`, `std::shared_mutex` | Go | Java ZGC |
 |---|---|---|---|---|---|
-| map, 1 | 214 / 322 / 310 | 151 / 197 / 171 | 154 / 214 / 189 | 146 / 293 / 269 | 174 / 480 / 385 |
-| map, 4 | 84 / 91 / 106 | 232 / 533 / 749 | 497 / 295 / 829 | 61 / 82 / 91 | 213 / 156 / 143 |
-| map, 16 | 46 / 27 / 37 | 218 / 237 / 333 | 761 / 255 / 2382 | 74 / 24 / 35 | 308 / 71 / 79 |
-| map, 32 | 42 / 26 / 33 | 244 / 265 / 418 | 848 / 254 / 2245 | 60 / 25 / 36 | 275 / 50 / 86 |
-| map, 64 | 45 / 27 / 36 | 236 / 227 / 384 | 919 / 231 / 3625 | 80 / 23 / 39 | 453 / 39 / 78 |
+| sorted_map, 1 | 214 / 322 / 310 | 151 / 197 / 171 | 154 / 214 / 189 | 146 / 293 / 269 | 174 / 480 / 385 |
+| sorted_map, 4 | 84 / 91 / 106 | 232 / 533 / 749 | 497 / 295 / 829 | 61 / 82 / 91 | 213 / 156 / 143 |
+| sorted_map, 16 | 46 / 27 / 37 | 218 / 237 / 333 | 761 / 255 / 2382 | 74 / 24 / 35 | 308 / 71 / 79 |
+| sorted_map, 32 | 42 / 26 / 33 | 244 / 265 / 418 | 848 / 254 / 2245 | 60 / 25 / 36 | 275 / 50 / 86 |
+| sorted_map, 64 | 45 / 27 / 36 | 236 / 227 / 384 | 919 / 231 / 3625 | 80 / 23 / 39 | 453 / 39 / 78 |
 | map, 1 | 88 / 67 / 72 | 39 / 39 / 40 | 46 / 52 / 50 | 151 / 80 / 84 | 121 / 99 / 108 |
 | map, 4 | 30 / 24 / 24 | 125 / 144 / 204 | 254 / 157 / 437 | 75 / 21 / 29 | 177 / 38 / 60 |
 | map, 16 | 20 / 4.9 / 15 | 100 / 62 / 144 | 324 / 94 / 1095 | 61 / 8.2 / 8.1 | 346 / 54 / 56 |
 | map, 32 | 19 / 5.7 / 11 | 107 / 67 / 171 | 342 / 120 / 1174 | 55 / 5.8 / 8.8 | 442 / 39 / 68 |
 | map, 64 | 17 / 5.0 / 9.8 | 117 / 71 / 185 | 377 / 118 / 1850 | 65 / 5.4 / 8.0 | 421 / 17 / 77 |
-| set, 1 | 227 / 314 / 327 | 47 / 107 / 117 | 61 / 116 / 145 | 131 / 284 / 277 | 173 / 375 / 400 |
-| set, 4 | 87 / 91 / 104 | 181 / 398 / 627 | 390 / 294 / 782 | 56 / 75 / 89 | 165 / 114 / 145 |
-| set, 16 | 43 / 26 / 36 | 151 / 219 / 296 | 590 / 211 / 1824 | 45 / 23 / 34 | 262 / 60 / 134 |
-| set, 32 | 41 / 25 / 32 | 167 / 255 / 328 | 614 / 225 / 1806 | 59 / 21 / 39 | 536 / 51 / 73 |
-| set, 64 | 44 / 26 / 35 | 191 / 213 / 320 | 714 / 213 / 2705 | 59 / 22 / 37 | 402 / 34 / 66 |
+| sorted_set, 1 | 227 / 314 / 327 | 47 / 107 / 117 | 61 / 116 / 145 | 131 / 284 / 277 | 173 / 375 / 400 |
+| sorted_set, 4 | 87 / 91 / 104 | 181 / 398 / 627 | 390 / 294 / 782 | 56 / 75 / 89 | 165 / 114 / 145 |
+| sorted_set, 16 | 43 / 26 / 36 | 151 / 219 / 296 | 590 / 211 / 1824 | 45 / 23 / 34 | 262 / 60 / 134 |
+| sorted_set, 32 | 41 / 25 / 32 | 167 / 255 / 328 | 614 / 225 / 1806 | 59 / 21 / 39 | 536 / 51 / 73 |
+| sorted_set, 64 | 44 / 26 / 35 | 191 / 213 / 320 | 714 / 213 / 2705 | 59 / 22 / 37 | 402 / 34 / 66 |
 
 The queue and the stack are a compare-exchange on a word every thread contends for, and what a compare-exchange loses to a lock under that contention is the retries: sixteen threads at one word fail far more exchanges than they win, and Java's deque, which has no backoff, spends 300 ns per operation on them where the mutex serializes the threads at 42 (Go's stack, with the same backoff and pause as SGCL's, is at 39). The stack answers with the backoff of Herlihy and Shavit, a wait that doubles after every lost exchange up to `config::backoff_max` pauses, which turns the storm into near-serial exchanges: 17 ns per operation at sixteen threads and 14 at four, the fastest column of the table at every count, and 13 ns on one thread, where nothing is ever lost and the backoff never runs (23, 18 and 17 in the previous version of this table: a push used to wake the waiters of `pop()` whether there were any or not, and now looks at their count first, as the bounded queue does, which took the notify's fetch-add off every push). The queue answers with Java's hopping head and tail, which lag a node behind and are swung every second node, halving the exchanges on the two words: 166 ns at sixteen threads against 344 for the plain Michael–Scott queue in Go and 170 for Java's, though still nearly four times the mutex (a backoff gains the queue nothing, its retries being the walk to the first element rather than lost exchanges, and the map nothing either, whose threads lose an exchange only when they insert or erase neighbours under the same predecessor and whose search starts over from the top anyway; both measured). On one thread the container costs SGCL 26 and 13 ns (an `Item` and a node allocated per push, a hazard pointer per load), Go 15 and 14, Java 37 and 49, and the `std` container of `shared_ptr` under an uncontended mutex 21. What the table does not show at sixteen threads is why a lock-free structure is there at all when a mutex serializes as fast: no thread ever waits for a thread that was descheduled, killed or blocked while holding the word, which is the property the collector itself is built on, and the one a signal handler or a real-time thread needs. The rows at 32 and 64 threads, more threads than cores, show it in numbers: the lock-free stack stays at 12 and 13 ns where Go's, with the same algorithm, goes to 67 and Java's to 103 and 114, and `concurrent::stack` at 24 and 27 where Go's is at 122, since a thread preempted between its load and its exchange costs the others one lost exchange and nothing more, while a thread preempted with a mutex holds everyone behind it for its time slice (the mutex stack stays at 45 by luck of the scheduler's slices: a descheduled holder is rare when the critical section is a few nanoseconds, and every thread parks in the kernel anyway). The atomic `shared_ptr` column is the same algorithm with a lock inside every load, and its queue does not survive 32 threads at all: a consumer descheduled with a popped node keeps every node popped after it alive through the `next` links, and their release, recursive, runs off the end of the stack (the dash in the table).
 
 The map is where the contended word disappears, since threads work on different nodes, and there the lock-free structure is what it is for, at 64 threads on 24 cores most of all (36 ns per mixed operation against 384 under the mutex and 3625 under the read-write lock, whose writers wait for readers that were descheduled holding it; Go's skip list 39): from four threads up SGCL's map is faster than `std::map` under either lock on every operation, and at sixteen threads by nine to sixty times (37 ns per mixed operation against 333 under the mutex and 2382 under the read-write lock, whose writers starve the readers); Java's `ConcurrentSkipListMap` is at 79. Go's hand-written skip list is the fastest at four threads and level with SGCL at sixteen: a link in Go is a plain load where SGCL's `atomic::load` takes a hazard pointer (a store and a load the processor may not reorder, a few nanoseconds per step of the search, and a search over 200,000 keys is some thirty steps; the byte of state the `tracked_ptr` built on the stack writes costs nothing measurable, being written once per object per cycle). That is the whole of the one-thread column, where SGCL is the slowest map of the table (322 ns per lookup against Go's 293, and 197 for the red-black tree under an uncontended mutex): a load-side cost, per step, that an asymmetric barrier (the fence on the collector's side instead of the mutator's) would take off the loads; without the hazard pointer the same search measures 285 ns. The insertion columns of the map and the set are the SGCL cells measured again after the whole run (best of three, the rest of the row from the run): `try_emplace` and the set's `insert` used to look the key up and then search again for the neighbours to link between, two searches of 200 ns each on this one-thread phase, where the keys arrive in order and every load hits the cache; they search once now, and build the node only when the key is absent (443 and 456 ns per insertion before, 214 and 227 in the run the rows are from; 151 and 154 to 84 and 87 at four threads, 67 to 46 and 43 at sixteen, the allocation between the search and the link costing nothing measurable in lost exchanges). What is left against Go's 146 is the walk itself: a search of this shape loads 31 links, and each is a hazard pointer and a `tracked_ptr` built, assigned and dropped, 8 ns a step where Go's is a load; the same walk on raw pointers measures 90 ns. `copy_on_write` over an array of 64 `long`s, three or fifteen readers each taking 2,000,000 snapshots and summing them while one writer replaces the value as fast as it can (a copy with one element changed): nanoseconds per read across the readers / per write, against `std::shared_ptr` with the atomic operations of `<memory>`, the array under a `std::shared_mutex` changed in place, Go's `atomic.Pointer` to an array swapped the same way, and Java's `CopyOnWriteArrayList` of 64 `Long`s:
 
-| threads | SGCL | atomic `shared_ptr` | `std::shared_mutex` | Go | Java ZGC |
+| Threads | SGCL | Atomic `shared_ptr` | `std::shared_mutex` | Go | Java ZGC |
 |---|---|---|---|---|---|
 | 4 | 8.9 / 202 | 66.1 / 722 | 321 / 196 | 10.3 / 532 | 70.3 / 174 |
 | 16 | 3.1 / 406 | 30.3 / 2145 | 89.1 / 3417 | 2.8 / 715 | 33.8 / 901 |
@@ -66,7 +68,7 @@ A read is a load and a sum of 64 words: SGCL and Go, whose readers touch nothing
 
 `async::channel<T>` between *n* / 2 producers of 200,000 items each and as many consumers, a rendezvous (capacity 0) and a buffer of 64; nanoseconds per item end to end. The producers and consumers are threads (the `threads` column) or tasks on the scheduler (`tasks`: `co_await ch.send`, `co_await ch.receive`), against `std::queue` under a mutex with two condition variables (the classic bounded queue), Go's channel between goroutines, and Java's `SynchronousQueue` and `ArrayBlockingQueue`:
 
-| capacity, n | SGCL threads | SGCL tasks | `std::queue`, mutex | Go | Java ZGC |
+| Capacity, n | SGCL threads | SGCL tasks | `std::queue`, mutex | Go | Java ZGC |
 |---|---|---|---|---|---|
 | 0, 2 | 381 | 153 | 3391 | 148 | 237 |
 | 0, 4 | 679 | 210 | 3024 | 182 | 275 |
@@ -89,7 +91,7 @@ The structures added in September 2026, measured with `benchmarks/compare.sh` (`
 
 The bounded queue, `threads / 2` producers of 200 k items each and as many consumers, ns per item (the channel table above is the same harness over the channel, which is this ring with the machinery of `select` around it):
 
-| capacity, threads | `concurrent::bounded_queue` | Go `chan` | Java `ArrayBlockingQueue` |
+| Capacity, threads | `concurrent::bounded_queue` | Go `chan` | Java `ArrayBlockingQueue` |
 |---|---|---|---|
 | 64, 2 | 52 | 51 | 186 |
 | 64, 4 | 68 | 75 | 212 |
@@ -106,7 +108,7 @@ The sixteen-thread cells were 266 and 208 at first, two and a half times Go's, w
 
 The priority queue, mixed: every thread pushes a pseudo-random priority and pops the least, 200 k times, over an empty queue (it stays as short as the number of threads) and over one holding 100 k elements, ns per operation; SGCL's is a binary heap under a spin-then-park lock (it was a lock-free skip list first: 56, 183 and 351 ns at 1, 4 and 16 threads on the empty queue, and the reason for the change):
 
-| queue, threads | `concurrent::priority_queue` | `std::priority_queue`, mutex | Go `container/heap`, mutex | Java `PriorityBlockingQueue` |
+| Queue, threads | `concurrent::priority_queue` | `std::priority_queue`, mutex | Go `container/heap`, mutex | Java `PriorityBlockingQueue` |
 |---|---|---|---|---|
 | empty, 1 | 12.5 | 21 | 15 | 29 |
 | empty, 4 | 14.2 | 74 | 109 | 28 |
@@ -121,7 +123,7 @@ The priority queue, mixed: every thread pushes a pseudo-random priority and pops
 
 `intern`, a pool of 1000 distinct strings of 13 characters, every thread interning 1 M drawn at random, ns per intern:
 
-| threads | `concurrent::intern<string>` | Go `unique.Make` | Java `String.intern` |
+| Threads | `concurrent::intern<string>` | Go `unique.Make` | Java `String.intern` |
 |---|---|---|---|
 | 1 | 69 | 33 | 89 |
 | 4 | 19.5 | 8.5 | 25 |
@@ -131,7 +133,7 @@ The priority queue, mixed: every thread pushes a pseudo-random priority and pops
 
 The weak map, 10 k live objects as the keys, every thread doing 1 M operations on random ones, half insertions (kept if the object has no entry) and half lookups, ns per operation:
 
-| threads | `concurrent::weak_map` | Java `WeakHashMap`, synchronized |
+| Threads | `concurrent::weak_map` | Java `WeakHashMap`, synchronized |
 |---|---|---|
 | 1 | 55 | 35 |
 | 4 | 15 | 55 |
@@ -147,14 +149,14 @@ The two structures without a counterpart in Go's or Java's library, measured on 
 
 The single-producer single-consumer queue, one thread pushing 200,000 items and one popping them, the channel's harness at two threads (an `Item` allocated per push, a `tracked_ptr` moved through the ring), ns per item; the bounded queue at two threads and Go's and Java's are in the table above:
 
-| capacity | `spsc_queue` |
+| Capacity | `spsc_queue` |
 |---|---|
 | 64 | 27 |
 | 1024 | 21 |
 
 The cache, 10,000 entries over 20,000 keys (so that half the lookups hit), every thread doing 1,000,000 operations, 90% lookups and 10% insertions, ns per operation; `concurrent::cache` (a sampled LRU: a hit writes nothing shared, an insertion at capacity evicts the oldest of eight) against the classic C++ cache, `std::unordered_map` and a `std::list` of the order under a `std::mutex` (an exact LRU: every hit splices the list):
 
-| threads | `concurrent::cache` | `map` + `list`, mutex |
+| Threads | `concurrent::cache` | `map` + `list`, mutex |
 |---|---|---|
 | 1 | 73 | 39 |
 | 4 | 26 | 163 |
@@ -164,7 +166,7 @@ The cache, 10,000 entries over 20,000 keys (so that half the lookups hit), every
 
 The broadcast (a class of the async module, measured here with the containers, `CASES="bcast"`): one thread sending 1,000,000 values into a ring of 1024, every subscriber receiving every one, ns per value sent; the subscribers threads with the blocking receive, or tasks on the scheduler with `co_await`; Go has no broadcast in its library, so its column is the idiom, a channel of 1024 per subscriber with a goroutine receiving on each, the sender sending every value to each in turn; Java has none either:
 
-| subscribers | `broadcast`, threads | `broadcast`, tasks | Go, a channel each |
+| Subscribers | `broadcast`, threads | `broadcast`, tasks | Go, a channel each |
 |---|---|---|---|
 | 1 | 127 | 138 | 46 |
 | 4 | 692 | 873 | 199 |
@@ -174,3 +176,81 @@ The broadcast (a class of the async module, measured here with the containers, `
 The broadcast's wait is kept with the subscription (the position waited for, the task's frame or the thread's park word, a link in the list of subscriptions the senders walk): the sender that commits past a registration claims it and wakes that one subscriber, once, and a thread looks for the next commit for a few microseconds before it parks, as the queues do. It was a round before, a channel every waiting subscriber registered on anew for every value and the sender closed: 40 µs per value with sixteen thread subscribers and 209 with sixty-four in the first run of this table, 1.6 and 186 now, 74 to 127 with one (the walk of the subscriptions and the spin), 1021 to 692 with four; with task subscribers 8.5 and 31.5 µs at sixteen and sixty-four before, 6.5 and 25 with the wait kept with the subscription, and 4.0 and 2.6 now that the sender's walk hands the tasks it wakes to the scheduler together (`detail::WakeBatch`: one store of the worker's ring for all of them, or one chain linked on the global queue from a thread that is no worker, where each enqueue was 310 ns of a subscriber's 420). A send costs the node's allocation and a load per subscription; a receive between threads costs the node's count, one line all the subscribers write per value, and the spin; between tasks it costs the wake, the frames handed to the scheduler's queues in one batch and a worker woken for them, which is where the task column still lags Go's at four and at sixteen, four and three times Go's, and where it passes it at sixty-four, 2.6 µs against 13.5: the quicker sender's subscribers find more values there when they look and are woken less often. At one subscriber the tasks are level with the threads. A task subscriber lapped by the ring loses values as a thread does, and is told how many by `lagged()`: the sender here never waits, and a worker taken off its core for a millisecond leaves its subscriber a ring behind. The fastest of the three runs at four tasks received 99%; over forty runs of a million values each, one run was lapped (1792 values of four million, every one of them reported by `lagged()`), and before the wakes were batched four were. Sixty-four thread subscribers on twenty-four cores park in the kernel and are woken one by one, and a subscriber parked long enough is lapped by the ring and loses values (97% received in that cell): that row is the machine's, not the broadcast's; the tasks, which share the workers, take 2.6 µs there, Go's goroutines 13.5.
 
 What the numbers say. The single-producer ring was 75 and 66 in the first run of this table, behind the bounded queue's 36 to 53 on the same harness, and the reason was found the same day: it was Lamport's ring then, each side caching the other's index, and a consumer at the producer's heels (the producer allocates, the consumer only sums) reloaded the producer's tail at nearly every pop, two lines crossing between the cores per element where the bounded queue's cell, its sequence and its element on one line, crosses once; rewritten on a sequence per cell, the bounded queue's cell without its compare-exchange, it is 27 and 21, ahead of the bounded queue (36 to 53) and of every other column of the two-thread rows, and 5.7 ns per `int` between two threads on its own page against 21 to 27 for the ring it replaced. The cache is the map with the stamps: on one thread the list under an uncontended mutex is nearly twice as fast (39 ns against 73, a hash lookup and a splice against the split-ordered list's hazard pointer per load, the stamp and the stripe), and from four threads up the lock is the cost, since every hit of an exact LRU is a write to the list under it, 137 to 163 ns, where the sampled cache, whose hit writes nothing shared, is at 26 and 22, six times ahead (29 at sixteen threads before the count of the entries, which every insertion writes, was moved off the line of the tick, which every lookup reads). The broadcast's send allocates a node per value and its receivers copy the value out and count it off the node, one line shared by all of them per value: 135 ns with one subscriber, 620 with four, the four contending for every node's count; a receiver that looked at the slot before the commit word, to spare itself the word's line on a hit, was measured and dropped (93 to 127 with one subscriber, 1520 to 1570 with four, on the round-based version): the readers polling the slot's line slowed the sender about to write it.
+
+## The rings against the unbounded queue
+
+Nanoseconds per push and pop of an `int` through a ring of 1024, on the machine above, `-O2`: one thread pushing
+and popping in turn; a producer and a consumer; four producers and four consumers, the blocking `push` and `pop`.
+`concurrent::bounded_queue` against the unbounded `concurrent::queue`, which allocates a node per push:
+
+| Threads | `concurrent::bounded_queue` | `concurrent::queue` |
+|---|---|---|
+| 1 | 7.1 | 70 |
+| 1 + 1 | 9 | 104 |
+| 4 + 4 | 37 | 340 |
+
+The ring is a compare-exchange on one of two words and a store to a cell, and no allocation; the unbounded queue
+makes a node per element and walks to the end of the list. Between four producers and four consumers the ring's
+two words are what eight threads contend for, and the number is theirs. A lost exchange on a position backs off
+exponentially, as the stack does at its head, up to 1024 pauses: at eight producers and eight consumers that cap
+is the difference between 257 and 80 ns per item through a ring of 64 (228 and 60 through one of 1024), the storm
+of lost exchanges turned into near-serial ones; two and four threads do not feel it.
+
+`concurrent::spsc_queue`, 20 M elements through a ring of 1024, one thread pushing and popping in turn, and a
+producer and a consumer with the blocking `push` and `pop`, against the bounded and the unbounded queue and
+against the ring it replaced (September 2026), Lamport's with each side caching the other's index, built the same
+day from the same probe:
+
+| Threads | `spsc_queue` | Lamport's ring | `concurrent::bounded_queue` | `concurrent::queue` |
+|---|---|---|---|---|
+| 1 | 5.1 | 4.9 | 7.5 | 56 |
+| 1 + 1 | 5.7 | 21 to 27 | 30 | 72 |
+
+Between two threads an element is one line crossing between the cores, the cell's, with the sequence and the
+`int` on it: 5.7 ns, what one thread pays doing both. Lamport's ring at the same run is 21 to 27: a producer that
+does nothing but push keeps the ring full, and a consumer at its heels makes it reload the head, the consumer's
+word, at nearly every push, a second line crossing per element and the first taken back by the consumer for its
+next pop (the 2.5 ns of an earlier version of this table is that ring with room to run, the two sides out of
+step by a part of a lap, which a stream between two threads on a busy machine is not). The bounded MPMC queue
+pays a compare-exchange per operation and the unbounded queue a node per element.
+
+## The priority queue against the skip list it replaced
+
+The table of [the priority queue](#the-bounded-queue-the-priority-queue-intern-and-the-weak-map) as it was first
+measured, at `-O2`, with the skip-list priority queue of Shavit and Lotan, over the list of `sorted_map`, which
+`concurrent::priority_queue` was before it became a heap under a lock, in the last column:
+
+| Queue, threads | `concurrent::priority_queue` | `std::priority_queue`, `std::mutex` | Go heap, mutex | Java `PriorityBlockingQueue` | Skip list (before) |
+|---|---|---|---|---|---|
+| empty, 1 | 12.4 | 22 | 17 | 29 | 56 |
+| empty, 4 | 14.4 | 73 | 107 | 29 | 183 |
+| empty, 16 | 31 | 50 | 127 | 24 | 351 |
+| 100 k, 1 | 69 | 83 | 94 | 90 | — |
+| 100 k, 4 | 70 | 350 | 183 | 121 | — |
+| 100 k, 16 | 70 | 171 | 268 | 97 | — |
+
+The lock is what a lock costs when it is taken for a few dozen nanoseconds: a spin through the other thread's
+operation, at 14 ns per operation across four threads, where the system's mutex parks and wakes (73) and Go's
+queues its goroutines (107); at sixteen threads on an empty queue Java's `ReentrantLock` with HotSpot's adaptive
+spinning is a fifth ahead (24 against 31), the one cell of the table it holds. On a long queue the sift down of a
+pop is the work, sixteen comparisons across the levels of a heap of 100 k, and the lock serializes it: 70 ns per
+operation at any number of threads, ahead of Java's heap by a third, of Go's by two and a half times.
+
+## The cost of a cache operation
+
+A `concurrent::cache` of 100,000 entries keyed by `long` with `tracked_ptr` values, random keys, in nanoseconds
+per operation (`-O2`, the best of three runs on a machine that was not idle, so an upper bound):
+
+| Operation | One thread | Four threads, across them |
+|---|---|---|
+| `get`, a hit | 58 | 17 |
+| `get`, a hit, with a time to live | 87 | — |
+| `put` of a new key at capacity (an eviction each) | 740 | 650 |
+
+The map's own `find` over the same entries is 40 ns: a hit is the search, then the entry's box (null) and stamp
+on the node's line, the tick, and the thread's stripe; four threads hitting cost a quarter of one, nothing shared
+being written. A `put` at capacity is an insertion (a node made and linked), the walk of eight entries, each a
+node of the list and mostly a cache miss over 100,000 of them, an erasure (a marker made, the node unlinked by a
+search), and a cursor made: the map's own insertion and erasure of a key are 200 ns of it, the sample most of the
+rest (650 ns at a sample of 5, 1000 at 16). Four threads putting at once share the tick and the count, one line,
+and evict on stretches of their own. With a time to live a hit reads the clock.

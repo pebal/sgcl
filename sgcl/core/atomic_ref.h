@@ -83,15 +83,20 @@ namespace sgcl {
     // holds (`atomic_ref a(*rooted)`). The handle must not be moved or
     // destroyed while a view of it exists. Identity, as atomic<H>: the
     // compare-exchanges compare the object, not its contents.
+    // The word's operations are a private base, as atomic<H>'s.
     template<req::handle H>
     class atomic_ref<H>
-    : public detail::AtomicWord<atomic_ref<H>, detail::HandleStateOf<H>> {
+    : private detail::AtomicWord<atomic_ref<H>, detail::HandleStateOf<H>> {
         using State = detail::HandleStateOf<H>;
         using Base = detail::AtomicWord<atomic_ref, State>;
         using Word = tracked_ptr<State>;
 
     public:
         using value_type = H;
+        using Base::is_always_lock_free;
+        using Base::is_lock_free;
+        using Base::notify_one;
+        using Base::notify_all;
 
         atomic_ref& operator=(const atomic_ref&) = delete;
 

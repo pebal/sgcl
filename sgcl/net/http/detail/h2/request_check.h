@@ -46,7 +46,7 @@ namespace sgcl::net::http::detail::h2 {
         return false;
     }
 
-    inline ErrorCode check_request(const headers& fields, bool end_stream, RequestHead& out) {
+    inline ErrorCode check_request(const headers& fields, bool end_stream, RequestHead& out) noexcept {
         bool regular = false;
         for (auto& f : HeadersAccess::fields(fields)) {
             auto n = f.first.view();
@@ -98,7 +98,7 @@ namespace sgcl::net::http::detail::h2 {
     }
 
     // §8.1: trailers carry no pseudo-field, and the rules of names hold
-    inline ErrorCode check_trailers(const headers& fields) {
+    inline ErrorCode check_trailers(const headers& fields) noexcept {
         for (auto& f : HeadersAccess::fields(fields)) {
             auto n = f.first.view();
             if (n.empty() || n[0] == ':' || has_upper(n) || connection_specific(n)) {

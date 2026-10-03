@@ -313,6 +313,28 @@ TEST(Slice_Tests, ACharacterArrayIsTextToItsFirstNul) {
     EXPECT_EQ(size_of(ca), 5u);
 }
 
+// A text slice of a literal is the text without its terminator, as the
+// byte slice of one and every member of mixin::text read an array: up to
+// its first NUL or its end. A slice of characters that may be written is
+// a buffer, all of it.
+TEST(Slice_Tests, ATextSliceOfALiteralHasNoTerminator) {
+    string_slice s = "ab";
+    EXPECT_EQ(s.size(), 2u);
+    EXPECT_TRUE(s == "ab");
+    EXPECT_FALSE(s.owned());
+    slice<const char16_t> u = u"żółw";
+    EXPECT_EQ(u.size(), 4u);
+    slice<const char> cut = "ab\0cd";
+    EXPECT_EQ(cut.size(), 2u);
+    const char full[3] = {'x', 'y', 'z'};
+    EXPECT_EQ(string_slice(full).size(), 3u);   // no NUL: all of it
+    char buffer[8] = {};
+    slice<char> b = buffer;
+    EXPECT_EQ(b.size(), 8u);                    // a buffer to write into: every element
+    int ints[3] = {0, 0, 0};
+    EXPECT_EQ(slice<const int>(ints).size(), 3u);
+}
+
 TEST(Slice_Tests, BytesTakeTextWithoutAmbiguity) {
     // what converts to bytes, and what does not
     static_assert(std::is_convertible_v<const string&, slice<const byte>>);

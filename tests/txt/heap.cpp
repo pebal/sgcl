@@ -66,10 +66,11 @@ TEST(TxtHeap_Tests, APreparedTextKeepsItsOwnMapping) {
     string text = ten_kilobytes();
     txt::folded_text prepared(text);
     txt::fold_searcher fox("FOX");
-    size_t at = prepared.find(fox);
-    ASSERT_NE(at, npos);
+    auto found = prepared.find(fox);
+    ASSERT_TRUE(found.has_value());
+    size_t at = found->pos;
     EXPECT_TRUE(txt::find_fold(of("A DIFFERENT TEXT, LONGER THAN THE PATTERN"), of("text")).has_value());
-    EXPECT_EQ(prepared.find(fox), at);
+    EXPECT_EQ(prepared.find(fox), found);
     EXPECT_EQ(text.view().substr(at, 3), "fox");
 }
 
@@ -302,4 +303,65 @@ TEST(TxtHeap_Tests, ALargeScratchIsLetGoAfterUse) {
         other->resize(1000);
     }
     EXPECT_LE(txt::detail::lent_kept_bytes(), txt::detail::LentThreadKeep);
+}
+
+// The growth of a scratch array cannot throw: a failed realloc ends the
+// program, as running out of managed memory does, so the loops that
+// append a code point at a time cannot throw either. They threw bad_alloc.
+TEST(TxtHeap_Tests, GrowingScratchCannotThrow) {
+    using txt::detail::scratch_vector;
+    txt::detail::code_points points;
+    static_assert(noexcept(points.push_back(U'a')));
+    static_assert(noexcept(points.reserve(1)));
+    static_assert(noexcept(points.resize(1)));
+    static_assert(noexcept(points.assign(size_t(1), U'a')));
+    static_assert(noexcept(points.append(points.begin(), points.end())));
+    static_assert(noexcept(points.insert(points.begin(), U'a')));
+    static_assert(noexcept(points.emplace_back(U'a')));
+    static_assert(std::is_nothrow_copy_constructible_v<scratch_vector<size_t>>);
+    static_assert(std::is_nothrow_copy_assignable_v<scratch_vector<size_t>>);
+    static_assert(noexcept(txt::detail::case_one(points, std::string_view(), 0, 0, U'a',
+                                                 txt::detail::casing::lower, txt::locale())));
+    static_assert(noexcept(txt::detail::compose_buffer(points)));
+    static_assert(noexcept(txt::detail::normalized_points(std::string_view(), txt::nfd, points)));
+    static_assert(noexcept(txt::detail::decompose_into<false>(points, U'a')));
+    txt::detail::code_points grown;
+    for (char32_t c = 0; c < 100000; ++c) {
+        grown.push_back(c);
+    }
+    EXPECT_EQ(grown.size(), 100000u);
+    EXPECT_EQ(grown[99999], char32_t(99999));
+}
+
+// insert moves the elements after the place up by one, a run that overlaps
+// its source by all but one element, and resize zeroes what it adds: both
+// over every width the byte routines take apart (under four bytes, four,
+// eight, sixteen, thirty-two and past it)
+TEST(TxtHeap_Tests, ScratchInsertAndResize) {
+    for (size_t n = 0; n <= 40; ++n) {
+        for (size_t at = 0; at <= n; ++at) {
+            txt::detail::scratch_vector<uint8_t> bytes;
+            txt::detail::code_points points;
+            for (size_t k = 0; k < n; ++k) {
+                bytes.push_back(uint8_t(k + 1));
+                points.push_back(char32_t(k + 1));
+            }
+            bytes.insert(bytes.begin() + at, uint8_t(0xEE));
+            points.insert(points.begin() + at, U'\x10FFFF');
+            ASSERT_EQ(bytes.size(), n + 1);
+            ASSERT_EQ(points.size(), n + 1);
+            for (size_t k = 0; k <= n; ++k) {
+                size_t was = k < at ? k + 1 : k;
+                ASSERT_EQ(bytes[k], k == at ? uint8_t(0xEE) : uint8_t(was)) << n << " " << at;
+                ASSERT_EQ(points[k], k == at ? U'\x10FFFF' : char32_t(was)) << n << " " << at;
+            }
+        }
+        txt::detail::code_points grown;
+        grown.assign(size_t(3), U'\x10FFFF');
+        grown.resize(3 + n);
+        ASSERT_EQ(grown.size(), 3 + n);
+        for (size_t k = 0; k < 3 + n; ++k) {
+            ASSERT_EQ(grown[k], k < 3 ? U'\x10FFFF' : char32_t(0)) << n;
+        }
+    }
 }

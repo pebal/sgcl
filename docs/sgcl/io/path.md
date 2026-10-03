@@ -1,112 +1,104 @@
+[sgcl](../README.md) › [io](README.md)
+
 # sgcl::io::path
 
 ```cpp
-#include "sgcl/io/path.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
+#include "sgcl/io/path.h"   // or "sgcl/io.h"
 
 namespace sgcl::io::path {
-    inline constexpr char separator = '/';  inline constexpr char list_separator = ':';
-    string clean(const string& p);
-    string join(std::initializer_list<string> elements);   template<class R> string join(const R& elements);   template<class... S> string join(const string& first, const S&... rest);
-    string base(const string& p);  string dir(const string& p);  string ext(const string& p);  string stem(const string& p);
-    pair<string, string> split(const string& p);  vector<string> split_list(const string& list);
-    bool is_abs(const string& p) noexcept;
-    bool is_local(const string& name) noexcept;  expected<string, error> under(const string& dir, const string& name);
-    expected<string, error> abs(const string& p);  expected<string, error> rel(const string& base, const string& target);
-    expected<bool, error> match(const string& pattern, const string& name);  expected<vector<string>, error> glob(const string& pattern);
-    string from_slash(const string& p);  string to_slash(const string& p);
+    inline constexpr char separator = '/';
+    inline constexpr char list_separator = ':';
 }
 ```
 
-Paths as strings, `path/filepath`: lexical operations on the text of a path in the platform's form (`/` on POSIX), touching the file system only where the name says so (`abs`, `glob`). Nothing here allocates a path type: a [`string`](../core/string.md) in (a literal makes one), a `string` out. Text is UTF-8: `match` compares code points, so `?` is one character and `[α-ω]` a range of them.
+`io::path` is the lexical operations on paths, Go's `path/filepath`: the text of a path in the platform's form (`/`
+on POSIX) taken apart, joined and cleaned, the file system touched only where the name says so
+([abs](path/abs.md), [glob](path/glob.md)). A path is a [string](../core/string.md): a string in (a literal makes
+one), a string out. Against `std::filesystem::path`, there is no path type to make and convert, and nothing here
+allocates one; against Go, the same names, [stem](path/stem.md) added.
+
+Text is UTF-8: [match](path/match.md) and [glob](path/glob.md) compare code points, so `?` is one character and
+`[α-ω]` a range of them. Invalid bytes are not rejected; on POSIX a path is bytes the system does not interpret.
 
 ## Rules
 
-- `clean` is applied by `join`, `dir`, `abs`, `rel`; `base`, `ext`, `split` work on the text as given.
-- `match` matches the whole name, element by element: `*` and `?` never match a separator.
-- A malformed pattern (an unclosed `[`, a trailing `\`, a reversed range) is `errc::invalid_pattern`, whatever the name.
-- **A name from outside** — an entry of an archive, the path of a request (which may have been `..%2f` before it was decoded), a name a user typed — goes through `under(dir, name)` before it becomes a file's path: the name joined to the directory when `is_local(name)`, `errc::insecure_path` when it is not, nothing joined. `is_local` is Go's `filepath.IsLocal`: not empty, not absolute, no NUL, no `\`, and no `..` that climbs above the start once the name is taken lexically (`a/../b` is local, `a/../..` is not). The archives' extraction ([`tar`](../compress/tar.md), [`zip`](../compress/zip.md), [`sevenzip`](../compress/sevenzip.md)) holds its names to the same rule.
+- [clean](path/clean.md) is applied by [join](path/join.md), [dir](path/dir.md), [abs](path/abs.md) and
+  [rel](path/rel.md); [base](path/base.md), [ext](path/ext.md), [stem](path/stem.md) and [split](path/split.md)
+  work on the text as given.
+- [match](path/match.md) matches the whole name, element by element: `*` and `?` never match a separator. A
+  malformed pattern (an unclosed `[`, a trailing `\`, a reversed range) is `errc::invalid_pattern`, whatever the
+  name.
+- **A name from outside** — an entry of an archive, the path of a request (which may have been `..%2f` before it
+  was decoded), a name a user typed — goes through [under](path/under.md) before it becomes a file's path: the name
+  joined to the directory when [is_local](path/is_local.md) says it stays inside, `errc::insecure_path` when it
+  does not, nothing joined. The archives' extraction ([tar](../compress/tar.md), [zip](../compress/zip.md),
+  [sevenzip](../compress/sevenzip.md)) holds its names to the same rule.
 
-## Members
+## Member objects
 
-```cpp
-string clean(const string& p);           // the shortest equivalent: "." and ".." resolved, repeated and trailing separators dropped; "" is "."
-string join(std::initializer_list<string> elements);   // with the separator, cleaned; empty elements skipped; all empty gives ""
-template<class R> string join(const R& elements);      // the same over a range of strings
-template<class... S> string join(const string& first, S... rest);
-string base(const string& p);            // the last element; "" and "/" give themselves
-string dir(const string& p);             // everything but the last element, cleaned; "." when none
-string ext(const string& p);             // from the last dot of the last element, "" when none (".bashrc" is all extension)
-string stem(const string& p);            // base without ext
-pair<string, string> split(const string& p);       // {dir with its trailing separator as written, file}
-vector<string> split_list(const string& list);     // a PATH-like list, empty elements skipped
-bool is_abs(const string& p) noexcept;
-bool is_local(const string& name) noexcept;                 // joined to a directory, it stays inside: Go's filepath.IsLocal
-expected<string, error> under(const string& dir, const string& name);   // dir joined with name, cleaned, when it is local; errc::insecure_path when not
-expected<string, error> abs(const string& p);               // the working directory joined when relative, cleaned
-expected<string, error> rel(const string& base, const string& target);   // the path from base to target with ".."; errc::invalid_path when one is absolute and the other not, or base begins with ".."
-expected<bool, error> match(const string& pattern, const string& name);  // '*' any run without a separator, '?' one character, '[a-z]' a class, '[^a-z]' its negation, '\' an escape
-expected<vector<string>, error> glob(const string& pattern);                // the paths that match, sorted within each directory; unreadable directories skipped; without meta characters, the file if it exists
-string from_slash(const string& p);  string to_slash(const string& p);   // identity on POSIX
-```
+| Constant | Description |
+|---|---|
+| `separator` | the separator of the elements of a path: `'/'` |
+| `list_separator` | the separator of the paths of a list such as `PATH`: `':'` |
 
-```cpp
-io::path::clean("a//b/../c/");                  // "a/c"
-io::path::join("/usr", "local", "bin");         // "/usr/local/bin"
-io::path::base("/a/b/c.tar.gz");                // "c.tar.gz"
-io::path::dir("/a/b/c.tar.gz");                 // "/a/b"
-io::path::ext("/a/b/c.tar.gz");                 // ".gz"
-io::path::stem("/a/b/c.tar.gz");                // "c.tar"
-*io::path::rel("/a/b", "/a/c/d");               // "../c/d"
-*io::path::match("*.cpp", "main.cpp");          // true
-*io::path::match("src/*.cpp", "src/a/b.cpp");   // false: '*' stops at '/'
-*io::path::match("[а-я]*", "яблоко");           // true: a range of code points
-for (auto& p : *io::path::glob("tests/*/*.cpp")) ...
-```
+## Member functions
+
+| Function | Description |
+|---|---|
+| [abs](path/abs.md) | the absolute form of a path |
+| [base](path/base.md) | the last element |
+| [clean](path/clean.md) | the shortest equivalent path |
+| [dir](path/dir.md) | everything but the last element |
+| [ext](path/ext.md) | the extension |
+| [from_slash](path/from_slash.md) | a path with `/` as the separator in the platform's form |
+| [glob](path/glob.md) | the paths that match a pattern |
+| [is_abs](path/is_abs.md) | checks whether a path is absolute |
+| [is_local](path/is_local.md) | checks whether a name stays inside the directory it is joined to |
+| [join](path/join.md) | the elements joined and cleaned |
+| [match](path/match.md) | checks whether a name matches a shell pattern |
+| [rel](path/rel.md) | the path from one path to another |
+| [split](path/split.md) | the directory and the file |
+| [split_list](path/split_list.md) | the paths of a list such as `PATH` |
+| [stem](path/stem.md) | the last element without its extension |
+| [to_slash](path/to_slash.md) | a path in the platform's form with `/` as the separator |
+| [under](path/under.md) | a name from outside joined to a directory, when it stays inside |
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
-    for (const char* name : {"docs/a.txt", "a/../b.txt", "../secret.txt", "/etc/passwd"}) {
-        auto file = io::path::under("public", name);
-        println("{} -> {}", name, file ? *file : file.error().message());
-    }
+    string archive = "/a/b/c.tar.gz";
+    println("{}", io::path::clean("a//b/../c/"));
+    println("{}", io::path::join("/usr", "local", "bin"));
+    println("{} | {}", io::path::base(archive), io::path::dir(archive));
+    println("{} | {}", io::path::ext(archive), io::path::stem(archive));
+    println("{}", io::path::rel("/a/b", "/a/c/d").value());
+    println("{} {}", io::path::match("*.cpp", "main.cpp").value(),
+            io::path::match("src/*.cpp", "src/a/b.cpp").value());
+    println("{}", io::path::match("[а-я]*", "яблоко").value());
 }
 ```
 
 Output:
 
 ```text
-docs/a.txt -> public/docs/a.txt
-a/../b.txt -> public/b.txt
-../secret.txt -> under ../secret.txt: insecure path
-/etc/passwd -> under /etc/passwd: insecure path
-```
-
-```cpp
-#include "sgcl/io/io.h"
-
-using namespace sgcl;
-
-// Renames every *.jpeg under a directory to *.jpg
-int main(int argc, char** argv) {
-    auto root = argc > 1 ? argv[1] : ".";
-    io::walk_dir(root, [](const io::directory_entry& e, const optional<io::error>&) {
-        if (io::path::ext(e.path) == ".jpeg") {
-            auto to = io::path::join(io::path::dir(e.path), io::path::stem(e.path) + ".jpg");
-            if (auto r = io::rename(e.path, to)) println("{} -> {}", e.path, io::path::base(to));
-            else eprintln("{}", r.error().message());
-        }
-        return io::walk_action::next;
-    });
-}
+a/c
+/usr/local/bin
+c.tar.gz | /a/b
+.gz | c.tar
+../c/d
+true false
+true
 ```
 
 ## See also
 
-- [fs](fs.md): what is at the path; [os](os.md): `working_dir`, the directories the platform names
-- `tests/io/path.cpp`: Go's table for `IsLocal` with `under`, for `Clean`, `join`/`base`/`dir`/`ext`/`stem`/`split`, `abs`/`rel`, `match` with classes, escapes and code points, `glob` over a tree.
+- [stat](stat.md), [read_dir](read_dir.md), [walk_dir](walk_dir.md): what is at a path
+- [working_dir](working_dir.md), [home_dir](home_dir.md), [temp_dir](temp_dir.md): the directories the platform
+  names
+- `tests/io/path.cpp`: Go's table for `IsLocal` with `under`, for `Clean`, `join`/`base`/`dir`/`ext`/`stem`/`split`,
+  `abs`/`rel`, `match` with classes, escapes and code points, `glob` over a tree

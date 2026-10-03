@@ -1,110 +1,135 @@
+[sgcl](../../README.md) › [net](../README.md) › [http](README.md)
+
 # sgcl::net::http::request
 
 ```cpp
-#include "sgcl/net/http/request.h"   // or "sgcl/net/http/http.h", "sgcl/sgcl.h"
+#include "sgcl/net/http/request.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    class request;   // one type for the client, which builds it, and the server, which hands it to a handler
+    class request;
 }
 ```
 
-A request, as in Go: the client builds one and sends it ([`client::send`](client.md)), the server reads one and hands it to a handler ([server](server.md)). A handle of one word: a copy is the same request.
+`sgcl::net::http::request` is a request of HTTP, Go's `http.Request`: one type for the [client](client.md), which builds
+one and sends it ([send](client/send.md)), and for the [server](server.md), which reads one and hands it to the
+handler of the route it matched. A program builds a request of a method and a URL, sets its fields and its body, and
+sends it; a handler reads the wildcards of its route, the query, the fields, the cookies and the body of the one it
+was given.
+
+A `request` is a handle of one word: a copy is the same request, and a request passed by value into a task keeps it
+alive. Its fields are a [headers](headers.md) of its own, which [headers](request/headers.md) gives by reference.
 
 ## Rules
 
-- **Built by a program**: the method as given, the URL parsed at once by [`net::url`](../url.md) (one that does not parse is reported by the send, `invalid_url`, and `url()` throws `invalid_argument` for it). A body is text, bytes, or a stream: text and bytes are held in memory and can be sent again (a retry, a 307); a stream is read once, with a Content-Length when its length is given and chunked when it is not.
-- **Received by a server**: `url()` is the URL the request was for, `http://` and the Host and the target (or the target in absolute form); `path_value` gives the wildcards of the route that matched, unescaped; `query` the first value of a name in the query; `cookie` the first cookie of a name in the Cookie fields; `content_length` the length the request declared (none for chunked).
-- **The body of a received request** is read once, with `text()`, `bytes()` or the stream `body()`; every read is bounded by the server's `max_body_bytes` (`body_too_large` past it). A request without a body has no object for it: `body()` is an empty stream, one for the program. A handler runs on a worker, so it reads with `co_await req.async_text()`; `text()` blocks a thread (the reading runs on the scheduler and the thread waits) and is for code on a thread of its own.
-- **`stop()`** is a token stopped when the server closes (`close()`) and when a write of the response fails; a long handler waits on it, or checks it.
-- `trailers()` holds the trailer fields of a chunked body once the body has been read to its end.
+- A request holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global
+  or a `std` container, a [rooted](../../core/rooted.md) of it ([The rules](../../core/README.md#the-rules), 1).
+- **Built by a program**: the method as given, the URL parsed at once by [net::url](../url.md); one that does not parse,
+  or a text past 512 MiB ([the limit](../url.md#rules)), is reported by the send, `net::errc::invalid_url`, and
+  [url](request/url.md) throws `invalid_argument` for it; the constructor throws nothing. A body
+  is text, bytes, or a stream ([set_body](request/set_body.md)): text and bytes are held in memory and can be sent
+  again (a retry, a 307); a stream is read once, with a `Content-Length` when its length is given and chunked when it
+  is not.
+- **Received by a server**: [url](request/url.md) is the URL the request was for (`http://`, the `Host` and the
+  target, or the target in absolute form); [path_value](request/path_value.md) gives the wildcards of the route that
+  matched, unescaped; [query](request/query.md) the first value of a name in the query; [cookie](request/cookie.md)
+  the first cookie of a name in the `Cookie` fields; [content_length](request/content_length.md) the length the
+  request declared (none for chunked).
+- **The body of a received request** is read once, with [text](request/text.md), [bytes](request/bytes.md) or the
+  stream [body](request/body.md); every read is bounded by the server's `max_body_bytes` (`net::errc::body_too_large`
+  past it). A request without a body has no object for it: `body()` is an empty stream, one for the program. A
+  handler that does not read the body has what is left read for it after it returns, up to 256 KB (Go's bound), and
+  past that the connection is closed.
+- **Waiting**: a handler runs on a worker, so it reads with `co_await req.async_text()`; `text()` blocks a thread (the
+  reading runs on the scheduler and the thread waits) and is for code on a thread of its own.
+- [stop](request/stop.md) is a token stopped when the server closes and when a write of the response fails (Go's
+  `r.Context()`); a long handler waits on it, or checks it.
+- [trailers](request/trailers.md) holds the trailer fields of a chunked body once the body has been read to its end.
 
-## Members
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](request/request.md) | constructs a request of a method and a URL, to send |
+| `(destructor)` | drops the handle |
+| `operator=` | makes the handle refer to another request |
+
+#### The head
+
+| Function | Description |
+|---|---|
+| [method](request/method.md) | the method |
+| [proto](request/proto.md) | the protocol the request came or went over |
+| [url](request/url.md) | the URL |
+| [header](request/header.md) | the first value of a field |
+| [headers](request/headers.md) | the fields |
+
+#### Modifiers
+
+| Function | Description |
+|---|---|
+| [set_header](request/set_header.md) | sets a field, in the place of the first of its name |
+| [add_header](request/add_header.md) | appends a field |
+| [set_body](request/set_body.md) | sets the body to send: text, bytes or a stream |
+
+#### Received by a server
+
+| Function | Description |
+|---|---|
+| [path_value](request/path_value.md) | the value of a wildcard of the route |
+| [query](request/query.md) | the first value of a name in the query |
+| [cookie](request/cookie.md) | the value of the first cookie of a name |
+| [content_length](request/content_length.md) | the length of the body as the request declared it |
+| [remote_endpoint](request/remote_endpoint.md) | the address and the port of the client |
+| [stop](request/stop.md) | a token stopped when the server closes or a write fails |
+
+#### The body
+
+| Function | Description |
+|---|---|
+| [text, async_text](request/text.md) | the whole body as text |
+| [bytes, async_bytes](request/bytes.md) | the whole body as bytes |
+| [body](request/body.md) | the body as a stream |
+| [trailers](request/trailers.md) | the trailer fields of a chunked body |
+
+## Example
+
+The server hands a request to the handler of the route it matched: the wildcards by `path_value`, the query by
+`query`, the fields by `header`:
 
 ```cpp
-request(const string& method, const string& url);
-
-string method() const;
-string proto() const;                    // "HTTP/1.1", "HTTP/1.0" or "HTTP/2.0": the protocol it came over (a server's) or went over (Go's r.Proto)
-net::url url() const;
-string header(const string& name) const;          // "" when there is none
-http::headers& headers() const noexcept;
-request& set_header(const string& name, const string& value);
-request& add_header(const string& name, const string& value);
-request& set_body(const string& text);
-request& set_body(vector<byte> bytes);
-request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt);
-
-// a received request
-string path_value(const string& name) const;
-string query(const string& name) const;
-string cookie(const string& name) const;
-optional<uint64_t> content_length() const noexcept;
-net::endpoint remote_endpoint() const noexcept;
-async::stop_token stop() const noexcept;
-expected<string, io::error> text() const;
-async::task<expected<string, io::error>> async_text() const;
-expected<vector<byte>, io::error> bytes() const;
-async::task<expected<vector<byte>, io::error>> async_bytes() const;
-io::reader body() const;
-http::headers trailers() const;
-```
-
-## Received by a handler
-
-The server hands a request to the handler of the route it matched: the wildcards by `path_value`, the query by `query`, the fields by `header`:
-
-```cpp
-#include "sgcl/net/http/http.h"
+#include "sgcl/async.h"
+#include "sgcl/io.h"
+#include "sgcl/net/http.h"
+#include "sgcl/net.h"
 
 using namespace sgcl;
 
 int main() {
     net::http::server srv;
     srv.route("GET /notes/{id}", [](net::http::request req, net::http::response_writer w) {
-        w.write(req.method() + " note " + req.path_value("id") + " by " + req.query("author") + "\n");
+        w.write(req.method() + " note " + req.path_value("id") + " by " + req.query("author") +
+                ", " + req.header("Accept") + "\n");
     });
-    srv.serve(":8080");
-}
-```
+    net::listener listener = net::tcp::listen("127.0.0.1:0");
+    auto serving = async::spawn(srv.async_serve(listener));
+    string base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
 
-A request to it:
-
-```text
-$ curl http://localhost:8080/notes/42?author=Ann%20B
-GET note 42 by Ann B
-```
-
-A handler that reads the body is a task and reads it with `co_await req.async_text()`, as on the [server](server.md) page.
-
-## Example
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/net/http/http.h"
-
-using namespace sgcl;
-
-int main() {
-    net::http::request note("POST", "https://httpbin.org/post");
-    note.set_header("Content-Type", "text/plain");
-    note.set_header("Cookie", "theme=dark; lang=pl");
-    note.set_body("buy milk");
-    println("{} {}", note.method(), note.header("Cookie"));
-
+    net::http::request ask("GET", base + "/notes/42?author=Ann%20B");
+    ask.set_header("Accept", "text/plain");
     net::http::client web;
-    net::http::response res = web.send(note);
-    string reply = res.text();
-    println("{}, the note echoed: {}", res.status(), reply.contains("buy milk"));
+    print("{}", web.send(ask)->text().value());
+    srv.close();
 }
 ```
 
 Output:
 
 ```text
-POST theme=dark; lang=pl
-200, the note echoed: true
+GET note 42 by Ann B, text/plain
 ```
 
 ## See also
 
-- [server](server.md) and [client](client.md), where a request is received and sent; [headers](headers.md), [cookie](cookie.md)
+- [client](client.md), [server](server.md): where a request is sent and received
+- [response](response.md): what a client receives back; [response_writer](response_writer.md): what a handler writes
+- [headers](headers.md), [cookie](cookie.md)

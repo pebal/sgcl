@@ -44,12 +44,12 @@ namespace sgcl::detail {
     // dead entry is never found and never blocks a live one.
     // The hash of a key changes when its object dies (the address is
     // gone), so the table must keep the hash it placed the node with:
-    // libc++ and MSVC always do, libstdc++ only for a hash that may
-    // throw, which is why the operator on a key is not noexcept.
+    // the table of sgcl's map and set does (detail/hash_table.h), and it
+    // requires the hash noexcept.
     template<class Key>
     struct WeakHash {
         using is_transparent = void;
-        size_t operator()(const weak_ptr<Key>& w) const {
+        size_t operator()(const weak_ptr<Key>& w) const noexcept {
             return weak_hash(WeakIdentity::of(w));
         }
         size_t operator()(const tracked_ptr<Key>& p) const noexcept {
@@ -103,7 +103,7 @@ namespace sgcl::detail {
         }
 
         // Drops the entries whose objects are gone; returns how many
-        size_type sweep() {
+        size_type sweep() noexcept {
             size_type count = 0;
             for (auto it = _table.begin(); it != _table.end();) {
                 if (!WeakIdentity::of(_key_of(*it))) {
@@ -126,15 +126,15 @@ namespace sgcl::detail {
 
         // The entries of the object: none for a null pointer, or an object
         // that is gone
-        size_type count(const key_pointer& object) const {
+        size_type count(const key_pointer& object) const noexcept {
             return object ? _table.count(object) : 0;
         }
 
-        bool contains(const key_pointer& object) const {
+        bool contains(const key_pointer& object) const noexcept {
             return count(object) != 0;
         }
 
-        size_type erase(const key_pointer& object) {
+        size_type erase(const key_pointer& object) noexcept {
             return object ? _table.erase(object) : 0;
         }
 
@@ -151,7 +151,7 @@ namespace sgcl::detail {
         // One more insertion: a sweep every so many, as many as the table
         // has entries, so that a pass costs less than the insertions that
         // paid for it
-        void _inserted_one() {
+        void _inserted_one() noexcept {
             if (++_inserted > _threshold) {
                 sweep();
             }

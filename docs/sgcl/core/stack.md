@@ -1,7 +1,9 @@
-# sgcl::stack
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::stack\<T, Container\>
 
 ```cpp
-#include "sgcl/core/stack.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/stack.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class T, class Container = deque<T>>
@@ -9,117 +11,103 @@ namespace sgcl {
 }
 ```
 
-`sgcl::stack<T, Container>` is `std::stack` over a managed container: a LIFO adapter with `top`, `push`, `emplace`, `pop`, `empty`, `size`, `swap` and the comparisons of the container. The container is `sgcl::deque<T>` by default; `sgcl::vector<T>` and `sgcl::list<T>` work as well, as does any container with `back`, `push_back`, `emplace_back` and `pop_back`. The adapter adds nothing of its own: the container is the protected member `c`, as in `std`, and everything about where the elements live, when they are destroyed and what a push costs is the container's ([deque](deque.md), [vector](vector.md), [list](list.md)).
+`sgcl::stack<T, Container>` is `std::stack` over a managed container: a LIFO adapter with `top`, `push`,
+`emplace`, `pop`, `empty`, `size`, `swap` and the comparisons of the container. The container is
+`sgcl::deque<T>` by default; `sgcl::vector<T>` and `sgcl::list<T>` work as well, as does any container with
+`back`, `push_back`, `emplace_back` and `pop_back`. The adapter adds nothing of its own: the container is the
+protected member `c`, the bottom element first, reached by a class derived from the stack as in `std`, and
+everything about where the elements live, when they are destroyed and what a push costs is the container's ([deque](deque.md), [vector](vector.md), [list](list.md)).
 
 ## Rules
 
-- The container holds tracked pointers, so a stack lives where a `tracked_ptr` may: on a thread's stack or inside a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame ([The rules](README.md#the-rules), 1).
-- An element is destroyed by `pop()` and in the destructor, exactly as with `std::stack` over the same `std` container; the container's memory is the collector's ([Containers](README.md#containers)).
-- A `tracked_ptr` may not address an element ([The rules](README.md#the-rules), 4); `top()` is a reference, valid as long as the container's `back()` would be.
-- Thread safety is the container's: concurrent readers, or one writer, with the program's own synchronization. A lock-free stack shared between threads is a different structure, built from `sgcl::atomic` ([examples/lock_free_stack.cpp](../../../examples/lock_free_stack.cpp)).
+- The container holds tracked pointers, so a stack lives where a `tracked_ptr` may: on a thread's stack or inside
+  a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1).
+- An element is destroyed by `pop()` and in the destructor, exactly as with `std::stack` over the same `std`
+  container; the container's memory is the collector's ([Containers](README.md#containers)).
+- A `tracked_ptr` may not address an element ([The rules](README.md#the-rules), 4); `top()` is a reference,
+  valid as long as the container's `back()` would be.
+- Thread safety is the container's: concurrent readers, or one writer, with the program's own synchronization. A
+  stack shared between threads is a different structure, lock-free: [concurrent::stack](../concurrent/stack.md),
+  or one built from `sgcl::atomic`
+  ([benchmarks/concurrent/lockfree_stack.cpp](../../../benchmarks/concurrent/lockfree_stack.cpp)).
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `T` | The type of the elements, the `value_type` of `Container`. |
+| `Container` | The container that holds the elements, `deque<T>` by default: a sequence with `back`, `push_back`, `emplace_back`, `pop_back`, `empty` and `size`, whose `value_type` is `T`. The comparisons of the stack may be used only when the container's `==` and `<=>` are there. |
 
-```cpp
-using container_type = Container;
-using value_type = typename Container::value_type;
-using size_type = typename Container::size_type;
-using reference = typename Container::reference;
-using const_reference = typename Container::const_reference;
-```
+## Member types
 
-### Constructors
+| Type | Definition |
+|---|---|
+| `container_type` | `Container` |
+| `value_type` | `Container::value_type` |
+| `size_type` | `Container::size_type` |
+| `reference` | `Container::reference` |
+| `const_reference` | `Container::const_reference` |
 
-```cpp
-stack();
-explicit stack(const Container& cont);
-explicit stack(Container&& cont);
-template<std::input_iterator InputIt> stack(InputIt first, InputIt last);
-```
+## Member functions
 
-An empty stack, a stack over a copy of `cont` or over `cont` itself (moved in), or a stack whose container is built from a range, the first element at the bottom. Copy and move construction and assignment are the implicit ones, so they are those of the container.
+| Function | Description |
+|---|---|
+| [(constructor)](stack/stack.md) | constructs the stack |
+| `(destructor)` | destroys the container; implicitly declared |
+| `operator=` | assigns the container; implicitly declared |
 
-```cpp
-deque d = {1, 2, 3};
-stack<int> from_copy(d);                          // top() is 3, d unchanged
-stack<int> from_move(std::move(d));               // d is empty now
-vector src = {4, 5};
-stack<int> from_range(src.begin(), src.end());    // top() is 5
-stack<int, vector<int>> on_vector;            // any managed sequence with push_back
-```
+#### Element access
 
-### top
+| Function | Description |
+|---|---|
+| [top](stack/top.md) | access the top element |
 
-```cpp
-reference top();
-const_reference top() const;
-```
+#### Capacity
 
-The last element pushed, `c.back()`; the stack must not be empty.
+| Function | Description |
+|---|---|
+| [empty](stack/empty.md) | checks whether the stack is empty |
+| [size](stack/size.md) | the number of elements |
 
-### empty, size
+#### Modifiers
 
-```cpp
-bool empty() const;
-size_type size() const;
-```
+| Function | Description |
+|---|---|
+| [push](stack/push.md) | inserts an element at the top |
+| [emplace](stack/emplace.md) | constructs an element in place at the top |
+| [pop](stack/pop.md) | removes the top element |
+| [swap](stack/swap.md) | swaps the contents |
 
-### push, emplace
+## Non-member functions
 
-```cpp
-void push(const value_type& value);
-void push(value_type&& value);
-template<class... A> decltype(auto) emplace(A&&... a);
-```
+| Function | Description |
+|---|---|
+| [operator==, operator\<=\>](stack/operator_cmp.md) | compare the containers of two stacks |
+| [swap](stack/swap2.md) | swaps the contents of two stacks |
 
-`c.push_back(value)` and `c.emplace_back(a...)`; `emplace` returns what the container's `emplace_back` returns, a reference to the new element for the SGCL containers.
-
-```cpp
-stack<tracked_ptr<int>> s;
-s.push(make_tracked<int>(1));
-int& two = *s.emplace(make_tracked<int>(2));      // a reference to the element on top
-```
-
-### pop
+## Deduction guides
 
 ```cpp
-void pop();
+template<class Container>
+stack(Container) -> stack<typename Container::value_type, Container>;
+template<class InputIt>
+stack(InputIt, InputIt) -> stack<std::iter_value_t<InputIt>>;
 ```
 
-`c.pop_back()`: destroys the top element. The stack must not be empty.
+As for `std::stack`: `stack(v)` of a `vector<int>` is a `stack<int, vector<int>>`, and a stack from a range of
+iterators is over the default `deque`.
 
-### swap
+## Complexity
 
-```cpp
-void swap(stack& other) noexcept(std::is_nothrow_swappable_v<Container>);
-template<class T, class Container> void swap(stack<T, Container>& lhs, stack<T, Container>& rhs) noexcept(noexcept(lhs.swap(rhs)));
-```
-
-Swaps the containers; no element is touched.
-
-### Comparisons
-
-```cpp
-friend bool operator==(const stack& lhs, const stack& rhs);
-friend auto operator<=>(const stack& lhs, const stack& rhs);
-```
-
-The comparisons of the containers, bottom to top: `<`, `<=`, `>`, `>=` and `!=` follow.
-
-```cpp
-deque d = {1, 2};
-stack<int> a(d), b(d);
-b.push(3);
-bool less = a < b;                  // true: a prefix
-```
+Every operation is one call of the container's: `push` and `emplace` are a `push_back` and an `emplace_back`,
+`pop` a `pop_back`, `top` a `back`, and cost what they cost there.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -142,17 +130,18 @@ tracked_ptr<Node> build(int depth, int& next) {
 
 int main() {
     println("a tree walked depth first");
-    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
+    // counted after the first line: io's own objects are not the example's
+    auto base = collector::get_live_object_count();
     int next = 0;
-    tracked_ptr root = build(10, next);           // 1023 nodes
+    tracked_ptr root = build(10, next);  // 1023 nodes
 
-    stack<tracked_ptr<Node>> pending;        // on the stack: a root for the nodes it holds
-    stack<int, vector<int>> visited;         // over a vector: one contiguous buffer
+    stack<tracked_ptr<Node>> pending;  // on the stack: a root for the nodes it holds
+    stack<int, vector<int>> visited;  // over a vector: one contiguous buffer
     pending.push(root);
-    root = nullptr;                                  // the tree is reachable through `pending` only
+    root = nullptr;  // the tree is reachable through pending only
     while (!pending.empty()) {
         tracked_ptr node = pending.top();
-        pending.pop();                               // the pointer is destroyed, the node lives on behind `node`
+        pending.pop();  // the pointer is destroyed, the node lives on behind node
         visited.push(node->value);
         if (node->right) {
             pending.push(node->right);
@@ -165,8 +154,8 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    println("{} nodes visited, last value {}, {} live objects", visited.size(), visited.top(), collector::get_live_object_count() - base);
-    return visited.size() == 1023 && visited.top() == 1022 ? 0 : 1;
+    auto live = collector::get_live_object_count() - base;
+    println("{} nodes visited, last value {}, {} live objects", visited.size(), visited.top(), live);
 }
 ```
 
@@ -179,7 +168,8 @@ a tree walked depth first
 
 ## See also
 
-- [queue](queue.md) for the FIFO adapter and `priority_queue`
-- [deque](deque.md), [vector](vector.md), [list](list.md), the containers a stack may adapt
-- [tracked_ptr](tracked_ptr.md), [atomic](atomic.md) for a lock-free stack shared between threads
+- [queue](queue.md), [priority_queue](priority_queue.md): the FIFO adapter, the adapter that gives the largest element first
+- [deque](deque.md), [vector](vector.md), [list](list.md): the containers a stack may adapt
+- [concurrent::stack](../concurrent/stack.md): a lock-free stack shared between threads
+- [tracked_ptr](tracked_ptr.md), [atomic](atomic.md)
 - [README: Containers](README.md#containers), [README: The rules](README.md#the-rules)

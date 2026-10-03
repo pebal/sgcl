@@ -231,6 +231,40 @@ TEST(Normalize_Tests, TheWorkIsDoneOnce) {
     EXPECT_EQ(txt::normalize(maybe, txt::nfd).data(), maybe.data());
 }
 
+// An invalid byte of UTF-8 is U+FFFD and is in no form: normalize puts
+// U+FFFD in its place and is_normalized says no, whatever the rest of the
+// text is. The answer used to depend on the rest: beside text the quick
+// check passed, the byte was kept and the text called normalized; beside
+// a mark that made the check say "maybe" or "no", the byte was replaced
+// and the text called not normalized.
+TEST(Normalize_Tests, AnInvalidByteIsOneRuleWhateverStandsBesideIt) {
+    string replacement("\ufffd");
+    for (const char* rest : {"abc", "\u00e9", "e\u0301", "\u1e0b\u0323"}) {
+        for (const char* bad : {"\xff", "\xc3", "\xe2\x82", "\xed\xa0\x80", "\xc0\xaf"}) {
+            std::string raw = std::string(rest) + bad + "x";
+            string text(raw.data(), raw.size());
+            for (int form = 0; form < 4; ++form) {
+                auto norm = form == 0 ? txt::normalize(text, txt::nfc)
+                          : form == 1 ? txt::normalize(text, txt::nfd)
+                          : form == 2 ? txt::normalize(text, txt::nfkc)
+                          : txt::normalize(text, txt::nfkd);
+                bool normal = form == 0 ? txt::is_normalized(text, txt::nfc)
+                            : form == 1 ? txt::is_normalized(text, txt::nfd)
+                            : form == 2 ? txt::is_normalized(text, txt::nfkc)
+                            : txt::is_normalized(text, txt::nfkd);
+                EXPECT_FALSE(normal) << raw << " form " << form;
+                EXPECT_TRUE(utf8::valid(norm.view())) << raw << " form " << form;
+                EXPECT_TRUE(norm.contains(replacement)) << raw << " form " << form;
+                EXPECT_FALSE(norm == text) << raw << " form " << form;
+            }
+        }
+    }
+    // U+FFFD written as itself is a valid code point and in every form
+    string written("abc\ufffd");
+    EXPECT_TRUE(txt::is_normalized(written, txt::nfc));
+    EXPECT_EQ(txt::normalize(written, txt::nfc).data(), written.data());
+}
+
 // without_marks: NFD, the nonspacing marks dropped, NFC. What it does
 // not do is the half worth testing \u2014 a letter whose stroke is part of
 // the letter keeps it, the case is untouched, and a spacing mark stays
@@ -268,4 +302,73 @@ TEST(Normalize_Tests, TheMarksTakenOff) {
     string cyrillic("\u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u0430\u044f");
     EXPECT_EQ(txt::without_marks(cyrillic).data(), cyrillic.data());
     EXPECT_EQ(txt::without_marks(string("")), string(""));
+}
+
+// DESIGN 408: the code-point questions past the code space, the empty
+// text, a text of marks alone, and a run of marks thousands long
+TEST(Normalize_Tests, TheEdges) {
+    // A value that is no code point: no class, no composition, and taken
+    // apart into the replacement character, as every text of the module
+    // writes one ("a code point with no decomposition is itself")
+    for (char32_t c : {char32_t(0xD800), char32_t(0xDFFF), char32_t(0x110000), char32_t(0xFFFFFFFF)}) {
+        EXPECT_EQ(txt::combining_class_of(c), 0) << std::hex << uint32_t(c);
+        EXPECT_EQ(txt::compose(c, U'́'), 0u);
+        EXPECT_EQ(txt::compose(U'e', c), 0u);
+        EXPECT_EQ(txt::decompose(c), string("�")) << std::hex << uint32_t(c);
+    }
+    EXPECT_EQ(txt::decompose(U'\0'), string(1, '\0'));
+    EXPECT_EQ(txt::decompose(char32_t(0x10FFFF)), string("\U0010FFFF"));
+    EXPECT_EQ(txt::decompose(char32_t(0xD7A3)), string("힣"));    // the last syllable
+    static_assert(txt::compose(U'ᄒ', U'ᅵ') == U'히');
+    static_assert(txt::compose(U'히', U'ᇂ') == U'힣');
+    static_assert(txt::compose(U'가', U'ᆧ') == 0);                        // T base is no trailing jamo
+    static_assert(txt::compose(U'각', U'ᆨ') == 0);                        // an LVT takes no second one
+
+    // Empty, in every form and every question
+    string empty;
+    EXPECT_EQ(txt::normalize(empty, txt::nfc), empty);
+    EXPECT_EQ(txt::normalize(empty, txt::nfkd), empty);
+    EXPECT_TRUE(txt::is_normalized(empty, txt::nfd));
+    EXPECT_TRUE(txt::equal_normalized(empty, empty));
+    EXPECT_EQ(txt::compare_normalized(empty, empty), 0);
+    EXPECT_EQ(txt::compare_normalized(empty, string("a")), -1);
+    EXPECT_EQ(txt::compare_normalized(string("a"), empty), 1);
+    EXPECT_EQ(txt::hash_normalized(empty), txt::hash_normalized(string()));
+
+    // A text of marks alone, with no starter to sit on, reordered all the same
+    string marks("̣́");
+    EXPECT_EQ(txt::normalize(marks, txt::nfd), string("̣́"));
+    EXPECT_EQ(txt::normalize(marks, txt::nfc), string("̣́"));
+    EXPECT_FALSE(txt::is_normalized(marks, txt::nfc));
+    EXPECT_TRUE(txt::equal_normalized(marks, string("̣́")));
+    EXPECT_EQ(txt::without_marks(marks), string());
+
+    // Thousands of marks after one letter, in the worst order: they come
+    // out sorted by class and stable within it
+    std::string run = "a";
+    for (int i = 0; i < 3000; ++i) {
+        run += i % 2 ? "̣" : "́";                 // 230, 220, 230, 220, ...
+    }
+    string text(run.data(), run.size());
+    auto nfd = txt::normalize(text, txt::nfd);
+    std::u32string points;
+    for (char32_t c : nfd.runes()) {
+        points.push_back(c);
+    }
+    ASSERT_EQ(points.size(), 3001u);
+    for (size_t i = 1; i <= 1500; ++i) {
+        ASSERT_EQ(points[i], U'̣') << i;
+    }
+    EXPECT_EQ(points[1501], U'́');
+    EXPECT_TRUE(txt::is_normalized(nfd, txt::nfd));
+    EXPECT_TRUE(txt::equal_normalized(text, nfd));
+    EXPECT_EQ(txt::hash_normalized(text), txt::hash_normalized(nfd));
+    EXPECT_EQ(txt::normalize(text, txt::nfc).runes().count(), 3000u);   // a + U+0323 is ạ, the rest stay
+
+    // Into itself
+    string self("é");
+    self = txt::normalize(self, txt::nfc);
+    EXPECT_EQ(self, string("é"));
+    EXPECT_TRUE(txt::equal_normalized(self, self));
+    EXPECT_EQ(txt::compare_normalized(self, self), 0);
 }

@@ -7,12 +7,20 @@
 // intern_string: the same for strings, the string being its own object.
 #include "tests/types.h"
 
+#include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <set>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 namespace {
     struct Point {
@@ -333,4 +341,97 @@ TEST(Intern_Tests, ManyThreadsInternValuesTheyDrop) {
         objects.insert(hide(p.get()));
     }
     EXPECT_EQ(objects.size(), values.size());
+}
+
+// Boundaries (DESIGN 408)
+
+#if defined(__unix__) || defined(__APPLE__)
+namespace {
+    // Characters past what a string holds (string::max_size(), 4 GiB - 1)
+    // without the memory: one small file mapped again and again over a
+    // reserved range, every byte readable, a few pages resident
+    class LongCharacters {
+    public:
+        LongCharacters() {
+            char name[] = "/tmp/sgcl_intern_XXXXXX";
+            int fd = mkstemp(name);
+            if (fd < 0) {
+                return;
+            }
+            unlink(name);
+            if (ftruncate(fd, off_t(Chunk)) == 0) {
+                void* base = mmap(nullptr, Total, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+                if (base != MAP_FAILED) {
+                    _base = static_cast<char*>(base);
+                    for (size_t off = 0; off < Total && _base; off += Chunk) {
+                        if (mmap(_base + off, Chunk, PROT_READ, MAP_SHARED | MAP_FIXED, fd, 0) == MAP_FAILED) {
+                            munmap(_base, Total);
+                            _base = nullptr;
+                        }
+                    }
+                }
+            }
+            close(fd);
+        }
+
+        LongCharacters(const LongCharacters&) = delete;
+
+        ~LongCharacters() {
+            if (_base) {
+                munmap(_base, Total);
+            }
+        }
+
+        // max_size() + 1 characters, all zero, or an empty view when the
+        // mapping failed
+        std::string_view past_the_limit() const {
+            return _base ? std::string_view(_base, size_t(string::max_size()) + 1) : std::string_view();
+        }
+
+    private:
+        static constexpr size_t Chunk = size_t(1) << 20;
+        static constexpr size_t Total = (size_t(UINT32_MAX) + 1 + Chunk) / Chunk * Chunk;
+
+        char* _base = nullptr;
+    };
+}
+
+// Characters past the 4 GiB a string holds: no string of them can be
+// made, so interning them throws length_error, as a string made of them
+// would (intern_string.md, of.md), the pool as it was; a search for them
+// finds nothing
+TEST(Intern_Tests, CharactersPastTheStringLimit) {
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+    GTEST_SKIP() << "4 GiB of reads under the thread sanitizer";
+#endif
+#endif
+    LongCharacters chars;
+    std::string_view past = chars.past_the_limit();
+    ASSERT_FALSE(past.empty()) << "the mapping of the characters failed";
+    const size_t before = concurrent::intern<string>::pool().size();
+    EXPECT_THROW(concurrent::intern_string(past), length_error);
+    concurrent::intern<string> pool;
+    EXPECT_THROW(pool.of(past), length_error);
+    EXPECT_EQ(pool.find(past).object(), nullptr);
+    EXPECT_TRUE(pool.empty());
+    EXPECT_EQ(concurrent::intern<string>::pool().size(), before);
+}
+#endif
+
+// The pool's own object as the argument: the value of an interned object
+// interned again is that object; reserve and sweep at their ends
+TEST(Intern_Tests, ItsOwnObjectAsTheArgument) {
+    concurrent::intern<Point, PointHash> pool;
+    pool.reserve(0);
+    EXPECT_EQ(pool.sweep(), 0u);
+    tracked_ptr<const Point> a = pool.of({1, 2});
+    EXPECT_EQ(pool.of(*a), a);
+    EXPECT_EQ(pool.find(*a), a);
+    EXPECT_EQ(pool.size(), 1u);
+    concurrent::intern<string> strings;
+    string s = strings.of(string(std::string(64, 's')));
+    EXPECT_EQ(strings.of(s).object(), s.object());
+    EXPECT_EQ(strings.of(std::string_view(s)).object(), s.object());   // a view of the interned string itself
+    EXPECT_EQ(strings.size(), 1u);
 }

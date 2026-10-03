@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/detail/os.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
@@ -15,7 +16,6 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <new>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -78,7 +78,7 @@ namespace sgcl::txt::detail {
 
         scratch_vector() noexcept = default;
 
-        scratch_vector(const scratch_vector& other) {
+        scratch_vector(const scratch_vector& other) noexcept {
             assign(other.begin(), other.end());
         }
 
@@ -88,7 +88,7 @@ namespace sgcl::txt::detail {
         , _capacity(std::exchange(other._capacity, 0)) {
         }
 
-        scratch_vector& operator=(const scratch_vector& other) {
+        scratch_vector& operator=(const scratch_vector& other) noexcept {
             if (this != &other) {
                 assign(other.begin(), other.end());
             }
@@ -173,21 +173,27 @@ namespace sgcl::txt::detail {
             _size = 0;
         }
 
-        void reserve(size_t n) {
+        // The members that grow cannot throw: a failed realloc ends the
+        // program (os::memory_refused)
+        void reserve(size_t n) noexcept {
             if (n > _capacity) {
                 _grow_to(n);
             }
         }
 
-        void resize(size_t n) {
+        void resize(size_t n) noexcept {
             reserve(n);
             if (n > _size) {
+                // libc's and not fill_bytes: a zero fill of any length
+                // (a scratch array holds up to megabytes), where libc
+                // clears whole cache lines and fill_bytes measured up to
+                // twice as slow (DESIGN 393)
                 std::memset(static_cast<void*>(_data + _size), 0, (n - _size) * sizeof(T));
             }
             _size = n;
         }
 
-        void assign(size_t n, const T& value) {
+        void assign(size_t n, const T& value) noexcept {
             _size = 0;
             reserve(n);
             for (size_t i = 0; i < n; ++i) {
@@ -197,12 +203,12 @@ namespace sgcl::txt::detail {
         }
 
         template<class It>
-        void assign(It first, It last) {
+        void assign(It first, It last) noexcept {
             _size = 0;
             append(first, last);
         }
 
-        void push_back(const T& value) {
+        void push_back(const T& value) noexcept {
             if (_size == _capacity) [[unlikely]] {
                 _grow_to(_size + 1);
             }
@@ -210,7 +216,7 @@ namespace sgcl::txt::detail {
         }
 
         template<class... A>
-        T& emplace_back(A&&... a) {
+        T& emplace_back(A&&... a) noexcept(noexcept(T{std::forward<A>(a)...})) {
             push_back(T{std::forward<A>(a)...});
             return back();
         }
@@ -221,7 +227,7 @@ namespace sgcl::txt::detail {
 
         // The elements [first, last) at the end
         template<class It>
-        void append(It first, It last) {
+        void append(It first, It last) noexcept {
             size_t n = size_t(last - first);
             reserve(_size + n);
             for (size_t i = 0; i < n; ++i) {
@@ -231,11 +237,12 @@ namespace sgcl::txt::detail {
         }
 
         // One element in front of `at`, the rest moved up
-        void insert(const T* at, const T& value) {
+        void insert(const T* at, const T& value) noexcept {
             size_t i = size_t(at - _data);
             T copy = value;
             push_back(copy);
-            std::memmove(static_cast<void*>(_data + i + 1), _data + i, (_size - 1 - i) * sizeof(T));
+            // the two runs overlap by all but one element
+            sgcl::detail::move_bytes(_data + i + 1, _data + i, (_size - 1 - i) * sizeof(T));
             _data[i] = copy;
         }
 
@@ -244,7 +251,7 @@ namespace sgcl::txt::detail {
         }
 
     private:
-        SGCL_NOINLINE void _grow_to(size_t n) {
+        SGCL_NOINLINE void _grow_to(size_t n) noexcept {
             size_t cap = _capacity * 2;
             if (cap < n) {
                 cap = n;
@@ -253,8 +260,8 @@ namespace sgcl::txt::detail {
                 cap = 16;
             }
             void* p = std::realloc(_data, cap * sizeof(T));
-            if (!p) {
-                throw std::bad_alloc();
+            if (!p) [[unlikely]] {
+                sgcl::detail::os::memory_refused("a scratch array", cap * sizeof(T));
             }
             _data = static_cast<T*>(p);
             _capacity = cap;
@@ -275,7 +282,7 @@ namespace sgcl::txt::detail {
     // one, a struct of them has a lent_each of its own, found by argument
     // dependent lookup
     template<class T, class F>
-    void lent_arrays(T& value, F&& f) {
+    void lent_arrays(T& value, F&& f) noexcept {
         if constexpr (is_scratch_vector<T>::value) {
             f(value);
         } else {
@@ -295,7 +302,7 @@ namespace sgcl::txt::detail {
     template<class T>
     class lent {
     public:
-        lent() {
+        lent() noexcept {
             for (auto& s : _slots()) {
                 if (!s.busy) {
                     s.busy = true;
@@ -350,7 +357,7 @@ namespace sgcl::txt::detail {
             bool busy = false;
         };
 
-        static std::array<slot, LentSlots>& _slots() {
+        static std::array<slot, LentSlots>& _slots() noexcept {
             static thread_local std::array<slot, LentSlots> slots;
             return slots;
         }

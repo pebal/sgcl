@@ -45,11 +45,11 @@ namespace sgcl::net::tls::detail {
         void (*fill)(void* context, uint8_t* out, size_t n) = &Entropy::system_fill;
         void* context = nullptr;
 
-        void operator()(uint8_t* out, size_t n) const {
+        void operator()(uint8_t* out, size_t n) const noexcept {
             fill(context, out, n);
         }
 
-        static void system_fill(void*, uint8_t* out, size_t n) {
+        static void system_fill(void*, uint8_t* out, size_t n) noexcept {
             crypto::random::fill(slice<byte>(reinterpret_cast<byte*>(out), n));
         }
     };
@@ -123,7 +123,7 @@ namespace sgcl::net::tls::detail {
             return reinterpret_cast<const uint8_t*>(s.data());
         }
 
-        inline crypto::x25519::private_key x25519_key(const Entropy& entropy) {
+        inline crypto::x25519::private_key x25519_key(const Entropy& entropy) noexcept {
             uint8_t b[32];
             entropy(b, 32);
             auto k = crypto::x25519::private_key::from_bytes(bytes_of(b, 32));
@@ -132,7 +132,7 @@ namespace sgcl::net::tls::detail {
         }
 
         template<class Key, size_t N>
-        Key ec_key(const Entropy& entropy) {
+        Key ec_key(const Entropy& entropy) noexcept {
             uint8_t b[N];
             for (;;) {
                 entropy(b, N);
@@ -148,7 +148,7 @@ namespace sgcl::net::tls::detail {
 
         // X25519(key, peer) into out; illegal_parameter for a peer's key of
         // small order (the secret of all zeros, §7.4.2)
-        inline bool x25519_shared(const crypto::x25519::private_key& key, const uint8_t* peer, uint8_t* out) {
+        inline bool x25519_shared(const crypto::x25519::private_key& key, const uint8_t* peer, uint8_t* out) noexcept {
             auto p = crypto::x25519::public_key::from_bytes(bytes_of(peer, 32));
             if (!p) {
                 return false;
@@ -163,7 +163,7 @@ namespace sgcl::net::tls::detail {
 
         // The uncompressed point only (§4.2.8.2), on the curve
         template<class Key, class PublicKey>
-        bool ec_shared(const Key& key, const slice<const byte>& peer, uint8_t* out) {
+        bool ec_shared(const Key& key, const slice<const byte>& peer, uint8_t* out) noexcept {
             if (peer.size() != PublicKey::size || raw(peer)[0] != 0x04) {
                 return false;
             }
@@ -187,7 +187,7 @@ namespace sgcl::net::tls::detail {
     public:
         static constexpr size_t MaxShares = 4;
 
-        ClientShares() = default;
+        ClientShares() noexcept = default;
         ClientShares(const ClientShares&) = delete;
         ClientShares& operator=(const ClientShares&) = delete;
 
@@ -259,7 +259,7 @@ namespace sgcl::net::tls::detail {
         // The secret shared with the server's share of the group (§7.4);
         // illegal_parameter when the group has no share here (§4.2.8) or
         // the server's share is not a valid one
-        [[nodiscard]] expected<SharedSecret, Alert> shared(Group g, const slice<const byte>& server_share) const {
+        [[nodiscard]] expected<SharedSecret, Alert> shared(Group g, const slice<const byte>& server_share) const noexcept {
             using namespace key_share_detail;
             const Share* s = find(g);
             if (!s) {
@@ -339,7 +339,7 @@ namespace sgcl::net::tls::detail {
             return nullptr;
         }
 
-        static void _append(Share& s, const void* p, size_t n) {
+        static void _append(Share& s, const void* p, size_t n) noexcept {
             auto b = static_cast<const uint8_t*>(p);
             s.public_share.insert(s.public_share.end(), b, b + n);
         }

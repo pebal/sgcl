@@ -8,6 +8,7 @@
 #include "x509_cert.h"
 #include "x509_hostname.h"
 #include "../hash_id.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -23,13 +24,13 @@
 // the extended key usages nested down the chain, and the host name and the
 // IP address of the leaf (RFC 6125). The chain building is x509.h's.
 namespace sgcl::crypto::x509::detail {
-    inline error reject(reason why, const std::string& what) {
+    inline error reject(reason why, const std::string& what) noexcept {
         return error(why, string("sgcl::crypto::x509: " + what));
     }
 
     // "CN=GTS CA 1C3,O=Google Trust Services LLC,C=US", or the serial when
     // the subject is empty: how a message names a certificate
-    inline std::string describe(const CertData& c) {
+    inline std::string describe(const CertData& c) noexcept {
         std::string s(c.subject.to_string().view());
         if (s.empty()) {
             s = "serial:" + hex_text(reinterpret_cast<const unsigned char*>(c.serial.data()), c.serial.size());
@@ -39,7 +40,7 @@ namespace sgcl::crypto::x509::detail {
 
     // The hash a signature algorithm signs, and whether the algorithm is
     // one verified here; MD2, MD5 and SHA-1 refused as insecure
-    inline expected<void, error> signature_hash(const CertData& child, hash_id& id) {
+    inline expected<void, error> signature_hash(const CertData& child, hash_id& id) noexcept {
         switch (child.sig_algorithm) {
             case signature_algorithm::sha256_with_rsa:
             case signature_algorithm::sha256_with_rsa_pss:
@@ -74,7 +75,7 @@ namespace sgcl::crypto::x509::detail {
     // is one, needs keyCertSign), the algorithm one of the list, the key of
     // that algorithm, the signature valid. Never an exception: every input
     // here comes from a certificate
-    inline expected<void, error> check_signature(const CertData& child, const CertData& parent) {
+    inline expected<void, error> check_signature(const CertData& child, const CertData& parent) noexcept {
         if ((parent.version == 3 && !parent.basic_constraints_valid) || (parent.basic_constraints_valid && !parent.is_ca)) {
             return unexpected<error>(reject(reason::not_a_ca, "the certificate " + describe(parent) + " is not a CA (basicConstraints), and cannot sign " + describe(child)));
         }
@@ -140,7 +141,7 @@ namespace sgcl::crypto::x509::detail {
     }
 
     // The validity of one certificate at a time (seconds since 1970)
-    inline expected<void, error> check_time(const CertData& c, int64_t now) {
+    inline expected<void, error> check_time(const CertData& c, int64_t now) noexcept {
         if (now < c.not_before) {
             return unexpected<error>(reject(reason::not_yet_valid, "the certificate " + describe(c) + " is not valid yet"));
         }
@@ -150,7 +151,7 @@ namespace sgcl::crypto::x509::detail {
         return {};
     }
 
-    inline expected<void, error> check_critical(const CertData& c) {
+    inline expected<void, error> check_critical(const CertData& c) noexcept {
         if (!c.unhandled_critical.empty()) {
             return unexpected<error>(reject(reason::unhandled_critical_extension, "the certificate " + describe(c) + " has a critical extension not handled here (" + std::string(c.unhandled_critical[0].view()) + ")"));
         }
@@ -160,7 +161,7 @@ namespace sgcl::crypto::x509::detail {
     // The leaf against the DNS name asked. A name written as an IP address
     // is never matched against dNSNames (RFC 6125 Appendix B.2): addresses
     // are verified as bytes, against the iPAddresses
-    inline expected<void, error> check_hostname(const CertData& c, std::string_view host) {
+    inline expected<void, error> check_hostname(const CertData& c, std::string_view host) noexcept {
         std::string_view bare = host;
         if (bare.size() >= 2 && bare.front() == '[' && bare.back() == ']') {
             bare = bare.substr(1, bare.size() - 2);
@@ -202,13 +203,13 @@ namespace sgcl::crypto::x509::detail {
             std::memcpy(a.bytes.data(), p + 12, 4);
             a.size = 4;
         } else {
-            std::memcpy(a.bytes.data(), p, ip.size());
+            sgcl::detail::copy_bytes(a.bytes.data(), p, ip.size());
             a.size = uint8_t(ip.size());
         }
         return a;
     }
 
-    inline expected<void, error> check_ip(const CertData& c, const ip_address& a) {
+    inline expected<void, error> check_ip(const CertData& c, const ip_address& a) noexcept {
         for (auto& x : c.ip_addresses) {
             if (x == a) {
                 return {};
@@ -227,7 +228,7 @@ namespace sgcl::crypto::x509::detail {
     public:
         static constexpr size_t max_comparisons = 1000000;
 
-        expected<void, error> check(const std::vector<const CertData*>& chain) {
+        expected<void, error> check(const std::vector<const CertData*>& chain) noexcept {
             for (size_t i = 0; i < chain.size(); ++i) {
                 const CertData& c = *chain[i];
                 if (!c.has_san) {
@@ -296,18 +297,18 @@ namespace sgcl::crypto::x509::detail {
     private:
         size_t _count = 0;
 
-        expected<void, error> _tick(const CertData& ca) {
+        expected<void, error> _tick(const CertData& ca) noexcept {
             if (++_count > max_comparisons) {
                 return unexpected<error>(reject(reason::too_many_constraints, "the name constraints of " + describe(ca) + " take more than a million comparisons"));
             }
             return {};
         }
 
-        static error _fail(const CertData& ca, const CertData& c, const char* kind, const std::string& name, bool excluded) {
+        static error _fail(const CertData& ca, const CertData& c, const char* kind, const std::string& name, bool excluded) noexcept {
             return reject(reason::name_constraints, std::string(kind) + " \"" + name + "\" of " + describe(c) + (excluded ? " is excluded by the name constraints of " : " is not permitted by the name constraints of ") + describe(ca));
         }
 
-        expected<void, error> _ip(const CertData& ca, const CertData& c, const ip_address& ip) {
+        expected<void, error> _ip(const CertData& ca, const CertData& c, const ip_address& ip) noexcept {
             if (!ca.permitted_ip.empty()) {
                 bool found = false;
                 for (auto& r : ca.permitted_ip) {
@@ -334,7 +335,7 @@ namespace sgcl::crypto::x509::detail {
             return {};
         }
 
-        expected<void, error> _dns(const CertData& ca, const CertData& c, std::string_view name, const vector<string>& permitted, const vector<string>& excluded, const char* kind) {
+        expected<void, error> _dns(const CertData& ca, const CertData& c, std::string_view name, const vector<string>& permitted, const vector<string>& excluded, const char* kind) noexcept {
             if (!permitted.empty()) {
                 bool found = false;
                 for (auto& p : permitted) {
@@ -364,7 +365,7 @@ namespace sgcl::crypto::x509::detail {
         // A mailbox against the email constraints: a constraint with '@'
         // is one mailbox (the local part exact, the domain folded), any
         // other a domain under the rules of DNS names
-        bool _email_match(const string& constraint, const std::string& local, const std::string& domain) {
+        bool _email_match(const string& constraint, const std::string& local, const std::string& domain) noexcept {
             std::string_view s = constraint.view();
             if (s.find('@') != std::string_view::npos) {
                 std::string cl, cd;
@@ -373,7 +374,7 @@ namespace sgcl::crypto::x509::detail {
             return x509_names::dns_has_suffix(s, domain);
         }
 
-        expected<void, error> _email(const CertData& ca, const CertData& c, const std::string& local, const std::string& domain) {
+        expected<void, error> _email(const CertData& ca, const CertData& c, const std::string& local, const std::string& domain) noexcept {
             std::string mailbox = local + "@" + domain;
             if (!ca.permitted_email.empty()) {
                 bool found = false;
@@ -407,7 +408,7 @@ namespace sgcl::crypto::x509::detail {
     // root, a certificate with a list of usages (and without anyExtendedKeyUsage)
     // crosses out every usage asked it does not hold; the chain passes
     // while one usage asked is left
-    inline expected<void, error> check_key_usages(const std::vector<const CertData*>& chain, const vector<ext_key_usage>& asked) {
+    inline expected<void, error> check_key_usages(const std::vector<const CertData*>& chain, const vector<ext_key_usage>& asked) noexcept {
         std::vector<ext_key_usage> usages;
         for (auto u : asked) {
             if (u == ext_key_usage::any) {
@@ -459,7 +460,7 @@ namespace sgcl::crypto::x509::detail {
 
     // Whether candidate is already in the chain: the same subject, key and
     // SAN (a loop of cross-signatures, not only the same bytes)
-    inline bool already_in_chain(const CertData& candidate, const std::vector<const CertData*>& chain) {
+    inline bool already_in_chain(const CertData& candidate, const std::vector<const CertData*>& chain) noexcept {
         auto same = [](const CertData& a, size_t aat, size_t an, const CertData& b, size_t bat, size_t bn) {
             return an == bn && std::memcmp(a.bytes_at(aat), b.bytes_at(bat), an) == 0;
         };

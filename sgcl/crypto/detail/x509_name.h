@@ -25,7 +25,7 @@
 // its DER and written as '#' and its hex, as RFC 4514 §2.4 has it.
 namespace sgcl::crypto::detail {
     // "2.5.4.3" of the content of an OBJECT IDENTIFIER that oid_valid took
-    inline std::string oid_text(const unsigned char* p, size_t n) {
+    inline std::string oid_text(const unsigned char* p, size_t n) noexcept {
         std::string s;
         uint64_t arc = 0;
         bool first = true;
@@ -49,7 +49,7 @@ namespace sgcl::crypto::detail {
         return s;
     }
 
-    inline void append_utf8(std::string& s, uint32_t c) {
+    inline void append_utf8(std::string& s, uint32_t c) noexcept {
         if (c < 0x80) {
             s += char(c);
         } else if (c < 0x800) {
@@ -128,7 +128,7 @@ namespace sgcl::crypto::detail {
     // for it; false with is_string set when it is one of them and is not
     // valid (the name, and the certificate, cannot be read); false with
     // is_string clear for any other type
-    inline bool asn1_string(unsigned char tag, const unsigned char* p, size_t n, std::string& out, bool& is_string) {
+    inline bool asn1_string(unsigned char tag, const unsigned char* p, size_t n, std::string& out, bool& is_string) noexcept {
         is_string = true;
         out.clear();
         switch (tag) {
@@ -187,7 +187,7 @@ namespace sgcl::crypto::detail {
         }
     }
 
-    inline std::string hex_text(const unsigned char* p, size_t n) {
+    inline std::string hex_text(const unsigned char* p, size_t n) noexcept {
         static constexpr char digits[] = "0123456789abcdef";
         std::string s;
         s.reserve(2 * n);
@@ -204,7 +204,7 @@ namespace sgcl::crypto::x509 {
 
     namespace detail {
         using namespace sgcl::crypto::detail;
-        bool parse_name(DerReader& in, name& out);
+        bool parse_name(DerReader& in, name& out) noexcept;
     }
 
     // A distinguished name (RFC 5280 §4.1.2.4): the issuer or the subject
@@ -235,41 +235,41 @@ namespace sgcl::crypto::x509 {
         }
 
         // CN, the last one where there are more, as Go's CommonName
-        string common_name() const {
+        string common_name() const noexcept {
             return _last("2.5.4.3");
         }
 
         // SERIALNUMBER (2.5.4.5), the last one
-        string serial_number() const {
+        string serial_number() const noexcept {
             return _last("2.5.4.5");
         }
 
-        vector<string> country() const {
+        vector<string> country() const noexcept {
             return _all("2.5.4.6");
         }
 
-        vector<string> organization() const {
+        vector<string> organization() const noexcept {
             return _all("2.5.4.10");
         }
 
-        vector<string> organizational_unit() const {
+        vector<string> organizational_unit() const noexcept {
             return _all("2.5.4.11");
         }
 
-        vector<string> locality() const {
+        vector<string> locality() const noexcept {
             return _all("2.5.4.7");
         }
 
         // ST, the state or province
-        vector<string> province() const {
+        vector<string> province() const noexcept {
             return _all("2.5.4.8");
         }
 
-        vector<string> street_address() const {
+        vector<string> street_address() const noexcept {
             return _all("2.5.4.9");
         }
 
-        vector<string> postal_code() const {
+        vector<string> postal_code() const noexcept {
             return _all("2.5.4.17");
         }
 
@@ -281,7 +281,7 @@ namespace sgcl::crypto::x509 {
         // in reverse of the encoding's order; ',', '+', '"', '\', '<', '>',
         // ';', a leading '#' and a leading or trailing space escaped with
         // '\'
-        string to_string() const {
+        string to_string() const noexcept {
             // the RDNs Go's String builds, in its order; written reversed
             struct Rdn {
                 std::string text;
@@ -356,7 +356,7 @@ namespace sgcl::crypto::x509 {
         }
 
     private:
-        friend bool detail::parse_name(crypto::detail::DerReader& in, name& out);
+        friend bool detail::parse_name(crypto::detail::DerReader& in, name& out) noexcept;
 
         vector<attribute> _attributes;
 
@@ -370,7 +370,7 @@ namespace sgcl::crypto::x509 {
             return false;
         }
 
-        string _last(const char* oid) const {
+        string _last(const char* oid) const noexcept {
             string v;
             for (auto& a : _attributes) {
                 if (a.text && a.oid == oid) {
@@ -380,7 +380,7 @@ namespace sgcl::crypto::x509 {
             return v;
         }
 
-        vector<string> _all(const char* oid) const {
+        vector<string> _all(const char* oid) const noexcept {
             vector<string> v;
             for (auto& a : _attributes) {
                 if (a.text && a.oid == oid) {
@@ -390,7 +390,7 @@ namespace sgcl::crypto::x509 {
             return v;
         }
 
-        static void _escape(std::string& s, const string& value) {
+        static void _escape(std::string& s, const string& value) noexcept {
             auto v = value.view();
             for (size_t k = 0; k < v.size(); ++k) {
                 char c = v[k];
@@ -458,7 +458,7 @@ namespace sgcl::crypto::x509 {
         // empty and each attribute exactly a type and a value. False for
         // anything else, a string value not valid for its type included,
         // and for more than max_name_attributes attributes
-        inline bool parse_name(DerReader& in, name& out) {
+        inline bool parse_name(DerReader& in, name& out) noexcept {
             DerReader seq;
             if (!in.read(der::sequence, seq)) {
                 return false;

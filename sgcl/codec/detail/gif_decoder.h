@@ -12,6 +12,7 @@
 #include "../options.h"
 #include "../../compress/lzw.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/string.h"
 
 #include <algorithm>
@@ -57,7 +58,7 @@ namespace sgcl::codec::detail {
 
         // The header, the logical screen and its global color table, and
         // the extensions before the first image (the loop count among them)
-        bool start() {
+        bool start() noexcept(NothrowInput<Input>) {
             uint8_t h[13];
             if (!_read(h, 13)) {
                 return false;
@@ -83,7 +84,7 @@ namespace sgcl::codec::detail {
 
         // The next image drawn onto the canvas (the one before it disposed
         // of first): frame; the trailer: end
-        Step next() {
+        Step next() noexcept(NothrowInput<Input>) {
             if (_ended) {
                 return Step::end;
             }
@@ -142,15 +143,16 @@ namespace sgcl::codec::detail {
             return _err;
         }
 
-        // The canvas as an image of the format asked for (rgba8 when none)
-        image picture() const {
+        // The canvas as an image of the format asked for (rgba8 when none;
+        // gif_first and gif_frames check the format before the decoder is made)
+        image picture() const noexcept {
             const pixel_format out = _o.want.value_or(pixel_format::rgba8);
             image im(_width, _height, out);
             auto& s = ImageAccess::state(im);
             auto* dst = reinterpret_cast<uint8_t*>(s.pixels.data());
             const size_t row = size_t(_width) * 4;
             if (out == pixel_format::rgba8) {
-                std::memcpy(dst, _canvas.get(), row * _height);
+                sgcl::detail::copy_bytes(dst, _canvas.get(), row * _height);
             } else {
                 const auto run = converter(pixel_format::rgba8, out);
                 for (uint32_t y = 0; y < _height; ++y) {
@@ -161,17 +163,17 @@ namespace sgcl::codec::detail {
         }
 
     private:
-        bool _fail(errc code, uint64_t at, const std::string& what) {
+        bool _fail(errc code, uint64_t at, const std::string& what) noexcept {
             _err = error(code, at, string(what));
             return false;
         }
 
-        bool _fail_input() {
+        bool _fail_input() noexcept {
             _err = *_in.failure;
             return false;
         }
 
-        bool _read(uint8_t* dst, size_t n) {
+        bool _read(uint8_t* dst, size_t n) noexcept(NothrowInput<Input>) {
             while (n) {
                 const uint8_t* p;
                 size_t got;
@@ -181,7 +183,7 @@ namespace sgcl::codec::detail {
                 if (!got) {
                     return _fail(errc::unexpected_end, _in.offset(), "gif: the data ends in the middle");
                 }
-                std::memcpy(dst, p, got);
+                sgcl::detail::copy_bytes(dst, p, got);
                 _in.consume(got);
                 dst += got;
                 n -= got;
@@ -189,7 +191,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _byte(int& b) {
+        bool _byte(int& b) noexcept(NothrowInput<Input>) {
             const uint8_t* p;
             size_t got;
             if (!_in.peek(1, p, got)) {
@@ -204,7 +206,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _palette(uint8_t (&table)[256][4], unsigned n) {
+        bool _palette(uint8_t (&table)[256][4], unsigned n) noexcept(NothrowInput<Input>) {
             uint8_t rgb[768];
             if (!_read(rgb, 3 * size_t(n))) {
                 return false;
@@ -223,7 +225,7 @@ namespace sgcl::codec::detail {
         }
 
         // Sub-blocks (a length, that many bytes) to the terminator of length 0
-        bool _skip_blocks() {
+        bool _skip_blocks() noexcept(NothrowInput<Input>) {
             for (;;) {
                 uint8_t n;
                 if (!_read(&n, 1)) {
@@ -240,7 +242,7 @@ namespace sgcl::codec::detail {
         }
 
         // The extensions before an image: read while the next block is one
-        bool _extensions() {
+        bool _extensions() noexcept(NothrowInput<Input>) {
             for (;;) {
                 const uint8_t* p;
                 size_t got;
@@ -260,7 +262,7 @@ namespace sgcl::codec::detail {
         // An extension, its introducer read: the Graphic Control Extension
         // for the next image, NETSCAPE2.0 (or ANIMEXTS1.0) for the loop
         // count; comments, plain text and the rest passed over
-        bool _extension() {
+        bool _extension() noexcept(NothrowInput<Input>) {
             uint8_t label;
             if (!_read(&label, 1)) {
                 return false;
@@ -315,23 +317,26 @@ namespace sgcl::codec::detail {
         }
 
         // What the frame before asked to be done with its rectangle
-        void _dispose() {
+        void _dispose() noexcept {
             if (_last_disposal == 2 || _last_disposal == 3) {
                 const size_t row = size_t(_width) * 4;
                 for (uint32_t y = _last_top; y < _last_bottom; ++y) {
                     uint8_t* d = _canvas.get() + y * row + size_t(_last_left) * 4;
                     const size_t n = size_t(_last_right - _last_left) * 4;
                     if (_last_disposal == 2) {
+                        // libc's memset, not fill_bytes: a zero fill of up
+                        // to a quarter megabyte a row (DESIGN 393)
                         std::memset(d, 0, n);
                     } else {
-                        std::memcpy(d, _saved.get() + y * row + size_t(_last_left) * 4, n);
+                        sgcl::detail::copy_bytes(d, _saved.get() + y * row + size_t(_last_left) * 4, n);
                     }
                 }
             }
             _last_disposal = 0;
         }
 
-        bool _image() {
+        bool _image() noexcept(NothrowInput<Input>) {
+
             const uint64_t at = _in.offset() - 1;
             uint8_t d[9];
             if (!_read(d, 9)) {
@@ -428,7 +433,7 @@ namespace sgcl::codec::detail {
                 }
                 const size_t row = size_t(_width) * 4;
                 for (uint32_t y = t; y < bottom; ++y) {
-                    std::memcpy(_saved.get() + y * row + size_t(l) * 4, _canvas.get() + y * row + size_t(l) * 4, size_t(right - l) * 4);
+                    sgcl::detail::copy_bytes(_saved.get() + y * row + size_t(l) * 4, _canvas.get() + y * row + size_t(l) * 4, size_t(right - l) * 4);
                 }
             }
             // drawn: the rows in their places (interlaced: every 8th row from

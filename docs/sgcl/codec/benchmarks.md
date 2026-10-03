@@ -1,4 +1,6 @@
-# Benchmarks: the codec module
+[sgcl](../README.md) › [codec](README.md)
+
+# Benchmarks: codec
 
 The setup, the machine and how the timers are read are described with [the benchmarks of the engine](../../garbage_collector/benchmarks.md). The module's cases are in `benchmarks/codec/`. `bench_codec <case> <sgcl|c>` has the module's side and the C libraries' side: libpng 1.6.58, libjpeg-turbo 3.2.0, libwebp 1.6.0 and giflib 6.1.3, Homebrew's, linked by the benchmark only. Go's side is `benchmarks/go/codec` (Go 1.27.1: `image/png`, `image/jpeg`, `image/gif`, `golang.org/x/image/webp`). `benchmarks/codec/run.sh` makes the inputs, runs every case and prints the table below.
 
@@ -21,7 +23,7 @@ Each image is saved as:
 
 Apple silicon, 2026-09-29: five rounds, images of 2400 × 2400, the machine quiet (a load of 2 to 4 from the user's own programs, no build or test running); the photo tiled from `tests/codec/fuzz/seeds/jpeg_decode/testorig.jpg`:
 
-| image | case | SGCL | C | Go | SGCL / C | SGCL / Go |
+| Image | Case | SGCL | C | Go | SGCL / C | SGCL / Go |
 |---|---|---|---|---|---|---|
 | sonoma | png-rgb8 | 27.55 (27.33–28.30) | 29.36 (29.12–30.32) | 97.06 (94.03–97.57) | 0.94 | 0.28 |
 | sonoma | png-rgba8 | 31.97 (31.39–32.38) | 33.46 (33.02–34.12) | 108.36 (104.50–108.83) | 0.96 | 0.30 |
@@ -67,7 +69,9 @@ Outside it, each with the step that would close it. Each step is for the user to
 - **Lossless WebP decoding of the photo, 1.46.** Most of it is the Select predictor, the one cwebp picks most for photos, and the rest the prefix codes. The step: Select with its sum over the row above computed for the whole row by vectors, only the sum over the left pixel left pixel by pixel (K4a-b). An earlier measurement said 1.62: its photo was tiled from libjpeg-turbo's `testorig.png` rather than the tests' `testorig.jpg`, so cwebp made another file, and the machine was under a load of 10.
 - **PNG decoding of the photo in `rgb8`, 1.23, and with every row Paeth, 1.22.** Its three-byte rows are where the unfilter gains least (Paeth on three-byte pixels runs at 0.82 of its plain twin, against 0.54 on eight-byte ones), and the photo's rows inflate from a less compressible stream. The step: a profile of these two files, then Paeth and Average on three-byte pixels two at a time in one register, and the inflate's copies if the profile points there (K4b).
 
-Go is slower than the module in every case but PNG encoding, where it is 6 times faster on the smooth image and 1.8 times on the photo. Go writes at its default level 6, its fast encoder without hash chains. The module's PNG default is 7, the first of its chain levels, chosen for libpng's file sizes ([`compress`](../compress/README.md): levels 1 to 6 are its fast encoder too). Faster chain levels are on the list for 1.1.0.
+Go is slower than the module in every case but PNG encoding, where it is 6 times faster on the smooth image and 1.8 times on the photo. Go writes at its default level 6, its fast encoder without hash chains. The module's PNG default is 7, the first of its chain levels, chosen for libpng's file sizes ([compress](../compress/README.md): levels 1 to 6 are its fast encoder too). Faster chain levels are on the list for 1.1.0.
+
+**The size of a PNG.** The files the module's PNG encoder writes come within ±0.3 % of libpng's size at the same level, and at 7, the module's default, a little smaller than at libpng's default.
 
 **What the vector instructions do.** Every step below runs on NEON (Apple silicon, ARMv8.0) and SSE2 (x86-64), the minimum of both, with no flag and no run-time check. Each has a plain twin, with the same output bit for bit, which the tests hold the vector road against and which `SGCL_CODEC_PORTABLE` builds alone:
 

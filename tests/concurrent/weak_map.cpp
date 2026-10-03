@@ -7,6 +7,7 @@
 // any number of threads; an entry whose object is gone is dead, the
 // inserting threads sweep the dead ones out.
 #include "tests/types.h"
+#include "tests/concurrent/together.h"
 
 #include <random>
 #include <set>
@@ -504,4 +505,104 @@ TEST(ConcurrentWeakSet_Tests, ManyThreadsRegisterAndDrop) {
         EXPECT_GE(object->value, 0);
     }
     EXPECT_EQ(walked, size_t(shared));
+}
+
+// Boundaries (DESIGN 408)
+
+// Empty containers: the walk, the lookups and erasures of a null pointer
+// and of an object never entered, sweep and clear of nothing; then one
+// entry, erased through its iterator
+TEST(ConcurrentWeakMap_Tests, EmptyAndOneEntry) {
+    concurrent::weak_map<Node, int> m;
+    concurrent::weak_set<Node> s;
+    tracked_ptr<Node> null;
+    tracked_ptr a = make_tracked<Node>(1);
+    EXPECT_TRUE(m.begin() == m.end());
+    EXPECT_TRUE(s.begin() == s.end());
+    EXPECT_EQ(m.sweep(), 0u);
+    EXPECT_EQ(s.sweep(), 0u);
+    m.clear();
+    s.clear();
+    EXPECT_FALSE(m.contains(a));
+    EXPECT_EQ(m.erase(a), 0u);
+    EXPECT_EQ(s.count(null), 0u);
+    EXPECT_EQ(s.erase(null), 0u);
+    EXPECT_EQ(s.erase(a), 0u);
+    EXPECT_TRUE(s.find(a) == s.end());
+    EXPECT_TRUE(m.insert(a, 1).second);
+    EXPECT_TRUE(s.insert(a).second);
+    EXPECT_TRUE(m.erase(m.begin()) == m.end());
+    EXPECT_TRUE(s.erase(s.begin()) == s.end());
+    EXPECT_TRUE(m.empty());
+    EXPECT_TRUE(s.empty());
+    EXPECT_EQ(m.size() + s.size(), 0u);
+}
+
+// The container's own entry as the argument: the key an iterator gives
+// back to insert, find and erase; a value read from the entry inserted
+// under another object
+TEST(ConcurrentWeakMap_Tests, ItsOwnEntryAsTheArgument) {
+    concurrent::weak_map<Node, std::string> m;
+    concurrent::weak_set<Node> s;
+    tracked_ptr a = make_tracked<Node>(1);
+    tracked_ptr b = make_tracked<Node>(2);
+    m.insert(a, std::string(64, 'a'));
+    s.insert(a);
+    auto it = m.begin();
+    EXPECT_FALSE(m.insert(it->key, "other").second);
+    EXPECT_TRUE(m.insert(b, it->value).second);
+    EXPECT_EQ(m.find(b)->value, std::string(64, 'a'));
+    EXPECT_FALSE(s.insert(*s.begin()).second);
+    EXPECT_EQ(s.erase(*s.begin()), 1u);
+    EXPECT_EQ(m.erase(m.find(a)->key), 1u);
+    EXPECT_EQ(m.size(), 1u);
+    EXPECT_TRUE(s.empty());
+}
+
+// Threads at one object, many rounds: two insertions of it make one
+// entry, two erasures of it erase once, in both containers
+TEST(ConcurrentWeakMap_Tests, ThreadsAtOneObject) {
+    concurrent::weak_map<Node, int> m;
+    concurrent::weak_set<Node> s;
+    tracked_ptr a = make_tracked<Node>(1);
+    for (int round = 0; round < together::Rounds; ++round) {
+        std::atomic<int> inserted = {0}, erased = {0};
+        together::run(4, [&](int i) {
+            inserted += int(m.try_emplace(a, i).second);
+            inserted += int(s.insert(a).second);
+        });
+        EXPECT_EQ(inserted.load(), 2);
+        EXPECT_EQ(m.size(), 1u);
+        EXPECT_EQ(s.size(), 1u);
+        together::run(4, [&](int) {
+            erased += int(m.erase(a));
+            erased += int(s.erase(a));
+        });
+        EXPECT_EQ(erased.load(), 2);
+        EXPECT_TRUE(m.empty());
+        EXPECT_TRUE(s.empty());
+    }
+}
+
+// sweep against sweep and against insertions: one sweep runs at a time
+// (the other returns 0 at once), and no live entry is ever swept
+TEST(ConcurrentWeakMap_Tests, SweepsAgainstEachOtherAndInsertions) {
+    concurrent::weak_set<Node> s;
+    sgcl::vector<tracked_ptr<Node>> kept;
+    for (int i = 0; i < 64; ++i) {
+        kept.push_back(make_tracked<Node>(i));
+        s.insert(kept.back());
+    }
+    for (int round = 0; round < together::Rounds / 10; ++round) {
+        together::run(3, [&](int i) {
+            if (i < 2) {
+                EXPECT_EQ(s.sweep(), 0u);   // nothing dead: every object is held
+            } else {
+                for (auto& p : kept) {
+                    s.insert(p);
+                }
+            }
+        });
+        EXPECT_EQ(s.size(), kept.size());
+    }
 }

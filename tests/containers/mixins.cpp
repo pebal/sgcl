@@ -17,6 +17,17 @@ namespace {
     struct Config {
         int version;
     };
+
+    // The mixins' members are noexcept as far as the element's operations
+    // and the function given are
+    inline constexpr auto odd = [](int x) noexcept { return x % 2 != 0; };
+    inline constexpr auto odd_may_throw = [](int x) { return x % 2 != 0; };
+    static_assert(noexcept(std::declval<const sgcl::vector<int>&>().exists(odd)));
+    static_assert(!noexcept(std::declval<const sgcl::vector<int>&>().exists(odd_may_throw)));
+    static_assert(noexcept(std::declval<sgcl::vector<int>&>().sort()));
+    static_assert(noexcept(std::declval<const sgcl::vector<int>&>().binary_search(1)));
+    static_assert(noexcept(std::declval<const sgcl::sorted_map<int, int>&>().get(1)));
+    static_assert(!noexcept(std::declval<const sgcl::sorted_map<int, std::string>&>().get(1)));
 }
 
 TEST(MSequence_Tests, TheAlgorithmsAreMembersOfEverySequence) {
@@ -102,4 +113,121 @@ TEST(MSequence_Tests, TheDeductionGuides) {
     // scheduler, whose objects outlive its stop and would be counted by
     // every live-object assertion of the suites after this one
     static_assert(std::is_same_v<decltype(sgcl::async::task(std::declval<sgcl::async::task<int>>())), sgcl::async::task<int>>);
+}
+
+// fill and sort_by take part only where they can work: fill with a value
+// the elements are assignable from, sort_by with a key that has < (they
+// were declared for anything, a wrong argument a hard error in the body,
+// and a requires-expression asking for them did not compile)
+namespace {
+    struct Untagged {};
+
+    struct Item {
+        int rank = 0;
+        Untagged tag;
+    };
+
+    template<class C, class V>
+    concept Fills = requires(C& c, const V& v) { c.fill(v); };
+
+    template<class C, class P>
+    concept SortsBy = requires(C& c, P p) { c.sort_by(p); };
+
+    // Counts the element comparisons of ==
+    struct Compared {
+        static inline int calls = 0;
+        int v = 0;
+        friend bool operator==(const Compared& a, const Compared& b) noexcept {
+            ++calls;
+            return a.v == b.v;
+        }
+    };
+}
+
+TEST(Mixins_Test, FillAndSortByOnlyWhereTheyWork) {
+    static_assert(Fills<sgcl::vector<int>, int>);
+    static_assert(Fills<sgcl::vector<int>, double>);
+    static_assert(Fills<sgcl::vector<sgcl::string>, const char*>);
+    static_assert(!Fills<sgcl::vector<int>, Untagged>);
+    static_assert(!Fills<sgcl::deque<int>, sgcl::string>);
+    static_assert(SortsBy<sgcl::vector<Item>, int Item::*>);
+    static_assert(!SortsBy<sgcl::vector<Item>, Untagged Item::*>);
+    static_assert(!SortsBy<sgcl::vector<Item>, int>);
+
+    sgcl::vector<int> empty;
+    empty.fill(3);                                       // nothing to fill
+    empty.sort_by([](int x) noexcept { return -x; });
+    EXPECT_TRUE(empty.empty());
+    sgcl::vector<Item> items = {{3, {}}, {1, {}}, {2, {}}};
+    items.sort_by(&Item::rank);
+    EXPECT_EQ(items[0].rank, 1);
+    EXPECT_EQ(items[2].rank, 3);
+    sgcl::deque<double> d(3);
+    d.fill(1);
+    EXPECT_EQ(d[2], 1.0);
+}
+
+// == of two containers that know their size compares the sizes first, as
+// std's do: lists of different lengths compare no element
+TEST(Mixins_Test, EqualityComparesSizesFirst) {
+    sgcl::list<Compared> a = {{1}, {2}, {3}};
+    sgcl::list<Compared> b = {{1}, {2}, {3}, {4}};
+    Compared::calls = 0;
+    EXPECT_FALSE(a == b);
+    EXPECT_EQ(Compared::calls, 0);
+    sgcl::list<Compared> c = a;
+    EXPECT_TRUE(a == c);
+    EXPECT_EQ(Compared::calls, 3);
+    EXPECT_TRUE(a == a);                                 // itself
+    EXPECT_TRUE(sgcl::list<Compared>() == sgcl::list<Compared>());
+    sgcl::forward_list<Compared> f = {{1}, {2}};        // no size: walked
+    sgcl::forward_list<Compared> g = {{1}};
+    EXPECT_FALSE(f == g);
+}
+
+// Boundaries (DESIGN 408)
+
+// The members of the mixins on an empty container and on one element:
+// every search misses or finds the one, the sorts and fill change nothing
+// of nothing; the container's own element as the value of fill, contains,
+// index_of and the bounds
+TEST(Mixins_Test, EmptyOneAndTheContainersOwnElement) {
+    sgcl::vector<int> none;
+    EXPECT_EQ(none.find_index([](int) { return true; }), sgcl::npos);
+    EXPECT_EQ(none.find_if([](int) { return true; }), nullptr);
+    EXPECT_FALSE(none.exists([](int) { return true; }));
+    EXPECT_TRUE(none.all([](int) { return false; }));
+    EXPECT_EQ(none.count_of([](int) { return true; }), 0u);
+    EXPECT_FALSE(none.contains(0));
+    EXPECT_EQ(none.index_of(0), sgcl::npos);
+    EXPECT_EQ(none.last_index_of(0), sgcl::npos);
+    EXPECT_TRUE(none.is_sorted());
+    EXPECT_FALSE(none.binary_search(0));
+    EXPECT_EQ(none.sorted_index_of(0), sgcl::npos);
+    EXPECT_EQ(none.lower_bound(0), none.end());
+    none.sort();
+    none.stable_sort();
+    none.sort_by([](int x) { return -x; });
+    none.fill(1);
+    none.reverse();
+    EXPECT_TRUE(none.empty());
+    sgcl::list<std::string> one = {"only"};
+    EXPECT_EQ(one.index_of("only"), 0u);
+    EXPECT_EQ(one.last_index_of("only"), 0u);
+    EXPECT_EQ(&one.min(), &one.max());
+    EXPECT_EQ(one.find_if([](const std::string&) { return true; }), &one.front());
+    one.fill(one.front());
+    one.reverse();
+    EXPECT_EQ(one.front(), "only");
+    sgcl::vector<std::string> v = {"b", "long enough to live on the heap", "a"};
+    v.fill(v[1]);
+    EXPECT_EQ(v, (sgcl::vector<std::string>(3, "long enough to live on the heap")));
+    v = {"a", "b", "c"};
+    EXPECT_TRUE(v.contains(v[2]));
+    EXPECT_EQ(v.index_of(v[1]), 1u);
+    EXPECT_EQ(v.lower_bound(v[2]), v.begin() + 2);
+    EXPECT_EQ(v.sorted_index_of(v[0]), 0u);
+    sgcl::deque<int> d = {3, 1, 2};
+    d.fill(d[1]);
+    EXPECT_EQ(d, (sgcl::deque<int>{1, 1, 1}));
 }

@@ -65,7 +65,7 @@ namespace sgcl::async {
     // came first
     class timed_out {
     public:
-        string message() const {
+        string message() const noexcept {
             return "timed out";
         }
 
@@ -74,7 +74,7 @@ namespace sgcl::async {
 
     class stopped {
     public:
-        string message() const {
+        string message() const noexcept {
             return "stopped";
         }
 
@@ -210,7 +210,7 @@ namespace sgcl::async {
                     timer->cancelled.store(true, std::memory_order_release);
                     timer_cancelled(*timer);
                 }
-                enqueue(waiter, next);
+                enqueue_quiet(waiter, next);   // noexcept, a task's end: a timeout task that cannot start the workers (the task ended on an executor's thread, the scheduler stopped) is queued for the next start
                 waiter = nullptr;
             }
 
@@ -337,7 +337,8 @@ namespace sgcl::async {
             }
         }
         tracked_ptr<detail::TimeoutSlot<T>> slot = make_tracked<detail::TimeoutSlot<T>>();
-        if (!co_await detail::race(slot, std::move(t), *detail::ChannelAccess::state(token.channel()))) {
+        receive_channel<void> deadline = token.channel();   // the frame's hold on the stop's channel for the race
+        if (!co_await detail::race(slot, std::move(t), *detail::ChannelAccess::state(deadline))) {
             co_return unexpected(stopped());
         }
         co_return detail::race_won<stopped>(*slot);

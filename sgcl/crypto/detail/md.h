@@ -43,8 +43,7 @@ namespace sgcl::crypto::detail {
         }
 
         void update(const unsigned char* p, size_t n) noexcept {
-            // An empty slice's data() is null, and memcpy from null is
-            // undefined even for no bytes (glibc declares it nonnull)
+            // No bytes, nothing to do (an empty slice's data() is null)
             if (n == 0) {
                 return;
             }
@@ -75,7 +74,12 @@ namespace sgcl::crypto::detail {
         // The padding (a 1 bit, zeros, the length in bits big-endian) and
         // the last one or two blocks, in place: the stream is used up. The
         // words go to out big-endian, all of them; a truncated digest
-        // (SHA-224, SHA-384, SHA-512/256) takes its first bytes
+        // (SHA-224, SHA-384, SHA-512/256) takes its first bytes.
+        //
+        // The two zero runs stay libc's memset (an exception to DESIGN
+        // 384): fill_bytes here, inlined right before the compression
+        // reads the block back, took SHA-256 of 32 bytes from 31.5 ns to
+        // 37.8 at the same code alignment (2026-10-03)
         void finish(unsigned char* out) noexcept {
             constexpr size_t field = Traits::length_bytes;
             uint64_t bits = length << 3;

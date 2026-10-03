@@ -4,8 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
+#include "tests/concurrent/together.h"
 
 #include <atomic>
+#include <cstdint>
 #include <chrono>
 #include <random>
 #include <string>
@@ -371,4 +373,95 @@ TEST(ConcurrentCache_Test, APutIsNeverLostUnderAStaleGet) {
         EXPECT_EQ(c.size(), n);   // the count exact after the erasures by node
     });
     sgcl::collector::force_collect(true);
+}
+
+// Boundaries (DESIGN 408)
+
+// The settings at their ends: a sample of 0 taken as 1, a capacity of 0
+// through get_or_compute (the value returned, nothing kept), an empty
+// cache's erasures, clear and counters, and a negative time to live, by
+// which every entry is stale from its put
+TEST(ConcurrentCache_Test, SettingsAtTheirEnds) {
+    sgcl::concurrent::cache<int, int> s(4, {}, 0);
+    EXPECT_EQ(s.sample_size(), 1u);
+    for (int i = 0; i < 20; ++i) {
+        s.put(i, i);
+        EXPECT_LE(s.size(), 4u);
+    }
+    EXPECT_EQ(s.size(), 4u);
+
+    sgcl::concurrent::cache<int, int> none(0);
+    EXPECT_EQ(none.hits(), 0u);
+    EXPECT_EQ(none.misses(), 0u);
+    EXPECT_FALSE(none.erase(1));
+    none.clear();
+    EXPECT_EQ(none.get_or_compute(1, [] { return 7; }), 7);
+    EXPECT_EQ(none.size(), 0u);
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(none.misses(), 1u);
+
+    sgcl::concurrent::cache<int, int> past(4, -1ms);
+    past.put(1, 1);
+    EXPECT_FALSE(past.get(1));
+    EXPECT_EQ(past.get_or_compute(2, [] { return 2; }), 2);
+    EXPECT_FALSE(past.get(2));
+    EXPECT_EQ(past.size(), 0u);   // each get found its entry stale and erased it
+}
+
+// A capacity whose buckets no memory holds (the map gets its buckets for
+// the capacity up front): the program ends as at any refused managed
+// allocation
+TEST(ConcurrentCache_Test, ACapacityNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    EXPECT_DEATH((sgcl::concurrent::cache<int, int>(SIZE_MAX)), "sgcl: out of managed memory");
+}
+
+// The cache's own value as the argument: a put of the value a get
+// returned, under its key and under another
+TEST(ConcurrentCache_Test, ItsOwnValueAsTheArgument) {
+    sgcl::concurrent::cache<std::string, std::string> c(4);
+    const std::string k(64, 'k'), v(64, 'v');
+    c.put(k, v);
+    c.put(k, *c.get(k));
+    c.put(*c.get(k), *c.get(k));
+    EXPECT_EQ(*c.get(k), v);
+    EXPECT_EQ(*c.get(v), v);
+    EXPECT_EQ(c.get_or_compute(k, [&] { return *c.get(v); }), v);
+    EXPECT_EQ(c.size(), 2u);
+}
+
+// Threads at one entry, many rounds: of two erasures one returns true;
+// two puts of an absent key make one entry; two get_or_compute of an
+// absent key return the one value that won; at a capacity of one, puts of
+// different keys leave one entry
+TEST(ConcurrentCache_Test, ThreadsAtOneEntry) {
+    sgcl::concurrent::cache<int, int> c(4);
+    sgcl::concurrent::cache<int, int> one(1);
+    for (int round = 0; round < together::Rounds; ++round) {
+        std::atomic<int> erased = {0};
+        c.put(round, round);
+        together::run(2, [&](int) {
+            erased += c.erase(round);
+        });
+        EXPECT_EQ(erased.load(), 1);
+        EXPECT_EQ(c.size(), 0u);
+        together::run(2, [&](int i) {
+            c.put(round, i);
+        });
+        EXPECT_EQ(c.size(), 1u);
+        c.erase(round);
+        std::atomic<int> got[2] = {-1, -1};
+        together::run(2, [&](int i) {
+            got[i] = c.get_or_compute(round, [&] { return 10 + i; });
+        });
+        EXPECT_EQ(got[0].load(), got[1].load());
+        EXPECT_EQ(*c.get(round), got[0].load());
+        c.clear();
+        together::run(2, [&](int i) {
+            one.put(round * 2 + i, i);
+        });
+        EXPECT_EQ(one.size(), 1u);
+        one.clear();
+        EXPECT_TRUE(one.empty());
+    }
 }

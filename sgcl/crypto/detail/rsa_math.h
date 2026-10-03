@@ -7,6 +7,7 @@
 
 #include "ec_field.h"
 #include "../secure_zero.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -56,10 +57,10 @@ namespace sgcl::crypto::detail::bn {
     public:
         SecretWords() noexcept = default;
 
-        explicit SecretWords(size_t n)
+        explicit SecretWords(size_t n) noexcept
         : _p(n != 0 ? static_cast<word*>(::operator new(n * sizeof(word))) : nullptr), _n(n) {
             if (_p) {
-                std::memset(_p, 0, n * sizeof(word));
+                sgcl::detail::fill_bytes(_p, 0, n * sizeof(word));
             }
         }
 

@@ -76,7 +76,7 @@ namespace sgcl::math::detail {
     // like any other working memory
     using Powers = std::vector<std::vector<Limb>>;
 
-    inline void grow_powers(Powers& powers, Chunk c, size_t count) {
+    inline void grow_powers(Powers& powers, Chunk c, size_t count) noexcept {
         if (powers.empty()) {
             powers.push_back({c.power});
         }
@@ -93,10 +93,10 @@ namespace sgcl::math::detail {
     // needed after) as exactly `width` characters ending at `end`, zeros
     // in front: a chunk of digits at a time from the bottom, each the
     // remainder of a division by c.power
-    inline void write_small(char* end, size_t width, const Limb* x, size_t xn, Chunk c, const Divisor& dv, unsigned base) {
+    inline void write_small(char* end, size_t width, const Limb* x, size_t xn, Chunk c, const Divisor& dv, unsigned base) noexcept {
         Scratch s(xn);
         Limb* w = s.get();
-        std::memcpy(w, x, xn * sizeof(Limb));
+        sgcl::detail::copy_bytes(w, x, xn * sizeof(Limb));
         size_t m = normalized(w, xn);
         char* at = end;
         char* first = end - width;
@@ -116,7 +116,7 @@ namespace sgcl::math::detail {
     // The digits of x < P_level as exactly c.digits·2^level characters
     // ending at `end`: its quotient and remainder by P_(level-1), each in
     // half of them
-    inline void write_digits(char* end, const Limb* x, size_t xn, size_t level, const Powers& powers, Chunk c, const Divisor& dv, unsigned base) {
+    inline void write_digits(char* end, const Limb* x, size_t xn, size_t level, const Powers& powers, Chunk c, const Divisor& dv, unsigned base) noexcept {
         xn = normalized(x, xn);
         size_t width = size_t(c.digits) << level;
         if (!level || xn < std::max<size_t>(thresholds.to_string, 2)) {
@@ -128,7 +128,7 @@ namespace sgcl::math::detail {
         size_t half = width / 2;
         if (compare(x, xn, p.data(), pn) < 0) {
             write_digits(end, x, xn, level - 1, powers, c, dv, base);
-            std::memset(end - width, '0', half);
+            sgcl::detail::fill_bytes(end - width, '0', half);
             return;
         }
         size_t qn = xn - pn + 1;
@@ -145,7 +145,7 @@ namespace sgcl::math::detail {
 
     // The digits of a normalized magnitude, most significant first, no
     // sign, appended to `out`; "0" for zero
-    inline void append_digits(std::string& out, const Limb* a, size_t n, unsigned base) {
+    inline void append_digits(std::string& out, const Limb* a, size_t n, unsigned base) noexcept {
         if (!n) {
             out += '0';
             return;
@@ -241,7 +241,7 @@ namespace sgcl::math::detail {
 
     // n <= 2·c.digits·2^level digits: the value of all but the last
     // c.digits·2^level of them times P_level, plus the value of those
-    inline size_t read_part(Limb* r, const char* p, size_t n, size_t level, const Powers& powers, Chunk c, unsigned base) {
+    inline size_t read_part(Limb* r, const char* p, size_t n, size_t level, const Powers& powers, Chunk c, unsigned base) noexcept {
         if (n < std::max<size_t>(thresholds.parse, 2) * c.digits) {
             return read_small(r, p, n, c, base);
         }
@@ -255,7 +255,7 @@ namespace sgcl::math::detail {
         size_t hn = read_part(hs.get(), p, high, level - 1, powers, c, base);
         size_t ln = read_part(ls.get(), p + high, low, level - 1, powers, c, base);
         if (!hn) {
-            std::memcpy(r, ls.get(), ln * sizeof(Limb));
+            sgcl::detail::copy_bytes(r, ls.get(), ln * sizeof(Limb));
             return ln;
         }
         const auto& power = powers[level];
@@ -267,16 +267,18 @@ namespace sgcl::math::detail {
         assert(!carry);
         (void)carry;
         tn = normalized(t, tn);
-        std::memcpy(r, t, tn * sizeof(Limb));
+        sgcl::detail::copy_bytes(r, t, tn * sizeof(Limb));
         return tn;
     }
 
     // The magnitude of `n` digits already checked to be digits of the
     // base, written into r (room for max_limbs(n, base)); the length,
     // normalized, returned
-    inline size_t read_digits(Limb* r, const char* p, size_t n, unsigned base) {
+    inline size_t read_digits(Limb* r, const char* p, size_t n, unsigned base) noexcept {
         if (unsigned k = power_of_two_bits(base)) {
             size_t limbs = (n * k + 63) / 64;
+            // libc, not fill_bytes: a zero fill as long as the text, where
+            // libc zeroes whole cache lines (DESIGN 393)
             std::memset(r, 0, limbs * sizeof(Limb));
             size_t bit = 0;
             for (size_t j = n; j-- > 0; bit += k) {

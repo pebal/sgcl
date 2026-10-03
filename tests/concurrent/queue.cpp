@@ -4,10 +4,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
+#include "tests/concurrent/together.h"
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <iterator>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -331,4 +335,113 @@ TEST(ConcurrentQueue_Test, SingleProducerSingleConsumerExactOrder) {
         producer.join();
         EXPECT_TRUE(q.empty());
     });
+}
+
+// Boundaries (DESIGN 408)
+
+// An empty queue and a queue of one: the pops of nothing, clear of
+// nothing, push_range of no element and of one, from a single-pass input
+// range, the queue usable after clear
+TEST(ConcurrentQueue_Test, EmptyAndOneElement) {
+    sgcl::concurrent::queue<int> q;
+    q.clear();
+    EXPECT_TRUE(q.empty());
+    EXPECT_EQ(q.size(), 0u);
+    EXPECT_FALSE(q.try_pop());
+    std::vector<int> none, one = {7};
+    q.push_range(none.begin(), none.end());
+    EXPECT_TRUE(q.empty());
+    q.push_range(one.begin(), one.end());
+    EXPECT_EQ(q.size(), 1u);
+    EXPECT_EQ(q.pop(), 7);
+    EXPECT_TRUE(q.empty());
+    std::istringstream in("1 2 3");
+    q.push_range(std::istream_iterator<int>(in), std::istream_iterator<int>());   // read once, element by element
+    std::istringstream nothing("");
+    q.push_range(std::istream_iterator<int>(nothing), std::istream_iterator<int>());
+    EXPECT_EQ(q.size(), 3u);
+    q.clear();
+    EXPECT_TRUE(q.empty());
+    EXPECT_FALSE(q.try_pop());
+    q.push(8);
+    EXPECT_EQ(*q.try_pop(), 8);
+    sgcl::concurrent::queue<tracked_ptr<Baz>> p;
+    p.push(nullptr);
+    auto null = p.try_pop();
+    ASSERT_TRUE(null);
+    EXPECT_EQ(*null, nullptr);
+}
+
+// Many threads at the empty queue find nothing; the one element pushed
+// into it goes to exactly one of them; a pop against a clear at the last
+// element: one of them has it
+TEST(ConcurrentQueue_Test, ThreadsAtTheLastElement) {
+    sgcl::concurrent::queue<int> q;
+    for (int round = 0; round < together::Rounds; ++round) {
+        std::atomic<int> got = {0}, empty = {0};
+        together::run(4, [&](int) {
+            empty += !q.try_pop();
+        });
+        EXPECT_EQ(empty.load(), 4);
+        q.push(round);
+        together::run(4, [&](int) {
+            if (auto v = q.try_pop()) {
+                EXPECT_EQ(*v, round);
+                ++got;
+            }
+        });
+        EXPECT_EQ(got.load(), 1);
+        EXPECT_TRUE(q.empty());
+        EXPECT_EQ(q.size(), 0u);
+        q.push(round);
+        together::run(2, [&](int i) {
+            if (i == 0) {
+                (void)q.try_pop();
+            } else {
+                q.clear();
+            }
+        });
+        EXPECT_TRUE(q.empty());
+        q.push(round);   // a push and a pop at the empty boundary: the element comes out at most once
+        std::atomic<int> popped = {0};
+        together::run(2, [&](int i) {
+            if (i == 0) {
+                q.push(-1);
+            } else {
+                popped += q.try_pop().has_value();
+                popped += q.try_pop().has_value();
+            }
+        });
+        popped += int(q.size());
+        EXPECT_EQ(popped.load(), 2);
+        q.clear();
+    }
+}
+
+// clear while threads wait in pop: it takes nothing from them and wakes
+// none for good; each element pushed afterwards goes to one waiter, and
+// a chain of push_range to as many
+TEST(ConcurrentQueue_Test, ClearWhileOthersWait) {
+    const int waiters = 4;
+    sgcl::concurrent::queue<int> q;
+    std::atomic<int> sum = {0}, done = {0};
+    std::vector<std::thread> ts;
+    for (int i = 0; i < waiters; ++i) {
+        ts.emplace_back([&] {
+            sum += q.pop();
+            ++done;
+        });
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    q.clear();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(done.load(), 0);
+    q.push(1);
+    int rest[] = {2, 3, 4};
+    q.push_range(rest, rest + 3);
+    for (auto& t : ts) {
+        t.join();
+    }
+    EXPECT_EQ(sum.load(), 10);
+    EXPECT_TRUE(q.empty());
 }

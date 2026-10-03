@@ -1,4 +1,6 @@
-# Benchmarks: the crypto module
+[sgcl](../README.md) › [crypto](README.md)
+
+# Benchmarks: crypto
 
 The setup, the machine and how the timers are read are described with [the benchmarks of the engine](../../garbage_collector/benchmarks.md). The module's cases are in `benchmarks/crypto/` (`bench_crypto`, `bench_curve25519`, `bench_ecc`, `bench_mlkem`, `bench_rsa`, `bench_x509`), each against OpenSSL (the system's libcrypto, 3.6.3, linked by the benchmarks only), one case and one side a process; Go's counterparts, where Go has them, are in `benchmarks/go/`. This page has ML-KEM so far.
 
@@ -11,7 +13,7 @@ The setup, the machine and how the timers are read are described with [the bench
 - `encaps`: an encapsulation to a key read once, 32 random bytes from the system each time on every side;
 - `decaps`: the decapsulation of one ciphertext.
 
-| case | SGCL | OpenSSL | Go | SGCL / OpenSSL | SGCL / Go |
+| Case | SGCL | OpenSSL | Go | SGCL / OpenSSL | SGCL / Go |
 |---|---|---|---|---|---|
 | keygen512 | 15 390 (15 347–15 409) | 19 948 (19 924–20 025) | — | 0.77 | — |
 | keygen768 | 23 419 (23 372–23 494) | 30 750 (30 686–30 809) | 35 342 (35 178–35 380) | 0.76 | 0.66 |
@@ -30,7 +32,7 @@ The code is the portable one: plain C++ that the compiler vectorizes where it ca
 
 **Where the time of an encapsulation went.** A first version made the matrix Â — k² polynomials sampled from SHAKE128 — in every encapsulation and every decapsulation, as the standard writes it; a profile of ML-KEM-1024's encapsulation gave that sampling 43 % of the time, and the encapsulation was 5 to 21 % slower than OpenSSL's. OpenSSL and Go make the matrix once, when a key is read, and keep it in the key; so do the keys here now (the encapsulation key is 2, 4.5 or 8 KB for that). The same series before and after:
 
-| case | before | after | after / before |
+| Case | Before | After | After / before |
 |---|---|---|---|
 | keygen512 / 768 / 1024 | 14 681 / 22 254 / 33 729 | 14 888 / 22 660 / 34 234 | 1.01 / 1.02 / 1.01 |
 | import512 / 768 / 1024 | 2 523 / 3 426 / 4 439 | 6 086 / 11 335 / 18 759 | 2.41 / 3.31 / 4.23 |
@@ -39,4 +41,17 @@ The code is the portable one: plain C++ that the compiler vectorizes where it ca
 
 The cost moved to reading a key, where OpenSSL and Go pay it too: for a key used once, reading it and encapsulating costs what it did (ML-KEM-768 26.4 µs before, 26.3 µs after; ML-KEM-1024 38.5 µs both); every further encapsulation to the same key is the gain.
 
-**The random bytes.** An encapsulation takes 32 bytes from [`random`](random.md). When that was a call into the system each time, fixing the message instead (the test's derandomized form, `detail::mlkem::Access::encapsulate_with`) made an encapsulation 1.3 to 1.5 µs faster in every set (512: 15 146 → 13 640 ns, 768: 23 064 → 21 551, 1024: 34 027 → 32 749, measured before the matrix was kept). Since 2026-09-27 `random` is a ChaCha20 generator in the process, one per thread, seeded from the system (DESIGN 273), as OpenSSL's and Go's are: the encapsulations above are 4 to 10 % under the run of 2026-09-27 while every other case is 3 to 4 % over it with the load.
+**The random bytes.** An encapsulation takes 32 bytes from [random](random.md). When that was a call into the system each time, fixing the message instead (the derandomized form the tests have) made an encapsulation 1.3 to 1.5 µs faster in every set (512: 15 146 → 13 640 ns, 768: 23 064 → 21 551, 1024: 34 027 → 32 749, measured before the matrix was kept). Since 2026-09-27 `random` is a ChaCha20 generator in the process, one per thread, seeded from the system (DESIGN 273), as OpenSSL's and Go's are: the encapsulations above are 4 to 10 % under the run of 2026-09-27 while every other case is 3 to 4 % over it with the load.
+
+## random
+
+[random](random.md) is a ChaCha20 generator in the process, one per thread, seeded from the system. A request of 32
+bytes costs about 21 ns, where a system call cost 1.5 µs and OpenSSL's `RAND_bytes` takes 200 ns, so a key, a nonce,
+an ML-KEM encapsulation or an ECDSA signature no longer pays a trip to the kernel. Large requests run at the speed of
+ChaCha20, about 2.4 GB/s on one core.
+
+## The AEADs without the instructions
+
+On the portable road AES and GHASH are computed bitsliced and on integer products, both in constant time, and two
+orders of magnitude slower than on the processor's instructions; ChaCha20-Poly1305 needs no instructions of its own,
+so on a machine without AES instructions [chacha20_poly1305](chacha20_poly1305.md) is the faster AEAD by far.

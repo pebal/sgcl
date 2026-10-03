@@ -121,13 +121,19 @@ TEST(Referrers_Tests, HeldByABufferAndByAUniquePtr) {
 
 TEST(Referrers_Tests, HeldByACellOfARootPtrInUnmanagedMemory) {
     auto kept = std::make_unique<root_ptr<Leaf>>(make_tracked<Leaf>());   // a cell in a block, the only holder
-    auto [guard, path] = collector::get_path_to_root(kept->get());
-    ASSERT_EQ(path.size(), 2u);
-    EXPECT_EQ(path[0].from, kind::cell);                 // the cell
-    EXPECT_LT(path[0].offset, sizeof(detail::CellBlock));
-    EXPECT_EQ(path[1].from, kind::unique);               // its block, a root by state
-    EXPECT_EQ(path[1].holder, path[0].holder);
-    EXPECT_EQ(*path[1].type, typeid(detail::CellBlock));
+    {
+        auto [guard, path] = collector::get_path_to_root(kept->get());
+        ASSERT_EQ(path.size(), 2u);
+        EXPECT_EQ(path[0].from, kind::cell);             // the cell
+        EXPECT_LT(path[0].offset, sizeof(detail::CellBlock));
+        EXPECT_EQ(path[0].type, nullptr);                // the block is the library's: no type a program could name
+        EXPECT_EQ(path[1].from, kind::unique);           // its block, a root by state
+        EXPECT_EQ(path[1].holder, path[0].holder);
+        EXPECT_EQ(path[1].type, nullptr);
+    }
+    std::ostringstream out;
+    collector::explain(kept->get(), out);                // the guard above gone: explain pauses the collector itself
+    EXPECT_NE(out.str().find("the block of cells, a root while a cell of it is in use"), std::string::npos);
     kept.reset();
     detail::cell_allocator.release();                    // the block let go of: the tests after count live objects from zero
 }
@@ -162,6 +168,11 @@ TEST(Referrers_Tests, AWeakPointerIsListedAndHoldsNothing) {
     {
         auto [guard, rs] = collector::get_referrers(leaf.get());
         EXPECT_EQ(count(rs, kind::weak), 1u);
+        for (auto& r : rs) {
+            if (r.from == kind::weak) {
+                EXPECT_EQ(r.type, nullptr);              // the cell is the library's: no type a program could name
+            }
+        }
     }
     auto [guard, path] = collector::get_path_to_root(leaf.get());
     ASSERT_EQ(path.size(), 1u);

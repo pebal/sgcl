@@ -25,13 +25,13 @@ namespace sgcl::async {
     // caller, then and later, gets it again, and called() is true
     class once {
     public:
-        once() = default;
+        once() noexcept = default;
         once(const once&) = delete;
         once& operator=(const once&) = delete;
 
         template<class F> requires (!detail::TaskFactory<F>)
-        auto call(F f) {
-            return operation([this, f = std::move(f)](auto how) mutable -> decltype(auto) {
+        auto call(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+            return detail::make_operation([this, f = std::move(f)](auto how) mutable -> decltype(auto) {
                 if constexpr (detail::is_awaited<decltype(how)>) {
                     return _co_call(std::move(f));
                 } else {

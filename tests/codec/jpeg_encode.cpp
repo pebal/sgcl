@@ -308,6 +308,32 @@ TEST(CodecJpegEncode_Tests, AStreamAndAStreamThatFails) {
     ASSERT_TRUE(r.error().io_error());
 }
 
+TEST(CodecJpegEncode_Tests, ASidePast65535IsRefused) {
+    // SOF keeps a side in 16 bits: past 65 535, errc::invalid_argument and
+    // nothing written, where the file was broken; 65 535 itself is written.
+    // The forms of bytes return it too, and stay noexcept
+    static_assert(noexcept(codec::jpeg::encode(std::declval<const codec::image&>())));
+    static_assert(noexcept(codec::png::encode(std::declval<const codec::image&>())));
+    for (auto [w, h] : {std::pair{65536u, 2u}, std::pair{2u, 65536u}}) {
+        const codec::image big(w, h, pixel_format::gray8);
+        io::buffer out;
+        auto r = codec::jpeg::encode(big, out);
+        ASSERT_FALSE(r) << w << "x" << h;
+        EXPECT_EQ(r.error().code(), codec::errc::invalid_argument);
+        EXPECT_EQ(r.error().message(), "offset 0: jpeg: a side past 65535 pixels, more than SOF holds");
+        EXPECT_EQ(out.data().size(), 0u);
+        auto bytes = codec::jpeg::encode(big);
+        ASSERT_FALSE(bytes);
+        EXPECT_EQ(bytes.error(), r.error());
+    }
+    const codec::image edge(65535, 2, pixel_format::rgb8);
+    io::buffer out;
+    ASSERT_TRUE(codec::jpeg::encode(edge, out));
+    auto back = codec::jpeg::decode(out.data());
+    ASSERT_TRUE(back);
+    EXPECT_EQ(back->width(), 65535u);
+}
+
 TEST(CodecJpegEncode_Tests, TheFdctAgainstTheIdct) {
     // a block through the FDCT, quantized by ones, back through the IDCT:
     // within one level of the samples

@@ -51,19 +51,20 @@ namespace sgcl::slog {
 
         // Made once and never destroyed: a line may come while the
         // program's statics go
-        inline CollectorQueue& collector_queue() {
+        inline CollectorQueue& collector_queue() noexcept {
             static CollectorQueue* q = new CollectorQueue;
             return *q;
         }
 
-        // The logger the lines go to
-        inline sgcl::atomic<logger>& collector_target() {
-            static rooted<sgcl::atomic<logger>> word(std::in_place);
-            return *word;
+        // The logger the lines go to, made once and never destroyed, as
+        // the default logger's word is
+        inline sgcl::atomic<logger>& collector_target() noexcept {
+            static rooted<sgcl::atomic<logger>>* word = new rooted<sgcl::atomic<logger>>(std::in_place);
+            return **word;
         }
 
         inline void collector_sink(int level, const char* text, size_t n) noexcept {
-            try {
+            {
                 CollectorQueue& q = collector_queue();
                 std::lock_guard<std::mutex> g(q.lock);
                 if (q.lines.size() >= CollectorQueue::Most) {
@@ -71,8 +72,6 @@ namespace sgcl::slog {
                 } else {
                     q.lines.push_back(CollectorLine{level, std::string(text, n)});
                 }
-            } catch (...) {
-                return;   // a line lost rather than a collector stopped
             }
             collector_pending.store(true, std::memory_order_release);
         }
@@ -98,7 +97,7 @@ namespace sgcl::slog {
             return s;
         }
 
-        inline bool cycle_line(std::string_view line, CycleLine& c) {
+        inline bool cycle_line(std::string_view line, CycleLine& c) noexcept {
             constexpr std::string_view Prefix = "[sgcl] ";
             if (line.substr(0, Prefix.size()) != Prefix) {
                 return false;
@@ -169,7 +168,7 @@ namespace sgcl::slog {
 
         // The waiting lines logged, on a thread that may log; not again
         // from inside itself (a record of its own that finds lines waiting)
-        inline void drain_collector() {
+        inline void drain_collector() noexcept {
             thread_local bool draining = false;
             if (draining) {
                 return;
@@ -204,21 +203,30 @@ namespace sgcl::slog {
     // log from now on, at info, `msg=collector`: a line of a cycle as its
     // numbers, any other as its text. Without the macro the collector says
     // nothing and neither does this. Called again: to that logger instead
-    inline void collector_log(const logger& log) {
+    inline void collector_log(const logger& log) noexcept {
         detail::collector_target().store(log, std::memory_order_release);
         detail::collector_drain.store(&detail::drain_collector, std::memory_order_release);
         static std::once_flag once;
         std::call_once(once, [] {
             (void)detail::collector_queue();
             async::detail::worker_idle_hook.store(&detail::worker_idle, std::memory_order_relaxed);
-            std::atexit([] { detail::drain_collector(); });
-            std::at_quick_exit([] { detail::drain_collector(); });
+            // drained, then every batch written: a buffered target whose
+            // batch hooks came after this call had its batches written
+            // before this runs
+            std::atexit([] {
+                detail::drain_collector();
+                detail::write_all_waiting();
+            });
+            std::at_quick_exit([] {
+                detail::drain_collector();
+                detail::write_all_waiting();
+            });
         });
         sgcl::detail::diagnostic_sink.store(&detail::collector_sink, std::memory_order_release);
     }
 
     // Through the default logger
-    inline void collector_log() {
+    inline void collector_log() noexcept {
         collector_log(default_logger());
     }
 }

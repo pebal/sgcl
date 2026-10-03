@@ -77,7 +77,7 @@ namespace sgcl::crypto::ed25519 {
     public:
         // The key of 32 bytes: a canonical encoding of a point on the curve
         // (RFC 8032 §5.1.3), anything else invalid_key
-        static expected<public_key, error> from_bytes(const slice<const byte>& bytes) {
+        static expected<public_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != public_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an Ed25519 public key is 32 bytes")));
             }
@@ -92,7 +92,7 @@ namespace sgcl::crypto::ed25519 {
         }
 
         // The key from a SubjectPublicKeyInfo (RFC 8410, OID 1.3.101.112)
-        static expected<public_key, error> from_pkix_der(const slice<const byte>& der) {
+        static expected<public_key, error> from_pkix_der(const slice<const byte>& der) noexcept {
             unsigned char key[32];
             auto r = detail::der_read_pkix(der, detail::oid_ed25519, key);
             if (!r) {
@@ -106,7 +106,7 @@ namespace sgcl::crypto::ed25519 {
         }
 
         // The SubjectPublicKeyInfo, 44 bytes
-        vector<byte> to_pkix_der() const {
+        vector<byte> to_pkix_der() const noexcept {
             return detail::der_pkix(detail::oid_ed25519, detail::bytes(_bytes.data()));
         }
 
@@ -158,7 +158,7 @@ namespace sgcl::crypto::ed25519 {
     class private_key {
     public:
         // A seed of 32 bytes from crypto::random
-        static private_key generate() {
+        static private_key generate() noexcept {
             unsigned char seed[32];
             random::fill(slice<byte>(reinterpret_cast<byte*>(seed), 32));
             private_key k(seed);
@@ -168,7 +168,7 @@ namespace sgcl::crypto::ed25519 {
 
         // The key of a seed of 32 bytes (RFC 8032's private key); another
         // length is invalid_key
-        static expected<private_key, error> from_seed(const slice<const byte>& seed) {
+        static expected<private_key, error> from_seed(const slice<const byte>& seed) noexcept {
             if (seed.size() != seed_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an Ed25519 seed is 32 bytes")));
             }
@@ -179,7 +179,7 @@ namespace sgcl::crypto::ed25519 {
         // PrivateKey and bytes() hold them; a public half that is not the
         // one the seed gives is invalid_key (signing under a mismatched
         // pair would give away the key)
-        static expected<private_key, error> from_private_bytes(const slice<const byte>& bytes) {
+        static expected<private_key, error> from_private_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != private_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an Ed25519 private key is 64 bytes")));
             }
@@ -193,7 +193,7 @@ namespace sgcl::crypto::ed25519 {
         // The key from a PKCS #8 PrivateKeyInfo (RFC 8410, OID
         // 1.3.101.112): the seed; a version 1 key whose public key is not
         // the seed's is invalid_key
-        static expected<private_key, error> from_pkcs8_der(const slice<const byte>& der) {
+        static expected<private_key, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             unsigned char seed[32], given[32];
             bool has_public = false;
             auto r = detail::der_read_pkcs8(der, detail::oid_ed25519, seed, has_public, given);
@@ -234,7 +234,8 @@ namespace sgcl::crypto::ed25519 {
         }
 
         // A second key of the same seed
-        private_key clone() const noexcept {
+        private_key clone() const {
+            _check();
             private_key k;
             k._seed = _seed;
             k._scalar = _scalar;
@@ -289,7 +290,7 @@ namespace sgcl::crypto::ed25519 {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<private_key, error> from_pem(const slice<const byte>& text) {
+        static expected<private_key, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text);
             if (!p) {
                 return unexpected<error>(p.error());
@@ -308,8 +309,11 @@ namespace sgcl::crypto::ed25519 {
         }
 
 
-        // The same key, compared in constant time
-        friend bool operator==(const private_key& a, const private_key& b) noexcept {
+        // The same key, compared in constant time; a key moved from is
+        // std::logic_error, as everywhere
+        friend bool operator==(const private_key& a, const private_key& b) {
+            a._check();
+            b._check();
             return constant_time::equal(a._seed, b._seed);
         }
 

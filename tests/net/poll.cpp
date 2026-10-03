@@ -216,7 +216,7 @@ TEST(NetPoll_Tests, SingleBytesThereAndBackLoseNoWake) {
         net::detail::prepare_socket(p[0]);
         net::detail::prepare_socket(p[1]);
         auto wrap = [](int fd) {
-            return net::connection(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(fd, false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
+            return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(fd, false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
         };
         net::connection a = wrap(p[0]), b = wrap(p[1]);
         auto echo = [](net::connection c, long n) -> task<long> {
@@ -479,7 +479,7 @@ TEST(NetPoll_Tests, AWaitTheReactorCannotMakeFailsRatherThanLoops) {
         ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, p), 0);
         net::detail::prepare_socket(p[0]);
         net::detail::prepare_socket(p[1]);
-        net::connection c(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(p[1], false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
+        net::connection c = net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(p[1], false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
         Limit limit(p[1]);
         Watchdog dog(2s, [&] { c.close(); });
         byte b[1];
@@ -521,7 +521,7 @@ namespace {
         assert(r == 0);
         auto wrap = [](int fd) {
             net::detail::prepare_socket(fd);
-            return net::connection(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(fd, false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
+            return net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(fd, false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
         };
         if (fd) {
             *fd = p[1];
@@ -681,8 +681,8 @@ TEST(NetPoll_Tests, AnAbandonedConnectionIsCollectedWithItsTimerArmed) {
         fd = p[1];
         tracked_ptr<net::detail::SocketConn> end = make_tracked<net::detail::SocketConn>(p[1], false, net::endpoint(), net::endpoint(), sgcl::string("pair"));
         gone = end;
-        net::connection b{tracked_ptr<net::detail::ConnImpl>(end)};
-        net::connection a(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(p[0], false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
+        net::connection b = net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(end));
+        net::connection a = net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(p[0], false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
         end = nullptr;
         b.set_read_deadline(sgcl::clock::now() + 120s);
         bool got = false;
@@ -729,8 +729,8 @@ TEST(NetPoll_Tests, AnAbandonedConnectionReadFromATaskIsCollected) {
             fd = p[1];
             tracked_ptr<net::detail::SocketConn> end = make_tracked<net::detail::SocketConn>(p[1], false, net::endpoint(), net::endpoint(), sgcl::string("pair"));
             gone = end;
-            net::connection b{tracked_ptr<net::detail::ConnImpl>(end)};
-            net::connection a(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(p[0], false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
+            net::connection b = net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(end));
+            net::connection a = net::detail::ConnectionAccess::make(tracked_ptr<net::detail::ConnImpl>(make_tracked<net::detail::SocketConn>(p[0], false, net::endpoint(), net::endpoint(), sgcl::string("pair"))));
             end = nullptr;
             if (deadline) {
                 b.set_read_deadline(sgcl::clock::now() + 120s);

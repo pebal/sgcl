@@ -49,7 +49,7 @@ namespace sgcl::net {
                 return "net";
             }
 
-            std::string message(int c) const override {
+            std::string message(int c) const noexcept override {
                 switch (static_cast<errc>(c)) {
                     case errc::invalid_address: return "invalid address";
                     case errc::host_not_found: return "no such host";
@@ -78,7 +78,7 @@ namespace sgcl::net {
                 return "lookup";
             }
 
-            std::string message(int c) const override {
+            std::string message(int c) const noexcept override {
                 const char* m = ::gai_strerror(c);
                 return m ? std::string(m) : std::string("unknown lookup error");
             }
@@ -108,18 +108,18 @@ namespace sgcl::net::detail {
     using namespace sgcl::detail;
     // The errors the module makes of its own: an errno value in the
     // system category, as io::last_error has it
-    inline io::error system_error(int e, const string& op, const string& path = {}) {
+    inline io::error system_error(int e, const string& op, const string& path = {}) noexcept {
         return io::error(error_code(e, std::system_category()), op, path);
     }
 
-    inline io::error net_error(errc e, const string& op, const string& path = {}) {
+    inline io::error net_error(errc e, const string& op, const string& path = {}) noexcept {
         return io::error(make_error_code(e), op, path);
     }
 
     // A code of getaddrinfo or getnameinfo as an error: EAI_NONAME (and
     // the EAI_NODATA of the systems that still have it) is the host not
     // found, EAI_SYSTEM is errno, anything else the code itself
-    inline io::error lookup_error(int eai, int saved_errno, const string& op, const string& path) {
+    inline io::error lookup_error(int eai, int saved_errno, const string& op, const string& path) noexcept {
         if (eai == EAI_NONAME
 #if defined(EAI_NODATA) && EAI_NODATA != EAI_NONAME
             || eai == EAI_NODATA

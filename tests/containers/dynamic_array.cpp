@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iterator>
 #include <numeric>
+#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -259,4 +260,175 @@ TEST(DynamicArray_Tests, CountValueInitializesAfterReuse) {
             EXPECT_EQ(nonzero_bytes_da(a), 0u) << "dynamic_array<int>(" << n << ")";
         }
     }
+}
+
+// From a range of what the elements are made of, as every other sequence
+// of the library (vector, deque, list, forward_list) and C++23's
+// from_range: explicit, and not for a dynamic_array of the same type,
+// which is the copy. The edges: an empty range, a view, a single-pass
+// range, elements of another type, a construction that throws half-way.
+namespace {
+    struct ThrowsAtThree {
+        static inline int alive = 0;
+        int v;
+        ThrowsAtThree(int x) : v(x) {
+            if (x == 3) {
+                throw std::runtime_error("three");
+            }
+            ++alive;
+        }
+        ThrowsAtThree(const ThrowsAtThree& o) noexcept : v(o.v) { ++alive; }
+        ~ThrowsAtThree() { --alive; }
+    };
+}
+
+TEST(DynamicArray_Test, FromARangeOfWhatTheElementsAreMadeOf) {
+    static_assert(std::is_constructible_v<sgcl::dynamic_array<long>, std::vector<int>&>);
+    static_assert(std::is_constructible_v<sgcl::dynamic_array<std::string>, const std::vector<const char*>&>);
+    static_assert(!std::is_convertible_v<std::vector<int>&, sgcl::dynamic_array<int>>);   // explicit
+    static_assert(!std::is_constructible_v<sgcl::dynamic_array<int>, std::vector<std::string>&>);
+
+    std::vector<int> v = {1, 2, 3};
+    sgcl::dynamic_array<long> longs(v);
+    ASSERT_EQ(longs.size(), 3u);
+    EXPECT_EQ(longs[2], 3);
+    EXPECT_TRUE(sgcl::dynamic_array<int>(std::vector<int>()).empty());
+    sgcl::dynamic_array<int> squares(std::views::iota(0, 5) | std::views::transform([](int x) { return x * x; }));
+    EXPECT_EQ(squares.size(), 5u);
+    EXPECT_EQ(squares[4], 16);
+    std::istringstream in("8 9");
+    auto words = std::ranges::subrange(std::istream_iterator<int>(in), std::istream_iterator<int>());   // single pass
+    sgcl::dynamic_array<int> read(words);
+    EXPECT_EQ(read.size(), 2u);
+    EXPECT_EQ(read[1], 9);
+    sgcl::dynamic_array<int> copy(squares);              // the copy constructor, not the range's
+    EXPECT_EQ(copy.size(), 5u);
+
+    EXPECT_THROW(sgcl::dynamic_array<ThrowsAtThree>(std::vector<int>{1, 2, 3, 4}), std::runtime_error);
+    EXPECT_EQ(ThrowsAtThree::alive, 0);                  // the two made before the throw destroyed
+}
+
+// Boundaries (DESIGN 408)
+
+// Counts past max_size() are length_error (one past, past SIZE_MAX /
+// sizeof, SIZE_MAX); a count within it that no memory holds ends the
+// program as a refused managed allocation; at and as_slice at the ends
+TEST(DynamicArray_Tests, CountsAtTheLimits) {
+    EXPECT_EQ(sgcl::dynamic_array<char>().max_size(), size_t(PTRDIFF_MAX));
+    EXPECT_EQ(sgcl::dynamic_array<int>().max_size(), size_t(PTRDIFF_MAX) / 4);
+    for (size_t count : {sgcl::dynamic_array<int>().max_size() + 1, SIZE_MAX / 4 + 1, SIZE_MAX}) {
+        EXPECT_THROW((void)sgcl::dynamic_array<int>(count), std::length_error);
+        EXPECT_THROW((void)sgcl::dynamic_array<int>(count, 7), std::length_error);
+    }
+    sgcl::dynamic_array<int> a = {1, 2, 3};
+    EXPECT_THROW(a.at(3), std::out_of_range);
+    EXPECT_THROW(a.at(SIZE_MAX), std::out_of_range);
+    EXPECT_THROW(a.as_slice(4), std::out_of_range);
+    EXPECT_EQ(a.as_slice(3).size(), 0u);
+    EXPECT_EQ(a.as_slice(1, SIZE_MAX).size(), 2u);
+}
+
+TEST(DynamicArray_Tests, ACountNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    auto construct = [] {
+        sgcl::dynamic_array<char> a(sgcl::dynamic_array<char>().max_size());
+    };
+    auto fill = [] {
+        sgcl::dynamic_array<int> a(sgcl::dynamic_array<int>().max_size(), 1);
+    };
+    EXPECT_DEATH(construct(), "sgcl: out of managed memory");
+    EXPECT_DEATH(fill(), "sgcl: out of managed memory");
+}
+
+namespace {
+    // Every member on an array without a buffer (default, moved from, of
+    // no element)
+    template<class T>
+    void expect_dynamic_array_works_empty(sgcl::dynamic_array<T>& a) {
+        EXPECT_TRUE(a.empty());
+        EXPECT_EQ(a.size(), 0u);
+        EXPECT_EQ(a.data(), nullptr);
+        EXPECT_EQ(a.begin(), a.end());
+        EXPECT_EQ(a.rbegin(), a.rend());
+        EXPECT_THROW(a.at(0), std::out_of_range);
+        EXPECT_EQ(a.as_slice().size(), 0u);
+        EXPECT_EQ(a.as_slice(0, SIZE_MAX).size(), 0u);
+        EXPECT_THROW(a.as_slice(1), std::out_of_range);
+        EXPECT_TRUE(a == sgcl::dynamic_array<T>());
+        EXPECT_FALSE(a < sgcl::dynamic_array<T>());
+        sgcl::dynamic_array<T> copy(a);
+        EXPECT_TRUE(copy.empty());
+        copy = a;
+        EXPECT_TRUE(copy.empty());
+        sgcl::dynamic_array<T> other(2);
+        a.swap(other);
+        EXPECT_EQ(a.size(), 2u);
+        a.swap(other);
+        EXPECT_TRUE(a.empty());
+        other = a;   // a copy of another size: other empty now
+        EXPECT_TRUE(other.empty());
+    }
+}
+
+TEST(DynamicArray_Tests, MovedFromAndDefaultWorkAsEmpty) {
+    sgcl::dynamic_array<std::string> a = {"a", "b"};
+    sgcl::dynamic_array<std::string> to(std::move(a));
+    EXPECT_EQ(to.size(), 2u);
+    expect_dynamic_array_works_empty(a);
+    sgcl::dynamic_array<std::string> assigned = {"c"};
+    assigned = std::move(to);
+    EXPECT_EQ(assigned.size(), 2u);
+    expect_dynamic_array_works_empty(to);
+    sgcl::dynamic_array<int> d;
+    expect_dynamic_array_works_empty(d);
+    sgcl::dynamic_array<int> none(0);
+    expect_dynamic_array_works_empty(none);
+    sgcl::dynamic_array<int> none_of(0, 5);
+    expect_dynamic_array_works_empty(none_of);
+    std::vector<int> nothing;
+    sgcl::dynamic_array<int> of_nothing(nothing.begin(), nothing.end());
+    expect_dynamic_array_works_empty(of_nothing);
+    std::istringstream in("");
+    std::istream_iterator<int> first(in);
+    std::istream_iterator<int> last;
+    sgcl::dynamic_array<int> of_no_input(first, last);
+    expect_dynamic_array_works_empty(of_no_input);
+}
+
+// The array on both sides: a copy and a move assignment to itself and
+// swap with itself keep the elements and the buffer; a list of its own
+// elements assigned to it
+TEST(DynamicArray_Tests, AnArrayOnBothSidesKeepsItself) {
+    sgcl::dynamic_array<std::string> a = {"one long enough for the heap", "two", "three"};
+    const auto before = a;
+    const auto data = a.data();
+    auto& self = a;
+    a = self;
+    a = std::move(self);
+    a.swap(self);
+    swap(a, self);
+    EXPECT_EQ(a, before);
+    EXPECT_EQ(a.data(), data);
+    a = {a[2], a[0]};
+    EXPECT_EQ(a, (sgcl::dynamic_array<std::string>{"three", "one long enough for the heap"}));
+    sgcl::dynamic_array<std::string> one = {"only"};
+    EXPECT_EQ(&one.front(), &one.back());
+}
+
+// The iterators as the page states them: a copy of the same size assigns
+// in place, swap leaves an iterator on its element in the other array, a
+// slice keeps the buffer past the array's end
+TEST(DynamicArray_Tests, IteratorsAsThePageStatesThem) {
+    sgcl::dynamic_array<int> a = {1, 2, 3};
+    auto second = a.begin() + 1;
+    const sgcl::dynamic_array<int> same_size = {4, 5, 6};
+    a = same_size;
+    EXPECT_EQ(*second, 5);
+    sgcl::dynamic_array<int> b;
+    a.swap(b);
+    EXPECT_EQ(b.begin() + 1, second);
+    auto slice = b.as_slice();
+    b = sgcl::dynamic_array<int>{7};
+    EXPECT_EQ(slice.size(), 3u);
+    EXPECT_EQ(slice[2], 6);
 }

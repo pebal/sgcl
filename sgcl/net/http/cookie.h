@@ -48,9 +48,9 @@ namespace sgcl::net::http {
         bool partitioned = false;
         string same_site;            // "Strict", "Lax", "None", or "" for none
 
-        cookie() = default;
+        cookie() noexcept = default;
 
-        cookie(const string& name, const string& value)
+        cookie(const string& name, const string& value) noexcept
         : name(name), value(value) {
         }
 
@@ -64,12 +64,12 @@ namespace sgcl::net::http {
         string to_string() const;
 
         // A Set-Cookie value; net::errc::invalid_cookie when it holds no cookie
-        static expected<cookie, io::error> parse(const string& field);
+        static expected<cookie, io::error> parse(const string& field) noexcept;
     };
 
     namespace detail {
         // cookie::parse without the error, for a reading that may find none
-        optional<cookie> parse_cookie(const string& field);
+        optional<cookie> parse_cookie(const string& field) noexcept;
     }
 
     namespace detail {
@@ -85,7 +85,7 @@ namespace sgcl::net::http {
         // is a time, a day of the month, a month and a year, each once. A
         // year of two digits is 1970 to 2069; before 1601 is no date. In
         // UTC; a date past 2262 is the end of datetime's range
-        inline optional<time::datetime> cookie_date(std::string_view v) {
+        inline optional<time::datetime> cookie_date(std::string_view v) noexcept {
             auto delimiter = [](uint8_t c) {
                 return c == 0x09 || (c >= 0x20 && c <= 0x2F) || (c >= 0x3B && c <= 0x40) || (c >= 0x5B && c <= 0x60) || (c >= 0x7B && c <= 0x7E);
             };
@@ -191,7 +191,7 @@ namespace sgcl::net::http {
 
         // The value of the first cookie of the name in the Cookie fields
         // of a request ("a=1; b=2"), "" when there is none
-        inline optional<string> request_cookie(const headers& h, std::string_view name) {
+        inline optional<string> request_cookie(const headers& h, std::string_view name) noexcept {
             for (auto& f : HeadersAccess::fields(h)) {
                 if (!iequal(f.first.view(), "cookie")) {
                     continue;
@@ -315,14 +315,14 @@ namespace sgcl::net::http {
         });
     }
 
-    inline expected<cookie, io::error> cookie::parse(const string& field) {
+    inline expected<cookie, io::error> cookie::parse(const string& field) noexcept {
         if (auto c = detail::parse_cookie(field)) {
             return std::move(*c);
         }
         return unexpected(net::detail::net_error(net::errc::invalid_cookie, "parse cookie", field));
     }
 
-    inline optional<cookie> detail::parse_cookie(const string& field) {
+    inline optional<cookie> detail::parse_cookie(const string& field) noexcept {
         std::string_view v = field.view();
         auto semi = v.find(';');
         auto pair = detail::trim_ows(v.substr(0, semi));
@@ -371,20 +371,29 @@ namespace sgcl::net::http {
                     c.expires = *t;
                 }
             } else if (detail::iequal(key, "max-age")) {
-                // §5.2.2: an optional '-' and digits, else the attribute is ignored
+                // §5.2.2: an optional '-' and digits, else the attribute is
+                // ignored; a number of any length, leading zeros among it,
+                // and one past 18 digits saturates (it is past duration's
+                // range anyway) without the sum overflowing
                 std::string_view digits = val;
                 bool negative = !digits.empty() && digits.front() == '-';
                 if (negative) {
                     digits.remove_prefix(1);
                 }
-                bool ok = !digits.empty() && digits.size() <= 18;
+                bool ok = !digits.empty();
                 int64_t secs = 0;
-                for (size_t i = 0; ok && i < digits.size(); ++i) {   // past 18 digits or a non-digit, no more: the sum would overflow
+                size_t significant = 0;
+                for (size_t i = 0; ok && i < digits.size(); ++i) {
                     ok = digits[i] >= '0' && digits[i] <= '9';
-                    secs = secs * 10 + (digits[i] - '0');
+                    significant += significant || digits[i] != '0';
+                    if (significant <= 18) {
+                        secs = secs * 10 + (digits[i] - '0');
+                    }
                 }
                 if (ok) {
-                    c.max_age = negative || secs == 0 ? duration::zero() : duration(std::chrono::seconds(secs));
+                    c.max_age = negative || secs == 0 ? duration::zero()
+                              : significant > 18      ? duration::max()
+                                                      : duration(std::chrono::seconds(secs));
                 }
             } else if (detail::iequal(key, "samesite")) {
                 if (detail::iequal(val, "strict")) {

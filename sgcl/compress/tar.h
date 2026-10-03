@@ -10,8 +10,10 @@
 #include "gzip.h"
 #include "xz.h"
 #include "detail/block.h"
+#include "detail/copy.h"
 #include "detail/files.h"
 #include "../io/detail/path.h"
+#include "../io/path.h"
 #include "../async/scheduler.h"
 #include "../core/aliases.h"
 #include "../core/expected.h"
@@ -21,6 +23,7 @@
 #include "../io/fs.h"
 #include "../io/stream.h"
 #include "../time/datetime.h"
+#include "../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -78,7 +81,7 @@ namespace sgcl::compress::tar {
         // empty, not absolute, no ".." that climbs out of it, no backslash
         // (a separator on Windows). A symlink's target is taken from the
         // directory of the link, a hard link's from the archive's root.
-        bool is_local() const;
+        bool is_local() const noexcept;
 
         friend bool operator==(const entry& a, const entry& b) = default;
     };
@@ -230,7 +233,7 @@ namespace sgcl::compress::detail {
 
     // A time as a pax record writes it: the seconds, and the fraction
     // without its trailing zeros; before 1970 the sign in front of both
-    inline std::string tar_format_pax_time(int64_t ns) {
+    inline std::string tar_format_pax_time(int64_t ns) noexcept {
         int64_t seconds = tar_floor_div(ns, 1000000000);
         // the fraction as the remainder brought into [0, 1e9): no product
         // of the seconds that could overflow near the ends of the range
@@ -277,7 +280,7 @@ namespace sgcl::compress::detail {
     // The records of an extended header, "%d %s=%s\n" each, the length
     // counting itself; false for anything else. A key again is the last
     // one's value, in the place of the first.
-    inline bool tar_parse_records(const uint8_t* p, size_t n, TarRecords& out) {
+    inline bool tar_parse_records(const uint8_t* p, size_t n, TarRecords& out) noexcept {
         std::string_view s(reinterpret_cast<const char*>(p), n);
         while (!s.empty()) {
             auto space = s.find(' ');
@@ -318,7 +321,7 @@ namespace sgcl::compress::detail {
         return true;
     }
 
-    inline void tar_append_record(std::string& out, std::string_view k, std::string_view v) {
+    inline void tar_append_record(std::string& out, std::string_view k, std::string_view v) noexcept {
         size_t size = k.size() + v.size() + 3;   // ' ', '=', '\n'
         size_t digits = std::to_string(size).size();
         size_t total = size + digits;
@@ -350,7 +353,7 @@ namespace sgcl::compress::detail {
         return true;
     }
 
-    inline std::string tar_entry_text(std::string_view name) {
+    inline std::string tar_entry_text(std::string_view name) noexcept {
         std::string s = "tar: entry ";
         s.append(name);
         s += ": ";
@@ -359,7 +362,7 @@ namespace sgcl::compress::detail {
 }
 
 namespace sgcl::compress::tar {
-    inline bool entry::is_local() const {
+    inline bool entry::is_local() const noexcept {
         std::string_view n = name.view();
         if (!detail::tar_is_local(n)) {
             return false;
@@ -415,15 +418,51 @@ namespace sgcl::compress::tar {
 
     public:
 
-        explicit reader(const io::reader& in)
+        explicit reader(const io::reader& in) noexcept
         : _in(in)
         , _buf(BufferBytes) {
         }
 
         reader(const reader&) = delete;
         reader& operator=(const reader&) = delete;
-        reader(reader&&) noexcept = default;
-        reader& operator=(reader&&) noexcept = default;
+
+        // The other left without a stream, its buffer gone with the move:
+        // its next() and its reads give io::errc::closed, its close closes
+        // nothing
+        reader(reader&& o) noexcept
+        : _in(std::move(o._in))
+        , _buf(std::move(o._buf))
+        , _b(o._b)
+        , _e(o._e)
+        , _at(o._at)
+        , _remaining(o._remaining)
+        , _padding(o._padding)
+        , _special_size(o._special_size)
+        , _special_flag(o._special_flag)
+        , _zero_block(o._zero_block)
+        , _source_ended(o._source_ended)
+        , _stopped(o._stopped)
+        , _phase(o._phase)
+        , _name(std::move(o._name))
+        , _long_name(std::move(o._long_name))
+        , _long_link(std::move(o._long_link))
+        , _local(std::move(o._local))
+        , _globals(std::move(o._globals))
+        , _found(std::move(o._found))
+        , _error(std::move(o._error)) {
+            o._in = io::reader();
+            o._buf = detail::InputBuffer<ManagedBufferBytes>(BufferBytes);
+            o._b = o._e = 0;
+            o._remaining = o._padding = 0;
+            o._phase = Phase::ended;
+            o._name.clear();
+            o._stopped = true;
+            o._error = compress::detail::moved_from_error("tar");
+        }
+
+        reader& operator=(reader&& o) noexcept {
+            return compress::detail::move_into(*this, std::move(o));
+        }
 
         // The next entry, nullopt at the end of the archive
         expected<optional<entry>, error> next() {
@@ -442,7 +481,7 @@ namespace sgcl::compress::tar {
             }
         }
 
-        async::task<expected<optional<entry>, error>> async_next() {
+        async::task<expected<optional<entry>, error>> async_next() noexcept {
             for (;;) {
                 switch (_step()) {
                     case Step::need:
@@ -479,7 +518,7 @@ namespace sgcl::compress::tar {
             return _took_data(r);
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             if (_stopped) {
                 co_return io::detail::fail(_stream_error());
             }
@@ -503,7 +542,7 @@ namespace sgcl::compress::tar {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
@@ -534,7 +573,7 @@ namespace sgcl::compress::tar {
             _at += n;
         }
 
-        Step _fail(errc code, std::string text, bool stop = true) {
+        Step _fail(errc code, std::string text, bool stop = true) noexcept {
             _error = error(code, _at, string(text));
             _stopped = stop;
             return Step::failed;
@@ -542,7 +581,7 @@ namespace sgcl::compress::tar {
 
         // What a read of the stream reports: the source's error as it was,
         // or the code of the module's category and the entry it was in
-        io::error _stream_error() const {
+        io::error _stream_error() const noexcept {
             if (_error && _error->io_error()) {
                 return *_error->io_error();
             }
@@ -554,21 +593,21 @@ namespace sgcl::compress::tar {
             return io::error(make_error_code(_error ? _error->code() : errc::corrupt), "read", string(where));
         }
 
-        void _truncated() {
+        void _truncated() noexcept {
             _fail(errc::unexpected_end, detail::tar_entry_text(_name) + "unexpected end of data");
         }
 
         size_t _hand_out(const slice<byte>& out, size_t want) noexcept {
             size_t n = std::min(want, _avail());
             if (n) {
-                std::memcpy(out.data(), _buf.data() + _b, n);
+                detail::copy_out(out.data(), _buf.data() + _b, n);
                 _take(n);
                 _remaining -= n;
             }
             return n;
         }
 
-        expected<size_t, io::error> _took_data(const expected<size_t, io::error>& r) {
+        expected<size_t, io::error> _took_data(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _at);
                 _stopped = true;
@@ -587,9 +626,9 @@ namespace sgcl::compress::tar {
         // Room at the end of the buffer: what is left moved to the front,
         // the buffer grown for the data of an extended header, and back to
         // its size after one
-        size_t _make_room() {
+        size_t _make_room() noexcept {
             if (_b) {
-                std::memmove(_buf.data(), _buf.data() + _b, _e - _b);
+                sgcl::detail::move_bytes(_buf.data(), _buf.data() + _b, _e - _b);
                 _e -= _b;
                 _b = 0;
             }
@@ -606,13 +645,13 @@ namespace sgcl::compress::tar {
             _took(_in.read(_buf.room(_e, room)));
         }
 
-        async::task<void> _async_fill() {
+        async::task<void> _async_fill() noexcept {
             _buf.to_managed(_e);   // the read may run on the pool: into managed memory, which the slice holds
             size_t room = _make_room();
             _took(co_await _in.async_read(_buf.room(_e, room)));
         }
 
-        void _took(const expected<size_t, io::error>& r) {
+        void _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _at + _avail());
                 _stopped = true;
@@ -626,7 +665,7 @@ namespace sgcl::compress::tar {
 
         // Works on the bytes held until an entry is found, the archive
         // ends, it fails, or more bytes are needed
-        Step _step() {
+        Step _step() noexcept {
             for (;;) {
                 if (_stopped) {
                     return Step::failed;
@@ -712,7 +751,7 @@ namespace sgcl::compress::tar {
         }
 
         // The data of an extended header or a GNU long name, whole in the buffer
-        optional<Step> _special(const uint8_t* p, size_t n) {
+        optional<Step> _special(const uint8_t* p, size_t n) noexcept {
             switch (_special_flag) {
                 case 'x': {
                     detail::TarRecords r;
@@ -762,7 +801,7 @@ namespace sgcl::compress::tar {
 
         // A header block: an extended header or a long name to read, or
         // an entry with everything before it merged in
-        optional<Step> _header(const uint8_t* h) {
+        optional<Step> _header(const uint8_t* h) noexcept {
             if (std::all_of(h, h + detail::TarBlock, [](uint8_t c) { return c == 0; })) {
                 _take(detail::TarBlock);
                 if (_zero_block) {
@@ -815,7 +854,7 @@ namespace sgcl::compress::tar {
             return _entry(h, format, flag, size);
         }
 
-        optional<Step> _entry(const uint8_t* h, Format format, uint8_t flag, int64_t size) {
+        optional<Step> _entry(const uint8_t* h, Format format, uint8_t flag, int64_t size) noexcept {
             entry e;
             std::string name(detail::tar_string(h, 100));
             std::string link(detail::tar_string(h + 157, 100));
@@ -1024,21 +1063,47 @@ namespace sgcl::compress::tar {
     // the caller's too (a header or a write it cannot take, a write after
     // close); every write_header, write and close after it gives that
     // error at once and writes nothing, so an archive may be written
-    // freely and checked once, at the close.
+    // freely and checked once, at the close. None of these errors comes
+    // from data read, so none has a place: the message is the words alone.
     class writer final
     : public io::mixin::writer<tar::writer> {
     public:
         using io::mixin::writer<tar::writer>::write;
         using io::mixin::writer<tar::writer>::async_write;
 
-        explicit writer(const io::writer& out)
+        explicit writer(const io::writer& out) noexcept
         : _out(out) {
         }
 
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
-        writer(writer&&) noexcept = default;
-        writer& operator=(writer&&) noexcept = default;
+
+        // The other left closed, its stream gone with the move: its
+        // write_header and writes give io::errc::closed, its close does
+        // nothing
+        writer(writer&& o) noexcept
+        : _out(std::move(o._out))
+        , _pending(std::move(o._pending))
+        , _stage(std::move(o._stage))
+        , _remaining(o._remaining)
+        , _padding(o._padding)
+        , _name(std::move(o._name))
+        , _error(std::move(o._error))
+        , _stream_error(std::move(o._stream_error))
+        , _closed(o._closed) {
+            o._out = io::writer();
+            o._pending = std::vector<uint8_t>();
+            o._stage = detail::OutputStage();
+            o._remaining = o._padding = 0;
+            o._name.clear();
+            o._error = nullopt;
+            o._stream_error = nullopt;
+            o._closed = true;
+        }
+
+        writer& operator=(writer&& o) noexcept {
+            return compress::detail::move_into(*this, std::move(o));
+        }
 
         expected<void, error> write_header(const entry& e) {
             if (_header_kept(e) || _drain()) {
@@ -1047,7 +1112,7 @@ namespace sgcl::compress::tar {
             return {};
         }
 
-        async::task<expected<void, error>> async_write_header(entry e) {
+        async::task<expected<void, error>> async_write_header(entry e) noexcept {
             if (_header_kept(e) || co_await _async_drain()) {
                 co_return unexpected<error>(*_error);
             }
@@ -1066,7 +1131,7 @@ namespace sgcl::compress::tar {
             return _wrote(_out.write(data), data.size());
         }
 
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
             if (auto x = _check_write(data.size())) {
                 co_return io::detail::fail(*x);
             }
@@ -1074,6 +1139,52 @@ namespace sgcl::compress::tar {
                 co_return size_t(0);
             }
             co_return _wrote(co_await _out.async_write(data), data.size());
+        }
+
+        // The file at path as a whole entry, its header and its data, with
+        // its mode, its time and its size, read a block at a time: named
+        // by the file's own name (path::base), or by `name`. Before
+        // anything is written: a writer that failed, is closed or is in an
+        // entry's data gives its error, and a path that is not a regular
+        // file (links followed) or does not open is the error of this call
+        // alone, the archive going on. Once the header is written, a read
+        // that fails or a file that changed size leaves the entry short of
+        // its header's size: kept, as every error of the archive
+        expected<void, error> add_file(const string& path) {
+            return add_file(path, io::path::base(path));
+        }
+
+        expected<void, error> add_file(const string& path, const string& name) {
+            if (_error || _closed || _remaining) {
+                entry refused;
+                refused.name = name;
+                return write_header(refused);   // the kept error, or the one this header is refused with
+            }
+            auto source = compress::detail::open_source(path, name, "tar");
+            if (!source) {
+                return unexpected<error>(source.error());
+            }
+            entry e;
+            e.name = name;
+            e.size = source->info.size;
+            e.mode = io::permissions(unsigned(source->info.mode) & 07777);
+            e.modified = compress::detail::datetime_of(source->info.modified);
+            if (auto h = write_header(e); !h) {
+                (void)source->file.close();
+                return h;
+            }
+            auto copied = io::copy(*this, source->file);
+            (void)source->file.close();
+            if (!copied && !_error) {
+                _keep(copied.error());   // the read failed
+            } else if (copied && !_error && uint64_t(*copied) != e.size) {
+                _keep(compress::detail::no_place(errc::invalid_argument, string("tar: a file changed size while it was archived: " + std::string(path.view()))),
+                      io::error(make_error_code(errc::invalid_argument), "add_file", path));
+            }
+            if (_error) {
+                return unexpected<error>(*_error);
+            }
+            return {};
         }
 
         // The last entry's padding and two blocks of zeros; out stays
@@ -1090,7 +1201,7 @@ namespace sgcl::compress::tar {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             if (auto x = _check_close()) {
                 co_return x->ok ? expected<void, io::error>() : io::detail::fail(x->e);
             }
@@ -1113,13 +1224,13 @@ namespace sgcl::compress::tar {
             io::error e;
         };
 
-        std::string _where() const {
+        std::string _where() const noexcept {
             return _name.empty() ? std::string("tar") : "tar entry " + _name;
         }
 
         // The first error kept, in the two forms the writer gives it: the
         // archive's (write_header, last_error) and the stream's (write, close)
-        const io::error& _keep(const error& e, const io::error& stream) {
+        const io::error& _keep(const error& e, const io::error& stream) noexcept {
             if (!_error) {
                 _error = e;
                 _stream_error = stream;
@@ -1127,11 +1238,11 @@ namespace sgcl::compress::tar {
             return *_stream_error;
         }
 
-        const io::error& _keep(const io::error& stream) {
-            return _keep(error(stream, _written), stream);
+        const io::error& _keep(const io::error& stream) noexcept {
+            return _keep(compress::detail::no_place(stream), stream);
         }
 
-        optional<io::error> _check_write(size_t n) {
+        optional<io::error> _check_write(size_t n) noexcept {
             if (_error) {
                 return _stream_error;
             }
@@ -1139,14 +1250,16 @@ namespace sgcl::compress::tar {
                 return _keep(io::error(io::errc::closed, "write", "tar"));
             }
             if (n > _remaining) {
-                return _keep(error(errc::invalid_argument, _written, string(detail::tar_entry_text(_name) + "a write past its size")),
+                // before any header there is no entry to name ("tar: entry : ..." it said)
+                std::string what = _name.empty() ? std::string("tar: a write before any header") : detail::tar_entry_text(_name) + "a write past its size";
+                return _keep(compress::detail::no_place(errc::invalid_argument, string(what)),
                              io::error(make_error_code(errc::invalid_argument), "write", string(_where())));
             }
             return nullopt;
         }
 
         // The header of e made into _pending, or its error kept
-        bool _header_kept(const entry& e) {
+        bool _header_kept(const entry& e) noexcept {
             if (_error) {
                 return true;
             }
@@ -1157,18 +1270,17 @@ namespace sgcl::compress::tar {
             return false;
         }
 
-        expected<size_t, io::error> _wrote(const expected<size_t, io::error>& w, size_t n) {
+        expected<size_t, io::error> _wrote(const expected<size_t, io::error>& w, size_t n) noexcept {
             if (!w) {
                 return io::detail::fail(_keep(w.error()));
             }
             _remaining -= n;
-            _written += n;
             return n;
         }
 
         // A close that ends here (done before, or failing), or nullopt with
         // the padding and the two blocks of zeros made into _pending
-        optional<Closing> _check_close() {
+        optional<Closing> _check_close() noexcept {
             if (_error) {
                 return Closing{false, *_stream_error};
             }
@@ -1176,7 +1288,7 @@ namespace sgcl::compress::tar {
                 return Closing{true, {}};
             }
             if (_remaining) {
-                return Closing{false, _keep(error(errc::invalid_argument, _written, string(detail::tar_entry_text(_name) + std::to_string(_remaining) + " bytes of its data not written")),
+                return Closing{false, _keep(compress::detail::no_place(errc::invalid_argument, string(detail::tar_entry_text(_name) + std::to_string(_remaining) + " bytes of its data not written")),
                                             io::error(make_error_code(errc::invalid_argument), "close", string(_where())))};
             }
             _pending.assign(size_t(_padding) + 2 * detail::TarBlock, 0);
@@ -1189,22 +1301,20 @@ namespace sgcl::compress::tar {
             return _drained(w);
         }
 
-        async::task<optional<io::error>> _async_drain() {
+        async::task<optional<io::error>> _async_drain() noexcept {
             auto w = co_await _out.async_write(_stage.stage(_pending));   // a task's write may run on the pool: the bytes it is given are managed
             co_return _drained(w);
         }
 
-        optional<io::error> _drained(const expected<size_t, io::error>& w) {
-            size_t n = _pending.size();
+        optional<io::error> _drained(const expected<size_t, io::error>& w) noexcept {
             _pending.clear();
             if (!w) {
                 return _keep(w.error());
             }
-            _written += n;
             return nullopt;
         }
 
-        static void _octal(uint8_t* field, size_t width, uint64_t v) {
+        static void _octal(uint8_t* field, size_t width, uint64_t v) noexcept {
             // width - 1 digits and a NUL
             for (size_t i = width - 1; i-- > 0;) {
                 field[i] = uint8_t('0' + (v & 7));
@@ -1213,8 +1323,8 @@ namespace sgcl::compress::tar {
             field[width - 1] = 0;
         }
 
-        static void _text(uint8_t* field, size_t width, std::string_view s) {
-            std::memcpy(field, s.data(), std::min(width, s.size()));
+        static void _text(uint8_t* field, size_t width, std::string_view s) noexcept {
+            sgcl::detail::copy_bytes(field, s.data(), std::min(width, s.size()));
         }
 
         // A name that ustar holds as a prefix and a name split at a slash:
@@ -1234,7 +1344,7 @@ namespace sgcl::compress::tar {
         // the field, and a cut name that would end in a slash (a directory
         // to such a reader) cut before its slashes. A string that fits is
         // written as it is.
-        static void _plain(uint8_t* field, size_t width, std::string_view s) {
+        static void _plain(uint8_t* field, size_t width, std::string_view s) noexcept {
             std::string t;
             for (char c : s) {
                 if (uint8_t(c) < 0x80 && c != 0) {
@@ -1252,7 +1362,7 @@ namespace sgcl::compress::tar {
             _text(field, width, t);
         }
 
-        static void _checksum(uint8_t* h) {
+        static void _checksum(uint8_t* h) noexcept {
             std::memset(h + 148, ' ', 8);
             unsigned sum = 0;
             for (size_t i = 0; i < detail::TarBlock; ++i) {
@@ -1262,26 +1372,26 @@ namespace sgcl::compress::tar {
             h[155] = ' ';
         }
 
-        static void _magic(uint8_t* h) {
+        static void _magic(uint8_t* h) noexcept {
             std::memcpy(h + 257, "ustar\0" "00", 8);
         }
 
-        optional<error> _invalid(std::string_view name, const char* text) const {
-            return error(errc::invalid_argument, _written, string(detail::tar_entry_text(name) + text));
+        optional<error> _invalid(std::string_view name, const char* text) const noexcept {
+            return compress::detail::no_place(errc::invalid_argument, string(detail::tar_entry_text(name) + text));
         }
 
         // The header of e, and a pax header before it when needed, made
         // into _pending after the last entry's padding
-        optional<error> _header(const entry& e) {
+        optional<error> _header(const entry& e) noexcept {
             if (_closed) {
-                return error(io::error(io::errc::closed, "write_header", "tar"), _written);
+                return compress::detail::no_place(io::error(io::errc::closed, "write_header", "tar"));
             }
             if (_remaining) {
-                return error(errc::invalid_argument, _written, string(detail::tar_entry_text(_name) + std::to_string(_remaining) + " bytes of its data not written"));
+                return compress::detail::no_place(errc::invalid_argument, string(detail::tar_entry_text(_name) + std::to_string(_remaining) + " bytes of its data not written"));
             }
             std::string_view name = e.name.view(), link = e.link_name.view(), uname = e.user_name.view(), gname = e.group_name.view();
             if (name.empty()) {
-                return error(errc::invalid_argument, _written, string("tar: an entry with no name"));
+                return compress::detail::no_place(errc::invalid_argument, string("tar: an entry with no name"));
             }
             for (auto s : {name, link, uname, gname}) {
                 if (s.find('\0') != std::string_view::npos) {
@@ -1417,7 +1527,6 @@ namespace sgcl::compress::tar {
         io::writer _out;
         std::vector<uint8_t> _pending;
         detail::OutputStage _stage;   // the pending bytes for a task's write (detail/block.h)
-        uint64_t _written = 0;      // to out: the offset of the errors
         uint64_t _remaining = 0;    // of the current entry's data
         uint64_t _padding = 0;      // after it
         std::string _name;
@@ -1440,7 +1549,7 @@ namespace sgcl::compress::detail {
     inline expected<TarWrap, error> tar_wrap_of(const string& path) {
         auto f = io::open(path);
         if (!f) {
-            return unexpected(error(f.error(), 0));
+            return unexpected(no_place(f.error()));
         }
         unsigned char head[6] = {};
         size_t got = 0;
@@ -1448,7 +1557,7 @@ namespace sgcl::compress::detail {
             auto n = f->read(slice<byte>(reinterpret_cast<byte*>(head + got), sizeof head - got));
             if (!n) {
                 (void)f->close();
-                return unexpected(error(n.error(), 0));
+                return unexpected(error(n.error(), got));
             }
             if (*n == 0) {
                 break;
@@ -1469,7 +1578,7 @@ namespace sgcl::compress::detail {
     }
 
     // The archive's bytes as a stream, unwrapped
-    inline io::reader tar_input(const io::file& f, TarWrap w) {
+    inline io::reader tar_input(const io::file& f, TarWrap w) noexcept {
         switch (w) {
             case TarWrap::gzip: return io::reader(gzip::reader(f));
             case TarWrap::xz: return io::reader(xz::reader(f));
@@ -1480,7 +1589,7 @@ namespace sgcl::compress::detail {
 
     // What a tar file is to be wrapped in, by its name: .tar.gz and .tgz
     // gzip, .tar.xz and .txz xz; .tar.bz2 and .tbz2 have no writer here
-    inline TarWrap tar_wrap_by_name(std::string_view name) {
+    inline TarWrap tar_wrap_by_name(std::string_view name) noexcept {
         auto ends = [&](std::string_view s) { return name.size() >= s.size() && name.substr(name.size() - s.size()) == s; };
         if (ends(".tar.gz") || ends(".tgz")) {
             return TarWrap::gzip;
@@ -1500,7 +1609,7 @@ namespace sgcl::compress::detail {
     expected<void, error> tar_each(const string& path, TarWrap w, F f) {
         auto file = io::open(path);
         if (!file) {
-            return unexpected(error(file.error(), 0));
+            return unexpected(no_place(file.error()));
         }
         tar::reader r(tar_input(*file, w));
         for (;;) {
@@ -1530,12 +1639,13 @@ namespace sgcl::compress::detail {
         uint64_t total = 0;
         auto checked = tar_each(archive_path, *w, [&](const tar::entry& e, tar::reader&) -> expected<void, error> {
             if (!e.is_local()) {
-                return unexpected(error(errc::insecure_path, 0, string("tar: an entry's name or link leaves the directory: ") + e.name));
+                return unexpected(no_place(errc::insecure_path, string("tar: an entry's name or link leaves the directory: ") + e.name));
+            }
+            // against what is left of the bound: a sum past 2^64 would wrap below it
+            if (max_size && e.size > max_size - total) {
+                return unexpected(no_place(errc::too_large, string("tar: the files are larger than max_size")));
             }
             total += e.size;
-            if (max_size && total > max_size) {
-                return unexpected(error(errc::too_large, 0, string("tar: the files are larger than max_size")));
-            }
             return {};
         });
         if (!checked) {
@@ -1571,7 +1681,7 @@ namespace sgcl::compress::detail {
     inline expected<void, error> tar_create(const string& directory, const string& archive_path, compress::level level) {
         const TarWrap w = tar_wrap_by_name(archive_path.view());
         if (w == TarWrap::bzip2) {
-            return unexpected(error(errc::unsupported, 0, string("tar: bzip2 is read, not written: ") + archive_path));
+            return unexpected(no_place(errc::unsupported, string("tar: bzip2 is read, not written: ") + archive_path));
         }
         auto tree = list_tree(directory);
         if (!tree) {
@@ -1579,7 +1689,7 @@ namespace sgcl::compress::detail {
         }
         auto file = io::create(archive_path);
         if (!file) {
-            return unexpected(error(file.error(), 0));
+            return unexpected(no_place(file.error()));
         }
         auto write_all = [&](const io::writer& sink) -> expected<void, error> {
             tar::writer tw(sink);
@@ -1604,7 +1714,7 @@ namespace sgcl::compress::detail {
                 if (t.type == io::file_type::regular) {
                     auto in = io::open(string(t.path));
                     if (!in) {
-                        return unexpected(error(in.error(), 0));
+                        return unexpected(no_place(in.error()));
                     }
                     auto copied = io::copy(tw, *in);
                     (void)in->close();
@@ -1612,7 +1722,7 @@ namespace sgcl::compress::detail {
                         return unexpected(archive_error(copied.error()));
                     }
                     if (uint64_t(*copied) != t.size) {   // the file changed while it was read
-                        return unexpected(error(errc::invalid_argument, 0, string("tar: a file changed size while it was archived: ") + string(t.name)));
+                        return unexpected(no_place(errc::invalid_argument, string("tar: a file changed size while it was archived: ") + string(t.name)));
                     }
                 }
             }
@@ -1629,7 +1739,7 @@ namespace sgcl::compress::detail {
                 r = unexpected(archive_error(c.error()));
             }
         } else if (w == TarWrap::xz) {
-            xz::writer z(*file, xz::options{level});
+            xz::writer z(*file, xz::options{.level = level});
             r = write_all(io::writer(z));
             if (auto c = z.close(); r && !c) {
                 r = unexpected(archive_error(c.error()));
@@ -1638,7 +1748,7 @@ namespace sgcl::compress::detail {
             r = write_all(io::writer(*file));
         }
         if (auto c = file->close(); r && !c) {
-            r = unexpected(error(c.error(), 0));
+            r = unexpected(no_place(c.error()));
         }
         if (!r) {
             (void)io::remove(archive_path);   // no half archive left behind
@@ -1655,11 +1765,11 @@ namespace sgcl::compress::tar {
     };
 
     namespace detail {
-        inline async::task<expected<void, error>> tar_extract_task(string archive_path, string directory, uint64_t max) {
+        inline async::task<expected<void, error>> tar_extract_task(string archive_path, string directory, uint64_t max) noexcept {
             co_return co_await async::spawn_blocking([archive_path, directory, max] { return compress::detail::tar_extract(archive_path, directory, max); });
         }
 
-        inline async::task<expected<void, error>> tar_create_task(string directory, string archive_path, compress::level l) {
+        inline async::task<expected<void, error>> tar_create_task(string directory, string archive_path, compress::level l) noexcept {
             co_return co_await async::spawn_blocking([directory, archive_path, l] { return compress::detail::tar_create(directory, archive_path, l); });
         }
     }
@@ -1679,7 +1789,7 @@ namespace sgcl::compress::tar {
     }
 
     // The same in a task, on the blocking pool
-    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) {
+    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) noexcept {
         return detail::tar_extract_task(std::move(archive_path), std::move(directory), o.max_size);
     }
 
@@ -1695,7 +1805,7 @@ namespace sgcl::compress::tar {
         return compress::detail::tar_create(directory, archive_path, o.level);
     }
 
-    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) {
+    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) noexcept {
         return detail::tar_create_task(std::move(directory), std::move(archive_path), o.level);
     }
 }

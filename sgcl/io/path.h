@@ -20,6 +20,16 @@
 #include <string_view>
 #include <unistd.h>
 
+namespace sgcl::io::detail {
+    // A text argument made into a string by the string's own constructor
+    // from characters: a string, a literal or a character array, a
+    // std::string_view, a C string (a type of the program's that converts
+    // to a string may throw in its conversion)
+    template<class S>
+    inline constexpr bool PlainText = std::is_same_v<S, string> || sgcl::detail::TextArgument<S>
+                                   || std::is_same_v<std::decay_t<S>, const char*> || std::is_same_v<std::decay_t<S>, char*>;
+}
+
 namespace sgcl::io::path {
     // Paths as strings (path/filepath): lexical operations on the text
     // of a path in the platform's form ("/" on POSIX), touching the file
@@ -32,7 +42,7 @@ namespace sgcl::io::path {
 
     // The shortest equivalent: "." and ".." resolved, repeated
     // separators and a trailing one dropped, "" being "."
-    inline string clean(const string& path) {
+    inline string clean(const string& path) noexcept {
         std::string_view p(path);
         if (p.empty()) {
             return string(".");
@@ -88,7 +98,7 @@ namespace sgcl::io::path {
     // elements skipped; a range of strings, or an initializer list
     template<class R>
     requires std::ranges::input_range<R> && std::convertible_to<std::ranges::range_reference_t<R>, const string&>
-    string join(const R& elements) {
+    string join(const R& elements) noexcept(std::ranges::contiguous_range<const R> && std::is_same_v<std::ranges::range_value_t<R>, string>) {
         std::string out;
         for (const string& e : elements) {
             if (e.empty()) {
@@ -105,19 +115,19 @@ namespace sgcl::io::path {
         return clean(string(out));
     }
 
-    inline string join(std::initializer_list<string> elements) {
+    inline string join(std::initializer_list<string> elements) noexcept {
         return join<std::initializer_list<string>>(elements);
     }
 
     template<class... S>
-    string join(const string& first, const S&... rest) {
+    string join(const string& first, const S&... rest) noexcept((io::detail::PlainText<S> && ...)) {
         return join({first, string(rest)...});
     }
 
     // The last element ("" and "/" give themselves); everything but the
     // last element, cleaned; the extension from the last dot ("" when
     // none); the name without it
-    inline string base(const string& path) {
+    inline string base(const string& path) noexcept {
         std::string_view p(path);
         if (p.empty()) {
             return string();
@@ -135,7 +145,7 @@ namespace sgcl::io::path {
         return string(p);
     }
 
-    inline string dir(const string& path) {
+    inline string dir(const string& path) noexcept {
         std::string_view p(path);
         auto i = p.rfind(separator);
         if (i == std::string_view::npos) {
@@ -144,7 +154,7 @@ namespace sgcl::io::path {
         return clean(string(p.substr(0, i + 1)));
     }
 
-    inline string ext(const string& path) {
+    inline string ext(const string& path) noexcept {
         std::string_view p(path);
         for (size_t i = p.size(); i-- > 0 && p[i] != separator;) {
             if (p[i] == '.') {
@@ -154,7 +164,7 @@ namespace sgcl::io::path {
         return string();
     }
 
-    inline string stem(const string& path) {
+    inline string stem(const string& path) noexcept {
         auto b = base(path);
         std::string_view v(b);
         for (size_t i = v.size(); i-- > 0;) {
@@ -167,7 +177,7 @@ namespace sgcl::io::path {
 
     // dir and base, as a pair: the directory with its trailing separator
     // as written, the file after it (Go's Split)
-    inline pair<string, string> split(const string& path) {
+    inline pair<string, string> split(const string& path) noexcept {
         std::string_view p(path);
         auto i = p.rfind(separator);
         if (i == std::string_view::npos) {
@@ -177,7 +187,7 @@ namespace sgcl::io::path {
     }
 
     // The elements of a PATH-like list, empty ones skipped
-    inline vector<string> split_list(const string& path_list) {
+    inline vector<string> split_list(const string& path_list) noexcept {
         std::string_view list(path_list);
         vector<string> out;
         size_t pos = 0;
@@ -213,7 +223,7 @@ namespace sgcl::io::path {
     // for a name from outside that becomes a file's path:
     //
     //     auto file = io::path::under("public", name);   // "public/a/b.txt", or the error for "../secret.txt"
-    inline expected<string, error> under(const string& directory, const string& name) {
+    inline expected<string, error> under(const string& directory, const string& name) noexcept {
         if (!is_local(name)) {
             return io::detail::fail(error(errc::insecure_path, "under", name));
         }
@@ -222,7 +232,7 @@ namespace sgcl::io::path {
 
     // The absolute form: the working directory joined when relative,
     // cleaned
-    inline expected<string, error> abs(const string& p) {
+    inline expected<string, error> abs(const string& p) noexcept {
         if (is_abs(p)) {
             return clean(p);
         }
@@ -236,7 +246,7 @@ namespace sgcl::io::path {
     // The path from base to target with ".." where needed, both cleaned
     // first; an error when it cannot be done lexically (one absolute,
     // the other relative)
-    inline expected<string, error> rel(const string& base_path, const string& target) {
+    inline expected<string, error> rel(const string& base_path, const string& target) noexcept {
         auto b = clean(base_path);
         auto t = clean(target);
         std::string_view bv(b), tv(t);
@@ -304,7 +314,7 @@ namespace sgcl::io::path {
         // '[...]' a class with ranges and a leading '^' or '!' negation,
         // '\' escaping the next character), characters being UTF-8 code
         // points; nullopt for a malformed pattern
-        inline optional<bool> match_element(std::string_view pat, std::string_view name) {
+        inline optional<bool> match_element(std::string_view pat, std::string_view name) noexcept {
             size_t p = 0, n = 0;
             size_t star_p = std::string_view::npos, star_n = 0;
             while (n < name.size() || p < pat.size()) {
@@ -457,11 +467,11 @@ namespace sgcl::io::path {
             return s.find_first_of("*?[\\") != std::string_view::npos;
         }
 
-        inline void glob_in(const string& dir, const string& pattern, vector<string>& out);
+        inline void glob_in(const string& dir, const string& pattern, vector<string>& out) noexcept;
 
         // The paths matching pattern, whose directory part may hold
         // patterns itself
-        inline void glob_walk(const string& pattern, vector<string>& out) {
+        inline void glob_walk(const string& pattern, vector<string>& out) noexcept {
             auto [d, file] = split(pattern);
             std::string_view dv(d);
             while (dv.size() > 1 && dv.back() == separator) {
@@ -482,7 +492,7 @@ namespace sgcl::io::path {
             }
         }
 
-        inline void glob_in(const string& dir, const string& pattern, vector<string>& out) {
+        inline void glob_in(const string& dir, const string& pattern, vector<string>& out) noexcept {
             namespace fs = std::filesystem;
             if (!has_meta(pattern)) {
                 auto p = dir == "." && pattern.find(separator) == string::npos && !pattern.empty() ? pattern : join(dir, pattern);
@@ -518,7 +528,7 @@ namespace sgcl::io::path {
     // and '?' never match a separator): '*' any run, '?' one character,
     // '[a-z]' a class, '[^a-z]' its negation, '\' an escape;
     // errc::invalid_pattern for a malformed pattern
-    inline expected<bool, error> match(const string& pattern_text, const string& name_text) {
+    inline expected<bool, error> match(const string& pattern_text, const string& name_text) noexcept {
         std::string_view pattern(pattern_text), name(name_text);
         if (!detail::valid_pattern(pattern)) {
             return io::detail::fail(error(errc::invalid_pattern, "match", pattern_text));
@@ -530,7 +540,7 @@ namespace sgcl::io::path {
             auto nel = name.substr(0, ne);
             auto m = detail::match_element(pel, nel);
             if (!m) {
-                return io::detail::fail(error(errc::invalid_pattern, "match", pattern));
+                return io::detail::fail(error(errc::invalid_pattern, "match", pattern_text));
             }
             if (!*m) {
                 return false;
@@ -546,22 +556,23 @@ namespace sgcl::io::path {
     // The paths that match the pattern, sorted within each directory;
     // a directory that cannot be read is skipped; a pattern without
     // meta characters names the file if it exists
-    inline expected<vector<string>, error> glob(const string& pattern) {
-        auto m = match(pattern, string());
-        if (!m) {
-            return io::detail::fail(m);
+    inline expected<vector<string>, error> glob(const string& pattern) noexcept {
+        if (!detail::valid_pattern(std::string_view(pattern))) {
+            return io::detail::fail(error(errc::invalid_pattern, "glob", pattern));
         }
         vector<string> out;
-        detail::glob_walk(pattern, out);
+        if (!pattern.empty()) {   // an empty name names no file
+            detail::glob_walk(pattern, out);
+        }
         return out;
     }
 
     // Separators converted to and from "/", the form of URLs and archives
-    inline string from_slash(const string& p) {
+    inline string from_slash(const string& p) noexcept {
         return p;
     }
 
-    inline string to_slash(const string& p) {
+    inline string to_slash(const string& p) noexcept {
         return p;
     }
 }

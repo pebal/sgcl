@@ -56,7 +56,7 @@ namespace sgcl::time {
     };
 
     // The month's English name, as Go's Month.String() writes it: "January"
-    inline string to_string(month m) {
+    inline string to_string(month m) noexcept {
         static constexpr const char* Names[] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
         unsigned i = static_cast<unsigned>(m) - 1;
         return i < 12 ? string(Names[i]) : string("%!Month(" + std::to_string(static_cast<unsigned>(m)) + ")");
@@ -80,7 +80,7 @@ namespace sgcl::time {
     };
 
     // The day's English name, as Go's Weekday.String() writes it: "Monday"
-    inline string to_string(weekday d) {
+    inline string to_string(weekday d) noexcept {
         static constexpr const char* Names[] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
         unsigned i = static_cast<unsigned>(d) - 1;
         return i < 7 ? string(Names[i]) : string("%!Weekday(" + std::to_string(static_cast<unsigned>(d)) + ")");
@@ -238,14 +238,14 @@ namespace sgcl::time {
         // "2026267". A year of four digits, or of five with the extended
         // forms, with a sign or none ("-0044-03-15", "+10000-01-01"). The
         // date must exist (not "2026-02-30") and be the whole text.
-        static expected<date, error> parse(const string& text);
+        static expected<date, error> parse(const string& text) noexcept;
 
         // A date in a pattern of std::format's specifiers for <chrono>,
         // read as std::chrono::parse reads one (layout.h): "%d.%m.%Y",
         // "%B %e, %Y", "%G-W%V-%u". The date must exist and the pattern
         // take the whole text; a specifier of a time of day or of a zone
         // is refused, a date having neither
-        static expected<date, error> parse(const string& text, const string& pattern);
+        static expected<date, error> parse(const string& text, const string& pattern) noexcept;
 
         // The date a literal in the program spells, in either of parse's
         // forms: parse's value, or bad_expected_access<time::error> with
@@ -335,37 +335,37 @@ namespace sgcl::time {
         // JavaScript's Temporal and iCalendar (RFC 5545) call compatible.
         // Hours, minutes and seconds out of their ranges carry, as the
         // date's own fields do: at(24, 0, z) is midnight of the next day
-        datetime at(int hour, int minute, const zone& z) const;
-        datetime at(int hour, int minute, int second, const zone& z) const;
+        datetime at(int hour, int minute, const zone& z) const noexcept;
+        datetime at(int hour, int minute, int second, const zone& z) const noexcept;
 
         // The same, the choice made otherwise: earlier takes the first of
         // a time shown twice and, for a time skipped, the instant of the
         // change (03:00 in the example above: the first time of the clock
         // after the skip); later takes the second of a time shown twice
         // and moves a skipped one on as above
-        datetime at(int hour, int minute, const zone& z, earlier_t) const;
-        datetime at(int hour, int minute, int second, const zone& z, earlier_t) const;
-        datetime at(int hour, int minute, const zone& z, later_t) const;
-        datetime at(int hour, int minute, int second, const zone& z, later_t) const;
+        datetime at(int hour, int minute, const zone& z, earlier_t) const noexcept;
+        datetime at(int hour, int minute, int second, const zone& z, earlier_t) const noexcept;
+        datetime at(int hour, int minute, const zone& z, later_t) const noexcept;
+        datetime at(int hour, int minute, int second, const zone& z, later_t) const noexcept;
 
         // The same when the time is there exactly once, nothing when it
         // was skipped or shown twice
-        optional<datetime> try_at(int hour, int minute, int second, const zone& z) const;
+        optional<datetime> try_at(int hour, int minute, int second, const zone& z) const noexcept;
 
         // The first instant of this date in a zone: midnight, or where
         // midnight was skipped (America/Santiago, Asia/Beirut in some
         // years) the change that skipped it
-        datetime start_of_day(const zone& z) const;
+        datetime start_of_day(const zone& z) const noexcept;
 
         // The date written by a pattern of std::format's specifiers for
         // <chrono> (layout.h): "%A, %d %B %Y" is "Thursday, 24 September
         // 2026"; a specifier of a time of day or of a zone is written as
         // it stands
-        string format(const string& pattern) const;
+        string format(const string& pattern) const noexcept;
 
         // ISO 8601's extended calendar date, as std::format's %F writes
         // it: "2026-09-24", "-0044-03-15", "10000-01-01"
-        string to_string() const;
+        string to_string() const noexcept;
 
         // Written as to_string() writes it
         template<class CharT, class Traits>
@@ -373,8 +373,9 @@ namespace sgcl::time {
             return os << d.to_string();
         }
 
-        // The day arithmetic in operators, as datetime has it: d + n and
-        // d - n are add_days, a - b the days from b to a (b.days_until(a))
+        // The day arithmetic in operators, as datetime has it: d + n is
+        // add_days, d - n the date n days earlier (in 64 bits: -INT_MIN is
+        // no int), a - b the days from b to a (b.days_until(a))
         friend constexpr date operator+(date d, int n) noexcept {
             return d.add_days(n);
         }
@@ -384,7 +385,7 @@ namespace sgcl::time {
         }
 
         friend constexpr date operator-(date d, int n) noexcept {
-            return d.add_days(-n);
+            return _of(_clamped(int64_t(d._days) - n));
         }
 
         friend constexpr int operator-(date a, date b) noexcept {
@@ -396,7 +397,7 @@ namespace sgcl::time {
         }
 
         constexpr date& operator-=(int n) noexcept {
-            return *this = add_days(-n);
+            return *this = *this - n;
         }
 
         friend constexpr bool operator==(const date&, const date&) noexcept = default;
@@ -466,7 +467,7 @@ namespace sgcl::time {
         int32_t _days = 0;
     };
 
-    inline string date::to_string() const {
+    inline string date::to_string() const noexcept {
         auto f = _fields();
         int y = static_cast<int>(f.year());
         unsigned m = static_cast<unsigned>(f.month());
@@ -498,7 +499,7 @@ namespace sgcl::time {
         return string(text, static_cast<size_t>(out - text));
     }
 
-    inline expected<date, error> date::parse(const string& text) {
+    inline expected<date, error> date::parse(const string& text) noexcept {
         const char* s = text.data();
         size_t n = text.size();
         size_t i = 0;

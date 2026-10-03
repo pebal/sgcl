@@ -1,116 +1,115 @@
-# The text of time: layouts and patterns
+[sgcl](../README.md) › [time](README.md)
+
+# sgcl::time::layout
 
 ```cpp
-#include "sgcl/time/layout.h"   // or "sgcl/time/time.h"
+#include "sgcl/time/layout.h"   // or "sgcl/time.h"
 
 namespace sgcl::time {
-    class layout;                                  // a format known by name
-    inline constexpr layout rfc3339, rfc3339_nano, http, email, iso8601;
+    class layout;
+
+    inline constexpr layout rfc3339 = /* unspecified */;
+    inline constexpr layout rfc3339_nano = /* unspecified */;
+    inline constexpr layout http = /* unspecified */;
+    inline constexpr layout email = /* unspecified */;
+    inline constexpr layout iso8601 = /* unspecified */;
 }
-// and txt::format of datetime, date, weekday, duration and the types of <chrono>
 ```
 
-Two ways to say how a time is written and read.
+`sgcl::time::layout` is a format of a time known by its name, one of a closed set: RFC 3339, the date of HTTP, the
+date of e-mail and ISO 8601. Each is written and read by code of its own, with no pattern walked:
+`t.format(time::http)` ([format](datetime/format.md)) writes it, `datetime::parse(text, time::http)`
+([parse](datetime/parse.md)) reads it, and a literal of the program is constructed,
+`time::datetime t("2026-09-24T12:41:15+02:00", time::rfc3339)` ([constructor](datetime/datetime.md)), which throws
+`parse`'s error. The code is written from RFC 3339, RFC 9110 5.6.7 and RFC 5322 3.3.
 
-**A layout** is one of a closed set of formats known by name, each written and read by code of its own with no pattern walked: `t.format(time::http)`, `datetime::parse(text, time::http)`, and for a literal of the program `time::datetime t("2026-09-24T12:41:15+02:00", time::rfc3339)`, which throws `parse`'s error.
-
-| layout | written | read as well |
-|---|---|---|
-| `rfc3339` | `2026-09-24T12:41:15+02:00`, `Z` for a zero offset (Go's `RFC3339`) | a fraction of any length, `t` and `z` in small letters (RFC 3339 5.6), a leap second at 23:59:60 UTC |
-| `rfc3339_nano` | `2026-09-24T12:41:15.122575+02:00`, the fraction without its trailing zeros (Go's `RFC3339Nano`) | as `rfc3339` |
-| `http` | `Thu, 24 Sep 2026 10:41:15 GMT`, RFC 9110's IMF-fixdate, always in GMT | the two obsolete forms a recipient must take: RFC 850 (`Thursday, 24-Sep-26 10:41:15 GMT`) and asctime (`Thu Sep 24 10:41:15 2026`) |
-| `email` | `Thu, 24 Sep 2026 12:41:15 +0200`, RFC 5322 | the obsolete forms of RFC 5322: no day of the week, no seconds, a year of two or three digits, zones by name (`EST`, `GMT`, a military letter), comments and folding white space |
-| `iso8601` | as `rfc3339_nano` | the broad profile of ISO 8601: basic and extended forms, week and ordinal dates, a date alone, hours or minutes with a fraction, a comma for the point, `24:00`, `±hh`, `±hhmm`, `±hh:mm` |
-
-**A pattern** of `%` specifiers is the language of `std::format` for `<chrono>` (and of C's `strftime` and `strptime` before it): `t.format("%d.%m.%Y %H:%M")`, `txt::format("{:%H:%M}", t)`, `datetime::parse(text, "%d.%m.%Y %H:%M", zone)`, `date::parse(text, "%B %d, %Y")`. Every specifier of C++20 is there — `%Y %y %C %G %g %m %d %e %j %U %W %V %u %w %a %A %b %B %h %H %I %M %S %p %R %T %r %c %x %X %D %F %z %Ez %Oz %Z %n %t %%` and the `E` and `O` forms of the C locale — written as libc++'s `std::format` writes them, byte for byte (compared over the whole range of a datetime and the years -32767 to 32767 of a date), and read as `std::chrono::parse` reads them (compared with Howard Hinnant's date library, its reference implementation). Names are English, as `std::format` writes them without a locale.
-
-Why `%` and not Go's reference time (`"02.01.2006 15:04"`) or CLDR's letters (`"dd.MM.yyyy HH:mm"`): it is one language with `txt::format` (`{:%F}` means there what it means in `std::format`), known from C, C++ and Python, with no letters to quote; Go's and CLDR's both have their traps of a silent wrong answer (`yyyy`/`YYYY`, `mm`/`MM`, a digit in a literal). Names of months in other languages (`"24 września"`) need CLDR's data and are not here.
-
-In `txt::format` a time is a value like any other: `{}` writes its `to_string()` (a datetime RFC 3339 with the fraction where there is one, a date `%F`, a weekday its name, a [duration](../core/duration.md) Go's text), a pattern after the colon writes the pattern, and a width pads the whole: `{:>12%F}`. The field is the one `std::format` gives `<chrono>` — `[[fill]align][width]` and then the pattern from its first `%` to the brace, colons and all — and it is checked where the program is compiled: `{:%Q}` of a datetime or `{:%H}` of a date does not compile. The types of `<chrono>` — `sys_time` and `local_time` of an integral duration, `year_month_day`, `weekday`, `hh_mm_ss`, `duration` — are written by the same writer as `std::format` writes them, so code that holds a `system_clock::time_point` hands it to `txt::format` as it is.
+A layout writes what its RFC asks for and reads what it allows, the obsolete forms a recipient must take
+included. The other way to say how a time is written and read is a [pattern](README.md#patterns) of `%`, the
+language of `std::format` for `<chrono>`.
 
 ## Rules
 
-- A writer never fails: a specifier it does not know, or one the value does not answer (`%H` of a date, `%Q` of a datetime), is written as it stands.
-- `%S` and `%T` write the fraction of a second the value holds, as `std::format` does: nine digits for a datetime (`12:41:15.000000000`), none for a `sys_seconds`. A text to the second is `%X`, or a layout: the header of HTTP is `t.format(time::http)`.
-- `%Z` writes the zone's abbreviation (`CEST`; `UTC`; a fixed offset's name), `%z` the offset `+0200`, `%Ez` and `%Oz` `+02:00`; seconds of an offset are dropped.
-- Reading, a pattern's white space matches none or more of it, `%n` one and `%t` none or one; names are read in any case and as prefixes (`%a%b` reads `SunSep`); a number is read to its specifier's width, `%Y` four digits after a sign (`%5Y` five); `%S` reads a fraction of at most nine digits after a point or a comma; `%z` takes `+hh` or `+hhmm`, the sign optional, `%Ez` a colon; `%y` alone is 1969 to 2068, as POSIX has it, with `%C` its century.
-- The fields read must agree: a day of the week, a month or a day of the year that are not the date's are an error. A date is needed — by year, month and day, by a day of the year, by a week and a day of it — and the text must end where the pattern does.
-- An offset in the text makes a fixed zone (`+00:00` UTC). Without one the text is a time of the zone given (UTC unless another is), read by the compatible rule of [datetime](datetime.md); a `%Z` naming an abbreviation that zone shows then settles a time shown twice (`"2026-10-25 02:30 CET"` in Warsaw is the second 02:30), and `UTC` or `GMT` mean UTC.
-- A date's pattern refuses the specifiers of a time and of a zone.
-- A second of 60 is read only where it is the last second of a day in UTC, a leap second, and then as the first instant of the next day (`timegm`'s reading); RFC 3339 shows such times. Anywhere else it is an error.
-- A year of two digits: in RFC 850 dates of HTTP the latest year with those digits not more than 50 years ahead of `time::now()` (RFC 9110); in e-mail 1950 to 2049 (RFC 5322 4.3); in a pattern's `%y` 1969 to 2068 (POSIX).
-- Every refusal is an [`error`](README.md#errors) with a sentence and the byte of the text where the field that failed starts.
-- Where this reads otherwise than Go, by design: Go takes one digit where the RFCs ask for two, any abbreviation where RFC 9110 asks for GMT and where RFC 5322 lists ten names (reading `EST` as UTC), offsets past 23:59, text after an e-mail date; Go refuses a leap second, `t` and `z` in small letters, RFC 5322's obsolete forms; Go's two-digit years pivot at 1969 everywhere.
-- Where this writes otherwise than libc++, following the standard's text: `%G` of the years -999 to -1 (`-0999`, libc++ `-999`), `%EC` of a negative year (floored, libc++ truncates), the `-` of a negative duration once before the first specifier (libc++ before each), no precision for a duration (the standard's text cuts characters — `{:.3}` of 1.23456s is `1.2` — which is refused where the program is compiled).
+- A layout is one byte, trivially copyable, `constexpr`: nothing to build and nothing to check where it runs. The
+  five constants are all there are; a program does not make one.
+- What each layout writes, and what it reads besides what it writes:
 
-## Members
+| Layout | Written | Read as well |
+|---|---|---|
+| `rfc3339` | `2026-09-24T12:41:15+02:00`: RFC 3339 to the second, in the datetime's zone, `Z` for an offset of zero (Go's `RFC3339`) | a fraction of a second of any length (the nanoseconds kept), `t` and `z` in small letters (RFC 3339 5.6), a leap second at 23:59:60 UTC |
+| `rfc3339_nano` | `2026-09-24T12:41:15.122575+02:00`: the same with the fraction of a second, its trailing zeros left out and none where it is zero (Go's `RFC3339Nano`) | as `rfc3339` |
+| `http` | `Thu, 24 Sep 2026 10:41:15 GMT`: RFC 9110's IMF-fixdate, always in GMT, what `Date:`, `Expires:`, `Last-Modified:` and a cookie's `Expires` carry | the two obsolete forms a recipient must take: RFC 850's (`Thursday, 24-Sep-26 10:41:15 GMT`) and asctime's (`Thu Sep 24 10:41:15 2026`, the day padded with a space or a nought); names in any case; the day of the week is read and not checked against the date, as Go and the recipients RFC 9110 has in mind do |
+| `email` | `Thu, 24 Sep 2026 12:41:15 +0200`: RFC 5322, in the datetime's zone | the obsolete forms of RFC 5322: no day of the week, no seconds, a year of two digits or three (1900 on), the zone as one of ten names (`UT`, `GMT`, `EST`, `EDT`, `CST`, `CDT`, `MST`, `MDT`, `PST`, `PDT`) or a military letter, which is `-0000`, UTC; comments in parentheses and folding white space between the parts |
+| `iso8601` | as `rfc3339_nano` | the broad profile of ISO 8601: the three forms of a date (`2026-09-24`, `2026-W39-4`, `2026-267`), each basic or extended (`20260924`, `2026W394`, `2026267`); a date alone (its midnight), or with `T` and a time of hours, of hours and minutes or of all three, basic or extended (`12`, `1241`, `124115`, `12:41`, `12:41:15`); a fraction on the last of them with a point or a comma (`12:41:15,5`; `12.5` is half past twelve); `24:00` for the end of a day; an offset `Z`, `±hh`, `±hhmm` or `±hh:mm`, UTC where there is none |
 
-```cpp
-// datetime (datetime.md)
-string format(layout format) const;
-string format(const string& pattern) const;
-static expected<datetime, error> parse(const string& text, layout format);
-static expected<datetime, error> parse(const string& text, const string& pattern, const zone& z = zone::utc());
-explicit datetime(const string& text, layout format);   // a literal: parse's value, or bad_expected_access<error> with its message (DESIGN 234)
-explicit datetime(const string& text, const string& pattern, const zone& z = zone::utc());   // the same
+- A second of 60 is read only where it is the last second of a day in UTC, a leap second, and then as the first
+  instant of the next day (`timegm`'s reading); RFC 3339 shows such times. Anywhere else it is an error.
+- A year of two digits: in RFC 850's dates of HTTP, the latest year with those digits not more than 50 years ahead
+  of [time::now()](now.md) (RFC 9110); in e-mail, 1950 to 2049 (RFC 5322 4.3).
+- Every refusal is an [error](error.md) with a sentence and the byte of the text where the field that failed
+  starts.
+- Where this reads otherwise than Go, by design: Go takes one digit where the RFCs ask for two, any abbreviation
+  where RFC 9110 asks for GMT and where RFC 5322 lists ten names (reading `EST` as UTC), offsets past 23:59, and
+  text after an e-mail date; Go refuses a leap second, `t` and `z` in small letters, and RFC 5322's obsolete forms;
+  Go's two-digit years pivot at 1969 everywhere.
 
-// date (date.md)
-string format(const string& pattern) const;
-static expected<date, error> parse(const string& text, const string& pattern);
-explicit date(const string& text, const string& pattern);   // a literal, the same
+### From code written for Go
 
-// txt::format
-txt::format("{}", t);                  // to_string()
-txt::format("{:%d.%m.%Y %H:%M}", t);   // a pattern, checked where the program is compiled
-txt::format("{:>12%F}", d);            // a field padded
-txt::format_to(buffer, "{:%R}", t);    // into a caller's buffer, nothing allocated
-```
+| With Go | With sgcl::time |
+|---|---|
+| `time.RFC3339` | `time::rfc3339` |
+| `time.RFC3339Nano` | `time::rfc3339_nano` |
+| `time.RFC1123Z` | `time::email` |
+| `http.TimeFormat`, `http.ParseTime` | `time::http`, which reads RFC 850 and asctime too |
+| `net/mail.ParseDate` | `time::email`, which reads RFC 5322's obsolete forms |
+| — | `time::iso8601`, which Go has not |
+| `time.RFC1123` | the pattern `"%a, %d %b %Y %T %Z"` |
+| `time.RFC822` | the pattern `"%d %b %y %H:%M %Z"` |
+| `time.RFC850` | the pattern `"%A, %d-%b-%y %T %Z"` |
+| `time.ANSIC` | the pattern `"%c"` |
+| `time.Kitchen` | the pattern `"%I:%M%p"` |
+| `time.Stamp` | the pattern `"%b %e %T"` |
+
+Of the [patterns](README.md#patterns), `%T` writes the fraction of a second a datetime holds, where Go's layouts
+stop at the second, and `%X` in its place writes to the second; `%I` writes the hour with a nought, `03:04PM`
+where Go's `Kitchen` writes `3:04PM`.
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](layout/operator_cmp.md) | whether two layouts are the same |
+
+#### Constants
+
+| Constant | Description |
+|---|---|
+| `rfc3339` | RFC 3339 to the second (Go's `RFC3339`), `inline constexpr layout` |
+| `rfc3339_nano` | RFC 3339 with the fraction of a second (Go's `RFC3339Nano`) |
+| `http` | the date of HTTP, RFC 9110 5.6.7, in GMT |
+| `email` | the date of e-mail, RFC 5322 3.3 |
+| `iso8601` | written as `rfc3339_nano`, read in the broad profile of ISO 8601 |
 
 ## Example
 
 ```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/time/time.h"
-#include <chrono>
+#include "sgcl/io.h"
+#include "sgcl/time.h"
 
 using namespace sgcl;
 
 int main() {
     time::zone warsaw("Europe/Warsaw");
     auto t = time::date(2026, 9, 24).at(12, 41, 15, warsaw) + 122575 * microsecond;
-
-    // The layouts
-    println(t.format(time::rfc3339));
-    println(t.format(time::rfc3339_nano));
-    println(t.format(time::http));
-    println(t.format(time::email));
-
-    // A pattern, and txt::format
-    println(t.format("%A, %d %B %Y, %H:%M %Z"));
-    println("[{:%H:%M}] [{:>12%F}] [{}] [{:%a}]", t, t.date(), t.weekday(), t.weekday());
-    auto sys = std::chrono::sys_seconds(std::chrono::seconds(t.unix()));
-    println("{} {:%T} {}", sys, std::chrono::milliseconds(90500), std::chrono::minutes(90));
-
-    // Reading the date of HTTP in its three forms, as a header brings it: parse
-    for (auto text : {"Sun, 06 Nov 1994 08:49:37 GMT", "Sunday, 06-Nov-94 08:49:37 GMT", "Sun Nov  6 08:49:37 1994"}) {
-        time::datetime d = time::datetime::parse(text, time::http);
-        println(d);
+    for (time::layout format : {time::rfc3339, time::rfc3339_nano, time::http, time::email,
+                                time::iso8601}) {
+        println(t.format(format));
     }
 
-    // RFC 3339, ISO 8601, a pattern in a zone: literals, constructed
-    time::datetime leap("1990-12-31T15:59:60-08:00", time::rfc3339);
-    time::datetime week("2026-W39-4T12:41,5+02", time::iso8601);
-    time::datetime local("25.10.2026 02:30 CET", "%d.%m.%Y %H:%M %Z", warsaw);
-    time::date day("September 24, 2026", "%B %d, %Y");
-    println(leap);
-    println(week);
-    println(local);
-    println(day);
-
-    // What is not a date says why and where
-    auto bad = time::datetime::parse("Sun, 31 Feb 1994 08:49:37 GMT", time::http);
-    println("{} (byte {})", bad.error().message(), bad.error().offset());
-    return 0;
+    // The three forms of the date of HTTP, as a header brings it
+    for (const char* text : {"Sun, 06 Nov 1994 08:49:37 GMT", "Sunday, 06-Nov-94 08:49:37 GMT",
+                             "Sun Nov  6 08:49:37 1994"}) {
+        println(time::datetime::parse(text, time::http).value());
+    }
 }
 ```
 
@@ -121,21 +120,15 @@ Output:
 2026-09-24T12:41:15.122575+02:00
 Thu, 24 Sep 2026 10:41:15 GMT
 Thu, 24 Sep 2026 12:41:15 +0200
-Thursday, 24 September 2026, 12:41 CEST
-[12:41] [  2026-09-24] [Thursday] [Thu]
-2026-09-24 10:41:15 00:01:30.500 90min
+2026-09-24T12:41:15.122575+02:00
 1994-11-06T08:49:37Z
 1994-11-06T08:49:37Z
 1994-11-06T08:49:37Z
-1990-12-31T16:00:00-08:00
-2026-09-24T12:41:30+02:00
-2026-10-25T02:30:00+01:00
-2026-09-24
-a day that the month has expected (byte 5)
 ```
 
 ## See also
 
-- [datetime](datetime.md), [date](date.md), [zone](zone.md)
-- [txt::format](../txt/format.md): the patterns of values in text
-- [duration](../core/duration.md): a span of time and Go's text of it
+- [datetime::format](datetime/format.md), [datetime::parse](datetime/parse.md): write and read a layout
+- [patterns](README.md#patterns): the other way, a pattern of `%`
+- [error](error.md): why a text is not a time
+- [sgcl::time](README.md)

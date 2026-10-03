@@ -11,7 +11,8 @@
 // — read, read_line, read_until, peek, read_byte, discard, read_all — each
 // held to a model that is only a position in the data: what a line, a
 // token, a peek must be there. A bound on the line (set_max_line) is
-// refused exactly when the token is longer. Then, each over a fresh
+// refused exactly when the token is longer, and the token is skipped with
+// its delimiter, wherever its end lies. Then, each over a fresh
 // source: io::copy of a limit_reader into an io::buffer, a tee_reader read
 // to the end with its copy in a second buffer, a multi_reader of the data
 // cut in two, and lines() to the end: each must give the data (or its
@@ -83,8 +84,7 @@ namespace {
         }
     };
 
-    // One operation; false when the reader's state is no longer the
-    // model's (a line refused for its length)
+    // One operation, the model moved as the reader must have moved
     bool step(const io::buffered_reader& r, Model& m, uint8_t op, uint8_t arg, size_t max_line) {
         switch (op % 8) {
         case 0: {   // read
@@ -109,7 +109,8 @@ namespace {
             auto got = line ? r.read_line() : r.read_until(d);
             if (max_line && len > max_line) {
                 check(!got && got.error().code() == io::errc::line_too_long);
-                return false;
+                m.at += len + (found ? 1 : 0);   // skipped whole
+                return true;
             }
             check(got.has_value());
             if (m.left() == 0) {

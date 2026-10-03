@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string_view>
@@ -70,7 +71,7 @@ namespace sgcl::io {
         template<class T>
         struct Boxed {
             template<class U>
-            explicit Boxed(U&& u)
+            explicit Boxed(U&& u) noexcept(std::is_nothrow_constructible_v<T, U&&>)
             : value(std::forward<U>(u)) {
             }
 
@@ -90,7 +91,7 @@ namespace sgcl::io {
         struct HandleAccess {
             // The state of a handle, the word it holds its object by
             template<class H>
-            static decltype(auto) state(const H& h) {
+            static decltype(auto) state(const H& h) noexcept {
                 return h._stream_state();
             }
         };
@@ -122,10 +123,33 @@ namespace sgcl::io {
             void* object;
         };
 
+        // Whether bind cannot throw: only the copy of a callable or a
+        // temporary into its box can, the copy being the program's
         template<class R>
-        Bound bind(R&& r) {
+        constexpr bool nothrow_bind() noexcept {
             using S = std::remove_cvref_t<R>;
             using T = Target<R>;
+            if constexpr (IsStreamHandle<std::remove_cv_t<T>> || IsTrackedPtr<S> || PointerLike<R>) {
+                return true;
+            } else if constexpr (requires { typename S::element_type; requires std::is_rvalue_reference_v<R&&>; requires std::is_constructible_v<tracked_ptr<typename S::element_type>, S&&>; }) {
+                return true;
+            } else if constexpr (HasMembers<T> && std::is_lvalue_reference_v<R>) {
+                return true;
+            } else {
+                return std::is_nothrow_constructible_v<S, R&&>;
+            }
+        }
+
+        // A null pointer binds nothing: the handle made of it is empty
+        template<class R>
+        Bound bind(R&& r) noexcept(nothrow_bind<R>()) {
+            using S = std::remove_cvref_t<R>;
+            using T = Target<R>;
+            if constexpr (PointerLike<R>) {
+                if (!r.get()) {
+                    return Bound{};
+                }
+            }
             if constexpr (IsStreamHandle<std::remove_cv_t<T>>) {
                 const auto& state = HandleAccess::state(target(r));
                 return Bound{tracked_ptr<const void>(state), const_cast<void*>(static_cast<const void*>(state.get()))};
@@ -148,7 +172,7 @@ namespace sgcl::io {
         }
 
         // The close of a stream that has none, or of an empty handle
-        inline async::task<expected<void, error>> closed_now() {
+        inline async::task<expected<void, error>> closed_now() noexcept {
             co_return expected<void, error>();
         }
 
@@ -214,7 +238,7 @@ namespace sgcl::io {
 
         template<class R>
         requires (!std::same_as<std::remove_cvref_t<R>, reader>) && (req::reader<R> || req::async_reader<R>)
-        reader(R&& r)
+        reader(R&& r) noexcept(detail::nothrow_bind<R>())
         : reader(detail::bind(std::forward<R>(r)), &detail::reader_table<detail::Stream<R>>()) {
         }
 
@@ -225,7 +249,7 @@ namespace sgcl::io {
             return _table->read(*this, _object, buffer);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const {
+        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept {
             assert(_table && "a read of an empty io::reader");
             return _table->async_read(*this, _object, buffer);
         }
@@ -237,7 +261,7 @@ namespace sgcl::io {
             return _table ? _table->close(*this, _object) : expected<void, error>();
         }
 
-        async::task<expected<void, error>> async_close() const {
+        async::task<expected<void, error>> async_close() const noexcept {
             if (!_table) {
                 return detail::closed_now();
             }
@@ -295,7 +319,7 @@ namespace sgcl::io {
 
         template<class W>
         requires (!std::same_as<std::remove_cvref_t<W>, writer>) && (req::writer<W> || req::async_writer<W>)
-        writer(W&& w)
+        writer(W&& w) noexcept(detail::nothrow_bind<W>())
         : writer(detail::bind(std::forward<W>(w)), &detail::writer_table<detail::Stream<W>>()) {
         }
 
@@ -304,7 +328,7 @@ namespace sgcl::io {
             return _table->write(*this, _object, data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const {
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
             assert(_table && "a write to an empty io::writer");
             return _table->async_write(*this, _object, data);
         }
@@ -313,7 +337,7 @@ namespace sgcl::io {
             return _table ? _table->close(*this, _object) : expected<void, error>();
         }
 
-        async::task<expected<void, error>> async_close() const {
+        async::task<expected<void, error>> async_close() const noexcept {
             if (!_table) {
                 return detail::closed_now();
             }
@@ -365,7 +389,7 @@ namespace sgcl::io {
         // and the memory with it. Data to write: the slice as it is when it
         // holds its owner (the job holds it too), else a copy in a managed
         // block, made now, while the caller waits
-        inline slice<const byte> owned_for_pool(const slice<const byte>& data) {
+        inline slice<const byte> owned_for_pool(const slice<const byte>& data) noexcept {
             if (data.owner() || data.empty()) {
                 return data;
             }
@@ -379,7 +403,7 @@ namespace sgcl::io {
         // it after, in the task, which resumes only when its caller is
         // alive; a task let go of leaves the block to the job alone
         template<class Read>
-        async::task<expected<size_t, error>> read_via_pool(slice<byte> buffer, Read read) {
+        async::task<expected<size_t, error>> read_via_pool(slice<byte> buffer, Read read) noexcept(std::is_nothrow_move_constructible_v<Read>) {
             if (buffer.owner() || buffer.empty()) {
                 co_return co_await async::spawn_blocking([read, buffer]() mutable { return read(buffer); });
             }
@@ -392,20 +416,20 @@ namespace sgcl::io {
             co_return r;
         }
 
-        inline async::task<expected<size_t, error>> read_on_pool(reader self, slice<byte> buffer) {
+        inline async::task<expected<size_t, error>> read_on_pool(reader self, slice<byte> buffer) noexcept {
             co_return co_await read_via_pool(buffer, [self](const slice<byte>& b) mutable { return self.read(b); });
         }
 
-        inline async::task<expected<size_t, error>> write_on_pool(writer self, slice<const byte> data) {
+        inline async::task<expected<size_t, error>> write_on_pool(writer self, slice<const byte> data) noexcept {
             data = owned_for_pool(data);
             co_return co_await async::spawn_blocking([self, data]() mutable { return self.write(data); });
         }
 
-        inline async::task<expected<void, error>> close_on_pool(writer self) {
+        inline async::task<expected<void, error>> close_on_pool(writer self) noexcept {
             co_return co_await async::spawn_blocking([self]() mutable { return self.close(); });
         }
 
-        inline async::task<expected<void, error>> close_on_pool(reader self) {
+        inline async::task<expected<void, error>> close_on_pool(reader self) noexcept {
             co_return co_await async::spawn_blocking([self]() mutable { return self.close(); });
         }
 
@@ -532,7 +556,7 @@ namespace sgcl::io {
             return r;
         }
 
-        async::task<expected<size_t, error>> async_read(slice<byte> buffer) {
+        async::task<expected<size_t, error>> async_read(slice<byte> buffer) noexcept {
             if (_remaining == 0 || buffer.empty()) {
                 co_return 0;
             }
@@ -571,7 +595,7 @@ namespace sgcl::io {
             return r;
         }
 
-        async::task<expected<size_t, error>> async_read(slice<byte> buffer) {
+        async::task<expected<size_t, error>> async_read(slice<byte> buffer) noexcept {
             auto r = co_await _reader.async_read(buffer);
             if (r && *r) {
                 auto w = co_await _writer.async_write(buffer.first(*r));
@@ -605,7 +629,7 @@ namespace sgcl::io {
             return 0;
         }
 
-        async::task<expected<size_t, error>> async_read(slice<byte> buffer) {
+        async::task<expected<size_t, error>> async_read(slice<byte> buffer) noexcept {
             while (_current < _readers.size()) {
                 auto r = co_await _readers[_current].async_read(buffer);
                 if (!r || *r || buffer.empty()) {
@@ -642,7 +666,7 @@ namespace sgcl::io {
             return data.size();
         }
 
-        async::task<expected<size_t, error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept {
             for (auto& w : _writers) {
                 auto r = co_await w.async_write(data);
                 if (!r) {
@@ -662,7 +686,7 @@ namespace sgcl::io {
     template<class F>
     class transform_reader final : public mixin::reader<transform_reader<F>> {
     public:
-        transform_reader(const io::reader& r, F f)
+        transform_reader(const io::reader& r, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
         : _reader(r), _f(std::move(f)) {
         }
 
@@ -674,7 +698,7 @@ namespace sgcl::io {
             return r;
         }
 
-        async::task<expected<size_t, error>> async_read(slice<byte> buffer) {
+        async::task<expected<size_t, error>> async_read(slice<byte> buffer) noexcept {
             auto r = co_await _reader.async_read(buffer);
             if (r && *r) {
                 _f(buffer.first(*r));
@@ -701,7 +725,7 @@ namespace sgcl::io {
             return data.size();
         }
 
-        async::task<expected<size_t, error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept {
             co_return data.size();
         }
     };
@@ -727,13 +751,13 @@ namespace sgcl::io {
     namespace detail {
     class BufferState final {
     public:
-        BufferState() = default;
+        BufferState() noexcept = default;
 
-        explicit BufferState(const slice<const byte>& initial)
+        explicit BufferState(const slice<const byte>& initial) noexcept
         : _data(initial.begin(), initial.end()) {
         }
 
-        expected<size_t, error> read(const slice<byte>& out) {
+        expected<size_t, error> read(const slice<byte>& out) noexcept {
             if (out.empty()) {
                 return 0;
             }
@@ -755,7 +779,7 @@ namespace sgcl::io {
             return n;
         }
 
-        async::task<expected<size_t, error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, error>> async_read(slice<byte> out) noexcept {
             co_return read(out);
         }
 
@@ -764,24 +788,19 @@ namespace sgcl::io {
                 _data.insert(_data.end(), in.begin(), in.end());
                 return in.size();
             }
-            size_t at = _read + _put;
-            if (at > _data.size()) {
-                _data.resize(at);   // the gap a seek past the end left: zeros
-            }
-            size_t over = std::min(in.size(), _data.size() - at);
-            if (over) {
-                sgcl::detail::copy_bytes(_data.data() + at, in.data(), over);
-            }
-            _data.insert(_data.end(), in.begin() + over, in.end());
-            _put += in.size();
-            return in.size();
+            return _write_at(in);
         }
 
         // The write position moved: to offset from the first byte held, from
-        // the position, or from the end; the new position
-        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) {
+        // the position, or from the end; the new position. One before the
+        // first byte is invalid_argument, one past what int64_t holds
+        // value_too_large, and the position stays
+        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) noexcept {
             int64_t base = from == seek_from::begin ? 0 : from == seek_from::current ? int64_t(_at_end ? size() : _put) : int64_t(size());
-            int64_t at = base + offset;
+            int64_t at;
+            if (__builtin_add_overflow(base, offset, &at)) {
+                return detail::fail(error(std::make_error_code(std::errc::value_too_large), "seek", "buffer"));
+            }
             if (at < 0) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "seek", "buffer"));
             }
@@ -790,17 +809,19 @@ namespace sgcl::io {
             return uint64_t(at);
         }
 
-        async::task<expected<size_t, error>> async_write(slice<const byte> in) {
+        async::task<expected<size_t, error>> async_write(slice<const byte> in) noexcept {
             co_return write(in);
         }
 
         // What io::copy calls with a buffer as the source: what it holds,
-        // in one write
+        // in one write; the bytes written are taken from the front, as a
+        // read takes them (the buffer itself as the writer appends a copy
+        // and keeps it, as Go's io.Copy(b, b) does)
         template<class W>
-        expected<size_t, error> write_to(W& w) {
+        expected<size_t, error> write_to(W& w) noexcept(detail::nothrow_write<W>()) {
             auto r = detail::call_write(w, data());
             if (r) {
-                clear();
+                _consume(*r);
             }
             return r;
         }
@@ -808,10 +829,10 @@ namespace sgcl::io {
         // The same in a task, what io::async_copy calls: the writer is the
         // caller's to keep alive across the wait (async_copy's frame holds it)
         template<class W>
-        async::task<expected<size_t, error>> async_write_to(W& w) {
+        async::task<expected<size_t, error>> async_write_to(W& w) noexcept {
             auto r = co_await detail::call_async_write(w, data());
             if (r) {
-                clear();
+                _consume(*r);
             }
             co_return r;
         }
@@ -845,13 +866,57 @@ namespace sgcl::io {
         }
 
         // Takes the bytes out, leaving the buffer empty
-        vector<byte> release() {
+        vector<byte> release() noexcept {
             vector<byte> out(_data.begin() + _read, _data.end());
             clear();
             return out;
         }
 
     private:
+        // A write at the position a seek set: over what is held from there
+        // and on past the end, a gap filled with zeros first. A size past
+        // the largest vector is length_error before anything changes; bytes
+        // of the buffer itself are copied aside first, since the overwrite
+        // would change them under the copy (pwrite writes what it was given)
+        expected<size_t, error> _write_at(const slice<const byte>& in) {
+            size_t at = _read + _put;
+            if (at > _data.max_size() || in.size() > _data.max_size() - at) {
+                throw length_error("sgcl::io::buffer");
+            }
+            const auto first = reinterpret_cast<uintptr_t>(_data.data());
+            const auto from = reinterpret_cast<uintptr_t>(in.data());
+            if (!in.empty() && from < first + _data.size() && from + in.size() > first) {
+                vector<byte> aside(in.begin(), in.end());
+                return _write_at(slice<const byte>(aside.as_slice()));
+            }
+            if (at > _data.size()) {
+                _data.resize(at);   // the gap a seek past the end left: zeros
+            }
+            size_t over = std::min(in.size(), _data.size() - at);
+            if (over) {
+                sgcl::detail::copy_bytes(_data.data() + at, in.data(), over);
+            }
+            _data.insert(_data.end(), in.begin() + over, in.end());
+            _put += in.size();
+            return in.size();
+        }
+
+        // n bytes taken from the front, as a read takes them
+        void _consume(size_t n) noexcept {
+            n = std::min(n, size());
+            _read += n;
+            if (!_at_end) {
+                _put = _put > n ? _put - n : 0;
+            }
+            if (_read == _data.size()) {
+                bool at_end = _at_end;
+                size_t put = _put;
+                clear();
+                _at_end = at_end;
+                _put = put;
+            }
+        }
+
         vector<byte> _data;
         size_t _read = 0;   // the front: consumed up to here
         size_t _put = 0;    // the write position from the front, when not at the end
@@ -871,7 +936,7 @@ namespace sgcl::io {
         using mixin::writer<buffer>::write;
         using mixin::writer<buffer>::async_write;
 
-        buffer()
+        buffer() noexcept
         : _state(make_tracked<detail::BufferState>()) {
         }
 
@@ -880,27 +945,27 @@ namespace sgcl::io {
         buffer& operator=(const buffer&) noexcept = default;
         buffer& operator=(buffer&&) noexcept = default;
 
-        explicit buffer(const slice<const byte>& initial)
+        explicit buffer(const slice<const byte>& initial) noexcept
         : _state(make_tracked<detail::BufferState>(initial)) {
         }
 
-        explicit buffer(const string& initial)
+        explicit buffer(const string& initial) noexcept
         : buffer(detail::bytes_of(initial)) {
         }
 
         // A literal, a character array, a std::string_view: as a string
         // (an exact match, else the conversions to a string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        explicit buffer(const T& initial)
+        explicit buffer(const T& initial) noexcept
         : buffer(slice<const byte>(initial)) {
         }
 
         // A read consumes from the front; of an empty buffer, 0
-        expected<size_t, error> read(const slice<byte>& out) const {
+        expected<size_t, error> read(const slice<byte>& out) const noexcept {
             return _get()->read(out);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const {
+        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept {
             return _get()->async_read(out);
         }
 
@@ -908,27 +973,27 @@ namespace sgcl::io {
             return _get()->write(in);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& in) const {
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& in) const noexcept {
             return _get()->async_write(in);
         }
 
         // The write position moved: to offset from the first byte held, from
         // the position, or from the end; the new position
-        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const {
+        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const noexcept {
             return _get()->seek(offset, from);
         }
 
         // What io::copy calls with a buffer as the source: what it holds,
         // in one write
         template<class W>
-        expected<size_t, error> write_to(W& w) const {
+        expected<size_t, error> write_to(W& w) const noexcept(detail::nothrow_write<W>()) {
             return _get()->write_to(w);
         }
 
         // The same in a task, what io::async_copy calls: the writer is the
         // caller's to keep alive across the wait (async_copy's frame holds it)
         template<class W>
-        async::task<expected<size_t, error>> async_write_to(W& w) const {
+        async::task<expected<size_t, error>> async_write_to(W& w) const noexcept {
             return _get()->async_write_to(w);
         }
 
@@ -958,7 +1023,7 @@ namespace sgcl::io {
         }
 
         // Takes the bytes out, leaving the buffer empty
-        vector<byte> release() const {
+        vector<byte> release() const noexcept {
             return _get()->release();
         }
 

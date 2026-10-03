@@ -16,15 +16,18 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 #include <ranges>
 
 namespace sgcl {
-    // std::vector over a managed buffer. The object is one word: a tracked
-    // pointer to the first element; the buffer's header (detail::ArrayBase,
+    // std::vector over a managed buffer. The object is three words: a
+    // tracked pointer to the first element, and copies of the size and
+    // the capacity (below, _size); the buffer's header (detail::ArrayBase,
     // just before the elements) holds the number of constructed elements
     // and the capacity. The collector reads that count when it reclaims a
     // buffer that nobody holds any more, so it always equals the number of
@@ -350,7 +353,7 @@ namespace sgcl {
 
         // The buffer is replaced by one sized for the elements; a size class
         // may still round it up a little.
-        void shrink_to_fit() {
+        void shrink_to_fit() noexcept(_nothrow_relocate()) {
             if (size() < capacity()) {
                 if (empty()) {
                     _ptr = nullptr;
@@ -365,11 +368,11 @@ namespace sgcl {
             _destroy(_data(), size());
         }
 
-        iterator insert(const_iterator pos, const T& value) {
+        iterator insert(const_iterator pos, const T& value) noexcept(_nothrow_insert<const T&>()) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, T&& value) {
+        iterator insert(const_iterator pos, T&& value) noexcept(_nothrow_insert<T&&>()) {
             return emplace(pos, std::move(value));
         }
 
@@ -435,6 +438,19 @@ namespace sgcl {
                 }
                 auto data = _data();
                 auto tail = s - index;
+                // an append of plain bytes from contiguous memory: one copy
+                // and the count raised once. Raised per element below, the
+                // count is a store the compiler must redo after every
+                // element of a byte type (a byte may alias it): 4 KB
+                // appended to an io::buffer was a byte loop of 7
+                // instructions per byte
+                if constexpr(std::contiguous_iterator<InputIt> && std::is_same_v<std::iter_value_t<InputIt>, std::remove_cv_t<T>> && std::is_trivially_copyable_v<T> && !detail::TypeInfo<T>::MayContainTracked) {
+                    if (!tail) {
+                        detail::copy_bytes(static_cast<void*>(data + s), std::to_address(first), count * sizeof(T));
+                        _size = s + count;
+                        return begin() + index;
+                    }
+                }
                 // the elements past the old end are constructed before the
                 // ones over the tail are assigned (_insert_in_place): a
                 // cursor for each
@@ -456,7 +472,7 @@ namespace sgcl {
         }
 
         template<class... A>
-        iterator emplace(const_iterator pos, A&&... a) {
+        iterator emplace(const_iterator pos, A&&... a) noexcept(_nothrow_insert<A&&...>()) {
             auto index = (size_type)(pos - cbegin());
             auto s = size();
             if (index == s) {
@@ -483,11 +499,11 @@ namespace sgcl {
             return begin() + index;
         }
 
-        iterator erase(const_iterator pos) {
+        iterator erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>) {
             return pos == cend() ? end() : erase(pos, pos + 1);
         }
 
-        iterator erase(const_iterator first, const_iterator last) {
+        iterator erase(const_iterator first, const_iterator last) noexcept(std::is_nothrow_move_assignable_v<T>) {
             auto index = (size_type)(first - cbegin());
             auto count = (size_type)(last - first);
             if (count) {
@@ -505,18 +521,22 @@ namespace sgcl {
             return begin() + index;
         }
 
-        void push_back(const T& value) {
+        void push_back(const T& value) noexcept(_nothrow_emplace<const T&>()) {
             emplace_back(value);
         }
 
-        void push_back(T&& value) {
+        void push_back(T&& value) noexcept(_nothrow_emplace<T&&>()) {
             emplace_back(std::move(value));
         }
 
         // The common case is a few instructions and inlines into the
-        // caller's loop; the growth is a cold call.
+        // caller's loop; the growth is a cold call. Noexcept when the
+        // element's construction and the move of the others are: the
+        // length check of the growth stays, but a growth by one cannot
+        // pass max_size before the memory runs out (which ends the
+        // program), so in a noexcept push it would end the program too.
         template<class... A>
-        SGCL_INLINE_HOT reference emplace_back(A&&... a) {
+        SGCL_INLINE_HOT reference emplace_back(A&&... a) noexcept(_nothrow_emplace<A&&...>()) {
             if (auto data = _data()) {
                 auto s = _size;
                 if (s < _capacity) {
@@ -534,7 +554,7 @@ namespace sgcl {
             }
         }
 
-        void pop_back() {
+        void pop_back() noexcept {
             --_size;
             if constexpr(!std::is_trivially_destructible_v<T>) {
                 detail::Maker<T>::destroy(_data() + _size);
@@ -552,6 +572,9 @@ namespace sgcl {
                 }
                 auto data = _data();
                 if constexpr(_zero_is_value()) {
+                    // memset and not fill_bytes: growing by a few elements
+                    // into a buffer in cache, fill_bytes measured 4.7 -> 6.1
+                    // ns at 128 bytes (2026-10-03)
                     std::memset(static_cast<void*>(data + s), 0, (count - s) * sizeof(T));
                     _size = count;
                 } else {
@@ -606,7 +629,7 @@ namespace sgcl {
         // at all); emplace_back passes a small trivial element by value on
         // purpose, so that its variable is not pinned to memory
         template<class... A>
-        SGCL_NOINLINE reference _emplace_back_grow(A&&... a) {
+        SGCL_NOINLINE reference _emplace_back_grow(A&&... a) noexcept(_nothrow_emplace<A&&...>()) {
             auto s = size();
             _check_growth(s, 1);
             // the new element first: the arguments may refer to an element
@@ -622,6 +645,26 @@ namespace sgcl {
             return _value(data + s);
         }
 
+
+        // A reallocation moves the elements with move_if_noexcept: it
+        // throws only when neither the move nor the copy is nothrow
+        static constexpr bool _nothrow_relocate() noexcept {
+            return std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>;
+        }
+
+        // An element appended from the arguments, a growth moving the others
+        template<class... A>
+        static constexpr bool _nothrow_emplace() noexcept {
+            return std::is_nothrow_constructible_v<T, A...> && _nothrow_relocate();
+        }
+
+        // An element inserted before the end: constructed (in place within
+        // the capacity, as a temporary moved in), the tail moved up by
+        // construction and assignment
+        template<class... A>
+        static constexpr bool _nothrow_insert() noexcept {
+            return std::is_nothrow_constructible_v<T, A...> && std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>;
+        }
 
         // The buffer's header lies before its first element (array_base.h)
         static Header* _header(const T* data) noexcept {
@@ -663,7 +706,7 @@ namespace sgcl {
 
         // A fresh buffer for at least `n` elements (geometric growth from
         // the current capacity); replaces _ptr, the caller keeps the old one.
-        T* _allocate_at_least(size_type n) {
+        T* _allocate_at_least(size_type n) noexcept {
             auto grown = capacity() * 2;   // an old buffer is not freed at once but collected: doubling halves what waits (README, Containers)
             auto wanted = std::min(std::max(n, grown), max_size());
             return _allocate(wanted);
@@ -672,7 +715,7 @@ namespace sgcl {
         // A fresh buffer for n elements (its capacity may be more: the size
         // class, or past a page what the pages hold), taken over from the
         // maker's unique_ptr
-        T* _allocate(size_type n) {
+        T* _allocate(size_type n) noexcept {
             _ptr = unique_ptr<T>(detail::Maker<T[]>::make_tracked_data_in_whole_pages(n));
             auto data = _data();
             _capacity = _header(data)->capacity;
@@ -688,7 +731,7 @@ namespace sgcl {
 
         // A buffer of exactly `n` (reserve, shrink_to_fit): the elements
         // move over, the count follows.
-        void _reallocate(size_type n) {
+        void _reallocate(size_type n) noexcept(_nothrow_relocate()) {
             tracked_ptr<T> lock = _ptr;
             auto s = size();
             auto data = _allocate(n);
@@ -764,7 +807,7 @@ namespace sgcl {
         // s + count. The moved-from elements of the old buffer are
         // destroyed here, as std::vector does: a pointer to one of them is
         // invalid after a reallocation.
-        void _relocate(const tracked_ptr<T>& lock, T* data, size_type index, size_type count, size_type s) {
+        void _relocate(const tracked_ptr<T>& lock, T* data, size_type index, size_type count, size_type s) noexcept(_nothrow_relocate()) {
             auto old = lock.get_plain();
             if constexpr(std::is_trivially_copyable_v<T> && !detail::TypeInfo<T>::MayContainTracked) {
                 if (index) {
@@ -905,7 +948,7 @@ namespace sgcl {
                 (void)data;
                 _size = count;
             } else if constexpr(_zero_is_value()) {
-                std::memset(static_cast<void*>(data), 0, count * sizeof(T));
+                detail::fill_bytes(static_cast<void*>(data), 0, count * sizeof(T));
                 _size = count;
             } else {
                 _guarded([&] {
@@ -957,9 +1000,13 @@ namespace sgcl {
                     }
                 });
             } else {
-                for (; first != last; ++first) {
-                    emplace_back(*first);
-                }
+                // appended as they come: one that throws takes those
+                // appended before it along (the destructor will not run)
+                _guarded([&] {
+                    for (; first != last; ++first) {
+                        emplace_back(*first);
+                    }
+                });
             }
         }
     };
@@ -976,8 +1023,20 @@ namespace sgcl {
         using std::vector<unique_ptr<T>>::operator=;
     };
 
+    // `value` may be an element of v (erase(v, v[0])): remove moves the
+    // elements down over it, so that element is taken out of the
+    // comparison, erased by its address, and the others are compared
+    // with its value moved out (copied when its move may throw)
     template<class T, class U>
     size_t erase(vector<T>& v, const U& value) {
+        if constexpr(std::is_same_v<std::remove_cv_t<U>, T>) {
+            const T* data = v.data();
+            const T* p = std::addressof(value);
+            if (std::less_equal<const T*>()(data, p) && std::less<const T*>()(p, data + v.size())) {
+                T kept(std::move_if_noexcept(const_cast<T&>(value)));
+                return erase_if(v, [&](const T& e) { return std::addressof(e) == p || e == kept; });
+            }
+        }
         auto it = std::remove(v.begin(), v.end(), value);
         auto n = (size_t)(v.end() - it);
         v.erase(it, v.end());

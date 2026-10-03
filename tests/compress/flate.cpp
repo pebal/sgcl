@@ -384,24 +384,79 @@ TEST(Gzip_Tests, TheHeaderInLatin1BothWays) {
     EXPECT_EQ(got->extra.size(), 3u);
     EXPECT_EQ(got->os, 3);
     EXPECT_EQ(text(value_of(r.read_all())), "body");
-    // a name ISO 8859-1 cannot write
-    gzip::header bad;
-    bad.name = "\xE2\x82\xAC";   // €
-    sgcl::io::buffer sink2;
-    gzip::writer w2(sink2, {.header = bad});
-    auto e = w2.write(std::string("x"));
-    ASSERT_FALSE(e);
-    EXPECT_EQ(e.error().code(), compress::errc::invalid_argument);
 }
+
+// A name or a comment past ISO 8859-1 is written as its UTF-8 bytes, as
+// gzip(1) writes a file's name, and so is one whose ISO 8859-1 bytes would
+// read back as UTF-8 (Ã© is C3 A9, the UTF-8 of é); read, bytes that are
+// UTF-8 are taken as they are and others as ISO 8859-1: every text a
+// program writes reads back the same
+TEST(Gzip_Tests, TextPastLatin1IsWrittenAsUtf8) {
+    struct Case {
+        std::string text;
+        std::string written;
+    };
+    for (const Case& c : {Case{"\xE2\x82\xAC.txt", "\xE2\x82\xAC.txt"},                 // €.txt
+                          Case{"\xE6\x97\xA5\xE6\x9C\xAC", "\xE6\x97\xA5\xE6\x9C\xAC"},   // 日本
+                          Case{"\xC3\x83\xC2\xA9", "\xC3\x83\xC2\xA9"},                     // Ã©
+                          Case{"r\xC3\xA9sum\xC3\xA9", "r\xE9sum\xE9"},                       // résumé
+                          Case{"plain", "plain"}}) {
+        gzip::header h;
+        h.name = c.text;
+        h.comment = c.text;
+        auto packed = gzip::compress(bytes(std::string("body")), {.header = h});
+        std::string raw(reinterpret_cast<const char*>(packed.data()), packed.size());
+        std::string field = c.written + std::string(1, '\0');
+        EXPECT_EQ(raw.substr(10, field.size()), field) << c.text;
+        EXPECT_EQ(raw.substr(10 + field.size(), field.size()), field) << c.text;
+        gzip::reader r(dribble{raw, 2});
+        auto got = r.header();
+        ASSERT_TRUE(got) << got.error().message();
+        EXPECT_EQ(std::string(got->name.view()), c.text);
+        EXPECT_EQ(std::string(got->comment.view()), c.text);
+        EXPECT_EQ(text(value_of(r.read_all())), "body");
+    }
+    // the headers of other writers: gzip(1)'s UTF-8, Go's ISO 8859-1, and
+    // bytes that are neither, read as ISO 8859-1
+    for (const auto& [name, read] : {std::pair<std::string, std::string>{"\xC3\xA9", "\xC3\xA9"},
+                                     {"\xE9", "\xC3\xA9"},
+                                     {"\xFF\xFE", "\xC3\xBF\xC3\xBE"},
+                                     {"\xE2\x82", "\xC3\xA2\xC2\x82"}}) {
+        std::string member("\x1F\x8B\x08\x08\0\0\0\0\0\xFF", 10);
+        member += name + std::string(1, '\0');
+        member += std::string("\x03\x00", 2);   // an empty final block
+        member += std::string(8, '\0');          // the CRC-32 and the length of nothing
+        gzip::reader r(dribble{member, 3});
+        auto got = r.header();
+        ASSERT_TRUE(got) << got.error().message();
+        EXPECT_EQ(std::string(got->name.view()), read);
+        EXPECT_EQ(text(value_of(r.read_all())), "");
+    }
+}
+
+// What cannot throw is declared so: gzip's compress with the default
+// header, and the readers' async_close, which return the task of in's
+static_assert(noexcept(gzip::compress(std::declval<sgcl::slice<const std::byte>>())));
+static_assert(noexcept(gzip::compress(std::declval<sgcl::string>())));
+static_assert(noexcept(gzip::compress("text")));
+static_assert(!noexcept(gzip::compress("text", gzip::options{})));
+static_assert(noexcept(std::declval<flate::reader&>().async_close()));
+static_assert(noexcept(std::declval<zlib::reader&>().async_close()));
+static_assert(noexcept(std::declval<gzip::reader&>().async_close()));
+static_assert(noexcept(std::declval<compress::bzip2::reader&>().async_close()));
+static_assert(noexcept(std::declval<compress::lzw::reader&>().async_close()));
+static_assert(noexcept(std::declval<compress::lzma::reader&>().async_close()));
+static_assert(noexcept(std::declval<compress::xz::reader&>().async_close()));
+static_assert(noexcept(std::declval<compress::tar::reader&>().async_close()));
 
 // A header gzip cannot write is refused, never a stream without it
 TEST(Gzip_Tests, AHeaderItCannotWriteIsRefused) {
     gzip::header nul;
     nul.name = sgcl::string(std::string_view("a\0b", 3));
     EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = nul}), std::invalid_argument);
-    gzip::header euro;
-    euro.comment = "\xE2\x82\xAC";
-    EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = euro}), std::invalid_argument);
+    gzip::header comment_nul;
+    comment_nul.comment = sgcl::string(std::string_view("c\0d", 3));
+    EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = comment_nul}), std::invalid_argument);
     gzip::header extra;
     extra.extra.resize(70000);
     EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = extra}), std::invalid_argument);
@@ -410,6 +465,20 @@ TEST(Gzip_Tests, AHeaderItCannotWriteIsRefused) {
     auto e = w.write(std::string("x"));
     ASSERT_FALSE(e);
     EXPECT_EQ(e.error().code(), compress::errc::invalid_argument);
+    // the error says what is wrong with the header, the close gives it too
+    EXPECT_EQ(std::string(e.error().message().view()), "write gzip: a name with a NUL: invalid argument");
+    auto c = w.close();
+    ASSERT_FALSE(c);
+    EXPECT_EQ(std::string(c.error().message().view()), "write gzip: a name with a NUL: invalid argument");
+    gzip::writer quiet(sink, {.header = comment_nul});
+    auto closed = quiet.close();   // nothing written: the close finds it
+    ASSERT_FALSE(closed);
+    EXPECT_EQ(std::string(closed.error().message().view()), "close gzip: a comment with a NUL: invalid argument");
+    try {
+        (void)gzip::compress(bytes(std::string("hello")), {.header = extra});
+    } catch (const std::invalid_argument& x) {
+        EXPECT_STREQ(x.what(), "compress::gzip: an extra field longer than 65535 bytes");
+    }
 }
 
 TEST(Gzip_Tests, AFlippedCrcAndATruncatedTrailerFail) {
@@ -736,6 +805,85 @@ TEST(Flate_Tests, ThePositionsPastTheRebase) {
             d.reset();
         }
     }
+}
+
+// The one-shot compress uses a Deflater kept by the thread, reset to each
+// call's level without clearing its tables: on one thread, levels in a row
+// (tables growing, shrinking and coming back), with and without a
+// dictionary, small inputs and ones past the window, its output is byte
+// for byte that of a Deflater made for the call, and decodes. Again with
+// the rebase lowered to 256 KB, so that the kept positions reach it: a
+// stream that could reach it starts from cleared tables, as a new one
+// would (the rebase within a stream moves the chains' ring)
+TEST(Flate_Tests, TheThreadsDeflaterAcrossLevels) {
+    std::string t;
+    const std::string words = read_oracle("compress/gettysburg.txt");
+    std::mt19937 rng(17);
+    while (t.size() < 300000) {
+        t += words.substr(rng() % words.size() / 2, 200 + rng() % 300);
+    }
+    auto fresh = [](int level, const std::string& in, const std::string& dict) {
+        compress::detail::Deflater d(level, reinterpret_cast<const uint8_t*>(dict.data()), dict.size());
+        std::vector<uint8_t> out;
+        d.write(reinterpret_cast<const uint8_t*>(in.data()), in.size(), out);
+        d.finish(out);
+        return std::string(out.begin(), out.end());
+    };
+    const int levels[] = {6, 9, 1, 6, 0, compress::level::huffman_only, 7, 3, 9, 8, 2, 5, 4, 6, 0, 9};
+    const size_t sizes[] = {0, 16, 1024, 70000, 200000};
+    for (uint32_t bound : {uint32_t(1) << 31, uint32_t(1) << 18}) {
+        const uint32_t was = compress::detail::Deflater::rebase_at;
+        compress::detail::Deflater::rebase_at = bound;
+        for (int with_dictionary = 0; with_dictionary < 2; ++with_dictionary) {
+            for (int level : levels) {
+                for (size_t size : sizes) {
+                    const std::string in = t.substr(rng() % 1000, size);
+                    const std::string dict = with_dictionary ? t.substr(rng() % 50000, 1000 + rng() % 40000) : std::string();
+                    const std::string got = text(flate::compress(bytes(in), {.level = level, .dictionary = bytes(dict)}));
+                    ASSERT_EQ(got, fresh(level, in, dict)) << bound << " level " << level << " size " << size << " dictionary " << dict.size();
+                    std::string back = text(flate::decompress(bytes(got), {.dictionary = bytes(dict)}).value());
+                    ASSERT_EQ(back, in) << bound << " level " << level << " size " << size;
+                    const auto g = gzip::compress(bytes(in), {.level = level});
+                    ASSERT_EQ(text(gzip::decompress(bytes(text(g))).value()), in) << bound << " gzip level " << level << " size " << size;
+                }
+            }
+        }
+        compress::detail::Deflater::rebase_at = was;
+    }
+}
+
+// A compress made while the thread's Deflater is out (one inside another)
+// gets a Deflater of its own; the output is the same either way, and the
+// thread's is lent again once given back
+TEST(Flate_Tests, ACompressWhileTheThreadsDeflaterIsOut) {
+    const std::string dict = read_oracle("compress/gettysburg.txt");
+    const std::string t = dict.substr(50, 1200) + dict.substr(0, 700);
+    auto fresh = [&](int level) {
+        compress::detail::Deflater d(level);
+        std::vector<uint8_t> out;
+        d.write(reinterpret_cast<const uint8_t*>(t.data()), t.size(), out);
+        d.finish(out);
+        return std::string(out.begin(), out.end());
+    };
+    {
+        compress::detail::LentDeflater outer(9, nullptr, 0, t.size());
+        EXPECT_TRUE(outer.kept());
+        {
+            compress::detail::LentDeflater inner(1, nullptr, 0, t.size());
+            EXPECT_FALSE(inner.kept());
+            EXPECT_EQ(text(flate::compress(bytes(t), {.level = 6})), fresh(6));
+            std::vector<uint8_t> out;
+            inner->write(reinterpret_cast<const uint8_t*>(t.data()), t.size(), out);
+            inner->finish(out);
+            EXPECT_EQ(std::string(out.begin(), out.end()), fresh(1));
+        }
+        std::vector<uint8_t> out;
+        outer->write(reinterpret_cast<const uint8_t*>(t.data()), t.size(), out);
+        outer->finish(out);
+        EXPECT_EQ(std::string(out.begin(), out.end()), fresh(9));
+    }
+    compress::detail::LentDeflater again(6, nullptr, 0, t.size());
+    EXPECT_TRUE(again.kept());
 }
 
 // Huffman only with a dictionary: the history is kept for nothing (no

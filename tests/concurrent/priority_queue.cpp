@@ -3,16 +3,20 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-#include "tests/types.h"
+#include "tests/throwing.h"
+#include "tests/concurrent/together.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <climits>
+#include <initializer_list>
 #include <functional>
 #include <memory>
 #include <random>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -91,7 +95,7 @@ TEST(ConcurrentPriorityQueue_Test, CustomComparator) {
     sgcl::concurrent::priority_queue<int, std::greater<int>> q = {3, 9, 1, 7};
     EXPECT_EQ(*q.try_top(), 9);
     EXPECT_EQ(drain(q), (std::vector<int>{9, 7, 3, 1}));
-    auto longer = [](const std::string& a, const std::string& b) { return a.size() > b.size(); };
+    auto longer = [](const std::string& a, const std::string& b) noexcept { return a.size() > b.size(); };
     sgcl::concurrent::priority_queue<std::string, decltype(longer)> l(longer);
     l.push("a");
     l.push("ccc");
@@ -247,7 +251,7 @@ TEST(ConcurrentPriorityQueue_Test, MoveOnlyElements) {
 
         std::unique_ptr<int> value;
     };
-    auto by_value = [](const Payload& a, const Payload& b) { return *a.value < *b.value; };
+    auto by_value = [](const Payload& a, const Payload& b) noexcept { return *a.value < *b.value; };
     sgcl::concurrent::priority_queue<Payload, decltype(by_value)> q(by_value);
     q.push(Payload(3));
     q.emplace(1);
@@ -256,7 +260,7 @@ TEST(ConcurrentPriorityQueue_Test, MoveOnlyElements) {
     EXPECT_EQ(*q.pop().value, 2);
     EXPECT_EQ(*q.pop().value, 3);
     EXPECT_TRUE(q.empty());
-    auto by_ptr = [](const tracked_ptr<Payload>& a, const tracked_ptr<Payload>& b) { return *a->value < *b->value; };
+    auto by_ptr = [](const tracked_ptr<Payload>& a, const tracked_ptr<Payload>& b) noexcept { return *a->value < *b->value; };
     sgcl::concurrent::priority_queue<tracked_ptr<Payload>, decltype(by_ptr)> p(by_ptr);   // or behind a tracked_ptr, one word
     p.push(make_tracked<Payload>(3));
     p.push(make_tracked<Payload>(1));
@@ -423,4 +427,129 @@ TEST(ConcurrentPriorityQueue_Test, ConcurrentPopsInOrder) {
     for (auto& c : seen) {
         ASSERT_EQ(c.load(), 1);
     }
+}
+
+// Boundaries (DESIGN 408)
+
+// An empty queue (default, from an empty range, from an empty list) and
+// a queue of one: the pops and the look of nothing, clear of nothing, the
+// one element out; the least and the greatest values of the type, equal
+// ones in the order they came
+TEST(ConcurrentPriorityQueue_Test, EmptyOneAndExtremes) {
+    std::vector<int> none;
+    sgcl::concurrent::priority_queue<int> d;
+    sgcl::concurrent::priority_queue<int> r(none.begin(), none.end());
+    sgcl::concurrent::priority_queue<int> l(std::initializer_list<int>{});
+    for (auto* q : {&d, &r, &l}) {
+        EXPECT_TRUE(q->empty());
+        EXPECT_EQ(q->size(), 0u);
+        EXPECT_FALSE(q->try_pop());
+        EXPECT_FALSE(q->try_top());
+        q->clear();
+        EXPECT_TRUE(q->empty());
+    }
+    d.push(INT_MAX);
+    EXPECT_EQ(*d.try_top(), INT_MAX);
+    EXPECT_EQ(d.size(), 1u);
+    EXPECT_EQ(d.pop(), INT_MAX);
+    EXPECT_FALSE(d.try_top());
+    sgcl::concurrent::priority_queue<int> q = {0, INT_MAX, INT_MIN, INT_MAX, INT_MIN};
+    EXPECT_EQ(drain(q), (std::vector<int>{INT_MIN, INT_MIN, 0, INT_MAX, INT_MAX}));
+    sgcl::concurrent::priority_queue<Job, ByPriority> jobs;
+    for (int i = 0; i < 5; ++i) {
+        jobs.push(Job{i % 2 ? INT_MIN : INT_MAX, i});
+    }
+    std::vector<int> ids;
+    while (auto j = jobs.try_pop()) {
+        ids.push_back(j->id);
+    }
+    EXPECT_EQ(ids, (std::vector<int>{1, 3, 0, 2, 4}));   // equal ones first in, first out
+}
+
+// The queue's own element as the argument: a copy of the top pushed back
+// is a second element after the first
+TEST(ConcurrentPriorityQueue_Test, ItsOwnElementAsTheArgument) {
+    sgcl::concurrent::priority_queue<std::string> q = {std::string(64, 'a'), std::string(64, 'b')};
+    q.push(*q.try_top());
+    q.emplace(*q.try_top());
+    EXPECT_EQ(q.size(), 4u);
+    EXPECT_EQ(*q.try_pop(), std::string(64, 'a'));
+    EXPECT_EQ(*q.try_pop(), std::string(64, 'a'));
+    EXPECT_EQ(*q.try_pop(), std::string(64, 'a'));
+    EXPECT_EQ(*q.try_pop(), std::string(64, 'b'));
+}
+
+// The construction from a range whose element's copy throws: no queue,
+// the exception passed on (priority_queue.md: (3–4))
+TEST(ConcurrentPriorityQueue_Test, ARangeWhoseCopyThrows) {
+    using throwing::Val;
+    throwing::Disarm disarm;
+    std::vector<Val> in = {Val(3), Val(1), Val(2)};
+    throwing::countdown.copy = 3;
+    EXPECT_THROW((sgcl::concurrent::priority_queue<Val>(in.begin(), in.end())), throwing::Error);
+    throwing::countdown = {};
+    sgcl::concurrent::priority_queue<Val> q(in.begin(), in.end());
+    EXPECT_EQ(q.size(), 3u);
+    EXPECT_EQ(q.try_pop()->v, 1);
+}
+
+// Threads at the last element, many rounds: at the empty queue every
+// try_pop finds nothing; one element goes to one of them; a pop against a
+// clear: one of them has it, never both
+TEST(ConcurrentPriorityQueue_Test, ThreadsAtTheLastElement) {
+    sgcl::concurrent::priority_queue<int> q;
+    for (int round = 0; round < together::Rounds; ++round) {
+        std::atomic<int> got = {0}, empty = {0};
+        together::run(4, [&](int) {
+            empty += !q.try_pop();
+            empty += !q.try_top();
+        });
+        EXPECT_EQ(empty.load(), 8);
+        q.push(round);
+        together::run(4, [&](int) {
+            if (auto v = q.try_pop()) {
+                EXPECT_EQ(*v, round);
+                ++got;
+            }
+        });
+        EXPECT_EQ(got.load(), 1);
+        EXPECT_TRUE(q.empty());
+        q.push(round);
+        together::run(2, [&](int i) {
+            if (i == 0) {
+                (void)q.try_pop();
+            } else {
+                q.clear();
+            }
+        });
+        EXPECT_TRUE(q.empty());
+        EXPECT_EQ(q.size(), 0u);
+    }
+}
+
+// clear while threads wait in pop: it takes nothing from them and wakes
+// none for good; each element pushed afterwards goes to one waiter
+TEST(ConcurrentPriorityQueue_Test, ClearWhileOthersWait) {
+    const int waiters = 3;
+    sgcl::concurrent::priority_queue<int> q;
+    std::atomic<int> sum = {0}, done = {0};
+    std::vector<std::thread> ts;
+    for (int i = 0; i < waiters; ++i) {
+        ts.emplace_back([&] {
+            sum += q.pop();
+            ++done;
+        });
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    q.clear();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(done.load(), 0);
+    for (int i = 1; i <= waiters; ++i) {
+        q.push(i);
+    }
+    for (auto& t : ts) {
+        t.join();
+    }
+    EXPECT_EQ(sum.load(), 6);
+    EXPECT_TRUE(q.empty());
 }

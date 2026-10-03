@@ -141,12 +141,13 @@ namespace sgcl {
         : _size(0) {
         }
 
-        explicit list(size_type count)
+        // A throw leaves nothing: the chain is linked only once complete
+        explicit list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>)
         : list() {
             resize(count);
         }
 
-        list(size_type count, const T& value)
+        list(size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
         : list() {
             insert(end(), count, value);
         }
@@ -248,22 +249,22 @@ namespace sgcl {
             assign(ilist.begin(), ilist.end());
         }
 
-        reference front() {
+        reference front() noexcept {
             assert(!empty());
             return _value(_sentinel->next.get());
         }
 
-        const_reference front() const {
+        const_reference front() const noexcept {
             assert(!empty());
             return _value(_sentinel->next.get());
         }
 
-        reference back() {
+        reference back() noexcept {
             assert(!empty());
             return _value(_sentinel->prev.get());
         }
 
-        const_reference back() const {
+        const_reference back() const noexcept {
             assert(!empty());
             return _value(_sentinel->prev.get());
         }
@@ -338,7 +339,7 @@ namespace sgcl {
         }
 
         template<class... A>
-        iterator emplace(const_iterator pos, A&&... a) {
+        iterator emplace(const_iterator pos, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             NodeBase* p = _pos(pos);
             Link node;
             _make_node(node, std::forward<A>(a)...);
@@ -346,15 +347,15 @@ namespace sgcl {
             return iterator(node.get());
         }
 
-        iterator insert(const_iterator pos, const T& value) {
+        iterator insert(const_iterator pos, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, T&& value) {
+        iterator insert(const_iterator pos, T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return emplace(pos, std::move(value));
         }
 
-        iterator insert(const_iterator pos, size_type count, const T& value) {
+        iterator insert(const_iterator pos, size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             if (!count) {
                 return iterator(pos._node);
             }
@@ -373,7 +374,7 @@ namespace sgcl {
             return insert(pos, ilist.begin(), ilist.end());
         }
 
-        iterator erase(const_iterator pos) {
+        iterator erase(const_iterator pos) noexcept {
             NodeBase* node = pos._node;
             if (!node || node == _sentinel.get()) {
                 return iterator(node);
@@ -383,20 +384,20 @@ namespace sgcl {
             return iterator(next);
         }
 
-        iterator erase(const_iterator first, const_iterator last) {
+        iterator erase(const_iterator first, const_iterator last) noexcept {
             return iterator(_erase(first._node, last._node));
         }
 
-        void push_back(const T& value) {
+        void push_back(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_back(value);
         }
 
-        void push_back(T&& value) {
+        void push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_back(std::move(value));
         }
 
         template<class... A>
-        reference emplace_back(A&&... a) {
+        reference emplace_back(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             NodeBase* end = _end();
             Link node;
             _make_node(node, std::forward<A>(a)...);
@@ -404,16 +405,16 @@ namespace sgcl {
             return _value(node.get());
         }
 
-        void push_front(const T& value) {
+        void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_front(value);
         }
 
-        void push_front(T&& value) {
+        void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_front(std::move(value));
         }
 
         template<class... A>
-        reference emplace_front(A&&... a) {
+        reference emplace_front(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             NodeBase* end = _end();
             Link node;
             _make_node(node, std::forward<A>(a)...);
@@ -421,17 +422,17 @@ namespace sgcl {
             return _value(node.get());
         }
 
-        void pop_back() {
+        void pop_back() noexcept {
             assert(!empty());
             _erase_one(_sentinel->prev.get());
         }
 
-        void pop_front() {
+        void pop_front() noexcept {
             assert(!empty());
             _erase_one(_sentinel->next.get());
         }
 
-        void resize(size_type count) {
+        void resize(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>) {
             if (count > _size) {
                 NodeBase* end = _end();
                 Chain chain;
@@ -444,7 +445,7 @@ namespace sgcl {
             }
         }
 
-        void resize(size_type count, const T& value) {
+        void resize(size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             if (count > _size) {
                 _insert_n(_end(), count - _size, value);
             } else if (count < _size) {
@@ -457,16 +458,16 @@ namespace sgcl {
             std::swap(_size, other._size);
         }
 
-        void merge(list& other) {
+        void merge(list& other) noexcept(detail::nothrow_less<T>) {
             merge(other, std::less<>());
         }
 
-        void merge(list&& other) {
+        void merge(list&& other) noexcept(detail::nothrow_less<T>) {
             merge(other, std::less<>());
         }
 
         template<class Compare>
-        void merge(list&& other, Compare comp) {
+        void merge(list&& other, Compare comp) noexcept(detail::nothrow_callback<Compare, T&, T&>) {
             merge(other, comp);
         }
 
@@ -474,7 +475,7 @@ namespace sgcl {
         // the other list move over in one relink; the sizes follow each
         // move, so a throwing comparator leaves two valid lists.
         template<class Compare>
-        void merge(list& other, Compare comp) {
+        void merge(list& other, Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
             if (this == &other || other.empty()) {
                 return;
             }
@@ -505,7 +506,7 @@ namespace sgcl {
             }
         }
 
-        void splice(const_iterator pos, list& other) {
+        void splice(const_iterator pos, list& other) noexcept {
             if (this == &other || other.empty()) {
                 return;
             }
@@ -516,11 +517,11 @@ namespace sgcl {
             other._size = 0;
         }
 
-        void splice(const_iterator pos, list&& other) {
+        void splice(const_iterator pos, list&& other) noexcept {
             splice(pos, other);
         }
 
-        void splice(const_iterator pos, list& other, const_iterator it) {
+        void splice(const_iterator pos, list& other, const_iterator it) noexcept {
             NodeBase* node = it._node;
             if (!node || node == other._sentinel.get()) {
                 return;
@@ -536,14 +537,14 @@ namespace sgcl {
             }
         }
 
-        void splice(const_iterator pos, list&& other, const_iterator it) {
+        void splice(const_iterator pos, list&& other, const_iterator it) noexcept {
             splice(pos, other, it);
         }
 
         // A null `first` or `last` is the end() of `other` from before it
         // had a sentinel: an empty range, or one that ends at its sentinel
         // now (_erase)
-        void splice(const_iterator pos, list& other, const_iterator first, const_iterator last) {
+        void splice(const_iterator pos, list& other, const_iterator first, const_iterator last) noexcept {
             NodeBase* f = first._node;
             NodeBase* l = last._node;
             if (!f) {
@@ -567,13 +568,13 @@ namespace sgcl {
             _transfer(p, f, l->prev.get());
         }
 
-        void splice(const_iterator pos, list&& other, const_iterator first, const_iterator last) {
+        void splice(const_iterator pos, list&& other, const_iterator first, const_iterator last) noexcept {
             splice(pos, other, first, last);
         }
 
         // A value that is an element of this list is removed last, after
         // the comparisons that read it.
-        size_type remove(const T& value) {
+        size_type remove(const T& value) noexcept(detail::nothrow_equal<T>) {
             NodeBase* end = _sentinel.get();
             if (!end) {
                 return 0;
@@ -601,7 +602,7 @@ namespace sgcl {
         }
 
         template<class UnaryPredicate>
-        size_type remove_if(UnaryPredicate pred) {
+        size_type remove_if(UnaryPredicate pred) noexcept(std::is_nothrow_invocable_v<UnaryPredicate&, T&>) {
             NodeBase* end = _sentinel.get();
             if (!end) {
                 return 0;
@@ -634,12 +635,12 @@ namespace sgcl {
             } while (node != end);
         }
 
-        size_type unique() {
+        size_type unique() noexcept(detail::nothrow_equal<T>) {
             return unique([](const T& a, const T& b) { return a == b; });
         }
 
         template<class BinaryPredicate>
-        size_type unique(BinaryPredicate pred) {
+        size_type unique(BinaryPredicate pred) noexcept(std::is_nothrow_invocable_v<BinaryPredicate&, T&, T&>) {
             NodeBase* end = _sentinel.get();
             if (!end) {
                 return 0;
@@ -662,7 +663,7 @@ namespace sgcl {
             return removed;
         }
 
-        void sort() {
+        void sort() noexcept(detail::nothrow_less<T>) {
             sort(std::less<>());
         }
 
@@ -670,7 +671,7 @@ namespace sgcl {
         // list, never detached, so a throwing comparator leaves a valid
         // list of the same elements.
         template<class Compare>
-        void sort(Compare comp) {
+        void sort(Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
             if (_size < 2) {
                 return;
             }
@@ -697,7 +698,7 @@ namespace sgcl {
             }
 
             template<class... A>
-            void emplace_back(A&&... a) {
+            void emplace_back(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
                 Link node;
                 _make_node(node, std::forward<A>(a)...);
                 if (last) {
@@ -718,7 +719,7 @@ namespace sgcl {
             return end ? end->next.get() : nullptr;
         }
 
-        NodeBase* _end() {
+        NodeBase* _end() noexcept {
             if (!_sentinel) {
                 _sentinel = make_tracked<NodeBase>();
                 NodeBase* end = _sentinel.get();
@@ -730,7 +731,7 @@ namespace sgcl {
 
         // The node an iterator names; end() of a list that had no sentinel
         // yet is null and means the end.
-        NodeBase* _pos(const const_iterator& it) {
+        NodeBase* _pos(const const_iterator& it) noexcept {
             NodeBase* end = _end();
             NodeBase* node = it._node;
             return node ? node : end;
@@ -752,7 +753,7 @@ namespace sgcl {
 
         // A node with its element constructed, held by `node`
         template<class... A>
-        static void _make_node(Link& node, A&&... a) {
+        static void _make_node(Link& node, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             node = make_tracked<Node>();
             _slot(node.get()).construct(std::forward<A>(a)...);
         }
@@ -814,7 +815,7 @@ namespace sgcl {
 
         // The insertions of several: the nodes made into a chain first,
         // rooted by it, linked in at once
-        NodeBase* _insert_n(NodeBase* pos, size_type count, const T& value) {
+        NodeBase* _insert_n(NodeBase* pos, size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             Chain chain;
             for (; count; --count) {
                 chain.emplace_back(value);
@@ -835,7 +836,7 @@ namespace sgcl {
         // iterator is the end() of a list that had no sentinel yet: as the
         // start of a range it makes the range empty, as its end it means
         // the sentinel the list has by now.
-        NodeBase* _erase(NodeBase* first, NodeBase* last) {
+        NodeBase* _erase(NodeBase* first, NodeBase* last) noexcept {
             if (!first) {
                 return last;
             }
@@ -967,13 +968,20 @@ namespace sgcl {
         using std::list<unique_ptr<T>>::list;
     };
 
+    // A value of the element type goes through remove, which erases an
+    // element the value refers to last, after the comparisons that read it
+    // (erase(l, l.front()))
     template<class T, class U>
-    typename list<T>::size_type erase(list<T>& c, const U& value) {
-        return c.remove_if([&](const auto& element) { return element == value; });
+    typename list<T>::size_type erase(list<T>& c, const U& value) noexcept(detail::nothrow_equal<T, U>) {
+        if constexpr(std::is_same_v<std::remove_cv_t<U>, T>) {
+            return c.remove(value);
+        } else {
+            return c.remove_if([&](const T& element) noexcept(detail::nothrow_equal<T, U>) { return element == value; });
+        }
     }
 
     template<class T, class Pred>
-    typename list<T>::size_type erase_if(list<T>& c, Pred pred) {
+    typename list<T>::size_type erase_if(list<T>& c, Pred pred) noexcept(noexcept(c.remove_if(pred))) {
         return c.remove_if(pred);
     }
 }

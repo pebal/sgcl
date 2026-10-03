@@ -28,7 +28,7 @@ namespace sgcl::io {
 
     // The command line, argv[0] first: from the platform (the loader's
     // copy on macOS, /proc on Linux), no main needed
-    inline vector<string> args() {
+    inline vector<string> args() noexcept {
         vector<string> out;
 #if defined(__APPLE__)
         int argc = *_NSGetArgc();
@@ -55,7 +55,7 @@ namespace sgcl::io {
 
     // A variable: its value, nullopt when unset (an empty value is a
     // value); set and unset
-    inline optional<string> getenv(const string& name) {
+    inline optional<string> getenv(const string& name) noexcept {
         const char* v = ::getenv(name.c_str());
         if (!v) {
             return nullopt;
@@ -141,7 +141,7 @@ namespace sgcl::io {
     }
 
     // The text form: the variable, or the fallback when it is unset or empty
-    inline string env(const string& name, const string& fallback) {
+    inline string env(const string& name, const string& fallback) noexcept {
         const char* v = ::getenv(name.c_str());
         if (!v || !*v) {
             return fallback;
@@ -149,21 +149,21 @@ namespace sgcl::io {
         return string(v);
     }
 
-    inline expected<void, error> setenv(const string& name, const string& value) {
+    inline expected<void, error> setenv(const string& name, const string& value) noexcept {
         if (::setenv(name.c_str(), value.c_str(), 1) != 0) {
             return detail::fail(last_error("setenv", name));
         }
         return {};
     }
 
-    inline expected<void, error> unsetenv(const string& name) {
+    inline expected<void, error> unsetenv(const string& name) noexcept {
         if (::unsetenv(name.c_str()) != 0) {
             return detail::fail(last_error("unsetenv", name));
         }
         return {};
     }
 
-    inline vector<pair<string, string>> environ() {
+    inline vector<pair<string, string>> environ() noexcept {
 #if defined(__APPLE__)
         char** env = *_NSGetEnviron();
 #else
@@ -184,7 +184,7 @@ namespace sgcl::io {
 
     // "$NAME" and "${NAME}" in s replaced by the variable, unset ones by
     // ""; a name is letters, digits and '_'
-    inline string expand_env(const string& text) {
+    inline string expand_env(const string& text) noexcept {
         std::string_view s(text);
         std::string out;
         auto is_name = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
@@ -223,7 +223,7 @@ namespace sgcl::io {
         return string(out);
     }
 
-    inline expected<string, error> working_dir() {
+    inline expected<string, error> working_dir() noexcept {
         char buf[4096];
         if (!::getcwd(buf, sizeof buf)) {
             return detail::fail(last_error("getcwd"));
@@ -231,7 +231,7 @@ namespace sgcl::io {
         return string(buf);
     }
 
-    inline expected<void, error> chdir(const string& path) {
+    inline expected<void, error> chdir(const string& path) noexcept {
         if (::chdir(path.c_str()) != 0) {
             return detail::fail(last_error("chdir", path));
         }
@@ -243,7 +243,7 @@ namespace sgcl::io {
     // (~/Library/Caches and ~/Library/Application Support on macOS,
     // $XDG_CACHE_HOME or ~/.cache and $XDG_CONFIG_HOME or ~/.config
     // elsewhere); the temporary directory ($TMPDIR, else /tmp)
-    inline expected<string, error> home_dir() {
+    inline expected<string, error> home_dir() noexcept {
         if (auto h = getenv("HOME"); h && !h->empty()) {
             return *h;
         }
@@ -253,7 +253,7 @@ namespace sgcl::io {
         return detail::fail(error(std::make_error_code(std::errc::no_such_file_or_directory), "home_dir"));
     }
 
-    inline expected<string, error> cache_dir() {
+    inline expected<string, error> cache_dir() noexcept {
 #if defined(__APPLE__)
         auto h = home_dir();
         if (!h) {
@@ -272,7 +272,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<string, error> config_dir() {
+    inline expected<string, error> config_dir() noexcept {
 #if defined(__APPLE__)
         auto h = home_dir();
         if (!h) {
@@ -291,13 +291,13 @@ namespace sgcl::io {
 #endif
     }
 
-    inline string temp_dir() {
+    inline string temp_dir() noexcept {
         return detail::temp_root();
     }
 
     // The running executable's path, symlinks resolved; the host's
     // name; the process id
-    inline expected<string, error> executable() {
+    inline expected<string, error> executable() noexcept {
         char buf[4096];
 #if defined(__APPLE__)
         uint32_t size = sizeof buf;
@@ -318,7 +318,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<string, error> hostname() {
+    inline expected<string, error> hostname() noexcept {
         char buf[256];
         if (::gethostname(buf, sizeof buf) != 0) {
             return detail::fail(last_error("hostname"));
@@ -386,7 +386,7 @@ namespace sgcl::io {
             return _get().read(buffer);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) {
+        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) noexcept {
             return _get().async_read(buffer);
         }
 
@@ -394,13 +394,13 @@ namespace sgcl::io {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) {
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) noexcept {
             return _get().async_write(data);
         }
 
         // The file over the descriptor, for what takes a file (a child's
         // standard stream shared with the program's: cmd.out = io::stdout.file())
-        io::file file() const {
+        io::file file() const noexcept {
             return detail::FileAccess::make(_held().ptr());
         }
 
@@ -413,14 +413,14 @@ namespace sgcl::io {
         }
 
     private:
-        detail::FileState& _get() const {
+        detail::FileState& _get() const noexcept {
             return *_held();
         }
 
         // Made once, on the first use, by whichever thread comes first;
         // never destroyed: a root whose cell outlives the static
         // destructors that may still write to the stream
-        root_ptr<detail::FileState>& _held() const {
+        root_ptr<detail::FileState>& _held() const noexcept {
             root_ptr<detail::FileState>* p = _file.load(std::memory_order_acquire);
             if (!p) {
                 auto made = new root_ptr<detail::FileState>(detail::std_stream(_fd, _name));
@@ -449,7 +449,7 @@ namespace sgcl::io {
 
     // Ends the process with the code now: the C streams flushed, no
     // destructor run
-    [[noreturn]] inline void exit(int code) {
+    [[noreturn]] inline void exit(int code) noexcept {
         std::fflush(nullptr);
         ::_exit(code);
     }

@@ -337,3 +337,44 @@ TEST(Timeout_Tests, ARaceOverATaskOfAnExpected) {
     std::this_thread::sleep_for(350ms);  // the loser's end
     sgcl::async::scheduler::stop();
 }
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+
+    template<class F>
+    bool soon(F&& f) {
+        auto until = Clock::now() + 5s;
+        while (!f()) {
+            if (Clock::now() > until) {
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
+    }
+}
+
+// A race won by a task that ends on an executor's thread, the workers
+// stopped, while the race's own task (run by hand) has no executor: its
+// wake cannot start the workers. The race's call into it is noexcept: the
+// task is not lost, and runs when the workers next start
+TEST(Timeout_Tests, ARaceWonWhereTheWorkersCannotStartLosesNoAwaiter) {
+    sgcl::async::scheduler::stop();
+    sgcl::async::executor ex;
+    auto t = ex.spawn([]() -> task<int> { co_return 6; }());   // queued on ex, run by its poll
+    auto race = sgcl::async::with_timeout(std::move(t), 1h);
+    race.resume();                                             // by hand: the race armed, its call installed
+    sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    EXPECT_EQ(ex.poll(), 1u);                                  // the task runs here, wins, and makes the race ready
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_FALSE(race.done());
+    (void)sgcl::async::scheduler::workers();
+    ASSERT_TRUE(soon([&] { return race.done(); }));
+    ASSERT_TRUE(race.result().has_value());
+    EXPECT_EQ(*race.result(), 6);
+    sgcl::async::scheduler::stop();
+}

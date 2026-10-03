@@ -5,8 +5,10 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "copy.h"
 #include "stream.h"
 #include "../../io/file.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstdint>
 #include <cstring>
@@ -21,13 +23,13 @@ namespace sgcl::compress::detail {
         uint64_t size = 0;
         bool owned = false;   // opened by the archive from a path: closed by its close()
 
-        expected<size_t, io::error> read_at(uint8_t* dst, size_t n, uint64_t off) const {
+        expected<size_t, io::error> read_at(uint8_t* dst, size_t n, uint64_t off) const noexcept {
             if (!file) {
                 if (off >= memory.size()) {
                     return 0;
                 }
                 size_t k = size_t(std::min<uint64_t>(n, memory.size() - off));
-                std::memcpy(dst, bytes(memory) + off, k);
+                copy_out(dst, bytes(memory) + off, k);
                 return k;
             }
             size_t got = 0;
@@ -46,7 +48,7 @@ namespace sgcl::compress::detail {
 
         // A task's: the file's read runs on the blocking pool, so dst is
         // managed memory, and the slices given to the file carry its owner
-        async::task<expected<size_t, io::error>> async_read_at(slice<byte> dst, uint64_t off) const {
+        async::task<expected<size_t, io::error>> async_read_at(slice<byte> dst, uint64_t off) const noexcept {
             if (!file) {
                 co_return read_at(reinterpret_cast<uint8_t*>(dst.data()), dst.size(), off);
             }

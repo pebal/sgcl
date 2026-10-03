@@ -30,6 +30,27 @@ namespace sgcl::detail {
     // containers value-initialize their elements themselves (vector.h,
     // dynamic_array.h: _make_at).
     class MakerBase {
+    public:
+        // Whether constructing a T from A cannot throw: the constructor's
+        // own noexcept, looked at from here, so that a type with private
+        // constructors that befriends MakerBase is seen as it is
+        // (std::is_nothrow_constructible sees no private constructor and
+        // says false, and a noexcept caller got a terminate stub for it)
+        template<class T, class... A>
+        static constexpr bool nothrow_constructible = noexcept(::new (static_cast<void*>(nullptr)) T(std::declval<A>()...));
+
+        // Every managed allocation of the library comes through here (the
+        // makers below, the strings: string_data.h). It never fails: running
+        // out of managed memory is handled where it can happen, the page
+        // allocator's refill and the large object's range (page_allocator.h,
+        // object_allocator.h): a full collection, one more try, then the end
+        // of the program (heap.h: out_of_managed_memory, DESIGN 356). Nothing
+        // here checks, so the fast path is the allocator's.
+        template<class Allocator, class Init>
+        SGCL_ALWAYS_INLINE static auto allocate(Allocator& allocator, size_t size, Init&& init) noexcept {
+            return allocator.alloc(size, init);
+        }
+
     protected:
         template<class T, class ...A>
         static void _construct(void* p, A&&... a) {
@@ -75,7 +96,7 @@ namespace sgcl::detail {
         // A new object of T, constructed from the arguments; a root through
         // the UniquePtr until it is handed to a tracked_ptr
         template<class ...A>
-        static UniquePtr<T> make_tracked(A&&... a) {
+        static UniquePtr<T> make_tracked(A&&... a) noexcept(nothrow_constructible<Type, A...>) {
             return _make(std::forward<A>(a)...);
         }
 
@@ -87,11 +108,12 @@ namespace sgcl::detail {
         // constructor that stored a tracked_ptr into the object would leave
         // the target unrooted; a cell's word is not traced at all.
         template<class ...A>
-        static UniquePtr<T> make_tracked_before_publish(A&&... a) {
+        static UniquePtr<T> make_tracked_before_publish(A&&... a) noexcept {
             static_assert(!Info::MayContainTracked, "a type constructed before publication may not hold tracked pointers");
+            static_assert(nothrow_constructible<Type, A...>, "a type constructed before publication is constructed inside the allocator, which is noexcept");
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
-            auto mem = allocator.alloc(0, [&](void* p) {
+            auto mem = allocate(allocator, 0, [&](void* p) noexcept {
                 _construct<Type>(p, std::forward<A>(a)...);
             });
             return UniquePtr<T>((Type*)mem);
@@ -101,7 +123,7 @@ namespace sgcl::detail {
         // fills (a trivial type; the slot holds null words at the pointer
         // offsets and, elsewhere, zeros or what its last user left)
         template<class ...A>
-        static UniquePtr<T> make_tracked_data() {
+        static UniquePtr<T> make_tracked_data() noexcept {
             return _make_data();
         }
 
@@ -135,19 +157,21 @@ namespace sgcl::detail {
         // (_init), the object constructed in it after the slot came out
         // (in state UniqueLock: the constructor's stores are barrier stores)
         template<class ...A>
-        static UniquePtr<T> _make(A&&... a) {
+        static UniquePtr<T> _make(A&&... a) noexcept(nothrow_constructible<Type, A...>) {
             auto& thread = current_thread();
+            SGCL_TSAN_RELEASE(thread.barrier_word);   // as a barrier's end does (types.h: BarrierRegion)
             auto& allocator = thread.alocator<Type>();
-            auto mem = allocator.alloc(0, _init);
+            auto mem = allocate(allocator, 0, _init);
             _construct_and_register<Type>(mem, std::forward<A>(a)...);
             return UniquePtr<T>((Type*)mem);
         }
 
         // A slot without a construction (make_tracked_data: raw storage)
-        static UniquePtr<T> _make_data() {
+        static UniquePtr<T> _make_data() noexcept {
             auto& thread = current_thread();
+            SGCL_TSAN_RELEASE(thread.barrier_word);   // as a barrier's end does (types.h: BarrierRegion)
             auto& allocator = thread.alocator<Type>();
-            auto mem = allocator.alloc(0, _init);
+            auto mem = allocate(allocator, 0, _init);
             return UniquePtr<T>((Type*)mem);
         }
     };
@@ -247,6 +271,50 @@ namespace sgcl::detail {
 
     static_assert(buffer_classes_valid(std::make_index_sequence<buffer_classes.size()>()), "the buffer size classes do not fill their slots and pages");
 
+    // The size classes as data: every class its own pool (its own
+    // Metadata, pages and slab, as a type of its own), described by a row
+    // of constants, its buffers made by one function for all classes and
+    // element types (ArrayMaker::_alloc_class; a function per class, element
+    // size and zeroing was code for each, and the classes of a page all of
+    // it for every element size used). The type of a class's objects stays
+    // Array<class> for the statistics.
+    template<size_t Size>
+    constexpr TypeConstants buffer_class_constants_of() noexcept {
+        using Info = TypeInfo<Array<Size>>;
+        static_assert(Info::Allocator::IsPoolAllocator::value && !Info::MayContainTracked && !Info::get_destroy_function());
+        return Metadata::constants_of<Array<Size>>();
+    }
+
+    template<size_t... I>
+    constexpr std::array<TypeConstants, sizeof...(I)> buffer_class_constants_of(std::index_sequence<I...>) noexcept {
+        return {buffer_class_constants_of<buffer_classes[I]>()...};
+    }
+
+    inline constexpr auto buffer_class_constants = buffer_class_constants_of(std::make_index_sequence<buffer_classes.size()>());
+
+    // The most elements of `object_size` bytes a buffer may be asked for:
+    // their bytes with the header, rounded up to whole pages, still fit in
+    // size_t (bytes + sizeof(ArrayBase) <= 2^N - page_size), so no
+    // sum of _make_array or the range's allocator wraps. A capacity past it
+    // is a buffer no memory holds: the program ends as when the heap
+    // refuses one (heap.h: out_of_managed_memory).
+    constexpr size_t buffer_max_capacity(size_t object_size) noexcept {
+        return (size_t(-1) - sizeof(ArrayBase) - (config::page_size - 1)) / object_size;
+    }
+
+    // The pools of the classes: per class its number among the allocators
+    // of every thread (thread.h: pool_allocator; 0 until its first use) and
+    // its Metadata, made on the first use of the class on any thread
+    // (Metadata::of_pool). Both constinit: no guard and no order of
+    // initialization. Each on cache lines of its own: the slots are read
+    // by every buffer's allocation, and placed after the collector's
+    // counters, which it writes every cycle (memory_counters.h), they
+    // shared a line with them (the classes of a page measured 4-9% slower).
+    struct BufferPools {
+        alignas(config::cache_line_size) inline static constinit std::atomic<unsigned> slots[buffer_classes.size()] = {};
+        alignas(config::cache_line_size) inline static constinit std::atomic<Metadata*> metadata[buffer_classes.size()] = {};
+    };
+
     class ArrayMaker : MakerBase {
     protected:
         // The header (the element type's metadata, the capacity) is written
@@ -272,36 +340,57 @@ namespace sgcl::detail {
             }
         };
 
-        // A buffer of the size class T (Array<N>, below) with `data_size`
-        // bytes past it, from the thread's allocator for that class: the
-        // address of its first element, the slot kept by its state
-        // (UniqueLock, set by the allocator) until the caller hands it to a
-        // UniquePtr, which nothing between the two can prevent
+        // A buffer past a page (Array<>, the allocator of a range) with
+        // `data_size` bytes past it: the address of its first element, the
+        // range kept by its state (UniqueLock, set by the allocator) until
+        // the caller hands it to a UniquePtr, which nothing between the two
+        // can prevent
         template<class T>
-        static void* _alloc(size_t data_size, const Header& header) {
+        static void* _alloc(size_t data_size, const Header& header) noexcept {
             using Info = TypeInfo<T>;
             using Type = typename Info::Type;
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
-            auto mem = allocator.alloc(data_size, header);
+            auto mem = allocate(allocator, data_size, header);
             return ((Type*)mem)->data;
         }
 
-        // A buffer of the size class Size for elements of ObjectSize bytes,
-        // its capacity what the class holds: the capacity and the zeroing
-        // are constants in it
-        template<size_t Size, size_t ObjectSize, bool Zero>
-        static void* _alloc_class(ArrayMetadata* metadata) {
-            return _alloc<Array<Size>>(0, Header{metadata, Size / ObjectSize, ObjectSize, Zero});
+        // A buffer of the size class c (buffer_classes) for `capacity`
+        // elements of `object_size` bytes, what the class holds, from the
+        // thread's allocator for the class; kept as _alloc's. One body for
+        // every class and element type, the header's fields in registers
+        // (a Header passed by reference went through the stack). The small
+        // classes' chain calls it with constants and the compiler may
+        // inline it there (as it did the function of each class: for the
+        // smallest buffers a call costs a nanosecond more); the classes of
+        // a page call it out of line (_alloc_page_class).
+        static void* _alloc_class(unsigned c, ArrayMetadata* metadata, size_t capacity, size_t object_size, bool zero) noexcept {
+            auto& allocator = current_thread().pool_allocator(BufferPools::slots[c], [c]() -> Metadata& {
+                return Metadata::of_pool(BufferPools::metadata[c], buffer_class_constants[c]);
+            });
+            auto mem = allocate(allocator, 0, Header{metadata, capacity, object_size, zero});
+            return ((Array<>*)mem)->data;
         }
 
-        // The classes of a page: a table of their functions, indexed by
-        // buffer_large_class_index
-        using AllocClass = void* (*)(ArrayMetadata*);
+        // The class c of a page (found by buffer_large_class_index), one
+        // function for all of them
+        SGCL_NOINLINE static void* _alloc_page_class(unsigned c, ArrayMetadata* metadata, size_t capacity, size_t object_size, bool zero) noexcept {
+            return _alloc_class(c, metadata, capacity, object_size, zero);
+        }
 
-        template<size_t ObjectSize, bool Zero, size_t... I>
-        static constexpr std::array<AllocClass, sizeof...(I)> _class_entries(std::index_sequence<I...>) {
-            return {&_alloc_class<buffer_classes[I], ObjectSize, Zero>...};
+        // Zeroed when the element type may hold tracked pointers and its
+        // map still has a pointer offset: a map emptied by elimination
+        // (child_pointers.h; it only loses offsets) proves the elements
+        // hold none, and the collector, which reads the elements only
+        // while the map has an offset (collector.h: _mark_array_childs),
+        // never reads this buffer's leftovers. One relaxed load per buffer.
+        template<bool Zero>
+        static bool _zero(const ArrayMetadata* metadata) noexcept {
+            if constexpr(Zero) {
+                return metadata->child_pointers.any.load(std::memory_order_relaxed);
+            } else {
+                return false;
+            }
         }
 
         // A buffer for at least `capacity` elements: from a pool of a size
@@ -316,27 +405,34 @@ namespace sgcl::detail {
         // and would only have more slots to zero and to trace.
         // The small classes are a chain of comparisons, one class after
         // another from the smallest, inlined whole into the caller (for the
-        // smallest buffers, the most frequent, a call through the table
-        // costs a nanosecond more); past them the table of the classes of a
-        // page, then the range.
+        // smallest buffers, the most frequent, a call through a table of
+        // the classes cost a nanosecond more); past them the class of a
+        // page found by buffer_large_class_index (a direct call), then the
+        // range. A capacity past buffer_max_capacity ends the program, one
+        // comparison with a constant before the chain.
         template<size_t ObjectSize, bool Zero, size_t I = 0>
-        static UniquePtr<void> _make_array(size_t capacity, ArrayMetadata* metadata, bool whole_pages) {
+        static UniquePtr<void> _make_array(size_t capacity, ArrayMetadata* metadata, bool whole_pages) noexcept {
+            if constexpr(I == 0) {
+                if (capacity > buffer_max_capacity(ObjectSize)) [[unlikely]] {
+                    out_of_managed_memory();
+                }
+            }
             const size_t bytes = ObjectSize * capacity;
             if constexpr(I < buffer_small_classes) {
                 if (bytes <= buffer_classes[I]) {
-                    return UniquePtr<void>(_alloc_class<buffer_classes[I], ObjectSize, Zero>(metadata));
+                    return UniquePtr<void>(_alloc_class(I, metadata, buffer_classes[I] / ObjectSize, ObjectSize, _zero<Zero>(metadata)));
                 }
                 return _make_array<ObjectSize, Zero, I + 1>(capacity, metadata, whole_pages);
             } else {
                 if (bytes <= buffer_classes.back()) {
-                    static constexpr auto table = _class_entries<ObjectSize, Zero>(std::make_index_sequence<buffer_classes.size()>());
-                    return UniquePtr<void>(table[buffer_large_class_index(bytes)](metadata));
+                    auto c = buffer_large_class_index(bytes);
+                    return UniquePtr<void>(_alloc_page_class(unsigned(c), metadata, buffer_classes[c] / ObjectSize, ObjectSize, _zero<Zero>(metadata)));
                 }
                 if (whole_pages) {
                     auto pages = (bytes + sizeof(ArrayBase) + config::page_size - 1) / config::page_size;
                     capacity = (pages * config::page_size - sizeof(ArrayBase)) / ObjectSize;
                 }
-                return UniquePtr<void>(_alloc<Array<>>(ObjectSize * capacity + sizeof(ArrayBase) - sizeof(Array<>), Header{metadata, capacity, ObjectSize, Zero}));
+                return UniquePtr<void>(_alloc<Array<>>(ObjectSize * capacity + sizeof(ArrayBase) - sizeof(Array<>), Header{metadata, capacity, ObjectSize, _zero<Zero>(metadata)}));
             }
         }
     };
@@ -355,7 +451,7 @@ namespace sgcl::detail {
         static_assert(alignof(T) <= alignof(ArrayBase), "array elements aligned beyond 16 bytes are not supported");
     public:
         // A buffer for `capacity` elements of T
-        static UniquePtr<T> make_tracked_data(size_t capacity) {
+        static UniquePtr<T> make_tracked_data(size_t capacity) noexcept {
             auto p = _make_array<sizeof(T), Info::MayContainTracked>(capacity, &Info::array_metadata(), false);
             return UniquePtr<T>((T*)p.release());
         }
@@ -363,7 +459,7 @@ namespace sgcl::detail {
         // A buffer for at least `capacity` elements of T, past a page as
         // many as its pages hold: for a container that reads the capacity
         // back from the header and grows from it (vector)
-        static UniquePtr<T> make_tracked_data_in_whole_pages(size_t capacity) {
+        static UniquePtr<T> make_tracked_data_in_whole_pages(size_t capacity) noexcept {
             auto p = _make_array<sizeof(T), Info::MayContainTracked>(capacity, &Info::array_metadata(), true);
             return UniquePtr<T>((T*)p.release());
         }

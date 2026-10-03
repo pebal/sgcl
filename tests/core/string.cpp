@@ -14,11 +14,25 @@
 #include <ranges>
 #include <cstdlib>
 #include <cstring>
+#include <latch>
 #include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
+
+// What cannot throw is noexcept: a part of the string (its length was
+// checked when it was made), the pieces of a split, the text of a number;
+// a new string whose length may pass the maximum throws length_error
+static_assert(noexcept(std::declval<const sgcl::string&>().trim()));
+static_assert(noexcept(std::declval<const sgcl::string&>().trim_prefix("a")));
+static_assert(noexcept(std::declval<const sgcl::string&>().split(',')));
+static_assert(noexcept(std::declval<const sgcl::string&>().fields().begin()));
+static_assert(noexcept(sgcl::to_string(42)));
+static_assert(!noexcept(std::declval<const sgcl::string&>().repeat(2)));
+static_assert(!noexcept(std::declval<const sgcl::string&>().substr(1)));   // out_of_range
+static_assert(!noexcept(sgcl::string(std::string_view("a"))));
 
 namespace {
     SGCL_ALWAYS_INLINE void settle() {
@@ -314,6 +328,18 @@ TEST(String_Tests, SplitByAViewKeepsAShortSeparatorInside) {
     EXPECT_EQ(wstring::join(w.split(std::wstring_view(L"::")), L"-"), L"a-b");
 }
 
+// How the pieces are found is the function's that made the range (split by
+// a separator, by characters, fields): no name of the range's own
+namespace {
+    template<class P>
+    concept NamesItsMode = requires { typename P::Mode; } || requires { P::Separator; };
+}
+
+TEST(String_Tests, PiecesKeepTheirModeToThemselves) {
+    static_assert(!NamesItsMode<string::pieces>);
+    static_assert(!NamesItsMode<wstring::pieces>);
+}
+
 TEST(String_Tests, SplitAndFieldsAreARangeOfViewsJoinTakesAnyRange) {
     string csv = "a,b,,c";
     static_assert(std::ranges::forward_range<string::pieces>);
@@ -370,7 +396,7 @@ TEST(String_Tests, SplitAndFieldsAreARangeOfViewsJoinTakesAnyRange) {
     EXPECT_EQ(string::join(csv.fields(), std::string_view(", ")), "a,b,,c");
     std::vector<std::string_view> views = {"x", "y", "z"};       // any range of what a view is made of
     EXPECT_EQ(string::join(views, ""), "xyz");
-    EXPECT_EQ(string::join(std::vector<string>{}, ","), "");
+    EXPECT_EQ(string::join(vector<string>{}, ","), "");
     EXPECT_EQ(string::join(std::vector<const char*>{"only"}, ","), "only");
     wstring w = L"a b";
     EXPECT_EQ(wstring::join(w.split(L' '), L"-"), L"a-b");
@@ -870,4 +896,116 @@ TEST(String_Tests, APointerIsReadToItsNul) {
     EXPECT_EQ(string("a") + p, "axyz");
     EXPECT_EQ(p + string("a"), "xyza");
     EXPECT_EQ(string("a,b").replace(",", p), "axyzb");
+}
+
+// Every size class (string_data.h: StringPools, one pool per class described
+// by a row of constants), for every character type: the shortest and the
+// longest string of each class that holds more characters than the class
+// before it, made from a view (make_slot) and written in place
+// (make_unfilled_slot). The characters, the length and the terminator are
+// the string's; the object is of the smallest class that holds it, of that
+// class's own type (StringSlot<Bytes>), a string's storage. Past the
+// largest class, a buffer. Four threads released together, so that run
+// alone the test also races the making of every class's pool.
+namespace {
+    template<class CharT>
+    void every_string_class() {
+        using S = basic_string<CharT>;
+        auto check = [](const S& s, const std::basic_string<CharT>& expect, size_t bytes) {
+            ASSERT_EQ(s.size(), expect.size());
+            ASSERT_TRUE(s.view() == std::basic_string_view<CharT>(expect));
+            ASSERT_EQ(s.c_str()[expect.size()], CharT());
+            auto& m = detail::Page::metadata_of(reinterpret_cast<const unsigned char*>(s.data()) - sizeof(detail::StringHeader));
+            if (bytes) {
+                ASSERT_EQ(m.object_size, bytes) << expect.size();
+                ASSERT_TRUE(m.is_string);
+                ASSERT_NE(std::string(m.type_info.name()).find("StringSlot"), std::string::npos);
+            } else {
+                ASSERT_TRUE(m.is_array);   // a buffer of StringByte (maker.h)
+            }
+        };
+        auto text = [](size_t n, size_t c) {
+            std::basic_string<CharT> t(n, CharT());
+            for (size_t i = 0; i < n; ++i) {
+                t[i] = CharT('a' + (i + c) % 26);
+            }
+            return t;
+        };
+        size_t previous = 0;   // the most characters the classes so far hold
+        for (size_t c = 0; c < detail::StringClassCount; ++c) {
+            const size_t bytes = detail::string_class_bytes(c);
+            if (bytes < sizeof(detail::StringHeader) + 2 * sizeof(CharT)) {
+                continue;   // not even one character and the terminator
+            }
+            const size_t most = (bytes - sizeof(detail::StringHeader)) / sizeof(CharT) - 1;
+            if (most <= previous) {
+                continue;   // no more than the class before (wide characters, classes four bytes apart)
+            }
+            for (size_t n : {previous + 1, most}) {
+                auto expect = text(n, c);
+                check(S(std::basic_string_view<CharT>(expect)), expect, bytes);
+                check(detail::StringAccess::filled<S>(n, [&](CharT* chars) { std::copy(expect.begin(), expect.end(), chars); }), expect, bytes);
+            }
+            previous = most;
+        }
+        auto past = text(previous + 1, 0);
+        check(S(std::basic_string_view<CharT>(past)), past, 0);
+        check(detail::StringAccess::filled<S>(past.size(), [&](CharT* chars) { std::copy(past.begin(), past.end(), chars); }), past, 0);
+    }
+}
+
+TEST(String_Tests, EverySizeClassOfEveryCharacterType) {
+    (void)make_tracked<int>();   // the heap made before the threads race (thread.cpp: ThreadsNumberANewTypeAtOnce)
+    constexpr int Threads = 4;
+    std::latch go(Threads);
+    std::vector<std::thread> workers;
+    for (int t = 0; t < Threads; ++t) {
+        workers.emplace_back([&] {
+            go.arrive_and_wait();
+            every_string_class<char32_t>();
+            every_string_class<char16_t>();
+            every_string_class<wchar_t>();
+            every_string_class<char8_t>();
+            every_string_class<char>();
+        });
+    }
+    for (auto& w : workers) {
+        w.join();
+    }
+}
+
+// An empty separator splits into the characters, as Go's strings.Split(s,
+// ""): a code point a piece, never a part of one
+TEST(String_Tests, SplitByNothingGivesTheCodePoints) {
+    auto collect = [](auto&& pieces) {
+        std::vector<std::string> out;
+        for (auto piece : pieces) {
+            out.emplace_back(piece.data(), piece.size());
+        }
+        return out;
+    };
+    EXPECT_EQ(collect(string("żół").split("")), (std::vector<std::string>{"ż", "ó", "ł"}));
+    EXPECT_EQ(collect(string("ża😀").split("")), (std::vector<std::string>{"ż", "a", "😀"}));
+    EXPECT_EQ(collect(string("żół").split("", 2)), (std::vector<std::string>{"ż", "ół"}));
+    std::vector<size_t> sizes;
+    for (auto piece : u16string(u"a😀b").split(u"")) {
+        sizes.push_back(piece.size());
+    }
+    EXPECT_EQ(sizes, (std::vector<size_t>{1, 2, 1}));
+}
+
+// number_error is a constant expression whole, its readers as well as its
+// constructor (the constructor was constexpr and why, offset and code not)
+TEST(String_Tests, NumberErrorReadsInConstantExpressions) {
+    using reason = sgcl::number_error::reason;
+    constexpr sgcl::number_error trailing(reason::trailing, 3);
+    static_assert(trailing.why() == reason::trailing);
+    static_assert(trailing.offset() == 3);
+    static_assert(trailing.code() == std::errc::invalid_argument);
+    static_assert(sgcl::number_error(reason::out_of_range, 0).code() == std::errc::result_out_of_range);
+    static_assert(sgcl::number_error(reason::empty, 0).code() == std::errc::invalid_argument);
+    static_assert(sgcl::number_error(reason::not_a_number, SIZE_MAX).offset() == SIZE_MAX);   // the largest offset
+    static_assert(trailing == sgcl::number_error(reason::trailing, 3));
+    static_assert(!(trailing == sgcl::number_error(reason::trailing, 4)));
+    EXPECT_EQ(trailing.message(), "more after the number");
 }

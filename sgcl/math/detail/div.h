@@ -84,7 +84,7 @@ namespace sgcl::math::detail {
     // Both are shifted first until the divisor's top bit is set (step
     // D1), in working memory of the call's own, the dividend with one
     // limb more, which the shift leaves below the divisor
-    inline void div_knuth(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) {
+    inline void div_knuth(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
         unsigned s = unsigned(std::countl_zero(b[bn - 1]));
         Scratch us(an + 1);
         Scratch vs(bn);
@@ -94,8 +94,8 @@ namespace sgcl::math::detail {
             shift_left(v, b, bn, s);
             u[an] = shift_left(u, a, an, s);
         } else {
-            std::memcpy(v, b, bn * sizeof(Limb));
-            std::memcpy(u, a, an * sizeof(Limb));
+            sgcl::detail::copy_bytes(v, b, bn * sizeof(Limb));
+            sgcl::detail::copy_bytes(u, a, an * sizeof(Limb));
             u[an] = 0;
         }
         div_knuth_core(q, u, an + 1, v, bn);
@@ -103,7 +103,7 @@ namespace sgcl::math::detail {
             if (s) {
                 shift_right(r, u, bn, s);
             } else {
-                std::memcpy(r, u, bn * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, u, bn * sizeof(Limb));
             }
         }
     }
@@ -197,7 +197,7 @@ namespace sgcl::math::detail {
     // shifted as in D1, is divided a block of the divisor's length of
     // quotient at a time from the top, each block by div_bz_rec — the
     // first one shorter when the quotient's length is not a multiple
-    inline void div_bz(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) {
+    inline void div_bz(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
         unsigned s = unsigned(std::countl_zero(b[bn - 1]));
         size_t un = an + 1;
         size_t qn = un - bn;
@@ -211,8 +211,8 @@ namespace sgcl::math::detail {
             shift_left(v, b, bn, s);
             u[an] = shift_left(u, a, an, s);
         } else {
-            std::memcpy(v, b, bn * sizeof(Limb));
-            std::memcpy(u, a, an * sizeof(Limb));
+            sgcl::detail::copy_bytes(v, b, bn * sizeof(Limb));
+            sgcl::detail::copy_bytes(u, a, an * sizeof(Limb));
             u[an] = 0;
         }
         // The top bn limbs of u are below v (the shift left room in the
@@ -232,13 +232,13 @@ namespace sgcl::math::detail {
             if (s) {
                 shift_right(r, u, bn, s);
             } else {
-                std::memcpy(r, u, bn * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, u, bn * sizeof(Limb));
             }
         }
     }
 
     // The division of the same contract by the road the lengths call for
-    inline void divide(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) {
+    inline void divide(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
         size_t t = std::max<size_t>(thresholds.burnikel_ziegler, 4);
         if (bn < t || an - bn + 1 < t) {
             div_knuth(q, r, a, an, b, bn);

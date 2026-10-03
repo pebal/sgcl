@@ -29,7 +29,7 @@ namespace sgcl {
             optional<T> value;
             std::exception_ptr error;
 
-            generator get_return_object() {
+            generator get_return_object() noexcept {
                 return generator(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
@@ -41,7 +41,7 @@ namespace sgcl {
                 return {};
             }
 
-            std::suspend_always yield_value(T v) {
+            std::suspend_always yield_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 value.emplace(std::move(v));
                 return {};
             }
@@ -59,8 +59,8 @@ namespace sgcl {
             using iterator_category = std::input_iterator_tag;
             using value_type = T;
             using difference_type = std::ptrdiff_t;
-            using pointer = const T*;
-            using reference = const T&;
+            using pointer = T*;
+            using reference = T&;
 
             iterator() noexcept = default;
 
@@ -116,7 +116,7 @@ namespace sgcl {
             return !_frame.done();
         }
 
-        const T& value() const noexcept {
+        T& value() const noexcept {
             return *_frame.promise().value;
         }
 
@@ -133,7 +133,7 @@ namespace sgcl {
         }
 
     private:
-        explicit generator(std::coroutine_handle<promise_type> h)
+        explicit generator(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 

@@ -73,7 +73,7 @@ namespace sgcl::compress::detail {
             return -1;
         }
 
-        inline void put_vli(std::vector<uint8_t>& out, uint64_t v) {
+        inline void put_vli(std::vector<uint8_t>& out, uint64_t v) noexcept {
             while (v >= 0x80) {
                 out.push_back(uint8_t(v | 0x80));
                 v >>= 7;
@@ -81,7 +81,7 @@ namespace sgcl::compress::detail {
             out.push_back(uint8_t(v));
         }
 
-        inline void put_le64(std::vector<uint8_t>& out, uint64_t v) {
+        inline void put_le64(std::vector<uint8_t>& out, uint64_t v) noexcept {
             put_le32(out, uint32_t(v));
             put_le32(out, uint32_t(v >> 32));
         }
@@ -173,7 +173,7 @@ namespace sgcl::compress::detail {
         }
 
         // A block header from p[0, n): Parsed::more when it needs the rest
-        inline Parsed parse_block_header(const uint8_t* p, size_t n, BlockHeader& h) {
+        inline Parsed parse_block_header(const uint8_t* p, size_t n, BlockHeader& h) noexcept {
             if (n < 1) {
                 return Parsed::need();
             }
@@ -193,7 +193,7 @@ namespace sgcl::compress::detail {
             h.count = size_t(flags & 3) + 1;
             size_t at = 2;
             const size_t stop = size - 4;
-            auto vli = [&](uint64_t& v) {
+            auto vli = [&](uint64_t& v) noexcept {
                 int k = read_vli(p + at, stop - at, v);
                 if (k <= 0) {
                     return false;
@@ -259,7 +259,7 @@ namespace sgcl::compress::detail {
         }
 
         // The decoding stages of a block's filters (before LZMA2, last first)
-        inline void decoding_chain(const BlockHeader& h, FilterChain& chain) {
+        inline void decoding_chain(const BlockHeader& h, FilterChain& chain) noexcept {
             chain.clear();
             for (size_t i = h.count - 1; i-- > 0;) {
                 SimpleKind kind;
@@ -274,7 +274,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        inline void stream_header(std::vector<uint8_t>& out, uint8_t check) {
+        inline void stream_header(std::vector<uint8_t>& out, uint8_t check) noexcept {
             out.insert(out.end(), Magic, Magic + 6);
             uint8_t flags[2] = {0, check};
             out.insert(out.end(), flags, flags + 2);
@@ -283,7 +283,7 @@ namespace sgcl::compress::detail {
 
         // A header of the filters given (IDs and one-byte properties or
         // none), with the sizes when known
-        inline void block_header(std::vector<uint8_t>& out, const Filter* filters, size_t count, uint64_t compressed, uint64_t uncompressed) {
+        inline void block_header(std::vector<uint8_t>& out, const Filter* filters, size_t count, uint64_t compressed, uint64_t uncompressed) noexcept {
             std::vector<uint8_t> h;
             h.push_back(0);
             uint8_t flags = uint8_t(count - 1);
@@ -318,7 +318,7 @@ namespace sgcl::compress::detail {
         };
 
         // The index and the footer of a stream of these blocks
-        inline void index_and_footer(std::vector<uint8_t>& out, const std::vector<Record>& records, uint8_t check) {
+        inline void index_and_footer(std::vector<uint8_t>& out, const std::vector<Record>& records, uint8_t check) noexcept {
             std::vector<uint8_t> x;
             x.push_back(0);
             put_vli(x, records.size());
@@ -401,9 +401,9 @@ namespace sgcl::compress::detail {
             }
 
             // Takes what it can of p[0, n) into used; ok when the index is whole
-            Parsed step(const uint8_t* p, size_t n, const std::vector<Record>& blocks, size_t& used) {
+            Parsed step(const uint8_t* p, size_t n, const std::vector<Record>& blocks, size_t& used) noexcept {
                 used = 0;
-                auto take = [&](size_t k) {
+                auto take = [&](size_t k) noexcept {
                     _crc.update(slice<const byte>(reinterpret_cast<const byte*>(p + used), k));
                     used += k;
                     _size += k;

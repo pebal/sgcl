@@ -11,6 +11,7 @@
 #include "../../../../core/aliases.h"
 #include "../../../../core/expected.h"
 #include "../../../../core/slice.h"
+#include "../../../../core/vector.h"
 
 #include <algorithm>
 #include <array>
@@ -142,7 +143,7 @@ namespace sgcl::net::http::detail::h2 {
 
         class StreamTable {
         public:
-            explicit StreamTable(uint32_t most) {
+            explicit StreamTable(uint32_t most) noexcept {
                 size_t n = 16;
                 while (n < 2 * size_t(most) + 2) {
                     n *= 2;
@@ -193,7 +194,7 @@ namespace sgcl::net::http::detail::h2 {
             }
 
             template<class F>
-            void each(F&& f) {
+            void each(F&& f) noexcept(std::is_nothrow_invocable_v<F&, Stream&>) {
                 for (auto& s : _slots) {
                     if (s.id) {
                         f(s);
@@ -221,7 +222,7 @@ namespace sgcl::net::http::detail::h2 {
 
         inline constexpr uint8_t DrainPing[8] = {'s', 'g', 'c', 'l', 'd', 'r', 'a', 'i'};
 
-        inline Limits sane(Limits s) {
+        inline Limits sane(Limits s) noexcept {
             s.initial_window = std::clamp(s.initial_window, DefaultWindow, LargestWindow);
             s.connection_window = std::clamp(s.connection_window, DefaultWindow, LargestWindow);
             s.max_frame_size = std::clamp(s.max_frame_size, DefaultMaxFrameSize, LargestMaxFrameSize);
@@ -327,7 +328,7 @@ namespace sgcl::net::http::detail::h2 {
         // A field block encoded by HPACK for a stream, as HEADERS and as
         // many CONTINUATIONs as the peer's frame size needs; false when the
         // stream is gone or its side already ended
-        bool send_headers(uint32_t id, const uint8_t* block, size_t n, bool end_stream) {
+        bool send_headers(uint32_t id, const uint8_t* block, size_t n, bool end_stream) noexcept {
             Stream* s = _streams.find(id);
             if (!s || s->local_closed || _failed) {
                 return false;
@@ -343,39 +344,40 @@ namespace sgcl::net::http::detail::h2 {
         // peer's size; END_STREAM goes with the last byte, when all were
         // taken. The result is the bytes taken; fewer than n: the rest
         // waits for on_window
-        size_t send_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) {
+        size_t send_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) noexcept {
             return _send_data(id, n, end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
                 w.data(id, p + at, k, last);
             });
         }
 
         // The same, the bytes not copied: each frame's header in output()
-        // and its payload a piece of `p` in place, which the owner keeps
+        // and its payload a piece of `data` in place, a slice of its owner
+        // (managed memory is never named by a raw address: the collector
+        // takes such a word for a pointer kept as data), whose bytes stay
         // unchanged until what take_output gives is written. Only for an
         // owner that takes its output with take_output (output() is then
         // not whole)
-        size_t send_data_in_place(uint32_t id, const uint8_t* p, size_t n, bool end_stream) {
-            return _send_data(id, n, end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
+        size_t send_data_in_place(uint32_t id, const slice<const byte>& data, bool end_stream) noexcept {
+            return _send_data(id, data.size(), end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
                 w.header(uint32_t(k), FrameType::data, last ? flag::end_stream : 0, id);
                 if (k) {
-                    _pieces.push_back(OutPiece{_out.size(), p + at, k});
+                    _pieces.push_back(OutPiece{_out.size(), data.last(data.size() - at).first(k)});
                 }
             });
         }
 
         // A piece of output in place: after byte `at` of the output's own
-        // bytes come the n bytes at p
+        // bytes come the bytes of `piece`
         struct OutPiece {
             size_t at;
-            const uint8_t* p;
-            size_t n;
+            slice<const byte> piece;
         };
 
         // Everything to be sent, taken whole: the output's own bytes into
         // `bytes` (swapped, no copy: the two strings keep their room) and
         // the pieces in place, in order, into `pieces`. What was taken is
         // then the owner's to write, as written() of all of it
-        void take_output(std::string& bytes, std::vector<OutPiece>& pieces) {
+        void take_output(std::string& bytes, vector<OutPiece>& pieces) noexcept {
             if (_out_at) {
                 _out.erase(0, _out_at);
                 for (auto& q : _pieces) {
@@ -391,7 +393,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         template<class Put>
-        size_t _send_data(uint32_t id, size_t n, bool end_stream, Put&& put) {
+        size_t _send_data(uint32_t id, size_t n, bool end_stream, Put&& put) noexcept {
             Stream* s = _streams.find(id);
             if (!s || s->local_closed || _failed) {
                 return 0;
@@ -430,7 +432,7 @@ namespace sgcl::net::http::detail::h2 {
         // peer by WINDOW_UPDATE once half a window has gathered. A stream
         // ended by both sides is gone from the table: its bytes still go
         // back to the connection's window
-        void consumed(uint32_t id, size_t n) {
+        void consumed(uint32_t id, size_t n) noexcept {
             if (_failed || n == 0) {
                 return;
             }
@@ -446,14 +448,14 @@ namespace sgcl::net::http::detail::h2 {
         // The owner resets a stream (a handler that failed, a body it will
         // not read, a request given up); what the stream had received and
         // the owner not taken goes back to the connection's window
-        void reset(uint32_t id, ErrorCode code) {
+        void reset(uint32_t id, ErrorCode code) noexcept {
             if (!_failed && _streams.find(id)) {
                 _reset(id, code, false);
             }
         }
 
         // A PING of ours (liveness); its answer comes to on_ping_ack
-        void ping(const uint8_t opaque[8]) {
+        void ping(const uint8_t opaque[8]) noexcept {
             if (_failed) {
                 return;
             }
@@ -462,7 +464,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // GOAWAY at once with the last stream of the peer's seen
-        void goaway(ErrorCode code) {
+        void goaway(ErrorCode code) noexcept {
             if (_failed || _goaway_sent) {
                 return;
             }
@@ -546,7 +548,7 @@ namespace sgcl::net::http::detail::h2 {
         size_t _recent_at = 0;
         std::string _out;
         size_t _out_at = 0;
-        std::vector<OutPiece> _pieces;        // DATA payloads in place (send_data_in_place), by position in _out
+        vector<OutPiece> _pieces;             // DATA payloads in place (send_data_in_place), by position in _out
         std::string _block;                   // a field block across CONTINUATIONs
         Phase _phase;
         bool _failed = false;
@@ -568,7 +570,7 @@ namespace sgcl::net::http::detail::h2 {
         bool _hb_self_dependent = false;
 
         // table_streams: the most streams open at once the table holds
-        Endpoint(Events& events, const Limits& limits, uint32_t table_streams)
+        Endpoint(Events& events, const Limits& limits, uint32_t table_streams) noexcept
         : _events(&events)
         , _ours(connection_detail::sane(limits))
         , _decoder(_ours.header_table_size)
@@ -579,7 +581,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // Our SETTINGS (the entries the role gives), the connection's
         // window raised from 65535 to ours
-        void _start(int64_t now, const Setting* entries, size_t n) {
+        void _start(int64_t now, const Setting* entries, size_t n) noexcept {
             _now = now;
             FrameWriter w(_out);
             w.settings(entries, n);
@@ -592,7 +594,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The entries every role announces, appended to s from n
-        size_t _common_settings(Setting* s, size_t n) const {
+        size_t _common_settings(Setting* s, size_t n) const noexcept {
             s[n++] = {uint16_t(SettingId::initial_window_size), _ours.initial_window};
             s[n++] = {uint16_t(SettingId::max_header_list_size), _ours.max_header_list_size};
             if (_ours.max_frame_size != DefaultMaxFrameSize) {
@@ -616,12 +618,12 @@ namespace sgcl::net::http::detail::h2 {
             return std::max<size_t>(2 * size_t(_ours.max_header_list_size), 64 * 1024);
         }
 
-        expected<size_t, Error> _fail(const Error& e) {
+        expected<size_t, Error> _fail(const Error& e) noexcept {
             _fail_void(e);
             return unexpected(e);
         }
 
-        expected<void, Error> _fail_void(const Error& e) {
+        expected<void, Error> _fail_void(const Error& e) noexcept {
             if (!_failed) {
                 FrameWriter(_out).goaway(_role()._last_peer_stream(), e.code);
                 _goaway_sent = true;
@@ -631,14 +633,14 @@ namespace sgcl::net::http::detail::h2 {
             return unexpected(e);
         }
 
-        void _final_goaway(ErrorCode code) {
+        void _final_goaway(ErrorCode code) noexcept {
             _goaway_last = _role()._last_peer_stream();
             FrameWriter(_out).goaway(_goaway_last, code);
             ++_control;
             _goaway_sent = true;
         }
 
-        expected<void, Error> _check_flood() {
+        expected<void, Error> _check_flood() noexcept {
             if (_control > _ours.max_control_frames) {
                 return unexpected(connection_error(ErrorCode::enhance_your_calm, "control frames piling up unread"));
             }
@@ -649,7 +651,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // §4.3, §6.10: a field block is a run of frames nothing may cut
-        expected<void, Error> _check_order(const FrameHeader& h) {
+        expected<void, Error> _check_order(const FrameHeader& h) noexcept {
             if (_hb_open && (h.type != uint8_t(FrameType::continuation) || h.stream != _hb_stream)) {
                 return unexpected(connection_error(ErrorCode::protocol_error, "a frame inside a field block"));
             }
@@ -665,7 +667,7 @@ namespace sgcl::net::http::detail::h2 {
             _recent_at = (_recent_at + 1) % _recent.size();
         }
 
-        void _give_connection(size_t n) {
+        void _give_connection(size_t n) noexcept {
             _conn_unacked += n;
             if (_conn_unacked >= _ours.connection_window / 2) {
                 FrameWriter(_out).window_update(0, uint32_t(_conn_unacked));
@@ -675,7 +677,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void _give_stream(Stream* s, size_t n) {
+        void _give_stream(Stream* s, size_t n) noexcept {
             s->unacked += n;
             if (s->unacked >= _ours.initial_window / 2) {
                 FrameWriter(_out).window_update(s->id, uint32_t(s->unacked));
@@ -685,7 +687,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void _end_local(Stream* s) {
+        void _end_local(Stream* s) noexcept {
             s->local_closed = true;
             s->blocked_since = 0;
             if (s->remote_closed) {
@@ -693,7 +695,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void _end_remote(Stream* s) {
+        void _end_remote(Stream* s) noexcept {
             s->remote_closed = true;
             if (s->local_closed) {
                 _streams.remove(s);
@@ -702,7 +704,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A stream leaving the table reset: what it held unconsumed goes
         // back to the connection's window (its owner will not consume it)
-        void _drop(Stream* s) {
+        void _drop(Stream* s) noexcept {
             if (s->buffered) {
                 _give_connection(s->buffered);
             }
@@ -727,7 +729,7 @@ namespace sgcl::net::http::detail::h2 {
             _reset(id, code, true);
         }
 
-        void _write_block(uint32_t id, const uint8_t* block, size_t n, bool end_stream) {
+        void _write_block(uint32_t id, const uint8_t* block, size_t n, bool end_stream) noexcept {
             FrameWriter w(_out);
             const size_t most = _peer.max_frame_size;
             size_t k = std::min(n, most);
@@ -1026,7 +1028,7 @@ namespace sgcl::net::http::detail::h2 {
         uint32_t max_resets = 1000;
         uint32_t resets_per_second = 33;
 
-        ServerSettings() {
+        ServerSettings() noexcept {
             initial_window = 1u << 20;      // Go: 1 MB
             connection_window = 1u << 20;   // Go: 1 MB
             max_header_list_size = 32 * 1024;   // the server's max_header_bytes
@@ -1061,7 +1063,7 @@ namespace sgcl::net::http::detail::h2 {
 
         static constexpr bool reads_preface = true;
 
-        ServerConnection(Events& events, const ServerSettings& settings = ServerSettings())
+        ServerConnection(Events& events, const ServerSettings& settings = ServerSettings()) noexcept
         : Base(events, settings, std::max(1u, settings.max_concurrent_streams))
         , _max_streams(std::max(1u, settings.max_concurrent_streams))
         , _waiting(4 * size_t(_max_streams) + 2)
@@ -1072,7 +1074,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // The server's preface (§3.4): our SETTINGS, and the connection's
         // window raised from 65535 to ours
-        void start(int64_t now) {
+        void start(int64_t now) noexcept {
             Setting s[6];
             size_t n = 0;
             s[n++] = {uint16_t(SettingId::max_concurrent_streams), _max_streams};
@@ -1101,7 +1103,7 @@ namespace sgcl::net::http::detail::h2 {
         // Graceful shutdown (as Go): GOAWAY with the largest identifier and
         // a PING; when the PING comes back, GOAWAY with the last stream
         // really seen. Streams after it are not served
-        void drain() {
+        void drain() noexcept {
             if (this->_failed || _draining || this->_goaway_sent) {
                 return;
             }
@@ -1155,7 +1157,7 @@ namespace sgcl::net::http::detail::h2 {
             return this->_recently_reset(id);
         }
 
-        bool _own_ping(const uint8_t* data) {
+        bool _own_ping(const uint8_t* data) noexcept {
             if (_draining && !this->_goaway_sent && std::memcmp(data, connection_detail::DrainPing, 8) == 0) {
                 this->_final_goaway(ErrorCode::no_error);
                 return true;
@@ -1168,7 +1170,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // nghttp2's bucket: refilled by the time passed, one a RST_STREAM
-        expected<void, Error> _peer_reset() {
+        expected<void, Error> _peer_reset() noexcept {
             const int64_t now = this->_now;
             if (now > _reset_at) {
                 _reset_bucket = std::min(_reset_burst, _reset_bucket + double(now - _reset_at) * _reset_rate / 1e9);

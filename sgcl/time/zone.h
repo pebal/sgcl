@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 namespace sgcl::time {
     class datetime;
@@ -72,8 +73,8 @@ namespace sgcl::time {
         // changes of the POSIX rule through the year 2100 appended to it,
         // so that every time up to then is a binary search; a later time
         // asks the rule, which is what the rule is there for.
-        // The tag of the constructors of zone and datetime that the
-        // library uses to make one in place (in the expected it returns)
+        // The tag of the private constructors of zone and datetime that
+        // the library makes them with (zone_access::make, make_datetime)
         struct made_in_place {};
 
         struct zone_data {
@@ -220,10 +221,13 @@ namespace sgcl::time {
             }
         };
 
-        // The last year the table carries the rule to
+        // The years the table carries the rule over: from the year before
+        // the first a datetime holds (1677; no time before it is asked of a
+        // zone but to be saturated at the range's start), through 2100
+        inline constexpr int64_t ExpandedFrom = 1676;
         inline constexpr int64_t ExpandedUntil = 2100;
 
-        inline uint16_t find_or_add_type(vector<zone_type>& types, int32_t offset, bool dst, std::string_view abbreviation) {
+        inline uint16_t find_or_add_type(vector<zone_type>& types, int32_t offset, bool dst, std::string_view abbreviation) noexcept {
             for (size_t i = 0; i < types.size(); ++i) {
                 if (types[i].offset == offset && types[i].dst == dst && std::string_view(types[i].abbreviation) == abbreviation) {
                     return uint16_t(i);
@@ -239,7 +243,7 @@ namespace sgcl::time {
 
         // The zone built from what a file or a rule gave: the entries that
         // change nothing dropped, the rule's changes appended to 2100
-        inline tracked_ptr<zone_data> build_zone(const string& name, const tzif_data& file, const optional<posix_rule>& rule) {
+        inline tracked_ptr<zone_data> build_zone(const string& name, const tzif_data& file, const optional<posix_rule>& rule) noexcept {
             auto z = make_tracked<zone_data>();
             z->name = name;
             for (auto& t : file.types) {
@@ -295,8 +299,10 @@ namespace sgcl::time {
             }
             // The rule's changes appended, from the year of the file's last
             // transition (or from 1900 for a zone of a rule alone, whose
-            // time before then the rule still gives) through 2100
-            int64_t from = from_file ? year_of(last, r.std_offset) : 1900;
+            // time before then the rule still gives) through 2100; a last
+            // transition before 1676 (a file from anywhere: -2^59, the start
+            // of 64 bits) starts them in 1676, not billions of years back
+            int64_t from = from_file ? std::max(year_of(last, r.std_offset), ExpandedFrom) : 1900;
             if (!from_file) {
                 // Before the first entry the rule answers (rule_everywhere),
                 // so the first entry is the first change of the rule
@@ -344,7 +350,7 @@ namespace sgcl::time {
         };
 
         // The text of an offset: "+05:30", "-03:30", "+05:30:15"
-        inline string offset_text(int32_t offset) {
+        inline string offset_text(int32_t offset) noexcept {
             char text[16];
             size_t n = 0;
             text[n++] = offset < 0 ? '-' : '+';
@@ -365,7 +371,7 @@ namespace sgcl::time {
 
         // A fixed offset as a zone of one type and no changes: every
         // lookup takes the same road as for any zone (type_at is 0 at once)
-        inline tracked_ptr<zone_data> make_fixed_zone(int32_t offset, const string& name) {
+        inline tracked_ptr<zone_data> make_fixed_zone(int32_t offset, const string& name) noexcept {
             auto d = make_tracked<zone_data>();
             d->fixed = true;
             d->fixed_offset = offset;
@@ -374,7 +380,7 @@ namespace sgcl::time {
             return d;
         }
 
-        inline zone_registry& registry() {
+        inline zone_registry& registry() noexcept {
             // A root_ptr, as stencil's table of functions: the registry
             // holds tracked pointers and lives as long as the program does.
             // Never destroyed: a zone held by a static of the program, or
@@ -393,7 +399,7 @@ namespace sgcl::time {
 
         // The registry's zones of whole quarters of an hour as plain
         // pointers, taken once (the registry holds them for the program)
-        inline const std::array<const zone_data*, 193>& quarter_zones() {
+        inline const std::array<const zone_data*, 193>& quarter_zones() noexcept {
             static const std::array<const zone_data*, 193> quarters = [] {
                 std::array<const zone_data*, 193> t{};
                 auto& r = registry();
@@ -407,13 +413,13 @@ namespace sgcl::time {
 
         // UTC's data: a fixed offset of 0 named "UTC", so that every lookup
         // has an object to refer to
-        inline const zone_data& utc_data() {
+        inline const zone_data& utc_data() noexcept {
             return *quarter_zones()[96];
         }
 
         // The data of a fixed offset: one object per offset, for the
         // program's life (there are finitely many)
-        inline const zone_data& fixed_zone(int32_t seconds) {
+        inline const zone_data& fixed_zone(int32_t seconds) noexcept {
             if (seconds % 900 == 0) {
                 return *quarter_zones()[size_t(seconds / 900 + 96)];
             }
@@ -471,7 +477,7 @@ namespace sgcl::time {
 
         // A zone of the database from its bytes: the file read, the
         // footer read as a rule
-        inline expected<tracked_ptr<zone_data>, error> zone_from_bytes(const slice<const byte>& bytes, const string& name) {
+        inline expected<tracked_ptr<zone_data>, error> zone_from_bytes(const slice<const byte>& bytes, const string& name) noexcept {
             auto file = read_tzif(bytes);
             if (!file) {
                 return unexpected(file.error());
@@ -489,7 +495,7 @@ namespace sgcl::time {
             return build_zone(name, *file, rule);
         }
 
-        inline expected<tracked_ptr<zone_data>, error> zone_from_rule(const string& text) {
+        inline expected<tracked_ptr<zone_data>, error> zone_from_rule(const string& text) noexcept {
             auto r = read_posix(std::string_view(text));
             if (!r) {
                 return unexpected(r.error());
@@ -507,9 +513,10 @@ namespace sgcl::time {
     // tz database ("Europe/Warsaw"), one read from the bytes of a TZif
     // file of any origin, or one from a POSIX TZ string.
     //
-    // A value of one word, copied freely and kept anywhere: UTC and a
-    // fixed offset are the word itself, nothing allocated; any other zone
-    // points at data that the library keeps for the rest of the program,
+    // A value of one word, copied freely and kept anywhere: UTC is the
+    // word itself, null, nothing allocated; a fixed offset and any other
+    // zone point at data that the library keeps for the rest of the
+    // program (a fixed offset's in a registry, made once per offset),
     // read once — the second load of a name reads nothing. Two zones are
     // equal when they are the same zone: the same name read from the same
     // place, the same offset. Nothing here waits once a zone is loaded.
@@ -517,11 +524,6 @@ namespace sgcl::time {
     public:
         // UTC
         zone() noexcept = default;
-
-        // For the library (detail): the zone of this data, made where it goes
-        zone(detail::made_in_place, const detail::zone_data& data) noexcept
-        : _ptr(&data) {
-        }
 
         static zone utc() noexcept {
             return zone();
@@ -545,7 +547,7 @@ namespace sgcl::time {
         // the other places systems keep it) the first time, from memory
         // every time after. An unknown name, a name that is not one
         // ("../x"), or a file that is not a TZif file is an error
-        static expected<zone, error> load(const string& name);
+        static expected<zone, error> load(const string& name) noexcept;
 
         // The zone a name written in the program names: load's zone, or
         // bad_expected_access<time::error> with load's message, as
@@ -559,40 +561,40 @@ namespace sgcl::time {
         // A zone from the bytes of a TZif file (RFC 9636, versions 1 to
         // 4), which may come from anywhere: a database of one's own, the
         // network. The same bytes under the same name give the same zone
-        static expected<zone, error> from_tzif(const slice<const byte>& data, const string& name);
+        static expected<zone, error> from_tzif(const slice<const byte>& data, const string& name) noexcept;
 
         // A zone from a POSIX TZ string alone: "CET-1CEST,M3.5.0,M10.5.0/3";
         // named by it
-        static expected<zone, error> from_posix(const string& rule);
+        static expected<zone, error> from_posix(const string& rule) noexcept;
 
         // The zone of this computer: the TZ variable of the environment
         // (":Europe/Warsaw", "Europe/Warsaw", a path to a TZif file, or a
         // POSIX TZ string; empty means UTC), else the zone /etc/localtime
         // is, else UTC. Settled once, the first time it is asked for
-        static zone local();
+        static zone local() noexcept;
 
         // The names of the zones of the system's database, sorted
-        static vector<string> available();
+        static vector<string> available() noexcept;
 
         // What the zone is at an instant: the offset from UTC (+2h in
         // Warsaw in summer), the abbreviation ("CEST"; for UTC "UTC", for
         // a fixed offset its name), whether it is daylight saving time
-        duration offset_at(const datetime& t) const;
-        string abbreviation_at(const datetime& t) const;
-        bool is_dst_at(const datetime& t) const;
+        duration offset_at(const datetime& t) const noexcept;
+        string abbreviation_at(const datetime& t) const noexcept;
+        bool is_dst_at(const datetime& t) const noexcept;
 
         // The first change of the zone after t and the last before it
         // (strictly: a change at t itself is neither), in this zone; a
         // change is one of the offset, of daylight saving time or of the
         // abbreviation. Nothing for UTC and a fixed offset, and nothing
         // past the last change of a zone that stopped changing
-        optional<datetime> next_transition(const datetime& t) const;
-        optional<datetime> previous_transition(const datetime& t) const;
+        optional<datetime> next_transition(const datetime& t) const noexcept;
+        optional<datetime> previous_transition(const datetime& t) const noexcept;
 
         // "Europe/Warsaw", "UTC", "+05:30", the TZ string of a zone made
         // from one; a zone read from /etc/localtime that is not a link
         // into the database is "Local"
-        string name() const;
+        string name() const noexcept;
 
         friend bool operator==(const zone& a, const zone& b) noexcept {
             const detail::zone_data* pa = a._ptr.get();   // null and UTC's data are both UTC
@@ -602,6 +604,11 @@ namespace sgcl::time {
 
     private:
         friend struct detail::zone_access;
+
+        // The library's own (zone_access::make): the zone of this data
+        zone(detail::made_in_place, const detail::zone_data& data) noexcept
+        : _ptr(&data) {
+        }
 
         // null: UTC (zone() allocates nothing); otherwise the zone's data,
         // a fixed offset's too. Read once by zone_access::data, and the
@@ -620,6 +627,17 @@ namespace sgcl::time {
         // The lookups the zone's members and datetime are made of, in
         // seconds since 1970 UTC
         struct zone_access {
+            // A zone of this data, and a datetime of an instant in the zone
+            // of this data: the constructors that are the library's own
+            static zone make(const zone_data& d) noexcept {
+                return zone(made_in_place(), d);
+            }
+
+            template<class Datetime>
+            static Datetime make_datetime(int64_t ns, const zone_data& d) noexcept {
+                return Datetime(made_in_place(), ns, d);
+            }
+
             // The zone's data, its pointer read once: the public call that
             // holds the zone asks this, and passes the data on by reference
             static const zone_data& data(const zone& z) noexcept {
@@ -656,14 +674,14 @@ namespace sgcl::time {
 
             // The abbreviation of a state of the zone; a fixed offset's and
             // UTC's are their names ("+05:30", "UTC")
-            static string abbreviation(const zone_data& d, const zone_state& s) {
+            static string abbreviation(const zone_data& d, const zone_state& s) noexcept {
                 return s.abbreviation ? *s.abbreviation : d.name;
             }
         };
 
         // The entries of by_content whose zones are gone, dropped with their
         // keys (the bytes of a file)
-        inline void sweep_dead(zone_registry& r) {
+        inline void sweep_dead(zone_registry& r) noexcept {
             for (auto it = r.by_content.begin(); it != r.by_content.end();) {
                 if (it->second.expired()) {
                     it = r.by_content.erase(it);
@@ -676,7 +694,7 @@ namespace sgcl::time {
         // sweep_dead by one thread at a time, once the map has had half as
         // many insertions as it has entries (64 at least): the cost of a
         // sweep spread over the insertions that made the dead entries
-        inline void sweep_content(zone_registry& r) {
+        inline void sweep_content(zone_registry& r) noexcept {
             size_t n = r.content_inserts.fetch_add(1, std::memory_order_relaxed) + 1;
             if (n < std::max<size_t>(64, r.by_content.size() / 2) || r.sweeping.exchange(true, std::memory_order_acquire)) {
                 return;
@@ -690,13 +708,13 @@ namespace sgcl::time {
         // string) while it lives, made by `make` otherwise; two threads
         // that make it at once both keep the one that got in first
         template<class Make>
-        expected<zone, error> intern_foreign(const string& key, Make&& make) {
+        expected<zone, error> intern_foreign(const string& key, Make&& make) noexcept(std::is_nothrow_invocable_v<Make&>) {
             auto& r = registry();
             for (;;) {
                 auto found = r.by_content.find(key);
                 if (found != r.by_content.end()) {
                     if (auto held = found->second.lock()) {
-                        return expected<zone, error>(std::in_place, made_in_place(), *held);
+                        return expected<zone, error>(zone_access::make(*held));
                     }
                     r.by_content.erase(found);   // its zone is gone: made again below
                     continue;
@@ -708,10 +726,10 @@ namespace sgcl::time {
                 auto [it, inserted] = r.by_content.try_emplace(key, weak_ptr<zone_data>(*made));
                 if (inserted) {
                     sweep_content(r);
-                    return expected<zone, error>(std::in_place, made_in_place(), **made);
+                    return expected<zone, error>(zone_access::make(**made));
                 }
                 if (auto held = it->second.lock()) {
-                    return expected<zone, error>(std::in_place, made_in_place(), *held);
+                    return expected<zone, error>(zone_access::make(*held));
                 }
                 r.by_content.erase(it);   // the one that got in first is gone already
             }
@@ -721,21 +739,21 @@ namespace sgcl::time {
         // `make` if nobody has made it yet; two threads that make it at
         // once both keep the one that got in first
         template<class Make>
-        expected<zone, error> intern_zone(concurrent::map<string, tracked_ptr<zone_data>>& table, const string& key, Make&& make) {
+        expected<zone, error> intern_zone(concurrent::map<string, tracked_ptr<zone_data>>& table, const string& key, Make&& make) noexcept(std::is_nothrow_invocable_v<Make&>) {
             auto found = table.find(key);
             if (found != table.end()) {
-                return expected<zone, error>(std::in_place, made_in_place(), *found->second.get());
+                return expected<zone, error>(zone_access::make(*found->second.get()));
             }
             expected<tracked_ptr<zone_data>, error> made = make();
             if (!made) {
                 return unexpected(made.error());
             }
             auto [it, inserted] = table.try_emplace(key, *made);
-            return expected<zone, error>(std::in_place, made_in_place(), *it->second.get());
+            return expected<zone, error>(zone_access::make(*it->second.get()));
         }
 
         // The zone a TZ variable names, or nullopt when it names none
-        inline optional<zone> zone_from_tz(const string& tz) {
+        inline optional<zone> zone_from_tz(const string& tz) noexcept {
             std::string_view v(tz);
             if (v.empty()) {
                 return zone::utc();
@@ -764,7 +782,7 @@ namespace sgcl::time {
 
         // The zone /etc/localtime is: the one of the database its link
         // points at, or the file's bytes under the name "Local"
-        inline optional<zone> zone_from_localtime(const std::string& path) {
+        inline optional<zone> zone_from_localtime(const std::string& path) noexcept {
             if (auto target = link_target(path)) {
                 std::string_view t(*target);
                 if (size_t k = t.rfind("zoneinfo/"); k != std::string_view::npos) {
@@ -781,7 +799,7 @@ namespace sgcl::time {
             return z ? optional<zone>(*z) : nullopt;
         }
 
-        inline zone find_local() {
+        inline zone find_local() noexcept {
             if (const char* tz = std::getenv("TZ")) {
                 if (auto z = zone_from_tz(string(tz))) {
                     return *z;
@@ -795,7 +813,7 @@ namespace sgcl::time {
         }
     }
 
-    inline expected<zone, error> zone::load(const string& name) {
+    inline expected<zone, error> zone::load(const string& name) noexcept {
         std::string_view v(name);
         if (v == "UTC") {
             return zone::utc();
@@ -803,7 +821,7 @@ namespace sgcl::time {
         if (!detail::zone_name_ok(v)) {
             return unexpected(error(string("not a name of a time zone: \"" + std::string(v) + "\"")));
         }
-        return detail::intern_zone(detail::registry().by_name, name, [&]() -> expected<tracked_ptr<detail::zone_data>, error> {
+        return detail::intern_zone(detail::registry().by_name, name, [&]() noexcept -> expected<tracked_ptr<detail::zone_data>, error> {
             for (const char* dir : detail::ZoneDirectories) {
                 auto bytes = detail::read_small_file(std::string(dir) + std::string(v));
                 if (bytes.error == ENOENT || bytes.error == ENOTDIR) {
@@ -822,18 +840,18 @@ namespace sgcl::time {
         });
     }
 
-    inline expected<zone, error> zone::from_tzif(const slice<const byte>& data, const string& name) {
+    inline expected<zone, error> zone::from_tzif(const slice<const byte>& data, const string& name) noexcept {
         std::string key = "T";
         key.append(name.data(), name.size());
         key += '\0';
         key.append(reinterpret_cast<const char*>(data.data()), data.size());
-        return detail::intern_foreign(string(key), [&] {
+        return detail::intern_foreign(string(key), [&]() noexcept {
             return detail::zone_from_bytes(data, name);
         });
     }
 
-    inline expected<zone, error> zone::from_posix(const string& rule) {
-        return detail::intern_foreign(string("P" + std::string(rule)), [&] {
+    inline expected<zone, error> zone::from_posix(const string& rule) noexcept {
+        return detail::intern_foreign(string("P" + std::string(rule)), [&]() noexcept {
             return detail::zone_from_rule(rule);
         });
     }
@@ -841,7 +859,7 @@ namespace sgcl::time {
     namespace detail {
         // The data of the local zone (null: UTC), settled once; held by
         // the registry
-        inline const zone_data& local_data() {
+        inline const zone_data& local_data() noexcept {
             static const zone_data* d = [] {
                 zone z = find_local();
                 const zone_data& data = zone_access::data(z);
@@ -852,11 +870,11 @@ namespace sgcl::time {
         }
     }
 
-    inline zone zone::local() {
+    inline zone zone::local() noexcept {
         return zone(detail::made_in_place(), detail::local_data());
     }
 
-    inline vector<string> zone::available() {
+    inline vector<string> zone::available() noexcept {
         for (const char* dir : detail::ZoneDirectories) {
             error_code ec;
             if (!std::filesystem::is_directory(dir, ec)) {
@@ -887,7 +905,7 @@ namespace sgcl::time {
         return {};
     }
 
-    inline string zone::name() const {
+    inline string zone::name() const noexcept {
         return detail::zone_access::data(*this).name;
     }
 }

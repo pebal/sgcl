@@ -11,6 +11,7 @@
 #include "../../crypto/secret.h"
 #include "../../crypto/secure_zero.h"
 #include "../../crypto/sha256.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -71,13 +72,13 @@ namespace sgcl::compress::detail {
                 return false;
             }
             out.salt_size = salt;
-            std::memcpy(out.salt, p.data() + 2, salt);
-            std::memcpy(out.iv, p.data() + 2 + salt, iv);
+            sgcl::detail::copy_bytes(out.salt, p.data() + 2, salt);
+            sgcl::detail::copy_bytes(out.iv, p.data() + 2 + salt, iv);
             return true;
         }
 
         // The properties of a random salt and IV of 16 bytes each at k
-        inline std::vector<uint8_t> props(uint32_t k, const uint8_t* salt, const uint8_t* iv) {
+        inline std::vector<uint8_t> props(uint32_t k, const uint8_t* salt, const uint8_t* iv) noexcept {
             std::vector<uint8_t> p;
             p.push_back(uint8_t(k | 0x80 | 0x40));
             p.push_back(uint8_t((15 << 4) | 15));
@@ -96,7 +97,7 @@ namespace sgcl::compress::detail {
         public:
             Password() = default;
 
-            explicit Password(std::string_view utf8) {
+            explicit Password(std::string_view utf8) noexcept {
                 // The room for the whole password at once: a UTF-8 byte is
                 // at most two bytes of UTF-16 (four bytes of UTF-8 are a
                 // surrogate pair, four), so the vector never grows, and no
@@ -152,7 +153,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            void _unit(uint32_t u) {
+            void _unit(uint32_t u) noexcept {
                 if (_bytes.size() + 2 > _bytes.capacity()) {
                     // a growth the reserve above rules out, done by hand
                     // so that the old block is wiped before it is freed
@@ -178,21 +179,21 @@ namespace sgcl::compress::detail {
         };
 
         // The key of the password, the salt and k
-        inline crypto::secret<32> derive(const Password& password, const Props& p) {
+        inline crypto::secret<32> derive(const Password& password, const Props& p) noexcept {
             auto key = crypto::detail::SecretAccess::make<32>();
             unsigned char* out = crypto::detail::SecretAccess::data(key);
             const auto& pw = password.bytes();
             if (p.k == NoHash) {
                 std::memset(out, 0, 32);
                 size_t n = std::min<size_t>(p.salt_size, 32);
-                std::memcpy(out, p.salt, n);
-                std::memcpy(out + n, pw.data(), std::min(pw.size(), 32 - n));
+                sgcl::detail::copy_bytes(out, p.salt, n);
+                sgcl::detail::copy_bytes(out + n, pw.data(), std::min(pw.size(), 32 - n));
                 return key;
             }
             // one round's bytes in one buffer: the salt, the password, the counter
             std::vector<uint8_t> round(p.salt_size + pw.size() + 8);
-            std::memcpy(round.data(), p.salt, p.salt_size);
-            std::memcpy(round.data() + p.salt_size, pw.data(), pw.size());
+            sgcl::detail::copy_bytes(round.data(), p.salt, p.salt_size);
+            sgcl::detail::copy_bytes(round.data() + p.salt_size, pw.data(), pw.size());
             uint8_t* counter = round.data() + p.salt_size + pw.size();
             crypto::sha256 h;
             slice<const byte> view(reinterpret_cast<const byte*>(round.data()), round.size());
@@ -215,7 +216,7 @@ namespace sgcl::compress::detail {
         // the readers of the archive, from any threads
         class Keys {
         public:
-            explicit Keys(std::string_view password)
+            explicit Keys(std::string_view password) noexcept
             : _password(password) {
             }
 
@@ -225,7 +226,7 @@ namespace sgcl::compress::detail {
                 return !_password.empty();
             }
 
-            crypto::secret<32> get(const Props& p) {
+            crypto::secret<32> get(const Props& p) noexcept {
                 std::lock_guard<std::mutex> lock(_mutex);
                 for (auto& e : _made) {
                     if (e.k == p.k && e.salt_size == p.salt_size && std::memcmp(e.salt, p.salt, p.salt_size) == 0) {
@@ -233,7 +234,7 @@ namespace sgcl::compress::detail {
                     }
                 }
                 _made.push_back(Made{p.k, {}, p.salt_size, derive(_password, p)});
-                std::memcpy(_made.back().salt, p.salt, p.salt_size);
+                sgcl::detail::copy_bytes(_made.back().salt, p.salt, p.salt_size);
                 return _made.back().key.clone();
             }
 
@@ -256,7 +257,7 @@ namespace sgcl::compress::detail {
         // waits for the one before)
         class Cbc {
         public:
-            Cbc(const crypto::secret<32>& key, const uint8_t* iv)
+            Cbc(const crypto::secret<32>& key, const uint8_t* iv) noexcept
             : _aes(key.bytes()) {
                 auto k = key.bytes();
                 crypto::detail::aes_setup(_enc, reinterpret_cast<const unsigned char*>(k.data()), 32);
@@ -273,11 +274,11 @@ namespace sgcl::compress::detail {
                 crypto::detail::secure_zero(&_dec, sizeof(_dec));
             }
 
-            void decrypt(uint8_t* p, size_t n) {
+            void decrypt(uint8_t* p, size_t n) noexcept {
                 crypto::detail::aes_cbc_decrypt(_enc, _dec, _chain, p, p, n / 16);
             }
 
-            void encrypt(uint8_t* p, size_t n) {
+            void encrypt(uint8_t* p, size_t n) noexcept {
                 array<byte, 16> in;
                 for (size_t i = 0; i + 16 <= n; i += 16) {
                     for (int k = 0; k < 16; ++k) {

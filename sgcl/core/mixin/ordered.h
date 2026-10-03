@@ -62,16 +62,19 @@ namespace sgcl::mixin {
     // where the elements can be written (req::sequence) and reached by
     // position: an immutable vector is ordered (is_sorted,
     // binary_search) but not sorted in place. The linked lists have a
-    // sort of their own, on the nodes, which hides these.
+    // sort of their own, on the nodes, which hides these. Each method is
+    // noexcept as far as what it calls is: the element's <, the comparator
+    // or key given (and its copy), and for the sorts the element's moves
+    // and swaps.
     template<class Derived>
     class ordered {
     public:
-        constexpr bool is_sorted() const requires detail::ComparableElements<Derived> {
+        constexpr bool is_sorted() const noexcept(detail::nothrow_less<detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             return std::ranges::is_sorted(_begin(), _end(), detail::Less{});
         }
 
         template<class Compare>
-        constexpr bool is_sorted(Compare cmp) const requires detail::ElementOrder<Compare, Derived> {
+        constexpr bool is_sorted(Compare cmp) const noexcept(detail::nothrow_callback<Compare, detail::ElementReference<const Derived>, detail::ElementReference<const Derived>>) requires detail::ElementOrder<Compare, Derived> {
             return std::ranges::is_sorted(_begin(), _end(), cmp);
         }
 
@@ -79,59 +82,59 @@ namespace sgcl::mixin {
         // the value is there, its position (npos when not), the first
         // position not less than it and the first greater; O(log n)
         // comparisons on a random-access range, O(n) steps otherwise
-        constexpr bool binary_search(const auto& value) const requires detail::ComparableElements<Derived> {
+        constexpr bool binary_search(const auto& value) const noexcept(detail::nothrow_less<detail::ElementValue<Derived>, std::remove_cvref_t<decltype(value)>> && detail::nothrow_less<std::remove_cvref_t<decltype(value)>, detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             return std::ranges::binary_search(_begin(), _end(), value, detail::Less{});
         }
 
         template<class Compare>
-        constexpr bool binary_search(const auto& value, Compare cmp) const requires detail::ElementOrder<Compare, Derived> {
+        constexpr bool binary_search(const auto& value, Compare cmp) const noexcept(detail::nothrow_callback<Compare, detail::ElementReference<const Derived>, const std::remove_cvref_t<decltype(value)>&> && detail::nothrow_callback<Compare, const std::remove_cvref_t<decltype(value)>&, detail::ElementReference<const Derived>>) requires detail::ElementOrder<Compare, Derived> {
             return std::ranges::binary_search(_begin(), _end(), value, cmp);
         }
 
-        constexpr size_t sorted_index_of(const auto& value) const requires detail::ComparableElements<Derived> {
+        constexpr size_t sorted_index_of(const auto& value) const noexcept(detail::nothrow_less<detail::ElementValue<Derived>, std::remove_cvref_t<decltype(value)>> && detail::nothrow_less<std::remove_cvref_t<decltype(value)>, detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             auto it = std::ranges::lower_bound(_begin(), _end(), value, detail::Less{});
             return it != _end() && !(value < *it) ? size_t(std::ranges::distance(_begin(), it)) : npos;
         }
 
         template<class Compare>
-        constexpr size_t sorted_index_of(const auto& value, Compare cmp) const requires detail::ElementOrder<Compare, Derived> {
+        constexpr size_t sorted_index_of(const auto& value, Compare cmp) const noexcept(detail::nothrow_callback<Compare, detail::ElementReference<const Derived>, const std::remove_cvref_t<decltype(value)>&> && detail::nothrow_callback<Compare, const std::remove_cvref_t<decltype(value)>&, detail::ElementReference<const Derived>>) requires detail::ElementOrder<Compare, Derived> {
             auto it = std::ranges::lower_bound(_begin(), _end(), value, cmp);
             return it != _end() && !cmp(value, *it) ? size_t(std::ranges::distance(_begin(), it)) : npos;
         }
 
-        constexpr auto lower_bound(const auto& value) requires detail::ComparableElements<Derived> {
+        constexpr auto lower_bound(const auto& value) noexcept(detail::nothrow_less<detail::ElementValue<Derived>, std::remove_cvref_t<decltype(value)>> && detail::nothrow_less<std::remove_cvref_t<decltype(value)>, detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             return std::ranges::lower_bound(_begin(), _end(), value, detail::Less{});
         }
 
-        constexpr auto lower_bound(const auto& value) const requires detail::ComparableElements<Derived> {
+        constexpr auto lower_bound(const auto& value) const noexcept(detail::nothrow_less<detail::ElementValue<Derived>, std::remove_cvref_t<decltype(value)>> && detail::nothrow_less<std::remove_cvref_t<decltype(value)>, detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             return std::ranges::lower_bound(_begin(), _end(), value, detail::Less{});
         }
 
         template<class Compare>
-        constexpr auto lower_bound(const auto& value, Compare cmp) requires detail::ElementOrder<Compare, Derived> {
+        constexpr auto lower_bound(const auto& value, Compare cmp) noexcept(detail::nothrow_callback<Compare, detail::ElementReference<Derived>, const std::remove_cvref_t<decltype(value)>&> && detail::nothrow_callback<Compare, const std::remove_cvref_t<decltype(value)>&, detail::ElementReference<Derived>>) requires detail::ElementOrder<Compare, Derived> {
             return std::ranges::lower_bound(_begin(), _end(), value, cmp);
         }
 
         template<class Compare>
-        constexpr auto lower_bound(const auto& value, Compare cmp) const requires detail::ElementOrder<Compare, Derived> {
+        constexpr auto lower_bound(const auto& value, Compare cmp) const noexcept(detail::nothrow_callback<Compare, detail::ElementReference<const Derived>, const std::remove_cvref_t<decltype(value)>&> && detail::nothrow_callback<Compare, const std::remove_cvref_t<decltype(value)>&, detail::ElementReference<const Derived>>) requires detail::ElementOrder<Compare, Derived> {
             return std::ranges::lower_bound(_begin(), _end(), value, cmp);
         }
 
-        constexpr auto upper_bound(const auto& value) requires detail::ComparableElements<Derived> {
+        constexpr auto upper_bound(const auto& value) noexcept(detail::nothrow_less<detail::ElementValue<Derived>, std::remove_cvref_t<decltype(value)>> && detail::nothrow_less<std::remove_cvref_t<decltype(value)>, detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             return std::ranges::upper_bound(_begin(), _end(), value, detail::Less{});
         }
 
-        constexpr auto upper_bound(const auto& value) const requires detail::ComparableElements<Derived> {
+        constexpr auto upper_bound(const auto& value) const noexcept(detail::nothrow_less<detail::ElementValue<Derived>, std::remove_cvref_t<decltype(value)>> && detail::nothrow_less<std::remove_cvref_t<decltype(value)>, detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> {
             return std::ranges::upper_bound(_begin(), _end(), value, detail::Less{});
         }
 
         template<class Compare>
-        constexpr auto upper_bound(const auto& value, Compare cmp) requires detail::ElementOrder<Compare, Derived> {
+        constexpr auto upper_bound(const auto& value, Compare cmp) noexcept(detail::nothrow_callback<Compare, detail::ElementReference<Derived>, const std::remove_cvref_t<decltype(value)>&> && detail::nothrow_callback<Compare, const std::remove_cvref_t<decltype(value)>&, detail::ElementReference<Derived>>) requires detail::ElementOrder<Compare, Derived> {
             return std::ranges::upper_bound(_begin(), _end(), value, cmp);
         }
 
         template<class Compare>
-        constexpr auto upper_bound(const auto& value, Compare cmp) const requires detail::ElementOrder<Compare, Derived> {
+        constexpr auto upper_bound(const auto& value, Compare cmp) const noexcept(detail::nothrow_callback<Compare, detail::ElementReference<const Derived>, const std::remove_cvref_t<decltype(value)>&> && detail::nothrow_callback<Compare, const std::remove_cvref_t<decltype(value)>&, detail::ElementReference<const Derived>>) requires detail::ElementOrder<Compare, Derived> {
             return std::ranges::upper_bound(_begin(), _end(), value, cmp);
         }
 
@@ -139,29 +142,29 @@ namespace sgcl::mixin {
         // and reached by position: by <, by a comparator, or by a key
         // taken from the element (v.sort_by(&item::name)). One mixin holds
         // every overload of a name: a name in two bases is ambiguous.
-        constexpr void sort() requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
+        constexpr void sort() noexcept(detail::nothrow_permutable<detail::ElementValue<Derived>> && detail::nothrow_less<detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::sort(_begin(), _end(), detail::Less{});
         }
 
         template<class Compare>
-        constexpr void sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
+        constexpr void sort(Compare cmp) noexcept(detail::nothrow_permutable<detail::ElementValue<Derived>> && detail::nothrow_callback<Compare, detail::ElementReference<Derived>, detail::ElementReference<Derived>>) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::sort(_begin(), _end(), cmp);
         }
 
         template<class Proj>
-        constexpr void sort_by(Proj proj) requires detail::ElementVisitor<Proj, const Derived> && req::sequence<Derived> && req::random_access<Derived> {
+        constexpr void sort_by(Proj proj) noexcept(detail::nothrow_permutable<detail::ElementValue<Derived>> && detail::nothrow_callback<Proj, detail::ElementReference<Derived>> && detail::nothrow_less<std::remove_cvref_t<std::invoke_result_t<Proj&, detail::ElementReference<Derived>>>>) requires detail::ElementKey<Proj, const Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::sort(_begin(), _end(), detail::Less{}, proj);
         }
 
         // Stable; elements that may hold tracked pointers are sorted by
         // their positions (detail::stable_sort_by_positions), any other by
         // the standard's
-        void stable_sort() requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
+        void stable_sort() noexcept(detail::nothrow_permutable<detail::ElementValue<Derived>> && detail::nothrow_less<detail::ElementValue<Derived>>) requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
             _stable_sort(detail::Less{});
         }
 
         template<class Compare>
-        void stable_sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
+        void stable_sort(Compare cmp) noexcept(detail::nothrow_permutable<detail::ElementValue<Derived>> && detail::nothrow_callback<Compare, detail::ElementReference<Derived>, detail::ElementReference<Derived>>) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
             _stable_sort(cmp);
         }
 

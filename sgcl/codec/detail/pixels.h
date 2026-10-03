@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/bytes.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -222,7 +224,7 @@ namespace sgcl::codec::detail {
     template<pixel_format S, pixel_format D>
     void convert_pixels(const std::byte* src, std::byte* dst, size_t count) noexcept {
         if constexpr (S == D) {
-            std::memcpy(dst, src, count * bytes_per_pixel(S));
+            sgcl::detail::copy_bytes(dst, src, count * bytes_per_pixel(S));
         } else {
             using T = std::conditional_t<wide(S) || wide(D), uint16_t, uint8_t>;
             constexpr unsigned sb = bytes_per_pixel(S);

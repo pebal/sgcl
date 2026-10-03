@@ -153,7 +153,7 @@ namespace sgcl::compress::detail {
 
         // For the data of these properties; size is the length decoded
         // (UINT64_MAX: unknown, the end marker ends it)
-        void reset(const LzmaProperties& p, uint64_t size) {
+        void reset(const LzmaProperties& p, uint64_t size) noexcept {
             _props = p;
             _dictionary = std::max(p.dictionary, lzma_model::DictionaryMin);
             size_t n = p.literal_probs();
@@ -185,7 +185,7 @@ namespace sgcl::compress::detail {
         // chunk at a time — its size, the range coder started anew, and
         // before it, as the chunk's header says, the dictionary reset (the
         // position starts over), new properties and the state reset
-        void lzma2_init(uint32_t dictionary) {
+        void lzma2_init(uint32_t dictionary) noexcept {
             _dictionary = std::max(dictionary, lzma_model::DictionaryMin);
             _lzma2 = true;
             _failed = false;
@@ -199,7 +199,7 @@ namespace sgcl::compress::detail {
             _total = 0;
         }
 
-        void lzma2_properties(const LzmaProperties& p) {
+        void lzma2_properties(const LzmaProperties& p) noexcept {
             _props.lc = p.lc;
             _props.lp = p.lp;
             _props.pb = p.pb;
@@ -246,7 +246,7 @@ namespace sgcl::compress::detail {
         // Decodes into window[pos, limit): limit is at most the window's
         // size (the linear form: its size less CopySlack)
         template<bool Linear>
-        LzmaStatus decode(uint8_t* window, size_t size, size_t& pos, size_t limit, const uint8_t*& in, const uint8_t* end, bool input_ended) {
+        LzmaStatus decode(uint8_t* window, size_t size, size_t& pos, size_t limit, const uint8_t*& in, const uint8_t* end, bool input_ended) noexcept {
             if (_failed) {
                 return LzmaStatus::failed;
             }
@@ -324,7 +324,7 @@ namespace sgcl::compress::detail {
                 // the input's last bytes: a symbol through the buffer
                 size_t had = _tmp_size;
                 size_t add = std::min<size_t>(Margin - had, size_t(end - in));
-                std::memcpy(_tmp + had, in, add);
+                sgcl::detail::copy_bytes(_tmp + had, in, add);
                 size_t have = had + add;
                 Dry d{_range, _code, _tmp, _tmp + have, true};
                 _symbol(d, window, size, pos);
@@ -349,7 +349,7 @@ namespace sgcl::compress::detail {
                     in += used - had;
                     _tmp_size = 0;
                 } else {
-                    std::memmove(_tmp, _tmp + used, had - used);
+                    sgcl::detail::move_bytes(_tmp, _tmp + used, had - used);
                     _tmp_size = had - used;
                 }
                 if (st != LzmaStatus::need_input) {
@@ -541,7 +541,7 @@ namespace sgcl::compress::detail {
         // One symbol, decoded; nothing of the state changed (but the
         // probabilities, by a Real decoder)
         template<class R>
-        Symbol _symbol(R& r, const uint8_t* window, size_t size, size_t pos) {
+        Symbol _symbol(R& r, const uint8_t* window, size_t size, size_t pos) noexcept {
             uint32_t ps = uint32_t(_total) & ((1u << _props.pb) - 1);
             if (!r.bit(_probs.is_match[_state][ps])) {
                 uint16_t* lit = _literal_probs(_total ? _back(window, size, pos, 0) : 0);
@@ -590,7 +590,7 @@ namespace sgcl::compress::detail {
 
         // One symbol decoded and applied with every check: the room, the
         // size known, a distance past the start
-        LzmaStatus _one(Real& r, uint8_t* window, size_t size, size_t& pos, size_t limit) {
+        LzmaStatus _one(Real& r, uint8_t* window, size_t size, size_t& pos, size_t limit) noexcept {
             Symbol s = _symbol(r, window, size, pos);
             if (_expect_marker && s.kind != Marker) {
                 return _fail(errc::corrupt, "lzma: data past the size in the header");
@@ -703,7 +703,7 @@ namespace sgcl::compress::detail {
         // Symbols straight from the input while at least Margin bytes of
         // it remain (in_stop) and the room takes the longest match (stop)
         template<bool Linear>
-        LzmaStatus _fast(uint8_t* window, size_t size, size_t& pos_ref, size_t stop, const uint8_t*& in_ref, const uint8_t* in_stop) {
+        LzmaStatus _fast(uint8_t* window, size_t size, size_t& pos_ref, size_t stop, const uint8_t*& in_ref, const uint8_t* in_stop) noexcept {
             Real r{_range, _code, in_ref};
             size_t pos = pos_ref;
             uint32_t state = _state;

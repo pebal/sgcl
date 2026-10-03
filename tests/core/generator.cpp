@@ -7,6 +7,9 @@
 // tracked pointers in its suspended frame are roots.
 #include "tests/types.h"
 
+#include <memory>
+#include <vector>
+
 namespace {
     struct Node {
         explicit Node(int v) : value(v) { ++alive; }
@@ -24,6 +27,20 @@ namespace {
             n->next = chain;
             chain = n;
             co_yield n;
+        }
+    }
+
+    struct Owned {
+        explicit Owned(int v) : value(v) { ++alive; }
+        ~Owned() { --alive; }
+        int value;
+        inline static int alive = 0;
+    };
+
+    // Yields values that can only be moved, not copied
+    generator<std::unique_ptr<Owned>> owned(int count) {
+        for (int i = 0; i < count; ++i) {
+            co_yield std::make_unique<Owned>(i);
         }
     }
 
@@ -54,4 +71,29 @@ TEST(Generator_Tests, AGeneratorHoldsItsChainAcrossYields) {
     EXPECT_EQ(seen, 5);
     settle();
     EXPECT_EQ(Node::alive.load(), before);
+}
+
+TEST(Generator_Tests, AYieldedUniquePtrIsMovedOutOfTheFrame) {
+    std::vector<std::unique_ptr<Owned>> taken;
+    {
+        auto g = owned(4);
+        ASSERT_TRUE(g.next());
+        taken.push_back(std::move(g.value()));
+        EXPECT_EQ(g.value(), nullptr);   // the frame keeps the moved-from value until the next co_yield
+        EXPECT_EQ(taken.back()->value, 0);
+        ASSERT_TRUE(g.next());
+        ASSERT_NE(g.value(), nullptr);   // the next co_yield replaced it
+        EXPECT_EQ(g.value()->value, 1);
+    }                                    // the generator dropped with 1 in its frame and 2, 3 never yielded
+    EXPECT_EQ(Owned::alive, 1);
+    for (auto& p : owned(3)) {
+        taken.push_back(std::move(p));
+    }
+    ASSERT_EQ(taken.size(), 4u);
+    for (int i = 0; i < 3; ++i) {
+        EXPECT_EQ(taken[i + 1]->value, i);
+    }
+    EXPECT_EQ(Owned::alive, 4);          // the moved values outlive their generators
+    taken.clear();
+    EXPECT_EQ(Owned::alive, 0);
 }

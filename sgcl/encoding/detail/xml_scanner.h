@@ -80,7 +80,7 @@ namespace sgcl::encoding::detail {
     template<class Xml>
     class XmlScanner {
     public:
-        using attribute = typename Xml::attribute_type;
+        using attr = typename Xml::attr;
         using token = typename Xml::token;
         using options = typename Xml::options;
         using token_kind = typename token::kind;
@@ -93,7 +93,7 @@ namespace sgcl::encoding::detail {
         };
 
         // A document in memory, read where it lies
-        XmlScanner(const string& text, const options& o)
+        XmlScanner(const string& text, const options& o) noexcept
         : _options(o), _text(text), _memory(true) {
             _init();
             _base = _text.data();
@@ -102,7 +102,7 @@ namespace sgcl::encoding::detail {
         }
 
         // A document a stream brings: room() and received() feed it
-        explicit XmlScanner(const options& o)
+        explicit XmlScanner(const options& o) noexcept
         : _options(o) {
             _init();
             _buffer.resize(config::io_buffer_size);
@@ -177,7 +177,7 @@ namespace sgcl::encoding::detail {
         // Where the next bytes of the stream go: free room at the end of
         // the buffer, or the block a document in another encoding is read
         // into before it becomes UTF-8
-        slice<byte> room() {
+        slice<byte> room() noexcept {
             if (_transcode != Transcode::none) {
                 if (!_raw) {
                     _raw = make_tracked<array<byte, config::io_buffer_size>>();
@@ -228,7 +228,7 @@ namespace sgcl::encoding::detail {
         }
 
         // "/catalog/book": the elements open, for a message
-        string path() const {
+        string path() const noexcept {
             std::string p;
             for (auto& o : _open) {
                 p += '/';
@@ -275,13 +275,13 @@ namespace sgcl::encoding::detail {
         static constexpr size_t Short = size_t(-2);    // the data ended; more is coming
         static constexpr size_t Failed = size_t(-1);   // _error is set
 
-        void _init() {
+        void _init() noexcept {
             _cache = dynamic_array<string>(CacheSize);
         }
 
         // --- the input -------------------------------------------------
 
-        Step _more() {
+        Step _more() noexcept {
             if (!_memory && _end - _pos > _options.max_token_size) {
                 _fail(errc::out_of_range, _pos, "a token longer than options.max_token_size ("
                     + std::to_string(_options.max_token_size) + " bytes)");
@@ -293,7 +293,7 @@ namespace sgcl::encoding::detail {
         // At least n bytes of room past the end: the bytes already read
         // moved to the front first, the buffer grown only when a token
         // fills it
-        void _reserve(size_t n) {
+        void _reserve(size_t n) noexcept {
             if (_buffer.size() - _end >= n) {
                 return;
             }
@@ -310,7 +310,7 @@ namespace sgcl::encoding::detail {
         // The bytes before the token being read are gone for good: what a
         // position needs of them (lines, the column, the characters an
         // offset in another encoding counts) is counted now
-        void _drop() {
+        void _drop() noexcept {
             const char* d = _buffer.data();
             size_t n = _pos;
             _lines += uint64_t(std::count(d, d + n, '\n'));
@@ -324,6 +324,9 @@ namespace sgcl::encoding::detail {
                 _dropped_points += _code_points(d, d + n);
                 _dropped_supplementary += _supplementary(d, d + n);
             }
+            // memmove (note 313): the rest may overlap the bytes dropped,
+            // and move_bytes inlined here grew _drop by 212 bytes, which
+            // moved the scanner's hot functions and cost the stream 0.6%
             std::memmove(_buffer.data(), d + n, _end - n);
             _dropped += n;
             _end -= n;
@@ -370,7 +373,7 @@ namespace sgcl::encoding::detail {
 
         // The error at a position of the buffer, with its line and column
         // counted now, on the error's path alone
-        void _fail(errc code, size_t at, const std::string& what) {
+        void _fail(errc code, size_t at, const std::string& what) noexcept {
             if (_error) {
                 return;
             }
@@ -397,7 +400,7 @@ namespace sgcl::encoding::detail {
         // The failure of the input itself — the stream's error, a UTF-16
         // unit without its pair — found when the data read before it ran
         // out: with the line, the column and the path of that place
-        void _take_deferred() {
+        void _take_deferred() noexcept {
             error e = std::move(*_deferred);
             _deferred.reset();
             auto [line, column] = _position(_end);
@@ -406,14 +409,14 @@ namespace sgcl::encoding::detail {
             _error = std::move(e);
         }
 
-        size_t _failed(errc code, size_t at, const std::string& what) {
+        size_t _failed(errc code, size_t at, const std::string& what) noexcept {
             _fail(code, at, what);
             return Failed;
         }
 
         // The data ended at `at`: more is coming, or it never will and the
         // token is cut
-        size_t _short(size_t at, const char* inside) {
+        size_t _short(size_t at, const char* inside) noexcept {
             if (!_eof) {
                 return Short;
             }
@@ -424,7 +427,7 @@ namespace sgcl::encoding::detail {
             return _failed(errc::unexpected_end, at, std::string("the document ends inside ") + inside);
         }
 
-        static std::string _shown(char32_t c) {
+        static std::string _shown(char32_t c) noexcept {
             static constexpr char Digits[] = "0123456789ABCDEF";
             std::string s = "U+";
             int shift = c > 0xFFFF ? 20 : 12;
@@ -441,7 +444,7 @@ namespace sgcl::encoding::detail {
 
         // A byte that is not ASCII, or a control: the character it begins,
         // checked to be one XML holds. The width, Short, or Failed.
-        size_t _character(size_t i) {
+        size_t _character(size_t i) noexcept {
             uint8_t b = uint8_t(_base[i]);
             if (b < 0x80) {
                 if (b < 0x20 && b != '\t' && b != '\n' && b != '\r') {
@@ -658,7 +661,7 @@ namespace sgcl::encoding::detail {
 
         // A surrogate of UTF-16 without its pair: the text up to it is
         // read, and then the reader stops there
-        void _lone_surrogate(char* o, uint64_t at) {
+        void _lone_surrogate(char* o, uint64_t at) noexcept {
             _end = size_t(o - _buffer.data());
             if (!_deferred) {
                 _deferred = error(errc::invalid_character, at, "a UTF-16 surrogate without its pair");
@@ -674,7 +677,7 @@ namespace sgcl::encoding::detail {
         // shape the reading of the token expects, so that it says "there"
         // when the reading will not want more; for a token that is not
         // well formed it may say so early, and the reading then fails.
-        bool _find_end() {
+        bool _find_end() noexcept {
             const char* d = _base;
             size_t e = _end;
             size_t i = _find_at;
@@ -899,20 +902,20 @@ namespace sgcl::encoding::detail {
             return _end - i >= s.size() && std::memcmp(_base + i, s.data(), s.size()) == 0;
         }
 
-        Parse _parse_short(size_t at, const char* inside) {
+        Parse _parse_short(size_t at, const char* inside) noexcept {
             return _short(at, inside) == Short ? Parse::more : Parse::failed;
         }
 
-        Parse _parse_fail(errc code, size_t at, const std::string& what) {
+        Parse _parse_fail(errc code, size_t at, const std::string& what) noexcept {
             _fail(code, at, what);
             return Parse::failed;
         }
 
-        static Parse _status(size_t r) {
+        static Parse _status(size_t r) noexcept {
             return r == Short ? Parse::more : Parse::failed;
         }
 
-        static bool _bad(size_t r) {
+        static bool _bad(size_t r) noexcept {
             return r >= Short;
         }
 
@@ -926,7 +929,7 @@ namespace sgcl::encoding::detail {
 
         // [5] Name from i: its end; i itself when no name starts there;
         // Short when the data ends inside it; Failed for invalid UTF-8
-        size_t _name(size_t i) {
+        size_t _name(size_t i) noexcept {
             const char* d = _base;
             size_t j = i;
             if (j >= _end) {
@@ -976,7 +979,7 @@ namespace sgcl::encoding::detail {
 
         // A reference from i (the '&'), its character appended to out: the
         // index past its ';', Short or Failed
-        size_t _reference(size_t i, std::string& out) {
+        size_t _reference(size_t i, std::string& out) noexcept {
             const char* d = _base;
             size_t j = i + 1;
             if (j >= _end) {
@@ -1134,7 +1137,7 @@ namespace sgcl::encoding::detail {
         // The data of a comment, a CDATA section or an instruction, to the
         // terminator; the index past the terminator, Short or Failed. In a
         // comment, "--" before the end is an error.
-        size_t _until(size_t i, std::string_view terminator, bool comment, std::string& s, const char* inside) {
+        size_t _until(size_t i, std::string_view terminator, bool comment, std::string& s, const char* inside) noexcept {
             const char* d = _base;
             s.clear();
             for (;;) {
@@ -1459,7 +1462,7 @@ namespace sgcl::encoding::detail {
                 if (_bad(v)) {
                     return _status(v);
                 }
-                _attributes.push_back(attribute{_string(d + s, a - s), _string(_scratch), string()});
+                _attributes.push_back(attr{_string(d + s, a - s), _string(_scratch), string()});
                 _attribute_at.push_back(s);
                 i = v;
             }
@@ -1477,7 +1480,7 @@ namespace sgcl::encoding::detail {
             out._local = top.local;
             out._uri = top.uri;
             if (!_attributes.empty()) {
-                out._attributes = dynamic_array<attribute>(_attributes.begin(), _attributes.end());
+                out._attributes = dynamic_array<attr>(_attributes.begin(), _attributes.end());
             }
             _close_pending = self;
             _pos = i;
@@ -1486,7 +1489,7 @@ namespace sgcl::encoding::detail {
 
         // [10] AttValue from i (past the quote q), normalized (3.3.3) into
         // _scratch: the index past the closing quote, Short or Failed
-        size_t _value(size_t i, char q) {
+        size_t _value(size_t i, char q) noexcept {
             const char* d = _base;
             std::string& s = _scratch;
             s.clear();
@@ -1599,20 +1602,7 @@ namespace sgcl::encoding::detail {
                     continue;
                 }
                 std::string_view prefix = default_declaration ? std::string_view() : n.substr(6);
-                std::string_view uri = a.value.view();
-                const char* wrong = nullptr;
-                if (prefix == "xmlns") {
-                    wrong = "the prefix xmlns cannot be declared";
-                } else if (prefix == "xml" && uri != XmlNamespace) {
-                    wrong = "the prefix xml is bound to its own namespace alone";
-                } else if (prefix != "xml" && uri == XmlNamespace) {
-                    wrong = "only the prefix xml is bound to the XML namespace";
-                } else if (uri == XmlnsNamespace) {
-                    wrong = "nothing is bound to the xmlns namespace";
-                } else if (!default_declaration && uri.empty()) {
-                    wrong = "a prefix cannot be undeclared in XML 1.0 (xmlns:p=\"\")";
-                }
-                if (wrong) {
+                if (const char* wrong = xml_declaration_wrong(n, a.value.view())) {
                     _fail(errc::syntax, _attribute_at[k], wrong);
                     return false;
                 }
@@ -1672,7 +1662,7 @@ namespace sgcl::encoding::detail {
         // No two attributes of the tag alike: by name, or by namespace and
         // local name. Pairwise for a few, through a set for more, so that
         // a tag of a hundred thousand attributes is not 10^10 comparisons.
-        bool _unique(bool expanded) {
+        bool _unique(bool expanded) noexcept {
             size_t count = _attributes.size();
             auto key = [&](size_t k) -> std::string {
                 auto& a = _attributes[k];
@@ -1718,7 +1708,7 @@ namespace sgcl::encoding::detail {
         }
 
         // [42] ETag
-        Parse _end_tag(token& out) {
+        Parse _end_tag(token& out) noexcept {
             const char* d = _base;
             size_t i = _pos + 2;
             size_t n = _name(i);
@@ -1748,7 +1738,7 @@ namespace sgcl::encoding::detail {
         }
 
         // The end of the element on the top: its token, its bindings gone
-        void _end_element(token& out) {
+        void _end_element(token& out) noexcept {
             auto& top = _open.back();
             out = token();
             out._kind = token_kind::end_element;
@@ -1844,7 +1834,7 @@ namespace sgcl::encoding::detail {
 
         // A quoted literal from i: the index past it. A public identifier's
         // characters are the few [13] allows.
-        size_t _literal(size_t i, bool pubid) {
+        size_t _literal(size_t i, bool pubid) noexcept {
             const char* d = _base;
             if (i >= _end) {
                 return _short(i, "a literal");
@@ -1879,7 +1869,7 @@ namespace sgcl::encoding::detail {
         }
 
         // [75] ExternalID: SYSTEM "literal" | PUBLIC "pubid" "literal"
-        size_t _external_id(size_t i) {
+        size_t _external_id(size_t i) noexcept {
             bool pub = _starts(i, "PUBLIC");
             size_t k = i + 6;
             size_t s = _spaces(k);
@@ -1911,7 +1901,7 @@ namespace sgcl::encoding::detail {
         // entity references, comments and instructions, each skipped by
         // its shape — a declaration to its '>' outside quotes — to the ']'
         // that closes it. Nothing is interpreted.
-        size_t _subset(size_t i) {
+        size_t _subset(size_t i) noexcept {
             const char* d = _base;
             for (;;) {
                 i = _spaces(i);
@@ -2076,7 +2066,7 @@ namespace sgcl::encoding::detail {
 
         // scratch of one token
         std::string _scratch;
-        vector<attribute> _attributes;
+        vector<attr> _attributes;
         std::vector<size_t> _attribute_at;
         dynamic_array<string> _cache;
     };

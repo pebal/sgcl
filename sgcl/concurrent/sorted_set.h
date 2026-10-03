@@ -22,6 +22,7 @@ namespace sgcl::concurrent {
     class sorted_set
     : public detail::SkipList<detail::ConcurrentSortedSetTraits<Key, Compare>> {
         using Base = detail::SkipList<detail::ConcurrentSortedSetTraits<Key, Compare>>;
+        static_assert(detail::nothrow_function_object<Compare, const Key&, const Key&>, "sgcl::concurrent::sorted_set: Compare must be noexcept");
 
     public:
         using typename Base::value_type;
@@ -31,15 +32,5 @@ namespace sgcl::concurrent {
         using Base::insert;
 
         sorted_set() = default;
-
-        // insert(key) searches once and builds the node only when the key
-        // is absent, as try_emplace does for the map
-        pair<iterator, bool> insert(const Key& key) {
-            return this->_insert_absent(key, [&](unsigned h) { return this->_make_node(h, key); });
-        }
-
-        pair<iterator, bool> insert(Key&& key) {
-            return this->_insert_absent(key, [&](unsigned h) { return this->_make_node(h, std::move(key)); });
-        }
     };
 }

@@ -210,7 +210,7 @@ namespace sgcl::hash {
                 return _block_copy_from(r);
             }
 
-            async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) {
+            async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) noexcept {
                 return _co_copy_from(r);
             }
 
@@ -225,12 +225,12 @@ namespace sgcl::hash {
                 return _block_of_file(path);
             }
 
-            static auto async_of_file(const string& path) requires std::default_initializable<Derived> {
+            static auto async_of_file(const string& path) noexcept requires std::default_initializable<Derived> {
                 return _co_of_file(path);
             }
 
         protected:
-            hasher() = default;
+            hasher() noexcept = default;
             ~hasher() = default;
 
         private:
@@ -255,7 +255,7 @@ namespace sgcl::hash {
                 }
             }
 
-            async::task<expected<size_t, io::error>> _co_copy_from(io::reader r)  {
+            async::task<expected<size_t, io::error>> _co_copy_from(io::reader r) noexcept {
                 tracked_ptr<io::detail::CopyBlock> block = make_tracked<io::detail::CopyBlock>();   // managed: the read may run on the pool, its slice holds the block
                 size_t total = 0;
                 for (;;) {
@@ -292,7 +292,7 @@ namespace sgcl::hash {
             }
 
             template<class D = Derived>
-            static async::task<_file_result<D>> _co_of_file(string path) {   // by value: a task is lazy, the caller's string may be gone before it runs
+            static async::task<_file_result<D>> _co_of_file(string path) noexcept {   // by value: a task is lazy, the caller's string may be gone before it runs
                 auto f = co_await io::async_open(path);
                 if (!f) {
                     co_return io::detail::fail(f);

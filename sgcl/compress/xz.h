@@ -5,8 +5,10 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/copy.h"
 #include "detail/xz_format.h"
 #include "../core/array.h"
+#include "../core/detail/bytes.h"
 #include "../io/detail/bytes.h"
 
 namespace sgcl::compress {
@@ -53,7 +55,7 @@ namespace sgcl::compress {
         class writer;
         class reader;
 
-        static vector<byte> compress(const slice<const byte>& data) {
+        static vector<byte> compress(const slice<const byte>& data) noexcept {
             return compress(data, options{});
         }
 
@@ -108,7 +110,7 @@ namespace sgcl::compress {
             return detail::to_vector(out.data(), out.size());
         }
 
-        static vector<byte> compress(const string& text) {
+        static vector<byte> compress(const string& text) noexcept {
             return compress(io::detail::bytes_of(text), options{});
         }
 
@@ -116,13 +118,26 @@ namespace sgcl::compress {
             return compress(io::detail::bytes_of(text), o);
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) {
+        // A literal, a character array, a std::string_view: the text's
+        // bytes as the string's overload takes them (an exact match, else
+        // the two conversions, to a string and to bytes, tie)
+        template<sgcl::detail::TextArgument T>
+        static vector<byte> compress(const T& text) noexcept {
+            return compress(slice<const byte>(text), options{});
+        }
+
+        template<sgcl::detail::TextArgument T>
+        static vector<byte> compress(const T& text, const options& o) {
+            return compress(slice<const byte>(text), o);
+        }
+
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
             return decompress(data, limits{});
         }
 
         // Every stream, one after another, up to the limit's size; every
         // block's check, the index and the footers checked
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) {
+        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) noexcept {
             namespace f = detail::xz_format;
             using detail::Parsed;
             const uint8_t* p = detail::bytes(data);
@@ -136,7 +151,7 @@ namespace sgcl::compress {
             auto out = [&]() noexcept {
                 return reinterpret_cast<uint8_t*>(result.data());
             };
-            auto fail = [](errc code, uint64_t at, const char* text) {
+            auto fail = [](errc code, uint64_t at, const char* text) noexcept {
                 return unexpected<error>(error(code, at, text ? string(text) : string()));
             };
             size_t total = 0;
@@ -292,7 +307,7 @@ namespace sgcl::compress {
             return 0;
         }
 
-        static expected<Setup, const char*> _setup(const options& o) {
+        static expected<Setup, const char*> _setup(const options& o) noexcept {
             int level = o.level.value();
             if (level < 0) {
                 return unexpected<const char*>("a level of 0..9 (huffman_only is DEFLATE's)");
@@ -359,11 +374,11 @@ namespace sgcl::compress {
         using io::mixin::writer<xz::writer>::write;
         using io::mixin::writer<xz::writer>::async_write;
 
-        explicit writer(const io::writer& out)
+        explicit writer(const io::writer& out) noexcept
         : writer(out, options{}) {
         }
 
-        writer(const io::writer& out, const options& o)
+        writer(const io::writer& out, const options& o) noexcept
         : _out(out) {
             auto s = xz::_setup(o);
             if (s) {
@@ -375,8 +390,37 @@ namespace sgcl::compress {
 
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
-        writer(writer&&) noexcept = default;
-        writer& operator=(writer&&) noexcept = default;
+
+        // The other left closed, its stream and its encoder gone with the
+        // move (its options kept): its writes give io::errc::closed, its
+        // close does nothing, and a reset gives it a new stream
+        writer(writer&& o) noexcept
+        : _out(std::move(o._out))
+        , _setup(o._setup ? std::make_unique<Setup>(*o._setup) : nullptr)
+        , _encoder(std::move(o._encoder))
+        , _chain(std::move(o._chain))
+        , _check(std::move(o._check))
+        , _pending(std::move(o._pending))
+        , _block(std::move(o._block))
+        , _error(std::move(o._error))
+        , _uncompressed(o._uncompressed)
+        , _compressed(o._compressed)
+        , _header_size(o._header_size)
+        , _started(o._started)
+        , _block_started(o._block_started)
+        , _closed(o._closed) {
+            std::swap(_setup, o._setup);   // the copy is the other's: this one keeps its own
+            o._out = io::writer();
+            o._pending = std::vector<uint8_t>();
+            o._chain = detail::FilterChain();
+            o._error = nullopt;
+            o._started = true;
+            o._closed = true;
+        }
+
+        writer& operator=(writer&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
 
         expected<size_t, io::error> write(const slice<const byte>& data) {
             if (auto e = _check_state("write")) {
@@ -389,7 +433,7 @@ namespace sgcl::compress {
             return data.size();
         }
 
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept {
             if (auto e = _check_state("write")) {
                 co_return io::detail::fail(*e);
             }
@@ -436,7 +480,7 @@ namespace sgcl::compress {
             return {};
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             if (_closed && !_error) {
                 co_return expected<void, io::error>();
             }
@@ -469,9 +513,12 @@ namespace sgcl::compress {
 
         // A new stream into out with the same settings: the encoder's
         // memory (the window, the tables) kept
-        void reset(const io::writer& out) {
+        void reset(const io::writer& out) noexcept {
             _out = out;
-            if (_encoder) {
+            if (!_encoder && _setup) {
+                _encoder = std::make_unique<detail::Lzma2Encoder>(_setup->lzma);   // moved from: its encoder went with the move
+                _start();
+            } else if (_encoder) {
                 _encoder->restart();
                 _start();
             }
@@ -483,7 +530,7 @@ namespace sgcl::compress {
     private:
         static constexpr uint64_t Portion = uint64_t(64) << 10;
 
-        void _start() {
+        void _start() noexcept {
             _chain = _setup->chain;
             _check.reset(_setup->check);
             _started = false;
@@ -492,12 +539,13 @@ namespace sgcl::compress {
             _compressed = 0;
         }
 
-        optional<io::error> _check_state(const char* op) {
+        optional<io::error> _check_state(const char* op) noexcept {
             if (_error) {
                 return _error;
             }
             if (_closed) {
-                return io::error(io::errc::closed, op, "xz");
+                _error = io::error(io::errc::closed, op, "xz");   // kept as every error
+                return _error;
             }
             if (!_encoder) {
                 _error = io::error(make_error_code(errc::invalid_argument), op, "xz");
@@ -510,7 +558,7 @@ namespace sgcl::compress {
             return nullopt;
         }
 
-        void _begin_block() {
+        void _begin_block() noexcept {
             if (!_block_started) {
                 _block_started = true;
                 size_t before = _pending.size();
@@ -521,7 +569,7 @@ namespace sgcl::compress {
 
         // Bytes of the data: through the filters into the encoder, the
         // encoder run as they come (without a bound when budget is 0)
-        void _take(const uint8_t* p, size_t n, uint64_t budget) {
+        void _take(const uint8_t* p, size_t n, uint64_t budget) noexcept {
             if (!n) {
                 return;
             }
@@ -544,7 +592,7 @@ namespace sgcl::compress {
             }
         }
 
-        void _feed(const uint8_t* p, size_t n, uint64_t budget) {
+        void _feed(const uint8_t* p, size_t n, uint64_t budget) noexcept {
             for (;;) {
                 size_t k = _encoder->append(p, n);
                 p += k;
@@ -559,7 +607,7 @@ namespace sgcl::compress {
             }
         }
 
-        void _flush_filters() {
+        void _flush_filters() noexcept {
             if (_chain.empty() || !_block_started) {
                 return;
             }
@@ -569,7 +617,7 @@ namespace sgcl::compress {
             _chain.take(r);
         }
 
-        detail::LzmaRun _run(bool finish, uint64_t budget) {
+        detail::LzmaRun _run(bool finish, uint64_t budget) noexcept {
             if (!_block_started) {
                 return detail::LzmaRun::done;
             }
@@ -580,7 +628,7 @@ namespace sgcl::compress {
         }
 
         // The block's end, the index and the footer
-        void _finish() {
+        void _finish() noexcept {
             std::vector<detail::xz_format::Record> records;
             if (_block_started) {
                 size_t before = _pending.size();
@@ -611,14 +659,14 @@ namespace sgcl::compress {
 
         // A task's write is given a managed block, which the slice holds:
         // the write may outlive this frame on a pool
-        async::task<optional<io::error>> _async_drain() {
+        async::task<optional<io::error>> _async_drain() noexcept {
             size_t at = 0;
             while (at < _pending.size()) {
                 if (!_block) {
                     _block = make_tracked<io::detail::CopyBlock>();
                 }
                 size_t k = std::min(_pending.size() - at, _block->size());
-                std::memcpy(_block->data(), _pending.data() + at, k);
+                sgcl::detail::copy_bytes(_block->data(), _pending.data() + at, k);
                 auto w = co_await _out.async_write(slice<const byte>(_block, _block->data(), k));
                 if (!w) {
                     _pending.clear();
@@ -658,11 +706,11 @@ namespace sgcl::compress {
     class xz::reader final
     : public io::mixin::reader<xz::reader> {
     public:
-        explicit reader(const io::reader& in)
+        explicit reader(const io::reader& in) noexcept
         : reader(in, limits{}) {
         }
 
-        reader(const io::reader& in, const limits& l)
+        reader(const io::reader& in, const limits& l) noexcept
         : _in(in)
         , _limits(l)
         , _decoder(std::make_unique<detail::Lzma2Decoder>())
@@ -671,8 +719,54 @@ namespace sgcl::compress {
 
         reader(const reader&) = delete;
         reader& operator=(const reader&) = delete;
-        reader(reader&&) noexcept = default;
-        reader& operator=(reader&&) noexcept = default;
+
+        // The other left without a stream, its decoder and its buffers gone
+        // with the move (its limits kept): its reads give io::errc::closed,
+        // its close closes nothing, and a reset gives it a new stream
+        reader(reader&& o) noexcept
+        : _in(std::move(o._in))
+        , _limits(o._limits)
+        , _decoder(std::move(o._decoder))
+        , _input(std::move(o._input))
+        , _block(std::move(o._block))
+        , _window(std::move(o._window))
+        , _window_capacity(o._window_capacity)
+        , _window_size(o._window_size)
+        , _pos(o._pos)
+        , _from(o._from)
+        , _in_begin(o._in_begin)
+        , _in_end(o._in_end)
+        , _consumed(o._consumed)
+        , _chain(std::move(o._chain))
+        , _check(std::move(o._check))
+        , _header(o._header)
+        , _index(std::move(o._index))
+        , _records(std::move(o._records))
+        , _block_at(o._block_at)
+        , _block_out(o._block_out)
+        , _streams(o._streams)
+        , _zeros(o._zeros)
+        , _check_type(o._check_type)
+        , _phase(o._phase)
+        , _decoded(o._decoded)
+        , _flushed(o._flushed)
+        , _source_ended(o._source_ended)
+        , _ended(o._ended)
+        , _error(std::move(o._error))
+        , _since_yield(o._since_yield) {
+            o._in = io::reader();
+            o._block = nullptr;
+            o._window_capacity = o._window_size = 0;
+            o._pos = o._from = o._in_begin = o._in_end = 0;
+            o._chain = detail::FilterChain();
+            o._phase = Phase::stream_header;
+            o._ended = true;
+            o._error = detail::moved_from_error("xz");
+        }
+
+        reader& operator=(reader&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
 
         expected<size_t, io::error> read(const slice<byte>& out) {
             for (;;) {
@@ -693,7 +787,7 @@ namespace sgcl::compress {
             }
         }
 
-        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             for (;;) {
                 if (size_t n = _hand_out(out)) {
                     _since_yield += n;
@@ -722,7 +816,7 @@ namespace sgcl::compress {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() {
+        async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
@@ -731,8 +825,13 @@ namespace sgcl::compress {
         }
 
         // A new stream from in: the memory kept
-        void reset(const io::reader& in) {
+        void reset(const io::reader& in) noexcept {
             _in = in;
+            if (!_decoder) {
+                // moved from: the decoder and the input went with the move
+                _decoder = std::make_unique<detail::Lzma2Decoder>();
+                _input.reset(new uint8_t[InputBytes]);
+            }
             _in_begin = _in_end = 0;
             _consumed = 0;
             _pos = _from = 0;
@@ -763,7 +862,7 @@ namespace sgcl::compress {
             return _consumed + _in_begin;
         }
 
-        void _fail(errc code, uint64_t at, const char* text) {
+        void _fail(errc code, uint64_t at, const char* text) noexcept {
             _error = error(code, at, text ? string(text) : string());
         }
 
@@ -783,7 +882,7 @@ namespace sgcl::compress {
                 _chain.take(n);
             }
             if (n) {
-                std::memcpy(out.data(), src, n);
+                detail::copy_out(out.data(), src, n);
                 _check.update(src, n);
             }
             return n;
@@ -804,7 +903,7 @@ namespace sgcl::compress {
 
         // A header's Parsed: true to go on, false with the error set or
         // with more input needed (need = true)
-        bool _parsed(const detail::Parsed& r, bool& need) {
+        bool _parsed(const detail::Parsed& r, bool& need) noexcept {
             need = false;
             if (r.status == detail::Parsed::failed) {
                 _fail(r.code, _offset(), r.text);
@@ -823,7 +922,7 @@ namespace sgcl::compress {
         }
 
         // Works on the input held; true when it needs more of it
-        bool _advance() {
+        bool _advance() noexcept {
             namespace f = detail::xz_format;
             for (;;) {
                 bool need = false;
@@ -978,7 +1077,7 @@ namespace sgcl::compress {
             }
         }
 
-        bool _start_block(uint64_t block_at) {
+        bool _start_block(uint64_t block_at) noexcept {
             uint32_t dictionary = _header.filters[_header.count - 1].value;
             if (xz::_memory(dictionary, _header.uncompressed) > _limits.max_memory) {
                 _fail(errc::too_large, block_at, "xz: the dictionary needs more memory than the limit allows");
@@ -1004,7 +1103,7 @@ namespace sgcl::compress {
 
         // Decodes some of the block into the window (and through the
         // filters); true when it needs more input
-        bool _decode() {
+        bool _decode() noexcept {
             if (_pos == _window_size) {
                 _pos = _from = 0;
             }
@@ -1048,9 +1147,9 @@ namespace sgcl::compress {
         }
 
         // room for more input: what is left moved to the front
-        size_t _make_room() {
+        size_t _make_room() noexcept {
             if (_in_begin) {
-                std::memmove(_input.get(), _input.get() + _in_begin, _in_end - _in_begin);
+                sgcl::detail::move_bytes(_input.get(), _input.get() + _in_begin, _in_end - _in_begin);
                 _consumed += _in_begin;
                 _in_end -= _in_begin;
                 _in_begin = 0;
@@ -1066,19 +1165,19 @@ namespace sgcl::compress {
 
         // A task's read is given a managed block, which the slice holds:
         // the read may outlive this frame on a pool
-        async::task<optional<io::error>> _async_fill() {
+        async::task<optional<io::error>> _async_fill() noexcept {
             size_t room = std::min(_make_room(), config::io_copy_buffer_size);
             if (!_block) {
                 _block = make_tracked<io::detail::CopyBlock>();
             }
             auto r = co_await _in.async_read(slice<byte>(_block, _block->data(), room));
             if (r && *r) {
-                std::memcpy(_input.get() + _in_end, _block->data(), *r);
+                sgcl::detail::copy_bytes(_input.get() + _in_end, _block->data(), *r);
             }
             co_return _took(r, r ? *r : 0);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r, size_t n) {
+        optional<io::error> _took(const expected<size_t, io::error>& r, size_t n) noexcept {
             if (!r) {
                 _error = error(r.error(), _consumed + _in_end);
                 return r.error();

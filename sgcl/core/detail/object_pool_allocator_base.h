@@ -10,6 +10,7 @@
 #include "object_allocator_base.h"
 
 #include <cstring>
+#include "cell_block.h"
 #include "page.h"
 #include "page_allocator.h"
 #include "states.h"
@@ -63,13 +64,29 @@ namespace sgcl::detail {
             return page->all_free;
         }
 
-        ObjectPoolAllocatorBase(PageAllocator& pa, std::atomic<Page*>& pages, std::atomic<Page*>& pb) noexcept
+        // The allocator of one pool on one thread, described by the pool's
+        // Metadata: its header slab, its buffer of emptied pages, its kind.
+        // The code is the same for every type (it was per type: the header
+        // cache, the page header and the destructor, ~540 bytes each);
+        // every type keeps its own pool.
+        ObjectPoolAllocatorBase(PageAllocator& pa, std::atomic<Page*>& pages, Metadata& m) noexcept
         : ObjectAllocatorBase(pages)
         , _page_allocator(pa)
-        , _pages_buffer(pb) {
+        , _metadata(m) {
         }
 
-        ~ObjectPoolAllocatorBase() noexcept override {
+        // GC thread (Metadata::free of a pool type; collector.h passes a
+        // non-empty list): the pool's emptied pages to the buffer the
+        // allocators of every thread refill from, the entirely free ones
+        // to the heap
+        SGCL_NOINLINE static void free_pool_pages(Page* pages) noexcept {
+            _free(pages, pages->metadata->pages_buffer);
+        }
+
+        SGCL_NOINLINE ~ObjectPoolAllocatorBase() noexcept override {
+            while (_header_count) {
+                _metadata.header_slab->free(_headers[--_header_count]);
+            }
             if (_current_page) {
                 // write the cached word back; the slots still free stay free
                 // for the collector to pick up once the page has enough of them
@@ -113,7 +130,7 @@ namespace sgcl::detail {
         // constructor writes after this call is what the collector may
         // still see half done: zero or the final value.
         template<class Init>
-        void* alloc(size_t, Init&& init) {
+        void* alloc(size_t, Init&& init) noexcept {
             auto free = _free_word;
             if (!free) {
                 _refill();
@@ -140,17 +157,39 @@ namespace sgcl::detail {
         unsigned _summary_count = 0;
         unsigned _cursor = 0;
         PageAllocator& _page_allocator;
-        std::atomic<Page*>& _pages_buffer;
+        Metadata& _metadata;   // the pool's; its pages_buffer is the pool's buffer of emptied pages
+
+        // Headers cached per thread and pool, refilled from the pool's slab
+        // in batches so that page turnover on many threads does not
+        // serialize on the slab mutex.
+        static constexpr unsigned HeaderCacheSize = 8;
+        void* _headers[HeaderCacheSize];
+        unsigned _header_count = 0;
 
         // Guards every per-type page buffer. Taken only when a thread has run
         // out of slots in its current page.
         inline static std::mutex _buffers_mutex;
 
-        virtual Page* _create_page_parameters(void*) = 0;
+        // The header of a fresh page, from a cache of headers taken from
+        // the pool's slab a few at a time (one lock per batch). Once per
+        // page.
+        SGCL_NOINLINE Page* _create_page_parameters(void* data) {
+            if (!_header_count) {
+                _metadata.header_slab->alloc(_headers, HeaderCacheSize);
+                _header_count = HeaderCacheSize;
+            }
+            auto mem = _headers[--_header_count];
+            // a page of blocks of cells: every word its own address, the
+            // free state of every slot of every block, once (cell_block.h)
+            if (_metadata.is_cell_block) {
+                CellBlock::fill_page(data, config::page_size);
+            }
+            return new(mem) Page(&_metadata, (uintptr_t)data);
+        }
 
         // Loads a word with a free slot: the next one of the current page,
         // or the first of the next page.
-        void _refill() {
+        void _refill() noexcept {
             if (_current_page) {
                 // the cached word is exhausted: reflect it in the page
                 _free_bits[_cursor] = 0;
@@ -160,8 +199,8 @@ namespace sgcl::detail {
                     return;
                 }
                 _current_page->owned.store(false, std::memory_order_release);
-                // let go of it before the allocation below, which may throw
-                // (the memory ceiling: page_allocator.h): with the page still
+                // let go of it before the allocation below, which may run a
+                // collection (the memory ceiling: page_allocator.h): with the page still
                 // named here, the next refill wrote the bitmap of a page the
                 // collector had taken back and handed out a slot past its end
                 _current_page = nullptr;
@@ -201,7 +240,7 @@ namespace sgcl::detail {
         // the type's buffer (the lowest address first), else a fresh one
         // from the thread's page cache, its header made and published on
         // the thread's list for the collector
-        Page* _next_page() {
+        Page* _next_page() noexcept {
             if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
                 os::fail_after_fork("a managed allocation");   // before the copied locks (os.h)
             }
@@ -211,9 +250,9 @@ namespace sgcl::detail {
                 // pop, which read page->next_empty of a page another thread
                 // may already have popped and filled with objects (ABA).
                 std::lock_guard<std::mutex> lock(_buffers_mutex);
-                page = _pages_buffer.load(std::memory_order_relaxed);
+                page = _metadata.pages_buffer.load(std::memory_order_relaxed);
                 if (page) {
-                    _pages_buffer.store(page->next_empty, std::memory_order_relaxed);
+                    _metadata.pages_buffer.store(page->next_empty, std::memory_order_relaxed);
                 }
             }
             if (page) {

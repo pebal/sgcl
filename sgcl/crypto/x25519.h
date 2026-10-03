@@ -130,7 +130,7 @@ namespace sgcl::crypto::x25519 {
     class public_key {
     public:
         // The key of 32 bytes; another length is invalid_key
-        static expected<public_key, error> from_bytes(const slice<const byte>& bytes) {
+        static expected<public_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != public_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an X25519 public key is 32 bytes")));
             }
@@ -140,7 +140,7 @@ namespace sgcl::crypto::x25519 {
         }
 
         // The key from a SubjectPublicKeyInfo (RFC 8410, OID 1.3.101.110)
-        static expected<public_key, error> from_pkix_der(const slice<const byte>& der) {
+        static expected<public_key, error> from_pkix_der(const slice<const byte>& der) noexcept {
             public_key k;
             auto r = detail::der_read_pkix(der, detail::oid_x25519, detail::bytes(k._bytes.data()));
             if (!r) {
@@ -154,7 +154,7 @@ namespace sgcl::crypto::x25519 {
         }
 
         // The SubjectPublicKeyInfo, 44 bytes
-        vector<byte> to_pkix_der() const {
+        vector<byte> to_pkix_der() const noexcept {
             return detail::der_pkix(detail::oid_x25519, detail::bytes(_bytes.data()));
         }
 
@@ -175,7 +175,7 @@ namespace sgcl::crypto::x25519 {
     class private_key {
     public:
         // 32 bytes from crypto::random
-        static private_key generate() {
+        static private_key generate() noexcept {
             private_key k;
             random::fill(k._secret.as_slice());
             k._derive();
@@ -184,7 +184,7 @@ namespace sgcl::crypto::x25519 {
 
         // The key of 32 bytes (any 32 bytes are one; they are clamped when
         // used); another length is invalid_key
-        static expected<private_key, error> from_bytes(const slice<const byte>& bytes) {
+        static expected<private_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != private_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an X25519 private key is 32 bytes")));
             }
@@ -197,7 +197,7 @@ namespace sgcl::crypto::x25519 {
         // The key from a PKCS #8 PrivateKeyInfo (RFC 8410, OID 1.3.101.110);
         // a version 1 key whose public key is not the one its private key
         // gives is invalid_key
-        static expected<private_key, error> from_pkcs8_der(const slice<const byte>& der) {
+        static expected<private_key, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             private_key k;
             bool has_public = false;
             unsigned char given[32];
@@ -236,7 +236,8 @@ namespace sgcl::crypto::x25519 {
         }
 
         // A second key of the same bytes
-        private_key clone() const noexcept {
+        private_key clone() const {
+            _check();
             private_key k;
             k._secret = _secret;
             k._public = _public;
@@ -285,7 +286,7 @@ namespace sgcl::crypto::x25519 {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<private_key, error> from_pem(const slice<const byte>& text) {
+        static expected<private_key, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text);
             if (!p) {
                 return unexpected<error>(p.error());
@@ -304,8 +305,11 @@ namespace sgcl::crypto::x25519 {
         }
 
 
-        // The same key, compared in constant time
-        friend bool operator==(const private_key& a, const private_key& b) noexcept {
+        // The same key, compared in constant time; a key moved from is
+        // std::logic_error, as everywhere
+        friend bool operator==(const private_key& a, const private_key& b) {
+            a._check();
+            b._check();
             return constant_time::equal(a._secret, b._secret);
         }
 

@@ -10,6 +10,7 @@
 
 #include <concepts>
 #include <functional>
+#include <type_traits>
 
 namespace sgcl::time {
     // The time elapsed since a start, on the monotonic clock of the
@@ -42,7 +43,7 @@ namespace sgcl::time {
         // dropped; what it throws goes through, unmeasured
         template<class F>
             requires std::invocable<F&>
-        static duration measure(F&& f) {
+        static duration measure(F&& f) noexcept(std::is_nothrow_invocable_v<F&>) {
             stopwatch sw;
             (void)std::invoke(f);
             return sw.elapsed();

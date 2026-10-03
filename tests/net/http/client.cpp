@@ -168,6 +168,12 @@ TEST(HttpClient_Tests, ThePool) {
     // another origin, another connection
     (void)c.get("http://example.com:81/")->text();
     EXPECT_EQ(s.dials, 3);
+
+    // the pool emptied: the next request dials again
+    static_assert(noexcept(c.close_idle_connections()));
+    c.close_idle_connections();
+    (void)c.get("http://example.com/v")->text();
+    EXPECT_EQ(s.dials, 4);
 }
 
 TEST(HttpClient_Tests, ConnectionCloseAndToTheClose) {
@@ -302,6 +308,14 @@ TEST(HttpClient_Tests, TooManyRedirects) {
     EXPECT_EQ(r.error().code(), net::errc::too_many_redirects);
     EXPECT_EQ(s.received.size(), 4u);
 }
+
+// The URL parsed by the request's constructor is bounded (url.h: 512 MiB),
+// so a request and the client's one-line forms throw nothing
+static_assert(std::is_nothrow_constructible_v<net::http::request, const string&, const string&>);
+static_assert(noexcept(std::declval<const net::http::client&>().async_get(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::http::client&>().async_head(std::declval<const string&>())));
+static_assert(noexcept(std::declval<const net::http::client&>().async_post(std::declval<const string&>(), std::declval<const string&>(),
+                                                                           std::declval<const string&>())));
 
 TEST(HttpClient_Tests, Errors) {
     Script& s = new_script();
@@ -476,4 +490,254 @@ TEST(HttpClient_Tests, IdleConnectionsExpire) {
         EXPECT_EQ(s.dials, 2);
     }
     clock.uninstall();
+}
+
+// DESIGN 408: the redirect limit at its ends: 0 follows none (the first
+// redirect is the error, one request sent), exactly max_redirects followed
+// is a response, one more the error; a limit below zero is as 0
+TEST(HttpClient_Tests, TheRedirectLimitAtItsEnds) {
+    Script& s = new_script();
+    s.answer = [](int, const std::string& req) -> std::pair<std::string, bool> {
+        // /0 answers, /n redirects to /n-1
+        auto path = req.substr(5, req.find(' ', 5) - 5);
+        int n = std::stoi(path);
+        if (n == 0) {
+            return ok("arrived");
+        }
+        return {"HTTP/1.1 302 Found\r\nLocation: /" + std::to_string(n - 1) + "\r\nContent-Length: 0\r\n\r\n", false};
+    };
+    auto c = client_of(s);
+    for (int most : {0, 1, 3}) {
+        c.max_redirects = most;
+        s.received.clear();
+        auto exact = c.get(sgcl::string("http://h/" + std::to_string(most)));
+        ASSERT_TRUE(exact) << most << ": " << text(exact.error().message());
+        EXPECT_EQ(body_of(exact), "arrived");
+        EXPECT_EQ(exact->url().path(), "/0");
+        EXPECT_EQ(s.received.size(), size_t(most) + 1);
+        s.received.clear();
+        auto past = c.get(sgcl::string("http://h/" + std::to_string(most + 1)));
+        ASSERT_FALSE(past) << most;
+        EXPECT_EQ(past.error().code(), net::errc::too_many_redirects);
+        EXPECT_EQ(s.received.size(), size_t(most) + 1);
+    }
+    c.max_redirects = -1;
+    s.received.clear();
+    EXPECT_EQ(body_of(c.get("http://h/0")), "arrived");
+    auto none = c.get("http://h/1");
+    ASSERT_FALSE(none);
+    EXPECT_EQ(none.error().code(), net::errc::too_many_redirects);
+    EXPECT_EQ(s.received.size(), 2u);
+    EXPECT_EQ(s.dials, 1);                                       // the redirects' bodies read: one connection throughout
+}
+
+// DESIGN 408: empty bodies on the client's side: a length of 0, chunked
+// with no chunk (with a trailer and without), to the close with nothing;
+// read whole, as bytes and as a stream; read twice; the connection back to
+// the pool after each that has an end of its own
+TEST(HttpClient_Tests, EmptyBodies) {
+    Script& s = new_script();
+    s.answer = [](int n, const std::string&) -> std::pair<std::string, bool> {
+        switch (n % 4) {
+            case 0: return {"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n", false};
+            case 1: return {"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n", false};
+            case 2: return {"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nT: 1\r\n\r\n", false};
+            default: return {"HTTP/1.1 200 OK\r\n\r\n", true};
+        }
+    };
+    auto c = client_of(s);
+    for (int round : range(2)) {
+        auto length = c.get("http://h/");
+        ASSERT_TRUE(length);
+        EXPECT_EQ(length->content_length(), 0u);
+        EXPECT_TRUE(length->trailers().empty());
+        auto bytes = length->bytes();
+        ASSERT_TRUE(bytes);
+        EXPECT_TRUE(bytes->empty());
+        EXPECT_EQ(body_of(length), "");                          // read again: still nothing
+        length->close();
+        length->close();
+        auto chunked = c.get("http://h/");
+        ASSERT_TRUE(chunked);
+        EXPECT_FALSE(chunked->content_length());
+        tracked_ptr block = make_tracked<array<byte, 8>>();
+        auto n = chunked->body().read(slice<byte>(block, block->data(), 8));
+        ASSERT_TRUE(n);
+        EXPECT_EQ(*n, 0u);
+        auto trailed = c.get("http://h/");
+        ASSERT_TRUE(trailed);
+        EXPECT_TRUE(trailed->trailers().empty());               // not read yet
+        EXPECT_EQ(body_of(trailed), "");
+        EXPECT_EQ(trailed->trailers().get("t"), "1");
+        EXPECT_EQ(s.dials, round + 1);                           // the three on one connection
+        auto to_close = c.get("http://h/");
+        ASSERT_TRUE(to_close);
+        EXPECT_FALSE(to_close->content_length());
+        EXPECT_EQ(body_of(to_close), "");
+    }
+    EXPECT_EQ(s.dials, 2);
+}
+
+// DESIGN 408: the response's head at max_response_header_bytes exactly is
+// read, one byte more is header_too_large; zero is taken as 1
+TEST(HttpClient_Tests, TheResponseHeadAtItsLimit) {
+    Script& s = new_script();
+    static size_t size = 0;
+    s.answer = [](int, const std::string&) -> std::pair<std::string, bool> {
+        const std::string start = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nX: ";
+        return {start + std::string(size - start.size() - 4, 'x') + "\r\n\r\nok", false};
+    };
+    auto c = client_of(s);
+    c.max_response_header_bytes = 200;
+    size = 200;
+    EXPECT_EQ(body_of(c.get("http://h/")), "ok");
+    size = 201;
+    auto past = c.get("http://h/");
+    ASSERT_FALSE(past);
+    EXPECT_EQ(past.error().code(), net::errc::header_too_large);
+    c.max_response_header_bytes = 0;
+    size = 60;
+    auto zero = c.get("http://h/");
+    ASSERT_FALSE(zero);
+    EXPECT_EQ(zero.error().code(), net::errc::header_too_large);
+}
+
+// DESIGN 408: a client moved from is the same client: the pool shared and
+// the settings kept, its dial among them (a move of a word-sized handle
+// copies the word, as tracked_ptr's does); a client into itself the same
+TEST(HttpClient_Tests, AMovedFromClientIsTheSameClient) {
+    Script& s = new_script();
+    s.answer = [](int n, const std::string&) { return ok(std::to_string(n)); };
+    auto c = client_of(s);
+    c.max_redirects = 4;
+    net::http::client to(std::move(c));
+    EXPECT_EQ(body_of(to.get("http://h/")), "0");
+    EXPECT_EQ(body_of(c.get("http://h/")), "1");                // through its own dial, from the shared pool
+    EXPECT_EQ(s.dials, 1);
+    EXPECT_EQ(c.max_redirects, 4);
+    ASSERT_EQ(c.tls.alpn.size(), 1u);
+    EXPECT_EQ(c.tls.alpn[0], "http/1.1");
+    net::http::client assigned;
+    assigned = std::move(c);
+    EXPECT_EQ(body_of(c.get("http://h/")), "2");
+    EXPECT_EQ(body_of(assigned.get("http://h/")), "3");
+    auto& self = assigned;
+    assigned = self;
+    EXPECT_EQ(body_of(assigned.get("http://h/")), "4");
+    EXPECT_EQ(s.dials, 1);
+    // the request's and the response's handles the same: a moved-from one
+    // is the same message
+    net::http::request req("GET", "http://h/");
+    net::http::request moved(std::move(req));
+    EXPECT_EQ(req.method(), "GET");
+    auto res = c.send(req);
+    ASSERT_TRUE(res);
+    net::http::response kept(std::move(*res));
+    EXPECT_EQ(res->status(), 200);
+    EXPECT_EQ(body_of(res), "5");
+    EXPECT_EQ(body_of(kept), "");                                // the same body, read already
+}
+
+// DESIGN 408: requests at their ends: an empty method or URL, a URL
+// without a path, the accessors of a request to send, a request sent again
+// after a change
+TEST(HttpClient_Tests, RequestsAtTheirEnds) {
+    Script& s = new_script();
+    s.answer = [](int, const std::string& req) { return ok(req.substr(0, req.find("\r\n"))); };
+    auto c = client_of(s);
+    net::http::request empty_url("GET", "");
+    EXPECT_THROW((void)empty_url.url(), std::invalid_argument);
+    auto r = c.send(empty_url);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().code(), net::errc::invalid_url);
+    auto no_method = c.send(net::http::request("", "http://h/"));
+    ASSERT_FALSE(no_method);
+    EXPECT_EQ(no_method.error().code(), std::errc::invalid_argument);
+    EXPECT_EQ(body_of(c.get("http://h")), "GET / HTTP/1.1");      // no path: "/"
+    EXPECT_EQ(body_of(c.get("http://h?q")), "GET /?q HTTP/1.1");
+    net::http::request req("GET", "http://h/a");
+    EXPECT_EQ(req.proto(), "HTTP/1.1");
+    EXPECT_EQ(req.header("x"), "");
+    EXPECT_EQ(req.path_value("id"), "");
+    EXPECT_EQ(req.query("q"), "");
+    EXPECT_EQ(req.cookie(""), "");
+    EXPECT_FALSE(req.content_length());
+    EXPECT_TRUE(req.trailers().empty());
+    EXPECT_EQ(*req.text(), "");                                   // a request to send has no body to read
+    EXPECT_TRUE(req.bytes()->empty());
+    EXPECT_FALSE(req.stop().stop_requested());
+    req.set_body("").set_header("X", "1");
+    EXPECT_EQ(body_of(c.send(req)), "GET /a HTTP/1.1");
+    req.set_header("X", "2");                                     // the same request again
+    EXPECT_EQ(body_of(c.send(req)), "GET /a HTTP/1.1");
+    EXPECT_NE(s.received.back().find("X: 2\r\n"), std::string::npos);
+    EXPECT_NE(s.received.back().find("Content-Length: 0\r\n"), std::string::npos);
+}
+
+namespace {
+    // A stream that gives its text and then fails (or ends, when told to)
+    class Failing final : public io::mixin::reader<Failing> {
+    public:
+        Failing(std::string_view s, bool fail) : _s(s), _fail(fail) {}
+
+        expected<size_t, io::error> read(slice<byte> out) {
+            if (_s.empty()) {
+                if (_fail) {
+                    return unexpected(io::error(std::make_error_code(std::errc::io_error), "read", "failing"));
+                }
+                return size_t(0);
+            }
+            size_t k = std::min(out.size(), _s.size());
+            std::memcpy(out.data(), _s.data(), k);
+            _s.remove_prefix(k);
+            return k;
+        }
+
+        async::task<expected<size_t, io::error>> async_read(slice<byte> out) {
+            co_return read(out);
+        }
+
+    private:
+        std::string_view _s;
+        bool _fail;
+    };
+}
+
+// DESIGN 408: a stream body that fails half-way, or gives less or more
+// than its length: the send is the stream's error (or unexpected_eof), the
+// connection is not kept, and the next request is sent whole on a new one;
+// a stream longer than its length sends the length
+TEST(HttpClient_Tests, AStreamBodyThatFailsHalfWay) {
+    Script& s = new_script();
+    s.answer = [](int, const std::string& req) { return ok(req.substr(req.find("\r\n\r\n") + 4)); };
+    auto c = client_of(s);
+    EXPECT_EQ(body_of(c.get("http://h/")), "");
+    EXPECT_EQ(s.dials, 1);
+    for (optional<uint64_t> length : {optional<uint64_t>(), optional<uint64_t>(10)}) {
+        net::http::request put("PUT", "http://h/");
+        put.set_body(io::reader(make_tracked<Failing>("hello", true)), length);
+        auto r = c.send(put);
+        ASSERT_FALSE(r);
+        EXPECT_EQ(r.error().code(), std::errc::io_error) << text(r.error().message());
+    }
+    net::http::request shorter("PUT", "http://h/");
+    shorter.set_body(io::reader(make_tracked<Failing>("hello", false)), 10);
+    auto cut = c.send(shorter);
+    ASSERT_FALSE(cut);
+    EXPECT_EQ(cut.error().code(), io::errc::unexpected_eof) << text(cut.error().message());
+    const int dials = s.dials;
+    EXPECT_EQ(body_of(c.get("http://h/")), "");                 // a new connection: none of the broken ones kept
+    EXPECT_EQ(s.dials, dials + 1);
+    net::http::request longer("PUT", "http://h/");
+    longer.set_body(io::reader(make_tracked<Failing>("hello world", false)), 5);
+    EXPECT_EQ(body_of(c.send(longer)), "hello");
+    net::http::request nothing("PUT", "http://h/");
+    nothing.set_body(io::reader(make_tracked<Failing>("", false)));
+    auto empty = c.send(nothing);
+    ASSERT_TRUE(empty);
+    EXPECT_EQ(body_of(empty), "0\r\n\r\n");                      // chunked with no chunk
+    net::http::request zero("PUT", "http://h/");
+    zero.set_body(io::reader(make_tracked<Failing>("", false)), 0);
+    EXPECT_EQ(body_of(c.send(zero)), "");
+    EXPECT_NE(s.received.back().find("Content-Length: 0\r\n"), std::string::npos) << s.received.back();
 }

@@ -192,3 +192,53 @@ TEST(HttpDownload_Tests, TheJsonReaders) {
     auto bad = web.get(r.url("/big"))->json();
     EXPECT_FALSE(bad);
 }
+
+// DESIGN 408: saving at the ends: an empty body (200 and 204) is an empty
+// file; a save of a body read already writes what is left of it, nothing;
+// a path in no directory fails at the start and one that is a directory at
+// the end, the part removed either way and the client's next request
+// served; a URL that is no URL; JSON of an empty body
+TEST(HttpDownload_Tests, Boundaries) {
+    auto s = files();
+    s.route("GET /empty", [](net::http::request, net::http::response_writer) {});
+    s.route("GET /none", [](net::http::request, net::http::response_writer w) { w.set_status(204); });
+    Running r(s);
+    net::http::client web;
+    const std::string path = temp("boundary.bin");
+    for (const char* where : {"/empty", "/none"}) {
+        std::filesystem::remove(path);
+        auto got = web.download(r.url(where), sgcl::string(path));
+        ASSERT_TRUE(got) << where << ": " << got.error().message();
+        EXPECT_TRUE(std::filesystem::exists(path)) << where;
+        EXPECT_EQ(std::filesystem::file_size(path), 0u) << where;
+        EXPECT_FALSE(std::filesystem::exists(path + ".part"));
+    }
+    auto res = web.get(r.url("/big"));
+    ASSERT_TRUE(res);
+    EXPECT_EQ(*res->save(sgcl::string(path)), 200000u);
+    auto again = res->save(sgcl::string(path));                 // the body has gone: nothing left to save
+    ASSERT_TRUE(again);
+    EXPECT_EQ(*again, 0u);
+    EXPECT_EQ(std::filesystem::file_size(path), 0u);
+    std::filesystem::remove(path);
+    const std::string nowhere = temp("no_such_dir/file.bin");
+    auto lost = web.download(r.url("/big"), sgcl::string(nowhere));
+    ASSERT_FALSE(lost);
+    EXPECT_EQ(lost.error().code(), std::errc::no_such_file_or_directory);
+    EXPECT_FALSE(std::filesystem::exists(nowhere + ".part"));
+    const std::string dir = temp("a_dir");
+    std::filesystem::create_directories(dir);
+    { std::ofstream(dir + "/inside") << "kept"; }
+    auto over = web.download(r.url("/big"), sgcl::string(dir));
+    ASSERT_FALSE(over);
+    EXPECT_FALSE(std::filesystem::exists(dir + ".part"));
+    EXPECT_EQ(read_file(dir + "/inside"), "kept");
+    std::filesystem::remove_all(dir);
+    EXPECT_EQ(web.get(r.url("/json"))->status(), 200);           // the client goes on
+    auto bad_url = net::http::download("not a url", sgcl::string(path));
+    ASSERT_FALSE(bad_url);
+    EXPECT_EQ(bad_url.error().code(), net::errc::invalid_url);
+    EXPECT_FALSE(std::filesystem::exists(path));
+    auto empty_json = web.get(r.url("/empty"))->json();
+    EXPECT_FALSE(empty_json);
+}

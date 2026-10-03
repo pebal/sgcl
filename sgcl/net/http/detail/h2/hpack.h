@@ -72,7 +72,7 @@ namespace sgcl::net::http::detail::h2 {
 
     // `value` with an N-bit prefix, the first octet's other bits `first`
     // (the representation's pattern, its low N bits zero)
-    inline void put_integer(std::string& out, uint8_t first, int prefix, uint64_t value) {
+    inline void put_integer(std::string& out, uint8_t first, int prefix, uint64_t value) noexcept {
         const uint64_t max = (uint64_t(1) << prefix) - 1;
         if (value < max) {
             out.push_back(char(first | uint8_t(value)));
@@ -205,7 +205,7 @@ namespace sgcl::net::http::detail::h2 {
     }
 
     // s in the Huffman code, padded with the ones of EOS's prefix
-    inline void huffman_encode(std::string& out, std::string_view s) {
+    inline void huffman_encode(std::string& out, std::string_view s) noexcept {
         uint64_t acc = 0;
         int have = 0;
         for (unsigned char c : s) {
@@ -225,7 +225,7 @@ namespace sgcl::net::http::detail::h2 {
 
     // The Huffman string at [p, p + n) decoded onto the end of `out`; a
     // fault for EOS inside it or a padding that is not at most 7 ones
-    inline HpackFault huffman_decode(std::string& out, const uint8_t* p, size_t n) {
+    inline HpackFault huffman_decode(std::string& out, const uint8_t* p, size_t n) noexcept {
         using namespace huffman_detail;
         uint64_t acc = 0;
         int have = 0;   // bits in acc, at most 37
@@ -306,7 +306,7 @@ namespace sgcl::net::http::detail::h2 {
     // allocation. An entry's size is its name, its value and 32 (§4.1).
     class DynamicTable {
     public:
-        explicit DynamicTable(uint32_t max_size) {
+        explicit DynamicTable(uint32_t max_size) noexcept {
             reset_capacity(max_size);
         }
 
@@ -315,7 +315,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A new largest size (a SETTINGS): the blocks made again, what
         // fits kept
-        void reset_capacity(uint32_t max_size) {
+        void reset_capacity(uint32_t max_size) noexcept {
             std::vector<std::pair<std::string, std::string>> keep;   // once per SETTINGS, not per field
             for (size_t i = _count; i > 0; --i) {
                 auto e = entry(i);
@@ -457,7 +457,7 @@ namespace sgcl::net::http::detail::h2 {
     public:
         // our SETTINGS_HEADER_TABLE_SIZE: the most a Dynamic Table Size
         // Update may ask
-        explicit Decoder(uint32_t max_table_size = 4096)
+        explicit Decoder(uint32_t max_table_size = 4096) noexcept
         : _table(max_table_size), _max(max_table_size) {
             _table.set_limit(max_table_size);
         }
@@ -465,7 +465,7 @@ namespace sgcl::net::http::detail::h2 {
         // Our new SETTINGS_HEADER_TABLE_SIZE, once the peer acknowledged
         // it: a lower one must be met by a Dynamic Table Size Update at the
         // start of the next block (§4.2)
-        void set_max_table_size(uint32_t n) {
+        void set_max_table_size(uint32_t n) noexcept {
             if (n < _max) {
                 _update_required = true;
             }
@@ -485,7 +485,7 @@ namespace sgcl::net::http::detail::h2 {
         // One whole header block (HEADERS and its CONTINUATIONs, joined by
         // the connection); max_list_size counted as §4.1 (name + value + 32
         // a field)
-        expected<Block, Error> decode(const slice<const byte>& block, size_t max_list_size) {
+        expected<Block, Error> decode(const slice<const byte>& block, size_t max_list_size) noexcept {
             _scratch.clear();
             _refs.clear();
             const uint8_t* p = reinterpret_cast<const uint8_t*>(block.data());
@@ -605,7 +605,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // A string literal (§5.2) onto the end of the scratch
-        HpackFault _string(const uint8_t*& p, const uint8_t* end) {
+        HpackFault _string(const uint8_t*& p, const uint8_t* end) noexcept {
             if (p == end) {
                 return HpackFault::truncated;
             }
@@ -629,7 +629,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // An indexed field: its name and value copied into the scratch
-        void _emit(std::string_view name, std::string_view value, size_t max, size_t& list, bool& truncated) {
+        void _emit(std::string_view name, std::string_view value, size_t max, size_t& list, bool& truncated) noexcept {
             const size_t mark = _scratch.size();
             list += name.size() + value.size() + 32;
             if (truncated || list > max) {
@@ -644,7 +644,7 @@ namespace sgcl::net::http::detail::h2 {
         // A literal decoded at mark: kept, or dropped once the list is past
         // the limit (the scratch given back, so it never holds more than
         // the limit and one field)
-        void _account(size_t mark, size_t name, size_t value, size_t max, size_t& list, bool& truncated) {
+        void _account(size_t mark, size_t name, size_t value, size_t max, size_t& list, bool& truncated) noexcept {
             list += name + value + 32;
             if (truncated || list > max) {
                 truncated = true;
@@ -678,7 +678,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // the table we use, at most the peer's SETTINGS_HEADER_TABLE_SIZE
         // (4096 until its SETTINGS say otherwise)
-        explicit Encoder(uint32_t table_size = 4096, Huffman huffman = Huffman::shorter)
+        explicit Encoder(uint32_t table_size = 4096, Huffman huffman = Huffman::shorter) noexcept
         : _table(table_size), _want(table_size), _huffman(huffman) {
             _table.set_limit(table_size);
         }
@@ -686,7 +686,7 @@ namespace sgcl::net::http::detail::h2 {
         // The peer's SETTINGS_HEADER_TABLE_SIZE: the table held to the
         // smaller of it and ours, a Dynamic Table Size Update at the start
         // of the next block (the smallest size in between first, §4.2)
-        void set_peer_max_table_size(uint32_t n) {
+        void set_peer_max_table_size(uint32_t n) noexcept {
             const uint32_t size = n < _want ? n : _want;
             if (size > _table.capacity()) {
                 _table.reset_capacity(size);
@@ -702,7 +702,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The start of a block: the updates owed
-        void begin_block(std::string& out) {
+        void begin_block(std::string& out) noexcept {
             if (!_pending) {
                 return;
             }
@@ -713,7 +713,7 @@ namespace sgcl::net::http::detail::h2 {
             _pending = false;
         }
 
-        void encode(std::string& out, std::string_view name, std::string_view value) {
+        void encode(std::string& out, std::string_view name, std::string_view value) noexcept {
             size_t name_index = 0;
             if (size_t exact = _find(name, value, name_index)) {
                 put_integer(out, 0x80, 7, exact);
@@ -764,7 +764,7 @@ namespace sgcl::net::http::detail::h2 {
             return 0;
         }
 
-        void _literal(std::string& out, uint8_t pattern, int prefix, size_t name_index, std::string_view name, std::string_view value) {
+        void _literal(std::string& out, uint8_t pattern, int prefix, size_t name_index, std::string_view name, std::string_view value) noexcept {
             put_integer(out, pattern, prefix, name_index);
             if (!name_index) {
                 _string(out, name);
@@ -772,7 +772,7 @@ namespace sgcl::net::http::detail::h2 {
             _string(out, value);
         }
 
-        void _string(std::string& out, std::string_view s) {
+        void _string(std::string& out, std::string_view s) noexcept {
             if (_huffman != Huffman::never) {
                 const size_t h = huffman_length(s);
                 if (h < s.size() || _huffman == Huffman::always) {

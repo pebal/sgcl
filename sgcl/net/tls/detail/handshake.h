@@ -53,11 +53,11 @@ namespace sgcl::net::tls::detail {
         time::datetime (*now)(void* context) = &Clock::system_now;
         void* context = nullptr;
 
-        time::datetime operator()() const {
+        time::datetime operator()() const noexcept {
             return now(context);
         }
 
-        static time::datetime system_now(void*) {
+        static time::datetime system_now(void*) noexcept {
             return time::now();
         }
     };
@@ -141,14 +141,16 @@ namespace sgcl::net::tls::detail {
 
     class ClientHandshake {
     public:
-        ClientHandshake(const ClientSettings& settings, const Entropy& entropy = Entropy(), const Clock& clock = Clock())
+        ClientHandshake(const ClientSettings& settings, const Entropy& entropy = Entropy(), const Clock& clock = Clock()) noexcept
         : _settings(settings), _entropy(entropy), _clock(clock), _s(std::make_unique<Secrets>()) {
         }
 
         ClientHandshake(const ClientHandshake&) = delete;
         ClientHandshake& operator=(const ClientHandshake&) = delete;
 
-        // The first flight: the ClientHello
+        // The first flight: the ClientHello (not noexcept: settings whose
+        // key_shares name a group twice, or more than four, are
+        // ClientShares::add's std::logic_error)
         const Step& start() {
             _s->step.clear();
             if (_state != State::start) {
@@ -160,7 +162,9 @@ namespace sgcl::net::tls::detail {
             return _s->step;
         }
 
-        // A whole handshake message from the server (header included)
+        // A whole handshake message from the server (header included); not
+        // noexcept: a chain verified against the system's roots reads them
+        // through io::read_file
         const Step& feed(const Bytes& message) {
             _s->step.clear();
             if (_state == State::failed) {
@@ -178,6 +182,18 @@ namespace sgcl::net::tls::detail {
             _peer_alert = a;
             _state = State::failed;
             _wipe();
+        }
+
+        // A failure of the connection's own while the handshake runs (a
+        // record that does not frame or open): the handshake is over, and
+        // the step is the one a failure of the machine makes, its alert
+        // under the keys the server reads with (_fail)
+        const Step& fail(const Alert& a) noexcept {
+            if (_state == State::failed) {
+                _s->step.clear();
+                return _s->step;
+            }
+            return _fail(a);
         }
 
         bool established() const noexcept {
@@ -274,7 +290,7 @@ namespace sgcl::net::tls::detail {
             return {};
         }
 
-        static bool is_ip_literal(const string& name) {
+        static bool is_ip_literal(const string& name) noexcept {
             auto v = name.view();
             if (v.find(':') != std::string_view::npos) {
                 return true;
@@ -287,15 +303,15 @@ namespace sgcl::net::tls::detail {
             return !v.empty();
         }
 
-        void _send_hello() {
+        void _send_hello() noexcept {
             auto& out = _s->step.out;
             size_t start = out.size();
             Builder w(out);
             uint64_t offered = 0;
-            auto mark = [&](ExtensionType t) {
+            auto mark = [&](ExtensionType t) noexcept {
                 offered |= bit_of(t);
             };
-            write_client_hello(w, bytes_of(_s->random, 32), bytes_of(_s->session_id, _s->session_id_size), _settings.ciphers, [&](Builder& w) {
+            write_client_hello(w, bytes_of(_s->random, 32), bytes_of(_s->session_id, _s->session_id_size), _settings.ciphers, [&](Builder& w) noexcept {
                 if (!_settings.server_name.empty() && !is_ip_literal(_settings.server_name)) {
                     auto e = w.extension(ExtensionType::server_name);
                     auto v = _settings.server_name.view();
@@ -428,7 +444,7 @@ namespace sgcl::net::tls::detail {
             return unexpected(Alert{AlertDescription::unexpected_message, 0, "a handshake message out of order"});
         }
 
-        expected<void, Alert> _server_hello(const Bytes& message, const Bytes& body) {
+        expected<void, Alert> _server_hello(const Bytes& message, const Bytes& body) noexcept {
             auto sh = read_server_hello(body);
             if (!sh) {
                 return unexpected(sh.error());
@@ -499,7 +515,7 @@ namespace sgcl::net::tls::detail {
             return {};
         }
 
-        expected<void, Alert> _retry(const Bytes& message, const ServerHello& hrr, Cipher cipher) {
+        expected<void, Alert> _retry(const Bytes& message, const ServerHello& hrr, Cipher cipher) noexcept {
             if (_retried) {
                 return unexpected(Alert{AlertDescription::unexpected_message, 0, "a second HelloRetryRequest"});
             }
@@ -555,7 +571,7 @@ namespace sgcl::net::tls::detail {
             return {};
         }
 
-        expected<void, Alert> _encrypted_extensions(const Bytes& message, const Bytes& body) {
+        expected<void, Alert> _encrypted_extensions(const Bytes& message, const Bytes& body) noexcept {
             auto x = read_encrypted_extensions(body);
             if (!x) {
                 return unexpected(x.error());
@@ -600,7 +616,7 @@ namespace sgcl::net::tls::detail {
             return {};
         }
 
-        expected<void, Alert> _certificate_request(const Bytes& message, const Bytes& body) {
+        expected<void, Alert> _certificate_request(const Bytes& message, const Bytes& body) noexcept {
             auto cr = read_certificate_request(body);
             if (!cr) {
                 return unexpected(cr.error());
@@ -676,7 +692,7 @@ namespace sgcl::net::tls::detail {
 
         // As Go: an unknown authority unknown_ca, an expired certificate
         // certificate_expired, the rest bad_certificate
-        static Alert _verification_alert(const crypto::error& e) {
+        static Alert _verification_alert(const crypto::error& e) noexcept {
             using crypto::x509::reason;
             switch (e.reason()) {
             case reason::unknown_authority:
@@ -691,7 +707,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        expected<void, Alert> _certificate_verify(const Bytes& message, const Bytes& body) {
+        expected<void, Alert> _certificate_verify(const Bytes& message, const Bytes& body) noexcept {
             auto cv = read_certificate_verify(body);
             if (!cv) {
                 return unexpected(cv.error());
@@ -710,7 +726,7 @@ namespace sgcl::net::tls::detail {
             return {};
         }
 
-        expected<void, Alert> _finished(const Bytes& message, const Bytes& body) {
+        expected<void, Alert> _finished(const Bytes& message, const Bytes& body) noexcept {
             const size_t n = hash_size(_hash);
             auto f = read_finished(body, n);
             if (!f) {
@@ -738,7 +754,7 @@ namespace sgcl::net::tls::detail {
             if (_certificate_requested) {
                 size_t at = out.size();
                 Builder w(out);
-                write_certificate(w, Bytes(), std::vector<Bytes>());   // none (mTLS after v1)
+                write_certificate(w, Bytes(), std::vector<Bytes>());   // none (mTLS after v1); lint-handles: ok empty
                 _hash_update(bytes_of(out.data() + at, out.size() - at));
                 _push_send(Epoch::handshake, at, out.size() - at);
                 _transcript().value_to(h);
@@ -760,7 +776,7 @@ namespace sgcl::net::tls::detail {
 
         // After the handshake: NewSessionTicket passed over, KeyUpdate
         // answered (§4.6)
-        expected<void, Alert> _after(HandshakeType type, const Bytes& body) {
+        expected<void, Alert> _after(HandshakeType type, const Bytes& body) noexcept {
             switch (type) {
             case HandshakeType::new_session_ticket: {
                 auto t = read_new_session_ticket(body);
@@ -796,7 +812,7 @@ namespace sgcl::net::tls::detail {
         // --- helpers ------------------------------------------------------------
 
         template<class R>
-        static bool _offers(const R& list, uint16_t v) {
+        static bool _offers(const R& list, uint16_t v) noexcept {
             for (uint16_t x : list) {
                 if (x == v) {
                     return true;
@@ -809,7 +825,7 @@ namespace sgcl::net::tls::detail {
             return _hash == Hash::sha384 ? _s->t384 : _s->t256;
         }
 
-        void _hash_update(const Bytes& m) {
+        void _hash_update(const Bytes& m) noexcept {
             if (_hash_known) {
                 _transcript().update(m);
             } else {
@@ -826,27 +842,40 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        void _push_send(Epoch e, size_t offset, size_t size) {
+        void _push_send(Epoch e, size_t offset, size_t size) noexcept {
             Action a{Action::Kind::send, e};
             a.offset = offset;
             a.size = size;
             _s->step.actions.push_back(std::move(a));
         }
 
-        void _push_ccs() {
+        void _push_ccs() noexcept {
             _s->step.actions.push_back(Action{Action::Kind::change_cipher_spec, Epoch::initial});
             _ccs_sent = true;
         }
 
-        void _push_install(Action::Kind kind, Epoch e, const Secret& s) {
+        void _push_install(Action::Kind kind, Epoch e, const Secret& s) noexcept {
             Action a{kind, e, _result.cipher};
             std::memcpy(a.secret.bytes, s.bytes, sizeof s.bytes);
             a.secret.size = s.size;
             _s->step.actions.push_back(std::move(a));
         }
 
-        const Step& _fail(const Alert& a) {
+        // The alert that ends the handshake. From the ServerHello on, the
+        // server reads under the handshake keys (RFC 8446 §5.1: no record
+        // in the clear after them), so a client that refuses what follows
+        // (a chain that does not verify, a Finished) sends its alert under
+        // its own handshake keys, a change_cipher_spec first in
+        // compatibility mode; in the clear, the server would read only an
+        // unexpected_message
+        const Step& _fail(const Alert& a) noexcept {
             _s->step.clear();
+            if (_s->schedule && _state >= State::wait_encrypted_extensions && _state <= State::wait_finished) {
+                if (_settings.compatibility_mode && !_ccs_sent) {
+                    _push_ccs();
+                }
+                _push_install(Action::Kind::install_write, Epoch::handshake, _s->schedule->client_handshake_traffic);
+            }
             Action x{Action::Kind::alert};
             x.alert = a.description;
             x.what = a.what;

@@ -206,7 +206,7 @@ TEST(Stress_Tests, ContainerGraphChurn) {
 }
 
 namespace {
-    // Treiber stack on sgcl::atomic, as in examples/lock_free_stack.cpp
+    // Treiber stack on sgcl::atomic, as in benchmarks/concurrent/lockfree_stack.cpp
     struct StackNode {
         StackNode(int64_t v) : value(v) {}
         int64_t value;

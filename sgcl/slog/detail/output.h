@@ -8,6 +8,7 @@
 #include "../handler.h"
 #include "../level.h"
 #include "../../async/scheduler.h"
+#include "../../core/detail/os.h"
 #include "../../core/root_ptr.h"
 #include "../../core/slice.h"
 #include "../../core/tracked_ptr.h"
@@ -79,7 +80,9 @@ namespace sgcl::slog::detail {
     // The outputs with lines waiting in a slot, per slot: held by a root
     // while they wait, so that a logger let go of with lines in its
     // batches still writes them; the list is taken whole when its worker
-    // goes to sleep
+    // goes to sleep. Made once and never destroyed: the exit writes them
+    // from atexit functions that may run after the statics made later
+    // are gone (collector_log's drain)
     struct Waiting {
         std::mutex lock;
         std::vector<root_ptr<Output>> outputs;
@@ -87,7 +90,7 @@ namespace sgcl::slog::detail {
     };
 
     inline Waiting* waiting() noexcept {
-        static Waiting lists[Slots];
+        static Waiting* lists = new Waiting[Slots];
         return lists;
     }
 
@@ -98,9 +101,9 @@ namespace sgcl::slog::detail {
     // (collector_log.h): the flag set by the sink, the drain installed with
     // it. One relaxed load where nothing waits
     inline std::atomic<bool> collector_pending = {false};
-    inline std::atomic<void (*)()> collector_drain = {nullptr};
+    inline std::atomic<void (*)() noexcept> collector_drain = {nullptr};
 
-    inline void drain_collector_if_pending() {
+    inline void drain_collector_if_pending() noexcept {
         if (collector_pending.load(std::memory_order_relaxed)) [[unlikely]] {
             if (auto drain = collector_drain.load(std::memory_order_acquire)) {
                 drain();
@@ -117,7 +120,7 @@ namespace sgcl::slog::detail {
 
     // The hook and the exit's writes, set once, when the first buffered
     // output is made
-    inline void install_batch_hooks() {
+    inline void install_batch_hooks() noexcept {
         static std::once_flag once;
         std::call_once(once, [] {
             (void)waiting();
@@ -135,8 +138,27 @@ namespace sgcl::slog::detail {
         char* data = nullptr;      // BatchSize bytes, made at the slot's first line
     };
 
+    // A slot's lock let go of when its scope ends, by an exception of the
+    // program's writer too: a slot left locked would stop every later
+    // record of its worker
+    struct SlotGuard {
+        explicit SlotGuard(Slot& s) noexcept
+        : slot(s) {
+            slot.lock.lock();
+        }
+
+        SlotGuard(const SlotGuard&) = delete;
+        SlotGuard& operator=(const SlotGuard&) = delete;
+
+        ~SlotGuard() {
+            slot.lock.unlock();
+        }
+
+        Slot& slot;
+    };
+
     struct Output {
-        Output(Format f, const io::writer& w, bool batch)
+        Output(Format f, const io::writer& w, bool batch) noexcept
         : format(f), writer(w), buffered(batch) {
             if (buffered) {
                 slots = new Slot[Slots];
@@ -144,7 +166,7 @@ namespace sgcl::slog::detail {
             }
         }
 
-        explicit Output(const slog::handler& h)
+        explicit Output(const slog::handler& h) noexcept
         : format(Format::Custom), custom(h) {
         }
 
@@ -177,7 +199,8 @@ namespace sgcl::slog::detail {
             }
         }
 
-        // What a slot holds, written; under its lock
+        // What a slot holds, written; under its lock. The lines go with
+        // the write, also when the writer throws
         void drain(Slot& s) {
             if (s.n) {
                 size_t n = s.n;
@@ -188,12 +211,24 @@ namespace sgcl::slog::detail {
             }
         }
 
+        // The same where nobody takes an exception (a worker on its way to
+        // sleep, the exit): the lines of a writer that throws are counted
+        // as lost
+        void drain_quietly(Slot& s) noexcept {
+            const uint32_t lines = s.records;
+            try {
+                drain(s);
+            } catch (...) {
+                dropped.fetch_add(lines, std::memory_order_relaxed);
+            }
+        }
+
         // A line into the batch of the thread's slot
         static void batch(const tracked_ptr<Output>& self, const char* p, size_t n, slog::level l) {
             Output& o = *self;
             const unsigned w = Scheduler::worker_index();
             Slot& s = o.slots[w];
-            s.lock.lock();
+            SlotGuard guard(s);
             if (s.n + n > BatchSize) {
                 o.drain(s);
             }
@@ -202,9 +237,8 @@ namespace sgcl::slog::detail {
             } else {
                 if (!s.data) [[unlikely]] {
                     s.data = static_cast<char*>(std::malloc(BatchSize));
-                    if (!s.data) {
-                        s.lock.unlock();
-                        throw std::bad_alloc();
+                    if (!s.data) [[unlikely]] {
+                        sgcl::detail::os::memory_refused("a batch of log lines", BatchSize);
                     }
                 }
                 sgcl::detail::copy_bytes(s.data + s.n, p, n);
@@ -220,7 +254,6 @@ namespace sgcl::slog::detail {
                 list.outputs.emplace_back(self);
                 list.any.store(true, std::memory_order_relaxed);
             }
-            s.lock.unlock();
         }
 
         void write(const tracked_ptr<Output>& self, const char* p, size_t n, slog::level l) {
@@ -237,10 +270,8 @@ namespace sgcl::slog::detail {
                 return;
             }
             for (unsigned i = 0; i < Slots; ++i) {
-                Slot& s = slots[i];
-                s.lock.lock();
-                drain(s);
-                s.lock.unlock();
+                SlotGuard guard(slots[i]);
+                drain(slots[i]);
             }
         }
 
@@ -269,10 +300,9 @@ namespace sgcl::slog::detail {
         for (auto& p : taken) {
             Output& o = *p;
             Slot& s = o.slots[slot];
-            s.lock.lock();
+            SlotGuard guard(s);
             s.listed = false;
-            o.drain(s);
-            s.lock.unlock();
+            o.drain_quietly(s);
         }
     }
 

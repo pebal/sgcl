@@ -1,60 +1,119 @@
+[sgcl](../README.md) › [hash](README.md)
+
 # sgcl::hash::adler32
 
 ```cpp
-#include "sgcl/hash/adler32.h"   // or "sgcl/hash/hash.h"
+#include "sgcl/hash/adler32.h"   // or "sgcl/hash.h"
 
 namespace sgcl::hash {
-    class adler32;   // RFC 1950, the checksum of a zlib stream (Go's hash/adler32)
+    class adler32;  // RFC 1950
 }
 ```
 
-Adler-32: two sums modulo 65521, the largest prime below 2^16. `a` is one plus the bytes and `b` is the sum of every `a` along the way; the checksum is `b` in the high half and `a` in the low. It is what a zlib stream ends with, and cheaper to compute than a CRC where there is no CRC instruction, at the price of weak checking on short inputs.
+`sgcl::hash::adler32` is Adler-32 (RFC 1950): two sums modulo 65521, the largest prime below 2^16. `a` is one plus
+the bytes and `b` the sum of every `a` along the way; the checksum is `b` in the high half and `a` in the low. It
+is what a zlib stream ends with, Go's `hash/adler32`, and it checks weakly on short inputs, where a [CRC](crc32.md)
+is the better code.
 
-## Members
+It has the shape of every hasher of the module ([mixin::hasher](mixin/hasher.md)): [update](adler32/update.md) as
+the bytes come, [value](adler32/value.md) and [digest](adler32/digest.md) at any time, [of](mixin/hasher/of.md) for
+the whole thing in one call, [copy_from](mixin/hasher/copy_from.md) and [of_file](mixin/hasher/of_file.md) for a
+stream and a file. A checksum adds two of its own: [resume](adler32/resume.md), which goes on from a checksum saved
+earlier, and [combine](adler32/combine.md), the checksum of two pieces from the checksums of the pieces, with which
+a large buffer is hashed on several threads.
 
-```cpp
-static constexpr size_t digest_size = 4;
-static constexpr size_t block_size = 4;
+## Rules
 
-adler32() noexcept;                            // the initial state: the checksum of nothing is 1
-static adler32 resume(uint32_t value) noexcept;   // going on from the checksum of what came before
+- **Four bytes, the two sums.** The hasher holds them and nothing more: a plain value, trivially copyable, nothing
+  for the collector. A copy is a branch.
+- **`value()` ends nothing**: `update` goes on after it. The checksum of nothing is 1.
+- **`digest()` is big-endian**, what zlib writes at the end of a stream and Go's `Sum` gives.
+- **A value is not a seed.** `resume(v)` goes on from a checksum saved earlier; `adler32::of(data, v)` does not
+  compile. A value whose halves are 65521 or more is no checksum, and `resume` takes each half modulo 65521.
+- **`combine` works on values**, static, as the CRCs' does: a few operations, whatever the length.
+- **Nothing fails** but `copy_from` and `of_file`, which read a stream and a file and return its error.
+- **The names of zlib.** `crc32` and `adler32` are also the names of zlib's functions: `hash::adler32` qualified
+  does not collide with them, a bare `adler32` under `using namespace sgcl::hash;` in a file that includes `zlib.h`
+  does.
 
-void update(const slice<const byte>& data) noexcept;    // and the text forms of the mixin
-uint32_t value() const noexcept;
-array<byte, 4> digest() const noexcept;   // the checksum, the most significant byte first: what zlib writes
-void reset() noexcept;
+### From code written for Go
 
-static uint32_t of(/* bytes or text */) noexcept;
-static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept;
+| With Go | With sgcl::hash |
+|---|---|
+| `adler32.Checksum(p)` | `adler32::of(p)` |
+| `adler32.New()` | `hash::adler32 h;` |
+| `h.Sum32()`, `h.Sum(nil)` | `h.value()`, `h.digest()`: the same big-endian bytes |
+| `UnmarshalBinary` of a state saved earlier | `adler32::resume(v)`, from the checksum, which is the whole state |
+| — | `adler32::combine(a, b, n)`, zlib's `adler32_combine`; Go has none |
 
-expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
-static expected<uint32_t, io::error> of_file(const string& path);  static async::task<expected<uint32_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
-```
+## Member objects
 
-A value given to the constructor whose halves are 65521 or more is not a checksum; each half is taken modulo 65521, so that the sums never start above what the loop's bound allows.
+| Constant | Value | Description |
+|---|---|---|
+| `digest_size` | `4` | the size of [digest](adler32/digest.md) in bytes, Go's `Size()`; `static constexpr size_t` |
+| `block_size` | `4` | the block Go's Adler-32 reports; the bytes go in in any number, Go's `BlockSize()`; `static constexpr size_t` |
 
-## combine
+## Member functions
 
-`combine(first, second, n)` is the checksum of A followed by B from the two checksums and `n`, the length of B: zlib's `adler32_combine`. Going through B from A's sums instead of from (1, 0) adds `a1 − 1` to every `a` on the way, so `a = a1 + a2 − 1` and `b = b1 + b2 + n·(a1 − 1)`, modulo 65521: a few arithmetic operations, whatever `n`.
+| Function | Description |
+|---|---|
+| [(constructor)](adler32/adler32.md) | a hasher of no bytes yet |
+| [resume](adler32/resume.md) | a hasher going on from a checksum saved earlier (static) |
 
-## The loop
+#### Modifiers
 
-The bytes go in blocks of 32. Over a block, `a` grows by the sum of its bytes and `b` by 32 times the `a` it came in with plus Σ (32 − i)·xᵢ, and both sums are independent of each other and of the running values, so the inner loop is two plain reductions that the compiler vectorizes by itself; nothing here is an intrinsic. The modulo is taken once every 5536 bytes, the largest multiple of 32 within zlib's bound of 5552, where every sum still fits 32 bits even with every byte 0xFF and both sums one below the modulus coming in — a `static_assert` in the header works the worst case out.
+| Function | Description |
+|---|---|
+| [update](adler32/update.md) | hashes bytes |
+| [reset](adler32/reset.md) | puts the hasher back as it was made |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [value](adler32/value.md) | the checksum of the bytes so far |
+| [digest](adler32/digest.md) | the checksum as bytes, the most significant first |
+
+#### Combining
+
+| Function | Description |
+|---|---|
+| [combine](adler32/combine.md) | the checksum of two pieces from their checksums (static) |
+
+#### From mixin::hasher
+
+The rest of the shape every hasher shares ([mixin::hasher](mixin/hasher.md)).
+
+| Function | Description |
+|---|---|
+| [update](mixin/hasher/update.md) | hashes a text, a digest or a std::span of bytes |
+| [copy_from, async_copy_from](mixin/hasher/copy_from.md) | hashes a stream to its end |
+| [of](mixin/hasher/of.md) | the checksum of bytes or a text in one call (static) |
+| [of_file, async_of_file](mixin/hasher/of_file.md) | the hash of a whole file (static) |
 
 ## Example
 
 ```cpp
-#include "sgcl/hash/hash.h"
-#include "sgcl/io/io.h"
+#include "sgcl/hash.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 int main() {
     println("{:08x}", hash::adler32::of("Wikipedia"));
-    // two pieces hashed apart, then joined
-    uint32_t a = hash::adler32::of("Wiki");
-    uint32_t b = hash::adler32::of("pedia");
-    println("{:08x}", hash::adler32::combine(a, b, 5));
+
+    // in pieces, as the bytes come
+    hash::adler32 h;
+    h.update("Wiki");
+    uint32_t saved = h.value();
+    h.update("pedia");
+    println("{:08x}", h.value());
+
+    // going on from a saved checksum, and joining the checksums of two pieces
+    auto more = hash::adler32::resume(saved);
+    more.update("pedia");
+    uint32_t joined = hash::adler32::combine(saved, hash::adler32::of("pedia"), 5);
+    println("{} {}", more.value() == h.value(), joined == h.value());
 }
 ```
 
@@ -63,8 +122,11 @@ Output:
 ```text
 11e60398
 11e60398
+true true
 ```
 
 ## See also
 
-[The module](README.md); [`crc32`](crc32.md), gzip's checksum where Adler-32 is zlib's; [`mixin::hasher`](hasher.md).
+- [crc32](crc32.md): gzip's checksum where Adler-32 is zlib's
+- [mixin::hasher](mixin/hasher.md): the shape every hasher shares
+- [sgcl::hash](README.md)

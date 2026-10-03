@@ -31,13 +31,32 @@ namespace sgcl::codec {
             GifDecoder<Input> decoder;
             optional<error> failed;
             bool ended = false;
+            bool given = false;     // a frame given: a file of none is an error at its end, as decode's
+            bool reading = false;   // in a read of the stream; still set after one that threw
 
             template<class Source>
-            GifFrames(const slice<const byte>& d, const Source& source, const decode_options& o)
+            GifFrames(const slice<const byte>& d, const Source& source, const decode_options& o) noexcept
             : data(d), input(source), options(o), decoder(input, options) {
             }
 
-            expected<optional<frame>, error> next() override {
+            // A read of the stream that threw leaves the decoder in the
+            // middle of a block: the reading stops there, errc::io after it
+            expected<optional<frame>, error> next() noexcept(NothrowInput<Input>) override {
+                if constexpr (NothrowInput<Input>) {
+                    return _next();
+                } else {
+                    if (reading && !failed) {
+                        failed = error(errc::io, input.offset(), "gif: a read of the stream threw before");
+                    }
+                    reading = true;
+                    auto r = _next();
+                    reading = false;
+                    return r;
+                }
+            }
+
+        private:
+            expected<optional<frame>, error> _next() noexcept(NothrowInput<Input>) {
                 if (failed) {
                     return unexpected(*failed);
                 }
@@ -47,11 +66,17 @@ namespace sgcl::codec {
                 switch (decoder.next()) {
                     case GifDecoder<Input>::Step::frame: {
                         plays = decoder.plays();
+                        given = true;
                         const auto ms = std::chrono::milliseconds(int64_t(decoder.delay()) * 10);
                         return optional<frame>(frame{decoder.picture(), duration(ms)});
                     }
                     case GifDecoder<Input>::Step::end:
                         plays = decoder.plays();
+                        if (!given) {
+                            // as gif_first: no image in the file
+                            failed = error(errc::corrupt, input.offset(), "gif: no image");
+                            return unexpected(*failed);
+                        }
                         ended = true;
                         return optional<frame>();
                     default:
@@ -62,7 +87,7 @@ namespace sgcl::codec {
         };
 
         template<class Input, class Source>
-        expected<frames, error> gif_frames(const slice<const byte>& data, const Source& source, const decode_options& o) {
+        expected<frames, error> gif_frames(const slice<const byte>& data, const Source& source, const decode_options& o) noexcept(NothrowInput<Input>) {
             if (o.want && !valid(*o.want)) {
                 return unexpected(error(errc::invalid_argument, 0, "gif: decode_options.want outside the list"));
             }
@@ -78,7 +103,7 @@ namespace sgcl::codec {
         }
 
         template<class Input>
-        expected<image, error> gif_first(Input& in, const decode_options& o) {
+        expected<image, error> gif_first(Input& in, const decode_options& o) noexcept(NothrowInput<Input>) {
             if (o.want && !valid(*o.want)) {
                 return unexpected(error(errc::invalid_argument, 0, "gif: decode_options.want outside the list"));
             }
@@ -105,7 +130,7 @@ namespace sgcl::codec {
     class gif {
     public:
         // The first frame, the file in memory read in place
-        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) {
+        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
             detail::MemoryInput in(data);
             return detail::gif_first(in, o);
         }
@@ -118,7 +143,8 @@ namespace sgcl::codec {
 
         // Every frame, read one by one as next() asks. The bytes are held
         // while the frames live (a slice of unmanaged memory must outlive them)
-        static expected<codec::frames, error> frames(const slice<const byte>& data, const decode_options& o = {}) {
+        static expected<codec::frames, error> frames(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+
             return detail::gif_frames<detail::MemoryInput>(data, data, o);
         }
 

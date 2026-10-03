@@ -218,7 +218,7 @@ namespace sgcl::encoding::detail {
         // and the end of the input when it ends inside a group. A strict
         // decoding refuses bits past the data in the last character
         // (RFC 4648 section 3.5), at that character.
-        FeedStatus feed(decoding& d, const char*& in, const char* in_end, uint8_t*& out, uint8_t* out_end, optional<error>& e) const {
+        FeedStatus feed(decoding& d, const char*& in, const char* in_end, uint8_t*& out, uint8_t* out_end, optional<error>& e) const noexcept {
             auto p = in;
             auto o = out;
             auto status = FeedStatus::more;
@@ -336,7 +336,7 @@ namespace sgcl::encoding::detail {
 
         // The end of the input: the short group without padding written
         // out, or the error of an input that ends where it cannot
-        FeedStatus finish(decoding& d, uint8_t*& out, uint8_t* out_end, optional<error>& e) const {
+        FeedStatus finish(decoding& d, uint8_t*& out, uint8_t* out_end, optional<error>& e) const noexcept {
             if (d.done || (d.count == 0 && d.pads == 0)) {
                 return FeedStatus::more;
             }

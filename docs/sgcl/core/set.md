@@ -1,7 +1,9 @@
-# sgcl::set
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::set\<Key, Hash, KeyEqual\>
 
 ```cpp
-#include "sgcl/core/set.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/set.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
@@ -9,431 +11,234 @@ namespace sgcl {
 }
 ```
 
-`sgcl::set<Key, Hash, KeyEqual>` is `std::unordered_set` over managed nodes: the same hash table as [map](map.md), holding keys alone. The interface is the one of `std::unordered_set` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: unique keys, an element destroyed the moment it is erased, iterators valid across a rehash and until their element is erased.
+`sgcl::set<Key, Hash, KeyEqual>` is `std::unordered_set` over managed nodes: the same hash table as
+[map](map.md), holding keys alone. The interface is the one of `std::unordered_set` — the constructors,
+insertion, erasure, node handles and `merge`, the lookups with a transparent hash and equality, forward
+iterators, the bucket interface and the hash policy, `==`, the deduction guides and `std::erase_if` — and so is
+the behaviour: unique keys, an element destroyed the moment it is erased, iterators valid across a rehash and
+until their element is erased.
 
-What differs from `std` is where the memory lives. The set holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so a `set<tracked_ptr<T>>` is a set of traced pointers (`std::hash<sgcl::tracked_ptr<T>>` hashes the address) and a cycle through a set is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere. As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place (the cached hash and the bucket would no longer match); `extract` it and insert it back. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
+What differs from `std` is where the memory lives. The set holds two `tracked_ptr`s (the bucket array and a
+sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements
+are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel. A
+`set<tracked_ptr<T>>` is therefore a set of traced pointers (`std::hash` of a `tracked_ptr` hashes the address),
+and a cycle through a set is collected like any other. Nothing is freed by hand: an erasure destroys the element
+and unlinks the node, and the collector reclaims the node later. The hash of each key is cached in its node. An
+iterator is one raw node pointer, trivially copyable and storable anywhere. As in `std`, `iterator` and
+`const_iterator` are one type, yielding `const Key&`: a key is never modified in place (the cached hash and the
+bucket would no longer match); it is extracted, changed in its node handle and inserted back. Lookups and
+iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on
+each link they relink ([README: Containers](README.md#containers)).
+
+Go has no set type; its idiom, a `map[K]struct{}`, is this container with the keys alone, except that Go
+randomizes the order of every iteration, while here the order is the chain's and changes only with the set.
 
 ## Rules
 
-- An `set` holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](README.md#the-rules), 1). The same holds for a node handle.
+- A set holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc`
+  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1). The same holds for a [node handle](set-node_type.md).
 - The elements may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the set is destroyed, exactly as in `std`. The one exception is a set dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
-- An iterator, a reference or a pointer to an element is valid while the element is in the set, across insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the set. An iterator to an erased element is invalid as in `std`.
-- A key cannot be modified through an iterator (they yield `const Key&`); `extract` it, change `value()` of the handle and insert it back.
-- A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the element.
-- Thread safety is that of `std::unordered_set`: concurrent readers, or one writer, with the program's own synchronization ([The rules](README.md#the-rules), 6).
+- An element is destroyed the moment it is erased, cleared, assigned over, or the set is destroyed, exactly as in
+  `std`. The one exception is a set dying in a sweep, inside a managed object nobody refers to any more: its
+  nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector
+  thread.
+- An iterator, a reference or a pointer to an element is valid while the element is in the set, across
+  insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the set. An iterator to an
+  erased element is invalid as in `std`.
+- A key cannot be modified through an iterator (they yield `const Key&`); [extract](set/extract.md) it, change
+  [value()](set-node_type/value.md) of the handle and insert it back.
+- A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the
+  element.
+- Thread safety is that of `std::unordered_set`: concurrent readers, or one writer, with the program's own
+  synchronization ([The rules](README.md#the-rules), 6).
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the elements, the keys: any object type that `Hash` hashes and `KeyEqual` compares. An operation that copies or moves elements requires `Key` to be copyable or movable. |
+| `Hash` | A function object returning the `size_t` hash of a key. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. With `is_transparent` declared, as by `KeyEqual`, the lookups, `erase`, `extract` and `bucket` take a key of another type. |
+| `KeyEqual` | A function object comparing two keys for equality, consistent with `Hash`. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. |
 
-```cpp
-using key_type = Key;
-using value_type = Key;
-using hasher = Hash;
-using key_equal = KeyEqual;
-using size_type = size_t;
-using difference_type = ptrdiff_t;
-using reference = value_type&;
-using const_reference = const value_type&;
-using pointer = value_type*;
-using const_pointer = const value_type*;
-using const_iterator = /* forward, one raw node pointer, yields const Key& */;
-using iterator = const_iterator;
-using const_local_iterator = /* forward, stops at the end of its bucket */;
-using local_iterator = const_local_iterator;
-using node_type = /* the node handle, below */;
-struct insert_return_type { iterator position; bool inserted; node_type node; };
-static constexpr bool unique = true;
-```
+## Member types
 
-`iterator` converts to `const_iterator`, `local_iterator` to `const_local_iterator`, not back.
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `value_type` | `Key` |
+| `hasher` | `Hash` |
+| `key_equal` | `KeyEqual` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `reference` | `value_type&` |
+| `const_reference` | `const value_type&` |
+| `pointer` | `value_type*` |
+| `const_pointer` | `const value_type*` |
+| `iterator` | the same type as `const_iterator` |
+| `const_iterator` | a forward iterator over `const Key`, one raw node pointer, `std::forward_iterator` |
+| `local_iterator` | the same type as `const_local_iterator` |
+| `const_local_iterator` | a forward iterator over `const Key` that stops at the end of its bucket, `std::forward_iterator` |
+| [node_type](set-node_type.md) | the node handle, the same type as multiset's |
+| `insert_return_type` | a struct `{ iterator position; bool inserted; node_type node; }`, the result of [insert](set/insert.md) of a node handle |
 
-### Constructors
+## Member functions
 
-```cpp
-set();
-explicit set(size_type bucket_count, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-template<std::input_iterator InputIt>
-set(InputIt first, InputIt last, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-set(std::initializer_list<value_type> ilist, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-set(const set& other);
-set(set&& other);
-```
+| Function | Description |
+|---|---|
+| [(constructor)](set/set.md) | constructs the set |
+| `(destructor)` | destroys the elements, or leaves them to the sweep the set dies in ([Rules](#rules)); the nodes, the bucket array and the sentinel are reclaimed by the collector |
+| [operator=](set/operator_assign.md) | assigns the elements of another set or of a list |
 
-The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two. The range constructor, given a forward range, sizes the table for the distance first; duplicates are dropped. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. A constructor or hasher that throws destroys the elements built so far.
+#### Iterators
 
-```cpp
-set primes = {5, 3, 2, 7, 3};                      // 2 3 5 7, in some order
-set<int> sized(100);                                     // 128 buckets
-vector<string> words = {"b", "a"};
-set from_range(words.begin(), words.end());              // deduced: set<string>
-set<int> taken = std::move(primes);                      // primes is empty now
-```
+| Function | Description |
+|---|---|
+| [begin, cbegin](set/begin.md) | an iterator to the first element |
+| [end, cend](set/end.md) | an iterator past the last element |
 
-### Destructor
+#### Capacity
 
-```cpp
-~set();
-```
+| Function | Description |
+|---|---|
+| [empty](set/empty.md) | checks whether the set is empty |
+| [size](set/size.md) | the number of elements |
+| [max_size](set/max_size.md) | the largest number of elements a set may hold |
 
-Destroys the elements when the set dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The nodes, the bucket array and the sentinel are reclaimed by the collector in both cases.
+#### Modifiers
 
-### operator=
+| Function | Description |
+|---|---|
+| [clear](set/clear.md) | destroys every element, keeps the buckets |
+| [insert](set/insert.md) | inserts elements, or nodes, unless their keys are there |
+| [emplace](set/emplace.md) | constructs an element in place unless its key is there |
+| [emplace_hint](set/emplace_hint.md) | the same, with a hint that is ignored |
+| [erase](set/erase.md) | erases elements |
+| [swap](set/swap.md) | swaps the contents |
+| [extract](set/extract.md) | takes a node out of the set, into a node handle |
+| [merge](set/merge.md) | relinks the nodes of another set or multiset |
 
-```cpp
-set& operator=(const set& other);
-set& operator=(set&& other);
-set& operator=(std::initializer_list<value_type> ilist);
-```
+#### Lookup
 
-Copy assignment builds a copy of `other` and swaps it in; move assignment clears this set (destroying its elements at once) and takes the table over; the list form builds a new table with this set's hasher, equality and `max_load_factor` and swaps it in.
+| Function | Description |
+|---|---|
+| [count](set/count.md) | the number of elements with a key, 0 or 1 |
+| [find](set/find.md) | an iterator to the element with a key |
+| [contains](set/contains.md) | checks whether the set holds a key |
+| [equal_range](set/equal_range.md) | the range of the elements with a key |
 
-```cpp
-set<int> a = {1, 2}, b;
-b = a;
-b = {5, 6};                  // the old elements die here
-a = std::move(b);            // a is {5, 6}, b is empty
-```
+#### Bucket interface
 
-### Iterators
+| Function | Description |
+|---|---|
+| [begin(size_type), cbegin(size_type)](set/begin.md) | an iterator to the first element of a bucket |
+| [end(size_type), cend(size_type)](set/end.md) | an iterator past the last element of a bucket |
+| [bucket_count](set/bucket_count.md) | the number of buckets |
+| [max_bucket_count](set/max_bucket_count.md) | the largest number of buckets |
+| [bucket_size](set/bucket_size.md) | the number of elements in a bucket |
+| [bucket](set/bucket.md) | the bucket of a key |
 
-```cpp
-iterator begin() noexcept;                const_iterator begin() const noexcept;    const_iterator cbegin() const noexcept;
-iterator end() noexcept;                  const_iterator end() const noexcept;      const_iterator cend() const noexcept;
-```
+#### Hash policy
 
-Forward iterators over one chain of nodes; `end()` is a null iterator. The order is the chain's and changes with a rehash. An iterator is a raw node pointer: copying and advancing it costs a load, and it may be kept in unmanaged memory (a `std::vector<iterator>`) while its element is in the set.
+| Function | Description |
+|---|---|
+| [load_factor](set/load_factor.md) | the average number of elements per bucket |
+| [max_load_factor](set/max_load_factor.md) | the load factor at which the table grows, read or set |
+| [rehash](set/rehash.md) | sets the number of buckets |
+| [reserve](set/reserve.md) | sets the number of buckets for a number of elements |
 
-```cpp
-set<string> s = {"a", "b"};
-string joined;
-for (const auto& key : s) {
-    joined += key;                         // "ab" or "ba"
-}
-std::vector<decltype(s)::const_iterator> kept;   // iterators in unmanaged memory: fine
-kept.push_back(s.find("a"));
-```
+#### Observers
 
-### empty, size, max_size
+| Function | Description |
+|---|---|
+| [hash_function](set/hash_function.md) | a copy of the hash function |
+| [key_eq](set/key_eq.md) | a copy of the equality of the keys |
 
-```cpp
-bool empty() const noexcept;
-size_type size() const noexcept;
-size_type max_size() const noexcept;
-```
+#### From mixin::enumerable
 
-`size()` is a stored count, O(1).
+The questions asked of the elements, carried by every container of the library
+([mixin::enumerable](mixin/enumerable.md)); `contains` is the set's own, by the key.
 
-### clear
+| Function | Description |
+|---|---|
+| `index_of` | the position of the first element equal to a value, in the order of iteration |
+| `last_index_of` | the position of the last element equal to a value |
+| `find_if` | a pointer to the first element the predicate accepts |
+| `find_index` | the position of the first element the predicate accepts |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `min`, `max` | the smallest, the largest element |
+| `for_each` | calls a function with every element |
 
-```cpp
-void clear() noexcept;
-```
+## Non-member functions
 
-Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay.
+| Function | Description |
+|---|---|
+| [operator==, operator!=](set/operator_cmp.md) | compare the elements of two sets, in any order |
+| [swap](set/swap.md) | swaps the contents of two sets |
+| [erase_if](set/erase_if.md) | erases every element satisfying a predicate |
 
-```cpp
-set<string> s = {"a", "b"};
-s.clear();                     // both strings are destroyed here
-bool gone = s.empty();         // true
-```
-
-### insert
-
-```cpp
-std::pair<iterator, bool> insert(const value_type& value);
-std::pair<iterator, bool> insert(value_type&& value);
-template<class P> requires std::is_constructible_v<value_type, P&&> std::pair<iterator, bool> insert(P&& value);
-iterator insert(const_iterator hint, const value_type& value);
-iterator insert(const_iterator hint, value_type&& value);
-template<class P> requires std::is_constructible_v<value_type, P&&> iterator insert(const_iterator hint, P&& value);
-template<std::input_iterator InputIt> void insert(InputIt first, InputIt last);
-void insert(std::initializer_list<value_type> ilist);
-insert_return_type insert(node_type&& nh);
-iterator insert(const_iterator hint, node_type&& nh);
-```
-
-The single-element forms return the element with the key and whether it was inserted; nothing is built when the key is already there (the `P&&` forms go through `emplace`, which builds the key first and destroys it again on a duplicate). The hint is ignored. The table grows before the node is linked when the size has reached the threshold; an existing key never rehashes. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate the returned `node` (or `nh`) keeps it and `position` is the element in the way. An empty handle inserts nothing.
-
-```cpp
-set<string> s;
-auto [it, inserted] = s.insert("a");                  // inserted: true
-inserted = s.insert("a").second;                      // false
-s.insert(s.end(), "z");                               // the hint is ignored
-s.insert({"b", "c"});
-set<string> other = {"q"};
-auto r = s.insert(other.extract("q"));                // relinked, no copy: r.inserted is true
-```
-
-### emplace, emplace_hint
+## Deduction guides
 
 ```cpp
-template<class... A> std::pair<iterator, bool> emplace(A&&... a);
-template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
-```
+template<std::input_iterator InputIt,
+         class Hash = std::hash<typename std::iterator_traits<InputIt>::value_type>,
+         class KeyEqual = std::equal_to<typename std::iterator_traits<InputIt>::value_type>>
+set(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> set<typename std::iterator_traits<InputIt>::value_type, Hash, KeyEqual>;
 
-Builds the key from `a...` in a new node before it is looked up, as in `std`; if it is already there the new element is destroyed and the existing one returned. A single `value_type` argument is inserted without the detour. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the set as it was.
-
-```cpp
-set<string> s;
-s.emplace(3, 'x');                          // "xxx"
-auto [it, fresh] = s.emplace("xxx");        // fresh: false
-s.emplace_hint(s.end(), "zzz");
-```
-
-### erase
-
-```cpp
-iterator erase(iterator pos);
-iterator erase(const_iterator pos);
-iterator erase(const_iterator first, const_iterator last);
-size_type erase(const key_type& key);
-template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
-```
-
-Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms return 0 or 1. Erasing during an iteration: `it = s.erase(it)`. The bucket count never shrinks on an erase.
-
-```cpp
-set s = {1, 2, 3, 4};
-s.erase(2);
-for (auto it = s.begin(); it != s.end();) {
-    it = *it % 2 ? s.erase(it) : std::next(it);   // 1 and 3 go
-}
-auto rest = s.size();                              // 1
-```
-
-### swap
-
-```cpp
-void swap(set& other) noexcept(std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<KeyEqual>);
-friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs)));
-```
-
-Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other set.
-
-```cpp
-set<int> a = {1}, b = {2};
-auto it = a.begin();
-swap(a, b);                       // it still points at 1, which is in b now
-bool moved = it == b.find(1);     // true
-```
-
-### extract
-
-```cpp
-node_type extract(const_iterator pos);
-node_type extract(const key_type& key);
-template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
-```
-
-Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key forms return an empty handle when the key is absent. This is the way to change a key. See [node_type](#node_type-the-node-handle).
-
-```cpp
-set<string> s = {"a", "b"};
-auto nh = s.extract("a");         // s holds "b"
-nh.value() += "!";                // the key may change outside a set
-s.insert(std::move(nh));          // "a!" and "b"; no string was copied
-```
-
-### merge
-
-```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any set or multiset<Key, H2, E2>
-template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
-```
-
-Relinks the nodes of `source` whose keys are not yet here into this set, rehashing them with this set's hasher; a node whose key is already here stays in `source`. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::set` or `sgcl::multiset` with the same `Key` and any hasher and equality. Merging a set into itself does nothing.
-
-```cpp
-set a = {1, 3};
-multiset b = {2, 3, 3};
-a.merge(b);                       // a: 1 2 3;  b keeps both 3s
-```
-
-### count, find, contains, equal_range
-
-```cpp
-size_type count(const key_type& key) const;
-iterator find(const key_type& key);
-const_iterator find(const key_type& key) const;
-bool contains(const key_type& key) const;
-std::pair<iterator, iterator> equal_range(const key_type& key);
-std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const;
-template<class K> size_type count(const K& key) const;                     // when Hash::is_transparent and KeyEqual::is_transparent
-template<class K> iterator find(const K& key);                              //   "
-template<class K> const_iterator find(const K& key) const;                  //   "
-template<class K> bool contains(const K& key) const;                        //   "
-template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //   "  (and the const form)
-```
-
-O(1) on average, reading raw pointers only; the cached hash is compared before the key. `count` is 0 or 1. The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`.
-
-```cpp
-set<string> s = {"apple"};   // std::hash and std::equal_to of a string are transparent
-bool has = s.contains("apple");    // no string is built for the literal
-string line = "apple pie";
-bool piece = s.contains(line.as_slice(0, 5));   // a slice of another string, nothing built either
-```
-
-### Bucket interface
-
-```cpp
-size_type bucket_count() const noexcept;
-size_type max_bucket_count() const noexcept;
-size_type bucket_size(size_type n) const;
-size_type bucket(const key_type& key) const;
-template<class K> size_type bucket(const K& key) const;      // when Hash and KeyEqual are transparent
-local_iterator begin(size_type n);              const_local_iterator begin(size_type n) const;   const_local_iterator cbegin(size_type n) const;
-local_iterator end(size_type n);                const_local_iterator end(size_type n) const;     const_local_iterator cend(size_type n) const;
-```
-
-As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash xored with a product of its bits above `bucket_count() - 1` and masked by it (0 while there are no buckets). A local iterator walks the nodes of one bucket and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
-
-```cpp
-set s = {1, 2, 3};
-size_t n = s.bucket(2);
-size_t in_bucket = 0;
-for (auto it = s.begin(n); it != s.end(n); ++it) {
-    ++in_bucket;
-}
-bool same = in_bucket == s.bucket_size(n);        // true
-```
-
-### Hash policy
-
-```cpp
-float load_factor() const noexcept;
-float max_load_factor() const noexcept;
-void max_load_factor(float z);
-void rehash(size_type count);
-void reserve(size_type count);
-```
-
-`load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`; it may shrink the table, and `rehash(0)` on an empty set leaves it without buckets. `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes, hashes nothing and invalidates no iterator.
-
-```cpp
-set<int> s;
-s.reserve(1000);                                  // 1024 buckets: no rehash while inserting 1000 elements
-for (int i : range(1000)) {
-    s.insert(i);
-}
-bool fits = s.load_factor() <= s.max_load_factor();   // true
-```
-
-### hash_function, key_eq
-
-```cpp
-hasher hash_function() const;
-key_equal key_eq() const;
-```
-
-Copies of the hasher and the equality.
-
-### The mixins
-
-`set` carries [mixin::enumerable](mixin/enumerable.md): `exists`, `all`, `count_of`, `find_if`, `for_each`; `contains` is the set's own, by the key ([the mixins](mixin/README.md)). Its `==` is its own, in any order; no `<=>`, the iteration order not being a value.
-
-```cpp
-set<int> s = {1, 2, 3};
-assert(s.contains(2) && s.count_of([](int x) { return x % 2; }) == 2);
-```
-
-### Comparisons
-
-```cpp
-friend bool operator==(const set& lhs, const set& rhs);
-```
-
-Equal sizes and every element of `lhs` found in `rhs` (found by key, then compared with `==`), whatever the bucket counts and orders. `!=` follows; there is no ordering.
-
-```cpp
-set<int> a = {1, 2}, b(1000);
-b.insert({2, 1});
-bool same = a == b;                               // true
-```
-
-### node_type (the node handle)
-
-```cpp
-class node_type {
-public:
-    using key_type = Key;
-    using value_type = Key;
-    node_type() noexcept;
-    node_type(node_type&&) noexcept;
-    node_type& operator=(node_type&&);
-    ~node_type();
-    bool empty() const noexcept;
-    explicit operator bool() const noexcept;
-    value_type& value() const;             // writable: the node is out of any set
-    void swap(node_type& other) noexcept;
-    friend void swap(node_type& lhs, node_type& rhs) noexcept;
-};
-```
-
-Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::multiset<Key>::node_type`.
-
-### erase_if, std::erase_if
-
-```cpp
-namespace sgcl {
-    template<class Key, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(set<Key, Hash, KeyEqual>& c, Pred pred);
-}
-namespace std { using sgcl::erase_if; }
-```
-
-Erases every element for which `pred(*it)` is true and returns how many.
-
-```cpp
-set s = {1, 2, 3, 4};
-auto n = std::erase_if(s, [](int x) { return x % 2 == 0; });   // 2; s holds 1 and 3
-```
-
-### Deduction guides
-
-```cpp
-template<std::input_iterator InputIt, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>   // Key from the iterator
-set(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> set<Key, Hash, KeyEqual>;
 template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-set(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> set<Key, Hash, KeyEqual>;
+set(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> set<Key, Hash, KeyEqual>;
 ```
 
-```cpp
-vector<string> src = {"a", "b"};
-set from_range(src.begin(), src.end());      // set<string>
-set from_list = {1, 2, 3};                   // set<int>
-```
+## Complexity
+
+- `find`, `contains`, `count`, `equal_range`, and the insertion or the erasure of one element: constant on
+  average, the walk of one bucket; linear in the size when every key falls into one bucket.
+- A growth of the table relinks every node and hashes none: amortized constant per insertion.
+- `clear`, a copy, `erase_if` and `==`: linear in the size.
+
+## Iterator invalidation
+
+| Operations | Invalidated |
+|---|---|
+| all read-only operations, `insert`, `emplace`, `emplace_hint`, `rehash`, `reserve`, `max_load_factor` | never |
+| `swap`, `merge`, the move constructor | never: an iterator follows its element into the other set |
+| `erase`, `extract`, `erase_if` | only the iterators to the erased or extracted elements |
+| `clear`, `operator=` | all |
+| a rehash, by `rehash`, `reserve` or an insertion that grows the table | the local iterators |
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 struct Node {
     string name;
-    set<tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
+    set<tracked_ptr<Node>> peers;  // a set of traced pointers inside a managed object
 };
 
 int main() {
     println("a graph whose edges are sets");
-    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
+    // after the first line: io's own objects are not the example's
+    auto base = collector::get_live_object_count();
     // A graph whose edges are sets: each node is reachable from its peers
     tracked_ptr a = make_tracked<Node>("a");
     tracked_ptr b = make_tracked<Node>("b");
     tracked_ptr c = make_tracked<Node>("c");
     a->peers.insert(b);
-    b->peers.insert(a);                         // a cycle
+    b->peers.insert(a);  // a cycle
     b->peers.insert(c);
-    bool again = b->peers.insert(c).second;     // false: a duplicate, nothing is inserted
+    bool again = b->peers.insert(c).second;  // false: a duplicate, nothing is inserted
 
     // A set of values on the stack, each name once
     set<string> names;
-    for (const auto& peer : b->peers) {         // pointers hash by address: any order
+    for (const auto& peer : b->peers) {  // pointers hash by address: any order
         names.insert(peer->name);
     }
     names.insert("b");
@@ -445,7 +250,8 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    println("{} live objects", collector::get_live_object_count() - base);     // the nodes, buckets and sentinel of `names`
+    // the nodes, buckets and sentinel of `names`
+    println("{} live objects", collector::get_live_object_count() - base);
     return !again && names.size() == 3 ? 0 : 1;
 }
 ```
@@ -460,6 +266,7 @@ a graph whose edges are sets
 
 ## See also
 
-- [multiset](multiset.md) for equal keys, [map](map.md) and [multimap](multimap.md) for key-value pairs, [sorted_set](sorted_set.md) for an ordered tree
+- [multiset](multiset.md) for equal keys, [map](map.md) and [multimap](multimap.md) for key-value pairs,
+  [ordered_set](ordered_set.md) for the order of insertion, [sorted_set](sorted_set.md) for an ordered tree
 - [tracked_ptr](tracked_ptr.md), [make_tracked](make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](README.md#the-rules)

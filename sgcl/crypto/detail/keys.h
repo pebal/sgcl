@@ -17,7 +17,7 @@
 // in the program, never encryption under a zero key.
 namespace sgcl::crypto::detail {
     // "aes: a key of 20 bytes", the detail of a wrong key length
-    inline std::string key_size_message(const char* type, size_t n) {
+    inline std::string key_size_message(const char* type, size_t n) noexcept {
         std::string m = type;
         m += ": a key of ";
         m += std::to_string(n);

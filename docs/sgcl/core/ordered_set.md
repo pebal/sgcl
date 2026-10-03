@@ -1,7 +1,9 @@
-# sgcl::ordered_set
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::ordered_set\<Key, Hash, KeyEqual\>
 
 ```cpp
-#include "sgcl/core/ordered_set.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/ordered_set.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
@@ -9,55 +11,240 @@ namespace sgcl {
 }
 ```
 
-`sgcl::ordered_set<Key, Hash, KeyEqual>` is a hash set iterated in the order its elements were inserted: Java's `LinkedHashSet`. It is [set](set.md) with every node on a second list in insertion order, as [ordered_map](ordered_map.md) is to `map`: `begin()` to `end()` walks that list both ways, `front()` is the oldest element and `back()` the newest, a copy keeps the order, an erase takes the element out of it, an insert of a present element leaves it where it is, `to_back` and `to_front` move an element to the end or the start. The table, the lookups, the bucket interface, node handles, `merge` and the transparent lookups are those of `set`; a rehash never touches the order. Two words more per node.
+`sgcl::ordered_set<Key, Hash, KeyEqual>` is a hash set iterated in the order its elements were inserted: Java's
+`LinkedHashSet`. It is [set](set.md) with every node on a second list in the order of insertion, as
+[ordered_map](ordered_map.md) is to `map`: `begin()` to `end()` walks that list both ways (the iterators are
+bidirectional, `rbegin` exists), `front()` is the oldest element and `back()` the newest, a copy keeps the order,
+an erasure takes the element out of it, an insertion of an element that is there leaves it where it is, and
+`to_back` and `to_front` move an element to the end or the start. The table, the lookups, the bucket interface,
+the node handles, `merge` and the lookups by a key of another type are those of `set`; a rehash never touches the
+order. Two words more per node.
 
-What it is for: a set that is also a sequence without duplicates, kept in the order things arrived: the distinct values of a stream in first-seen order, a list of names with no repeats, a set of visited nodes reported in the order of the visit; and a set with an eviction order, as the map has.
+What it is for: a set that is also a sequence without duplicates, kept in the order things arrived: the distinct
+values of a stream in first-seen order, a list of names with no repeats, a set of visited nodes reported in the
+order of the visit; and a set with an eviction order, as the map has.
+
+Where the memory lives is `set`'s layout. The set object holds two `tracked_ptr`s, the bucket array and the
+sentinel node, which is both the head of the chain and the end of the order, and beside them the counts, the hash
+and the equality. Every element is a node on the managed heap, on one chain linked by tracked pointers and on
+the list of the order, all traced from the sentinel: an `ordered_set<tracked_ptr<T>>` is a set of traced
+pointers, and a cycle through a set is collected like any other. The hash of each element is cached in its node.
+As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: an element is never modified in
+place (its cached hash and its bucket would no longer match); `extract` it, change it in the handle and insert it
+back. A lookup and an iteration pay no write barrier; an insertion, an erasure, a rehash, `to_back` and
+`to_front` store tracked pointers and pay the barrier on each link they change
+([README: Containers](README.md#containers)).
 
 ## Rules
 
-Those of [set](set.md#rules) and, for the order, of [ordered_map](ordered_map.md#rules): an iterator stays valid across `to_back` and `to_front`, `end()` is the sentinel and `--end()` the newest element.
+- An `ordered_set` holds tracked pointers, so it lives on a stack or inside a managed object: never in
+  `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1). The same holds for a [node handle](ordered_set-node_type.md).
+- The elements may be, or hold, tracked pointers (a `tracked_ptr` is hashed by its address): the nodes are
+  managed objects, so those pointers are traced.
+- An element is destroyed the moment it is erased, cleared, assigned over, or the set is destroyed, exactly as in
+  `std`. The one exception is a set dying in a sweep, inside a managed object nobody refers to any more: its
+  nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector
+  thread ([README: Threads](../async/README.md#threads)).
+- An iterator, a reference or a pointer to an element is valid while the element is in the set, across
+  insertions, rehashes, erasures of other elements, `to_back` and `to_front` of any element, `swap`, `merge` and a
+  move of the set: it follows the node. An iterator to an erased element is invalid, as in `std`. Iterators are
+  trivially copyable, one raw node pointer each, and may live anywhere: the set roots every node it links.
+- `end()` is the sentinel, so `--end()` is the newest element. A set that has never had a bucket array (made
+  empty, nothing inserted yet) has no sentinel: its `end()` is null, is not decremented, and is not the `end()`
+  of the set after its first insertion ([Iterator invalidation](#iterator-invalidation)).
+- An element cannot be modified through an iterator; [extract](ordered_set/extract.md) it, change `value()` of
+  the handle and insert it back.
+- A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the element.
+- Thread safety is that of `std::unordered_set`: concurrent readers, or one writer, with the program's own
+  synchronization ([The rules](README.md#the-rules), 6).
 
-## Members
+## Template parameters
 
-Every member of [set](set.md#members), with these differences and additions; the iterators are bidirectional and yield `const Key&`.
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the elements: any object type that `Hash` hashes and `KeyEqual` compares. |
+| `Hash` | A function object returning the `size_t` hash of an element. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. With `is_transparent` declared, as by `KeyEqual`, the lookups, `erase`, `extract` and `bucket` take a key of another type. |
+| `KeyEqual` | A function object comparing two elements for equality, consistent with `Hash`. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. |
+
+## Member types
+
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `value_type` | `Key` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `hasher` | `Hash` |
+| `key_equal` | `KeyEqual` |
+| `reference` | `value_type&` |
+| `const_reference` | `const value_type&` |
+| `pointer` | `value_type*` |
+| `const_pointer` | `const value_type*` |
+| `const_iterator` | a bidirectional iterator over `const Key` in the order of insertion, one raw node pointer, `std::bidirectional_iterator` |
+| `iterator` | `const_iterator` |
+| `reverse_iterator` | `std::reverse_iterator<iterator>` |
+| `const_reverse_iterator` | `std::reverse_iterator<const_iterator>` |
+| `const_local_iterator` | a forward iterator over the elements of one bucket, in the order of the chain, `std::forward_iterator` |
+| `local_iterator` | `const_local_iterator` |
+| [node_type](ordered_set-node_type.md) | the node handle |
+| `insert_return_type` | a struct `{ iterator position; bool inserted; node_type node; }`, the result of `insert(node_type&&)` |
+
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](ordered_set/ordered_set.md) | constructs the set |
+| `(destructor)` | destroys the elements, in a sweep leaves them to the sweep; the nodes, the bucket array and the sentinel are left to the collector |
+| [operator=](ordered_set/operator_assign.md) | assigns values to the set |
+
+#### Element access
+
+| Function | Description |
+|---|---|
+| [front](ordered_set/front.md) | the oldest element |
+| [back](ordered_set/back.md) | the newest element |
+
+#### Iterators
+
+| Function | Description |
+|---|---|
+| [begin, cbegin](ordered_set/begin.md) | an iterator to the oldest element |
+| [end, cend](ordered_set/end.md) | the iterator past the newest element |
+| [rbegin, crbegin](ordered_set/rbegin.md) | a reverse iterator to the newest element |
+| [rend, crend](ordered_set/rend.md) | the reverse iterator past the oldest element |
+
+#### Capacity
+
+| Function | Description |
+|---|---|
+| [empty](ordered_set/empty.md) | checks whether the set is empty |
+| [size](ordered_set/size.md) | the number of elements |
+| [max_size](ordered_set/max_size.md) | the largest number of elements |
+
+#### Modifiers
+
+| Function | Description |
+|---|---|
+| [clear](ordered_set/clear.md) | erases every element |
+| [insert](ordered_set/insert.md) | inserts elements or nodes |
+| [emplace](ordered_set/emplace.md) | constructs an element in place |
+| [emplace_hint](ordered_set/emplace_hint.md) | constructs an element in place, with a hint |
+| [erase](ordered_set/erase.md) | erases elements |
+| [swap](ordered_set/swap.md) | swaps the contents |
+| [extract](ordered_set/extract.md) | takes a node out of the set |
+| [merge](ordered_set/merge.md) | relinks the nodes of another set |
+| [to_back](ordered_set/to_back.md) | moves an element to the end of the order |
+| [to_front](ordered_set/to_front.md) | moves an element to the start of the order |
+
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [count](ordered_set/count.md) | the number of elements equal to a key |
+| [find](ordered_set/find.md) | an iterator to the element equal to a key |
+| [contains](ordered_set/contains.md) | checks whether an element is there |
+| [equal_range](ordered_set/equal_range.md) | the range of the elements equal to a key |
+
+#### Bucket interface
+
+| Function | Description |
+|---|---|
+| [begin(size_type), cbegin(size_type)](ordered_set/begin.md) | a local iterator to the first element of a bucket |
+| [end(size_type), cend(size_type)](ordered_set/end.md) | the local iterator past the last element of a bucket |
+| [bucket_count](ordered_set/bucket_count.md) | the number of buckets |
+| [max_bucket_count](ordered_set/max_bucket_count.md) | the largest number of buckets |
+| [bucket_size](ordered_set/bucket_size.md) | the number of elements in a bucket |
+| [bucket](ordered_set/bucket.md) | the bucket of an element |
+
+#### Hash policy
+
+| Function | Description |
+|---|---|
+| [load_factor](ordered_set/load_factor.md) | the average number of elements per bucket |
+| [max_load_factor](ordered_set/max_load_factor.md) | the load factor at which the table grows, read or set |
+| [rehash](ordered_set/rehash.md) | sets the number of buckets |
+| [reserve](ordered_set/reserve.md) | makes room for a number of elements |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [hash_function](ordered_set/hash_function.md) | a copy of the hash function |
+| [key_eq](ordered_set/key_eq.md) | a copy of the equality of the elements |
+
+#### From mixin::enumerable
+
+The questions asked of the elements, in the order of insertion ([mixin::enumerable](mixin/enumerable.md));
+`contains` is the set's own, by the hash.
+
+| Function | Description |
+|---|---|
+| `index_of` | the position in the order of the element equal to a value |
+| `last_index_of` | the position in the order of the last element equal to a value |
+| `find_if` | a pointer to the first element the predicate accepts |
+| `find_index` | the position of the first element the predicate accepts |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `min`, `max` | the smallest, the largest element |
+| `for_each` | calls a function with every element |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](ordered_set/operator_cmp.md) | compares the contents of two sets, whatever their orders |
+| [swap](ordered_set/swap.md) | swaps the contents of two sets |
+| [erase_if](ordered_set/erase_if.md) | erases the elements a predicate accepts |
+
+## Deduction guides
 
 ```cpp
-using reverse_iterator = std::reverse_iterator<iterator>;  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+template<std::input_iterator InputIt,
+         class Hash = std::hash<typename std::iterator_traits<InputIt>::value_type>,
+         class KeyEqual = std::equal_to<typename std::iterator_traits<InputIt>::value_type>>
+ordered_set(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> ordered_set<typename std::iterator_traits<InputIt>::value_type, Hash, KeyEqual>;
 
-iterator begin() noexcept;  const_iterator begin() const noexcept;  const_iterator cbegin() const noexcept;    // the oldest element
-iterator end() noexcept;    const_iterator end() const noexcept;    const_iterator cend() const noexcept;      // the sentinel: --end() is the newest
-const_reverse_iterator rbegin() const noexcept;  const_reverse_iterator crbegin() const noexcept;
-const_reverse_iterator rend() const noexcept;    const_reverse_iterator crend() const noexcept;
-const value_type& front() const noexcept;   const value_type& back() const noexcept;   // the oldest, the newest (the set not empty)
-void to_back(const_iterator pos) noexcept;  void to_front(const_iterator pos) noexcept;   // the element becomes the newest (the oldest); O(1), the iterator stays valid
-friend void swap(ordered_set& lhs, ordered_set& rhs) noexcept(noexcept(lhs.swap(rhs)));   // lhs.swap(rhs)
+template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+ordered_set(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> ordered_set<Key, Hash, KeyEqual>;
 ```
 
-`insert` and `emplace` put a new element at the end of the order and leave a present one where it is. `erase` takes the element out of the order; `erase(pos)` returns the next in the order; `erase(first, last)` is a range of the order. `extract` takes the node out of the order, and an inserted handle goes to the end. `merge` appends what it takes. A copy reproduces the order; `swap` (the member and the free `swap(a, b)`) and a move carry it along; `operator==` compares the contents and ignores it.
+## Complexity
 
-```cpp
-ordered_set<int> seen;
-for (int v : {3, 1, 3, 2, 1}) {
-    seen.insert(v);                           // 3 1 2: each value once, in first-seen order
-}
-seen.to_front(seen.find(2));                  // 2 3 1
-assert(seen.front() == 2 && seen.back() == 1);
-```
+- `find`, `contains`, `count`, `equal_range`, `insert`, `emplace`, `erase` by a key, `extract`: constant on
+  average, the walk of one bucket; linear in the size when every element falls into one bucket. An insertion is
+  amortized over the growths of the table.
+- `begin`, `end`, `front`, `back`, `to_back`, `to_front`, `size`, `empty`, a step of an iterator, `swap`:
+  constant.
+- `clear`, `rehash`, `reserve`, `erase_if`, a copy, `==`: linear in the size.
 
-### The mixins
+A node is allocated per element: the element, the link of the chain, the cached hash and the two links of the
+order, two words more than a node of [set](set.md).
 
-`ordered_set` carries [mixin::enumerable](mixin/enumerable.md): `index_of` is the position in insertion order; `contains` is the set's own ([the mixins](mixin/README.md)).
+## Iterator invalidation
 
-```cpp
-ordered_set<int> s = {5, 3};
-assert(s.index_of(3) == 1 && s.exists([](int x) { return x == 5; }));
-```
+| Operations | Invalidated |
+|---|---|
+| all read-only operations, `to_back`, `to_front`, `max_load_factor` | never |
+| `rehash`, `reserve` | no iterator but an `end()` taken while the set had no bucket array, and the local ones (the last row) |
+| `swap` | never: the iterators, `end()` included, follow their elements and the sentinel into the other set |
+| `insert`, `emplace`, `emplace_hint`, `merge` | no iterator but an `end()` taken while the set had no bucket array, and the local ones when the table grows (the last row) |
+| `erase`, `extract`, `erase_if` | the erased elements only |
+| `clear` | every element; not `end()` |
+| `operator=` | always |
+| a rehash, by `rehash`, `reserve` or an insertion that grows the table | the local iterators |
+
+A move constructor takes the elements and the sentinel to the new set: the iterators into the old one, `end()`
+included, are iterators into the new one.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
@@ -74,7 +261,7 @@ ordered_set<tracked_ptr<Node>> reach(const tracked_ptr<Node>& start) {
     while (!stack.empty()) {
         tracked_ptr node = stack.back();
         stack.pop_back();
-        if (visited.insert(node).second) {        // new: its edges next
+        if (visited.insert(node).second) {  // new: its edges next
             for (const auto& edge : node->edges) {
                 stack.push_back(edge);
             }
@@ -88,7 +275,7 @@ int main() {
     tracked_ptr b = make_tracked<Node>("b");
     tracked_ptr c = make_tracked<Node>("c");
     a->edges = {b, c};
-    b->edges = {a};                               // a cycle
+    b->edges = {a};  // a cycle
     c->edges = {b};
     for (const auto& node : reach(a)) {
         print("{} ", node->name);
@@ -106,5 +293,7 @@ a c b
 
 ## See also
 
-- [ordered_map](ordered_map.md) for key-value pairs in insertion order, [set](set.md) for the same set without the order, [sorted_set](sorted_set.md) for the order of the keys
+- [ordered_map](ordered_map.md): key-value pairs in the order of insertion
+- [set](set.md): the same set without the order
+- [sorted_set](sorted_set.md): the set in the order of the keys
 - [README: Containers](README.md#containers), [README: The rules](README.md#the-rules)

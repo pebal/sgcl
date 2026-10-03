@@ -188,7 +188,7 @@ namespace sgcl::math::detail {
 
     // The greatest common divisor of a and b, both normalized and not
     // zero, into r (room for the shorter's length); its length returned
-    inline size_t gcd_lehmer(Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) {
+    inline size_t gcd_lehmer(Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
         size_t n = std::max(an, bn) + 1;
         Scratch s(4 * n);
         Limb* u = s.get();
@@ -199,13 +199,13 @@ namespace sgcl::math::detail {
             std::swap(a, b);
             std::swap(an, bn);
         }
-        std::memcpy(u, a, an * sizeof(Limb));
-        std::memcpy(v, b, bn * sizeof(Limb));
+        sgcl::detail::copy_bytes(u, a, an * sizeof(Limb));
+        sgcl::detail::copy_bytes(v, b, bn * sizeof(Limb));
         size_t un = an;
         size_t vn = bn;
         for (;;) {
             if (!vn) {
-                std::memcpy(r, u, un * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, u, un * sizeof(Limb));
                 return un;
             }
             if (vn == 1) {
@@ -228,7 +228,7 @@ namespace sgcl::math::detail {
                 un = vn;
                 vn = normalized(v, vn);
             } else {
-                std::memset(v + vn, 0, (un - vn) * sizeof(Limb));
+                sgcl::detail::fill_bytes(v + vn, 0, (un - vn) * sizeof(Limb));
                 size_t tn;
                 size_t wn;
                 lehmer_update(t, tn, w, wn, u, v, un, cs);
@@ -247,7 +247,7 @@ namespace sgcl::math::detail {
     // two consecutive remainders have opposite signs, and so have a and b
     // (and c and d) of every cosequence, so each new coefficient is a sum
     // of magnitudes and the sign follows.
-    inline size_t inverse_lehmer(Limb* r, const Limb* a, size_t an, const Limb* m, size_t mn) {
+    inline size_t inverse_lehmer(Limb* r, const Limb* a, size_t an, const Limb* m, size_t mn) noexcept {
         size_t n = mn + 1;
         size_t sn = mn + 2;
         Scratch s(4 * n + 4 * sn + 2 * n + 2);
@@ -260,8 +260,8 @@ namespace sgcl::math::detail {
         Limb* st = sv + sn;
         Limb* sw = st + sn;
         Limb* q = sw + sn;                  // a quotient, n limbs
-        std::memcpy(u, m, mn * sizeof(Limb));
-        std::memcpy(v, a, an * sizeof(Limb));
+        sgcl::detail::copy_bytes(u, m, mn * sizeof(Limb));
+        sgcl::detail::copy_bytes(v, a, an * sizeof(Limb));
         size_t un = mn;
         size_t vn = an;
         size_t sun = 0;      // su = 0
@@ -279,7 +279,7 @@ namespace sgcl::math::detail {
                     sub(r, m, mn, su, sun);
                     return normalized(r, mn);
                 }
-                std::memcpy(r, su, sun * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, su, sun * sizeof(Limb));
                 return sun;
             }
             Cosequence cs{1, 0, 0, 1, 0};
@@ -297,7 +297,7 @@ namespace sgcl::math::detail {
                     Limb rem = div_1(q, u, un, Divisor(v[0]));
                     qn = normalized(q, un);
                     t[0] = rem;
-                    std::memset(t + 1, 0, (n - 1) * sizeof(Limb));
+                    sgcl::detail::fill_bytes(t + 1, 0, (n - 1) * sizeof(Limb));
                 } else {
                     divide(q, t, u, un, v, vn);
                     qn = normalized(q, un - vn + 1);
@@ -313,14 +313,14 @@ namespace sgcl::math::detail {
                     pn = 0;
                 }
                 pn = normalized(p, pn);
-                std::memset(st, 0, sn * sizeof(Limb));
+                sgcl::detail::fill_bytes(st, 0, sn * sizeof(Limb));
                 if (pn >= sun) {
-                    std::memcpy(st, p, pn * sizeof(Limb));
+                    sgcl::detail::copy_bytes(st, p, pn * sizeof(Limb));
                     Limb carry = add_in(st, sn, su, sun);
                     assert(!carry);
                     (void)carry;
                 } else {
-                    std::memcpy(st, su, sun * sizeof(Limb));
+                    sgcl::detail::copy_bytes(st, su, sun * sizeof(Limb));
                     Limb carry = add_in(st, sn, p, pn);
                     assert(!carry);
                     (void)carry;
@@ -338,7 +338,7 @@ namespace sgcl::math::detail {
                 sv_negative = st_negative;
                 svn = stn;
             } else {
-                std::memset(v + vn, 0, (un - vn) * sizeof(Limb));
+                sgcl::detail::fill_bytes(v + vn, 0, (un - vn) * sizeof(Limb));
                 size_t tn;
                 size_t wn;
                 lehmer_update(t, tn, w, wn, u, v, un, cs);
@@ -353,8 +353,8 @@ namespace sgcl::math::detail {
                 bool nt = sign_of(cs.a, cs.b);
                 bool nw = sign_of(cs.c, cs.d);
                 size_t cn = std::max(sun, svn);
-                std::memset(su + sun, 0, (cn - sun) * sizeof(Limb));
-                std::memset(sv + svn, 0, (cn - svn) * sizeof(Limb));
+                sgcl::detail::fill_bytes(su + sun, 0, (cn - sun) * sizeof(Limb));
+                sgcl::detail::fill_bytes(sv + svn, 0, (cn - svn) * sizeof(Limb));
                 size_t stn;
                 size_t swn;
                 lehmer_update_sums(st, stn, sw, swn, su, sv, cn, cs);
@@ -380,7 +380,7 @@ namespace sgcl::math::detail {
     // an object is used by one thread at a time.
     class Montgomery {
     public:
-        Montgomery(const Limb* m, size_t n)
+        Montgomery(const Limb* m, size_t n) noexcept
         : _n(n)
         , _m(m, m + n)
         , _t(2 * n + 1)
@@ -416,14 +416,14 @@ namespace sgcl::math::detail {
         }
 
         // r = x·R mod m for any x of xn limbs (r of n limbs)
-        void to(Limb* r, const Limb* x, size_t xn) {
+        void to(Limb* r, const Limb* x, size_t xn) noexcept {
             to(r, x, xn, false);
         }
 
         // r = x·R^-1 mod m: the ordinary number of a residue
         void from(Limb* r, const Limb* x) noexcept {
-            std::memcpy(_t.data(), x, _n * sizeof(Limb));
-            std::memset(_t.data() + _n, 0, _n * sizeof(Limb));
+            sgcl::detail::copy_bytes(_t.data(), x, _n * sizeof(Limb));
+            sgcl::detail::fill_bytes(_t.data() + _n, 0, _n * sizeof(Limb));
             reduce(r);
         }
 
@@ -454,7 +454,7 @@ namespace sgcl::math::detail {
             if (x[0] & 1) {
                 top = add_n(r, x, _m.data(), _n);
             } else if (r != x) {
-                std::memcpy(r, x, _n * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, x, _n * sizeof(Limb));
             }
             for (size_t i = 0; i < _n; ++i) {
                 r[i] = (r[i] >> 1) | (i + 1 < _n ? r[i + 1] << 63 : top << 63);
@@ -471,20 +471,20 @@ namespace sgcl::math::detail {
 
     private:
         // (x·β^n) mod m, or R mod m itself
-        void to(Limb* r, const Limb* x, size_t xn, bool unity) {
+        void to(Limb* r, const Limb* x, size_t xn, bool unity) noexcept {
             size_t an = unity ? _n + 1 : _n + xn;
             Scratch as(an);
             Limb* a = as.get();
-            std::memset(a, 0, _n * sizeof(Limb));
+            sgcl::detail::fill_bytes(a, 0, _n * sizeof(Limb));
             if (unity) {
                 a[_n] = 1;
             } else {
-                std::memcpy(a + _n, x, xn * sizeof(Limb));
+                sgcl::detail::copy_bytes(a + _n, x, xn * sizeof(Limb));
             }
             an = normalized(a, an);
             if (compare(a, an, _m.data(), _n) < 0) {
-                std::memcpy(r, a, an * sizeof(Limb));
-                std::memset(r + an, 0, (_n - an) * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, a, an * sizeof(Limb));
+                sgcl::detail::fill_bytes(r + an, 0, (_n - an) * sizeof(Limb));
                 return;
             }
             if (_n == 1) {
@@ -525,13 +525,13 @@ namespace sgcl::math::detail {
     // not zero, by sliding windows: the odd powers x, x^3, … x^(2^k - 1)
     // made once, then per window of the exponent's bits k squares and one
     // product, a run of zeros costing a square a bit
-    inline void mod_pow_windows(Montgomery& mg, Limb* r, const Limb* x, const Limb* e, size_t en) {
+    inline void mod_pow_windows(Montgomery& mg, Limb* r, const Limb* x, const Limb* e, size_t en) noexcept {
         size_t n = mg.size();
         size_t bits = en * 64 - size_t(std::countl_zero(e[en - 1]));
         unsigned k = bits < 24 ? 1 : bits < 96 ? 3 : bits < 384 ? 4 : bits < 1536 ? 5 : 6;
         size_t count = size_t(1) << (k - 1);
         std::vector<Limb> table(count * n);
-        std::memcpy(table.data(), x, n * sizeof(Limb));
+        sgcl::detail::copy_bytes(table.data(), x, n * sizeof(Limb));
         if (count > 1) {
             std::vector<Limb> square(n);
             mg.mul(square.data(), x, x);
@@ -567,7 +567,7 @@ namespace sgcl::math::detail {
                 }
                 mg.mul(r, r, table.data() + (value >> 1) * n);
             } else {
-                std::memcpy(r, table.data() + (value >> 1) * n, n * sizeof(Limb));
+                sgcl::detail::copy_bytes(r, table.data() + (value >> 1) * n, n * sizeof(Limb));
                 started = true;
             }
             i = low;
@@ -577,7 +577,7 @@ namespace sgcl::math::detail {
     // The strong probable-prime test to a base b (a residue in Montgomery's
     // form) of the odd n = d·2^s + 1 the Montgomery object is for: b^d is 1
     // or -1, or one of its squarings before the s-th is -1
-    inline bool strong_probable_prime(Montgomery& mg, const Limb* base, const Limb* d, size_t dn, size_t s) {
+    inline bool strong_probable_prime(Montgomery& mg, const Limb* base, const Limb* d, size_t dn, size_t s) noexcept {
         size_t n = mg.size();
         std::vector<Limb> x(n);
         mod_pow_windows(mg, x.data(), base, d, dn);
@@ -643,7 +643,7 @@ namespace sgcl::math::detail {
     // V_k² - 2Q^k — and a step up — U_(k+1) = (U_k + V_k)/2, V_(k+1) =
     // (D·U_k + V_k)/2 — all in Montgomery's form. A D with (D/n) = 0 is a
     // factor, and n is not prime unless it is |D|.
-    inline bool strong_lucas_probable_prime(Montgomery& mg, const Limb* np, size_t nn) {
+    inline bool strong_lucas_probable_prime(Montgomery& mg, const Limb* np, size_t nn) noexcept {
         int64_t d = 5;
         for (;; d = d > 0 ? -(d + 2) : -d + 2) {
             int j = jacobi_small(d, np, nn);
@@ -659,14 +659,15 @@ namespace sgcl::math::detail {
         size_t n = mg.size();
         // n + 1 = k·2^s
         std::vector<Limb> k(nn + 1);
-        std::memcpy(k.data(), np, nn * sizeof(Limb));
+        sgcl::detail::copy_bytes(k.data(), np, nn * sizeof(Limb));
         k[nn] = add_1_in(k.data(), nn, 1);
         size_t kn = normalized(k.data(), nn + 1);
         size_t s = trailing_zeros(k.data(), kn);
         {
             size_t words = s / 64;
             unsigned bits = unsigned(s % 64);
-            std::memmove(k.data(), k.data() + words, (kn - words) * sizeof(Limb));
+            // Down within k itself, the two runs overlapping: move_bytes
+            sgcl::detail::move_bytes(k.data(), k.data() + words, (kn - words) * sizeof(Limb));
             kn -= words;
             if (bits) {
                 shift_right(k.data(), k.data(), kn, bits);
@@ -685,9 +686,9 @@ namespace sgcl::math::detail {
         residue(d, dm.data());
         residue(q, qm.data());
         // k = 1: U_1 = 1, V_1 = P = 1, Q^1 = Q
-        std::memcpy(u.data(), mg.one(), n * sizeof(Limb));
-        std::memcpy(v.data(), mg.one(), n * sizeof(Limb));
-        std::memcpy(qk.data(), qm.data(), n * sizeof(Limb));
+        sgcl::detail::copy_bytes(u.data(), mg.one(), n * sizeof(Limb));
+        sgcl::detail::copy_bytes(v.data(), mg.one(), n * sizeof(Limb));
+        sgcl::detail::copy_bytes(qk.data(), qm.data(), n * sizeof(Limb));
         size_t bits = kn * 64 - size_t(std::countl_zero(k[kn - 1]));
         for (size_t i = bits - 1; i-- > 0;) {
             // Doubling

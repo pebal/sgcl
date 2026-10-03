@@ -75,7 +75,7 @@ namespace sgcl::net::tls::detail {
     // The signature checked under a key of each kind: a scheme of another
     // kind of key is illegal_parameter, a signature that does not verify
     // decrypt_error (§4.4.3)
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::ed25519::public_key& key, const Bytes& content, const Bytes& signature) {
+    inline expected<void, Alert> verify(uint16_t scheme, const crypto::ed25519::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         if (SignatureScheme(scheme) != SignatureScheme::ed25519) {
             return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than Ed25519"));
         }
@@ -85,7 +85,7 @@ namespace sgcl::net::tls::detail {
         return {};
     }
 
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::p256::public_key& key, const Bytes& content, const Bytes& signature) {
+    inline expected<void, Alert> verify(uint16_t scheme, const crypto::p256::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         if (SignatureScheme(scheme) != SignatureScheme::ecdsa_secp256r1_sha256) {
             return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than P-256"));
         }
@@ -96,7 +96,7 @@ namespace sgcl::net::tls::detail {
         return {};
     }
 
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::p384::public_key& key, const Bytes& content, const Bytes& signature) {
+    inline expected<void, Alert> verify(uint16_t scheme, const crypto::p384::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         if (SignatureScheme(scheme) != SignatureScheme::ecdsa_secp384r1_sha384) {
             return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than P-384"));
         }
@@ -109,7 +109,7 @@ namespace sgcl::net::tls::detail {
 
     // RSA: RSASSA-PSS with a salt as long as the digest (rsa_pss_rsae_*);
     // rsa_pkcs1_* is a certificate's, never CertificateVerify's (§4.2.3)
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::rsa::public_key& key, const Bytes& content, const Bytes& signature) {
+    inline expected<void, Alert> verify(uint16_t scheme, const crypto::rsa::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         bool ok = false;
         switch (SignatureScheme(scheme)) {
             case SignatureScheme::rsa_pss_rsae_sha256: {
@@ -143,7 +143,7 @@ namespace sgcl::net::tls::detail {
     // Under the peer's certificate key: a scheme v1 does not take is
     // illegal_parameter whatever the key; whether the scheme was offered is
     // the machine's to check
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::x509::public_key& key, const Bytes& content, const Bytes& signature) {
+    inline expected<void, Alert> verify(uint16_t scheme, const crypto::x509::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         using crypto::x509::key_kind;
         if (!verify_scheme(scheme)) {
             bool pkcs1 = scheme == uint16_t(SignatureScheme::rsa_pkcs1_sha256) || scheme == uint16_t(SignatureScheme::rsa_pkcs1_sha384) || scheme == uint16_t(SignatureScheme::rsa_pkcs1_sha512);
@@ -163,14 +163,14 @@ namespace sgcl::net::tls::detail {
     // CertificateVerify's signature field wants it (DER for ECDSA). The
     // scheme must fit the key (the machine chooses it so): a mismatch is a
     // mistake of the program
-    inline void sign(Builder& w, uint16_t scheme, const crypto::ed25519::private_key& key, const Bytes& content) {
+    inline void sign(Builder& w, uint16_t scheme, const crypto::ed25519::private_key& key, const Bytes& content) noexcept {
         assert(SignatureScheme(scheme) == SignatureScheme::ed25519);
         (void)scheme;
         auto s = key.sign(content);
         w.bytes(s.data(), s.size());
     }
 
-    inline void sign(Builder& w, uint16_t scheme, const crypto::p256::private_key& key, const Bytes& content) {
+    inline void sign(Builder& w, uint16_t scheme, const crypto::p256::private_key& key, const Bytes& content) noexcept {
         assert(SignatureScheme(scheme) == SignatureScheme::ecdsa_secp256r1_sha256);
         (void)scheme;
         auto d = crypto::sha256::of(content);
@@ -178,7 +178,7 @@ namespace sgcl::net::tls::detail {
         w.bytes(s.data(), s.size());
     }
 
-    inline void sign(Builder& w, uint16_t scheme, const crypto::p384::private_key& key, const Bytes& content) {
+    inline void sign(Builder& w, uint16_t scheme, const crypto::p384::private_key& key, const Bytes& content) noexcept {
         assert(SignatureScheme(scheme) == SignatureScheme::ecdsa_secp384r1_sha384);
         (void)scheme;
         auto d = crypto::sha384::of(content);
@@ -186,6 +186,18 @@ namespace sgcl::net::tls::detail {
         w.bytes(s.data(), s.size());
     }
 
+    // Whether RSA-PSS with a salt as long as the digest fits a key of
+    // `bits` (RFC 8017 §9.1.1: an encoding of bits - 1 bits holds the
+    // digest, the salt and two bytes); a key of 1024 bits has no room for
+    // SHA-512's
+    inline constexpr bool rsa_pss_fits(size_t bits, size_t digest_size) noexcept {
+        return bits >= 2 && (bits - 1 + 7) / 8 >= 2 * digest_size + 2;
+    }
+
+    // (the scheme must fit the key, rsa_pss_fits: identity_of offers only
+    // those; not noexcept: a signature that does not verify under the
+    // public key, a fault in the computation, is crypto's
+    // std::runtime_error)
     inline void sign(Builder& w, uint16_t scheme, const crypto::rsa::private_key& key, const Bytes& content) {
         switch (SignatureScheme(scheme)) {
             case SignatureScheme::rsa_pss_rsae_sha256: {

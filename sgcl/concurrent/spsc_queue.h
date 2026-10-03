@@ -12,7 +12,9 @@
 #include "../core/detail/os.h"
 #include "../core/tracked_ptr.h"
 
+#include <algorithm>
 #include <bit>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 
@@ -78,14 +80,22 @@ namespace sgcl::concurrent {
 
         static constexpr size_t Published = size_t(1) << (sizeof(size_t) * 8 - 1);   // on a sequence: the element at the position is in
 
+        // The most cells a ring is made of: the largest power of two
+        // whose buffer stays within the bytes of an address space
+        static constexpr size_t MaxCells = std::bit_floor(size_t(PTRDIFF_MAX) / sizeof(Cell));
+
     public:
         using value_type = T;
         using size_type = size_t;
 
         // A queue of the capacity rounded up to a power of two, at least
-        // one; the cells free, numbered from zero
-        explicit spsc_queue(size_type capacity)
-        : _mask(std::bit_ceil(capacity ? capacity : 1) - 1)
+        // one; the cells free, numbered from zero. A capacity past
+        // MaxCells is taken as MaxCells, a buffer the heap refuses, so
+        // that the program ends as at any refused managed allocation
+        // (DESIGN 356): rounded up as it is, its power of two would be
+        // undefined and its bytes wrap around
+        explicit spsc_queue(size_type capacity) noexcept
+        : _mask(std::bit_ceil(std::clamp(capacity, size_type(1), MaxCells)) - 1)
         , _cells(unique_ptr<Cell>(detail::Maker<Cell[]>::make_tracked_data(_mask + 1))) {
             for (size_type i = 0; i <= _mask; ++i) {
                 _cell(i).sequence.store(i, std::memory_order_relaxed);
@@ -111,11 +121,11 @@ namespace sgcl::concurrent {
         }
 
         // The element appended, or false when the queue is full
-        bool try_push(const T& value) {
+        bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return try_emplace(value);
         }
 
-        bool try_push(T&& value) {
+        bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return try_emplace(std::move(value));
         }
 
@@ -125,7 +135,7 @@ namespace sgcl::concurrent {
         // moves and the cell is published only once the element is
         // there, so a constructor that throws leaves the queue as it was
         template<class... A>
-        bool try_emplace(A&&... a) {
+        bool try_emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             auto pos = _tail.load(std::memory_order_relaxed);   // the producer's own word
             auto& cell = _cell(pos);
             if (cell.sequence.load(std::memory_order_acquire) != pos) {   // the element of the lap before still in: full
@@ -140,14 +150,14 @@ namespace sgcl::concurrent {
         // The element appended, waiting for room while the queue is
         // full: on the cell at the tail, which the pop that frees it
         // notifies
-        void push(const T& value) {
+        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             while (!try_push(value)) {
                 auto pos = _tail.load(std::memory_order_relaxed);
                 _wait(_cell(pos), pos);
             }
         }
 
-        void push(T&& value) {
+        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             while (!try_push(std::move(value))) {   // taken only by the attempt that finds room
                 auto pos = _tail.load(std::memory_order_relaxed);
                 _wait(_cell(pos), pos);
@@ -156,7 +166,7 @@ namespace sgcl::concurrent {
 
         // The first element, or nothing when the queue is empty: the
         // cell at the head not published
-        optional<T> try_pop() {
+        optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             auto pos = _head.load(std::memory_order_relaxed);   // the consumer's own word
             auto& cell = _cell(pos);
             if (cell.sequence.load(std::memory_order_acquire) != (pos | Published)) {
@@ -172,7 +182,7 @@ namespace sgcl::concurrent {
         // The first element, waiting for one while the queue is empty:
         // on the cell at the head, which the push that publishes it
         // notifies
-        T pop() {
+        T pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             for (;;) {
                 if (auto value = try_pop()) {
                     return std::move(*value);

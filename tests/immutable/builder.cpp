@@ -9,6 +9,7 @@
 #include <map>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -234,4 +235,192 @@ TEST(ImBuilder_Tests, Set) {
         EXPECT_TRUE(all.contains(k)) << k;
     }
     EXPECT_NE(half, all);
+}
+
+namespace {
+    // The copy that brings the countdown to zero throws; 0: none
+    int copies_to_throw = 0;
+
+    // An element whose copy throws on demand; its move cannot throw when
+    // NothrowMove (the builder moves the elements of its own nodes) and
+    // may otherwise (the builder copies a node it changes)
+    template<bool NothrowMove>
+    struct Fragile {
+        int v = 0;
+
+        Fragile(int x) noexcept
+        : v(x) {
+        }
+
+        Fragile(const Fragile& o)
+        : v(o.v) {
+            if (copies_to_throw && --copies_to_throw == 0) {
+                throw std::runtime_error("copy");
+            }
+        }
+
+        Fragile(Fragile&& o) noexcept(NothrowMove)
+        : v(o.v) {
+        }
+
+        Fragile& operator=(const Fragile&) = default;
+
+        friend bool operator==(const Fragile& a, const Fragile& b) noexcept {
+            return a.v == b.v;
+        }
+    };
+
+    // The shapes the keys' hashes give the trie: the key itself (1, 33
+    // and 65 under one slot of the root, apart below it); a path of seven
+    // one-slot subtries before the keys part (an erase that leaves one
+    // element hands it up through every level); one hash per residue of 4
+    // (the chains)
+    struct Low {
+        size_t operator()(int k) const noexcept {
+            return size_t(k);
+        }
+    };
+
+    struct DeepInt {
+        size_t operator()(int k) const noexcept {
+            return size_t(k) << 35;
+        }
+    };
+
+    struct Mod4 {
+        size_t operator()(int k) const noexcept {
+            return size_t(k % 4);
+        }
+    };
+
+    template<class H>
+    struct FragileHash {
+        template<bool N>
+        size_t operator()(const Fragile<N>& f) const noexcept {
+            return H()(f.v);
+        }
+    };
+
+    template<class C>
+    size_t walked(const C& c) {
+        size_t n = 0;
+        for (auto it = c.begin(); it != c.end(); ++it) {
+            ++n;
+        }
+        return n;
+    }
+
+    // An erase through a builder of `keys` with its n-th copy throwing,
+    // for n = 1, 2, ... until the erase makes no copy that throws: after a
+    // throw the builder is as it was before the call (its size the
+    // elements it walks, every key there), after an erase without one the
+    // key is gone; a container frozen before is untouched either way.
+    // `shared`: the builder's nodes shared with that container (the erase
+    // copies them), else its own (changed in place)
+    template<class Key, class Make>
+    void throwing_erase(Make make, std::initializer_list<int> keys, int erased, bool shared) {
+        bool done = false;
+        for (int n = 1; n < 200 && !done; ++n) {
+            auto b = make();
+            for (int k : keys) {
+                b.insert(Key(k));
+            }
+            auto before = b.freeze();
+            if (!shared) {
+                b = make();
+                for (int k : keys) {
+                    b.insert(Key(k));
+                }
+            }
+            bool threw = false;
+            copies_to_throw = n;
+            try {
+                EXPECT_TRUE(b.erase(Key(erased))) << n;
+            } catch (const std::runtime_error&) {
+                threw = true;
+            }
+            copies_to_throw = 0;
+            done = !threw;
+            auto after = b.freeze();
+            ASSERT_EQ(walked(after), after.size()) << "copy " << n << (threw ? " threw" : "");
+            ASSERT_EQ(b.size(), threw ? keys.size() : keys.size() - 1) << n;
+            for (int k : keys) {
+                EXPECT_EQ(b.contains(Key(k)), threw || k != erased) << n << " key " << k;
+            }
+            EXPECT_EQ(before.size(), keys.size());
+            EXPECT_EQ(walked(before), keys.size());
+            for (int k : keys) {
+                EXPECT_TRUE(before.contains(Key(k))) << n << " key " << k;
+            }
+        }
+        EXPECT_TRUE(done);
+    }
+
+    // A map's builder with the set builder's insert: a key alone, its
+    // value made of it
+    template<class M>
+    struct MapByKeys {
+        typename M::builder b;
+
+        void insert(int k) {
+            b.insert(k, typename M::mapped_type(k * 10));
+        }
+
+        bool erase(int k) {
+            return b.erase(k);
+        }
+
+        bool contains(int k) const {
+            return b.contains(k);
+        }
+
+        size_t size() const {
+            return b.size();
+        }
+
+        M freeze() {
+            return b.freeze();
+        }
+    };
+
+    template<class H, bool NothrowMove>
+    void map_throwing_erase(std::initializer_list<int> keys, int erased) {
+        using M = sgcl::immutable::map<int, Fragile<NothrowMove>, H>;
+        for (bool shared : {false, true}) {
+            throwing_erase<int>([] { return MapByKeys<M>(); }, keys, erased, shared);
+        }
+    }
+
+    template<class H, bool NothrowMove>
+    void set_throwing_erase(std::initializer_list<int> keys, int erased) {
+        using S = sgcl::immutable::set<Fragile<NothrowMove>, FragileHash<H>>;
+        for (bool shared : {false, true}) {
+            throwing_erase<Fragile<NothrowMove>>([] { return S().thaw(); }, keys, erased, shared);
+        }
+    }
+}
+
+// An erase whose copy of an element throws leaves the builder as it was:
+// never an element taken out of a subtrie whose last one then failed to
+// come up, the size still counting it
+TEST(ImBuilder_Tests, MapEraseThrowingCopy) {
+    map_throwing_erase<Low, true>({1, 33, 2}, 33);       // one element left below: handed up a level
+    map_throwing_erase<Low, false>({1, 33, 2}, 33);
+    map_throwing_erase<Low, true>({1, 33, 65, 2}, 33);   // two left below: none handed up
+    map_throwing_erase<DeepInt, true>({1, 2}, 2);        // handed up through every level
+    map_throwing_erase<DeepInt, false>({1, 2}, 2);
+    map_throwing_erase<Mod4, true>({1, 5, 9, 2}, 1);     // the chain's next takes the entry
+    map_throwing_erase<Mod4, false>({1, 5, 9, 2}, 1);
+    map_throwing_erase<Mod4, true>({1, 5, 9, 2}, 5);     // one out of the chain
+}
+
+TEST(ImBuilder_Tests, SetEraseThrowingCopy) {
+    set_throwing_erase<Low, true>({1, 33, 2}, 33);
+    set_throwing_erase<Low, false>({1, 33, 2}, 33);
+    set_throwing_erase<Low, true>({1, 33, 65, 2}, 33);
+    set_throwing_erase<DeepInt, true>({1, 2}, 2);
+    set_throwing_erase<DeepInt, false>({1, 2}, 2);
+    set_throwing_erase<Mod4, true>({1, 5, 9, 2}, 1);
+    set_throwing_erase<Mod4, false>({1, 5, 9, 2}, 1);
+    set_throwing_erase<Mod4, true>({1, 5, 9, 2}, 5);
 }

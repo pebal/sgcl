@@ -8,6 +8,7 @@
 #include "sgcl/core/stack.h"
 #include "tests/types.h"
 
+#include <climits>
 #include <functional>
 #include <queue>
 #include <random>
@@ -307,7 +308,7 @@ TEST(Adapters_Test, PriorityQueueComparatorsAndContainers) {
     EXPECT_EQ(drain(on_deque), expected);
     EXPECT_EQ(on_deque.top(), 9);
 
-    auto comp = [](int a, int b) { return a % 10 < b % 10; };
+    auto comp = [](int a, int b) noexcept { return a % 10 < b % 10; };
     sgcl::priority_queue<int, sgcl::deque<int>, decltype(comp)> custom(comp);
     custom.push(21);
     custom.push(15);
@@ -383,7 +384,7 @@ TEST(Adapters_Test, MoveOnlyElements) {
 TEST(Adapters_Test, TrackedElements) {
     sgcl::stack<tracked_ptr<Baz>> s;
     sgcl::queue<Foo> q;
-    sgcl::priority_queue<Foo, sgcl::deque<Foo>, decltype([](const Foo& a, const Foo& b) { return a.get_value() < b.get_value(); })> pq;
+    sgcl::priority_queue<Foo, sgcl::deque<Foo>, decltype([](const Foo& a, const Foo& b) noexcept { return a.get_value() < b.get_value(); })> pq;
     off_frame([&] {   // the push fast paths leave block pointers in the frame they inline into
         for (int i = 0; i < 100; ++i) {
             s.push(make_tracked<Baz>(i));
@@ -506,4 +507,202 @@ TEST(Adapters_Test, StressAgainstStdAdapters) {
     }
     EXPECT_TRUE(s.empty() && q.empty() && pq.empty());
     EXPECT_EQ(Int::counter, 0u);
+}
+
+// An adapter is as noexcept as its container's operations and, for a
+// priority_queue, the elements' moves (its Compare is required noexcept)
+// (DESIGN 356)
+static_assert(noexcept(std::declval<sgcl::queue<int>&>().push(1)));
+static_assert(noexcept(std::declval<sgcl::queue<int>&>().emplace(1)));
+static_assert(noexcept(std::declval<sgcl::queue<int>&>().pop()));
+static_assert(noexcept(std::declval<sgcl::stack<int>&>().push(1)));
+static_assert(noexcept(std::declval<sgcl::stack<int>&>().pop()));
+static_assert(noexcept(std::declval<sgcl::priority_queue<int>&>().push(1)));
+static_assert(noexcept(std::declval<sgcl::priority_queue<int>&>().pop()));
+static_assert(!noexcept(std::declval<sgcl::queue<std::string>&>().push(std::declval<const std::string&>())));
+static_assert(noexcept(sgcl::queue<int>()) && noexcept(sgcl::stack<int>()) && noexcept(sgcl::priority_queue<int>()));
+static_assert(noexcept(std::declval<sgcl::queue<int>&>().front()) && noexcept(std::declval<sgcl::queue<int>&>().back()));
+static_assert(noexcept(std::declval<sgcl::stack<int>&>().top()) && noexcept(std::declval<const sgcl::priority_queue<int>&>().top()));
+
+// An adapter compares where its container does, and only there: the
+// comparisons take part when the container's do (they were declared for
+// every element type, so a queue of points claimed ==, and asking for <=>
+// was a hard error rather than false)
+namespace {
+    struct Point {
+        int x;
+    };
+
+    struct EqualOnly {
+        int x;
+        bool operator==(const EqualOnly&) const = default;
+    };
+
+    // A move that may throw, as a priority_queue's heap steps would see it
+    struct MoveMayThrow {
+        int v;
+        MoveMayThrow(int value) noexcept : v(value) {}
+        MoveMayThrow(const MoveMayThrow&) = default;
+        MoveMayThrow(MoveMayThrow&& other) : v(other.v) {}
+        MoveMayThrow& operator=(const MoveMayThrow&) = default;
+        MoveMayThrow& operator=(MoveMayThrow&& other) { v = other.v; return *this; }
+        bool operator<(const MoveMayThrow& other) const noexcept { return v < other.v; }
+    };
+}
+
+TEST(Adapters_Test, ComparisonsOnlyWhereTheContainerHasThem) {
+    static_assert(!std::equality_comparable<sgcl::queue<Point>>);
+    static_assert(!std::three_way_comparable<sgcl::queue<Point>>);
+    static_assert(!std::equality_comparable<sgcl::stack<Point>>);
+    static_assert(!std::three_way_comparable<sgcl::stack<Point>>);
+    static_assert(std::equality_comparable<sgcl::queue<EqualOnly>>);
+    static_assert(!std::three_way_comparable<sgcl::queue<EqualOnly>>);
+    static_assert(std::equality_comparable<sgcl::stack<EqualOnly>>);
+    static_assert(!std::three_way_comparable<sgcl::stack<EqualOnly>>);
+    static_assert(std::three_way_comparable<sgcl::queue<int>>);
+    static_assert(std::three_way_comparable<sgcl::stack<std::string, sgcl::vector<std::string>>>);
+
+    sgcl::queue<int> a;
+    sgcl::queue<int> b;
+    EXPECT_TRUE(a == b);                                 // two empty ones
+    EXPECT_EQ(a <=> b, std::strong_ordering::equal);
+    b.push(1);
+    EXPECT_TRUE(a < b);                                  // empty before one element
+    a.push(1);
+    a.push(0);
+    EXPECT_TRUE(b < a);                                  // a prefix before the longer
+    EXPECT_TRUE(a == a);                                 // itself
+    sgcl::stack<EqualOnly> s;
+    s.push({4});
+    sgcl::stack<EqualOnly> t = s;
+    EXPECT_TRUE(s == t);
+    t.pop();
+    EXPECT_FALSE(s == t);
+}
+
+// A priority_queue made empty moves no element, so it is nothrow-made
+// whatever the element's move: the heap of nothing is made without one
+TEST(Adapters_Test, PriorityQueueMadeEmptyMovesNothing) {
+    using Queue = sgcl::priority_queue<MoveMayThrow>;
+    static_assert(std::is_nothrow_default_constructible_v<Queue>);
+    static_assert(std::is_nothrow_constructible_v<Queue, const std::less<MoveMayThrow>&>);
+    static_assert(!std::is_nothrow_constructible_v<Queue, const std::less<MoveMayThrow>&, const sgcl::vector<MoveMayThrow>&>);
+    static_assert(!noexcept(std::declval<Queue&>().push(std::declval<const MoveMayThrow&>())));
+
+    Queue q;
+    EXPECT_TRUE(q.empty());
+    Queue r{std::less<MoveMayThrow>()};
+    EXPECT_EQ(r.size(), 0u);
+    for (int v : {3, 1, 2}) {
+        q.push(v);
+    }
+    EXPECT_EQ(q.top().v, 3);
+    q.pop();
+    EXPECT_EQ(q.top().v, 2);
+}
+
+// Boundaries (DESIGN 408)
+
+// An adapter moved from (by construction and assignment) and one of no
+// element: empty, comparing equal to a default one, taking elements again
+TEST(Adapters_Test, MovedFromAndEmptyWorkAsEmpty) {
+    sgcl::stack<std::string> s;
+    s.push("a");
+    auto s2 = std::move(s);
+    EXPECT_TRUE(s.empty());
+    EXPECT_EQ(s.size(), 0u);
+    EXPECT_TRUE(s == sgcl::stack<std::string>());
+    s.push("b");
+    EXPECT_EQ(s.top(), "b");
+    s2 = std::move(s);
+    EXPECT_TRUE(s.empty());
+    sgcl::queue<std::string> q;
+    q.push("a");
+    auto q2 = std::move(q);
+    EXPECT_TRUE(q.empty());
+    EXPECT_TRUE(q == sgcl::queue<std::string>());
+    q.emplace("c");
+    EXPECT_EQ(&q.front(), &q.back());
+    sgcl::priority_queue<std::string> p;
+    p.push("a");
+    auto p2 = std::move(p);
+    EXPECT_TRUE(p.empty());
+    p.push("z");
+    EXPECT_EQ(p.top(), "z");
+    p = std::move(p2);
+    EXPECT_EQ(p.top(), "a");
+    std::vector<int> none;
+    sgcl::priority_queue<int> from_nothing(none.begin(), none.end());
+    EXPECT_TRUE(from_nothing.empty());
+    sgcl::priority_queue<int> from_empty{std::less<int>(), sgcl::vector<int>()};
+    EXPECT_TRUE(from_empty.empty());
+    sgcl::stack<int> stack_of_nothing(none.begin(), none.end());
+    EXPECT_TRUE(stack_of_nothing.empty());
+}
+
+// An adapter on both sides: an assignment to itself and swap with itself;
+// its own element pushed (a deque's, a vector's across its growths, a
+// heap's top), one element pushed and popped back to empty
+TEST(Adapters_Test, ItsOwnElementAndItselfAsTheArgument) {
+    sgcl::stack<std::string> s;
+    s.push("long enough to live on the heap");
+    for (int i = 0; i < 10; ++i) {
+        s.push(s.top());
+    }
+    EXPECT_EQ(s.size(), 11u);
+    auto& self = s;
+    s = self;
+    s = std::move(self);
+    s.swap(self);
+    swap(s, self);
+    EXPECT_EQ(s.size(), 11u);
+    EXPECT_EQ(s.top(), "long enough to live on the heap");
+    EXPECT_TRUE(s == self);
+    sgcl::queue<std::string> q;
+    q.push("first, long enough for the heap");
+    for (int i = 0; i < 2000; ++i) {   // past a block of the deque
+        q.push(q.front());
+    }
+    EXPECT_EQ(q.back(), "first, long enough for the heap");
+    sgcl::priority_queue<std::string> p;
+    p.push("m");
+    for (int i = 0; i < 40; ++i) {   // the vector grows under the top it copies
+        p.push(p.top());
+        p.emplace(p.top());
+    }
+    EXPECT_EQ(p.size(), 81u);
+    auto& p_self = p;
+    p = p_self;
+    p.swap(p_self);
+    EXPECT_EQ(p.size(), 81u);
+    while (!p.empty()) {
+        EXPECT_EQ(p.top(), "m");
+        p.pop();
+    }
+    sgcl::stack<int, sgcl::vector<int>> one;
+    one.push(INT_MIN);
+    EXPECT_EQ(one.top(), INT_MIN);
+    one.pop();
+    EXPECT_TRUE(one.empty());
+}
+
+// The values at the ends of the order: the least and the greatest come
+// out at their turn, equal ones all, under less and greater
+TEST(Adapters_Test, PriorityAtTheEndsOfTheOrder) {
+    sgcl::priority_queue<int> p;
+    for (int v : {0, INT_MAX, INT_MIN, INT_MAX, INT_MIN, -1}) {
+        p.push(v);
+    }
+    std::vector<int> out;
+    while (!p.empty()) {
+        out.push_back(p.top());
+        p.pop();
+    }
+    EXPECT_EQ(out, (std::vector<int>{INT_MAX, INT_MAX, 0, -1, INT_MIN, INT_MIN}));
+    sgcl::priority_queue<int, sgcl::vector<int>, std::greater<int>> least;
+    least.push(INT_MAX);
+    least.push(INT_MIN);
+    EXPECT_EQ(least.top(), INT_MIN);
+    least.pop();
+    EXPECT_EQ(least.top(), INT_MAX);
 }

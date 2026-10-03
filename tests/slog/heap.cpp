@@ -110,3 +110,27 @@ TEST(SlogHeap_Tests, TheFreeFunctionsTakeNoManagedMemory) {
     slog::set_default(before);
     EXPECT_LE(pages, 1u);
 }
+
+// The growth of a line cannot throw: a failed realloc ends the program, as
+// running out of managed memory does, so the quoting and escaping that
+// write through it cannot throw either. They threw bad_alloc.
+TEST(SlogHeap_Tests, GrowingALineCannotThrow) {
+    slog::detail::Buf b;
+    static_assert(noexcept(b.put('a')));
+    static_assert(noexcept(b.put("a", 1)));
+    std::string_view text;
+    static_assert(noexcept(b.put(text)));
+    static_assert(noexcept(b.reserve(1)));
+    static_assert(noexcept(slog::detail::text_escaped(b, "a", 1)));
+    static_assert(noexcept(slog::detail::text_string(b, "a", 1)));
+    static_assert(noexcept(slog::detail::json_escaped(b, "a", 1)));
+    static_assert(noexcept(slog::detail::json_string(b, "a", 1)));
+    static_assert(noexcept(slog::detail::put_uint(b, 1)));
+    static_assert(noexcept(slog::detail::put_int(b, -1)));
+    slog::detail::Buf line;
+    for (int i = 0; i < 100000; ++i) {
+        line.put('x');
+    }
+    slog::detail::json_string(line, "\"\n", 2);
+    EXPECT_EQ(line.view().size(), 100000u + 6);
+}

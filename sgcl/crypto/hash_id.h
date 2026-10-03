@@ -81,4 +81,43 @@ namespace sgcl::crypto {
             return vector<byte>(d.begin(), d.end());
         });
     }
+
+    namespace detail {
+        // H::async_of_file's digest as the bytes digest_file gives
+        template<class H>
+        async::task<expected<vector<byte>, io::error>> co_digest_file(string path) noexcept {   // by value: the task is lazy
+            auto d = co_await H::async_of_file(path);
+            if (!d) {
+                co_return io::detail::fail(d);
+            }
+            co_return vector<byte>(d->begin(), d->end());
+        }
+
+        inline async::task<expected<vector<byte>, io::error>> co_digest_file(hash_id id, string path) noexcept {
+            // inside the task: an unknown id throws out of its co_await, not out of a noexcept call
+            co_return co_await visit_hash(id, [&](auto t) {
+                return co_digest_file<typename decltype(t)::type>(path);
+            });
+        }
+    }
+
+    // The digest of the whole file at path by the algorithm id names, what
+    // digest(id, data) gives of its bytes: H::of_file(path) for the hasher
+    // H of id — the file read to its end through a block, never held whole
+    // in memory — as a vector of digest_size(id) bytes, or the error of the
+    // open or of a read.
+    // `digest_file(...)` on this thread, `co_await async_digest_file(...)` in a task
+    inline expected<vector<byte>, io::error> digest_file(hash_id id, const string& path) {
+        return detail::visit_hash(id, [&](auto t) -> expected<vector<byte>, io::error> {
+            auto d = decltype(t)::type::of_file(path);
+            if (!d) {
+                return io::detail::fail(d);
+            }
+            return vector<byte>(d->begin(), d->end());
+        });
+    }
+
+    inline async::task<expected<vector<byte>, io::error>> async_digest_file(hash_id id, const string& path) noexcept {
+        return detail::co_digest_file(id, path);
+    }
 }

@@ -13,7 +13,9 @@
 //   - the same with a base, and resolve(reference) is parse(reference, base);
 //   - a setter's result is a URL whose href parses to itself, and the
 //     setter applied a second time with the same value changes nothing;
-//   - query_params' serialization, parsed and written again, is the same.
+//   - query_params' serialization, parsed and written again, is the same,
+//     and the length it tracks is that of its serialization after parse,
+//     add, set and erase.
 // Built with libFuzzer (tests/fuzz/run.sh tests/net/fuzz/url_fuzz.cpp) or
 // replayed by the library's own driver (tests/fuzz/driver.cpp).
 #include "sgcl/net/url.h"
@@ -51,6 +53,11 @@ namespace {
         check(a.origin() == b.origin());
     }
 
+    // the length query_params tracks is that of what it writes
+    void tracked(const net::query_params& q) {
+        check(net::detail::UrlAccess::written_size(q) == q.to_string().size());
+    }
+
     // href: ASCII, no tab or line break; parsed again, the same URL
     void stable(const net::url& u) {
         string href = u.to_string();
@@ -61,8 +68,12 @@ namespace {
         check(again.has_value());
         same(u, *again);
         // the query's pairs: written, parsed and written again, the same
-        string q = u.query_params().to_string();
-        check(net::query_params::parse(q).to_string() == q);
+        auto params = u.query_params();
+        tracked(params);
+        string q = params.to_string();
+        auto again_params = net::query_params::parse(q);
+        check(again_params.has_value());
+        check(again_params->to_string() == q);
     }
 
     template<class F>
@@ -139,11 +150,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                     break;
                 }
                 case 6: setter(*u, [&](const net::url& x) { return x.with_path(other); }); break;
-                case 7: setter(*u, [&](const net::url& x) { return expected<net::url, io::error>(x.with_query(other)); }); break;
-                case 8: setter(*u, [&](const net::url& x) { return expected<net::url, io::error>(x.with_fragment(other)); }); break;
+                case 7: setter(*u, [&](const net::url& x) { return x.with_query(other); }); break;
+                case 8: setter(*u, [&](const net::url& x) { return x.with_fragment(other); }); break;
                 case 9: {
-                    auto params = net::query_params::parse(other);
-                    setter(*u, [&](const net::url& x) { return expected<net::url, io::error>(x.with_query(params)); });
+                    auto parsed = net::query_params::parse(other);
+                    check(parsed.has_value());
+                    auto params = *parsed;
+                    setter(*u, [&](const net::url& x) { return x.with_query(params); });
                     setter(*u, [&](const net::url& x) { return expected<net::url, io::error>(x.without_fragment()); });
                     break;
                 }
@@ -152,15 +165,32 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
         case 3: {
             // the input as a query alone
-            auto parsed = net::query_params::parse(input);
+            auto read = net::query_params::parse(input);
+            check(read.has_value());
+            auto parsed = *read;
+            tracked(parsed);
             string q = parsed.to_string();
-            check(net::query_params::parse(q).to_string() == q);
+            auto again = net::query_params::parse(q);
+            check(again.has_value());
+            check(again->to_string() == q);
             // first(text, name) is parse(text).get(name): for every name the
             // text holds, and for one it does not
             for (auto& p : parsed) {
-                check(net::query_params::first(input, p.first) == parsed.get(p.first));
+                check(*net::query_params::first(input, p.first) == parsed.get(p.first));
             }
-            check(net::query_params::first(input, string("\x01no such name")) == parsed.get(string("\x01no such name")));
+            check(*net::query_params::first(input, string("\x01no such name")) == parsed.get(string("\x01no such name")));
+            // the length tracked through the changes: the second part added
+            // under its own name and set under the first pair's, then the
+            // pairs of that name erased
+            check(parsed.add(other, input).has_value());
+            tracked(parsed);
+            const string name = parsed.empty() ? other : parsed.begin()->first;
+            check(parsed.set(name, other).has_value());
+            tracked(parsed);
+            check(parsed.get(name) == other);
+            parsed.erase(name);
+            tracked(parsed);
+            check(!parsed.contains(name));
             break;
         }
     }

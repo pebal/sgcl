@@ -80,6 +80,51 @@ TEST(XmlWriter_Tests, Mistakes) {
     }
 }
 
+// A mistake of the program's calls comes from no input text: no offset,
+// line or column, none in its message (as stringify, from and as)
+TEST(XmlWriter_Tests, MistakesHaveNoPlace) {
+    struct Case {
+        std::function<void(xml::writer&)> write;
+        const char* message;
+    };
+    const Case cases[] = {
+        {[](xml::writer& w) { w.start("a").start("two words"); }, "'two words' is not a qualified name"},
+        {[](xml::writer& w) { w.start("a").text("t").attribute("x", "1"); }, "an attribute with no start tag open to hold it"},
+        {[](xml::writer& w) { w.start("a").attribute("x", "1").attribute("x", "2"); }, "the attribute x twice in one tag"},
+        {[](xml::writer& w) { w.start("a").end().end(); }, "an end with no element open"},
+        {[](xml::writer& w) { w.start("a").comment("a--b"); }, "a comment cannot hold \"--\" or end with '-'"},
+        {[](xml::writer& w) { w.start("a").instruction("xml", "v"); }, "'xml' cannot be the target of an instruction"},
+        {[](xml::writer& w) { w.start("a").declaration(); }, "the XML declaration after something was written"},
+    };
+    for (auto& c : cases) {
+        sgcl::tracked_ptr out = make_tracked<sink>();
+        xml::writer w(out);
+        c.write(w);
+        ASSERT_TRUE(w.last_error().has_value());
+        auto& e = *w.last_error();
+        EXPECT_EQ(e.offset(), 0u);
+        EXPECT_EQ(e.line(), 0u);
+        EXPECT_EQ(e.column(), 0u);
+        EXPECT_EQ(e.message(), c.message);
+    }
+}
+
+// One writer for its text: moved, as the reader is, never copied (two
+// writers would hold the same pending text)
+TEST(XmlWriter_Tests, MovedNotCopied) {
+    EXPECT_FALSE(std::is_copy_constructible_v<xml::writer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<xml::writer>);
+    EXPECT_TRUE(std::is_nothrow_move_constructible_v<xml::writer>);
+    EXPECT_TRUE(std::is_nothrow_move_assignable_v<xml::writer>);
+    sgcl::tracked_ptr out = make_tracked<sink>();
+    xml::writer w(out);
+    w.start("a").text("t");
+    xml::writer moved(std::move(w));
+    moved.end();
+    EXPECT_TRUE(moved.flush().has_value());
+    EXPECT_EQ(out->text, "<a>t</a>");
+}
+
 TEST(XmlWriter_Tests, AFailingStream) {
     xml::writer w(make_tracked<enc_test::broken>());
     w.start("a").end();

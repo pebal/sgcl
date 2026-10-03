@@ -59,6 +59,53 @@ TEST(Sync_Test, AMutexBetweenTasksAndThreads) {
     sgcl::async::scheduler::stop();
 }
 
+// A guard moved from or released holds nothing, and there is no mutex
+// without a state: its owner() and release() give nothing, where they gave
+// a mutex whose every member crashed
+TEST(Sync_Test, AnEmptyGuardHasNoMutex) {
+    sgcl::async::mutex m;
+    auto g = m.scoped_lock().wait();
+    auto h = std::move(g);
+    EXPECT_FALSE(g.owner());
+    EXPECT_FALSE(g.release());
+    ASSERT_TRUE(h.owner());
+    EXPECT_TRUE(*h.owner() == m);
+    auto held = h.release();                                   // still locked, the caller's to unlock
+    ASSERT_TRUE(held);
+    EXPECT_TRUE(*held == m);
+    EXPECT_FALSE(h.owner());
+    EXPECT_FALSE(m.try_lock());
+    held->unlock();
+    EXPECT_TRUE(m.try_lock());
+    m.unlock();
+}
+
+// What cannot throw is noexcept: the waits whose channels never have a
+// waiting sender to wake (the one throw of a receive), the executor's
+// loops over its own frames, and what only a std::mutex used rightly guards
+// (the manual clock, the signals' reset and ignore)
+TEST(Sync_Test, TheWaitsThatCannotThrowAreNoexcept) {
+    static_assert(noexcept(std::declval<sgcl::async::mutex&>().lock()));
+    static_assert(noexcept(std::declval<sgcl::async::mutex&>().try_lock()));
+    static_assert(noexcept(std::declval<sgcl::async::semaphore&>().try_acquire()));
+    static_assert(noexcept(std::declval<sgcl::async::shared_mutex&>().lock()));
+    static_assert(noexcept(std::declval<sgcl::async::shared_mutex&>().lock_shared()));
+    static_assert(noexcept(std::declval<sgcl::async::event&>().wait()));
+    static_assert(noexcept(std::declval<sgcl::async::wait_group&>().wait()));
+    static_assert(noexcept(std::declval<sgcl::async::executor&>().run()));
+    static_assert(noexcept(std::declval<sgcl::async::executor&>().run_until(std::declval<sgcl::async::task<int>&>())));
+    static_assert(noexcept(std::declval<sgcl::async::executor&>().poll()));
+    static_assert(noexcept(std::declval<sgcl::async::manual_clock&>().install()));
+    static_assert(noexcept(std::declval<sgcl::async::manual_clock&>().uninstall()));
+    static_assert(noexcept(std::declval<sgcl::async::manual_clock&>().advance(sgcl::duration())));
+    static_assert(noexcept(std::declval<sgcl::async::manual_clock&>().advance_to(std::declval<sgcl::async::manual_clock&>().now())));
+    static_assert(noexcept(sgcl::async::reset_signals({})));
+    static_assert(noexcept(sgcl::async::ignore_signals({})));
+    sgcl::async::semaphore s(1);
+    EXPECT_TRUE(s.try_acquire());
+    EXPECT_FALSE(s.try_acquire());
+}
+
 TEST(Sync_Test, ASemaphoreBoundsTheConcurrency) {
     sgcl::async::semaphore sem(3);
     std::atomic<int> inside = {0}, peak = {0};
@@ -264,5 +311,51 @@ TEST(Sync_Test, AOnceThatThrowsIsDoneAndGivesItsException) {
     lazy.call([&ran]() -> sgcl::async::task<> { ++ran; co_return; }).wait();
     lazy.call([&ran]() -> sgcl::async::task<> { ++ran; co_return; }).wait();
     EXPECT_EQ(ran.load(), 1);
+    sgcl::async::scheduler::stop();
+}
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+
+    template<class F>
+    bool soon(F&& f) {
+        auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!f()) {
+            if (std::chrono::steady_clock::now() > until) {
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
+    }
+}
+
+// A guard ends, and its unlock hands the mutex to a task waiting for it
+// with the workers stopped, whose wake cannot start them: the destructor
+// throws nothing (it is noexcept), the task is not lost, and it takes the
+// mutex when the workers next start
+TEST(Sync_Test, AGuardWhoseUnlockCannotStartTheWorkersLosesNoTask) {
+    sgcl::async::scheduler::stop();
+    sgcl::async::mutex m;
+    auto t = [](sgcl::async::mutex m) -> sgcl::async::task<int> {
+        auto g = co_await m.scoped_lock();
+        co_return 4;
+    }(m);
+    {
+        auto g = m.scoped_lock().wait();
+        t.resume();                                            // by hand: waits for the mutex
+        sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    }
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_FALSE(t.done());
+    (void)sgcl::async::scheduler::workers();
+    ASSERT_TRUE(soon([&] { return t.done(); }));
+    EXPECT_EQ(t.result(), 4);
+    EXPECT_TRUE(m.try_lock());                                 // the task's guard let it go
+    m.unlock();
     sgcl::async::scheduler::stop();
 }

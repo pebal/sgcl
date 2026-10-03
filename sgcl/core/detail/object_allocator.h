@@ -11,8 +11,6 @@
 #include "object_allocator_base.h"
 #include "type_info.h"
 
-#include <new>
-
 namespace sgcl::detail {
     // Objects larger than a page: each one gets its own range of pages and its
     // own header; every page of the range maps to that header in the heap
@@ -29,27 +27,23 @@ namespace sgcl::detail {
         }
 
         // `init` runs on the range before its slot is published, as in
-        // object_pool_allocator_base.h.
+        // object_pool_allocator_base.h. When the heap refuses the range (the
+        // commit limit, or no contiguous range), a full collection and one
+        // more try; the program ends when that fails too (heap.h:
+        // out_of_managed_memory): the other place memory can run out.
         template<class Init>
-        ValueType* alloc(size_t size, Init&& init) const {
+        ValueType* alloc(size_t size, Init&& init) const noexcept {
             if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
                 os::fail_after_fork("a managed allocation");   // before the heap's copied lock (os.h)
             }
             size += sizeof(ValueType);
             auto pages = (size + config::page_size - 1) / config::page_size;
-            auto since = MemoryCounters::add_alloc(pages);   // page_allocator.h: the same rule
-            bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64;
             auto data = (ValueType*)Heap::instance().alloc_range(pages);
-            if (!data) {
-                // at the commit limit (or no contiguous range): a full
-                // collection may free enough; otherwise give up cleanly
-                collect_before_bad_alloc();
-                data = (ValueType*)Heap::instance().alloc_range(pages);
-                if (!data) {
-                    throw bad_alloc();
-                }
+            if (!data) [[unlikely]] {
+                data = _alloc_after_collection(pages);
             }
-            wake = wake || Heap::instance().under_pressure();
+            auto since = MemoryCounters::add_alloc(pages);   // page_allocator.h: the same rule
+            bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64 || Heap::instance().under_pressure();
             auto hmem = TypeInfo<T>::header_slab().alloc();
             auto page = new(hmem) Page(data);
             page->page_count = pages;
@@ -83,6 +77,16 @@ namespace sgcl::detail {
                     force_short_sleep();
                 }
             }
+        }
+
+    private:
+        SGCL_COLD static ValueType* _alloc_after_collection(size_t pages) noexcept {
+            collect_for_allocation();
+            auto data = (ValueType*)Heap::instance().alloc_range(pages);
+            if (!data) {
+                out_of_managed_memory();
+            }
+            return data;
         }
     };
 }

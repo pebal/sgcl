@@ -73,12 +73,18 @@ namespace sgcl::txt {
         }
 
         // The letters of the language subtag, lower cased, in four bytes;
-        // anything longer or stranger than a subtag is the root locale
+        // anything longer or stranger than a subtag is the root locale.
+        // The subtag ends at a '-' or a '_' of BCP-47, and at the '.' of
+        // a codeset or the '@' of a modifier of a POSIX name, which is
+        // what LANG holds: "pl_PL.UTF-8", "tr.UTF-8", "sr@latin". A
+        // modifier says nothing the language subtag keeps — sr@latin is
+        // Serbian in the Latin script, and the script is not kept — so
+        // it is read past, as the region is
         static constexpr uint32_t _packed(std::string_view tag) noexcept {
             uint32_t out = 0;
             size_t n = 0;
             for (char c : tag) {
-                if (c == '-' || c == '_') {
+                if (c == '-' || c == '_' || c == '.' || c == '@') {
                     break;
                 }
                 if (++n > 3) {
@@ -122,7 +128,7 @@ namespace sgcl::txt {
         }
 
         template<class Buffer>
-        void append(Buffer& out, Decomposition d) {
+        void append(Buffer& out, Decomposition d) noexcept(noexcept(out.push_back(char32_t()))) {
             for (size_t i = 0; i < d.size; ++i) {
                 char32_t x = d.units[i];
                 if (x >= 0xD800 && x < 0xDC00 && i + 1 < d.size) {
@@ -233,7 +239,7 @@ namespace sgcl::txt {
         // One code point into the buffer, with the rules that depend on
         // the language and on what stands around it
         inline void case_one(code_points& out, std::string_view text, size_t at, size_t after,
-                             char32_t c, casing to, locale where) {
+                             char32_t c, casing to, locale where) noexcept {
             if (to == casing::lower) {
                 if (c == 0x03A3 && final_sigma(text, at, after)) {
                     out.push_back(0x03C2);                     // the sigma that ends a word
@@ -301,7 +307,7 @@ namespace sgcl::txt {
         // Lithuanian are not the root locale and do not come this way:
         // they spell an i of their own.
         template<char Lo, char Hi, int By>
-        string ascii_cased(const string& text) {
+        string ascii_cased(const string& text) noexcept {
             auto v = text.view();
             std::string out(v);
             bool changed = false;
@@ -315,12 +321,23 @@ namespace sgcl::txt {
             return changed ? string(out.data(), out.size()) : text;
         }
 
+        // The loop over the code points out of line, in a frame of its
+        // own: inlined here, it shared its registers with the string being
+        // returned, and once the loop could not throw the compiler kept
+        // that pointer in a register and put a constant of the decoder
+        // back into the loop — lower case measured 2% slower so. Called
+        // once per text, the call costs nothing anybody can measure.
+        template<class F>
+        SGCL_NOINLINE void cased_points(std::string_view v, code_points& out, F& each) noexcept(noexcept(each(v, out))) {
+            each(v, out);
+        }
+
         template<class F>
         string cased_text(const string& text, F&& each) {
             auto v = text.view();
             lent<code_points> out;
             out->reserve(v.size());
-            each(v, *out);
+            cased_points(v, *out, each);
             return encoded(*out);
         }
     }
@@ -334,6 +351,8 @@ namespace sgcl::txt {
             return detail::ascii_cased<'A', 'Z', 32>(text);
         }
         return detail::cased_text(text, [&](std::string_view v, detail::code_points& out) {
+            // pinned to 64 bytes, as normalized_points' loop is (normalize.h)
+            SGCL_TXT_ALIGN_LOOP
             for (size_t i = 0; i < v.size();) {
                 auto [c, n] = utf8::decode(v, i);
                 detail::case_one(out, v, i, i + n, c, detail::casing::lower, where);
@@ -347,6 +366,8 @@ namespace sgcl::txt {
             return detail::ascii_cased<'a', 'z', -32>(text);
         }
         return detail::cased_text(text, [&](std::string_view v, detail::code_points& out) {
+            // pinned to 64 bytes, as normalized_points' loop is (normalize.h)
+            SGCL_TXT_ALIGN_LOOP
             for (size_t i = 0; i < v.size();) {
                 auto [c, n] = utf8::decode(v, i);
                 detail::case_one(out, v, i, i + n, c, detail::casing::upper, where);

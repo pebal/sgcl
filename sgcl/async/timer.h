@@ -225,7 +225,7 @@ namespace sgcl::async {
             // Under the shard's lock: the cancelled swept out once they are
             // half the heap, or once the heap doubled since the last sweep
             // (amortized nothing per add); then the timer in, and the bit set
-            void _push(Shard& sh, unsigned s, root_ptr<Timer> t) {
+            void _push(Shard& sh, unsigned s, root_ptr<Timer> t) noexcept {
                 if (sh.heap.size() >= sh.sweep_at || (sh.heap.size() > 64 && sh.dead.load(std::memory_order_relaxed) > sh.heap.size() / 2)) {
                     _sweep(sh);
                 }
@@ -234,7 +234,7 @@ namespace sgcl::async {
                 _nonempty.fetch_or(uint64_t(1) << s, std::memory_order_release);
             }
 
-            static void _sweep(Shard& sh) {
+            static void _sweep(Shard& sh) noexcept {
                 std::erase_if(sh.heap, [](const root_ptr<Timer>& t) { return t->cancelled.load(std::memory_order_acquire) || (t->ch && t->ch->closed()); });
                 std::make_heap(sh.heap.begin(), sh.heap.end(), _later);
                 sh.dead.store(0, std::memory_order_relaxed);
@@ -463,7 +463,7 @@ namespace sgcl::async {
         // so that a task woken by a timer arms its next one before the
         // advance returns; a task that waits by spinning, or a thread
         // that blocks a worker, holds the advance
-        inline void wait_for_idle_workers() {
+        inline void wait_for_idle_workers() noexcept {
             for (;;) {
                 auto st = scheduler::get_statistics();
                 if (st.workers == 0 || (st.global_queued == 0 && st.local_queued == 0 && st.spinning == 0 && st.sleeping == st.workers)) {
@@ -497,7 +497,10 @@ namespace sgcl::async {
         }
 
         // The module's time this clock's, from the steady clock's now
-        void install() {
+        // noexcept, as the rest: a std::mutex and a std::condition_variable
+        // of the timer thread fail only when misused (a lock taken twice),
+        // which the module never does
+        void install() noexcept {
             assert(!detail::manual_clock_installed.load(std::memory_order_relaxed) && "one manual clock at a time");
             auto start = std::chrono::steady_clock::now().time_since_epoch().count();
             detail::manual_clock_origin.store(start, std::memory_order_relaxed);
@@ -509,7 +512,7 @@ namespace sgcl::async {
         }
 
         // The steady clock the time again
-        void uninstall() {
+        void uninstall() noexcept {
             if (_installed) {
                 _installed = false;
                 detail::manual_clock_installed.store(false, std::memory_order_release);
@@ -530,12 +533,12 @@ namespace sgcl::async {
         // The time forward by d: the timers due by then fired, the tasks
         // they woke run to their next waits; from a thread that is not a
         // worker, since it waits for the workers to be idle
-        void advance(duration d) {
+        void advance(duration d) noexcept {
             advance_to(now() + d);
         }
 
         // The time forward to t (never back)
-        void advance_to(time_point t) {
+        void advance_to(time_point t) noexcept {
             assert(_installed);
             assert(t >= now());
             detail::wait_for_idle_workers();   // the tasks already running reach their waits: their timers are armed
@@ -628,17 +631,26 @@ namespace sgcl::async {
     }
 
     // A channel that gets a signal every d until it is closed; a tick
-    // nobody has taken yet is dropped (the channel holds one)
+    // nobody has taken yet is dropped (the channel holds one). A period
+    // of zero or less never ticks, as Go's time.Tick gives a nil channel
+    // for it: no timer is armed (a timer of period zero is a single
+    // signal and the close, and one of a negative period would be due
+    // again before the time it fired at, the timer thread firing it for
+    // good)
     inline channel<void> tick(duration d) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
-        detail::add_timer(d, d, ch, ch.get());
+        if (d > duration::zero()) {
+            detail::add_timer(d, d, ch, ch.get());
+        }
         return detail::ChannelAccess::make(std::move(ch));
     }
 
     // The same with the first tick at `first` (a whole second, say), then every d
     inline channel<void> tick(duration d, time_point first) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
-        detail::add_timer(first, d, ch, ch.get());
+        if (d > duration::zero()) {
+            detail::add_timer(first, d, ch, ch.get());
+        }
         return detail::ChannelAccess::make(std::move(ch));
     }
 
@@ -685,7 +697,13 @@ namespace sgcl::async {
         // case, the usual end of a select with a timeout in a loop): the
         // timer cancelled, its channel closed, so that the heap does not
         // keep a timer per select until the deadline (a select loop with
-        // a timeout of an hour retained 0.75 KB per iteration, measured)
+        // a timeout of an hour retained 0.75 KB per iteration, measured).
+        // noexcept, as a destructor is, and the close cannot throw here:
+        // its one throw is a wake's start of the workers, and it wakes
+        // nobody. The channel is the case's own (timeout() made it), and
+        // its one waiter is the select the case was in, which has ended
+        // before the case goes (served or cancelled: no claim succeeds);
+        // the timer only sends on it
         ~timeout_case() {
             if (_keep && !_keep->closed()) {
                 _keep->close();
@@ -700,7 +718,7 @@ namespace sgcl::async {
         template<class G>
         friend auto timeout(time_point t, G f);
 
-        timeout_case(tracked_ptr<detail::ChannelState<void>> ch, F f)
+        timeout_case(tracked_ptr<detail::ChannelState<void>> ch, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
         : Base(ch->on_receive(std::move(f)))
         , _keep(std::move(ch)) {
         }

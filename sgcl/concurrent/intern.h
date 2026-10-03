@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/nothrow_function.h"
 #include "../core/detail/transparent.h"
 #include "../core/string.h"
 #include "../core/make_tracked.h"
@@ -33,7 +34,7 @@ namespace sgcl::concurrent::detail {
         using object = T;
 
         template<class K>
-        static handle make(const K& value) {
+        static handle make(const K& value) noexcept(std::is_nothrow_constructible_v<T, const K&>) {
             return make_tracked<T>(value);
         }
 
@@ -49,7 +50,7 @@ namespace sgcl::concurrent::detail {
             return *h;
         }
 
-        static weak_ptr<object> weak(const handle& h) {
+        static weak_ptr<object> weak(const handle& h) noexcept {
             return weak_ptr<object>(const_pointer_cast<object>(h));
         }
     };
@@ -95,7 +96,7 @@ namespace sgcl::concurrent::detail {
             return h;
         }
 
-        static weak_ptr<object> weak(const handle& h) {
+        static weak_ptr<object> weak(const handle& h) noexcept {
             return weak_ptr<object>(tracked_ptr<object>(const_cast<void*>(h.object())));
         }
 
@@ -129,7 +130,7 @@ namespace sgcl::concurrent::detail {
         }
 
         template<class K>
-        size_t operator()(const K& value) const {
+        size_t operator()(const K& value) const noexcept {
             return hash(value) | ~(size_t(-1) >> 1);
         }
     };
@@ -142,7 +143,7 @@ namespace sgcl::concurrent::detail {
 
         [[no_unique_address]] KeyEqual equal;
 
-        bool operator()(const Entry& a, const Entry& b) const {
+        bool operator()(const Entry& a, const Entry& b) const noexcept {
             auto x = Traits::lock(a.weak);
             if (!Traits::alive(x)) {
                 return false;
@@ -152,7 +153,7 @@ namespace sgcl::concurrent::detail {
         }
 
         template<class K>
-        bool operator()(const Entry& a, const K& value) const {
+        bool operator()(const Entry& a, const K& value) const noexcept {
             auto x = Traits::lock(a.weak);
             return Traits::alive(x) && equal(Traits::value(x), value);
         }
@@ -175,8 +176,8 @@ namespace sgcl::concurrent {
     // concurrent weak containers, detail/concurrent_weak_table.h: by the
     // inserting thread, one at a time) and on sweep(), and the next
     // make of that value makes a new object. The table is the lock-free
-    // hash set of set: find is wait-free and never
-    // writes, get and make are lock-free, and two threads interning the
+    // hash set of set: find is wait-free and writes nothing once the
+    // value's bucket has its dummy node, of and make are lock-free, and two threads interning the
     // same new value at once both get the object of the one whose entry
     // won the table's compare-exchange, the other object being garbage.
     // A value of another type finds the object when Hash and KeyEqual
@@ -194,6 +195,12 @@ namespace sgcl::concurrent {
         using Entry = detail::WeakKey<typename Traits::object>;
         using Base = detail::ConcurrentWeakTable<typename Traits::object, set<Entry, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>>;
         using Base::_table;
+        static_assert(detail::nothrow_function_object<Hash, const T&>, "sgcl::concurrent::intern: Hash must be noexcept");
+        static_assert(detail::nothrow_function_object<KeyEqual, const T&, const T&>, "sgcl::concurrent::intern: KeyEqual must be noexcept");
+
+        // What of() does to the value: the object made from it
+        template<class K>
+        static constexpr bool NothrowMake = noexcept(Traits::make(std::declval<const K&>()));
 
     public:
         using value_type = T;
@@ -207,17 +214,18 @@ namespace sgcl::concurrent {
         // The canonical object of the value: the pool's when one is alive,
         // or a new one made from the value and entered (hash::of's name for
         // what a value maps to; get would read, and this enters). Lock-free.
-        handle of(const T& value) {
+        handle of(const T& value) noexcept(NothrowMake<T>) {
             return _of(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        handle of(const K& value) {
+        handle of(const K& value) noexcept(NothrowMake<K>) {
             return _of(value);
         }
 
         // The canonical object of the value when one is alive, or null (the
-        // empty string for a pool of strings). Wait-free, never writes.
+        // empty string for a pool of strings). Wait-free and writes
+        // nothing once the value's bucket has its dummy node (set).
         handle find(const T& value) const noexcept {
             return _find(value);
         }
@@ -238,30 +246,30 @@ namespace sgcl::concurrent {
 
         // Buckets for at least `count` entries, grown now rather than by
         // the insertions
-        void reserve(size_type count) {
+        void reserve(size_type count) noexcept {
             _table.reserve(count);
         }
 
         // The default pool of the type, one for the program: a managed
         // object under a root_ptr, made on first use
-        static intern& pool() {
+        static intern& pool() noexcept {
             static root_ptr<intern> p = make_tracked<intern>();
             return *p;
         }
 
         // of on the default pool: Go's unique.Make
-        static handle make(const T& value) {
+        static handle make(const T& value) noexcept(NothrowMake<T>) {
             return pool().of(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        static handle make(const K& value) {
+        static handle make(const K& value) noexcept(NothrowMake<K>) {
             return pool().of(value);
         }
 
     private:
         template<class K>
-        handle _of(const K& value) {
+        handle _of(const K& value) noexcept(NothrowMake<K>) {
             if constexpr(requires { Traits::is_empty(value); }) {
                 if (Traits::is_empty(value)) {
                     return handle();

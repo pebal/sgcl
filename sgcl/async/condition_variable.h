@@ -13,6 +13,7 @@
 #include "coroutine.h"
 #include "mutex.h"
 
+#include <cassert>
 #include <utility>
 
 namespace sgcl::async {
@@ -57,12 +58,12 @@ namespace sgcl::async {
         // (std::unique_lock<sgcl::async::mutex>)
         // A wait with the guard of an async::mutex: `co_await cv.wait(g)` in
         // a task, `cv.wait(g).wait()` on a thread
-        auto wait(mutex::guard& g) {
+        auto wait(mutex::guard& g) noexcept {
             return detail::either([this, &g] { return _co_wait(g); }, [this, &g] { _wait(g); });
         }
 
         template<class Pred>
-        auto wait(mutex::guard& g, Pred pred) {
+        auto wait(mutex::guard& g, Pred pred) noexcept(std::is_nothrow_copy_constructible_v<Pred> && std::is_nothrow_move_constructible_v<Pred>) {
             return detail::either([this, &g, pred] { return _co_wait(g, pred); }, [this, &g, pred] {
                 while (!pred()) {
                     _wait(g);
@@ -72,7 +73,8 @@ namespace sgcl::async {
 
     private:
         void _wait(mutex::guard& g) {
-            mutex m = g.owner();
+            assert(g.owner() && "a condition_variable waits with a guard that holds its mutex");
+            mutex m = *g.owner();
             tracked_ptr<detail::ChannelState<void>> w = _register();
             m.unlock();
             (void)w->receive().wait();
@@ -100,7 +102,7 @@ namespace sgcl::async {
         }
 
     private:
-        tracked_ptr<detail::ChannelState<void>> _register() {
+        tracked_ptr<detail::ChannelState<void>> _register() noexcept {   // a ring of one is never too large
             tracked_ptr<detail::ChannelState<void>> w = detail::make_linked_state<void>(1);
             _waiters.push(w);
             return w;
@@ -110,7 +112,8 @@ namespace sgcl::async {
 
         // the two halves of the operations above: a thread's and a task's
         task<> _co_wait(mutex::guard& g) {
-            mutex m = g.owner();
+            assert(g.owner() && "a condition_variable waits with a guard that holds its mutex");
+            mutex m = *g.owner();
             tracked_ptr<detail::ChannelState<void>> w = _register();
             m.unlock();
             co_await w->receive();

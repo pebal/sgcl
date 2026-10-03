@@ -57,7 +57,7 @@ namespace sgcl::time::detail {
         : _s(text) {
         }
 
-        expected<posix_rule, error> read() {
+        expected<posix_rule, error> read() noexcept {
             posix_rule r;
             if (_s.empty()) {
                 return _fail("a POSIX TZ string expected", 0);
@@ -115,7 +115,7 @@ namespace sgcl::time::detail {
         }
 
     private:
-        static expected<posix_rule, error> _fail(const char* message, size_t at) {
+        static expected<posix_rule, error> _fail(const char* message, size_t at) noexcept {
             return unexpected(error(message, at));
         }
 
@@ -127,7 +127,7 @@ namespace sgcl::time::detail {
             return c >= '0' && c <= '9';
         }
 
-        bool _name(std::string& out) {
+        bool _name(std::string& out) noexcept {
             size_t from = _i;
             if (_i < _s.size() && _s[_i] == '<') {
                 ++_i;
@@ -155,7 +155,7 @@ namespace sgcl::time::detail {
         }
 
         // A number of one or more digits, at most `max`
-        bool _number(int& out, int max) {
+        bool _number(int& out, int max) noexcept {
             if (_i >= _s.size() || !_digit(_s[_i])) {
                 return false;
             }
@@ -172,7 +172,7 @@ namespace sgcl::time::detail {
         }
 
         // [+|-]hh[:mm[:ss]] in seconds, hours up to max_hours
-        bool _offset(int32_t& out, int max_hours) {
+        bool _offset(int32_t& out, int max_hours) noexcept {
             int sign = 1;
             if (_i < _s.size() && (_s[_i] == '+' || _s[_i] == '-')) {
                 sign = _s[_i] == '-' ? -1 : 1;
@@ -198,7 +198,7 @@ namespace sgcl::time::detail {
             return true;
         }
 
-        bool _date(posix_date& d) {
+        bool _date(posix_date& d) noexcept {
             int v = 0;
             if (_i < _s.size() && _s[_i] == 'J') {
                 ++_i;
@@ -238,7 +238,7 @@ namespace sgcl::time::detail {
         }
 
         // /time, hours -167 to 167 (RFC 9636's extension); none: 02:00
-        bool _time(int32_t& out) {
+        bool _time(int32_t& out) noexcept {
             if (_i < _s.size() && _s[_i] == '/') {
                 ++_i;
                 return _offset(out, 167);
@@ -250,7 +250,7 @@ namespace sgcl::time::detail {
         size_t _i = 0;
     };
 
-    inline expected<posix_rule, error> read_posix(std::string_view text) {
+    inline expected<posix_rule, error> read_posix(std::string_view text) noexcept {
         return posix_reader(text).read();
     }
 
@@ -293,8 +293,13 @@ namespace sgcl::time::detail {
 
     // The year of the civil calendar a time falls in at an offset: the
     // days brought into the first 400 years from 1970 by whole cycles,
-    // the calendar of <chrono> asked there
+    // the calendar of <chrono> asked there. A time past 2^62 seconds
+    // either way (a transition of a TZif file at the end of 64 bits) is
+    // taken as 2^62: some 146 billion years, whose changes posix_changes
+    // still counts in 64 bits, and the offset added cannot overflow
     inline int64_t year_of(int64_t seconds, int32_t offset) noexcept {
+        constexpr int64_t Far = int64_t(1) << 62;
+        seconds = seconds < -Far ? -Far : seconds > Far ? Far : seconds;
         int64_t days = floor_div(seconds + offset, 86400);
         int64_t cycles = floor_div(days, 146097);
         std::chrono::year_month_day ymd(std::chrono::sys_days(std::chrono::days(days - cycles * 146097)));

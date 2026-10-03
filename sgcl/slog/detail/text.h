@@ -7,6 +7,7 @@
 
 #include "../../core/config.h"
 #include "../../core/detail/bytes.h"
+#include "../../core/detail/os.h"
 #include "../../core/unicode.h"
 #include "../../core/utf8.h"
 #include "../../txt/properties.h"
@@ -17,7 +18,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <new>
 #include <string_view>
 
 // The pieces of a line of slog: a growing buffer of plain memory and the
@@ -70,8 +70,9 @@ namespace sgcl::slog::detail {
         }
 
         // Room for k more bytes, at the end: the caller writes there and
-        // then says how many it wrote (commit)
-        char* reserve(size_t k) {
+        // then says how many it wrote (commit). The members that grow
+        // cannot throw: a failed realloc ends the program (os::memory_refused)
+        char* reserve(size_t k) noexcept {
             if (_cap - _n < k) [[unlikely]] {
                 _grow(_n + k);
             }
@@ -82,14 +83,14 @@ namespace sgcl::slog::detail {
             _n += k;
         }
 
-        void put(char c) {
+        void put(char c) noexcept {
             if (_n == _cap) [[unlikely]] {
                 _grow(_n + 1);
             }
             _p[_n++] = c;
         }
 
-        void put(const char* s, size_t k) {
+        void put(const char* s, size_t k) noexcept {
             if (_cap - _n < k) [[unlikely]] {
                 _grow(_n + k);
             }
@@ -99,7 +100,7 @@ namespace sgcl::slog::detail {
             _n += k;
         }
 
-        void put(std::string_view s) {
+        void put(std::string_view s) noexcept {
             put(s.data(), s.size());
         }
 
@@ -108,14 +109,14 @@ namespace sgcl::slog::detail {
         }
 
     private:
-        SGCL_NOINLINE void _grow(size_t need) {
+        SGCL_NOINLINE void _grow(size_t need) noexcept {
             size_t cap = _cap ? _cap * 2 : 256;
             while (cap < need) {
                 cap *= 2;
             }
             char* p = static_cast<char*>(std::realloc(_p, cap));
-            if (!p) {
-                throw std::bad_alloc();
+            if (!p) [[unlikely]] {
+                sgcl::detail::os::memory_refused("a log line", cap);
             }
             _p = p;
             _cap = cap;
@@ -137,7 +138,7 @@ namespace sgcl::slog::detail {
     struct QuoteTable {
         uint8_t v[256];
 
-        constexpr QuoteTable() : v() {
+        constexpr QuoteTable() noexcept : v() {
             for (int c = 0; c < 256; ++c) {
                 uint8_t k = 0;
                 if (c >= 0x80) {
@@ -184,7 +185,7 @@ namespace sgcl::slog::detail {
     // code point as it is, \a \b \f \n \r \t \v, an ASCII control and DEL
     // as \xHH, a byte of invalid UTF-8 as \xHH, any other code point as
     // \uHHHH or \UHHHHHHHH
-    inline void text_escaped(Buf& b, const char* s, size_t n) {
+    inline void text_escaped(Buf& b, const char* s, size_t n) noexcept {
         const std::string_view text(s, n);
         for (size_t i = 0; i < n;) {
             unsigned char u = (unsigned char)s[i];
@@ -254,7 +255,7 @@ namespace sgcl::slog::detail {
     }
 
     // A text as the text handler writes it: as it is, or in quotes
-    inline void text_string(Buf& b, const char* s, size_t n) {
+    inline void text_string(Buf& b, const char* s, size_t n) noexcept {
         if (!text_needs_quoting(s, n)) {
             b.put(s, n);
             return;
@@ -270,7 +271,7 @@ namespace sgcl::slog::detail {
     // \b and \f short as well). Both write an invalid byte of UTF-8 as
     // the replacement character, U+2028 and U+2029 as escapes, DEL and
     // everything else as it is, and neither escapes <, > or &
-    inline void json_escaped(Buf& b, const char* s, size_t n, bool marshal = false) {
+    inline void json_escaped(Buf& b, const char* s, size_t n, bool marshal = false) noexcept {
         const std::string_view text(s, n);
         size_t i = 0;
         size_t start = 0;
@@ -328,13 +329,13 @@ namespace sgcl::slog::detail {
         b.put(s + start, i - start);
     }
 
-    inline void json_string(Buf& b, const char* s, size_t n, bool marshal = false) {
+    inline void json_string(Buf& b, const char* s, size_t n, bool marshal = false) noexcept {
         b.put('"');
         json_escaped(b, s, n, marshal);
         b.put('"');
     }
 
-    inline void put_uint(Buf& b, uint64_t v) {
+    inline void put_uint(Buf& b, uint64_t v) noexcept {
         char* o = b.reserve(20);
         char digits[20];
         int k = 0;
@@ -348,7 +349,7 @@ namespace sgcl::slog::detail {
         b.commit(size_t(k));
     }
 
-    inline void put_int(Buf& b, int64_t v) {
+    inline void put_int(Buf& b, int64_t v) noexcept {
         if (v < 0) {
             b.put('-');
             put_uint(b, uint64_t(0) - uint64_t(v));

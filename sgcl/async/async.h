@@ -3,7 +3,7 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The async module: coroutines and generators, the scheduler, executors and strands, task-local values, channels, broadcasts and select, timers and the clock, timeouts, the signals of the process, stop tokens, the synchronization of tasks, task groups, promises, the blocking pool, the reactor.
+// The async module: coroutines and generators, the scheduler, executors and strands, task-local values, channels, broadcasts and select, timers and the clock, timeouts, the signals of the process, stop tokens, the synchronization of tasks, task groups, promises, the blocking pool, the reactor, loops spread over the workers.
 #pragma once
 
 #include "generator.h"
@@ -13,9 +13,11 @@
 #include "condition_variable.h"
 #include "coroutine.h"
 #include "event.h"
+#include "every.h"
 #include "executor.h"
 #include "mutex.h"
 #include "once.h"
+#include "parallel.h"
 #include "promise.h"
 #include "reactor.h"
 #include "run.h"

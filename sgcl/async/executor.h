@@ -60,7 +60,7 @@ namespace sgcl::async {
     // local of main, a global, a member).
     class executor {
     public:
-        executor()
+        executor() noexcept
         : _q(make_tracked<detail::ExecutorQueue>(false)) {
         }
 
@@ -69,7 +69,10 @@ namespace sgcl::async {
 
         // The calling thread's loop: what is queued, run; nothing queued,
         // parked; until stop()
-        void run() {
+        // noexcept, as run_until and poll: an executor's own frames are
+        // resumed (resume_frame), and nothing leaves a task's resume but
+        // into its promise; the queue's pop and take cannot throw
+        void run() noexcept {
             _loop([] { return false; });
         }
 
@@ -81,7 +84,7 @@ namespace sgcl::async {
         // right after t: the watcher is resumed here, whatever thread t
         // ended on, so the end of t is a wake of this loop
         template<class T>
-        void run_until(task<T>& t) {
+        void run_until(task<T>& t) noexcept {
             if (t.done()) {
                 return;
             }
@@ -118,7 +121,7 @@ namespace sgcl::async {
         // run (each to its next suspension; one queued by them meanwhile
         // waits for the next pass), and their number returned; nothing
         // queued, nothing done. For a loop of the program's own
-        size_t poll() {
+        size_t poll() noexcept {
             [[maybe_unused]] bool was = _q->running.exchange(true, std::memory_order_acq_rel);
             assert(!was && "an executor is run by one thread at a time");
             size_t n = 0;
@@ -141,7 +144,7 @@ namespace sgcl::async {
         // run() returns, after the frame it is resuming; from any thread
         // (a task on the executor, a signal handler's thread, the program's
         // last line). The tasks stay queued for the next run() or poll()
-        void stop() {
+        void stop() noexcept {
             _q->stop();
         }
 
@@ -151,8 +154,9 @@ namespace sgcl::async {
         }
 
         // A task started on this executor: queued here, run by the thread
-        // that runs the executor; nodiscard as sgcl::async::spawn (a task object
-        // dropped destroys the coroutine; go() for a task nobody waits for)
+        // that runs the executor; nodiscard as sgcl::async::spawn (a task
+        // object dropped lets the task run on unread; go() for a task
+        // nobody waits for)
         template<class T>
         [[nodiscard]] task<T> spawn(task<T> t) {
             [[maybe_unused]] bool first = t._start(_q.ptr());
@@ -180,7 +184,7 @@ namespace sgcl::async {
         friend class on;
 
         template<class Done>
-        void _loop(Done done) {
+        void _loop(Done done) noexcept {
             [[maybe_unused]] bool was = _q->running.exchange(true, std::memory_order_acq_rel);
             assert(!was && "an executor is run by one thread at a time");
             for (;;) {
@@ -208,6 +212,10 @@ namespace sgcl::async {
                 return t.done();
             }
 
+            // noexcept, unlike a task's awaiter: the watcher runs on this
+            // executor (spawn set its header), so a start of t here is a
+            // push on the executor's queue, which starts no worker and
+            // cannot throw
             template<class P>
             bool await_suspend(std::coroutine_handle<P> h) noexcept {
                 auto frame = detail::frame_of(h);
@@ -249,7 +257,7 @@ namespace sgcl::async {
     // count, and nothing while nothing is queued.
     class strand {
     public:
-        strand()
+        strand() noexcept
         : _q(make_tracked<detail::ExecutorQueue>(true)) {
         }
 

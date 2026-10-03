@@ -25,7 +25,7 @@ namespace sgcl::crypto::detail::x509_names {
         return c >= 'A' && c <= 'Z' ? char(c + ('a' - 'A')) : c;
     }
 
-    inline std::string to_lower(std::string_view s) {
+    inline std::string to_lower(std::string_view s) noexcept {
         std::string r(s);
         for (auto& c : r) {
             c = lower(c);
@@ -205,7 +205,7 @@ namespace sgcl::crypto::detail::x509_names {
     // allowed, as the errata argue), anything valid as a domain after it
     // with no second '@'. The local part without its quoting in local, the
     // domain in domain
-    inline bool parse_mailbox(std::string_view in, std::string& local, std::string& domain) {
+    inline bool parse_mailbox(std::string_view in, std::string& local, std::string& domain) noexcept {
         local.clear();
         if (in.empty()) {
             return false;
@@ -318,7 +318,7 @@ namespace sgcl::crypto::detail::x509_names {
     // constraints; false for an empty host, an IP address (a URI holding
     // one cannot be checked against a domain) or a host that is not a
     // valid domain
-    inline bool uri_constraint_host(std::string_view authority, std::string& out) {
+    inline bool uri_constraint_host(std::string_view authority, std::string& out) noexcept {
         std::string host = to_lower(authority);
         if (host.empty()) {
             return false;

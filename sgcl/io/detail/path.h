@@ -43,7 +43,7 @@ namespace sgcl::io::detail {
     // (the name up to its last '/') joined to it: inside the directory
     // extracted to, by the rule of is_local_path on the joined name; an
     // absolute target and an empty one never are
-    inline bool link_stays_inside(std::string_view name, std::string_view target) {
+    inline bool link_stays_inside(std::string_view name, std::string_view target) noexcept {
         if (target.empty() || target[0] == '/') {
             return false;
         }

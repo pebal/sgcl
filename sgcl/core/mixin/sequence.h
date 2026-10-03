@@ -19,11 +19,13 @@ namespace sgcl::mixin {
     template<class Derived>
     class sequence {
     public:
-        constexpr void fill(const auto& value) {
+        // Where the elements are assignable from the value
+        template<class V>
+        constexpr void fill(const V& value) noexcept(std::is_nothrow_assignable_v<detail::ElementReference<Derived>, const V&>) requires std::is_assignable_v<detail::ElementReference<Derived>, const V&> {
             std::ranges::fill(_begin(), _end(), value);
         }
 
-        constexpr void reverse() noexcept requires req::bidirectional<Derived> {
+        constexpr void reverse() noexcept(std::is_nothrow_swappable_v<detail::ElementValue<Derived>>) requires req::bidirectional<Derived> {
             std::ranges::reverse(_begin(), _end());
         }
 

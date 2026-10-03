@@ -44,14 +44,14 @@ namespace sgcl {
         // The value made in place from its arguments
         template<class... A>
         requires std::is_constructible_v<T, A...>
-        explicit rooted(std::in_place_t, A&&... a)
+        explicit rooted(std::in_place_t, A&&... a) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, A...>)
         : _p(make_tracked<T>(std::forward<A>(a)...)) {
         }
 
         // The value copied or moved in
         template<class U = T>
         requires NotRooted<U> && std::is_constructible_v<T, U&&>
-        rooted(U&& value)
+        rooted(U&& value) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, U>)
         : _p(make_tracked<T>(std::forward<U>(value))) {
         }
 
@@ -59,7 +59,7 @@ namespace sgcl {
         rooted(rooted&&) noexcept = default;
         rooted& operator=(const rooted&) noexcept = default;
         rooted& operator=(rooted&&) noexcept = default;
-        ~rooted() = default;
+        ~rooted() noexcept = default;
 
         T* get() const noexcept {
             return _p.get();

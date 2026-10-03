@@ -5,11 +5,13 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/nothrow_function.h"
 #include "../../core/detail/transparent.h"
 #include "../../core/vector.h"
 #include "../../core/make_tracked.h"
 #include "../../core/tracked_ptr.h"
 #include "../../core/unique_ptr.h"
+#include "nothrow_iteration.h"
 
 #include <algorithm>
 #include <bit>
@@ -92,14 +94,14 @@ namespace sgcl::immutable::detail {
         }
 
         template<class... A>
-        HamtEntry(const HamtEntry& from, barrier::off_t, std::in_place_t, A&&... a)
+        HamtEntry(const HamtEntry& from, barrier::off_t, std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
         : link(from.link, barrier::off)
         , value(std::forward<A>(a)...) {
         }
 
         // An element built from a..., with its chain
         template<class... A>
-        HamtEntry(const tracked_ptr<HamtHead>& chain, std::in_place_t, A&&... a)
+        HamtEntry(const tracked_ptr<HamtHead>& chain, std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
         : link(chain)
         , value(std::forward<A>(a)...) {
         }
@@ -127,7 +129,7 @@ namespace sgcl::immutable::detail {
             HamtEntry<V> entries[N];
         };
 
-        static unique_ptr<HamtNode> make() {
+        static unique_ptr<HamtNode> make() noexcept {
             return make_tracked<HamtNode>();
         }
 
@@ -165,7 +167,7 @@ namespace sgcl::immutable::detail {
         tracked_ptr<HamtChain> next;
 
         template<class... A>
-        explicit HamtChain(const tracked_ptr<HamtChain>& next, A&&... a)
+        explicit HamtChain(const tracked_ptr<HamtChain>& next, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
         : value(std::forward<A>(a)...)
         , next(next) {
         }
@@ -321,6 +323,26 @@ namespace sgcl::immutable::detail {
         using const_iterator = HamtIterator<value_type>;
         using iterator = const_iterator;
 
+        // What an operation may throw: the elements' copies (the path an
+        // insert or an erase copies, the nodes a builder makes its own),
+        // their moves (the build from a range) and the construction of
+        // the new element from the arguments. The hash and the equality
+        // cannot throw (map and set assert it for the key type; a K of a
+        // transparent lookup is asked here), and out of memory ends the
+        // program (make_tracked).
+        static constexpr bool NothrowCopy = std::is_nothrow_copy_constructible_v<value_type>;
+
+        template<class K>
+        static constexpr bool NothrowLookup = sgcl::detail::nothrow_function_object<hasher, const K&>
+            && sgcl::detail::nothrow_function_object<key_equal, const K&, const key_type&>;
+
+        template<class... A>
+        static constexpr bool NothrowInsert = NothrowCopy && std::is_nothrow_constructible_v<value_type, A...>;
+
+        template<class It>
+        static constexpr bool NothrowBuild = nothrow_iteration<It> && std::is_nothrow_constructible_v<value_type, std::iter_reference_t<It>>
+            && std::is_nothrow_move_constructible_v<value_type>;
+
         Hamt() = default;
 
         Hamt(const hasher& hash, const key_equal& equal)
@@ -339,7 +361,7 @@ namespace sgcl::immutable::detail {
         // the trie made from the root down, every node allocated once at
         // its size and every entry constructed once, in slot order.
         template<class It>
-        Hamt(It first, It last, const hasher& hash, const key_equal& equal)
+        Hamt(It first, It last, const hasher& hash, const key_equal& equal) noexcept(NothrowBuild<It>)
         : _hash(hash)
         , _equal(equal) {
             vector<value_type> items;   // the elements may hold tracked pointers: a managed buffer
@@ -419,7 +441,7 @@ namespace sgcl::immutable::detail {
         // The element under the key, null when there is none: the bits of
         // the hash walked down, the key compared at the entry they lead to
         template<class K>
-        const value_type* find(const K& key) const {
+        const value_type* find(const K& key) const noexcept(NothrowLookup<K>) {
             const HamtHead* node = _root.get();
             if (!node) {
                 return nullptr;
@@ -448,7 +470,7 @@ namespace sgcl::immutable::detail {
         }
 
         template<class K>
-        bool contains(const K& key) const {
+        bool contains(const K& key) const noexcept(NothrowLookup<K>) {
             return find(key) != nullptr;
         }
 
@@ -458,7 +480,7 @@ namespace sgcl::immutable::detail {
         // a subtrie gone down into, the element's slot and those after it),
         // so that ++ goes on from there in the order begin() walks
         template<class K>
-        const_iterator find_at(const K& key) const {
+        const_iterator find_at(const K& key) const noexcept(NothrowLookup<K>) {
             const_iterator it;
             const HamtHead* node = _root.get();
             if (!node) {
@@ -499,7 +521,7 @@ namespace sgcl::immutable::detail {
         // the element will have), in place of the one there if any:
         // the path to it copied, the rest shared
         template<class K, class... A>
-        Hamt insert(const K& key, A&&... a) const {
+        Hamt insert(const K& key, A&&... a) const noexcept(NothrowLookup<K> && NothrowInsert<A...>) {
             auto hash = _hash(key);
             Hamt next(*this);
             bool added = false;
@@ -507,7 +529,7 @@ namespace sgcl::immutable::detail {
                 next._root = _insert(*_root, 0, hash, key, added, std::forward<A>(a)...);
             } else {
                 added = true;
-                next._root = _make(_bit(hash, 0), 0, [&](Entry* at, uint32_t) {
+                next._root = _make(_bit(hash, 0), 0, [&](Entry* at, uint32_t) noexcept(NothrowInsert<A...>) {
                     _element(at, nullptr, std::forward<A>(a)...);
                 });
             }
@@ -519,7 +541,7 @@ namespace sgcl::immutable::detail {
         // a node emptied dropped, a subtrie left with one element folded
         // into its parent; the same trie when the key is absent
         template<class K>
-        Hamt erase(const K& key) const {
+        Hamt erase(const K& key) const noexcept(NothrowLookup<K> && NothrowCopy) {
             if (!_root) {
                 return *this;
             }
@@ -543,12 +565,12 @@ namespace sgcl::immutable::detail {
         // trie no map holds a node of that is marked: disown() clears
         // the marks before the builder hands the trie out.
         template<class K, class... A>
-        bool insert_in_place(const K& key, A&&... a) {
+        bool insert_in_place(const K& key, A&&... a) noexcept(NothrowLookup<K> && NothrowInsert<A...>) {
             bool added = true;
             if (_root) {
                 _insert_in_place(_root, 0, _hash(key), key, added, std::forward<A>(a)...);
             } else {
-                Node root = _make(_bit(_hash(key), 0), 0, [&](Entry* at, uint32_t) {
+                Node root = _make(_bit(_hash(key), 0), 0, [&](Entry* at, uint32_t) noexcept(NothrowInsert<A...>) {
                     _element(at, nullptr, std::forward<A>(a)...);
                 }, 1);
                 root->owned = 1;
@@ -561,7 +583,7 @@ namespace sgcl::immutable::detail {
         // The element under the key taken out in place; false when it
         // was not there (and nothing copied)
         template<class K>
-        bool erase_in_place(const K& key) {
+        bool erase_in_place(const K& key) noexcept(NothrowLookup<K> && NothrowCopy) {
             if (!find(key)) {
                 return false;
             }
@@ -647,7 +669,7 @@ namespace sgcl::immutable::detail {
         // the others when they share the whole hash, a subtrie built
         // below otherwise. The elements are moved out of the buffer.
         template<class P>
-        static Node _build(sgcl::vector<value_type>& items, P first, P last, unsigned shift) {
+        static Node _build(sgcl::vector<value_type>& items, P first, P last, unsigned shift) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             uint32_t bitmap = 0, subtries = 0;
             for (auto p = first; p != last;) {
                 auto bit = _bit(p->hash, shift);
@@ -662,7 +684,7 @@ namespace sgcl::immutable::detail {
                 p = q;
             }
             auto p = first;
-            return _make(bitmap, subtries, [&](Entry* at, uint32_t bit) {
+            return _make(bitmap, subtries, [&](Entry* at, uint32_t bit) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
                 auto q = p + 1;
                 while (q != last && _bit(q->hash, shift) == bit) {
                     ++q;
@@ -683,11 +705,11 @@ namespace sgcl::immutable::detail {
 
         // A node with room for `count` entries: the smallest size that holds them
         template<unsigned N>
-        static Node _allocate() {
+        static Node _allocate() noexcept {
             return HamtNode<value_type, N>::make();
         }
 
-        static Node _allocate(unsigned count) {
+        static Node _allocate(unsigned count) noexcept {
             if (count <= 1) return _allocate<1>();
             if (count <= 2) return _allocate<2>();
             if (count <= 4) return _allocate<4>();
@@ -702,7 +724,7 @@ namespace sgcl::immutable::detail {
         // `room`: entries more than the layout's that the node has room
         // for, for a builder's node that grows in place
         template<class F>
-        static Node _make(uint32_t bitmap, uint32_t subtries, F&& fill, unsigned room = 0) {
+        static Node _make(uint32_t bitmap, uint32_t subtries, F&& fill, unsigned room = 0) noexcept(std::is_nothrow_invocable_v<F&, Entry*, uint32_t>) {
             Node node = _allocate(std::popcount(bitmap) + room);
             node->bitmap = bitmap;
             node->subtries = subtries;
@@ -719,12 +741,12 @@ namespace sgcl::immutable::detail {
 
         // An entry constructed in its storage: a subtrie, or an element
         // built from a... with its chain
-        static void _subtrie(Entry* at, const Link& sub) {
+        static void _subtrie(Entry* at, const Link& sub) noexcept {
             ::new (static_cast<void*>(at)) Entry(sub);
         }
 
         template<class... A>
-        static void _element(Entry* at, const Link& chain, A&&... a) {
+        static void _element(Entry* at, const Link& chain, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             ::new (static_cast<void*>(at)) Entry(chain, std::in_place, std::forward<A>(a)...);
         }
 
@@ -743,7 +765,7 @@ namespace sgcl::immutable::detail {
         // The entry of slot `bit` of `node`, whose entries are `from`,
         // copied into `at`: the link unshaded, the element as any copy;
         // the node shaded once by the copying helper, after the copy
-        static void _copy(Entry* at, const HamtHead& node, const Entry* from, uint32_t bit) {
+        static void _copy(Entry* at, const HamtHead& node, const Entry* from, uint32_t bit) noexcept(NothrowCopy) {
             auto& entry = from[_position(node.bitmap, bit)];
             if (node.subtries & bit) {
                 ::new (static_cast<void*>(at)) Entry(entry, barrier::off);
@@ -754,9 +776,9 @@ namespace sgcl::immutable::detail {
 
         // The node with an element added in the free slot `bit`
         template<class... A>
-        static Node _copy_adding(const HamtHead& node, uint32_t bit, A&&... a) {
+        static Node _copy_adding(const HamtHead& node, uint32_t bit, A&&... a) noexcept(NothrowInsert<A...>) {
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap | bit, node.subtries, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap | bit, node.subtries, [&](Entry* at, uint32_t b) noexcept(NothrowInsert<A...>) {
                 if (b == bit) {
                     _element(at, nullptr, std::forward<A>(a)...);
                 } else {
@@ -770,9 +792,9 @@ namespace sgcl::immutable::detail {
         // The node with the element of slot `bit` replaced by one built
         // from a..., its chain being `chain`
         template<class... A>
-        static Node _copy_replacing(const HamtHead& node, uint32_t bit, const Link& chain, A&&... a) {
+        static Node _copy_replacing(const HamtHead& node, uint32_t bit, const Link& chain, A&&... a) noexcept(NothrowInsert<A...>) {
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap, node.subtries & ~bit, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap, node.subtries & ~bit, [&](Entry* at, uint32_t b) noexcept(NothrowInsert<A...>) {
                 if (b == bit) {
                     _element(at, chain, std::forward<A>(a)...);
                 } else {
@@ -784,9 +806,9 @@ namespace sgcl::immutable::detail {
         }
 
         // The node with slot `bit` holding the subtrie `sub`
-        static Node _copy_linking(const HamtHead& node, uint32_t bit, const Link& sub) {
+        static Node _copy_linking(const HamtHead& node, uint32_t bit, const Link& sub) noexcept(NothrowCopy) {
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap, node.subtries | bit, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap, node.subtries | bit, [&](Entry* at, uint32_t b) noexcept(NothrowCopy) {
                 if (b == bit) {
                     _subtrie(at, sub);
                 } else {
@@ -799,9 +821,9 @@ namespace sgcl::immutable::detail {
 
         // The node with the element of slot `bit` kept and its chain
         // replaced by `chain`
-        static Node _copy_chaining(const HamtHead& node, uint32_t bit, const Link& chain) {
+        static Node _copy_chaining(const HamtHead& node, uint32_t bit, const Link& chain) noexcept(NothrowCopy) {
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap, node.subtries, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap, node.subtries, [&](Entry* at, uint32_t b) noexcept(NothrowCopy) {
                 if (b == bit) {
                     _element(at, chain, from[_position(node.bitmap, bit)].value);
                 } else {
@@ -813,12 +835,12 @@ namespace sgcl::immutable::detail {
         }
 
         // The node without slot `bit`; null when it was the last one
-        static Node _copy_removing(const HamtHead& node, uint32_t bit) {
+        static Node _copy_removing(const HamtHead& node, uint32_t bit) noexcept(NothrowCopy) {
             if (node.bitmap == bit) {
                 return nullptr;
             }
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap & ~bit, node.subtries & ~bit, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap & ~bit, node.subtries & ~bit, [&](Entry* at, uint32_t b) noexcept(NothrowCopy) {
                 _copy(at, node, from, b);
             });
             _shade(node);
@@ -827,9 +849,9 @@ namespace sgcl::immutable::detail {
 
         // The node with slot `bit` holding the element (and chain) of
         // `entry`, an element pulled up out of a subtrie
-        static Node _copy_hoisting(const HamtHead& node, uint32_t bit, const Entry& entry) {
+        static Node _copy_hoisting(const HamtHead& node, uint32_t bit, const Entry& entry) noexcept(NothrowCopy) {
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap, node.subtries & ~bit, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap, node.subtries & ~bit, [&](Entry* at, uint32_t b) noexcept(NothrowCopy) {
                 if (b == bit) {
                     _element(at, entry.link, entry.value);
                 } else {
@@ -845,16 +867,16 @@ namespace sgcl::immutable::detail {
         // (hash `hash`): one node when their bits at this level differ,
         // a node over another when they agree
         template<class... A>
-        static Node _split(unsigned shift, const Entry& entry, size_t ehash, size_t hash, A&&... a) {
+        static Node _split(unsigned shift, const Entry& entry, size_t ehash, size_t hash, A&&... a) noexcept(NothrowInsert<A...>) {
             auto ebit = _bit(ehash, shift);
             auto bit = _bit(hash, shift);
             if (ebit == bit) {
                 Link sub = _split(shift + Bits, entry, ehash, hash, std::forward<A>(a)...);
-                return _make(bit, bit, [&](Entry* at, uint32_t) {
+                return _make(bit, bit, [&](Entry* at, uint32_t) noexcept {
                     _subtrie(at, sub);
                 });
             }
-            return _make(ebit | bit, 0, [&](Entry* at, uint32_t b) {
+            return _make(ebit | bit, 0, [&](Entry* at, uint32_t b) noexcept(NothrowInsert<A...>) {
                 if (b == bit) {
                     _element(at, nullptr, std::forward<A>(a)...);
                 } else {
@@ -867,7 +889,7 @@ namespace sgcl::immutable::detail {
         // from a...: the nodes before it copied, the rest shared; null
         // when the key is not in it
         template<class K, class... A>
-        Link _chain_replacing(const Chain* chain, const K& key, A&&... a) const {
+        Link _chain_replacing(const Chain* chain, const K& key, A&&... a) const noexcept(NothrowLookup<K> && NothrowInsert<A...>) {
             if (!chain) {
                 return nullptr;
             }
@@ -884,7 +906,7 @@ namespace sgcl::immutable::detail {
         // The chain without the element under `key`; `removed` whether
         // it was there (the chain may become empty: null)
         template<class K>
-        Link _chain_removing(const Chain* chain, const K& key, bool& removed) const {
+        Link _chain_removing(const Chain* chain, const K& key, bool& removed) const noexcept(NothrowLookup<K> && NothrowCopy) {
             if (!chain) {
                 removed = false;
                 return nullptr;
@@ -903,7 +925,7 @@ namespace sgcl::immutable::detail {
         // The node with an element built from a... under `key`: added
         // (`added`) or replacing the one under the key
         template<class K, class... A>
-        Node _insert(const HamtHead& node, unsigned shift, size_t hash, const K& key, bool& added, A&&... a) const {
+        Node _insert(const HamtHead& node, unsigned shift, size_t hash, const K& key, bool& added, A&&... a) const noexcept(NothrowLookup<K> && NothrowInsert<A...>) {
             auto bit = _bit(hash, shift);
             if (!(node.bitmap & bit)) {
                 added = true;
@@ -938,7 +960,7 @@ namespace sgcl::immutable::detail {
         // was there): the same node when it was not, null when the node
         // is emptied
         template<class K>
-        Link _erase(const Link& self, unsigned shift, size_t hash, const K& key, bool& removed) const {
+        Link _erase(const Link& self, unsigned shift, size_t hash, const K& key, bool& removed) const noexcept(NothrowLookup<K> && NothrowCopy) {
             auto& node = *self;
             auto bit = _bit(hash, shift);
             if (!(node.bitmap & bit)) {
@@ -996,13 +1018,13 @@ namespace sgcl::immutable::detail {
         // The node of `link` this trie's own: itself when owned, else a
         // copy with room for one entry more put in its place, marked, the
         // source shaded as every copy's is
-        static HamtHead& _own(Link& link) {
+        static HamtHead& _own(Link& link) noexcept(NothrowCopy) {
             auto& node = *link;
             if (node.owned) {
                 return node;
             }
             auto from = hamt_entries<value_type>(&node);
-            Node copy = _make(node.bitmap, node.subtries, [&](Entry* at, uint32_t b) {
+            Node copy = _make(node.bitmap, node.subtries, [&](Entry* at, uint32_t b) noexcept(NothrowCopy) {
                 _copy(at, node, from, b);
             }, 1);
             _shade(node);
@@ -1013,13 +1035,13 @@ namespace sgcl::immutable::detail {
 
         // A node made for this trie by a helper that copies, put in the
         // place of the one at `link`
-        static void _put_owned(Link& link, Node node) {
+        static void _put_owned(Link& link, Node node) noexcept {
             node->owned = 1;
             link = std::move(node);
         }
 
         template<class K, class... A>
-        void _insert_in_place(Link& link, unsigned shift, size_t hash, const K& key, bool& added, A&&... a) {
+        void _insert_in_place(Link& link, unsigned shift, size_t hash, const K& key, bool& added, A&&... a) noexcept(NothrowLookup<K> && NothrowInsert<A...>) {
             auto& node = _own(link);
             auto bit = _bit(hash, shift);
             if (!(node.bitmap & bit)) {
@@ -1069,7 +1091,7 @@ namespace sgcl::immutable::detail {
         // larger (of the next size, with room to spare) in its place
         // otherwise
         template<class... A>
-        void _add_in_place(Link& link, uint32_t bit, A&&... a) {
+        void _add_in_place(Link& link, uint32_t bit, A&&... a) noexcept(NothrowInsert<A...>) {
             auto& node = *link;
             unsigned count = std::popcount(node.bitmap);
             if constexpr (Relocatable) {
@@ -1094,7 +1116,7 @@ namespace sgcl::immutable::detail {
         // Slot `bit` of the owned node at `link` taken out: the entry
         // destroyed and those after it moved down one, first first; the
         // link nulled when it was the node's last
-        void _remove_in_place(Link& link, uint32_t bit) {
+        void _remove_in_place(Link& link, uint32_t bit) noexcept(NothrowCopy) {
             auto& node = *link;
             if (node.bitmap == bit) {
                 link = nullptr;
@@ -1122,31 +1144,42 @@ namespace sgcl::immutable::detail {
 
         // The element under `key`, which is in the trie, taken out: a
         // subtrie emptied drops its slot, a subtrie left with one element
-        // and no subtrie hands that element up to the slot, as erase does
+        // and no subtrie hands that element up to the slot, as erase does.
+        // Nothing the trie holds changes before the last step that may
+        // throw, so that an exception leaves the trie as it was (the nodes
+        // made its own on the way down hold what they held): a node below
+        // the root that the erase would leave with one element and no
+        // subtrie is not changed but returns that element's entry, and the
+        // first level up that keeps other slots, or the root, takes it
+        // into its slot, the nodes below dropped whole. Null when the
+        // change is done. The entry returned is in a node made this trie's
+        // own on the way down, so the element is moved up when its move
+        // cannot throw, and copied with the node that takes it otherwise.
         template<class K>
-        void _erase_in_place(Link& link, unsigned shift, size_t hash, const K& key) {
+        Entry* _erase_in_place(Link& link, unsigned shift, size_t hash, const K& key) noexcept(NothrowLookup<K> && NothrowCopy) {
             auto& node = _own(link);
             auto bit = _bit(hash, shift);
             auto& entry = hamt_entries<value_type>(&node)[_position(node.bitmap, bit)];
             if (node.subtries & bit) {
-                _erase_in_place(entry.link, shift + Bits, hash, key);
-                if (!entry.link) {
-                    _remove_in_place(link, bit);
-                    return;
-                }
-                if (std::popcount(entry.link->bitmap) == 1 && !entry.link->subtries) {   // one element left below: it takes the slot
-                    Link sub = entry.link;   // held while its element is copied up
-                    auto& up = hamt_entries<value_type>(sub.get())[0];
-                    if constexpr (Relocatable) {
-                        value_type made(up.value);
-                        entry.link = up.link;
-                        ::new (static_cast<void*>(&entry.value)) value_type(std::move(made));
-                        node.subtries &= ~bit;
-                    } else {
-                        _put_owned(link, _copy_hoisting(node, bit, up));
+                auto lone = _erase_in_place(entry.link, shift + Bits, hash, key);
+                if (!lone) {
+                    if (!entry.link) {
+                        _remove_in_place(link, bit);
                     }
+                    return nullptr;
                 }
-                return;
+                if (shift && node.bitmap == bit) {   // this node too left with that one element: up again
+                    return lone;
+                }
+                Link sub = entry.link;   // held while its element comes up into the slot
+                if constexpr (Relocatable) {
+                    ::new (static_cast<void*>(&entry.value)) value_type(std::move(lone->value));
+                    entry.link = lone->link;
+                    node.subtries &= ~bit;
+                } else {
+                    _put_owned(link, _copy_hoisting(node, bit, *lone));
+                }
+                return nullptr;
             }
             if (_equal(key, Traits::key(entry.value))) {
                 if (auto chain = _chain(entry.link.get())) {   // the chain's first element takes the entry
@@ -1159,14 +1192,18 @@ namespace sgcl::immutable::detail {
                     } else {
                         _put_owned(link, _copy_replacing(node, bit, chain->next, chain->value));
                     }
-                    return;
+                    return nullptr;
+                }
+                if (shift && std::popcount(node.bitmap) == 2 && !node.subtries) {   // the other element left alone: up to the slot above
+                    return hamt_entries<value_type>(&node) + (1 - _position(node.bitmap, bit));
                 }
                 _remove_in_place(link, bit);
-                return;
+                return nullptr;
             }
             bool removed = false;
             entry.link = _chain_removing(_chain(entry.link.get()), key, removed);
             assert(removed && "erase_in_place looked the key up first");
+            return nullptr;
         }
 
         static void _disown(HamtHead& node) noexcept {

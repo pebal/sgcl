@@ -26,7 +26,7 @@ namespace sgcl {
         // no frame of their own lies between the caller and the zeroed area.
         // What stays visible is the caller's own frame: a raw pointer or an
         // iterator kept there does retain its target (README, "Stack roots").
-        SGCL_ALWAYS_INLINE static size_t get_live_object_count() {
+        SGCL_ALWAYS_INLINE static size_t get_live_object_count() noexcept {
             size_t count = 0;
             detail::os::hidden_call([](void* out) {
                 *(size_t*)out = std::get<1>(detail::collector_instance().get_live_objects()).size();
@@ -34,7 +34,7 @@ namespace sgcl {
             return count;
         }
 
-        SGCL_ALWAYS_INLINE static std::tuple<pause_guard, std::vector<void*>> get_live_objects() {
+        SGCL_ALWAYS_INLINE static std::tuple<pause_guard, std::vector<void*>> get_live_objects() noexcept {
             std::tuple<pause_guard, std::vector<void*>> result;
             detail::os::hidden_call([](void* out) {
                 *(std::tuple<pause_guard, std::vector<void*>>*)out = detail::collector_instance().get_live_objects();
@@ -115,7 +115,7 @@ namespace sgcl {
             size_t pages;
         };
 
-        SGCL_ALWAYS_INLINE static std::vector<type_statistics> get_type_statistics() {
+        SGCL_ALWAYS_INLINE static std::vector<type_statistics> get_type_statistics() noexcept {
             std::vector<type_statistics> result;
             detail::os::hidden_call([](void* out) {
                 auto& collector = detail::collector_instance();
@@ -140,9 +140,10 @@ namespace sgcl {
         // says, SGCL_MEMORY_LIMIT (bytes with K, M or G, or a percentage:
         // "512M", "50%"), read once when the heap is first used. Near it the
         // collector runs more often and returns free chunks at once; at it an
-        // allocation forces a collection and throws bad_alloc if that is not
-        // enough. 0 disables the ceiling. A call here wins over the
-        // environment.
+        // allocation forces a full collection and, if that is not enough,
+        // ends the program: one line on stderr ("sgcl: out of managed
+        // memory: N bytes committed, limit L"), then std::terminate. 0
+        // disables the ceiling. A call here wins over the environment.
         inline static size_t get_memory_limit() noexcept {
             return detail::Heap::instance().memory_limit();
         }
@@ -186,18 +187,18 @@ namespace sgcl {
             enum class kind : int { object, buffer, stack, cell, unique, weak };
             kind from;
             const void* holder;
-            const std::type_info* type;   // the holder's type, a buffer's element type (typeid(T[])); null for a stack word
+            const std::type_info* type;   // the holder's type, a buffer's element type (typeid(T[])); null for a stack word and the library's own cells (weak, cell, the block of cells)
             size_t offset;                // the word's byte offset in the holder
             std::thread::id thread;       // a stack word: the thread whose stack it is on
         };
 
-        SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_referrers(const void* p) {
+        SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_referrers(const void* p) noexcept {
             auto boundary = (uintptr_t)__builtin_frame_address(0);
             auto [guard, objects] = get_live_objects();
             return {std::move(guard), _referrers(detail::collector_instance().referrers(p, boundary))};
         }
 
-        SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_path_to_root(const void* p) {
+        SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_path_to_root(const void* p) noexcept {
             auto boundary = (uintptr_t)__builtin_frame_address(0);
             auto [guard, objects] = get_live_objects();
             return {std::move(guard), _referrers(detail::collector_instance().path_to_root(p, boundary))};
@@ -213,7 +214,7 @@ namespace sgcl {
             size_t bytes;
         };
 
-        SGCL_NOINLINE static retained get_retained(const void* p) {
+        SGCL_NOINLINE static retained get_retained(const void* p) noexcept {
             auto boundary = (uintptr_t)__builtin_frame_address(0);
             auto [guard, objects] = get_live_objects();
             auto r = detail::collector_instance().retained(p, boundary);
@@ -240,7 +241,7 @@ namespace sgcl {
                     case referrer::kind::cell: out << "  a cell of a root_ptr in unmanaged memory (block " << r.holder << ", cell " << r.offset / sizeof(void*) << ")\n"; break;
                     case referrer::kind::stack: out << "  a word on the stack of thread " << r.thread << ", at " << r.holder << (_own_stack(r.holder, boundary) ? " (this thread, above the call)\n" : "\n"); break;
                     case referrer::kind::unique:
-                        if (*r.type == typeid(detail::CellBlock)) {
+                        if (!r.type) {
                             out << "  the block of cells, a root while a cell of it is in use\n";
                         } else {
                             out << "  a unique_ptr: the " << r.type->name() << " at " << r.holder << " is its object\n";
@@ -259,12 +260,16 @@ namespace sgcl {
             return (uintptr_t)word >= boundary && detail::thread_stack.holds(word);
         }
 
-        // The engine's referrers as the public ones
-        static std::vector<referrer> _referrers(const std::vector<detail::Collector::Referrer>& found) {
+        // The engine's referrers as the public ones. The cells of weak_ptrs
+        // and root_ptrs and their blocks are the library's own types, which
+        // a program cannot name: their type is null, as a stack word's
+        static std::vector<referrer> _referrers(const std::vector<detail::Collector::Referrer>& found) noexcept {
+            using Kind = detail::Collector::Referrer::Kind;
             std::vector<referrer> result;
             result.reserve(found.size());
             for (auto& r : found) {
-                result.push_back({referrer::kind(int(r.kind)), r.holder, r.type, r.offset, r.thread});
+                bool own = r.kind == Kind::Weak || r.kind == Kind::Cell || (r.kind == Kind::Unique && *r.type == typeid(detail::CellBlock));
+                result.push_back({referrer::kind(int(r.kind)), r.holder, own ? nullptr : r.type, r.offset, r.thread});
             }
             return result;
         }
@@ -281,7 +286,8 @@ namespace sgcl {
         // `roots` (the stacks scanned, the dirty pages traced), `marked`
         // (the marking converged, the weak cells cleared), `swept` (the
         // garbage destroyed and freed), `released` (the empty pages back
-        // in the heap: the cycle is over). The cycles are full unless the
+        // in the heap and the cycle in get_statistics: the cycle is
+        // over). The cycles are full unless the
         // stepper is made with `full = false`. The stepper's thread is the
         // mutator; between gates it must not wait for the collector
         // (force_collect, get_live_objects and the other queries that
@@ -292,11 +298,11 @@ namespace sgcl {
         public:
             enum class phase : int { start, flipped, registered, roots, marked, swept, released };
 
-            explicit stepper(bool full = true) {
+            explicit stepper(bool full = true) noexcept {
                 detail::collector_instance().step_begin(full);
             }
 
-            ~stepper() {
+            ~stepper() noexcept {
                 detail::collector_instance().step_end();
             }
 

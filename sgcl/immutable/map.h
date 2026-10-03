@@ -12,7 +12,9 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <concepts>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 namespace sgcl::immutable {
@@ -43,7 +45,8 @@ namespace sgcl::immutable {
     // of threads is read by all of them without a lock, and a version is
     // published, and replaced by the next, through a copy_on_write or an
     // atomic; a state of a program is such a map, and the next state a
-    // new one, the two compared by their roots (README: The im module).
+    // new one, the two compared by their roots (the description in
+    // docs/sgcl/immutable/README.md).
     //
     // The map is two words and its function objects: the size and a
     // tracked_ptr to the root. It lives where a tracked_ptr may, on a
@@ -63,6 +66,27 @@ namespace sgcl::immutable {
     , public mixin::immutable<map<Key, T, Hash, KeyEqual>>
     , public mixin::lookup<map<Key, T, Hash, KeyEqual>> {
         using Trie = detail::Hamt<detail::MapTraits<Key, T, Hash, KeyEqual>>;
+
+        static_assert(sgcl::detail::nothrow_function_object<Hash, const Key&>, "sgcl::immutable::map: Hash must be noexcept");
+        static_assert(sgcl::detail::nothrow_function_object<KeyEqual, const Key&, const Key&>, "sgcl::immutable::map: KeyEqual must be noexcept");
+
+        // An insert or a set copies the path to the element and makes the
+        // element; an erase copies the path (detail/hamt.h)
+        template<class... A>
+        static constexpr bool NothrowInsert = Trie::template NothrowInsert<A...>;
+
+        static constexpr bool NothrowErase = Trie::NothrowCopy;
+
+        template<class K>
+        static constexpr bool NothrowLookup = Trie::template NothrowLookup<K>;
+
+        // An update calls f, makes the value of what it gives and sets it
+        template<class F>
+        static constexpr bool _nothrow_update() noexcept {
+            using R = std::invoke_result_t<F&, const T&>;
+            return std::is_nothrow_invocable_v<F&, const T&> && std::is_nothrow_constructible_v<T, R>
+                && std::is_nothrow_move_constructible_v<T> && NothrowInsert<const Key&, T&&>;
+        }
 
     public:
         using key_type = Key;
@@ -86,11 +110,11 @@ namespace sgcl::immutable {
         }
 
         template<std::input_iterator InputIt>
-        map(InputIt first, InputIt last, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+        map(InputIt first, InputIt last, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(Trie::template NothrowBuild<InputIt>)
         : _trie(first, last, hash, equal) {
         }
 
-        map(std::initializer_list<value_type> ilist, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+        map(std::initializer_list<value_type> ilist, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(Trie::template NothrowBuild<const value_type*>)
         : map(ilist.begin(), ilist.end(), hash, equal) {
         }
 
@@ -137,30 +161,30 @@ namespace sgcl::immutable {
         // are transparent (a string_view for a string), as the module's
         // other maps do. try_get is the value's pointer, which is cheaper:
         // an iterator carries its path of nodes
-        const_iterator find(const Key& key) const {
+        const_iterator find(const Key& key) const noexcept {
             return _trie.find_at(key);
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        const_iterator find(const K& key) const {
+        const_iterator find(const K& key) const noexcept(NothrowLookup<K>) {
             return _trie.find_at(key);
         }
 
-        bool contains(const Key& key) const {
+        bool contains(const Key& key) const noexcept {
             return _trie.contains(key);
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        bool contains(const K& key) const {
+        bool contains(const K& key) const noexcept(NothrowLookup<K>) {
             return _trie.contains(key);
         }
 
-        size_type count(const Key& key) const {
+        size_type count(const Key& key) const noexcept {
             return _trie.contains(key) ? 1 : 0;
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        size_type count(const K& key) const {
+        size_type count(const K& key) const noexcept(NothrowLookup<K>) {
             return _trie.contains(key) ? 1 : 0;
         }
 
@@ -186,49 +210,76 @@ namespace sgcl::immutable {
         // same map when it is there, as every insert of the library keeps
         // what it finds: the path to the element copied, log32(n) nodes,
         // the rest shared
-        map insert(const Key& key, const T& value) const {
+        map insert(const Key& key, const T& value) const noexcept(NothrowInsert<const Key&, const T&>) {
             return _trie.contains(key) ? *this : map(_trie.insert(key, key, value));
         }
 
-        map insert(const Key& key, T&& value) const {
+        map insert(const Key& key, T&& value) const noexcept(NothrowInsert<const Key&, T&&>) {
             return _trie.contains(key) ? *this : map(_trie.insert(key, key, std::move(value)));
         }
 
-        map insert(Key&& key, const T& value) const {
+        map insert(Key&& key, const T& value) const noexcept(NothrowInsert<Key&&, const T&>) {
             return _trie.contains(key) ? *this : map(_trie.insert(key, std::move(key), value));
         }
 
-        map insert(Key&& key, T&& value) const {
+        map insert(Key&& key, T&& value) const noexcept(NothrowInsert<Key&&, T&&>) {
             return _trie.contains(key) ? *this : map(_trie.insert(key, std::move(key), std::move(value)));
         }
 
         // The map with `value` under `key`, added or in place of the value
         // there (vector's set, insert_or_assign of the mutable maps). The
         // size grows by one when the key was absent.
-        map set(const Key& key, const T& value) const {
+        map set(const Key& key, const T& value) const noexcept(NothrowInsert<const Key&, const T&>) {
             return map(_trie.insert(key, key, value));
         }
 
-        map set(const Key& key, T&& value) const {
+        map set(const Key& key, T&& value) const noexcept(NothrowInsert<const Key&, T&&>) {
             return map(_trie.insert(key, key, std::move(value)));
         }
 
-        map set(Key&& key, const T& value) const {
+        map set(Key&& key, const T& value) const noexcept(NothrowInsert<Key&&, const T&>) {
             return map(_trie.insert(key, std::move(key), value));
         }
 
-        map set(Key&& key, T&& value) const {
+        map set(Key&& key, T&& value) const noexcept(NothrowInsert<Key&&, T&&>) {
             return map(_trie.insert(key, std::move(key), std::move(value)));
         }
 
-        map insert(const value_type& value) const {
+        map insert(const value_type& value) const noexcept(NothrowInsert<const Key&, const T&>) {
             return insert(value.first, value.second);
+        }
+
+        // The map with f(value) in place of the value under `key`: set of
+        // what f gives of the old one, f called once; the same map when
+        // the key is absent, as erase's (Clojure's update, immer's
+        // update_if_exists). The value f gives is made before the path is
+        // copied, so f may read this map
+        template<class F>
+        requires std::invocable<F&, const T&> && std::convertible_to<std::invoke_result_t<F&, const T&>, T>
+        map update(const Key& key, F f) const noexcept(_nothrow_update<F>()) {
+            auto v = _trie.find(key);
+            if (!v) {
+                return *this;
+            }
+            T value(f(v->second));
+            return map(_trie.insert(key, key, std::move(value)));
+        }
+
+        // The same with a value for an absent key: f(fallback) is put under
+        // it, so a count is m.update(word, 0, [](int n) { return n + 1; })
+        // (Clojure's update with fnil)
+        template<class F>
+        requires std::invocable<F&, const T&> && std::convertible_to<std::invoke_result_t<F&, const T&>, T>
+        map update(const Key& key, const T& fallback, F f) const noexcept(_nothrow_update<F>()) {
+            auto v = _trie.find(key);
+            T value(f(v ? v->second : fallback));
+            return map(_trie.insert(key, key, std::move(value)));
         }
 
         // The map with an element under `key` built from the arguments,
         // when the key is absent (as insert)
         template<class... A>
-        map emplace(const Key& key, A&&... a) const {
+        map emplace(const Key& key, A&&... a) const noexcept(NothrowErase && std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
             if (_trie.contains(key)) {
                 return *this;
             }
@@ -237,12 +288,12 @@ namespace sgcl::immutable {
 
         // The map without the element under `key`: the path copied, a
         // node emptied dropped; the same map when the key is absent
-        map erase(const Key& key) const {
+        map erase(const Key& key) const noexcept(NothrowErase) {
             return map(_trie.erase(key));
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        map erase(const K& key) const {
+        map erase(const K& key) const noexcept(NothrowLookup<K> && NothrowErase) {
             return map(_trie.erase(key));
         }
 
@@ -300,87 +351,87 @@ namespace sgcl::immutable {
             // The value under the key, null when it is absent: valid until
             // the builder's next change (try_get, as a map's; a builder has
             // no iterators, its nodes changing under them)
-            const T* try_get(const Key& key) const {
+            const T* try_get(const Key& key) const noexcept {
                 auto v = _trie.find(key);
                 return v ? &v->second : nullptr;
             }
 
             template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-            const T* try_get(const K& key) const {
+            const T* try_get(const K& key) const noexcept(NothrowLookup<K>) {
                 auto v = _trie.find(key);
                 return v ? &v->second : nullptr;
             }
 
-            bool contains(const Key& key) const {
+            bool contains(const Key& key) const noexcept {
                 return _trie.contains(key);
             }
 
             template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-            bool contains(const K& key) const {
+            bool contains(const K& key) const noexcept(NothrowLookup<K>) {
                 return _trie.contains(key);
             }
 
             // `value` under `key` when the key is absent, as a map's
             // insert; true when it was added
-            bool insert(const Key& key, const T& value) {
+            bool insert(const Key& key, const T& value) noexcept(NothrowInsert<const Key&, const T&>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, key, value);
             }
 
-            bool insert(const Key& key, T&& value) {
+            bool insert(const Key& key, T&& value) noexcept(NothrowInsert<const Key&, T&&>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, key, std::move(value));
             }
 
-            bool insert(Key&& key, const T& value) {
+            bool insert(Key&& key, const T& value) noexcept(NothrowInsert<Key&&, const T&>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, std::move(key), value);
             }
 
-            bool insert(Key&& key, T&& value) {
+            bool insert(Key&& key, T&& value) noexcept(NothrowInsert<Key&&, T&&>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, std::move(key), std::move(value));
             }
 
             // `value` under `key`, added or in place of the value there;
             // true when the key was absent
-            bool set(const Key& key, const T& value) {
+            bool set(const Key& key, const T& value) noexcept(NothrowInsert<const Key&, const T&>) {
                 return _trie.insert_in_place(key, key, value);
             }
 
-            bool set(const Key& key, T&& value) {
+            bool set(const Key& key, T&& value) noexcept(NothrowInsert<const Key&, T&&>) {
                 return _trie.insert_in_place(key, key, std::move(value));
             }
 
-            bool set(Key&& key, const T& value) {
+            bool set(Key&& key, const T& value) noexcept(NothrowInsert<Key&&, const T&>) {
                 return _trie.insert_in_place(key, std::move(key), value);
             }
 
-            bool set(Key&& key, T&& value) {
+            bool set(Key&& key, T&& value) noexcept(NothrowInsert<Key&&, T&&>) {
                 return _trie.insert_in_place(key, std::move(key), std::move(value));
             }
 
-            bool insert(const value_type& value) {
+            bool insert(const value_type& value) noexcept(NothrowInsert<const Key&, const T&>) {
                 return insert(value.first, value.second);
             }
 
             // An element under `key` built from the arguments, when the key
             // is absent
             template<class... A>
-            bool emplace(const Key& key, A&&... a) {
+            bool emplace(const Key& key, A&&... a) noexcept(NothrowErase && std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(std::forward<A>(a)...));
             }
 
             // The element under `key` taken out; false when it was absent
-            bool erase(const Key& key) {
+            bool erase(const Key& key) noexcept(NothrowErase) {
                 return _trie.erase_in_place(key);
             }
 
             template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-            bool erase(const K& key) {
+            bool erase(const K& key) noexcept(NothrowLookup<K> && NothrowErase) {
                 return _trie.erase_in_place(key);
             }
 
             // The map of what the builder holds now: the builder's marks
             // cleared on the nodes it made (a walk of those alone), the
             // trie shared by the two; the builder goes on
-            map freeze() {
+            map freeze() noexcept {
                 _trie.disown();
                 return map(_trie);
             }
@@ -388,7 +439,7 @@ namespace sgcl::immutable {
         private:
             friend class map;
 
-            explicit builder(const Trie& trie)
+            explicit builder(const Trie& trie) noexcept
             : _trie(trie) {
             }
 
@@ -396,16 +447,16 @@ namespace sgcl::immutable {
         };
 
         // The builder over this map: nothing copied until it changes
-        builder thaw() const {
+        builder thaw() const noexcept {
             return builder(_trie);
         }
 
         // The same elements under the same keys
-        friend bool operator==(const map& a, const map& b) {
+        friend bool operator==(const map& a, const map& b) requires req::equatable<T> {
             return a._trie.equals(b._trie, [](const value_type& x, const value_type& y) { return x.second == y.second; });
         }
 
-        friend bool operator!=(const map& a, const map& b) {
+        friend bool operator!=(const map& a, const map& b) requires req::equatable<T> {
             return !(a == b);
         }
 
@@ -419,7 +470,7 @@ namespace sgcl::immutable {
         // The value under the key as a pointer, null when absent: what
         // mixin::lookup reads by, cheaper than find's iterator
         template<class K>
-        const T* _value_of(const K& key) const {
+        const T* _value_of(const K& key) const noexcept(NothrowLookup<K>) {
             auto v = _trie.find(key);
             return v ? &v->second : nullptr;
         }

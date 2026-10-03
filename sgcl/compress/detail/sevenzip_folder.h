@@ -7,6 +7,7 @@
 
 #include "bcj.h"
 #include "bcj2.h"
+#include "copy.h"
 #include "lzma2.h"
 #include "ppmd7.h"
 #include "sevenzip_aes.h"
@@ -14,6 +15,7 @@
 #include "source.h"
 #include "bzip2.h"
 #include "inflate.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -44,7 +46,7 @@ namespace sgcl::compress::detail {
             std::string io_op;
             std::string io_path;
 
-            error to_error() const {
+            error to_error() const noexcept {
                 if (io) {
                     return error(io::error(io_code, string(io_op), string(io_path)), at);
                 }
@@ -58,14 +60,14 @@ namespace sgcl::compress::detail {
             std::optional<Failure> failure;
             uint64_t origin = 0;   // the folder's first packed byte, for the messages
 
-            bool fail(errc code, const std::string& text) {
+            bool fail(errc code, const std::string& text) noexcept {
                 if (!failure) {
                     failure = Failure{code, origin, text, false, {}, {}, {}};
                 }
                 return false;
             }
 
-            bool fail(const io::error& e, uint64_t at) {
+            bool fail(const io::error& e, uint64_t at) noexcept {
                 if (!failure) {
                     Failure f;
                     f.code = errc::io;
@@ -91,7 +93,7 @@ namespace sgcl::compress::detail {
 
             // Up to n bytes into out, got 0 at the end of the output;
             // false when the folder failed (the context holds the error)
-            bool read(uint8_t* out, size_t n, size_t& got) {
+            bool read(uint8_t* out, size_t n, size_t& got) noexcept {
                 got = 0;
                 if (_ctx.failure) {
                     return false;
@@ -128,16 +130,16 @@ namespace sgcl::compress::detail {
 
         protected:
             // got 0: the coder ended
-            virtual bool _produce(uint8_t* out, size_t n, size_t& got) = 0;
+            virtual bool _produce(uint8_t* out, size_t n, size_t& got) noexcept = 0;
 
             // At the output's size: that the coder's data ends there too
             // (a damaged stream that decodes to the right bytes and then
             // goes on is caught here, as 7-Zip catches it)
-            virtual bool _finish() {
+            virtual bool _finish() noexcept {
                 return true;
             }
 
-            bool _past_size() {
+            bool _past_size() noexcept {
                 return _ctx.fail(errc::corrupt, "7z: a coder's data goes on past its size in the header");
             }
 
@@ -166,12 +168,12 @@ namespace sgcl::compress::detail {
                 return end - begin;
             }
 
-            bool fill() {
+            bool fill() noexcept {
                 if (buffer.size() < Capacity) {
                     buffer.resize(Capacity);
                 }
                 if (begin) {
-                    std::memmove(buffer.data(), buffer.data() + begin, end - begin);
+                    sgcl::detail::move_bytes(buffer.data(), buffer.data() + begin, end - begin);
                     end -= begin;
                     begin = 0;
                 }
@@ -192,7 +194,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 auto r = _ctx.source->read_at(out, n, _offset + _done);
                 if (!r) {
                     return _ctx.fail(r.error(), _offset + _done);
@@ -211,7 +213,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 return _in->read(out, n, got);
             }
 
@@ -231,14 +233,14 @@ namespace sgcl::compress::detail {
             Decoder decoder;
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 if (!_window) {
                     _window.reset(new uint8_t[_window_size]);
                 }
                 for (;;) {
                     if (_from < _pos) {
                         got = std::min(n, _pos - _from);
-                        std::memcpy(out, _window.get() + _from, got);
+                        copy_out(out, _window.get() + _from, got);
                         _from += got;
                         return true;
                     }
@@ -270,7 +272,7 @@ namespace sgcl::compress::detail {
                 }
             }
 
-            bool _finish() override {
+            bool _finish() noexcept override {
                 while (!_ended) {
                     if (_pos == _window_size) {
                         _pos = _from = 0;
@@ -301,7 +303,7 @@ namespace sgcl::compress::detail {
 
         class PpmdNode final : public Node {
         public:
-            PpmdNode(Context& c, uint64_t size, Node* in, uint32_t order, uint32_t memory)
+            PpmdNode(Context& c, uint64_t size, Node* in, uint32_t order, uint32_t memory) noexcept
             : Node(c, size) {
                 _feed.node = in;
                 _decoder = std::make_unique<Ppmd7Decoder>();
@@ -309,7 +311,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 size_t pos = 0;
                 for (;;) {
                     const uint8_t* in = _feed.data();
@@ -328,7 +330,7 @@ namespace sgcl::compress::detail {
                 }
             }
 
-            bool _finish() override {
+            bool _finish() noexcept override {
                 return _decoder->finished_ok() || _ctx.fail(errc::corrupt, "7z: the PPMd data does not end at its size");
             }
 
@@ -339,17 +341,17 @@ namespace sgcl::compress::detail {
         // BCJ and Delta over the node under them
         class FilterNode final : public Node {
         public:
-            FilterNode(Context& c, uint64_t size, Node* in, const SimpleFilter& f)
+            FilterNode(Context& c, uint64_t size, Node* in, const SimpleFilter& f) noexcept
             : Node(c, size), _in(in) {
                 _chain.add(f);
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 for (;;) {
                     if (size_t r = _chain.ready_size()) {
                         got = std::min(n, r);
-                        std::memcpy(out, _chain.ready(), got);
+                        copy_out(out, _chain.ready(), got);
                         _chain.take(got);
                         return true;
                     }
@@ -379,7 +381,7 @@ namespace sgcl::compress::detail {
 
         class Bcj2Node final : public Node {
         public:
-            Bcj2Node(Context& c, uint64_t size, Node* const* in)
+            Bcj2Node(Context& c, uint64_t size, Node* const* in) noexcept
             : Node(c, size) {
                 for (int k = 0; k < 4; ++k) {
                     _feed[k].node = in[k];
@@ -388,7 +390,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 for (;;) {
                     got = _decoder.decode(out, n);
                     if (got) {
@@ -413,7 +415,7 @@ namespace sgcl::compress::detail {
             // Every stream used up: what the decoder has not taken of it, and
             // what its coder has not given (a probe of one byte, which also
             // checks the end of a stream it never read)
-            bool _finish() override {
+            bool _finish() noexcept override {
                 if (!_decoder.finished_ok()) {
                     return _ctx.fail(errc::corrupt, "7z: the BCJ2 range coder does not end at zero");
                 }
@@ -440,17 +442,17 @@ namespace sgcl::compress::detail {
         // long as the header says (the padding of the last block dropped)
         class AesNode final : public Node {
         public:
-            AesNode(Context& c, uint64_t size, Node* in, const crypto::secret<32>& key, const uint8_t* iv)
+            AesNode(Context& c, uint64_t size, Node* in, const crypto::secret<32>& key, const uint8_t* iv) noexcept
             : Node(c, size), _cbc(key, iv), _plain(Feed::Capacity) {
                 _feed.node = in;
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 for (;;) {
                     if (_from < _to) {
                         got = std::min(n, _to - _from);
-                        std::memcpy(out, _plain.data() + _from, got);
+                        copy_out(out, _plain.data() + _from, got);
                         _from += got;
                         return true;
                     }
@@ -468,7 +470,7 @@ namespace sgcl::compress::detail {
                         }
                         continue;
                     }
-                    std::memcpy(_plain.data(), _feed.data(), whole);
+                    sgcl::detail::copy_bytes(_plain.data(), _feed.data(), whole);
                     _feed.begin += whole;
                     _cbc.decrypt(_plain.data(), whole);
                     _from = 0;
@@ -487,7 +489,7 @@ namespace sgcl::compress::detail {
         // reach (32 KB, Deflate64's 64 KB), the output handed out from it
         class DeflateNode final : public Node {
         public:
-            DeflateNode(Context& c, uint64_t size, Node* in, bool wide)
+            DeflateNode(Context& c, uint64_t size, Node* in, bool wide) noexcept
             : Node(c, size)
             , _state(std::make_unique<InflateState>())
             , _history(wide ? Window64Size : WindowSize)
@@ -506,15 +508,15 @@ namespace sgcl::compress::detail {
             void _slide() noexcept {
                 // everything handed out: the last of the history stays
                 size_t keep = std::min<size_t>(_pos, _history);
-                std::memmove(_window.data(), _window.data() + _pos - keep, keep);
+                sgcl::detail::move_bytes(_window.data(), _window.data() + _pos - keep, keep);
                 _pos = _from = keep;
             }
 
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 for (;;) {
                     if (_from < _pos) {
                         got = std::min(n, _pos - _from);
-                        std::memcpy(out, _window.data() + _from, got);
+                        copy_out(out, _window.data() + _from, got);
                         _from += got;
                         return true;
                     }
@@ -545,7 +547,7 @@ namespace sgcl::compress::detail {
                 }
             }
 
-            bool _finish() override {
+            bool _finish() noexcept override {
                 while (!_ended) {
                     if (_pos + MaxMatch + 8 > 2 * _history) {
                         _slide();
@@ -584,7 +586,7 @@ namespace sgcl::compress::detail {
         // out only when the whole of it has been read)
         class Bzip2Node final : public Node {
         public:
-            Bzip2Node(Context& c, uint64_t size, Node* in)
+            Bzip2Node(Context& c, uint64_t size, Node* in) noexcept
             : Node(c, size)
             , _decoder(std::make_unique<Bzip2Decoder>()) {
                 _feed.node = in;
@@ -592,7 +594,7 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            bool _produce(uint8_t* out, size_t n, size_t& got) override {
+            bool _produce(uint8_t* out, size_t n, size_t& got) noexcept override {
                 size_t pos = 0;
                 for (;;) {
                     const uint8_t* in = _feed.data();
@@ -611,7 +613,7 @@ namespace sgcl::compress::detail {
                 }
             }
 
-            bool _finish() override {
+            bool _finish() noexcept override {
                 uint8_t none[1];
                 for (;;) {
                     size_t pos = 0;
@@ -637,7 +639,7 @@ namespace sgcl::compress::detail {
             std::unique_ptr<Bzip2Decoder> _decoder;
         };
 
-        inline const char* method_name(uint64_t m) {
+        inline const char* method_name(uint64_t m) noexcept {
             switch (m) {
                 case Copy: return "Copy";
                 case Delta: return "Delta";
@@ -678,7 +680,7 @@ namespace sgcl::compress::detail {
 
         // What a coder's decoder takes, from its properties and its output's
         // size; false for a method the library does not decode (the text says which)
-        inline bool memory(const Coder& c, uint64_t size, uint64_t& bytes, std::string& why) {
+        inline bool memory(const Coder& c, uint64_t size, uint64_t& bytes, std::string& why) noexcept {
             switch (c.method) {
                 case Copy:
                     bytes = 0;
@@ -755,7 +757,7 @@ namespace sgcl::compress::detail {
         class Decoder {
         public:
             // The folder's decoder, or its error
-            Decoder(const Source& source, const Streams& streams, size_t folder, const limits& l, sevenzip_aes::Keys* keys = nullptr)
+            Decoder(const Source& source, const Streams& streams, size_t folder, const limits& l, sevenzip_aes::Keys* keys = nullptr) noexcept
             : _folder(streams.folders[folder]) {
                 _ctx.source = &source;
                 _ctx.keys = keys;
@@ -818,7 +820,7 @@ namespace sgcl::compress::detail {
 
             // Up to n bytes of the folder's output, got 0 at its end; the
             // folder's CRC checked at its last byte
-            bool read(uint8_t* out, size_t n, size_t& got) {
+            bool read(uint8_t* out, size_t n, size_t& got) noexcept {
                 got = 0;
                 if (!_main) {
                     return false;
@@ -840,7 +842,7 @@ namespace sgcl::compress::detail {
             }
 
             // n bytes decoded and dropped
-            bool skip(uint64_t n) {
+            bool skip(uint64_t n) noexcept {
                 uint8_t scrap[16384];
                 while (n) {
                     size_t got;
@@ -857,7 +859,7 @@ namespace sgcl::compress::detail {
 
         private:
             template<class N, class... A>
-            N* _make(A&&... a) {
+            N* _make(A&&... a) noexcept {
                 auto n = std::make_unique<N>(std::forward<A>(a)...);
                 N* p = n.get();
                 _nodes.push_back(std::move(n));
@@ -865,7 +867,7 @@ namespace sgcl::compress::detail {
             }
 
             // The node of coder c's output, its inputs made first
-            Node* _build(const Streams& s, uint32_t c, uint32_t depth) {
+            Node* _build(const Streams& s, uint32_t c, uint32_t depth) noexcept {
                 const Folder& f = _folder;
                 if (depth > f.coders.size()) {
                     _ctx.fail(errc::corrupt, "7z: coders bound in a cycle");

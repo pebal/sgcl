@@ -20,6 +20,15 @@ namespace {
         inline static sgcl::atomic<int> alive = {0};
     };
 
+    // Lookups, erasures and sweeps cannot throw; an insertion throws only
+    // what the value's construction throws (a weak_multimap's emplace is
+    // the pair's piecewise construction, which std does not declare noexcept)
+    static_assert(noexcept(std::declval<const weak_map<Node, int>&>().find(std::declval<const tracked_ptr<Node>&>())));
+    static_assert(noexcept(std::declval<weak_map<Node, int>&>()[std::declval<const tracked_ptr<Node>&>()]));
+    static_assert(noexcept(std::declval<weak_map<Node, int>&>().sweep()));
+    static_assert(noexcept(std::declval<weak_set<Node>&>().insert(std::declval<const tracked_ptr<Node>&>())));
+    static_assert(!noexcept(std::declval<weak_map<Node, std::string>&>().emplace(std::declval<const tracked_ptr<Node>&>(), "a")));
+
     // Inlined into the test's frame: a frame of its own would sit where
     // the dead frames were and keep their words (root_ptr.cpp: live_after_collect)
     SGCL_ALWAYS_INLINE void settle() {
@@ -345,6 +354,56 @@ TEST(WeakMultimap_Tests, ErasingAnEqualRangeStopsAtItsDeadBound) {
     EXPECT_TRUE(tags.empty());
 }
 
+// A walk of an equal_range ends where the object's run ends, whatever
+// happens to the entry behind it: here that entry is dead and a sweep
+// drops it before the walk, and the walk still ends at the range's end
+// rather than running on through the other objects' entries. The same
+// layout as above: b, dropped, a, a.
+TEST(WeakMultimap_Tests, AWalkOfAnEqualRangeEndsWithTheRunWhenItsBoundIsSwept) {
+    settle();
+    weak_multimap<Node, int> tags;
+    tracked_ptr<Node> a, b;
+    bool arranged = false;
+    for (int attempt = 0; attempt < 64 && !arranged; ++attempt) {
+        tags.clear();
+        off_frame([&] {
+            a = make_tracked<Node>(1);
+            tracked_ptr dropped = make_tracked<Node>(2);
+            b = make_tracked<Node>(3);
+            tags.insert(a, 1);
+            tags.insert(a, 2);
+            tags.insert(dropped, 3);
+            tags.insert(b, 4);
+            auto after_b = std::next(tags.find(b));
+            arranged = after_b != tags.end() && after_b->key == dropped;
+        });
+    }
+    ASSERT_TRUE(arranged);
+    settle();
+    auto [first, last] = tags.equal_range(b);
+    EXPECT_EQ(tags.sweep(), 1u);           // the bound's entry goes
+    int walked = 0;
+    for (; first != last && walked < 8; ++first) {
+        EXPECT_EQ(first->key, b);
+        ++walked;
+        if (std::next(first) == tags.end() && std::next(first) != last) {
+            ++walked;
+            break;                         // ran off the chain: the walk passed its end
+        }
+    }
+    EXPECT_EQ(walked, 1);
+
+    // a const container gives the same range
+    const auto& constant = tags;
+    auto [cfirst, clast] = constant.equal_range(a);
+    static_assert(std::is_same_v<decltype(cfirst), weak_multimap<Node, int>::const_iterator>);
+    int values = 0;
+    for (; cfirst != clast; ++cfirst) {
+        values += cfirst->value;
+    }
+    EXPECT_EQ(values, 3);
+}
+
 namespace {
     // A value whose constructions are counted: on a hit none is built,
     // on a miss it is built in place from the arguments
@@ -460,4 +519,86 @@ TEST(WeakMap_Tests, AConstContainerIsWalkedAndSearched) {
     }
     EXPECT_EQ(seen, 1);
     EXPECT_EQ(*cs.find(a), a);
+}
+
+// Boundaries (DESIGN 408)
+
+// A weak container moved from (by construction and assignment) and a
+// default one: empty, every member working, sweep and clear of nothing,
+// taking entries again; an assignment of one to itself by a move
+TEST(WeakMap_Tests, MovedFromAndEmptyWorkAsEmpty) {
+    tracked_ptr<Node> a = make_tracked<Node>(1);
+    weak_map<Node, int> m;
+    EXPECT_EQ(m.sweep(), 0u);
+    m.clear();
+    m[a] = 1;
+    weak_map<Node, int> to(std::move(m));
+    EXPECT_EQ(to.size(), 1u);
+    EXPECT_TRUE(m.empty());
+    EXPECT_EQ(m.size(), 0u);
+    EXPECT_TRUE(m.begin() == m.end());
+    EXPECT_TRUE(m.find(a) == m.end());
+    EXPECT_FALSE(m.contains(a));
+    EXPECT_EQ(m.erase(a), 0u);
+    EXPECT_EQ(m.sweep(), 0u);
+    m.clear();
+    m[a] = 2;
+    EXPECT_EQ(m.find(a)->value, 2);
+    m = std::move(to);
+    EXPECT_EQ(m.find(a)->value, 1);
+    EXPECT_TRUE(to.empty());
+    auto& self = m;
+    m = std::move(self);
+    EXPECT_EQ(m.size(), 1u);
+    EXPECT_EQ(m.find(a)->value, 1);
+
+    weak_set<Node> s;
+    s.insert(a);
+    weak_set<Node> s2(std::move(s));
+    EXPECT_TRUE(s.empty());
+    EXPECT_FALSE(s.contains(a));
+    EXPECT_TRUE(s.insert(a).second);
+    weak_multimap<Node, int> mm;
+    mm.emplace(a, 1);
+    weak_multimap<Node, int> mm2(std::move(mm));
+    EXPECT_TRUE(mm.empty());
+    auto [first, last] = mm.equal_range(a);
+    EXPECT_TRUE(first == last);
+    EXPECT_EQ(mm.erase(a), 0u);
+}
+
+// The map's own value as the argument: insert_or_assign of the value under
+// the key, an insertion and an emplace of a key that is there (nothing
+// built, the value kept); one entry erased through its iterator back to an
+// empty map; a weak_multimap's run of one object erased whole by it
+TEST(WeakMap_Tests, ItsOwnValueAndOneEntry) {
+    tracked_ptr<Node> a = make_tracked<Node>(1);
+    tracked_ptr<Node> b = make_tracked<Node>(2);
+    weak_map<Node, std::string> m;
+    m[a] = "long enough to live on the heap";
+    auto it = m.find(a);
+    EXPECT_FALSE(m.insert_or_assign(a, it->value).second);
+    EXPECT_FALSE(m.insert(a, it->value).second);
+    EXPECT_FALSE(m.emplace(a, it->value).second);
+    EXPECT_EQ(m.find(a)->value, "long enough to live on the heap");
+    EXPECT_TRUE(m.erase(m.find(a)) == m.end());
+    EXPECT_TRUE(m.empty());
+    weak_multimap<Node, int> mm;
+    for (int i = 0; i < 3; ++i) {
+        mm.emplace(a, i);
+        mm.emplace(b, i);
+    }
+    for (int i = 0; i < 20; ++i) {   // across the growths of the table
+        mm.emplace(a, 10 + i);
+    }
+    EXPECT_EQ(mm.count(a), 23u);
+    EXPECT_EQ(mm.erase(a), 23u);
+    EXPECT_EQ(mm.count(a), 0u);
+    EXPECT_EQ(mm.count(b), 3u);
+    weak_set<Node> s;
+    EXPECT_TRUE(s.insert(a).second);
+    EXPECT_FALSE(s.insert(a).second);
+    EXPECT_EQ(s.erase(a), 1u);
+    EXPECT_EQ(s.erase(a), 0u);
+    EXPECT_TRUE(s.empty());
 }

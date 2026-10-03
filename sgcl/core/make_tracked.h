@@ -9,8 +9,11 @@
 #include "unique_ptr.h"
 
 namespace sgcl {
+    // noexcept as far as the allocation goes: running out of managed
+    // memory ends the program (detail/page_allocator.h, object_allocator.h); only
+    // T's constructor may throw
     template<class T, class ...A>
-    auto make_tracked(A&&... a) {
+    auto make_tracked(A&&... a) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, A...>) {
         static_assert(!std::is_array_v<T>, "Managed arrays are not a public type; use sgcl::vector");
         static_assert(!std::is_void_v<T>, "Cannot create an object of type void");
         static_assert(sizeof(detail::Array<sizeof(T)>) <= detail::PageDataSize, "Object is too large");

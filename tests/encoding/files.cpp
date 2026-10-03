@@ -7,7 +7,8 @@
 // file saved holds what stringify (or to_string) writes, with a new line
 // after it, and loads back to the same value; a file that does not open is
 // errc::io with io's error inside; a text that does not parse is parse's
-// error.
+// error. The errors of a file of json, xml and csv that does not open,
+// read or write have no place; the errors of its text keep theirs.
 #include "tests/types.h"
 
 #include <filesystem>
@@ -97,4 +98,60 @@ TEST(EncodingFiles_Tests, JsonTasks) {
     }(string(s.dir));
     EXPECT_TRUE(t.wait());
     EXPECT_EQ(text_of(s / "a.json"), text_of(s / "b.json"));
+}
+
+// An error that did not come from the text has no place: a file that does
+// not open, cannot be read or written says the stream's error alone, not
+// "offset 0"; an error of the text keeps its line and column
+TEST(EncodingFiles_Tests, ErrorsOutsideTheTextHaveNoPlace) {
+    using encoding::csv;
+    using encoding::xml;
+    Scratch s;
+    auto placeless = [](const encoding::error& e) {
+        auto m = std::string(e.message().view());
+        EXPECT_EQ(e.code(), encoding::errc::io) << m;
+        EXPECT_TRUE(e.io_error()) << m;
+        EXPECT_EQ(e.offset(), 0u) << m;
+        EXPECT_EQ(e.line(), 0u) << m;
+        EXPECT_EQ(e.column(), 0u) << m;
+        EXPECT_EQ(m.rfind("input/output error: ", 0), 0u) << m;
+    };
+
+    // open
+    placeless(json::load(s / "none.json").error());
+    placeless(json::load<server>(s / "none.json").error());
+    placeless(xml::load(s / "none.xml").error());
+    placeless(xml::load<server>(s / "none.xml").error());
+    placeless(csv::load<server>(s / "none.csv").error());
+
+    // read: a directory opens and does not read
+    std::filesystem::create_directories(s.dir + "/dir");
+    auto dir = s / "dir";
+    if (io::open(dir)) {
+        placeless(json::load(dir).error());
+        placeless(json::load<server>(dir).error());
+        placeless(xml::load(dir).error());
+        placeless(xml::load<server>(dir).error());
+        placeless(csv::load<server>(dir).error());
+    }
+
+    // write: a file in a directory that is not there
+    server cfg;
+    placeless(json::save(s / "no/cfg.json", cfg).error());
+    placeless(json(1).save(s / "no/cfg.json").error());
+    placeless(xml::save(s / "no/cfg.xml", "server", cfg).error());
+    placeless(xml::text_node("t").save(s / "no/cfg.xml").error());
+    placeless(csv::save(s / "no/cfg.csv", vector<server>{cfg}).error());
+
+    // the text's own errors keep their place
+    ASSERT_TRUE(io::write_file(s / "bad.json", string("{\"host\": ")));
+    EXPECT_EQ(std::string(json::load(s / "bad.json").error().message().view()), "1:10: unexpected end of input, expected a value");
+    ASSERT_TRUE(io::write_file(s / "bad.xml", string("<a>\n<b></a>")));
+    auto x = xml::load(s / "bad.xml");
+    ASSERT_FALSE(x);
+    EXPECT_EQ(x.error().line(), 2u);
+    ASSERT_TRUE(io::write_file(s / "bad.csv", string("host,port,tls\nexample.com,x\"y,true\n")));
+    auto c = csv::load<server>(s / "bad.csv");
+    ASSERT_FALSE(c);
+    EXPECT_EQ(c.error().line(), 2u);
 }

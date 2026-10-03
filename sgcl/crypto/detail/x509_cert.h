@@ -17,6 +17,7 @@
 #include "../rsa.h"
 #include "../../core/aliases.h"
 #include "../../core/array.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/expected.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
@@ -322,15 +323,15 @@ namespace sgcl::crypto::x509::detail {
     struct CertParser {
         CertData& c;
 
-        static error fail(size_t at, const char* what) {
+        static error fail(size_t at, const char* what) noexcept {
             return error(errc::malformed, uint64_t(at), string(std::string("sgcl::crypto::x509: ") + what));
         }
 
-        static string text(const DerReader& r) {
+        static string text(const DerReader& r) noexcept {
             return string(std::string(reinterpret_cast<const char*>(r.data()), r.size()));
         }
 
-        static vector<byte> copy(const unsigned char* p, size_t n) {
+        static vector<byte> copy(const unsigned char* p, size_t n) noexcept {
             const byte* b = reinterpret_cast<const byte*>(p);
             return vector<byte>(b, b + n);
         }
@@ -339,7 +340,7 @@ namespace sgcl::crypto::x509::detail {
             return size_t(r.data() - c.bytes_at(0));
         }
 
-        expected<void, error> run() {
+        expected<void, error> run() noexcept {
             if (c.raw.size() > max_certificate_size) {
                 return unexpected<error>(fail(0, "a certificate larger than 128 KiB"));
             }
@@ -482,7 +483,7 @@ namespace sgcl::crypto::x509::detail {
         // RSA PKCS #1 v1.5 and ECDSA with NULL or no parameters, Ed25519
         // with none, RSA-PSS with the parameters Go takes: MGF1 over the
         // same hash, the salt as long as the hash, the trailer 1
-        expected<void, error> signature_algorithm_of(DerReader alg) {
+        expected<void, error> signature_algorithm_of(DerReader alg) noexcept {
             DerReader o;
             if (!alg.read_oid(o)) {
                 return unexpected<error>(fail(alg.offset(), "a malformed signature algorithm OID"));
@@ -523,7 +524,7 @@ namespace sgcl::crypto::x509::detail {
         }
 
         // RSASSA-PSS-params (RFC 4055 §3.1) in one of Go's three buckets
-        static signature_algorithm pss_of(DerReader alg) {
+        static signature_algorithm pss_of(DerReader alg) noexcept {
             DerReader seq;
             if (!alg.read(der::sequence, seq) || !alg.empty()) {
                 return signature_algorithm::unknown;
@@ -569,7 +570,7 @@ namespace sgcl::crypto::x509::detail {
         // AlgorithmIdentifier and a BIT STRING); the key it holds becomes
         // one of the module's types when the algorithm is one of them and
         // the type takes it, else none, the certificate still read
-        expected<void, error> public_key_of(DerReader el, size_t at) {
+        expected<void, error> public_key_of(DerReader el, size_t at) noexcept {
             DerReader spki, alg, o;
             const unsigned char* kp;
             size_t kn;
@@ -617,7 +618,7 @@ namespace sgcl::crypto::x509::detail {
             return {};
         }
 
-        expected<void, error> extensions_of(DerReader list) {
+        expected<void, error> extensions_of(DerReader list) noexcept {
             size_t count = 0;
             while (!list.empty()) {
                 size_t at = list.offset();
@@ -656,7 +657,7 @@ namespace sgcl::crypto::x509::detail {
             return {};
         }
 
-        expected<void, error> extension_of(const DerReader& o, bool critical, DerReader value, bool& unhandled) {
+        expected<void, error> extension_of(const DerReader& o, bool critical, DerReader value, bool& unhandled) noexcept {
             size_t at = value.offset();
             static constexpr unsigned char ce[] = {0x55, 0x1d};   // 2.5.29
             if (o.size() == 3 && std::memcmp(o.data(), ce, 2) == 0) {
@@ -775,7 +776,7 @@ namespace sgcl::crypto::x509::detail {
 
         // A SEQUENCE of SEQUENCEs, each well formed: what an extension
         // read and not used must be to be taken
-        expected<void, error> sequence_of_sequences(DerReader value, const char* what) {
+        expected<void, error> sequence_of_sequences(DerReader value, const char* what) noexcept {
             size_t at = value.offset();
             DerReader seq;
             if (!value.read(der::sequence, seq) || !value.empty()) {
@@ -790,7 +791,7 @@ namespace sgcl::crypto::x509::detail {
             return {};
         }
 
-        expected<void, error> san_of(DerReader value) {
+        expected<void, error> san_of(DerReader value) noexcept {
             size_t at = value.offset();
             DerReader seq;
             if (!value.read(der::sequence, seq) || !value.empty()) {
@@ -842,7 +843,7 @@ namespace sgcl::crypto::x509::detail {
                             std::memcpy(a.bytes.data(), gn.data() + 12, 4);
                             a.size = 4;
                         } else {
-                            std::memcpy(a.bytes.data(), gn.data(), gn.size());
+                            sgcl::detail::copy_bytes(a.bytes.data(), gn.data(), gn.size());
                             a.size = uint8_t(gn.size());
                         }
                         c.ip_addresses.push_back(a);
@@ -855,7 +856,7 @@ namespace sgcl::crypto::x509::detail {
             return {};
         }
 
-        expected<void, error> ext_key_usage_of(DerReader value) {
+        expected<void, error> ext_key_usage_of(DerReader value) noexcept {
             size_t at = value.offset();
             DerReader seq;
             if (!value.read(der::sequence, seq) || !value.empty()) {
@@ -892,7 +893,7 @@ namespace sgcl::crypto::x509::detail {
             return {};
         }
 
-        expected<void, error> policies_of(DerReader value) {
+        expected<void, error> policies_of(DerReader value) noexcept {
             size_t at = value.offset();
             DerReader seq;
             if (!value.read(der::sequence, seq) || !value.empty()) {
@@ -925,7 +926,7 @@ namespace sgcl::crypto::x509::detail {
         // each checked as Go checks it; a subtree of another kind
         // (directoryName, otherName) makes the extension unhandled, refused
         // where it is critical
-        expected<void, error> name_constraints_of(DerReader value, bool critical, bool& unhandled) {
+        expected<void, error> name_constraints_of(DerReader value, bool critical, bool& unhandled) noexcept {
             (void)critical;
             size_t at = value.offset();
             DerReader seq, permitted, excluded;
@@ -983,8 +984,8 @@ namespace sgcl::crypto::x509::detail {
                                 return unexpected<error>(fail(sat, "an IP constraint of an IPv4-mapped IPv6 address"));
                             }
                             ip_range r;
-                            std::memcpy(r.address.bytes.data(), p, half);
-                            std::memcpy(r.mask.bytes.data(), p + half, half);
+                            sgcl::detail::copy_bytes(r.address.bytes.data(), p, half);
+                            sgcl::detail::copy_bytes(r.mask.bytes.data(), p + half, half);
                             r.address.size = r.mask.size = uint8_t(half);
                             ips.push_back(r);
                             break;

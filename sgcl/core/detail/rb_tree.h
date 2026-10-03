@@ -9,6 +9,7 @@
 #include "../make_tracked.h"
 #include "../tracked_ptr.h"
 #include "anchor.h"
+#include "nothrow_function.h"
 #include "../mixin/mixin.h"
 #include "transparent.h"
 
@@ -501,6 +502,14 @@ namespace sgcl::detail {
             return this->_value().second;
         }
 
+        void swap(MapNodeHandle& other) noexcept {
+            this->_node.swap(other._node);
+        }
+
+        friend void swap(MapNodeHandle& lhs, MapNodeHandle& rhs) noexcept {
+            lhs.swap(rhs);
+        }
+
     private:
         explicit MapNodeHandle(RbNodeBase* node) noexcept
         : Base(node) {
@@ -523,6 +532,14 @@ namespace sgcl::detail {
             return this->_value();
         }
 
+        void swap(SetNodeHandle& other) noexcept {
+            this->_node.swap(other._node);
+        }
+
+        friend void swap(SetNodeHandle& lhs, SetNodeHandle& rhs) noexcept {
+            lhs.swap(rhs);
+        }
+
     private:
         explicit SetNodeHandle(RbNodeBase* node) noexcept
         : Base(node) {
@@ -543,14 +560,14 @@ namespace sgcl::detail {
     public:
         using value_type = std::pair<const Key, T>;
 
-        bool operator()(const value_type& lhs, const value_type& rhs) const {
+        bool operator()(const value_type& lhs, const value_type& rhs) const noexcept {
             return comp(lhs.first, rhs.first);
         }
 
     protected:
         Compare comp;
 
-        MapValueCompare(Compare c)
+        MapValueCompare(Compare c) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
         : comp(c) {
         }
 
@@ -610,9 +627,9 @@ namespace sgcl::detail {
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
         using node_type = typename Traits::node_type;
 
-        static constexpr bool Multi = Traits::multi;
-
     protected:
+        static constexpr bool Multi = Traits::multi;   // equivalent keys allowed: sorted_multimap, sorted_multiset
+
         using NodeBase = RbNodeBase;
         using Node = RbNode<value_type>;
         using Ptr = RbPtr;
@@ -633,7 +650,7 @@ namespace sgcl::detail {
         : _comp() {
         }
 
-        explicit RbTree(const key_compare& comp)
+        explicit RbTree(const key_compare& comp) noexcept(std::is_nothrow_copy_constructible_v<key_compare>)
         : _comp(comp) {
         }
 
@@ -694,11 +711,11 @@ namespace sgcl::detail {
             return *this;
         }
 
-        key_compare key_comp() const {
+        key_compare key_comp() const noexcept(std::is_nothrow_copy_constructible_v<key_compare>) {
             return _comp;
         }
 
-        value_compare value_comp() const {
+        value_compare value_comp() const noexcept(std::is_nothrow_copy_constructible_v<key_compare>) {
             return value_compare(_comp);
         }
 
@@ -773,19 +790,19 @@ namespace sgcl::detail {
             }
         }
 
-        insert_result insert(const value_type& value) {
+        insert_result insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _insert(value);
         }
 
-        insert_result insert(value_type&& value) {
+        insert_result insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _insert(std::move(value));
         }
 
-        iterator insert(const_iterator hint, const value_type& value) {
+        iterator insert(const_iterator hint, const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _insert_hint(hint._node, value);
         }
 
-        iterator insert(const_iterator hint, value_type&& value) {
+        iterator insert(const_iterator hint, value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _insert_hint(hint._node, std::move(value));
         }
 
@@ -818,7 +835,7 @@ namespace sgcl::detail {
 
         // Unique trees: {position, inserted, node}; the handle keeps the
         // node when an equivalent key is already there.
-        insert_result_node insert(node_type&& nh) {
+        insert_result_node insert(node_type&& nh) noexcept {
             if constexpr (Multi) {
                 if (nh.empty()) {
                     return end();
@@ -850,7 +867,7 @@ namespace sgcl::detail {
             }
         }
 
-        iterator insert(const_iterator hint, node_type&& nh) {
+        iterator insert(const_iterator hint, node_type&& nh) noexcept {
             if (nh.empty()) {
                 return end();
             }
@@ -865,22 +882,15 @@ namespace sgcl::detail {
             return iterator(n);
         }
 
-        // The element is built before its place is known, as in std; a
-        // comparator that throws destroys it again.
+        // The element is built before its place is known, as in std; the
+        // comparator is noexcept, so only that construction may throw.
         template<class... A>
-        insert_result emplace(A&&... a) {
+        insert_result emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A&&...>) {
             _ensure_header();
             Ptr n = make_tracked<Node>();
             Node* node = _node(n.get());
             node->slot.construct(std::forward<A>(a)...);
-            InsertPos pos;
-            try {
-                pos = _pos(_key(n.get()));
-            }
-            catch (...) {
-                node->slot.destroy();
-                throw;
-            }
+            InsertPos pos = _pos(_key(n.get()));
             if constexpr (!Multi) {
                 if (pos.existing) {
                     node->slot.destroy();
@@ -892,25 +902,25 @@ namespace sgcl::detail {
         }
 
         template<class... A>
-        iterator emplace_hint(const_iterator hint, A&&... a) {
+        iterator emplace_hint(const_iterator hint, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A&&...>) {
             _ensure_header();
             return _emplace_hint(hint._node, std::forward<A>(a)...);
         }
 
         // The node is held by _erase_node while it is unlinked and cleared;
         // next stays linked, so the tree roots it.
-        iterator erase(const_iterator pos) {
+        iterator erase(const_iterator pos) noexcept {
             NodeBase* n = pos._node;
             NodeBase* next = rb_increment(n);
             _erase_node(n);
             return iterator(next);
         }
 
-        iterator erase(iterator pos) requires (!std::is_same_v<iterator, const_iterator>) {
+        iterator erase(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
             return erase(const_iterator(pos));
         }
 
-        iterator erase(const_iterator first, const_iterator last) {
+        iterator erase(const_iterator first, const_iterator last) noexcept {
             if (first == begin() && last == end()) {
                 clear();
             } else {
@@ -921,23 +931,16 @@ namespace sgcl::detail {
             return iterator(last._node);
         }
 
-        size_type erase(const key_type& key) {
-            if (!_header) {
-                return 0;
-            }
-            if constexpr (Multi) {
-                auto [first, last] = _equal_range(key);
-                size_type old_size = _size;
-                erase(const_iterator(first), const_iterator(last));
-                return old_size - _size;
-            } else {
-                NodeBase* n = _find(key);
-                if (n == _hdr()) {
-                    return 0;
-                }
-                _erase_node(n);
-                return 1;
-            }
+        size_type erase(const key_type& key) noexcept {
+            return _erase_key(key);
+        }
+
+        // By a key of another type, where the comparator is transparent, as
+        // the lookups (C++23's); an iterator is never taken for a key
+        template<class K> requires TransparentCompare<key_compare>
+            && (!std::is_convertible_v<K&&, iterator>) && (!std::is_convertible_v<K&&, const_iterator>)
+        size_type erase(K&& key) noexcept(_nothrow_compare<std::remove_cvref_t<K>>()) {
+            return _erase_key(key);
         }
 
         void swap(RbTree& other) noexcept(std::is_nothrow_swappable_v<key_compare>) {
@@ -947,7 +950,7 @@ namespace sgcl::detail {
             swap(_comp, other._comp);
         }
 
-        node_type extract(const_iterator pos) {
+        node_type extract(const_iterator pos) noexcept {
             NodeBase* n = pos._node;
             Anchor keep(n);   // rooted from the unlinking until the handle holds it
             rb_rebalance_for_erase(n, _hdr());
@@ -956,22 +959,24 @@ namespace sgcl::detail {
             return node_type(n);
         }
 
-        node_type extract(iterator pos) requires (!std::is_same_v<iterator, const_iterator>) {
+        node_type extract(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
             return extract(const_iterator(pos));
         }
 
-        node_type extract(const key_type& key) {
-            const_iterator it = find(key);
-            if (it == end()) {
-                return node_type();
-            }
-            return extract(it);
+        node_type extract(const key_type& key) noexcept {
+            return _extract_key(key);
+        }
+
+        template<class K> requires TransparentCompare<key_compare>
+            && (!std::is_convertible_v<K&&, iterator>) && (!std::is_convertible_v<K&&, const_iterator>)
+        node_type extract(K&& key) noexcept(_nothrow_compare<std::remove_cvref_t<K>>()) {
+            return _extract_key(key);
         }
 
         // Relinks the source's nodes whose keys fit (all of them, for a
         // multi tree); the rest stay in the source.
         template<class Traits2>
-        void merge(RbTree<Traits2>& source) requires (std::is_same_v<typename Traits2::key_type, key_type> && std::is_same_v<typename Traits2::value_type, value_type>) {
+        void merge(RbTree<Traits2>& source) noexcept requires (std::is_same_v<typename Traits2::key_type, key_type> && std::is_same_v<typename Traits2::value_type, value_type>) {
             if constexpr (std::is_same_v<Traits2, Traits>) {
                 if (this == &source) {
                     return;
@@ -997,101 +1002,101 @@ namespace sgcl::detail {
         }
 
         template<class Traits2>
-        void merge(RbTree<Traits2>&& source) requires (std::is_same_v<typename Traits2::key_type, key_type> && std::is_same_v<typename Traits2::value_type, value_type>) {
+        void merge(RbTree<Traits2>&& source) noexcept requires (std::is_same_v<typename Traits2::key_type, key_type> && std::is_same_v<typename Traits2::value_type, value_type>) {
             merge(source);
         }
 
-        size_type count(const key_type& key) const {
+        size_type count(const key_type& key) const noexcept {
             return _count(key);
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        size_type count(const K& key) const {
+        size_type count(const K& key) const noexcept(_nothrow_compare<K>()) {
             return _count(key);
         }
 
-        iterator find(const key_type& key) {
+        iterator find(const key_type& key) noexcept {
             return iterator(_find(key));
         }
 
-        const_iterator find(const key_type& key) const {
+        const_iterator find(const key_type& key) const noexcept {
             return const_iterator(_find(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        iterator find(const K& key) {
+        iterator find(const K& key) noexcept(_nothrow_compare<K>()) {
             return iterator(_find(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        const_iterator find(const K& key) const {
+        const_iterator find(const K& key) const noexcept(_nothrow_compare<K>()) {
             return const_iterator(_find(key));
         }
 
-        bool contains(const key_type& key) const {
+        bool contains(const key_type& key) const noexcept {
             return _header && _find(key) != _hdr();
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        bool contains(const K& key) const {
+        bool contains(const K& key) const noexcept(_nothrow_compare<K>()) {
             return _header && _find(key) != _hdr();
         }
 
-        std::pair<iterator, iterator> equal_range(const key_type& key) {
+        std::pair<iterator, iterator> equal_range(const key_type& key) noexcept {
             auto [first, last] = _equal_range(key);
             return {iterator(first), iterator(last)};
         }
 
-        std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const {
+        std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const noexcept {
             auto [first, last] = _equal_range(key);
             return {const_iterator(first), const_iterator(last)};
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        std::pair<iterator, iterator> equal_range(const K& key) {
+        std::pair<iterator, iterator> equal_range(const K& key) noexcept(_nothrow_compare<K>()) {
             auto [first, last] = _equal_range(key);
             return {iterator(first), iterator(last)};
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        std::pair<const_iterator, const_iterator> equal_range(const K& key) const {
+        std::pair<const_iterator, const_iterator> equal_range(const K& key) const noexcept(_nothrow_compare<K>()) {
             auto [first, last] = _equal_range(key);
             return {const_iterator(first), const_iterator(last)};
         }
 
-        iterator lower_bound(const key_type& key) {
+        iterator lower_bound(const key_type& key) noexcept {
             return iterator(_lower_bound(key));
         }
 
-        const_iterator lower_bound(const key_type& key) const {
+        const_iterator lower_bound(const key_type& key) const noexcept {
             return const_iterator(_lower_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        iterator lower_bound(const K& key) {
+        iterator lower_bound(const K& key) noexcept(_nothrow_compare<K>()) {
             return iterator(_lower_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        const_iterator lower_bound(const K& key) const {
+        const_iterator lower_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             return const_iterator(_lower_bound(key));
         }
 
-        iterator upper_bound(const key_type& key) {
+        iterator upper_bound(const key_type& key) noexcept {
             return iterator(_upper_bound(key));
         }
 
-        const_iterator upper_bound(const key_type& key) const {
+        const_iterator upper_bound(const key_type& key) const noexcept {
             return const_iterator(_upper_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        iterator upper_bound(const K& key) {
+        iterator upper_bound(const K& key) noexcept(_nothrow_compare<K>()) {
             return iterator(_upper_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        const_iterator upper_bound(const K& key) const {
+        const_iterator upper_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             return const_iterator(_upper_bound(key));
         }
 
@@ -1150,6 +1155,18 @@ namespace sgcl::detail {
         size_t _size = 0;
         [[no_unique_address]] key_compare _comp;
 
+        // A comparison with K: the comparator is required noexcept for the
+        // key type (the containers' static_asserts); a transparent one with
+        // another type is as noexcept as its calls with it
+        template<class K>
+        static constexpr bool _nothrow_compare() noexcept {
+            if constexpr(std::is_same_v<K, key_type>) {
+                return true;
+            } else {
+                return nothrow_function_object<const key_compare, const K&, const key_type&> && nothrow_function_object<const key_compare, const key_type&, const K&>;
+            }
+        }
+
         NodeBase* _hdr() const noexcept {
             return _header.get();
         }
@@ -1182,7 +1199,7 @@ namespace sgcl::detail {
         // The header node, made on the first insertion (an empty tree
         // holds nothing): red, so that it is never taken for a black node
         // by the rebalancing, its extremes itself
-        void _ensure_header() {
+        void _ensure_header() noexcept {
             if (!_header) {
                 _header = make_tracked<NodeBase>();
                 NodeBase* h = _hdr();
@@ -1311,7 +1328,7 @@ namespace sgcl::detail {
 
         // A new node for the value built from a, linked at pos.
         template<class... A>
-        iterator _insert_at(const InsertPos& pos, A&&... a) {
+        iterator _insert_at(const InsertPos& pos, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A&&...>) {
             auto n = make_tracked<Node>();   // rooted by its state (UniqueLock) and by this frame until it is linked
             _node(n.get())->slot.construct(std::forward<A>(a)...);
             // shared from here: out of the unique state before the links to
@@ -1328,7 +1345,7 @@ namespace sgcl::detail {
         // the key (with the hint tried first, for the hinted forms), a node
         // made and linked unless an equivalent key exists in a unique tree
         template<class Arg>
-        insert_result _insert(Arg&& value) {
+        insert_result _insert(Arg&& value) noexcept(std::is_nothrow_constructible_v<value_type, Arg&&>) {
             _ensure_header();
             InsertPos pos = _pos(Traits::key(value));
             if constexpr (!Multi) {
@@ -1340,7 +1357,7 @@ namespace sgcl::detail {
         }
 
         template<class Arg>
-        iterator _insert_hint(NodeBase* hint, Arg&& value) {
+        iterator _insert_hint(NodeBase* hint, Arg&& value) noexcept(std::is_nothrow_constructible_v<value_type, Arg&&>) {
             _ensure_header();
             InsertPos pos = _hint_pos(hint, Traits::key(value));
             if (pos.existing) {
@@ -1350,22 +1367,15 @@ namespace sgcl::detail {
         }
 
         // The element built from a... before its place is known, as in
-        // std; a comparator that throws, or an equivalent key found,
-        // destroys it again (emplace_hint, and the range forms of insert
-        // for a range of another type). The header exists.
+        // std; an equivalent key found destroys it again (emplace_hint,
+        // and the range forms of insert for a range of another type). The
+        // header exists.
         template<class... A>
-        iterator _emplace_hint(NodeBase* hint, A&&... a) {
+        iterator _emplace_hint(NodeBase* hint, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A&&...>) {
             Ptr n = make_tracked<Node>();
             Node* node = _node(n.get());
             node->slot.construct(std::forward<A>(a)...);
-            InsertPos pos;
-            try {
-                pos = _hint_pos(hint, _key(n.get()));
-            }
-            catch (...) {
-                node->slot.destroy();
-                throw;
-            }
+            InsertPos pos = _hint_pos(hint, _key(n.get()));
             if (pos.existing) {
                 node->slot.destroy();
                 return iterator(pos.existing);
@@ -1374,8 +1384,42 @@ namespace sgcl::detail {
             return iterator(n.get());
         }
 
+        // Every element equivalent to the key (a unique tree: the one)
         template<class K>
-        InsertPos _pos(const K& key) const {
+        size_type _erase_key(const K& key) noexcept(_nothrow_compare<K>()) {
+            if (!_header) {
+                return 0;
+            }
+            if constexpr (Multi) {
+                auto [first, last] = _equal_range(key);
+                size_type old_size = _size;
+                erase(const_iterator(first), const_iterator(last));
+                return old_size - _size;
+            } else {
+                NodeBase* n = _find(key);
+                if (n == _hdr()) {
+                    return 0;
+                }
+                _erase_node(n);
+                return 1;
+            }
+        }
+
+        // The first element equivalent to the key, as find gives it
+        template<class K>
+        node_type _extract_key(const K& key) noexcept(_nothrow_compare<K>()) {
+            if (!_header) {
+                return node_type();
+            }
+            NodeBase* n = _find(key);
+            if (n == _hdr()) {
+                return node_type();
+            }
+            return extract(const_iterator(n));
+        }
+
+        template<class K>
+        InsertPos _pos(const K& key) const noexcept(_nothrow_compare<K>()) {
             if constexpr (Multi) {
                 return _equal_pos(key);
             } else {
@@ -1384,7 +1428,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        InsertPos _hint_pos(NodeBase* hint, const K& key) const {
+        InsertPos _hint_pos(NodeBase* hint, const K& key) const noexcept(_nothrow_compare<K>()) {
             if constexpr (Multi) {
                 return _equal_hint_pos(hint, key);
             } else {
@@ -1398,7 +1442,7 @@ namespace sgcl::detail {
         // last equivalent key (_equal_lower_pos: before the first); with a
         // hint, the hint's neighbourhood checked before a search
         template<class K>
-        InsertPos _unique_pos(const K& key) const {
+        InsertPos _unique_pos(const K& key) const noexcept(_nothrow_compare<K>()) {
             NodeBase* x = _root();
             NodeBase* y = _hdr();
             bool comp = true;
@@ -1424,7 +1468,7 @@ namespace sgcl::detail {
 
         // Equivalent keys go after the ones already there.
         template<class K>
-        InsertPos _equal_pos(const K& key) const {
+        InsertPos _equal_pos(const K& key) const noexcept(_nothrow_compare<K>()) {
             NodeBase* x = _root();
             NodeBase* y = _hdr();
             bool left = true;
@@ -1439,7 +1483,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        InsertPos _equal_lower_pos(const K& key) const {
+        InsertPos _equal_lower_pos(const K& key) const noexcept(_nothrow_compare<K>()) {
             NodeBase* x = _root();
             NodeBase* y = _hdr();
             bool left = true;
@@ -1456,7 +1500,7 @@ namespace sgcl::detail {
         // A hint is used when the key belongs right before it; an append
         // in sorted order at end() costs one comparison.
         template<class K>
-        InsertPos _unique_hint_pos(NodeBase* pos, const K& key) const {
+        InsertPos _unique_hint_pos(NodeBase* pos, const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!pos || pos == _hdr()) {
                 if (_size > 0 && _comp(_key(_rightmost()), key)) {
                     return {_rightmost(), false, nullptr};
@@ -1491,7 +1535,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        InsertPos _equal_hint_pos(NodeBase* pos, const K& key) const {
+        InsertPos _equal_hint_pos(NodeBase* pos, const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!pos || pos == _hdr()) {
                 if (_size > 0 && !_comp(key, _key(_rightmost()))) {
                     return {_rightmost(), false, nullptr};
@@ -1528,7 +1572,7 @@ namespace sgcl::detail {
         // greater, the node equal to it, the range of the equivalent ones,
         // their count; from a subtree x with y the answer so far
         template<class K>
-        NodeBase* _lower_bound_from(NodeBase* x, NodeBase* y, const K& key) const {
+        NodeBase* _lower_bound_from(NodeBase* x, NodeBase* y, const K& key) const noexcept(_nothrow_compare<K>()) {
             while (x) {
                 auto l = x->left.get();
                 auto r = x->right.get();
@@ -1540,7 +1584,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _upper_bound_from(NodeBase* x, NodeBase* y, const K& key) const {
+        NodeBase* _upper_bound_from(NodeBase* x, NodeBase* y, const K& key) const noexcept(_nothrow_compare<K>()) {
             while (x) {
                 auto l = x->left.get();
                 auto r = x->right.get();
@@ -1552,7 +1596,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _lower_bound(const K& key) const {
+        NodeBase* _lower_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return nullptr;
             }
@@ -1560,7 +1604,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _upper_bound(const K& key) const {
+        NodeBase* _upper_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return nullptr;
             }
@@ -1568,7 +1612,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _find(const K& key) const {
+        NodeBase* _find(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return nullptr;
             }
@@ -1578,7 +1622,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        std::pair<NodeBase*, NodeBase*> _equal_range(const K& key) const {
+        std::pair<NodeBase*, NodeBase*> _equal_range(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return {nullptr, nullptr};
             }
@@ -1606,7 +1650,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        size_type _count(const K& key) const {
+        size_type _count(const K& key) const noexcept(_nothrow_compare<K>()) {
             if constexpr (Multi) {
                 auto [first, last] = _equal_range(key);
                 size_type n = 0;

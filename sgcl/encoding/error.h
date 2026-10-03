@@ -50,7 +50,7 @@ namespace sgcl::encoding {
                 return "encoding";
             }
 
-            std::string message(int c) const override {
+            std::string message(int c) const noexcept override {
                 switch (static_cast<errc>(c)) {
                     case errc::syntax: return "syntax error";
                     case errc::unexpected_end: return "unexpected end of input";
@@ -89,7 +89,12 @@ template<>
 struct std::is_error_code_enum<sgcl::encoding::errc> : std::true_type {};
 
 namespace sgcl::encoding {
-    namespace detail { using namespace sgcl::detail; }
+    namespace detail {
+        using namespace sgcl::detail;
+
+        struct ErrorAccess;
+    }
+
     // The error of every format of the module, one type under each
     // format's name (base64::error, pem::error, later json::error and
     // csv::error): the code, the byte of the input where it was found,
@@ -101,20 +106,24 @@ namespace sgcl::encoding {
     // A position costs nothing until something fails. The offset is what
     // a decoder has anyway; the line and the column are counted from the
     // text after the fact, on the path of the error alone (locate), so
-    // that a decoding that succeeds never counts a line ending.
+    // that a decoding that succeeds never counts a line ending. An error
+    // that did not come from an input text has no place at all: a value
+    // written, a tree read into a type, a mistake of the calls to an
+    // xml::writer, a file of load or save that does not open, read or
+    // write. Its message is the path and the words.
     class error {
     public:
-        error() = default;
+        error() noexcept = default;
 
         // The code at the offset; the detail, when given, is what
         // message() says in place of the code's own words ("invalid
         // character '*'", "expected a number, found a string")
-        error(errc code, uint64_t offset, const string& detail = {})
+        error(errc code, uint64_t offset, const string& detail = {}) noexcept
         : _code(code), _offset(offset), _detail(detail) {
         }
 
         // The source or the sink failed at the offset
-        error(const io::error& e, uint64_t offset)
+        error(const io::error& e, uint64_t offset) noexcept
         : _code(errc::io), _offset(offset), _io(e) {
         }
 
@@ -122,7 +131,8 @@ namespace sgcl::encoding {
             return _code;
         }
 
-        // Bytes from the start of the input
+        // Bytes from the start of the input; 0 when the error did not come
+        // from an input text
         uint64_t offset() const noexcept {
             return _offset;
         }
@@ -150,22 +160,28 @@ namespace sgcl::encoding {
         }
 
         // "offset 17: invalid character '*'", "3:14: expected a number",
-        // "3:14 /users/3/age: type mismatch"
-        string message() const {
+        // "3:14 /users/3/age: type mismatch"; with no place in a text
+        // "/users/3/age: type mismatch", "input/output error: open
+        // cfg.json: No such file or directory"
+        string message() const noexcept {
             std::string m;
             if (_line) {
                 m += std::to_string(_line);
                 m += ':';
                 m += std::to_string(_column);
-            } else {
+            } else if (!_no_place) {
                 m += "offset ";
                 m += std::to_string(_offset);
             }
             if (!_path.empty()) {
-                m += ' ';
+                if (!m.empty()) {
+                    m += ' ';
+                }
                 m.append(_path.data(), _path.size());
             }
-            m += ": ";
+            if (!m.empty()) {
+                m += ": ";
+            }
             if (!_detail.empty()) {
                 m.append(_detail.data(), _detail.size());
             } else {
@@ -194,7 +210,7 @@ namespace sgcl::encoding {
             return *this;
         }
 
-        error& set_path(const string& path) {
+        error& set_path(const string& path) noexcept {
             _path = path;
             return *this;
         }
@@ -202,12 +218,15 @@ namespace sgcl::encoding {
         // Everything it says: the code, the place, the words and the
         // stream's error (by its code, as io::error compares)
         friend bool operator==(const error& a, const error& b) noexcept {
-            return a._code == b._code && a._offset == b._offset && a._line == b._line && a._column == b._column
-                && a._path == b._path && a._detail == b._detail && a._io == b._io;
+            return a._code == b._code && a._no_place == b._no_place && a._offset == b._offset && a._line == b._line
+                && a._column == b._column && a._path == b._path && a._detail == b._detail && a._io == b._io;
         }
 
     private:
+        friend struct detail::ErrorAccess;
+
         errc _code = errc::syntax;
+        bool _no_place = false;   // not from an input text: a value written, a tree read, a file
         uint32_t _line = 0;
         uint32_t _column = 0;
         uint64_t _offset = 0;
@@ -217,11 +236,24 @@ namespace sgcl::encoding {
     };
 
     namespace detail {
+        // The formats' door to what error has no public setter for
+        struct ErrorAccess {
+            // An error that did not come from an input text: no offset,
+            // line or column, none in its message
+            static error& without_place(error& e) noexcept {
+                e._no_place = true;
+                e._offset = 0;
+                e._line = 0;
+                e._column = 0;
+                return e;
+            }
+        };
+
         // The error as a stream reports it: a decoder read through
         // io::reader fails with an io::error of the encoding category
         // ("decode base64: invalid character"), the one of its source
         // passed on as it was
-        inline io::error to_io_error(const error& e, const char* format) {
+        inline io::error to_io_error(const error& e, const char* format) noexcept {
             if (e.io_error()) {
                 return *e.io_error();
             }
@@ -230,7 +262,7 @@ namespace sgcl::encoding {
 
         // A byte as a message shows it: 'x' when it is printable ASCII,
         // 0xNN otherwise
-        inline std::string quoted_byte(uint8_t b) {
+        inline std::string quoted_byte(uint8_t b) noexcept {
             if (b >= 0x20 && b < 0x7F) {
                 return std::string("'") + char(b) + "'";
             }

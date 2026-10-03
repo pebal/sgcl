@@ -4,11 +4,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
+#include "tests/containers/boundary.h"
 
 #include "sgcl/core/map.h"
 #include "sgcl/core/multimap.h"
+#include "sgcl/core/multiset.h"
+#include "sgcl/core/ordered_map.h"
+#include "sgcl/core/ordered_set.h"
+#include "sgcl/core/set.h"
 
 #include <algorithm>
+#include <climits>
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include <random>
 #include <ranges>
@@ -122,15 +130,6 @@ namespace {
             if (v < 0) {
                 throw std::runtime_error("Throwing");
             }
-        }
-    };
-
-    struct ThrowingHash {
-        size_t operator()(int v) const {
-            if (v == 13) {
-                throw std::runtime_error("ThrowingHash");
-            }
-            return std::hash<int>{}(v);
         }
     };
 
@@ -861,6 +860,35 @@ TEST(Map_Test, NodeHandles) {
     EXPECT_EQ(empty.size(), 1u);
 }
 
+// A hinted insertion of a node whose key is taken leaves the element in the
+// handle, as std does: only the iterator to the element there comes back.
+TEST(Map_Test, AHintedNodeInsertOfATakenKeyKeepsTheHandle) {
+    sgcl::map<std::string, Int> map = {{"x", 10}};
+    sgcl::map<std::string, Int> other = {{"x", 20}};
+    auto nh = other.extract("x");
+    auto it = map.insert(map.cend(), std::move(nh));
+    EXPECT_EQ(it->second, 10);
+    ASSERT_FALSE(nh.empty());
+    EXPECT_EQ(nh.key(), "x");
+    EXPECT_EQ(nh.mapped(), 20);
+    EXPECT_EQ(Int::counter, 2u);
+
+    sgcl::ordered_map<std::string, Int> ordered = {{"y", 1}};
+    sgcl::ordered_map<std::string, Int> source = {{"y", 2}};
+    auto onh = source.extract("y");
+    auto oit = ordered.insert(ordered.cend(), std::move(onh));
+    EXPECT_EQ(oit->second, 1);
+    ASSERT_FALSE(onh.empty());
+    EXPECT_EQ(onh.mapped(), 2);
+
+    sgcl::set<std::string> set = {"z"};
+    sgcl::set<std::string> from = {"z"};
+    auto snh = from.extract("z");
+    EXPECT_EQ(*set.insert(set.cend(), std::move(snh)), "z");
+    ASSERT_FALSE(snh.empty());
+    EXPECT_EQ(snh.value(), "z");
+}
+
 TEST(Map_Test, Merge) {
     sgcl::map<int, Int> a = {{1, 1}, {2, 2}};
     sgcl::map<int, Int> b = {{2, 20}, {3, 30}, {4, 40}};
@@ -1180,21 +1208,32 @@ TEST(Map_Test, ThrowingConstructorLeavesMapUnchanged) {
     EXPECT_EQ(map.size(), 2u);
     });
     EXPECT_EQ(collector::get_live_object_count(), 4u);
-
-    sgcl::map<int, int, ThrowingHash> hashed = {{1, 1}, {2, 2}};
-    EXPECT_THROW(hashed.insert({13, 13}), std::runtime_error);
-    EXPECT_THROW(hashed.emplace(13, 13), std::runtime_error);
-    EXPECT_THROW(hashed[13], std::runtime_error);
-    EXPECT_THROW(hashed.find(13), std::runtime_error);
-    EXPECT_THROW(hashed.erase(13), std::runtime_error);
-    EXPECT_EQ(hashed.size(), 2u);
-    EXPECT_EQ(hashed.at(1), 1);
-    EXPECT_EQ(hashed.at(2), 2);
-    sgcl::map<int, int, ThrowingHash> fresh;
-    EXPECT_THROW(fresh.insert({13, 13}), std::runtime_error);
-    EXPECT_TRUE(fresh.empty());
-    EXPECT_EQ(fresh.bucket_count(), 0u);
 }
+
+// The hash and the equality are noexcept (a static_assert of the map) and
+// running out of memory ends the program: an insertion throws only what
+// the element's construction throws, the lookups and erasures nothing
+// (DESIGN 356)
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().emplace(1, 1)));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().insert(std::pair<const int, int>(1, 1))));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().try_emplace(1, 1)));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>()[1]));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().insert_or_assign(1, 1)));
+static_assert(noexcept(std::declval<const sgcl::map<int, int>&>().find(1)));
+static_assert(noexcept(std::declval<const sgcl::map<int, int>&>().contains(1)));
+static_assert(noexcept(std::declval<const sgcl::map<int, int>&>().count(1)));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().erase(1)));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().take(1)));
+static_assert(noexcept(std::declval<sgcl::map<int, int>&>().reserve(100)));
+static_assert(noexcept(std::declval<sgcl::multimap<int, int>&>().emplace(1, 1)));
+static_assert(noexcept(std::declval<sgcl::ordered_map<int, int>&>().try_emplace(1, 1)));
+static_assert(!noexcept(std::declval<sgcl::map<int, Throwing>&>().try_emplace(1, 1)));
+static_assert(!noexcept(std::declval<sgcl::map<std::string, int>&>()[std::declval<const std::string&>()]));
+static_assert(noexcept(std::declval<sgcl::map<std::string, int>&>()[std::string()]));
+static_assert(noexcept(sgcl::map<int, int>()));
+static_assert(noexcept(sgcl::map<int, int>(16)));
+static_assert(noexcept(std::declval<const sgcl::map<int, int>&>().hash_function()));
+static_assert(noexcept(std::declval<const sgcl::map<int, int>&>().key_eq()));
 
 TEST(Map_Test, Equality) {
     sgcl::map<int, int> a;
@@ -1481,4 +1520,434 @@ TEST(Map_Test, ValueOrWithAFallback) {
     EXPECT_EQ(p.value_or(1, none), one);
     EXPECT_EQ(p.value_or(2, none), none);
     static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
+}
+
+// Boundaries (DESIGN 408)
+
+// A count of buckets past what an address space holds (the rounding up of
+// a count past the largest power of two was undefined: map(SIZE_MAX) made
+// a map of one bucket) is the count no memory gives: the program ends as
+// at any refused managed allocation. So do rehash and reserve of such a
+// count (reserve's division by the load factor made a double past size_t,
+// whose conversion was undefined), on every table and with a load factor
+// so small that one element wants more buckets than there can be
+TEST(Map_Test, ABucketCountNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    EXPECT_DEATH((sgcl::map<int, int>(SIZE_MAX)), "sgcl: out of managed memory");
+    EXPECT_DEATH((sgcl::map<int, int>((size_t(1) << 63) + 1)), "sgcl: out of managed memory");
+    EXPECT_DEATH((sgcl::set<int>(SIZE_MAX)), "sgcl: out of managed memory");
+    EXPECT_DEATH((sgcl::multimap<int, int>(SIZE_MAX)), "sgcl: out of managed memory");
+    EXPECT_DEATH((sgcl::ordered_map<int, int>(SIZE_MAX)), "sgcl: out of managed memory");
+    std::vector<int> one = {1};
+    EXPECT_DEATH((sgcl::set<int>(one.begin(), one.end(), SIZE_MAX)), "sgcl: out of managed memory");
+    auto rehash_empty = [] {
+        sgcl::map<int, int> m;
+        m.rehash(SIZE_MAX);
+    };
+    auto rehash_one = [] {
+        sgcl::map<int, int> m = {{1, 1}};
+        m.rehash((size_t(1) << 63) + 1);
+    };
+    auto reserve = [] {
+        sgcl::map<int, int> m;
+        m.reserve(SIZE_MAX);
+    };
+    auto grow = [] {
+        sgcl::map<int, int> m;
+        m.max_load_factor(1e-30f);
+        m.emplace(1, 1);
+    };
+    auto reserve_one = [] {
+        sgcl::set<int> s;
+        s.max_load_factor(std::numeric_limits<float>::denorm_min());
+        s.reserve(1);
+    };
+    EXPECT_DEATH(rehash_empty(), "sgcl: out of managed memory");
+    EXPECT_DEATH(rehash_one(), "sgcl: out of managed memory");
+    EXPECT_DEATH(reserve(), "sgcl: out of managed memory");
+    EXPECT_DEATH(grow(), "sgcl: out of managed memory");
+    EXPECT_DEATH(reserve_one(), "sgcl: out of managed memory");
+}
+
+// The counts of buckets at their ends: 0 makes no array, 1, 2 and 3 round
+// up to a power of two; rehash(0) and reserve(0) of an empty table leave
+// it without one, and of a full one shrink it to what the elements need;
+// the limits are the largest difference_type
+TEST(Map_Test, BucketCountsAtTheirEnds) {
+    EXPECT_EQ((sgcl::map<int, int>(0).bucket_count()), 0u);
+    EXPECT_EQ((sgcl::map<int, int>(1).bucket_count()), 1u);
+    EXPECT_EQ((sgcl::map<int, int>(2).bucket_count()), 2u);
+    EXPECT_EQ((sgcl::map<int, int>(3).bucket_count()), 4u);
+    EXPECT_EQ((sgcl::ordered_set<int>(3).bucket_count()), 4u);
+    std::vector<int> none;
+    EXPECT_EQ((sgcl::set<int>(none.begin(), none.end(), 0).bucket_count()), 0u);
+    sgcl::map<int, int> m;
+    m.rehash(0);
+    m.reserve(0);
+    EXPECT_EQ(m.bucket_count(), 0u);
+    EXPECT_EQ(m.load_factor(), 0.0f);
+    EXPECT_EQ(m.bucket_size(0), 0u);
+    EXPECT_EQ(m.begin(0), m.end(0));
+    sgcl::map<int, int> one(1);   // a table of one bucket: everything in it, and growing from it
+    one.emplace(INT_MIN, 1);
+    EXPECT_EQ(one.bucket(INT_MIN), 0u);
+    for (int i = 0; i < 100; ++i) {
+        one.emplace(i, i);
+    }
+    EXPECT_EQ(one.size(), 101u);
+    EXPECT_EQ(one.at(INT_MIN), 1);
+    one.rehash(0);
+    EXPECT_EQ(one.bucket_count(), 128u);   // the least power of two the elements fit at a load factor of 1
+    one.reserve(0);
+    EXPECT_EQ(one.bucket_count(), 128u);
+    EXPECT_EQ(m.max_size(), size_t(PTRDIFF_MAX));
+    EXPECT_EQ(m.max_bucket_count(), size_t(PTRDIFF_MAX));
+    EXPECT_EQ((sgcl::multiset<char>().max_size()), size_t(PTRDIFF_MAX));
+}
+
+// max_load_factor at its ends: 0, negative values and NaN are ignored; an
+// infinite one keeps the first array of eight buckets for good, every
+// lookup still finding its key, and needs no bucket for any count
+TEST(Map_Test, MaxLoadFactorAtItsEnds) {
+    sgcl::map<int, int> m;
+    m.max_load_factor(0.0f);
+    m.max_load_factor(-1.0f);
+    m.max_load_factor(std::numeric_limits<float>::quiet_NaN());
+    m.max_load_factor(-std::numeric_limits<float>::infinity());
+    EXPECT_EQ(m.max_load_factor(), 1.0f);
+    m.max_load_factor(std::numeric_limits<float>::infinity());
+    for (int i = 0; i < 1000; ++i) {
+        m.emplace(i, -i);
+    }
+    EXPECT_EQ(m.bucket_count(), 8u);
+    for (int i = 0; i < 1000; ++i) {
+        ASSERT_EQ(m.at(i), -i);
+    }
+    m.reserve(SIZE_MAX);
+    EXPECT_EQ(m.bucket_count(), 8u);
+    m.max_load_factor(1.0f);
+    m.rehash(0);
+    EXPECT_EQ(m.bucket_count(), 1024u);
+    EXPECT_EQ(m.size(), 1000u);
+}
+
+namespace {
+    // The key as its own hash: the bucket's mixing of the high bits at the
+    // ends of size_t
+    struct IdentityHash {
+        size_t operator()(size_t k) const noexcept {
+            return k;
+        }
+    };
+}
+
+// Hashes at the ends of size_t: 0, all ones, the top bit alone, keys apart
+// in the top bits alone; found across every growth from one bucket and at
+// each power of two of buckets from 1 to 1024, erased one by one
+TEST(Map_Test, HashesAtTheEndsOfTheirRange) {
+    std::vector<size_t> keys = {0, 1, SIZE_MAX, SIZE_MAX - 1, size_t(1) << 63, (size_t(1) << 63) - 1, (size_t(1) << 63) + 1};
+    for (int bit = 40; bit < 64; ++bit) {
+        keys.push_back((size_t(1) << bit) | 5);
+    }
+    sgcl::map<size_t, size_t, IdentityHash> m(1);
+    sgcl::ordered_map<size_t, size_t, IdentityHash> o(1);
+    sgcl::multimap<size_t, size_t, IdentityHash> mm(1);
+    for (auto k : keys) {
+        EXPECT_TRUE(m.emplace(k, ~k).second);
+        EXPECT_TRUE(o.emplace(k, ~k).second);
+        mm.emplace(k, 1);
+        mm.emplace(k, 2);
+    }
+    m.max_load_factor(1e9f);   // so that a rehash may go down to one bucket
+    for (size_t buckets = 1; buckets <= 1024; buckets *= 2) {
+        m.rehash(buckets);
+        ASSERT_EQ(m.bucket_count(), buckets);
+        for (auto k : keys) {
+            ASSERT_EQ(m.at(k), ~k);
+            ASSERT_LT(m.bucket(k), m.bucket_count());
+            ASSERT_EQ(mm.count(k), 2u);
+        }
+    }
+    EXPECT_TRUE(std::equal(o.begin(), o.end(), keys.begin(), keys.end(), [](auto& e, size_t k) { return e.first == k; }));
+    for (auto k : keys) {
+        EXPECT_EQ(m.erase(k), 1u);
+        EXPECT_EQ(o.erase(k), 1u);
+        EXPECT_EQ(mm.erase(k), 2u);
+        EXPECT_FALSE(m.contains(k));
+    }
+    EXPECT_TRUE(m.empty());
+    EXPECT_TRUE(o.empty());
+    EXPECT_TRUE(mm.empty());
+}
+
+namespace {
+    // Every member a test of a moved-from or default-constructed table
+    // calls: it is empty and without buckets, and works as an empty one
+    template<class M, class K, class E>
+    void expect_works_empty(M& m, const K& key, const E& element) {
+        EXPECT_TRUE(m.empty());
+        EXPECT_EQ(m.size(), 0u);
+        EXPECT_EQ(m.begin(), m.end());
+        EXPECT_EQ(m.cbegin(), m.cend());
+        EXPECT_EQ(m.bucket_count(), 0u);
+        EXPECT_EQ(m.load_factor(), 0.0f);
+        EXPECT_EQ(m.find(key), m.end());
+        EXPECT_FALSE(m.contains(key));
+        EXPECT_EQ(m.count(key), 0u);
+        auto [first, last] = m.equal_range(key);
+        EXPECT_EQ(first, m.end());
+        EXPECT_EQ(last, m.end());
+        EXPECT_EQ(m.erase(key), 0u);
+        EXPECT_EQ(m.erase(m.begin(), m.end()), m.end());
+        EXPECT_TRUE(m.extract(key).empty());
+        EXPECT_EQ(sgcl::erase_if(m, [](auto&) { return true; }), 0u);
+        EXPECT_TRUE(m == M());
+        M copy(m);
+        EXPECT_TRUE(copy.empty());
+        EXPECT_EQ(copy.bucket_count(), 0u);
+        M other;
+        m.swap(other);
+        m.swap(other);
+        m.merge(other);
+        other.merge(m);
+        EXPECT_TRUE(m.empty());
+        m.clear();
+        m.rehash(0);
+        EXPECT_EQ(m.bucket_count(), 0u);
+        m.insert(element);
+        EXPECT_EQ(m.size(), 1u);
+        EXPECT_TRUE(m.contains(key));
+        m.clear();
+        EXPECT_TRUE(m.empty());
+        EXPECT_NE(m.bucket_count(), 0u);   // clear keeps the buckets
+    }
+}
+
+// A table moved from (by construction and by assignment) and a default one:
+// empty, without buckets, every member working as on an empty table; the
+// moved-from one keeps its load factor
+TEST(Map_Test, MovedFromAndDefaultWorkAsEmpty) {
+    sgcl::map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+    m.max_load_factor(0.5f);
+    sgcl::map<sgcl::string, int> to(std::move(m));
+    EXPECT_EQ(to.size(), 2u);
+    EXPECT_EQ(m.max_load_factor(), 0.5f);
+    EXPECT_FALSE(m.take("a").has_value());
+    EXPECT_EQ(m.value_or("a", -1), -1);
+    EXPECT_THROW(m.at("a"), std::out_of_range);
+    expect_works_empty(m, sgcl::string("a"), std::pair<const sgcl::string, int>("a", 1));
+    sgcl::map<sgcl::string, int> assigned = {{"c", 3}};
+    assigned = std::move(to);
+    EXPECT_EQ(assigned.size(), 2u);
+    expect_works_empty(to, sgcl::string("a"), std::pair<const sgcl::string, int>("a", 1));
+    sgcl::map<sgcl::string, int> d;
+    expect_works_empty(d, sgcl::string("z"), std::pair<const sgcl::string, int>("z", 0));
+
+    sgcl::multimap<int, int> mm = {{1, 1}, {1, 2}};
+    auto mm2 = std::move(mm);
+    expect_works_empty(mm, 1, std::pair<const int, int>(1, 1));
+    sgcl::set<int> s = {1, 2};
+    auto s2 = std::move(s);
+    expect_works_empty(s, 1, 1);
+    sgcl::multiset<int> ms = {1, 1};
+    auto ms2 = std::move(ms);
+    expect_works_empty(ms, 1, 1);
+    sgcl::ordered_map<int, int> om = {{1, 1}};
+    auto om2 = std::move(om);
+    EXPECT_EQ(om.rbegin(), om.rend());
+    expect_works_empty(om, 1, std::pair<const int, int>(1, 1));
+    sgcl::ordered_set<int> os = {1};
+    auto os2 = std::move(os);
+    expect_works_empty(os, 1, 1);
+    EXPECT_EQ(os2.size(), 1u);
+}
+
+namespace {
+    // A table on both sides: a copy and a move assignment to itself, swap
+    // with itself and a merge of itself change nothing
+    template<class M>
+    void expect_self_operations_keep(M m) {
+        const M before = m;
+        auto first = m.begin();
+        auto& self = m;
+        m = self;
+        EXPECT_TRUE(m == before);
+        EXPECT_EQ(m.begin(), first);   // nothing was rebuilt
+        m = std::move(self);
+        EXPECT_TRUE(m == before);
+        EXPECT_EQ(m.begin(), first);
+        m.swap(self);
+        swap(m, self);
+        EXPECT_TRUE(m == before);
+        m.merge(self);
+        m.merge(std::move(self));
+        EXPECT_TRUE(m == before);
+        EXPECT_EQ(m.size(), before.size());
+        EXPECT_TRUE(m == self);
+        EXPECT_FALSE(m != self);
+    }
+}
+
+TEST(Map_Test, ATableOnBothSidesKeepsItself) {
+    expect_self_operations_keep(sgcl::map<sgcl::string, int>{{"a", 1}, {"b", 2}, {"c", 3}});
+    expect_self_operations_keep(sgcl::multimap<int, int>{{1, 1}, {1, 2}, {2, 3}});
+    expect_self_operations_keep(sgcl::set<int>{1, 2, 3});
+    expect_self_operations_keep(sgcl::multiset<int>{1, 1, 2});
+    expect_self_operations_keep(sgcl::ordered_map<int, int>{{3, 1}, {1, 2}, {2, 3}});
+    expect_self_operations_keep(sgcl::ordered_set<int>{3, 1, 2});
+    expect_self_operations_keep(sgcl::map<int, int>());
+    expect_self_operations_keep(sgcl::ordered_set<int>());
+}
+
+// The table's own element, key or value as the argument: an insertion of
+// an element it holds (nothing in a unique table, a copy next to it in a
+// multi one, across growths), operator[], try_emplace, insert_or_assign
+// of the value under the key, take, extract and erase by the key of the
+// element they take. An erasure of a multi table by the key of an element
+// of the run read that key after the element was destroyed and stopped
+// there: the run is now found before anything is erased
+TEST(Map_Test, TheTablesOwnElementAsTheArgument) {
+    using boundary::Poisoned;
+    sgcl::map<Poisoned, Poisoned> m;
+    for (int i = 0; i < 8; ++i) {
+        m.emplace(i, i * 10);
+    }
+    auto it = m.find(3);
+    EXPECT_FALSE(m.insert(*it).second);
+    EXPECT_FALSE(m.emplace(*it).second);
+    EXPECT_FALSE(m.try_emplace(it->first, 0).second);
+    EXPECT_EQ(&m[it->first], &it->second);
+    EXPECT_FALSE(m.insert_or_assign(it->first, it->second).second);
+    EXPECT_EQ(it->second, Poisoned(30));
+    EXPECT_EQ(m.size(), 8u);
+    EXPECT_EQ(m.erase(m.find(5)->first), 1u);
+    EXPECT_FALSE(m.contains(5));
+    auto taken = m.take(m.find(6)->first);
+    ASSERT_TRUE(taken.has_value());
+    EXPECT_EQ(*taken, Poisoned(60));
+    auto nh = m.extract(m.find(7)->first);
+    ASSERT_FALSE(nh.empty());
+    EXPECT_EQ(nh.key(), Poisoned(7));
+    EXPECT_EQ(m.size(), 5u);
+
+    sgcl::multimap<Poisoned, int> mm;
+    for (int i = 0; i < 3; ++i) {
+        mm.emplace(1, i);
+        mm.emplace(2, i);
+    }
+    for (int i = 0; i < 10; ++i) {   // across the growths: a copy of a node of the run
+        mm.insert(*mm.find(1));
+        mm.emplace(*mm.find(2));
+    }
+    EXPECT_EQ(mm.count(1), 13u);
+    EXPECT_EQ(mm.count(2), 13u);
+    EXPECT_EQ(mm.erase(mm.find(1)->first), 13u);   // the key of the first of the run
+    EXPECT_EQ(mm.count(1), 0u);
+    auto run = mm.equal_range(2);
+    EXPECT_EQ(mm.erase(std::next(run.first, 5)->first), 13u);   // of one in the middle
+    EXPECT_TRUE(mm.empty());
+
+    sgcl::multiset<Poisoned> ms = {4, 4, 4, 5};
+    EXPECT_EQ(ms.erase(*ms.find(4)), 3u);
+    EXPECT_EQ(ms.size(), 1u);
+    sgcl::set<Poisoned> s = {1, 2};
+    EXPECT_EQ(s.erase(*s.find(1)), 1u);
+    EXPECT_FALSE(s.insert(*s.begin()).second);
+    EXPECT_EQ(s.size(), 1u);
+    sgcl::ordered_map<Poisoned, int> om = {{1, 1}, {2, 2}};
+    EXPECT_EQ(om.erase(om.front().first), 1u);
+    EXPECT_FALSE(om.insert(om.back()).second);
+    EXPECT_EQ(om.size(), 1u);
+}
+
+// An empty and a one-element table: an empty range erased anywhere, the
+// element erased by iterator back to an empty table that keeps its
+// buckets, an ordered table's end() stepping back to its one element
+TEST(Map_Test, EmptyRangesAndOneElement) {
+    sgcl::map<int, int> m = {{1, 1}};
+    EXPECT_EQ(m.erase(m.begin(), m.begin()), m.begin());
+    EXPECT_EQ(m.erase(m.end(), m.end()), m.end());
+    EXPECT_EQ(m.size(), 1u);
+    auto buckets = m.bucket_count();
+    EXPECT_EQ(m.erase(m.begin()), m.end());
+    EXPECT_TRUE(m.empty());
+    EXPECT_EQ(m.bucket_count(), buckets);
+    EXPECT_EQ(m.erase(m.begin(), m.end()), m.end());
+
+    sgcl::ordered_map<int, int> o = {{1, 1}};
+    EXPECT_EQ(std::prev(o.end()), o.begin());
+    EXPECT_EQ(&o.front(), &o.back());
+    o.to_back(o.begin());
+    o.to_front(o.begin());
+    EXPECT_EQ(o.erase(o.begin(), o.begin()), o.begin());
+    EXPECT_EQ(o.erase(o.begin()), o.end());
+    EXPECT_EQ(o.begin(), o.end());
+    EXPECT_EQ(o.rbegin(), o.rend());
+
+    sgcl::multiset<int> ms = {7};
+    EXPECT_EQ(ms.erase(7), 1u);
+    EXPECT_EQ(ms.erase(7), 0u);
+    std::vector<int> none;
+    ms.insert(none.begin(), none.end());
+    ms.insert(std::initializer_list<int>{});
+    EXPECT_TRUE(ms.empty());
+}
+
+// The iterators as the pages state them: an unordered table's end() is null
+// and never changes, an iterator follows its node across growth, rehash,
+// swap, merge and move. An ordered table's end() is its sentinel, made
+// with the first array, by an insertion or by rehash or reserve of a table
+// that had none (an end() taken before is not end() after either), kept by
+// clear and growth, and taken along by swap and the move
+TEST(Map_Test, IteratorsAsThePagesStateThem) {
+    sgcl::map<int, int> m;
+    auto end = m.end();
+    m.emplace(0, 0);
+    auto zero = m.find(0);
+    for (int i = 1; i < 1000; ++i) {
+        m.emplace(i, i);
+    }
+    m.rehash(4096);
+    EXPECT_EQ(m.end(), end);
+    EXPECT_EQ(m.find(0), zero);
+    sgcl::map<int, int> other = {{-1, -1}};
+    m.swap(other);
+    EXPECT_EQ(other.find(0), zero);
+    m.merge(other);
+    EXPECT_EQ(m.find(0), zero);
+    sgcl::map<int, int> moved(std::move(m));
+    EXPECT_EQ(moved.find(0), zero);
+    EXPECT_EQ(moved.end(), end);
+
+    sgcl::ordered_map<int, int> r;
+    auto no_array = r.end();
+    r.reserve(10);
+    EXPECT_NE(r.end(), no_array);
+    auto r_end = r.end();
+    r.emplace(1, 1);
+    EXPECT_EQ(std::prev(r.end()), r.begin());
+    EXPECT_EQ(r.end(), r_end);
+    r.clear();
+    EXPECT_EQ(r.end(), r_end);
+    sgcl::ordered_set<int> rs;
+    auto rs_end = rs.end();
+    rs.rehash(1);
+    EXPECT_NE(rs.end(), rs_end);
+
+    sgcl::ordered_map<int, int> o;
+    o.emplace(1, 1);
+    auto o_end = o.end();
+    auto one = o.begin();
+    for (int i = 2; i < 100; ++i) {
+        o.emplace(i, i);
+    }
+    o.rehash(1024);
+    EXPECT_EQ(o.end(), o_end);
+    EXPECT_EQ(o.begin(), one);
+    o.swap(r);
+    EXPECT_EQ(r.end(), o_end);   // the sentinel goes with the elements
+    EXPECT_EQ(r.begin(), one);
+    sgcl::ordered_map<int, int> moved_o(std::move(r));
+    EXPECT_EQ(moved_o.end(), o_end);
+    EXPECT_EQ(moved_o.begin(), one);
 }

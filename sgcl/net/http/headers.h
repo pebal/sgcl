@@ -86,7 +86,7 @@ namespace sgcl::net::http {
         // The name and the value as a program gave them, the bytes that
         // are not printable shown as \xHH: a message naming a field must
         // not carry the line break that made it wrong into a log
-        inline std::string printable(std::string_view s) {
+        inline std::string printable(std::string_view s) noexcept {
             std::string out;
             for (unsigned char c : s) {
                 if (c >= 0x20 && c < 0x7F) {
@@ -126,11 +126,11 @@ namespace sgcl::net::http {
     // split message nor an exception in the path of a request will do.
     class headers {
     public:
-        headers() = default;
+        headers() noexcept = default;
 
-        // The first value of the name, or "" when there is none (has()
+        // The first value of the name, or "" when there is none (contains()
         // tells the two apart)
-        string get(const string& name) const {
+        string get(const string& name) const noexcept {
             for (auto& f : _fields) {
                 if (detail::iequal(f.first.view(), name.view())) {
                     return string(f.second);
@@ -140,7 +140,7 @@ namespace sgcl::net::http {
         }
 
         // Every value of the name, in their order (Set-Cookie)
-        vector<string> get_all(const string& name) const {
+        vector<string> get_all(const string& name) const noexcept {
             vector<string> out;
             for (auto& f : _fields) {
                 if (detail::iequal(f.first.view(), name.view())) {
@@ -150,7 +150,7 @@ namespace sgcl::net::http {
             return out;
         }
 
-        bool contains(const string& name) const {
+        bool contains(const string& name) const noexcept {
             for (auto& f : _fields) {
                 if (detail::iequal(f.first.view(), name.view())) {
                     return true;
@@ -163,7 +163,7 @@ namespace sgcl::net::http {
         // others of the name gone; a field at the end when there was none
         // (in place: the fields kept moved down over the ones dropped, no
         // list made)
-        headers& set(const string& name, const string& value) {
+        headers& set(const string& name, const string& value) noexcept {
             const string& v = value;
             bool found = false;
             size_t kept = 0;
@@ -189,13 +189,13 @@ namespace sgcl::net::http {
         }
 
         // A field at the end
-        headers& add(const string& name, const string& value) {
+        headers& add(const string& name, const string& value) noexcept {
             _push(Field(name.as_slice(), value.as_slice()));
             return *this;
         }
 
         // Every field of the name
-        headers& erase(const string& name) {
+        headers& erase(const string& name) noexcept {
             size_t kept = 0;
             for (size_t i = 0; i < _fields.size(); ++i) {
                 if (detail::iequal(_fields[i].first.view(), name.view())) {
@@ -214,7 +214,7 @@ namespace sgcl::net::http {
         // IMF-fixdate, and the obsolete RFC 850 and asctime forms a
         // recipient must take), in UTC; nullopt when there is none or it is
         // not a date (Last-Modified, If-Modified-Since, Expires, Date)
-        optional<time::datetime> date(const string& name) const {
+        optional<time::datetime> date(const string& name) const noexcept {
             for (auto& f : _fields) {
                 if (detail::iequal(f.first.view(), name.view())) {
                     auto t = time::datetime::parse(string(f.second), time::http);
@@ -228,7 +228,7 @@ namespace sgcl::net::http {
         }
 
         // The instant as IMF-fixdate, always GMT: "Sun, 06 Nov 1994 08:49:37 GMT"
-        headers& set_date(const string& name, const time::datetime& t) {
+        headers& set_date(const string& name, const time::datetime& t) noexcept {
             return set(name, t.format(time::http));
         }
 
@@ -248,18 +248,18 @@ namespace sgcl::net::http {
             using difference_type = std::ptrdiff_t;
             using iterator_category = std::input_iterator_tag;
 
-            iterator() = default;
+            iterator() noexcept = default;
 
-            value_type operator*() const {
+            value_type operator*() const noexcept {
                 return value_type(string(_at->first), string(_at->second));
             }
 
-            iterator& operator++() {
+            iterator& operator++() noexcept {
                 ++_at;
                 return *this;
             }
 
-            iterator operator++(int) {
+            iterator operator++(int) noexcept {
                 auto was = *this;
                 ++_at;
                 return was;
@@ -294,7 +294,7 @@ namespace sgcl::net::http {
 
         // A field appended: room for eight at the first (a response's
         // fields, set one at a time, grew by 1, 2, 4, 8)
-        void _push(Field f) {
+        void _push(Field f) noexcept {
             if (_fields.capacity() == 0) {
                 _fields.reserve(8);
             }
@@ -359,7 +359,7 @@ namespace sgcl::net::http {
             }
 
             // A field the library itself adds, its name trusted
-            static void add(headers& h, const slice<const char>& name, const slice<const char>& value) {
+            static void add(headers& h, const slice<const char>& name, const slice<const char>& value) noexcept {
                 h._fields.push_back(Field(name, value));
             }
         };

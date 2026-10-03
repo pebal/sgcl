@@ -22,6 +22,7 @@
 #include <coroutine>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -62,15 +63,17 @@ namespace sgcl::async {
     // in order: a second word counts the positions committed, advanced
     // by whichever sender finds the next slot stored (a sender that
     // stored ahead of a slower one leaves its commit to that one), so
-    // that a reader waits for a position by its commit alone. The wait
-    // is a channel of signals closed when a position is committed (a
-    // round: made by the first reader to wait for the position, closed
-    // and let go of by the sender that commits it), one round for all
-    // the readers waiting, which all wait for the same position, the one
-    // committed next. The three ways of the wait are the round channel's
-    // three, and the value is taken after the wake. A send costs the
-    // node's allocation and a few atomic operations; it does not touch
-    // the subscriptions.
+    // that a reader waits for a position by its commit alone. A receive
+    // that waits registers in its subscription's own record (Sub: the
+    // position it waits for, its task's frame or its thread's park word),
+    // and the sender that commits past the position claims the record
+    // and wakes that one subscriber, its tasks handed to the scheduler
+    // together at the end of the walk (_wake); nothing is allocated per
+    // wait. A select case, which waits on channels, waits on a round
+    // instead: a channel of signals made by the first case to wait for a
+    // position and closed by the commit past it. The value is taken after
+    // the wake. A send costs the node's allocation, a few atomic
+    // operations and, when someone waits, the walk of the subscriptions.
     template<class T>
     class broadcast {
         static_assert(std::is_copy_constructible_v<T>, "a broadcast value is copied to every subscription");
@@ -80,7 +83,7 @@ namespace sgcl::async {
         // value in it, before the position is reserved: nothing throws
         // between the reservation and the store.
         struct Node {
-            explicit Node(T&& v)
+            explicit Node(T&& v) noexcept(std::is_nothrow_move_constructible_v<T>)
             : value(std::in_place, std::move(v)) {
             }
 
@@ -152,13 +155,28 @@ namespace sgcl::async {
         static constexpr uint64_t Subscriber = uint64_t(1) << PositionBits;
         static constexpr size_t MaxSubscriptions = (size_t(1) << (64 - PositionBits)) - 1;
 
+        // A receive copies the value out of its node and moves it on: the
+        // value's own operations, the only throws of a receive (it wakes
+        // nobody)
+        static constexpr bool NothrowValue = std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>;
+
+        // A capacity past the largest power of two has none to round up
+        // to (std::bit_ceil's precondition): the length_error of an array
+        // too large, as one below it and past the largest array is
+        static size_t _ring_size(size_t capacity) {
+            if (capacity > (size_t(1) << (std::numeric_limits<size_t>::digits - 1))) [[unlikely]] {
+                throw length_error("sgcl::async::broadcast");
+            }
+            return std::bit_ceil(capacity ? capacity : 1);
+        }
+
     public:
         using value_type = T;
         using size_type = size_t;
 
         // A ring of `capacity` values, rounded up to a power of two (at least 1)
         explicit broadcast(size_type capacity)
-        : _s(make_tracked<State>(std::bit_ceil(capacity ? capacity : 1))) {
+        : _s(make_tracked<State>(_ring_size(capacity))) {
         }
 
         broadcast(const broadcast&) = delete;
@@ -205,8 +223,8 @@ namespace sgcl::async {
             // The next value, waiting for one: nothing once the broadcast
             // is closed and drained. `co_await s.receive()` in a task,
             // `s.receive().wait()` on a thread
-            auto receive() {
-                return operation([this](auto how) -> decltype(auto) {
+            auto receive() noexcept {
+                return detail::make_operation([this](auto how) -> decltype(auto) {
                     if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                         return receive_op(*this);
                     } else {
@@ -216,7 +234,7 @@ namespace sgcl::async {
             }
 
         private:
-            optional<T> _receive() {
+            optional<T> _receive() noexcept(NothrowValue) {
                 for (;;) {
                     if (auto v = _take()) {
                         return v;
@@ -243,15 +261,16 @@ namespace sgcl::async {
 
         public:
             // The next value if one is there, waiting for nothing
-            optional<T> try_receive() {
+            optional<T> try_receive() noexcept(NothrowValue) {
                 return _take();
             }
 
             // `co_await s.receive()`: the next value, the task
-            // suspended until one is sent; the wait is the round channel's
+            // suspended until one is sent; the wait is registered in the
+            // subscription's record (Sub), as a thread's is
             class receive_op {
             public:
-                bool await_ready() {
+                bool await_ready() noexcept(NothrowValue) {
                     _value = _sub->_take();
                     if (_value) {
                         return true;
@@ -271,12 +290,12 @@ namespace sgcl::async {
                 // suspends for it. Nothing of the frame is touched past
                 // the registration the sender may have claimed.
                 template<class P>
-                bool await_suspend(std::coroutine_handle<P> h) {
+                bool await_suspend(std::coroutine_handle<P> h) noexcept {
                     _sub->_sub->frame = detail::frame_of(h);
                     return !_sub->_register();
                 }
 
-                optional<T> await_resume() {
+                optional<T> await_resume() noexcept(NothrowValue) {
                     if (_done) {
                         return std::move(_value);
                     }
@@ -312,7 +331,7 @@ namespace sgcl::async {
                 using Base = decltype(std::declval<detail::ChannelState<void>&>().on_receive(std::declval<F>()));
 
             public:
-                receive_case(subscription& s, tracked_ptr<Round> round, F f)
+                receive_case(subscription& s, tracked_ptr<Round> round, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
                 : Base(_channel(s, round.get()).on_receive(std::move(f)))
                 , _keep(std::move(round)) {
                 }
@@ -373,7 +392,7 @@ namespace sgcl::async {
             // slowed by a fifth (measured, benchmarks.md: 1300 to 1550 ns
             // per value); the commit word is the one line the readers
             // share with the senders while they wait.
-            optional<T> _take() {
+            optional<T> _take() noexcept(NothrowValue) {
                 for (;;) {
                     if (_cursor >= _s->committed.load(std::memory_order_seq_cst)) {
                         return nullopt;
@@ -409,7 +428,7 @@ namespace sgcl::async {
             // call is still on its way out (the cursor read after the
             // store once took the new registration back, and the task was
             // resumed twice: a hang in one run of three).
-            bool _register() {
+            bool _register() noexcept {
                 Sub* sub = _sub.get();
                 State* s = _s.get();
                 size_t cursor = _cursor;
@@ -475,7 +494,7 @@ namespace sgcl::async {
             // position the cursor was at (the value is there, or the ring
             // lapped the cursor, whose jump may land ahead of the commits:
             // a spin of a few instructions), or by the close
-            optional<T> _after_wake() {
+            optional<T> _after_wake() noexcept(NothrowValue) {
                 detail::Backoff<> backoff;
                 for (;;) {
                     if (auto v = _take()) {
@@ -490,7 +509,7 @@ namespace sgcl::async {
 
             // Closed: what was reserved before is published (a sender
             // still storing finishes: a few instructions), then what is there
-            optional<T> _drain() {
+            optional<T> _drain() noexcept(NothrowValue) {
                 detail::Backoff<> backoff;
                 while (_s->committed.load(std::memory_order_seq_cst) != _s->reserved()) {
                     backoff();

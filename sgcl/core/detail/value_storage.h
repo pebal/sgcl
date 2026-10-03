@@ -143,7 +143,7 @@ namespace sgcl::detail {
             // let go by its unique_ptr (the slot's destructor skips the
             // value that was never made: slot.h)
             template<class... A>
-            static T& make(ValueStorage& s, A&&... a) {
+            static T& make(ValueStorage& s, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
                 static_assert(sizeof(detail::Array<sizeof(Node)>) <= detail::PageDataSize, "a value larger than a page is not supported");
                 auto node = make_tracked<Node>();
                 T& v = node->construct(std::forward<A>(a)...);
@@ -198,7 +198,7 @@ namespace sgcl::detail {
             }
         }
 
-        ~ValueStorage() {
+        ~ValueStorage() noexcept {
             _reset();
         }
 
@@ -206,7 +206,7 @@ namespace sgcl::detail {
         ValueStorage& operator=(ValueStorage&&) = delete;
 
         template<class T, bool Copyable, Extra X, class... A>
-        T& _emplace(A&&... a) {
+        T& _emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             if constexpr(Word<T>) {
                 auto p = ::new(_word) T(std::forward<A>(a)...);
                 _manager = &WordOps<T, Copyable, X>::manager;

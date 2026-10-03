@@ -1,70 +1,110 @@
+[sgcl](../README.md) › [async](README.md)
+
 # sgcl::async::semaphore
 
 ```cpp
-#include "sgcl/async/semaphore.h"   // or "sgcl/sgcl.h"
+#include "sgcl/async/semaphore.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    class semaphore;   // n permits
+    class semaphore;
 }
 ```
 
-A semaphore of *n* permits: `acquire()` takes one, `release()` gives one back; a channel holding *n* signals, one of the family the [mutex](mutex.md)'s page describes (each of the five ([mutex](mutex.md), [semaphore](semaphore.md), [event](event.md), [wait_group](wait_group.md), [once](once.md)) a channel of signals under the name of what it does, with the three forms of a wait a [channel](channel.md) has: blocking, for a thread; awaitable, for a task, which holds no thread while it waits; and as a case of a [select](select.md)).
+`sgcl::async::semaphore` holds *n* permits: [acquire](semaphore/acquire.md) takes one, waiting while there is none,
+and [release](semaphore/release.md) gives one back. Under it is a channel holding *n* signals, Go's idiom of a
+buffered channel as a counting semaphore, so it is waited for the ways a [channel](channel.md) is: blocking on a
+thread, awaited in a task, which holds no thread while it waits, and as a case of a [select](select.md). It is one
+of the family the [mutex](mutex.md) heads, each a channel of signals under the name of what it does.
+
+What differs from `std::counting_semaphore`: the maximum is a value of the constructor, not a template argument, a
+release past the maximum is lost rather than undefined, and a task that waits parks no worker.
 
 ## Rules
 
-- It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
-- A `release()` without a matching `acquire()` is lost (the channel is full): a semaphore never has more permits than its maximum.
-- A `async::semaphore(0)`, made closed, has one permit at most: a `release()` opens it (a channel of capacity zero would lose the release with nobody waiting).
+- A semaphore is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed object
+  ([The rules](../core/README.md#the-rules), 1), and is neither copied nor moved. Tasks reach it through the
+  object that holds it.
+- A semaphore never holds more permits than its maximum: a [release](semaphore/release.md) that finds the channel
+  full is lost.
+- `semaphore(0)`, made closed, has a maximum of one: a release opens it, which a channel of capacity zero, a
+  rendezvous, would lose when nobody waits.
 
-## Members
+## Member functions
 
-```cpp
-explicit semaphore(size_t permits, size_t max = 0);   // max: permits by default
-auto acquire();                                // an operation: co_await s.acquire() in a task, s.acquire().wait() on a thread
-bool try_acquire();  void release();
-template<class F> auto on_acquire(F f);        // a case of a select
-size_t available() const noexcept;             // the permits free now
-```
+| Function | Description |
+|---|---|
+| [(constructor)](semaphore/semaphore.md) | constructs a semaphore with its permits and its maximum |
+| `(destructor)` | destroys the semaphore; its channel is the collector's |
 
-```cpp
-async::semaphore slots(4);                       // four at a time
-auto fetch = [](async::semaphore& slots) -> async::task<> {
-    co_await slots.acquire();
-    // ... at most four here
-    slots.release();
-};
-```
+#### Operations
+
+| Function | Description |
+|---|---|
+| [acquire](semaphore/acquire.md) | takes a permit, waiting in a task or on a thread for one |
+| [try_acquire](semaphore/try_acquire.md) | takes a permit when there is one, without waiting |
+| [release](semaphore/release.md) | gives a permit back |
+| [on_acquire](semaphore/on_acquire.md) | a case of a select: a call with a permit taken |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [available](semaphore/available.md) | the permits free now |
+
+## Complexity
+
+An acquire is a receive through the channel's ring and a release a send, constant when they do not wait; an
+acquire that waits registers a waiter on the channel's list, and a release that finds one wakes it.
 
 ## Example
 
-Two permits: a third taker finds none until one is given back:
-
 ```cpp
-#include "sgcl/async/async.h"
-#include "sgcl/io/io.h"
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
+struct Pool {
+    async::semaphore slots{3};
+    atomic<int> inside = 0;
+    atomic<int> most = 0;
+};
+
+async::task<> fetch(tracked_ptr<Pool> pool) {
+    co_await pool->slots.acquire();  // three at a time
+    int now = ++pool->inside;
+    int seen = pool->most.load();
+    while (now > seen && !pool->most.compare_exchange_weak(seen, now)) {
+    }
+    co_await async::yield();  // the work
+    --pool->inside;
+    pool->slots.release();
+}
+
 int main() {
-    async::semaphore slots(2);
-    println("{}", slots.try_acquire());
-    println("{}", slots.try_acquire());
-    println("{}", slots.try_acquire());   // both taken
-    slots.release();
-    println("{} free", slots.available());
+    tracked_ptr pool = make_tracked<Pool>();
+    vector<async::task<>> tasks;
+    for (int i : range(20)) {
+        tasks.push_back(async::spawn(fetch(pool)));
+    }
+    for (auto& t : tasks) {
+        t.wait();
+    }
+    println("never more than 3 at once: {}", pool->most.load() <= 3);
+    println("{} free", pool->slots.available());
 }
 ```
 
 Output:
 
 ```text
-true
-true
-false
-1 free
+never more than 3 at once: true
+3 free
 ```
 
 ## See also
 
-- [mutex](mutex.md): the family and its three forms of a wait; [channel](channel.md): what it is made of; [select](select.md): the cases
-- `tests/async/sync.cpp`: every behaviour above, checked.
+- [mutex](mutex.md): one holder, and the family of the synchronization
+- [channel](channel.md): what it is made of; [select](select.md): its case
+- [wait_group](wait_group.md): the wait for a count to reach zero

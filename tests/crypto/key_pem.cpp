@@ -153,6 +153,25 @@ TEST(Crypto_KeyPem, WhatIsRefused) {
     EXPECT_EQ(code(crypto::ed25519::private_key::from_pem(text_of(pem.substr(0, pem.size() - 20)))), crypto::errc::malformed);
 }
 
+// The PEM errors of RSA and the NIST curves start as their other errors
+// do, with the type's namespace (they once began "PEM:" alone)
+TEST(Crypto_KeyPem, MessagesNameTheKeyType) {
+    auto message = [](const auto& r) { return r ? std::string() : std::string(r.error().message().view()); };
+    const std::string none = "no key here";
+    EXPECT_EQ(message(crypto::rsa::private_key::from_pem(text_of(none))), "sgcl::crypto::rsa: PEM: no private key block");
+    EXPECT_EQ(message(crypto::p256::private_key::from_pem(text_of(none))), "sgcl::crypto::p256: PEM: no private key block");
+    EXPECT_EQ(message(crypto::p384::ecdh_key::from_pem(text_of(none))), "sgcl::crypto::p384: PEM: no private key block");
+    Key ec{EVP_PKEY_Q_keygen(nullptr, nullptr, "EC", "P-256")};
+    const std::string sec1 = ossl_pem(ec.p, true);
+    EXPECT_EQ(message(crypto::rsa::private_key::from_pem(text_of(sec1))), "sgcl::crypto::rsa: PEM: a block of another key's type");
+    EXPECT_EQ(message(crypto::p256::ecdh_key::from_pem(text_of(sec1))), "sgcl::crypto::p256: PEM: a block of another key's type");
+    const std::string headers = "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,00\n\nAAAA\n-----END RSA PRIVATE KEY-----\n";
+    EXPECT_EQ(message(crypto::rsa::private_key::from_pem(text_of(headers))),
+              "sgcl::crypto::rsa: PEM: a key encrypted with RFC 1421 headers (Proc-Type, DEK-Info)");
+    // X25519 and Ed25519 name no type in any of their errors
+    EXPECT_EQ(message(crypto::ed25519::private_key::from_pem(text_of(none))), "PEM: no private key block");
+}
+
 TEST(Crypto_KeyPem, ExportsAreSecretBytes) {
     // to_pkcs8_der and to_sec1_der give secret_bytes: 48 bytes of a 25519 key
     // in the object itself, a larger key's in a wiped block
@@ -164,4 +183,47 @@ TEST(Crypto_KeyPem, ExportsAreSecretBytes) {
     crypto::secret_bytes pkcs8 = ec.to_pkcs8_der();
     EXPECT_TRUE(crypto::p256::private_key::from_sec1_der(sec1));
     EXPECT_TRUE(crypto::p256::private_key::from_pkcs8_der(pkcs8));
+}
+
+// The edges of the PEM text (DESIGN 408): no text at all, a BEGIN at the
+// very end, a block of no label or of no body, another label's block
+// before the key, line breaks of any kind and none, the key's block cut
+// at its last character (covered: no key, another key's type, encrypted,
+// bad base64, no END line: Crypto_KeyPem.WhatIsRefused)
+TEST(Crypto_KeyPem, TheEdgesOfTheText) {
+    auto code = [](const auto& r) { return r ? crypto::errc{} : r.error().code(); };
+    using K = crypto::ed25519::private_key;
+    EXPECT_EQ(code(K::from_pem(slice<const std::byte>())), crypto::errc::malformed);
+    EXPECT_EQ(code(K::from_pem(text_of(std::string("-----BEGIN ")))), crypto::errc::malformed);
+    EXPECT_EQ(code(K::from_pem(text_of(std::string("-----BEGIN PRIVATE KEY-----")))), crypto::errc::malformed);
+    EXPECT_EQ(code(K::from_pem(text_of(std::string("-----BEGIN PRIVATE KEY----------END PRIVATE KEY-----")))), crypto::errc::malformed);
+    EXPECT_EQ(code(K::from_pem(text_of(std::string("-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n")))), crypto::errc::malformed);
+    Key k{EVP_PKEY_Q_keygen(nullptr, nullptr, "ED25519")};
+    const std::string pem = ossl_pem(k.p, false);
+    auto want = K::from_pem(text_of(pem));
+    ASSERT_TRUE(want);
+    // after a block of no label and one of another label
+    std::string before = "-----BEGIN -----\nAAAA\n-----END -----\n-----BEGIN EC PARAMETERS-----\nBggqhkjOPQMBBw==\n-----END EC PARAMETERS-----\n";
+    auto after = K::from_pem(text_of(before + pem));
+    ASSERT_TRUE(after);
+    EXPECT_TRUE(*after == *want);
+    // CRLF line breaks, and the base64 on one line with none at the end
+    std::string crlf;
+    for (char c : pem) {
+        if (c == '\n') {
+            crlf += '\r';
+        }
+        crlf += c;
+    }
+    auto windows = K::from_pem(text_of(crlf));
+    ASSERT_TRUE(windows);
+    EXPECT_TRUE(*windows == *want);
+    std::string flat = pem;
+    while (!flat.empty() && flat.back() == '\n') {
+        flat.pop_back();
+    }
+    auto unterminated = K::from_pem(text_of(flat));
+    ASSERT_TRUE(unterminated);
+    EXPECT_TRUE(*unterminated == *want);
+    EXPECT_EQ(code(K::from_pem(text_of(flat.substr(0, flat.size() - 1)))), crypto::errc::malformed);
 }

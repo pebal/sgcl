@@ -1,7 +1,9 @@
-# sgcl::multiset
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::multiset\<Key, Hash, KeyEqual\>
 
 ```cpp
-#include "sgcl/core/multiset.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/multiset.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
@@ -9,414 +11,225 @@ namespace sgcl {
 }
 ```
 
-`sgcl::multiset<Key, Hash, KeyEqual>` is `std::unordered_multiset` over managed nodes: the same hash table as [set](set.md), with equivalent keys allowed. The interface is the one of `std::unordered_multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: equal elements are adjacent in the iteration order and in their bucket, `erase(key)` removes all of them, `count` counts them, an element is destroyed the moment it is erased. Within a run of equal elements a new one goes in front of those already there.
+`sgcl::multiset<Key, Hash, KeyEqual>` is `std::unordered_multiset` over managed nodes: the same hash table as
+[set](set.md), with equivalent keys allowed. The interface is the one of `std::unordered_multiset` — the
+constructors, insertion, erasure, node handles and `merge`, the lookups with a transparent hash and equality,
+forward iterators, the bucket interface and the hash policy, `==`, the deduction guides and `std::erase_if` — and
+so is the behaviour: equal elements are adjacent in the order of iteration and in their bucket, `erase` of a key
+removes all of them, `count` counts them, and an element is destroyed the moment it is erased. Within a run of
+equal elements a new one goes in front of those already there.
 
-What differs from `std` is where the memory lives. The container holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so elements that are or hold `tracked_ptr`s are traced and a cycle through the container is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid across rehashes and until their element is erased. As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place; `extract` it and insert it back. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
+What differs from `std` is where the memory lives. The container holds two `tracked_ptr`s (the bucket array and a
+sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements
+are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so
+elements that are or hold `tracked_ptr`s are traced and a cycle through the container is collected like any
+other. Nothing is freed by hand: an erasure destroys the element and unlinks the node, and the collector reclaims
+the node later. The hash of each key is cached in its node. An iterator is one raw node pointer, trivially
+copyable and storable anywhere, valid across rehashes and until its element is erased. As in `std`, `iterator`
+and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place; it is extracted,
+changed in its node handle and inserted back. Lookups and iteration pay no write barrier; insertions, erasures
+and rehashes store tracked pointers and pay the barrier on each link they relink
+([README: Containers](README.md#containers)).
+
+Go has no multiset; its idiom, a `map[K]int` of counts, keeps one key and a number, where this container keeps
+every element inserted, equal or not.
 
 ## Rules
 
-- An `multiset` holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](README.md#the-rules), 1). The same holds for a node handle.
+- A multiset holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc`
+  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1). The same holds for a [node handle](set-node_type.md).
 - The elements may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the container is destroyed, exactly as in `std`. The one exception is a container dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
-- An iterator, a reference or a pointer to an element is valid while the element is in the container, across insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to an erased element is invalid as in `std`.
-- A key cannot be modified through an iterator (they yield `const Key&`); `extract` it, change `value()` of the handle and insert it back.
-- A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the element.
-- Thread safety is that of `std::unordered_multiset`: concurrent readers, or one writer, with the program's own synchronization ([The rules](README.md#the-rules), 6).
+- An element is destroyed the moment it is erased, cleared, assigned over, or the container is destroyed, exactly
+  as in `std`. The one exception is a container dying in a sweep, inside a managed object nobody refers to any
+  more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a
+  collector thread.
+- An iterator, a reference or a pointer to an element is valid while the element is in the container, across
+  insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to
+  an erased element is invalid as in `std`.
+- A key cannot be modified through an iterator (they yield `const Key&`); [extract](multiset/extract.md) it,
+  change [value()](set-node_type/value.md) of the handle and insert it back.
+- A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the
+  element.
+- Thread safety is that of `std::unordered_multiset`: concurrent readers, or one writer, with the program's own
+  synchronization ([The rules](README.md#the-rules), 6).
 
-## Members
+## Template parameters
 
-### Types
+| Parameter | Description |
+|---|---|
+| `Key` | The type of the elements, the keys: any object type that `Hash` hashes and `KeyEqual` compares. An operation that copies or moves elements requires `Key` to be copyable or movable. |
+| `Hash` | A function object returning the `size_t` hash of a key. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. With `is_transparent` declared, as by `KeyEqual`, the lookups, `erase`, `extract` and `bucket` take a key of another type. |
+| `KeyEqual` | A function object comparing two keys for equality, consistent with `Hash`. Its call must be noexcept: one that is not is rejected at compile time, but for the function objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are. |
 
-```cpp
-using key_type = Key;
-using value_type = Key;
-using hasher = Hash;
-using key_equal = KeyEqual;
-using size_type = size_t;
-using difference_type = ptrdiff_t;
-using reference = value_type&;
-using const_reference = const value_type&;
-using pointer = value_type*;
-using const_pointer = const value_type*;
-using const_iterator = /* forward, one raw node pointer, yields const Key& */;
-using iterator = const_iterator;
-using const_local_iterator = /* forward, stops at the end of its bucket */;
-using local_iterator = const_local_iterator;
-using node_type = /* the node handle, below */;
-struct insert_return_type { iterator position; bool inserted; node_type node; };   // unused: every insert returns an iterator
-static constexpr bool unique = false;
-```
+## Member types
 
-`iterator` converts to `const_iterator`, `local_iterator` to `const_local_iterator`, not back.
+| Type | Definition |
+|---|---|
+| `key_type` | `Key` |
+| `value_type` | `Key` |
+| `hasher` | `Hash` |
+| `key_equal` | `KeyEqual` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `reference` | `value_type&` |
+| `const_reference` | `const value_type&` |
+| `pointer` | `value_type*` |
+| `const_pointer` | `const value_type*` |
+| `iterator` | the same type as `const_iterator` |
+| `const_iterator` | a forward iterator over `const Key`, one raw node pointer, `std::forward_iterator` |
+| `local_iterator` | the same type as `const_local_iterator` |
+| `const_local_iterator` | a forward iterator over `const Key` that stops at the end of its bucket, `std::forward_iterator` |
+| [node_type](set-node_type.md) | the node handle, the same type as set's |
 
-### Constructors
+There is no `insert_return_type`: every [insert](multiset/insert.md) of a multiset returns an iterator.
 
-```cpp
-multiset();
-explicit multiset(size_type bucket_count, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-template<std::input_iterator InputIt>
-multiset(InputIt first, InputIt last, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-multiset(std::initializer_list<value_type> ilist, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
-multiset(const multiset& other);
-multiset(multiset&& other);
-```
+## Member functions
 
-The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two. The range constructor, given a forward range, sizes the table for the distance first; every element is kept. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. A constructor or hasher that throws destroys the elements built so far.
+| Function | Description |
+|---|---|
+| [(constructor)](multiset/multiset.md) | constructs the multiset |
+| `(destructor)` | destroys the elements, or leaves them to the sweep the container dies in ([Rules](#rules)); the nodes, the bucket array and the sentinel are reclaimed by the collector |
+| [operator=](multiset/operator_assign.md) | assigns the elements of another multiset or of a list |
 
-```cpp
-multiset rolls = {4, 2, 4, 6, 2};                    // five elements
-multiset<int> sized(100);                                  // 128 buckets
-vector src = {3, 1, 3};
-multiset from_range(src.begin(), src.end());               // deduced: multiset<int>
-multiset<int> taken = std::move(rolls);                    // rolls is empty now
-```
+#### Iterators
 
-### Destructor
+| Function | Description |
+|---|---|
+| [begin, cbegin](multiset/begin.md) | an iterator to the first element |
+| [end, cend](multiset/end.md) | an iterator past the last element |
 
-```cpp
-~multiset();
-```
+#### Capacity
 
-Destroys the elements when the container dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The nodes, the bucket array and the sentinel are reclaimed by the collector in both cases.
+| Function | Description |
+|---|---|
+| [empty](multiset/empty.md) | checks whether the multiset is empty |
+| [size](multiset/size.md) | the number of elements |
+| [max_size](multiset/max_size.md) | the largest number of elements a multiset may hold |
 
-### operator=
+#### Modifiers
 
-```cpp
-multiset& operator=(const multiset& other);
-multiset& operator=(multiset&& other);
-multiset& operator=(std::initializer_list<value_type> ilist);
-```
+| Function | Description |
+|---|---|
+| [clear](multiset/clear.md) | destroys every element, keeps the buckets |
+| [insert](multiset/insert.md) | inserts elements, or nodes |
+| [emplace](multiset/emplace.md) | constructs an element in place |
+| [emplace_hint](multiset/emplace_hint.md) | the same, with a hint that is ignored |
+| [erase](multiset/erase.md) | erases elements |
+| [swap](multiset/swap.md) | swaps the contents |
+| [extract](multiset/extract.md) | takes a node out of the multiset, into a node handle |
+| [merge](multiset/merge.md) | relinks every node of another multiset or set |
 
-Copy assignment builds a copy of `other` and swaps it in; move assignment clears this container (destroying its elements at once) and takes the table over; the list form builds a new table with this container's hasher, equality and `max_load_factor` and swaps it in.
+#### Lookup
 
-```cpp
-multiset<int> a = {1, 1}, b;
-b = a;
-b = {5};                     // the old elements die here
-a = std::move(b);            // a is {5}, b is empty
-```
+| Function | Description |
+|---|---|
+| [count](multiset/count.md) | the number of elements with a key |
+| [find](multiset/find.md) | an iterator to the first element with a key |
+| [contains](multiset/contains.md) | checks whether the multiset holds a key |
+| [equal_range](multiset/equal_range.md) | the run of the elements with a key |
 
-### Iterators
+#### Bucket interface
 
-```cpp
-iterator begin() noexcept;                const_iterator begin() const noexcept;    const_iterator cbegin() const noexcept;
-iterator end() noexcept;                  const_iterator end() const noexcept;      const_iterator cend() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [begin(size_type), cbegin(size_type)](multiset/begin.md) | an iterator to the first element of a bucket |
+| [end(size_type), cend(size_type)](multiset/end.md) | an iterator past the last element of a bucket |
+| [bucket_count](multiset/bucket_count.md) | the number of buckets |
+| [max_bucket_count](multiset/max_bucket_count.md) | the largest number of buckets |
+| [bucket_size](multiset/bucket_size.md) | the number of elements in a bucket |
+| [bucket](multiset/bucket.md) | the bucket of a key |
 
-Forward iterators over one chain of nodes; `end()` is a null iterator. Equal elements are adjacent. An iterator is a raw node pointer: copying and advancing it costs a load, and it may be kept in unmanaged memory while its element is in the container.
+#### Hash policy
 
-```cpp
-multiset<string> s = {"a", "b", "a"};
-string joined;
-for (const auto& key : s) {
-    joined += key;                         // "aab" or "baa"
-}
-```
+| Function | Description |
+|---|---|
+| [load_factor](multiset/load_factor.md) | the average number of elements per bucket |
+| [max_load_factor](multiset/max_load_factor.md) | the load factor at which the table grows, read or set |
+| [rehash](multiset/rehash.md) | sets the number of buckets |
+| [reserve](multiset/reserve.md) | sets the number of buckets for a number of elements |
 
-### empty, size, max_size
+#### Observers
 
-```cpp
-bool empty() const noexcept;
-size_type size() const noexcept;
-size_type max_size() const noexcept;
-```
+| Function | Description |
+|---|---|
+| [hash_function](multiset/hash_function.md) | a copy of the hash function |
+| [key_eq](multiset/key_eq.md) | a copy of the equality of the keys |
 
-`size()` is a stored count, O(1).
+#### From mixin::enumerable
 
-### clear
+The questions asked of the elements, carried by every container of the library
+([mixin::enumerable](mixin/enumerable.md)); `contains` is the multiset's own, by the key.
 
-```cpp
-void clear() noexcept;
-```
+| Function | Description |
+|---|---|
+| `index_of` | the position of the first element equal to a value, in the order of iteration |
+| `last_index_of` | the position of the last element equal to a value |
+| `find_if` | a pointer to the first element the predicate accepts |
+| `find_index` | the position of the first element the predicate accepts |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `min`, `max` | the smallest, the largest element |
+| `for_each` | calls a function with every element |
 
-Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay.
+## Non-member functions
 
-```cpp
-multiset<string> s = {"a", "a"};
-s.clear();                     // both strings are destroyed here
-bool gone = s.empty();         // true
-```
+| Function | Description |
+|---|---|
+| [operator==, operator!=](multiset/operator_cmp.md) | compare the elements of two multisets, in any order |
+| [swap](multiset/swap.md) | swaps the contents of two multisets |
+| [erase_if](multiset/erase_if.md) | erases every element satisfying a predicate |
 
-### insert
-
-```cpp
-iterator insert(const value_type& value);
-iterator insert(value_type&& value);
-template<class P> requires std::is_constructible_v<value_type, P&&> iterator insert(P&& value);
-iterator insert(const_iterator hint, const value_type& value);
-iterator insert(const_iterator hint, value_type&& value);
-template<class P> requires std::is_constructible_v<value_type, P&&> iterator insert(const_iterator hint, P&& value);
-template<std::input_iterator InputIt> void insert(InputIt first, InputIt last);
-void insert(std::initializer_list<value_type> ilist);
-iterator insert(node_type&& nh);
-iterator insert(const_iterator hint, node_type&& nh);
-```
-
-Always inserts, and returns the new element; an element already present gets the new one in front of its equivalents. The `P&&` forms build the element through `emplace`. The hint is ignored. The table grows before the node is linked when the size has reached the threshold. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
-
-```cpp
-multiset<string> s;
-s.insert("a");
-auto it = s.insert("a");                              // in front of the first "a"
-s.insert(s.end(), "z");                               // the hint is ignored
-s.insert({"b", "b"});
-multiset<string> other = {"q"};
-s.insert(other.extract("q"));                         // relinked, no copy
-bool front = s.find("a") == it;                       // true
-```
-
-### emplace, emplace_hint
+## Deduction guides
 
 ```cpp
-template<class... A> iterator emplace(A&&... a);
-template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
-```
+template<std::input_iterator InputIt,
+         class Hash = std::hash<typename std::iterator_traits<InputIt>::value_type>,
+         class KeyEqual = std::equal_to<typename std::iterator_traits<InputIt>::value_type>>
+multiset(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> multiset<typename std::iterator_traits<InputIt>::value_type, Hash, KeyEqual>;
 
-Builds the key from `a...` in a new node and links it in front of its equivalents. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the container as it was.
-
-```cpp
-multiset<string> s;
-s.emplace(3, 'x');                          // "xxx"
-s.emplace(3, 'x');                          // a second "xxx"
-s.emplace_hint(s.end(), "zzz");
-```
-
-### erase
-
-```cpp
-iterator erase(iterator pos);
-iterator erase(const_iterator pos);
-iterator erase(const_iterator first, const_iterator last);
-size_type erase(const key_type& key);
-template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
-```
-
-Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms erase every equal element and return how many.
-
-```cpp
-multiset s = {1, 1, 2, 3};
-auto erased = s.erase(1);                          // 2
-s.erase(s.find(2));                                // one element: 3 is left
-```
-
-### swap
-
-```cpp
-void swap(multiset& other) noexcept(std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<KeyEqual>);
-friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs)));
-```
-
-Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other container.
-
-```cpp
-multiset<int> a = {1}, b = {2};
-auto it = a.begin();
-swap(a, b);                       // it still points at 1, which is in b now
-bool moved = it == b.find(1);     // true
-```
-
-### extract
-
-```cpp
-node_type extract(const_iterator pos);
-node_type extract(const key_type& key);
-template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
-```
-
-Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key forms extract the first equal element, or return an empty handle. This is the way to change a key. See [node_type](#node_type-the-node-handle).
-
-```cpp
-multiset<string> s = {"a", "a"};
-auto nh = s.extract("a");         // s holds one "a"
-nh.value() = "b";
-s.insert(std::move(nh));          // "a" and "b"
-```
-
-### merge
-
-```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any set or multiset<Key, H2, E2>
-template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
-```
-
-Relinks every node of `source` into this container (a multi table takes them all), rehashing with this container's hasher, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::set` or `sgcl::multiset` with the same `Key` and any hasher and equality.
-
-```cpp
-multiset a = {1, 3};
-set b = {2, 3};
-a.merge(b);                       // a: 1 2 3 3;  b is empty
-```
-
-### count, find, contains, equal_range
-
-```cpp
-size_type count(const key_type& key) const;
-iterator find(const key_type& key);
-const_iterator find(const key_type& key) const;
-bool contains(const key_type& key) const;
-std::pair<iterator, iterator> equal_range(const key_type& key);
-std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const;
-template<class K> size_type count(const K& key) const;                     // when Hash::is_transparent and KeyEqual::is_transparent
-template<class K> iterator find(const K& key);                              //   "
-template<class K> const_iterator find(const K& key) const;                  //   "
-template<class K> bool contains(const K& key) const;                        //   "
-template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //   "  (and the const form)
-```
-
-`find` returns the first element of the key's run, `equal_range` the run, `count` its length (O(1 + count) on average). The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`.
-
-```cpp
-multiset<string> s = {"a", "a"};   // std::hash and std::equal_to of a string are transparent
-auto n = s.count("a");             // 2, no string built for the literal
-string text = "a b";
-auto m = s.count(text.as_slice(0, 1)); // 2: a view of another string, nothing built either
-```
-
-### Bucket interface
-
-```cpp
-size_type bucket_count() const noexcept;
-size_type max_bucket_count() const noexcept;
-size_type bucket_size(size_type n) const;
-size_type bucket(const key_type& key) const;
-template<class K> size_type bucket(const K& key) const;      // when Hash and KeyEqual are transparent
-local_iterator begin(size_type n);              const_local_iterator begin(size_type n) const;   const_local_iterator cbegin(size_type n) const;
-local_iterator end(size_type n);                const_local_iterator end(size_type n) const;     const_local_iterator cend(size_type n) const;
-```
-
-As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets). A local iterator walks the nodes of one bucket, equal elements adjacent, and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
-
-```cpp
-multiset s = {1, 1, 2};
-size_t n = s.bucket(1);
-size_t in_bucket = 0;
-for (auto it = s.begin(n); it != s.end(n); ++it) {
-    ++in_bucket;
-}
-bool same = in_bucket == s.bucket_size(n);        // true, and at least 2
-```
-
-### Hash policy
-
-```cpp
-float load_factor() const noexcept;
-float max_load_factor() const noexcept;
-void max_load_factor(float z);
-void rehash(size_type count);
-void reserve(size_type count);
-```
-
-`load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`; `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, so runs of equal elements stay together and in order, hashes nothing and invalidates no iterator.
-
-```cpp
-multiset<int> s;
-s.reserve(1000);                                  // 1024 buckets
-for (int i : range(1000)) {
-    s.insert(i % 10);                             // ten runs of a hundred
-}
-bool fits = s.load_factor() <= s.max_load_factor();   // true
-```
-
-### hash_function, key_eq
-
-```cpp
-hasher hash_function() const;
-key_equal key_eq() const;
-```
-
-Copies of the hasher and the equality.
-
-### The mixins
-
-`multiset` carries [mixin::enumerable](mixin/enumerable.md) (`contains` its own) ([the mixins](mixin/README.md)).
-
-```cpp
-multiset<int> s = {1, 1, 2};
-assert(s.count_of([](int x) { return x == 1; }) == 2);
-```
-
-### Comparisons
-
-```cpp
-friend bool operator==(const multiset& lhs, const multiset& rhs);
-```
-
-Equal sizes and, for every run of equal elements in `lhs`, a run of the same length in `rhs` that is a permutation of it, whatever the bucket counts and orders. `!=` follows; there is no ordering.
-
-```cpp
-multiset<int> a = {1, 1, 2}, b = {2, 1, 1};
-bool same = a == b;                               // true
-```
-
-### node_type (the node handle)
-
-```cpp
-class node_type {
-public:
-    using key_type = Key;
-    using value_type = Key;
-    node_type() noexcept;
-    node_type(node_type&&) noexcept;
-    node_type& operator=(node_type&&);
-    ~node_type();
-    bool empty() const noexcept;
-    explicit operator bool() const noexcept;
-    value_type& value() const;             // writable: the node is out of any container
-    void swap(node_type& other) noexcept;
-    friend void swap(node_type& lhs, node_type& rhs) noexcept;
-};
-```
-
-Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::set<Key>::node_type`.
-
-### erase_if, std::erase_if
-
-```cpp
-namespace sgcl {
-    template<class Key, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(multiset<Key, Hash, KeyEqual>& c, Pred pred);
-}
-namespace std { using sgcl::erase_if; }
-```
-
-Erases every element for which `pred(*it)` is true and returns how many.
-
-```cpp
-multiset s = {1, 2, 2, 3};
-auto n = std::erase_if(s, [](int x) { return x == 2; });   // 2; s holds 1 and 3
-```
-
-### Deduction guides
-
-```cpp
-template<std::input_iterator InputIt, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>   // Key from the iterator
-multiset(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> multiset<Key, Hash, KeyEqual>;
 template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-multiset(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> multiset<Key, Hash, KeyEqual>;
+multiset(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+    -> multiset<Key, Hash, KeyEqual>;
 ```
 
-```cpp
-vector<string> src = {"a", "a"};
-multiset from_range(src.begin(), src.end());      // multiset<string>
-multiset from_list = {1, 1, 2};                   // multiset<int>
-```
+## Complexity
+
+- `find`, `contains` and the insertion of one element: constant on average, the walk of one bucket; linear in
+  the size when every key falls into one bucket. `count`, `equal_range` and `erase` of a key: the same, plus the
+  length of the key's run.
+- A growth of the table relinks every node and hashes none: amortized constant per insertion.
+- `clear`, a copy, `erase_if` and `==`: linear in the size, `==` quadratic in the length of the longest run.
+
+## Iterator invalidation
+
+| Operations | Invalidated |
+|---|---|
+| all read-only operations, `insert`, `emplace`, `emplace_hint`, `rehash`, `reserve`, `max_load_factor` | never |
+| `swap`, `merge`, the move constructor | never: an iterator follows its element into the other container |
+| `erase`, `extract`, `erase_if` | only the iterators to the erased or extracted elements |
+| `clear`, `operator=` | all |
+| a rehash, by `rehash`, `reserve` or an insertion that grows the table | the local iterators |
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 
 using namespace sgcl;
 
 struct Sample {
     string source;
-    tracked_ptr<Sample> previous;     // traced through the node that holds the Sample
+    tracked_ptr<Sample> previous;  // traced through the node that holds the Sample
 };
 
 int main() {
     println("readings, each value as often as it came");
-    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
+    // after the first line: io's own objects are not the example's
+    auto base = collector::get_live_object_count();
     // A bag of readings keyed by value: several samples may read the same
     multiset<int> readings;
     for (int r : {3, 7, 3, 3, 9, 7}) {
@@ -432,19 +245,20 @@ int main() {
     tracked_ptr owner = make_tracked<Owner>();
     tracked_ptr first = make_tracked<Sample>("a");
     owner->bag.insert(first);
-    owner->bag.insert(first);                                   // the same pointer twice: a multiset allows it
+    owner->bag.insert(first);  // the same pointer twice: a multiset allows it
     owner->bag.insert(make_tracked<Sample>("b", first));
-    auto duplicates = owner->bag.count(first);                  // 2
+    auto duplicates = owner->bag.count(first);  // 2
 
     // Erasing every copy of the pointer destroys those elements; the Sample
     // itself stays while `first` or "b" refers to it
     owner->bag.erase(first);
     first = nullptr;
-    owner = nullptr;                                            // the bag, "b" and then "a" are garbage
+    owner = nullptr;  // the bag, "b" and then "a" are garbage
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    println("{} live objects", collector::get_live_object_count() - base);     // the nodes, buckets and sentinel of `readings`
+    // the nodes, buckets and sentinel of `readings`
+    println("{} live objects", collector::get_live_object_count() - base);
     return readings.count(3) == 3 && duplicates == 2 ? 0 : 1;
 }
 ```
@@ -459,6 +273,7 @@ readings, each value as often as it came
 
 ## See also
 
-- [set](set.md) for unique keys, [multimap](multimap.md) for key-value pairs, [sorted_multiset](sorted_multiset.md) for an ordered tree
+- [set](set.md) for unique keys, [multimap](multimap.md) for key-value pairs,
+  [sorted_multiset](sorted_multiset.md) for an ordered tree
 - [tracked_ptr](tracked_ptr.md), [make_tracked](make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](README.md#the-rules)

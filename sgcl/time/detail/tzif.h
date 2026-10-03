@@ -46,7 +46,7 @@ namespace sgcl::time::detail {
         , _n(bytes.size()) {
         }
 
-        expected<tzif_data, error> read() {
+        expected<tzif_data, error> read() noexcept {
             tzif_data out;
             Header first;
             if (auto e = _header(first)) {
@@ -124,7 +124,7 @@ namespace sgcl::time::detail {
             return int64_t((uint64_t(_u32(at)) << 32) | _u32(at + 4));
         }
 
-        optional<error> _header(Header& h) {
+        optional<error> _header(Header& h) noexcept {
             if (_n - _i < 44) {
                 return error("TZif: the header is cut short", _n);
             }
@@ -167,7 +167,7 @@ namespace sgcl::time::detail {
             return nullopt;
         }
 
-        optional<error> _block(const Header& h, size_t width, tzif_data& out) {
+        optional<error> _block(const Header& h, size_t width, tzif_data& out) noexcept {
             if (_n - _i < h.size(width)) {
                 return error("TZif: the data is cut short", _n);
             }
@@ -259,7 +259,7 @@ namespace sgcl::time::detail {
         size_t _i = 0;
     };
 
-    inline expected<tzif_data, error> read_tzif(const slice<const byte>& bytes) {
+    inline expected<tzif_data, error> read_tzif(const slice<const byte>& bytes) noexcept {
         return tzif_reader(bytes).read();
     }
 }

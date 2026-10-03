@@ -64,14 +64,14 @@ namespace sgcl::encoding::detail {
             _size = n;
         }
 
-        void push_back(char c) {
+        void push_back(char c) noexcept {
             if (_size == _capacity) {
                 reserve(_size + 1);
             }
             _data[_size++] = c;
         }
 
-        void append(const char* p, size_t n) {
+        void append(const char* p, size_t n) noexcept {
             if (n > _capacity - _size) {
                 reserve(_size + n);
             }
@@ -79,12 +79,12 @@ namespace sgcl::encoding::detail {
             _size += n;
         }
 
-        void append(std::string_view s) {
+        void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
         // Room for n characters at least, what is there kept
-        void reserve(size_t n) {
+        void reserve(size_t n) noexcept {
             if (n <= _capacity) {
                 return;
             }
@@ -108,6 +108,9 @@ namespace sgcl::encoding::detail {
         // The characters [from, size()) moved to the front
         void drop_front(size_t from) noexcept {
             if (from) {
+                // memmove (note 313): the two runs may overlap, and
+                // move_bytes inlined here grew the XML scanner's twin of
+                // this (_drop) enough to cost its stream 0.6%
                 std::memmove(_data, _data + from, _size - from);
                 _size -= from;
             }

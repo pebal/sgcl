@@ -1,7 +1,9 @@
-# sgcl::mixin::lookup
+[sgcl](../../README.md) › [core](../README.md) › [mixin](README.md)
+
+# sgcl::mixin::lookup\<Derived\>
 
 ```cpp
-#include "sgcl/core/mixin/lookup.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
+#include "sgcl/core/mixin/lookup.h"   // or "sgcl/core.h"
 
 namespace sgcl::mixin {
     template<class Derived>
@@ -9,40 +11,88 @@ namespace sgcl::mixin {
 }
 ```
 
-`mixin::lookup<Derived>` gives a map the reads by its key that `std::map` makes a program write by hand — the value as a copy in an optional, as a pointer into the map, or a default when the key is absent, one search each and no exception — and declares the class a map: `req::lookup<R>` is "R carries `mixin::lookup`" ([the mixins](README.md)). Over `Derived::find(key)`, an iterator, `end()` when absent, as every `find` of the library, and `mapped_type`; a map whose iterator costs more than a pointer to the value (immutable's carries a path of nodes) gives the mixin a private `_value_of(key)`, the pointer, and the reads go through that. [sorted_map](../sorted_map.md), [sorted_multimap](../sorted_multimap.md), [map](../map.md), [multimap](../multimap.md), [ordered_map](../ordered_map.md) and [immutable::map](../../immutable/map.md) carry it. A key of another type is accepted wherever the map's `find` is transparent; `values_of` exists where `equal_range` does.
+`sgcl::mixin::lookup<Derived>` gives a map the reads by its key that `std::map` makes a program write by hand —
+the value as a copy in an optional, as a pointer into the map, or a default when the key is absent, one search
+each and no exception — and declares the class a map: `req::lookup<R>` is "R carries `mixin::lookup`"
+([the mixins](README.md)). [sorted_map](../sorted_map.md), [sorted_multimap](../sorted_multimap.md),
+[map](../map.md), [multimap](../multimap.md), [ordered_map](../ordered_map.md) and
+[immutable::map](../../immutable/map.md) carry it.
 
-## Members
+The reads go through `Derived::find(key)`, an iterator, `end()` when absent, as every `find` of the library. A map
+whose iterator costs more than a pointer to the value (immutable's carries a path of nodes) gives the mixin a
+private `_value_of(key)`, the pointer, null when absent, and the reads go through that. The keys and the values
+are views over the map's own range of pairs; `for_each` over the pairs is
+[mixin::enumerable](enumerable.md)'s.
+
+## Rules
+
+- A key of another type is accepted wherever the map's `find` is transparent: a `string` key is looked up by a
+  literal or a view, and no string is made for the search.
+- A map with several values per key (a multimap) gives the first by `get`, `try_get` and `value_or`, and all of
+  them by [values_of](lookup/values_of.md), which exists where `equal_range` does.
+- Thread safety is the map's: the members read it as its `find` does.
+
+## Template parameters
+
+| Parameter | Description |
+|---|---|
+| `Derived` | The map that carries the mixin and names itself as the argument (`class map : public mixin::lookup<map<Key, T, Hash, KeyEqual>>`): it gives `find(key)` and `end()`, or a private `_value_of(key)`, its `mapped_type`, and iterates over its pairs. Its types are named in the bodies of the members only, so the mixin is instantiated while `Derived` is not yet complete. |
+
+## Member functions
+
+| Function | Description |
+|---|---|
+| `(constructor)`, `(destructor)` | protected: the mixin exists only as a base |
+
+#### Lookup
+
+| Function | Description |
+|---|---|
+| [get](lookup/get.md) | a copy of the value under a key, an empty optional when absent |
+| [try_get](lookup/try_get.md) | a pointer to the value under a key, null when absent |
+| [value_or](lookup/value_or.md) | the value under a key, or a default |
+| [contains_key](lookup/contains_key.md) | checks whether the map has a value under a key |
+| [values_of](lookup/values_of.md) | every value under a key, as a range |
+
+#### Views
+
+| Function | Description |
+|---|---|
+| [keys](lookup/keys.md) | the keys as a range, in the map's order |
+| [values](lookup/values.md) | the values as a range, in the map's order |
+
+## Example
 
 ```cpp
-template<class K> optional<mapped_type> get(const K& key) const;       // a copy of the value, nullopt when absent
-template<class K> mapped_type* try_get(const K& key) noexcept;         // a pointer into the map, null when absent; and const
-template<class K, class U> mapped_type value_or(const K& key, U&& fallback) const;
-template<class K> bool contains_key(const K& key) const;
-auto keys() const;                                                     // the keys as a range, in the map's order
-auto values();  auto values() const;                                   // the values as a range
-template<class K> auto values_of(const K& key);                        // every value under the key (a multimap's), as a range; and const
+#include "sgcl/core.h"
+#include "sgcl/immutable.h"
+#include "sgcl/io.h"
+
+using namespace sgcl;
+
+// Any map of the library: what the function asks for is what the parameter says
+int port_of(const req::lookup auto& ports, const char* name) {
+    return ports.value_or(name, 0);
+}
+
+int main() {
+    sorted_map<string, int> ports = {{"http", 80}, {"https", 443}};
+    immutable::map<string, int> fixed = immutable::map<string, int>().insert("ssh", 22);
+    println("{} {} {}", port_of(ports, "https"), port_of(fixed, "ssh"), port_of(fixed, "ftp"));
+    println("{} {}", req::lookup<sorted_map<string, int>>, req::lookup<sorted_set<string>>);
+}
 ```
 
-```cpp
-sorted_map<string, int> ports = {{"http", 80}, {"https", 443}};
-assert(*ports.get("http") == 80 && !ports.get("ftp"));
-assert(ports.value_or("ftp", 21) == 21 && ports.contains_key("https"));
-if (int* p = ports.try_get("http")) {
-    *p = 8080;                                   // in place
-}
-int sum = 0;
-for (int port : ports.values()) {
-    sum += port;                                 // 8523
-}
-sorted_multimap<int, string> names = {{1, "a"}, {1, "b"}};
-size_t n = 0;
-for (const auto& name : names.values_of(1)) {
-    n += name.size();                            // 2
-}
-immutable::map<int, int> im = immutable::map<int, int>().insert(1, 10);
-assert(*im.get(1) == 10 && im.value_or(2, 0) == 0);   // the same reads on the immutable map
+Output:
+
+```text
+443 22 0
+true false
 ```
 
 ## See also
 
-- [the mixins and the requirements](README.md); the maps' own `find`, `at`, `contains`, which `mixin::lookup` builds on
+- [req::lookup](../req/lookup.md): a map read by its key: what a function asks for to call these members
+- [the mixins and the requirements](README.md); the maps' own `find`, `at`, `contains`, which `mixin::lookup`
+  builds on
+- `tests/core/mixin.cpp`

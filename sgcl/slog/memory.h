@@ -28,12 +28,12 @@ namespace sgcl::slog {
     // through it.
     class memory {
     public:
-        memory()
+        memory() noexcept
         : _s(make_tracked<detail::MemoryState>()) {
         }
 
         // The records so far, in the order they came
-        vector<record> records() const {
+        vector<record> records() const noexcept {
             std::lock_guard<std::mutex> g(_s->lock);
             vector<record> out;
             out.reserve(_s->records.size());
@@ -43,12 +43,12 @@ namespace sgcl::slog {
             return out;
         }
 
-        size_t size() const {
+        size_t size() const noexcept {
             std::lock_guard<std::mutex> g(_s->lock);
             return _s->records.size();
         }
 
-        void clear() const {
+        void clear() const noexcept {
             std::lock_guard<std::mutex> g(_s->lock);
             _s->records.clear();
         }

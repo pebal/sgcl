@@ -305,6 +305,22 @@ TEST(Lzma_Tests, EmptyAndOneByte) {
     }
 }
 
+// Text compresses as it stands, as flate's, zlib's and gzip's does: a
+// literal, a character array, a std::string_view and a string make the
+// same bytes (a literal was ambiguous between the slice and the string)
+TEST(Lzma_Tests, TextAsItStands) {
+    static_assert(noexcept(lzma::compress("text")));
+    static_assert(!noexcept(lzma::compress("text", lzma::options{})));
+    auto want = lzma::compress(sgcl::string("hello, hello, hello"));
+    const char array[] = "hello, hello, hello";
+    EXPECT_TRUE(lzma::compress("hello, hello, hello") == want);
+    EXPECT_TRUE(lzma::compress(array) == want);
+    EXPECT_TRUE(lzma::compress(std::string_view("hello, hello, hello")) == want);
+    EXPECT_TRUE(lzma::compress("hello, hello, hello", {.level = 9}) == lzma::compress(sgcl::string("hello, hello, hello"), {.level = 9}));
+    EXPECT_EQ(text(value_of(lzma::decompress(lzma::compress("hello")))), "hello");
+    EXPECT_THROW(lzma::compress("hello", {.lc = 9}), std::invalid_argument);
+}
+
 // lc, lp, pb and dictionaries of every kind, both ways with liblzma
 TEST(Lzma_Tests, PropertiesAndDictionaries) {
     auto t = read_oracle("compress/gettysburg.txt") + read_oracle("compress/e.txt");

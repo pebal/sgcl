@@ -91,7 +91,7 @@ namespace sgcl::crypto::x509 {
         // its own does not take the next block with it. f returns true to
         // stop
         template<class F>
-        void walk_pem(const string& text, F&& f) {
+        void walk_pem(const string& text, F&& f) noexcept(std::is_nothrow_invocable_v<F&, expected<encoding::pem, encoding::error>&>) {
             auto v = text.view();
             size_t from = 0;
             while (from < v.size()) {
@@ -126,7 +126,7 @@ namespace sgcl::crypto::x509 {
         // anything that is not one, or is not strict DER, or passes the
         // bounds of a certificate (128 KiB, 64 extensions, 1024 names in
         // its SAN, 256 subtrees of name constraints)
-        [[nodiscard]] static expected<certificate, error> parse(const slice<const byte>& der) {
+        [[nodiscard]] static expected<certificate, error> parse(const slice<const byte>& der) noexcept {
             // the size before the copy, so that an input of any length costs nothing
             if (der.size() > detail::max_certificate_size) {
                 return unexpected<error>(error(errc::malformed, uint64_t(0), string("sgcl::crypto::x509: a certificate larger than 128 KiB")));
@@ -148,10 +148,10 @@ namespace sgcl::crypto::x509 {
         // certificate's parse, or errc::malformed for a text with no
         // CERTIFICATE block that reads (the message names the first PEM
         // error when there was one)
-        [[nodiscard]] static expected<certificate, error> from_pem(const string& text) {
+        [[nodiscard]] static expected<certificate, error> from_pem(const string& text) noexcept {
             optional<encoding::pem> found;
             optional<string> first_error;
-            detail::walk_pem(text, [&](expected<encoding::pem, encoding::error>& block) {
+            detail::walk_pem(text, [&](expected<encoding::pem, encoding::error>& block) noexcept {
                 if (!block) {
                     if (!first_error) {
                         first_error = block.error().message();
@@ -371,7 +371,7 @@ namespace sgcl::crypto::x509 {
         // parent's key. errc::verification with not_a_ca,
         // missing_cert_sign, insecure_algorithm, unsupported_algorithm or
         // invalid_signature. Go's CheckSignatureFrom
-        [[nodiscard]] expected<void, error> check_signature_from(const certificate& parent) const {
+        [[nodiscard]] expected<void, error> check_signature_from(const certificate& parent) const noexcept {
             return detail::check_signature(*_d, *parent._d);
         }
 
@@ -381,7 +381,7 @@ namespace sgcl::crypto::x509 {
         // exactly one label; the common name never. A name written as an
         // IP address is refused: an address is verified by verify_ip.
         // errc::verification, reason hostname_mismatch
-        [[nodiscard]] expected<void, error> verify_hostname(const string& host) const {
+        [[nodiscard]] expected<void, error> verify_hostname(const string& host) const noexcept {
             return detail::check_hostname(*_d, host.view());
         }
 
@@ -444,7 +444,7 @@ namespace sgcl::crypto::x509 {
     // not
     class certificate_pool {
     public:
-        certificate_pool()
+        certificate_pool() noexcept
         : _d(make_tracked<detail::PoolData>()) {
         }
 
@@ -460,12 +460,12 @@ namespace sgcl::crypto::x509 {
         static expected<certificate_pool, error> system();
 
         // The same, the files read on the blocking pool, for a task
-        static async::task<expected<certificate_pool, error>> async_system();
+        static async::task<expected<certificate_pool, error>> async_system() noexcept;
 
         // Every CERTIFICATE block of a PEM text that parses, as Go's
         // AppendCertsFromPEM: blocks of other types and certificates that
         // do not parse are passed over
-        static certificate_pool from_pem(const string& text) {
+        static certificate_pool from_pem(const string& text) noexcept {
             certificate_pool p;
             p.append_pem(text);
             return p;
@@ -477,10 +477,10 @@ namespace sgcl::crypto::x509 {
         [[nodiscard]] static expected<certificate_pool, io::error> from_file(const string& path);
 
         // The same, the file read on the blocking pool, for a task
-        [[nodiscard]] static async::task<expected<certificate_pool, io::error>> async_from_file(string path);
+        [[nodiscard]] static async::task<expected<certificate_pool, io::error>> async_from_file(string path) noexcept;
 
         // The certificate, unless the pool has it already
-        void add(const certificate& c) {
+        void add(const certificate& c) noexcept {
             auto d = sha256::of(c.raw());
             std::string sum(reinterpret_cast<const char*>(d.data()), d.size());
             if (!_d->sums.insert(sum).second) {
@@ -493,10 +493,10 @@ namespace sgcl::crypto::x509 {
 
         // The certificates of a PEM text added: how many parsed (Go's
         // AppendCertsFromPEM is true when one did)
-        size_t append_pem(const string& text) {
+        size_t append_pem(const string& text) noexcept {
             size_t n = 0;
             // block by block, so that one broken block leaves the others
-            detail::walk_pem(text, [&](expected<encoding::pem, encoding::error>& block) {
+            detail::walk_pem(text, [&](expected<encoding::pem, encoding::error>& block) noexcept {
                 if (!block || block->type() != "CERTIFICATE" || !block->headers().empty()) {
                     return false;
                 }
@@ -523,13 +523,13 @@ namespace sgcl::crypto::x509 {
         }
 
         // Whether the pool has this very certificate (the same bytes)
-        [[nodiscard]] bool contains(const certificate& c) const {
+        [[nodiscard]] bool contains(const certificate& c) const noexcept {
             auto d = sha256::of(c.raw());
             return _d->sums.count(std::string(reinterpret_cast<const char*>(d.data()), d.size())) != 0;
         }
 
         // A pool of its own with the same certificates
-        certificate_pool clone() const {
+        certificate_pool clone() const noexcept {
             certificate_pool p;
             p._d->certs = _d->certs;
             p._d->by_subject = _d->by_subject;
@@ -684,7 +684,7 @@ namespace sgcl::crypto::x509 {
             static constexpr size_t max_intermediates = 10;
             static constexpr size_t max_signature_checks = 100;
 
-            ChainBuilder(const verify_options& o, const PoolData& roots, const PoolData& inter, int64_t now)
+            ChainBuilder(const verify_options& o, const PoolData& roots, const PoolData& inter, int64_t now) noexcept
             : _o(o), _roots(roots), _inter(inter), _now(now) {
             }
 
@@ -741,7 +741,7 @@ namespace sgcl::crypto::x509 {
             optional<error> _eku;            // the key usage failure, reported after a constraint one
 
             // The checks of a whole chain
-            expected<void, error> _complete() {
+            expected<void, error> _complete() noexcept {
                 ConstraintChecker nc;
                 if (auto r = nc.check(_data); !r) {
                     return r;
@@ -752,7 +752,7 @@ namespace sgcl::crypto::x509 {
             // The parents of the last certificate in a pool, by the key ids
             // (the AKID matching the SKID first, then one of them missing,
             // then the rest)
-            static void _parents(const PoolData& pool, const CertData& child, std::vector<uint32_t>& out) {
+            static void _parents(const PoolData& pool, const CertData& child, std::vector<uint32_t>& out) noexcept {
                 out.clear();
                 auto it = pool.by_subject.find(std::string(reinterpret_cast<const char*>(child.bytes_at(child.issuer_at)), child.issuer_size));
                 if (it == pool.by_subject.end()) {
@@ -777,7 +777,7 @@ namespace sgcl::crypto::x509 {
             // the child verified (its own validity, its constraints, or the
             // levels above it), else the first signature that did not
             // verify, else an unknown authority
-            expected<void, error> _build() {
+            expected<void, error> _build() noexcept {
                 const CertData& child = *_data.back();
                 optional<error> passed;      // the first failure of a parent whose signature over child verified
                 optional<error> unverified;  // the first parent whose signature did not verify (or could not be checked)
@@ -826,7 +826,7 @@ namespace sgcl::crypto::x509 {
             }
 
             // A parent whose signature over the last certificate verified
-            expected<void, error> _consider(const certificate& cand, const CertData& p, bool root) {
+            expected<void, error> _consider(const certificate& cand, const CertData& p, bool root) noexcept {
                 if (auto r = check_critical(p); !r) {
                     return r;
                 }
@@ -883,7 +883,7 @@ namespace sgcl::crypto::x509 {
         return detail::PoolAccess::make(s.pool.ptr()).clone();
     }
 
-    inline async::task<expected<certificate_pool, error>> certificate_pool::async_system() {
+    inline async::task<expected<certificate_pool, error>> certificate_pool::async_system() noexcept {
         co_return co_await async::spawn_blocking([] { return system(); });
     }
 
@@ -896,7 +896,7 @@ namespace sgcl::crypto::x509 {
         return from_pem(string(std::string(p, bytes->size())));
     }
 
-    inline async::task<expected<certificate_pool, io::error>> certificate_pool::async_from_file(string path) {   // by value: a task is lazy
+    inline async::task<expected<certificate_pool, io::error>> certificate_pool::async_from_file(string path) noexcept {   // by value: a task is lazy
         co_return co_await async::spawn_blocking([path] { return from_file(path); });
     }
 

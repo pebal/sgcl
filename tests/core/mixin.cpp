@@ -79,7 +79,7 @@ TEST(Mixin_Tests, WhatTheContainersDeclare) {
     static_assert(req::immutable<immutable::vector<int>> && req::immutable<immutable::list<int>> && req::immutable<immutable::map<int, int>> && req::immutable<immutable::set<int>>);
     static_assert(!req::immutable<vector<int>> && !req::immutable<slice<const int>> && !req::immutable<sorted_set<int>>);   // not written is not immutable
     static_assert(req::contiguous<slice<int>> && req::sequence<slice<int>> && req::contiguous<slice<const int>> && !req::sequence<slice<const int>>);
-    static_assert(req::contiguous<range<int*>> && req::sequence<range<int*>> && req::random_access<range<detail::counter<int>>> && !req::sequence<range<detail::counter<int>>>);
+    static_assert(req::contiguous<range<int*>> && req::sequence<range<int*>> && req::random_access<range<counting_iterator<int>>> && !req::sequence<range<counting_iterator<int>>>);
     static_assert(!req::enumerable<string>);   // mixin::text, not a range of the library: as_slice() is
     static_assert(req::enumerable<Ring<int>> && req::ordered<Ring<int>> && req::sequence<Ring<int>>);
 }
@@ -107,6 +107,33 @@ TEST(Mixin_Tests, AConceptOfAValueIsStructuralToo) {
     static_assert(!req::equatable<Plain> && !req::comparable<Plain>);
     static_assert(!req::equatable<LessOnly> && req::comparable<LessOnly>);   // as the standard containers order: < alone
     static_assert(req::comparable<Int>);   // the test type, by <=>
+}
+
+namespace {
+    struct Tree {   // a value whose == compares a container of itself
+        int value;
+        vector<Tree> children;
+        bool operator==(const Tree&) const = default;
+    };
+}
+
+TEST(Mixin_Tests, AContainerIsEquatableAndComparableOnlyWhenItsElementsAre) {
+    // carrying the mixin is not enough: its operators exist only for
+    // elements that compare, and the concept says what the operators do
+    static_assert(!req::equatable<vector<Plain>> && !req::comparable<vector<Plain>>);
+    static_assert(!req::equatable<list<Plain>> && !req::equatable<sorted_set<Plain, bool (*)(Plain, Plain) noexcept>>);
+    static_assert(!req::equatable<slice<const Plain>> && !req::equatable<immutable::vector<Plain>>);
+    static_assert(!req::equatable<immutable::list<Plain>> && !req::equatable<immutable::map<int, Plain>>);
+    static_assert(req::equatable<immutable::vector<int>> && req::equatable<immutable::map<int, int>>);
+    static_assert(!req::equatable<vector<LessOnly>> && req::comparable<vector<LessOnly>>);
+    static_assert(req::equatable<vector<int>> && req::comparable<vector<int>> && req::equatable<const vector<int>&>);
+    static_assert(req::equatable<vector<vector<int>>> && req::comparable<vector<vector<int>>>);
+    static_assert(!req::equatable<vector<vector<Plain>>> && !req::comparable<vector<vector<Plain>>>);
+    static_assert(req::equatable<Tree> && req::equatable<vector<Tree>> && !req::comparable<Tree>);
+    Tree a{1, {Tree{2, {}}}}, b = a;
+    EXPECT_TRUE(a == b);
+    b.children[0].value = 3;
+    EXPECT_FALSE(a == b);
 }
 
 TEST(Mixin_Tests, AMethodExistsOnlyForElementsThatAllowIt) {
@@ -253,4 +280,46 @@ TEST(Mixin_Tests, TheMixinsHaveNoStateAndAreNotParameters) {
     static_assert(sizeof(Ring<int>) == sizeof(std::vector<int>));
     static_assert(sizeof(slice<int>) == 3 * sizeof(void*));
     static_assert(!std::is_default_constructible_v<mixin::enumerable<Ring<int>>>);   // protected: a base only
+}
+
+// find_if on a range whose iterator gives values (range(n), runes) has
+// no element to point to: it gives the value found, in an optional, which
+// is tested and read in one if as the pointer is
+TEST(Mixin_Tests, FindIfOnARangeOfValuesGivesTheValue) {
+    auto seven = range(10).find_if([](int x) { return x > 6; });
+    static_assert(std::is_same_v<decltype(seven), optional<int>>);
+    ASSERT_TRUE(seven);
+    EXPECT_EQ(*seven, 7);
+    EXPECT_FALSE(range(3).find_if([](int x) { return x > 5; }));
+    const auto counter = range(2, 6);
+    EXPECT_EQ(counter.find_if([](int x) { return x % 2 == 1; }), optional<int>(3));
+    auto l = string("żółw").runes().find_if([](char32_t c) { return c > 0x7F && c != U'ż'; });
+    static_assert(std::is_same_v<decltype(l), optional<char32_t>>);
+    EXPECT_EQ(l, optional<char32_t>(U'ó'));
+    vector<int> v = {1, 2};
+    static_assert(std::is_same_v<decltype(v.find_if([](int) { return true; })), int*>);   // elements: a pointer, as before
+}
+
+namespace {
+    template<class A, class W>
+    concept ConvertsToItsWord = std::is_convertible_v<const A&, W>;
+}
+
+// Nothing public takes or gives a detail type: the null that skips the
+// thread's registration and the slice of memory outside its owner are the
+// library's own constructors; an atomic of a handle does not convert to
+// its word; a frame's word and the counting iterator have public names
+TEST(Mixin_Tests, NoDetailTypeInThePublicSurface) {
+    EXPECT_FALSE((std::is_constructible_v<tracked_ptr<int>, std::nullptr_t, detail::unregistered_t>));
+    EXPECT_FALSE((std::is_constructible_v<slice<const byte>, const tracked_ptr<const void>&, const byte*, const byte*, detail::OutsideOwner>));
+    using Word = tracked_ptr<detail::HandleStateOf<string>>;
+    EXPECT_FALSE((ConvertsToItsWord<atomic<string>, Word>));
+    EXPECT_FALSE((ConvertsToItsWord<atomic_ref<string>, Word>));
+    static_assert(std::is_same_v<decltype(managed_frame::self), tracked_ptr<managed_frame::word>>);
+    static_assert(std::is_same_v<decltype(range(3)), range<counting_iterator<int>>>);
+    atomic<string> text("a");   // what the atomic gives is the handle
+    string read = text;
+    EXPECT_EQ(read, "a");
+    EXPECT_TRUE(text.is_lock_free() && atomic<string>::is_always_lock_free);
+    text.notify_all();
 }

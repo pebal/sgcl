@@ -8,6 +8,7 @@
 #include "chacha_core.h"
 #include "../secure_zero.h"
 #include "../../core/detail/bytes.h"
+#include "../../core/detail/os.h"
 
 #include <algorithm>
 #include <atomic>
@@ -182,7 +183,7 @@ namespace sgcl::crypto::detail {
         }
     };
 
-    inline thread_local DrbgWiper drbg_wiper;
+    inline thread_local DrbgWiper drbg_wiper SGCL_VISIBLE;   // core/detail/os.h: SGCL_VISIBLE
 
     // 576 bytes of keystream under the key into the buffer (all zeros by
     // then: every byte given was zeroed), the first 32 the next key
@@ -285,6 +286,9 @@ namespace sgcl::crypto::detail {
             ChachaState c;
             chacha_load(c, k, nonce);
             secure_zero(k, sizeof k);
+            // libc, not fill_bytes: a zero fill of a large request (over a
+            // kilobyte, up to 2^38 bytes a key), where libc zeroes whole cache
+            // lines (DESIGN 393)
             std::memset(out, 0, m);
             chacha_xor(c, 0, out, out, m);
             secure_zero(&c, sizeof c);

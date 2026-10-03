@@ -1000,6 +1000,24 @@ TYPED_TEST(Crypto_Ec, SecretsAreZeroed) {
     EXPECT_THROW((void)from.to_ecdh(), std::logic_error);
     EXPECT_THROW((void)from.to_sec1_der(), std::logic_error);
     EXPECT_TRUE(to.public_key().verify_digest(view(digest), view(to_bytes(to.sign_digest(view(digest))))));
+    // clone() too: it once gave another key moved from, silently
+    EXPECT_THROW((void)from.clone(), std::logic_error);
+    EXPECT_THROW((void)z.clone(), std::logic_error);
+    EXPECT_FALSE(noexcept(from.clone()));
+    EXPECT_FALSE(noexcept(z.clone()));
+    // the message names the curve and the type, as every other error of
+    // the curve names the curve
+    const std::string curve = TypeParam::size == 32 ? "p256" : "p384";
+    auto message = [](auto&& call) {
+        try {
+            call();
+        } catch (const std::logic_error& e) {
+            return std::string(e.what());
+        }
+        return std::string();
+    };
+    EXPECT_EQ(message([&] { (void)from.public_key(); }), "sgcl::crypto::" + curve + "::private_key: used after being moved from");
+    EXPECT_EQ(message([&] { (void)z.public_key(); }), "sgcl::crypto::" + curve + "::ecdh_key: used after being moved from");
 }
 
 // --- Wycheproof -----------------------------------------------------------------------

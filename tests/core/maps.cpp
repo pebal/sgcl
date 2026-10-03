@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <set>
 
 // The collector learns where the pointers are in each type by elimination
 // (detail/child_pointers.h); these tests pin down what that implies.
@@ -129,6 +130,78 @@ namespace {
         Packed() {}
         size_t word = 0;
     };
+
+    // A slot of a pool of its own, for the stepper scenarios below
+    struct Slot {
+        char bytes[256] = {};
+    };
+
+    // An owner and a raw word one past the end of what it owns, the owned
+    // object made in the cycle being stepped: registered only by the next
+    struct FreshEndCovered {
+        FreshEndCovered() {}
+        tracked_ptr<Slot> owner;
+        size_t end = 0;
+    };
+
+    // The same shape with the owner pointing elsewhere: the raw word names
+    // the start of an old object the holder keeps nothing of
+    struct FreshEndUncovered {
+        FreshEndUncovered() {}
+        tracked_ptr<Slot> owner;
+        size_t end = 0;
+    };
+
+#if !defined(NDEBUG)
+    // Old Slots with holes before them: four pages' worth made, three of
+    // four dropped, so that the next full cycles empty their pages by more
+    // than half and hand them back to the allocator
+    void make_old_slots(sgcl::vector<tracked_ptr<Slot>>& old) {
+        off_frame([&] {
+            old.reserve(1024);
+            for (int i = 0; i < 1024; ++i) {
+                old.push_back(make_tracked<Slot>());
+            }
+            for (int i = 0; i < 1024; ++i) {
+                if (i % 4 != 0) {
+                    old[i] = nullptr;
+                }
+            }
+        });
+    }
+
+    // Two full cycles under the stepper: the dropped Slots swept, the
+    // holders' maps built, the survivors registered and marked
+    void settle(collector::stepper& s) {
+        for (int i = 0; i < 2; ++i) {
+            collector::clear_stack(SIZE_MAX);
+            s.finish_cycle();
+        }
+    }
+
+    // Slots made now until one lands in the slot right before an old one:
+    // {the fresh one, the old one}, or nulls
+    std::pair<tracked_ptr<Slot>, tracked_ptr<Slot>> fresh_before_old(sgcl::vector<tracked_ptr<Slot>>& old) {
+        std::set<const char*> kept;
+        for (size_t i = 0; i < old.size(); ++i) {
+            if (old[i]) {
+                kept.insert((const char*)old[i].get());
+            }
+        }
+        for (int i = 0; i < 4096; ++i) {
+            tracked_ptr<Slot> fresh = make_tracked<Slot>();
+            auto after = (const char*)fresh.get() + sizeof(Slot);
+            if (kept.count(after)) {
+                for (size_t j = 0; j < old.size(); ++j) {
+                    if ((const char*)old[j].get() == after) {
+                        return {fresh, old[j]};
+                    }
+                }
+            }
+        }
+        return {};
+    }
+#endif
 }
 
 TEST(Maps_Tests, DataOffsetsAreEliminatedPointerOffsetsStay) {
@@ -339,6 +412,50 @@ TEST(Maps_Tests, AnEndWordItsOwnerCoversIsNotReported) {
     }
     auto output = ::testing::internal::GetCapturedStderr();
     EXPECT_EQ(output.find("EndCovered"), std::string::npos) << output;
+}
+
+// The same with the owned object made after the registration of the cycle
+// that traces the holder (registered by the next one only): the word that
+// holds it is the evidence, not the registration (the HTTP/2 owned slices,
+// DESIGN 440)
+TEST(Maps_Tests, AnEndWordOfAFreshOwnedObjectIsNotReported) {
+    collector::stepper s;
+    sgcl::vector<tracked_ptr<Slot>> old;
+    tracked_ptr<FreshEndCovered> data = make_tracked<FreshEndCovered>();
+    tracked_ptr<FreshEndCovered> covered = make_tracked<FreshEndCovered>();
+    data->end = 12345;
+    make_old_slots(old);
+    settle(s);
+    s.advance_to(collector::stepper::phase::registered);
+    auto [first, next] = fresh_before_old(old);   // first: unregistered this cycle; next: old, registered
+    ASSERT_TRUE(first);
+    covered->owner = first;
+    covered->end = (size_t)((char*)first.get() + sizeof(Slot));
+    ::testing::internal::CaptureStderr();
+    s.finish_cycle();
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_EQ(output.find("FreshEndCovered"), std::string::npos) << output;
+}
+
+// A raw word at the start of an old object whose predecessor, fresh, the
+// holder does not name: reported, the raw word keeping nothing
+TEST(Maps_Tests, AStartWordWhosePredecessorIsNotHeldIsReported) {
+    collector::stepper s;
+    sgcl::vector<tracked_ptr<Slot>> old;
+    tracked_ptr<FreshEndUncovered> data = make_tracked<FreshEndUncovered>();
+    tracked_ptr<FreshEndUncovered> uncovered = make_tracked<FreshEndUncovered>();
+    data->end = 12345;
+    make_old_slots(old);
+    settle(s);
+    s.advance_to(collector::stepper::phase::registered);
+    auto [first, next] = fresh_before_old(old);
+    ASSERT_TRUE(first);
+    uncovered->owner = make_tracked<Slot>();   // a Slot elsewhere
+    uncovered->end = (size_t)next.get();
+    ::testing::internal::CaptureStderr();
+    s.finish_cycle();
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_NE(output.find("FreshEndUncovered"), std::string::npos) << output;
 }
 
 // Data that lands inside a live object, not at its start, is not taken

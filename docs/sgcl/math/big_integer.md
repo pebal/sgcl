@@ -1,185 +1,174 @@
+[sgcl](../README.md) › [math](README.md)
+
 # sgcl::math::big_integer
 
 ```cpp
-#include "sgcl/math/big_integer.h"   // or "sgcl/math/math.h"
+#include "sgcl/math/big_integer.h"   // or "sgcl/math.h"
 
 namespace sgcl::math {
     class big_integer;
-    class parse_error;
+
     namespace literals {
-        template<char... Digits> big_integer operator""_big();
+        template<char... C>
+        big_integer operator""_big() noexcept;
     }
 }
 ```
 
-`math::big_integer` is a whole number of any size: what Go's `math/big.Int` is, with the manners of an `int`. Operators and all — `a * 2 + 1` is written as it reads, `a < 10` and `a == 0` compare with the language's own integers, `/` cuts towards zero and `%` takes the sign of the dividend as they do for `int` — and the methods are `const` and hand back a new value: `a.to_string(16)`, `a.div_rem(d)`, `a.abs()`. Nothing overflows.
+`sgcl::math::big_integer` is a whole number of any size: what Go's `math/big.Int` is, with the manners of an
+`int`. Operators and all: `a * 2 + 1` is written as it reads, `a < 10` and `a == 0` compare with the language's
+own integers, `/` cuts towards zero and `%` takes the sign of the dividend as they do for `int`, and the methods
+are `const` and hand back a new value: `a.to_string(16)`, `a.div_rem(d)`, `a.abs()`. Nothing overflows. The only
+changes to a variable are the assignments, the compound assignments and the increments, which put a new value in
+it.
+
+Where Go's `big.Int` is a pointer and an operation writes its result into a receiver, `z.Add(x, y)`, a
+`big_integer` is a value and `a + b` is a new one; where Go writes `big.NewInt(2)` for every constant in an
+expression, the constant here is the `int` itself, and a constant longer than any integer of the language is the
+literal [_big](big_integer/literals.md), whose digits the compiler checks, where Go has only `SetString` when the
+program runs. A small value is inside the `big_integer` and allocates nothing, where Go allocates a slice of
+words; and a copy is two words with the object of limbs shared, where Go's `new(big.Int).Set(x)` copies the words.
 
 ## Rules
 
-- **Sixteen bytes, and a small value allocates nothing.** Every value `int64_t` holds lives inside the `big_integer`, always — so equality and the hash need no normalizing, and arithmetic on two of them is the processor's own with a check for overflow. A larger one lives in a managed object of limbs (words of 64 bits), made the way the characters of a [`string`](../core/string.md) are: of the smallest size class that holds them, each class a pool of its own, past about 62 KB a buffer of a range of pages. The limbs are numbers, never traced, never zeroed.
-- **A value, shared by copying a word.** A copy of a `big_integer` is two words and a barrier; the object of limbs is shared, read by any number of threads without a lock, kept as a key of a [`map`](../core/map.md) or in an [`im`](../immutable/README.md) container, and never changed while two values have it. `a += b` means `a = a + b`: whoever else holds the old value still has it whole.
-- **Written in place when nothing else has it.** The result of an operation that has not been copied since — `sum` in `sum += x`, `f` in `f *= k` — has its object to itself, and `+=`, `-=` and `*=` by a value within `int64_t` write into it while it has room, as Go's `z.Add(z, x)` does without Go's receiver in the API. A copy (or a negation, which shares the limbs) marks the object shared, with one atomic write the first time, and from then on both values allocate their results as any value does; a move hands the object on and leaves zero behind. Nothing of this shows but in the time: a copy never changes with the value it was taken from.
-- **Where it lives.** A `big_integer` holds a `tracked_ptr`, so it goes where one may: on a stack, in a managed object, in a container of the library. In a `std::vector` or a global, through [`rooted`](../core/rooted.md) or [`root_ptr`](../core/root_ptr.md).
-- **An error of the program throws.** A division, a remainder or a `mod` by zero, a negative shift, a NaN or an infinity made into a number are `domain_error`; a base outside 2 to 36 is `invalid_argument`; `to_bytes(length)` too short and a shift past 2^46 limbs are `length_error`. Go panics in all of these, and `int` would be undefined.
-- **An error of data does not.** `parse` of text that is not a number is an [`expected`](../core/expected.md) whose `parse_error` has `offset()`, the byte where the reading stopped, and `message()`.
-- **Not constant-time.** The length of a value, the fast paths and the corrections of the division depend on the value. Public numbers only — a modulus, a serial number, an INTEGER of DER; secrets are `crypto`'s.
+- **Sixteen bytes, and a small value allocates nothing.** Every value `int64_t` holds lives inside the
+  `big_integer`, always, so equality and the hash need no normalizing, and arithmetic on two of them is the
+  processor's own with a check for overflow. A larger one lives in a managed object of limbs (words of 64 bits),
+  made the way the characters of a [string](../core/string.md) are: of the smallest size class that holds them,
+  each class a pool of its own, past about 62 KB a buffer of a range of pages. The limbs are numbers, never
+  traced, never zeroed.
+- **A value, shared by copying a word.** A copy of a `big_integer` is two words and a barrier; the object of limbs
+  is shared, read by any number of threads without a lock, kept as a key of a [map](../core/map.md) or in an
+  [immutable](../immutable/README.md) container, and never changed while two values have it. `a += b` means
+  `a = a + b`: whoever else holds the old value still has it whole.
+- **Written in place when nothing else has it.** The result of an operation that has not been copied since, `sum`
+  in `sum += x`, `f` in `f *= k`, has its object to itself, and `+=`, `-=` and `*=` by a value within `int64_t`
+  write into it while it has room, as Go's `z.Add(z, x)` does, without Go's receiver in the API. A copy (or a
+  negation, which shares the limbs) marks the object shared, with one atomic write the first time, and from then
+  on both values allocate their results as any value does; a move hands the object on and leaves zero behind.
+  Nothing of this shows but in the time: a copy never changes with the value it was taken from.
+- **Where it lives.** A `big_integer` holds a `tracked_ptr`, so it goes where one may: on a stack, in a managed
+  object, in a container of the library ([The rules](../core/README.md#the-rules) of core). In a `std::vector` or
+  a global, through [rooted](../core/rooted.md) or [root_ptr](../core/root_ptr.md).
+- **An error of the program throws.** A division, a remainder or a `mod` by zero, a negative shift, a NaN or an
+  infinity made into a number are `domain_error`; a base outside 2 to 36 is `invalid_argument`; `to_bytes(length)`
+  too short and a shift past 2^46 limbs are `length_error`. Go panics in all of these, and `int` would be
+  undefined.
+- **An error of data does not.** [parse](big_integer/parse.md) of a text that is not a number is an
+  [expected](../core/expected.md) whose [parse_error](parse_error.md) has `offset()`, the byte where the reading
+  stopped, and `message()`, where Go's `SetString` answers `nil, false`.
+- **Not constant-time.** The length of a value, the fast paths and the corrections of the division depend on the
+  value. Public numbers only: a modulus, a serial number, an INTEGER of DER; secrets are `crypto`'s.
 - **64-bit targets with `unsigned __int128`**: clang and gcc on arm64 and x86-64.
 
-## Members
+## Member functions
 
-### Construction
+| Function | Description |
+|---|---|
+| [(constructor)](big_integer/big_integer.md) | constructs a number: zero, from any whole number, from a `double`, from a literal text |
+| `(destructor)` | drops the word; the object of limbs is left to the collector |
+| [operator=](big_integer/operator_assign.md) | assigns another number: a copy shares its object, a move hands it on |
+
+#### Arithmetic
+
+| Function | Description |
+|---|---|
+| [operator+=, operator-=, operator\*=, operator/=, operator%=, operator-](big_integer/operator_arith.md) | the compound assignments and the negation |
+| [operator&=, operator\|=, operator^=, operator\<\<=, operator\>\>=, operator~](big_integer/operator_arith.md) | the compound assignments of the bits and the complement |
+| [operator++, operator--](big_integer/operator_inc.md) | adds or subtracts one, prefix and postfix |
+| [sign](big_integer/sign.md) | -1, 0 or 1 |
+| [abs](big_integer/abs.md) | the absolute value |
+| [mod](big_integer/mod.md) | the remainder in `[0, \|m\|)`, whatever the signs |
+| [div_rem](big_integer/div_rem.md) | the quotient and the remainder of one division |
+
+#### Number theory
+
+| Function | Description |
+|---|---|
+| [pow](big_integer/pow.md) | the number to a power |
+| [sqrt](big_integer/sqrt.md) | the whole part of the square root |
+| [gcd](big_integer/gcd.md) | the greatest common divisor |
+| [lcm](big_integer/lcm.md) | the least common multiple |
+| [mod_pow](big_integer/mod_pow.md) | a power modulo a number |
+| [mod_inverse](big_integer/mod_inverse.md) | the inverse modulo a number, when there is one |
+| [is_probable_prime](big_integer/is_probable_prime.md) | whether the number is prime, by Baillie–PSW and rounds of Miller–Rabin |
+| [factorial](big_integer/factorial.md) | `n!` (static) |
+| [binomial](big_integer/binomial.md) | the number of ways to choose `k` of `n` (static) |
+
+#### Bits
+
+| Function | Description |
+|---|---|
+| [bit_length](big_integer/bit_length.md) | the bits of the magnitude |
+| [trailing_zeros](big_integer/trailing_zeros.md) | the zero bits below the lowest one |
+| [bit](big_integer/bit.md) | one bit of the two's complement |
+
+#### Conversions
+
+| Function | Description |
+|---|---|
+| [parse](big_integer/parse.md) | reads a number from a text in a base, into an `expected` (static) |
+| [from_bytes](big_integer/from_bytes.md) | the unsigned number of big-endian bytes (static) |
+| [to_string](big_integer/to_string.md) | the digits in a base |
+| [to_bytes](big_integer/to_bytes.md) | the magnitude as big-endian bytes |
+| [to_int64](big_integer/to_int64.md) | the value as an `int64_t`, when it fits |
+| [to_uint64](big_integer/to_uint64.md) | the value as a `uint64_t`, when it fits |
+| [to_double](big_integer/to_double.md) | the nearest `double` |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator+, operator-, operator\*, operator/, operator%](big_integer/operator_arith.md) | the arithmetic: `/` cut towards zero, `%` with the sign of the dividend |
+| [operator&, operator\|, operator^, operator\<\<, operator\>\>](big_integer/operator_arith.md) | the bits in two's complement, the shifts |
+| [operator==, operator\<=\>](big_integer/operator_cmp.md) | compare two numbers, or a number and any whole number of the language |
+| [operator\<\<](big_integer/to_string.md) | writes the number to a stream as an `int` is written |
+| [format_value](big_integer/format_value.md) | what `txt::format` writes for a number |
+| [operator""_big](big_integer/literals.md) | a constant of any length, `0xffff'ffff'ffff'ffff'ffff_big` (`namespace literals`) |
+
+## Specializations
 
 ```cpp
-big_integer() noexcept;                                    // 0
-template<std::integral T> big_integer(T value);            // implicit, any whole number but bool, __int128 too
-explicit big_integer(double value);                        // the whole part, cut towards zero; NaN, ±∞ → domain_error
-template<std::same_as<bool> B> big_integer(B) = delete;   // a bool alone: a pointer is not taken for one
-explicit big_integer(long double) = delete;                // on x86-64 it would arrive rounded to a double
+template<>
+struct std::hash<sgcl::math::big_integer>;
 
-static expected<big_integer, parse_error> parse(const string& text, int base = 10);
-explicit big_integer(const string& text, int base = 10);   // a literal: parse(text, base), or bad_expected_access<parse_error> with its message (DESIGN 234)
-static big_integer from_bytes(const slice<const byte>& big_endian);
+template<>
+struct sgcl::txt::formatter<sgcl::math::big_integer>;
 ```
 
-The constructor from a whole number is implicit, so that `a * 2`, `4 * a` and `a == 0` work with no second set of operators; it allocates nothing for any value `int64_t` holds, and so is `noexcept` for every type but the unsigned ones of 64 bits (`uint64_t`, `size_t`, `unsigned long long`, which on macOS are not all one type) and the 128-bit ones.
+`std::hash` hashes the value: equal numbers have equal hashes, a small value and a large one alike, so a `map` or
+a `set` is keyed by numbers. The formatter tells [txt::format](../txt/format.md) which specifications a number
+takes, so that a literal pattern is checked where it is compiled; the writing is
+[format_value](big_integer/format_value.md)'s.
 
-`parse` reads an optional `+` or `-` and the digits of the base, letters in either case, and nothing else: no prefix, no space, no separator — `parse("ff", 16)`, never a base guessed from `0x`. Leading zeros are allowed, and `-0` is zero. The error's `offset()` is the byte where reading stopped: 0 for empty text, the end when there was only a sign, otherwise the first byte that is not a digit of the base (for a letter past ASCII, the byte its encoding starts at).
+## Complexity
 
-A number the program itself writes as text is constructed from it, `math::big_integer p("115792089237316195423570985008687907853269984665640564039457584007908834671663")`, `math::big_integer mask("ffff0000", 16)`, and a text that is not one throws `bad_expected_access<parse_error>` with `parse`'s message; text from outside is parsed. The constructor is explicit, and the literal `0` still goes to the constructor from a number. The `_big` literal is the other way to write a constant, in decimal or with `0x`, `0b`, `0`.
+A value within `int64_t` costs what the processor's own arithmetic does and a branch; anything larger allocates
+its result, one managed object per operation, from a pool of its size class, but for `+=`, `-=` and `*=` by a
+small value on a value nobody else has, which write in place. The multiplication, the division and the
+conversions take faster algorithms as the numbers grow ([operator_arith](big_integer/operator_arith.md),
+[to_string](big_integer/to_string.md), [parse](big_integer/parse.md)), so a million digits either way take the
+time of a few long multiplications. The number theory runs in the time of its arithmetic, and a long number from
+outside is a long computation, as in any library. The times against Go's `math/big` are on
+[benchmarks](benchmarks.md#big_integer).
 
-`from_bytes` is the unsigned number of the bytes, most significant first, as Go's `SetBytes`; no bytes are zero.
-
-### Arithmetic
-
-```cpp
-friend big_integer operator+(const big_integer&, const big_integer&);
-friend big_integer operator-(const big_integer&, const big_integer&);
-friend big_integer operator*(const big_integer&, const big_integer&);
-friend big_integer operator/(const big_integer&, const big_integer&);   // cut towards zero; by zero → domain_error
-friend big_integer operator%(const big_integer&, const big_integer&);   // the sign of the dividend
-big_integer operator-() const;
-big_integer& operator+=(const big_integer&);                         // and -=, *=, /=, %=, &=, |=, ^=; <<= and >>= take a count
-big_integer& operator++();                                       // and --, prefix and postfix
-
-big_integer abs() const;
-int sign() const noexcept;                                   // -1, 0, 1
-big_integer mod(const big_integer& m) const;                         // in [0, |m|) whatever the signs; m == 0 → domain_error
-pair<big_integer, big_integer> div_rem(const big_integer& d) const;     // {a / d, a % d}, one division
-```
-
-`/` and `%` are C++'s, so generic code computes the same on an `int` and on a `big_integer`: `-7 / 2 == -3`, `-7 % 2 == -1`. The one other remainder there is reason for is the one modular arithmetic wants, `mod`: `big_integer(-7).mod(2) == 1` (Java's `mod`, Go's `Mod`). `INT64_MIN / -1` is `2^63`, as it should be.
-
-### Number theory
+## Example
 
 ```cpp
-big_integer pow(int64_t exponent) const;                     // 0^0 == 1; negative → domain_error
-big_integer sqrt() const;                                    // floor; of a negative → domain_error
-big_integer gcd(const big_integer& other) const;             // never negative; gcd(0, 0) == 0
-big_integer lcm(const big_integer& other) const;             // never negative; 0 when either is 0
-big_integer mod_pow(const big_integer& exponent, const big_integer& m) const;   // in [0, m)
-optional<big_integer> mod_inverse(const big_integer& m) const;                  // in [0, |m|), or nothing
-bool is_probable_prime(int rounds = 20) const;               // Baillie–PSW and more rounds; the same answer every time
-static big_integer factorial(int64_t n);                     // negative → domain_error
-static big_integer binomial(int64_t n, int64_t k);           // 0 when k > n; negative → domain_error
-```
-
-`pow` squares its way up (a power of two is a shift), and refuses before it starts a result past 2^52 bits (`length_error`); a negative exponent would not give a whole number and is `domain_error`. `sqrt` is the whole part of the root, the largest `s` with `s * s <= a`: Newton's method from the root of the top half of the bits, so that one division at full length does the work.
-
-`gcd` is Lehmer's: the steps of Euclid's algorithm that the top bits of the two numbers decide are found on single words, and applied to the whole numbers in one pass. `mod_inverse` takes the same steps with the coefficient carried along; an `a` with a factor in common with `m` has no inverse and gives nothing (`optional`), which is an answer and not an error — `m == 0` is the error. Modulo 1 everything is 0.
-
-`mod_pow` is `a^e mod m` in `[0, m)`, a negative `a` taken modulo `m` first. For an odd `m` it multiplies in Montgomery's form, where a product needs no division, over sliding windows of the exponent's bits; an even `m` costs a multiplication and a division a bit. A negative exponent and a modulus of zero or below are `domain_error` (Go's `Exp` takes a negative exponent as an inverse; here that is `mod_inverse` and then `mod_pow`, said as such).
-
-`is_probable_prime` is Baillie–PSW — trial division by the primes up to 211, the strong test to base 2 and the strong Lucas test with Selfridge's parameters — and then `rounds` rounds of Miller–Rabin with bases drawn from a generator seeded by the number itself, so the same number gets the same answer in every run and on every platform. Below 2^64 the answer is exact (no composite that small passes Baillie–PSW); above, no composite is known to pass it, and each further round lets through at most a quarter of the composites that got so far. `rounds` is Go's argument to `ProbablyPrime`, with the same meaning; below zero it is `domain_error`.
-
-`factorial` multiplies the odd parts of `3 … n` in a balanced tree of products and shifts by the twos at the end, `n - popcount(n)` of them; `binomial` is Python's `math.comb`: `binomial(5, 7) == 0`, and a negative argument is `domain_error`.
-
-### Bits
-
-```cpp
-friend big_integer operator&(const big_integer&, const big_integer&);
-friend big_integer operator|(const big_integer&, const big_integer&);
-friend big_integer operator^(const big_integer&, const big_integer&);
-big_integer operator~() const;                                   // -a - 1
-template<std::integral T> friend big_integer operator<<(const big_integer&, T bits);   // a negative signed count → domain_error
-template<std::integral T> friend big_integer operator>>(const big_integer&, T bits);   // rounds down: -1 >> 100 == -1
-
-size_t bit_length() const noexcept;                          // of the magnitude: 0 for 0, 8 for 255 and -255
-size_t trailing_zeros() const noexcept;                      // 0 for 0
-bool bit(size_t index) const noexcept;                       // in two's complement
-```
-
-The bits are those of two's complement stretching without end to the left, as in Go and Python: `-1` is all ones, `~a` is `-a - 1`, `(big_integer(-6) & 0xff) == 250`, and bit 1000 of a negative number is one. `>>` is an arithmetic shift, so it divides rounding down. A count of bits is a whole number of any type up to 64 bits, taken as the value it is: `a << a.bit_length()` needs no cast, a negative `int` is `domain_error`, and a `size_t` is never negative, however large (`a >> size_t(-1)` is 0 or -1, `a << size_t(-1)` too long a number); `bit_length` and `trailing_zeros` ask about the magnitude, as Go's `BitLen` and `TrailingZeroBits` do.
-
-### Comparison
-
-```cpp
-friend bool operator==(const big_integer&, const big_integer&) noexcept;
-friend std::strong_ordering operator<=>(const big_integer&, const big_integer&) noexcept;
-template<std::integral T> friend bool operator==(const big_integer&, T);                    // noexcept for T up to 64 bits
-template<std::integral T> friend std::strong_ordering operator<=>(const big_integer&, T);   // the same
-```
-
-With a whole number of up to 64 bits on either side no `big_integer` is made for it, `UINT64_MAX` included, so nothing can throw; a 128-bit one is made into a `big_integer` first. The comparison is the mathematical one: `big_integer(-1) < 0u` is true, where `-1 < 0u` is not.
-
-### Conversions
-
-```cpp
-string to_string(int base = 10) const;                       // 2 to 36, small letters, a minus in front
-vector<byte> to_bytes() const;                          // |a|, most significant first, as short as it goes
-vector<byte> to_bytes(size_t length) const;             // padded with zeros; too short → length_error
-optional<int64_t> to_int64() const noexcept;
-optional<uint64_t> to_uint64() const noexcept;               // nothing for a negative value
-double to_double() const noexcept;                           // nearest, a tie to even; past the largest double ±∞
-```
-
-`to_bytes` writes the magnitude and no sign; the two's complement form of ASN.1's INTEGER is the business of `encoding`. `to_double` rounds as the conversion of an `int64_t` does: `2^53 + 1` is `2^53`, `2^1024 - 2^970` is infinity and one less than that is the largest double.
-
-### The literal
-
-```cpp
-namespace math::literals {
-    template<char... Digits> big_integer operator""_big();   // 123_big, 0xff_big, 0b1010_big, 017_big
-}
-```
-
-Decimal, hexadecimal after `0x`, binary after `0b`, octal after a leading `0`, and `'` between digits — the integer literals of C++, whose digits the compiler has checked before this sees them; the value is computed by the compiler too, and what is left for the run is the allocation of a value past `int64_t`. (`0o` is not there: C++ reads `0o17_big` as `0` with the suffix `o17_big`.)
-
-### Text, hashing, streams
-
-```cpp
-void format_value(txt::format_sink&, const big_integer&, const txt::format_spec&);   // found by txt::format
-std::ostream& operator<<(std::ostream&, const big_integer&);                         // the flags of an int
-template<> struct std::hash<big_integer>;
-```
-
-[`txt::format`](../txt/format.md) writes a `big_integer` as it writes an `int`: `{}` and `{:d}`, `{:x}` `{:X}` `{:o}` `{:b}` `{:B}`, `#` for the prefix, `+` and a space for the sign, and the width, fill and alignment of any field, the zeros of `{:040}` going after the sign and the prefix. A stream writes it as it writes an `int64_t` — the base, `showbase`, `showpos`, `uppercase`, the width, the fill and `left`, `right` or `internal` — but for a negative number in hexadecimal or octal, which is its magnitude after a minus, a number of no fixed width having no two's complement to print. A specification a whole number does not take — `{:.3}`, `{:f}`, `{:c}` — is an error of the compiler in a literal pattern and `nullopt` from a runtime one.
-
-## What it costs
-
-A value within `int64_t` costs what the processor's own arithmetic does and a branch; anything larger allocates its result, one managed object per operation, from a pool of its size class, but for `+=`, `-=` and `*=` by a small value on a value nobody else has, which write in place (above): a loop of `sum += x` over numbers of a hundred limbs costs what Go's `z.Add(z, x)` does, and `f *= k` less. The loops over limbs are C++ without assembler: the sums eight and sixteen limbs a step with the carry kept in the processor's flags through the step (the compiler's add-with-carry builtins), the products of a number by one limb first and their sums after, in two chains of carries — which puts the multiplication, the division, the conversions to text and `mod_pow` ahead of Go's `math/big` and its assembler at every length measured, `gcd` behind it by a tenth or two.
-
-The number theory runs in the time of its arithmetic: `sqrt` and `pow` of a few multiplications and divisions at full length, `gcd` and `mod_inverse` quadratic (Lehmer's method, as Go's), `mod_pow` of a Montgomery product per bit and a fraction, `is_probable_prime` of about `rounds + 3` exponentiations — a long number from outside is a long computation, as in any library.
-
-The multiplication is the schoolbook one up to a few dozen limbs, Karatsuba's above that and Toom's in three parts above a hundred and more, each with a square of its own that takes fewer products (`a * a`, or two values sharing one object); Go's `math/big` has Karatsuba alone. The division is Knuth's up to a divisor or a quotient of a couple of dozen limbs and Burnikel and Ziegler's recursive one above, which costs a few multiplications. Text in a base that is not a power of two — decimal above all — is written and read by divide and conquer over the powers `10^(19·2^i)`, so a million digits either way take the time of a few long multiplications and never the square of the length: `parse` is safe on text from outside. The thresholds between the algorithms are set by measurement (`bench_math sgcl cross`). `bench_math` measures every case against Go's `math/big` (`benchmarks/go/math`).
-
-## Examples
-
-A number past any integer of the language, grown in place:
-
-```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
-#include "sgcl/math/math.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
+#include "sgcl/math.h"
 
 using namespace sgcl;
 
 int main() {
     math::big_integer f = 1;
-    for (auto i : range(1, 101)) {
-        f *= i;
+    for (int i : range(1, 101)) {
+        f *= i;  // written in place: f is nobody else's
     }
     println("100! has {} digits, {} twos", f.to_string().size(), f.trailing_zeros());
-    println(f == math::big_integer::factorial(100));
+    println("{}", f == math::big_integer::factorial(100));
+    println("{}", f / math::big_integer::factorial(98) == 9900);
 }
 ```
 
@@ -188,121 +177,13 @@ Output:
 ```text
 100! has 158 digits, 97 twos
 true
-```
-
-The literal, in every base the language writes an integer in:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/math/math.h"
-
-using namespace sgcl;
-using namespace math::literals;
-
-int main() {
-    auto n = 0xffff'ffff'ffff'ffff'ffff'ffff'ffff'ffff_big;
-    auto [q, r] = n.div_rem(1'000'000'007);
-    println("{} {}", q, r);
-    println("{} {} {}", 123456789012345678901234567890_big, 0b1010_big, 017_big);
-}
-```
-
-Output:
-
-```text
-340282364538961911690641225597 279632276
-123456789012345678901234567890 10 15
-```
-
-The number theory:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/math/math.h"
-
-using namespace sgcl;
-
-int main() {
-    auto m127 = math::big_integer(2).pow(127) - 1;
-    println(m127.is_probable_prime());
-    println("{}", math::big_integer(10).pow(100).sqrt() == math::big_integer(10).pow(50));
-    println("{}", *math::big_integer(3).mod_inverse(11));  // 3 · 4 = 12 ≡ 1
-    println("{}", math::big_integer(4).mod_pow(13, 497));
-    println("{}", math::big_integer::binomial(52, 5));
-}
-```
-
-Output:
-
-```text
 true
-true
-4
-445
-2598960
-```
-
-A toy RSA: two primes, a key, a message there and back:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/math/math.h"
-
-using namespace sgcl;
-using namespace math::literals;
-
-int main() {
-    auto p = 0xd5bbb96d30086ec484eba3d7f9caeb07_big;
-    auto q = 0xc9a92c4c5a2b8f6e2b8e7f2a3d9c1e05_big;
-    while (!p.is_probable_prime()) {
-        p += 2;
-    }
-    while (!q.is_probable_prime()) {
-        q += 2;
-    }
-    math::big_integer n = p * q;
-    math::big_integer e = 65537;
-    auto d = e.mod_inverse((p - 1).lcm(q - 1));
-    if (!d) {
-        return 1;
-    }
-    math::big_integer text("hello", 36);  // a literal: constructed
-    math::big_integer sealed = text.mod_pow(e, n);
-    math::big_integer opened = sealed.mod_pow(*d, n);
-    println(opened.to_string(36));
-}
-```
-
-Output:
-
-```text
-hello
-```
-
-Text in and out:
-
-```cpp
-#include "sgcl/io/io.h"
-#include "sgcl/math/math.h"
-
-using namespace sgcl;
-
-int main() {
-    // Text that may not be a number is parsed: an answer, not an exception
-    auto bad = math::big_integer::parse("12x4");
-    println(bad.error().message());
-
-    println("{:#x} {}", math::big_integer(2).pow(100), math::big_integer(10).pow(40).sqrt());
-}
-```
-
-Output:
-
-```text
-not a digit in base 10 at byte 2
-0x10000000000000000000000000 100000000000000000000
 ```
 
 ## See also
 
-[`rational`](rational.md) — fractions of two `big_integer`s; [`random`](random.md) — `next_int` below a `big_integer`; [`txt::format`](../txt/format.md); [`string`](../core/string.md), whose model of an immutable object shared by a word `big_integer` follows; the module's [README](README.md), with the table of SGCL against Go.
+- [rational](rational.md): fractions of two `big_integer`s
+- [random::next_int](random/next_int.md): a number drawn below a `big_integer`
+- [parse_error](parse_error.md): why a text is not a number
+- [string](../core/string.md): the model of an immutable object shared by a word that `big_integer` follows
+- [The module](README.md)

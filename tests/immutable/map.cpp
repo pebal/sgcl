@@ -642,7 +642,7 @@ namespace {
         inline static long trigger = -1;
         inline static size_t seen = 0;
 
-        size_t operator()(long k) const {
+        size_t operator()(long k) const noexcept {
             if (k == trigger) {
                 trigger = -1;
                 seen = live_objects_named("6Placed");
@@ -669,4 +669,482 @@ TEST(ImmutableMap_Test, TheBuildFromARangeKeepsItsOrderOffTheManagedHeap) {
     EXPECT_EQ(m.size(), 10000u);
     EXPECT_EQ(*m.try_get(7), 7);
     EXPECT_EQ(*m.try_get(9999), 9999);
+}
+
+// Out of memory throws nothing (it ends the program) and the hash and
+// the equality cannot throw (asserted): a change is noexcept as far as
+// the elements' copies and constructions are, a lookup always
+TEST(ImMap_Tests, NoexceptFollowsTheElements) {
+    using M = sgcl::immutable::map<int, int>;
+    using MS = sgcl::immutable::map<int, std::string>;   // a copy that can throw
+    using S = sgcl::immutable::set<int>;
+    using SS = sgcl::immutable::set<std::string>;
+    std::vector<std::pair<int, int>> pairs;
+    std::vector<int> ints;
+    int k = 0;
+    std::string str;
+    static_assert(noexcept(M().insert(k, k)) && noexcept(M().set(k, 1)) && noexcept(M().emplace(k, 1)) && noexcept(M().erase(k)));
+    static_assert(noexcept(M().find(k)) && noexcept(M().contains(k)) && noexcept(M().count(k)) && noexcept(M().try_get(k)));
+    static_assert(noexcept(M(pairs.begin(), pairs.end())) && noexcept(M({{1, 2}})));
+    static_assert(!noexcept(M().at(k)));   // out_of_range
+    static_assert(noexcept(M().thaw()) && noexcept(M().thaw().insert(k, k)) && noexcept(M().thaw().set(k, k)) && noexcept(M().thaw().erase(k)) && noexcept(M().thaw().freeze()));
+    static_assert(!noexcept(MS().insert(k, str)) && !noexcept(MS().erase(k)) && !noexcept(MS().thaw().set(k, std::string())) && !noexcept(MS().thaw().erase(k)));
+    static_assert(noexcept(MS().find(k)) && noexcept(MS().thaw().try_get(k)));
+    static_assert(noexcept(S().insert(k)) && noexcept(S().erase(k)) && noexcept(S(ints.begin(), ints.end())) && noexcept(S().thaw().insert(k)));
+    static_assert(!noexcept(SS().insert(str)) && !noexcept(SS().erase(str)) && noexcept(SS().contains(str)));
+    SUCCEED();
+}
+
+// A map or set moved from keeps its version, as the copy does (map.md (6),
+// set.md (6), operator_assign.md (2)), and every member works on it; an
+// assignment to itself, by a copy or a move, changes nothing
+TEST(ImMap_Tests, MovedFromAndSelfAssignment) {
+    for (int n : {0, 1, 33, 1000}) {
+        auto m = squares(n);
+        const auto copy = m;
+        auto moved = std::move(m);
+        EXPECT_EQ(m, copy) << n;
+        EXPECT_EQ(moved, copy) << n;
+        EXPECT_EQ(m.size(), size_t(n));
+        EXPECT_EQ(size_t(std::distance(m.begin(), m.end())), size_t(n));
+        EXPECT_EQ(m.insert(-1, 1).size(), size_t(n + 1));
+        EXPECT_EQ(m.contains(0), n > 0);
+        EXPECT_EQ(m.erase(0).size(), size_t(n > 0 ? n - 1 : 0));
+        sgcl::immutable::map<int, int> w;
+        w = std::move(m);
+        EXPECT_EQ(m, copy) << n;
+        EXPECT_EQ(w, copy) << n;
+        auto& alias = m;   // through a reference: the compiler's warning would see `m = m`
+        m = alias;
+        EXPECT_EQ(m, copy) << n;
+        m = std::move(alias);
+        EXPECT_EQ(m, copy) << n;
+        sgcl::immutable::set<int> s;
+        for (int i : range(n)) {
+            s = s.insert(i);
+        }
+        const auto scopy = s;
+        auto smoved = std::move(s);
+        EXPECT_EQ(s, scopy) << n;
+        EXPECT_EQ(smoved, scopy) << n;
+        EXPECT_EQ(s.insert(-1).size(), size_t(n + 1));
+        auto& salias = s;
+        s = salias;
+        s = std::move(salias);
+        EXPECT_EQ(s, scopy) << n;
+    }
+}
+
+// The edges of an empty map and set and of ones of one element: the
+// iterators meet and equal a default one (end.md), every lookup misses,
+// an erase gives the same container; one element erased leaves a
+// container that holds no node (empty.md)
+TEST(ImMap_Tests, EmptyAndOneElement) {
+    sgcl::immutable::map<int, int> e;
+    EXPECT_EQ(e.cbegin(), e.cend());
+    EXPECT_EQ(e.end(), (sgcl::immutable::map<int, int>::const_iterator()));
+    EXPECT_EQ(e.find(0), e.end());
+    EXPECT_EQ(e.count(0), 0u);
+    EXPECT_EQ(e, (sgcl::immutable::map<int, int>({})));
+    sgcl::immutable::set<int> es;
+    EXPECT_EQ(es.find(0), es.end());
+    EXPECT_EQ(es.count(0), 0u);
+    EXPECT_EQ(es.erase(0), es);
+    EXPECT_EQ(es, sgcl::immutable::set<int>({}));
+    EXPECT_TRUE(e.thaw().freeze().empty());
+    auto b = e.thaw();
+    EXPECT_FALSE(b.erase(0));
+    EXPECT_EQ(b.try_get(0), nullptr);
+    EXPECT_FALSE(b.contains(0));
+    EXPECT_TRUE(b.freeze().empty());
+    const size_t before = collector::get_live_object_count();
+    off_frame([&] {
+        auto one = e.insert(0, 0);
+        EXPECT_EQ(one.size(), 1u);
+        EXPECT_EQ(one.begin()->first, 0);
+        EXPECT_EQ(std::next(one.begin()), one.end());
+        EXPECT_EQ(one.find(0), one.begin());
+        EXPECT_EQ(one.find(1), one.end());
+        auto none = one.erase(0);
+        EXPECT_TRUE(none.empty());
+        EXPECT_EQ(none.begin(), none.end());
+        EXPECT_EQ(none, e);
+        auto s = es.insert(0).erase(0);
+        EXPECT_TRUE(s.empty());
+        auto ob = one.thaw();
+        EXPECT_TRUE(ob.erase(0));
+        EXPECT_TRUE(ob.empty());
+        auto frozen = ob.freeze();
+        EXPECT_TRUE(frozen.empty());
+        EXPECT_EQ(frozen.begin(), frozen.end());
+        EXPECT_TRUE(ob.insert(1, 1));   // the builder goes on from nothing
+        EXPECT_EQ(ob.freeze().size(), 1u);
+    });
+    settle();
+    EXPECT_EQ(collector::get_live_object_count(), before);   // the nodes of the frame collected, none for an empty container
+}
+
+namespace {
+    // A hash and an equality with a state of their own, which the
+    // containers keep and hand out
+    struct Seeded {
+        size_t seed = 0;
+
+        size_t operator()(int k) const noexcept {
+            return std::hash<int>()(k) * 0x9e3779b97f4a7c15ull ^ seed;
+        }
+    };
+
+    struct Tagged {
+        int tag = 0;
+
+        bool operator()(int a, int b) const noexcept {
+            return a == b;
+        }
+    };
+}
+
+// The hash and the equality given to a constructor are the ones every
+// version made from the container keeps (hash_function.md, key_eq.md),
+// through a change, a copy, a builder and its freeze; a builder moved
+// from keeps them too (map-builder.md (3), operator_assign.md (1))
+TEST(ImMap_Tests, StatefulHashAndEquality) {
+    using M = sgcl::immutable::map<int, int, Seeded, Tagged>;
+    using S = sgcl::immutable::set<int, Seeded, Tagged>;
+    auto keeps = [](const auto& c, size_t seed, int tag) {
+        EXPECT_EQ(c.hash_function().seed, seed);
+        EXPECT_EQ(c.key_eq().tag, tag);
+    };
+    M m(Seeded{77}, Tagged{5});
+    keeps(m, 77, 5);
+    for (int i : range(200)) {
+        m = m.insert(i, i);
+    }
+    keeps(m, 77, 5);
+    keeps(m.set(1, 2).erase(3), 77, 5);
+    keeps(M(m), 77, 5);
+    keeps(m.thaw().freeze(), 77, 5);
+    std::vector<std::pair<int, int>> items = {{1, 1}, {2, 2}};
+    M ranged(items.begin(), items.end(), Seeded{9}, Tagged{3});
+    keeps(ranged, 9, 3);
+    EXPECT_EQ(*ranged.try_get(2), 2);
+    M::builder b(Seeded{11}, Tagged{4});
+    b.insert(1, 1);
+    auto taken = std::move(b);
+    keeps(b.freeze(), 11, 4);
+    EXPECT_TRUE(b.insert(2, 2));
+    EXPECT_EQ(*b.try_get(2), 2);
+    M::builder other(Seeded{12}, Tagged{6});
+    other = std::move(taken);
+    keeps(other.freeze(), 11, 4);
+    keeps(taken.freeze(), 11, 4);
+    auto& alias = other;
+    other = std::move(alias);   // to itself: nothing
+    EXPECT_EQ(other.size(), 1u);
+    keeps(other.freeze(), 11, 4);
+    S s(Seeded{21}, Tagged{8});
+    keeps(s.insert(1).insert(2).erase(1), 21, 8);
+    S::builder sb(Seeded{22}, Tagged{9});
+    sb.insert(1);
+    auto st = std::move(sb);
+    keeps(sb.freeze(), 22, 9);
+    keeps(st.freeze(), 22, 9);
+    EXPECT_TRUE(st.freeze().contains(1));
+}
+
+// An argument that is an element of the map itself: the version called
+// on holds it while the new one is made, a builder makes what it adds
+// before it touches the node the argument lies in. Strings (a key whose
+// copy can throw: a builder copies the node it changes) and ints with
+// strings (a pair whose move cannot: it moves the elements of its own
+// node along)
+TEST(ImMap_Tests, ArgumentsFromTheMapItself) {
+    auto key = [](int i) {
+        return std::string(20, char('k' + i % 8)) + std::to_string(i);
+    };
+    sgcl::immutable::map<std::string, std::string> m;
+    for (int i : range(300)) {
+        m = m.insert(key(i), key(i + 1));   // a value is the next key
+    }
+    EXPECT_EQ(m.set(key(5), m.at(key(5))), m);
+    EXPECT_EQ(m.insert(key(1000), m.at(key(7))).at(key(1000)), key(8));
+    EXPECT_EQ(m.set(key(7), m.at(key(9))).at(key(7)), key(10));
+    EXPECT_EQ(m.emplace(key(1001), m.at(key(3))).at(key(1001)), key(4));
+    auto first = m.begin()->first;
+    auto erased = m.erase(m.begin()->first);
+    EXPECT_FALSE(erased.contains(first));
+    EXPECT_EQ(erased.size(), 299u);
+    EXPECT_EQ(m.erase(m.at(key(3))).size(), 299u);   // the value names key 4
+    EXPECT_EQ(m.set(m.begin()->first, m.begin()->second), m);
+    EXPECT_EQ((sgcl::immutable::map<std::string, std::string>(m.begin(), m.end())), m);
+    auto w = m;
+    w = w.set(key(9), w.at(key(10)));   // the variable's own version read, then replaced
+    EXPECT_EQ(w.at(key(9)), key(11));
+    auto copies = m.thaw();
+    EXPECT_FALSE(copies.set(key(5), *copies.try_get(key(6))));
+    EXPECT_EQ(*copies.try_get(key(5)), key(7));
+    EXPECT_TRUE(copies.insert(key(2000), *copies.try_get(key(7))));
+    EXPECT_EQ(*copies.try_get(key(2000)), key(8));
+    EXPECT_TRUE(copies.erase(*copies.try_get(key(3))));   // key 4, named by a value in the builder's node
+    EXPECT_FALSE(copies.contains(key(4)));
+    sgcl::immutable::map<std::string, std::string> self;
+    for (int i : range(100)) {
+        self = self.insert(key(i), key(i));   // a value is its own key
+    }
+    auto sb = self.thaw();
+    EXPECT_TRUE(sb.erase(*sb.try_get(key(3))));   // the key read out of the element erased
+    EXPECT_FALSE(sb.contains(key(3)));
+    EXPECT_EQ(sb.size(), 99u);
+    sgcl::immutable::map<int, std::string> moves;
+    for (int i : range(300)) {
+        moves = moves.insert(i, key(i));
+    }
+    auto mb = moves.thaw();
+    for (int i : range(300)) {   // into nodes the builder owns: each add moves the elements after its slot along
+        ASSERT_TRUE(mb.insert(1000 + i, *mb.try_get(i))) << i;
+        ASSERT_FALSE(mb.set(i, *mb.try_get(1000 + i))) << i;
+        ASSERT_FALSE(mb.set(i, *mb.try_get(i))) << i;
+    }
+    auto frozen = mb.freeze();
+    for (int i : range(300)) {
+        ASSERT_EQ(frozen.at(i), key(i));
+        ASSERT_EQ(frozen.at(1000 + i), key(i));
+    }
+    sgcl::immutable::set<std::string> s;
+    for (int i : range(100)) {
+        s = s.insert(key(i));
+    }
+    EXPECT_EQ(s.insert(*s.begin()), s);
+    EXPECT_EQ(s.erase(*s.begin()).size(), 99u);
+    auto keys = s.thaw();
+    auto snapshot = keys.freeze();
+    EXPECT_FALSE(keys.insert(*snapshot.begin()));
+    EXPECT_TRUE(keys.erase(*snapshot.begin()));
+    EXPECT_EQ(keys.size(), 99u);
+    EXPECT_EQ(snapshot, s);
+}
+
+namespace {
+    // Hashes at the ends of a size_t: keys apart in the top four bits
+    // alone (twelve levels of one-slot subtries, the keys parting in the
+    // thirteenth, a level of four bits), and chains of 16 over it; apart
+    // in the highest bit alone; 0, the largest and their neighbours
+    struct TopBits {
+        size_t operator()(int k) const noexcept {
+            return size_t(k % 16) << 60;
+        }
+    };
+
+    struct HighestBit {
+        size_t operator()(int k) const noexcept {
+            return size_t(k & 1) << 63;
+        }
+    };
+
+    struct Extremes {
+        size_t operator()(int k) const noexcept {
+            static constexpr size_t Hashes[] = {0, SIZE_MAX, SIZE_MAX - 1, SIZE_MAX >> 1, size_t(1) << 63, 1, SIZE_MAX - 31, 31};
+            return Hashes[k % 8];
+        }
+    };
+
+    // Every operation over keys 0..n-1 under the hash, against an oracle:
+    // the inserts one version at a time, the lookups and find's walk to
+    // the end, the build from a range, the erases in a shuffled order, a
+    // builder's inserts and erases, a set's
+    template<class H>
+    void shapes_against_oracle(int n) {
+        sgcl::immutable::map<int, int, H> m;
+        std::unordered_map<int, int> o;
+        for (int i : range(n)) {
+            m = m.insert(i, -i);
+            o[i] = -i;
+            ASSERT_TRUE(same_map(m, o)) << i;
+        }
+        std::vector<int> walk;
+        for (auto& [k, v] : m) {
+            walk.push_back(k);
+        }
+        for (size_t i = 0; i < walk.size(); ++i) {
+            size_t rest = 0;
+            for (auto it = m.find(walk[i]); it != m.end(); ++it) {
+                ASSERT_EQ(it->first, walk[i + rest]);
+                ++rest;
+            }
+            ASSERT_EQ(rest, walk.size() - i);
+        }
+        EXPECT_EQ(m.find(n), m.end());
+        std::vector<std::pair<int, int>> items(o.begin(), o.end());
+        sgcl::immutable::map<int, int, H> built(items.begin(), items.end());
+        EXPECT_EQ(built, m);
+        EXPECT_TRUE(same_map(built, o));
+        auto b = built.thaw();
+        for (int i : range(n)) {
+            EXPECT_FALSE(b.set(i, i)) << i;
+            EXPECT_TRUE(b.insert(n + i, i)) << i;
+        }
+        std::mt19937 rng{unsigned(n)};
+        std::vector<int> order(walk);
+        std::shuffle(order.begin(), order.end(), rng);
+        for (int k : order) {
+            m = m.erase(k);
+            o.erase(k);
+            ASSERT_TRUE(same_map(m, o)) << k;
+            EXPECT_TRUE(b.erase(k)) << k;
+        }
+        EXPECT_TRUE(m.empty());
+        auto rest = b.freeze();
+        EXPECT_EQ(rest.size(), size_t(n));
+        for (int i : range(n)) {
+            ASSERT_NE(rest.try_get(n + i), nullptr) << i;
+            EXPECT_EQ(*rest.try_get(n + i), i);
+        }
+        for (int i : range(n)) {
+            EXPECT_TRUE(b.erase(n + i)) << i;
+        }
+        EXPECT_TRUE(b.freeze().empty());
+        std::vector<int> keys(walk);
+        sgcl::immutable::set<int, H> s(keys.begin(), keys.end());
+        sgcl::immutable::set<int, H> by_inserts;
+        for (int k : keys) {
+            by_inserts = by_inserts.insert(k);
+        }
+        EXPECT_EQ(s, by_inserts);
+        EXPECT_TRUE(same_set(s, std::unordered_set<int>(keys.begin(), keys.end())));
+        for (int k : order) {
+            s = s.erase(k);
+        }
+        EXPECT_TRUE(s.empty());
+    }
+}
+
+// The hashes at the limits of a size_t: the trie's last level, of four
+// bits, reached and split; chains at the bottom of it; 0 and SIZE_MAX
+TEST(ImMap_Tests, HashesAtTheLimits) {
+    shapes_against_oracle<TopBits>(48);
+    shapes_against_oracle<HighestBit>(20);
+    shapes_against_oracle<Extremes>(40);
+}
+
+// The lookups and the erase of a builder by a key of another type (a
+// string_view for a string key) build no key, as a map's do
+TEST(ImBuilder_Tests, TransparentLookup) {
+    sgcl::immutable::map<sgcl::string, int> ages;
+    ages = ages.insert("alice", 30).insert("bob", 32);
+    auto b = ages.thaw();
+    std::string_view alice("alice");
+    EXPECT_TRUE(b.contains(alice));
+    EXPECT_EQ(*b.try_get(alice), 30);
+    EXPECT_EQ(b.try_get(std::string_view("carol")), nullptr);
+    EXPECT_TRUE(b.erase(std::string_view("bob")));
+    EXPECT_FALSE(b.erase(std::string_view("bob")));
+    EXPECT_EQ(b.size(), 1u);
+    sgcl::immutable::set<sgcl::string> names = {"alice", "bob"};
+    auto sb = names.thaw();
+    EXPECT_TRUE(sb.contains(alice));
+    EXPECT_TRUE(sb.erase(alice));
+    EXPECT_FALSE(sb.contains("alice"));
+    EXPECT_EQ(names.size(), 2u);
+}
+
+// Keys and values without a default constructor: an entry constructs its
+// element from the arguments, in an insert, a builder and a build
+TEST(ImMap_Tests, ElementsWithoutADefaultConstructor) {
+    struct Named {
+        explicit Named(int i)
+        : name(std::to_string(i)) {
+        }
+
+        std::string name;
+    };
+    static_assert(!std::is_default_constructible_v<Named>);
+    sgcl::immutable::map<int, Named> m;
+    for (int i : range(100)) {
+        m = m.emplace(i, i);
+    }
+    m = m.set(5, Named(-5)).erase(6);
+    EXPECT_EQ(m.size(), 99u);
+    EXPECT_EQ(m.at(5).name, "-5");
+    auto b = m.thaw();
+    EXPECT_TRUE(b.emplace(200, 7));
+    EXPECT_EQ(b.freeze().at(200).name, "7");
+    std::vector<std::pair<int, Named>> items = {{1, Named(1)}, {2, Named(2)}};
+    EXPECT_EQ((sgcl::immutable::map<int, Named>(items.begin(), items.end()).at(2).name), "2");
+}
+
+// The comparison of two sets cannot throw: the hash and the equality are
+// noexcept and nothing else is called (set/operator_cmp.md: None)
+TEST(ImSet_Tests, ComparisonIsNoexcept) {
+    sgcl::immutable::set<int> a = {1, 2}, b = {2, 1};
+    static_assert(noexcept(a == b) && noexcept(a != b));
+    static_assert(noexcept(sgcl::immutable::set<std::string>() == sgcl::immutable::set<std::string>()));
+    EXPECT_TRUE(a == b);
+    EXPECT_FALSE(a != b);
+}
+
+// update: f of the value under a key, set in its place, f called once; an
+// absent key the same map, or f(fallback) put under it; at every size of
+// the trie and through collisions; f that reads the map itself, a key that
+// is the map's own; f that throws leaves the map and gives nothing; a map
+// moved from; noexcept as f and the elements are
+TEST(ImMap_Tests, Update) {
+    for (int n : {0, 1, 33, 1000}) {
+        auto m = squares(n);
+        const auto copy = m;
+        for (int k : {0, n / 2, n - 1}) {
+            if (k < 0 || k >= n) {
+                continue;
+            }
+            int calls = 0;
+            auto u = m.update(k, [&](int v) { ++calls; return v + 1; });
+            EXPECT_EQ(calls, 1);
+            EXPECT_EQ(u.size(), size_t(n));
+            EXPECT_EQ(u.at(k), k * k + 1);
+            EXPECT_EQ(u.erase(k), m.erase(k));
+            auto f = m.update(k, -5, [](int v) { return v * 2; });
+            EXPECT_EQ(f.at(k), 2 * k * k);
+        }
+        int calls = 0;
+        auto absent = m.update(-1, [&](int v) { ++calls; return v; });
+        EXPECT_EQ(calls, 0);
+        EXPECT_EQ(absent, m);
+        auto added = m.update(-1, 10, [&](int v) { ++calls; return v + 1; });
+        EXPECT_EQ(calls, 1);
+        EXPECT_EQ(added.size(), size_t(n + 1));
+        EXPECT_EQ(added.at(-1), 11);
+        EXPECT_EQ(m, copy);
+        auto moved = std::move(m);
+        EXPECT_EQ(m.update(-1, 0, [](int v) { return v; }).size(), size_t(n + 1));
+        if (n > 0) {
+            // f reads the map it updates; the key is a reference into it
+            const int& own = m.begin()->first;
+            auto r = m.update(own, [&](int v) { return v + int(m.size()) + m.at(own); });
+            EXPECT_EQ(r.at(own), 2 * m.at(own) + n);
+            EXPECT_EQ(m, copy);
+        }
+    }
+    sgcl::immutable::map<int, int, CollidingHash> c;
+    for (int i : range(2000)) {
+        c = c.insert(i, i);
+    }
+    for (int i : range(2000)) {
+        c = c.update(i, [](int v) { return -v; });
+    }
+    for (int i : range(2000)) {
+        EXPECT_EQ(c.at(i), -i);
+    }
+    auto m = squares(10);
+    EXPECT_THROW((void)m.update(3, [](int) -> int { throw std::runtime_error("f"); }), std::runtime_error);
+    EXPECT_THROW((void)m.update(30, 0, [](int) -> int { throw std::runtime_error("f"); }), std::runtime_error);
+    EXPECT_EQ(m, squares(10));
+    // a value of another type than T, converted
+    sgcl::immutable::map<std::string, std::string> names{{"a", "x"}};
+    auto longer = names.update("a", [](const std::string& v) { return v + "y"; });
+    EXPECT_EQ(longer.at("a"), "xy");
+    auto nothrow = [](int v) noexcept { return v; };
+    auto may_throw = [](int v) { return v; };
+    static_assert(noexcept(m.update(1, nothrow)));
+    static_assert(noexcept(m.update(1, 0, nothrow)));
+    static_assert(!noexcept(m.update(1, may_throw)));
+    static_assert(!noexcept(names.update("a", [](const std::string& v) noexcept { return v; })));   // a string's copy may throw
 }

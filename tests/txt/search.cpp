@@ -189,16 +189,16 @@ TEST(Search_Tests, ThePreparedTextAnswersWhatTheOneShotFunctionsDo) {
         txt::normalized_text nt(text);
         txt::normalized_searcher ns(pattern);
         for (size_t from : {size_t(0), raw.size() / 2, raw.size()}) {
-            ASSERT_EQ(ft.find(fs, from), pos_of(txt::find_fold(text, pattern, from))) << raw << " / " << pat;
-            ASSERT_EQ(nt.find(ns, from), pos_of(txt::find_normalized(text, pattern, from))) << raw << " / " << pat;
+            ASSERT_EQ(ft.find(fs, from), txt::find_fold(text, pattern, from)) << raw << " / " << pat;
+            ASSERT_EQ(nt.find(ns, from), txt::find_normalized(text, pattern, from)) << raw << " / " << pat;
             ASSERT_EQ(fs.find(text, from), txt::find_fold(text, pattern, from)) << raw << " / " << pat;   // the searcher's own find
             ASSERT_EQ(ns.find(text, from), txt::find_normalized(text, pattern, from)) << raw << " / " << pat;
         }
         ASSERT_EQ(fs.count(text), ft.count(fs)) << raw << " / " << pat;
         ASSERT_EQ(ns.contains(text), nt.contains(ns)) << raw << " / " << pat;
         // and the form that takes the pattern as it stands
-        ASSERT_EQ(ft.find(pattern), pos_of(txt::find_fold(text, pattern))) << raw << " / " << pat;
-        ASSERT_EQ(nt.find(pattern), pos_of(txt::find_normalized(text, pattern))) << raw << " / " << pat;
+        ASSERT_EQ(ft.find(pattern), txt::find_fold(text, pattern)) << raw << " / " << pat;
+        ASSERT_EQ(nt.find(pattern), txt::find_normalized(text, pattern)) << raw << " / " << pat;
         ASSERT_EQ(ft.contains(fs), txt::contains_fold(text, pattern)) << raw << " / " << pat;
         ASSERT_EQ(nt.contains(ns), txt::contains_normalized(text, pattern)) << raw << " / " << pat;
 
@@ -315,12 +315,12 @@ TEST(Search_Tests, WhatThePreparedPatternAndTextAnswerAboutThemselves) {
     EXPECT_FALSE(ft.empty());
     EXPECT_EQ(ft.text().size(), text.size());
     EXPECT_TRUE(txt::folded_text(string()).empty());
-    EXPECT_EQ(txt::folded_text(string()).find(txt::fold_searcher(string("a"))), npos);
+    EXPECT_EQ(pos_of(txt::folded_text(string()).find(txt::fold_searcher(string("a")))), npos);
 
     // One text, many questions
-    EXPECT_EQ(ft.find(string("ALA")), 0u);
-    EXPECT_EQ(ft.find(string("KOTA")), 7u);
-    EXPECT_EQ(ft.find(string("MA")), 4u);
+    EXPECT_EQ(pos_of(ft.find(string("ALA"))), 0u);
+    EXPECT_EQ(pos_of(ft.find(string("KOTA"))), 7u);
+    EXPECT_EQ(pos_of(ft.find(string("MA"))), 4u);
     EXPECT_EQ(ft.count(string("a")), 4u);
     EXPECT_FALSE(ft.contains(string("pies")));
 }
@@ -381,7 +381,7 @@ TEST(Search_Tests, AMatchMayNotCutACharacterInTwo) {
     // functions: the prepared text, the prepared pattern and the range
     string half = "aßb";
     txt::folded_text ft(half);
-    EXPECT_EQ(ft.find(txt::fold_searcher(string("s"))), npos);
+    EXPECT_EQ(pos_of(ft.find(txt::fold_searcher(string("s")))), npos);
     EXPECT_EQ(ft.count(txt::fold_searcher(string("s"))), 0u);
     EXPECT_FALSE(ft.contains(string("s")));
     EXPECT_TRUE(txt::fold_matches(half, string("s")).empty());
@@ -495,7 +495,7 @@ TEST(Search_Tests, TwoSpellingsOfOneTextAnswerTheSame) {
     // A refused match moves the scan on and does not end it: the first
     // "cafe" is refused for the acute behind it and the second is found.
     // This is the mistake the header names and it is the one worth a test.
-    EXPECT_EQ(weighed.find(pattern), 7u);
+    EXPECT_EQ(pos_of(weighed.find(pattern)), 7u);
     EXPECT_EQ(weighed.count(pattern), 1u);
     EXPECT_EQ(txt::find_normalized(apart, string("cafe"))->pos, 7u);
     EXPECT_EQ(txt::normalized_matches(apart, pattern).count(), 1u);
@@ -539,16 +539,16 @@ TEST(Search_Tests, TheBisectionOverMarksPutInOrder) {
         EXPECT_FALSE(txt::find_normalized(text, pattern, 3));
         txt::normalized_text weighed(text);
         txt::normalized_searcher searcher(pattern);
-        EXPECT_EQ(weighed.find(searcher, 0), 0u);
-        EXPECT_EQ(weighed.find(searcher, 1), npos);
-        EXPECT_EQ(weighed.find(searcher, 2), npos);
+        EXPECT_EQ(pos_of(weighed.find(searcher, 0)), 0u);
+        EXPECT_EQ(pos_of(weighed.find(searcher, 1)), npos);
+        EXPECT_EQ(pos_of(weighed.find(searcher, 2)), npos);
         // the whole text as its own pattern, which begins at the same
         // place and runs to the end
         EXPECT_EQ(txt::find_normalized(text, text)->pos, 0u);
         EXPECT_FALSE(txt::find_normalized(text, text, 1));
         // and the letter behind the marks, from every byte up to it
         for (size_t from = 0; from <= 4; ++from) {
-            EXPECT_EQ(weighed.find(txt::normalized_searcher(string("ḃ")), from), 4u) << from;
+            EXPECT_EQ(pos_of(weighed.find(txt::normalized_searcher(string("ḃ")), from)), 4u) << from;
         }
     }
 
@@ -569,18 +569,18 @@ TEST(Search_Tests, TheBisectionOverMarksPutInOrder) {
             // is what a walk from the front answers
             for (size_t from = 0; from <= text.size() + 1; ++from) {
                 size_t want = npos;
-                for (size_t at = weighed.find(searcher, 0); at != npos;) {
+                for (size_t at = pos_of(weighed.find(searcher, 0)); at != npos;) {
                     if (at >= from) {
                         want = at;
                         break;
                     }
-                    size_t next = weighed.find(searcher, at + 1);
+                    size_t next = pos_of(weighed.find(searcher, at + 1));
                     if (next == at) {
                         break;
                     }
                     at = next;
                 }
-                EXPECT_EQ(weighed.find(searcher, from), want)
+                EXPECT_EQ(pos_of(weighed.find(searcher, from)), want)
                     << "pattern " << p << " from " << from;
                 EXPECT_EQ(pos_of(txt::find_normalized(text, pattern, from)), want)
                     << "pattern " << p << " from " << from << ", one shot";
@@ -611,9 +611,9 @@ TEST(Search_Tests, TheBisectionOverMarksPutInOrder) {
     txt::normalized_searcher kota(string("kota"));
     txt::normalized_text weighed(many);
     size_t found = 0;
-    for (size_t at = weighed.find(kota, 0), guard = 0; at != npos && guard < 1000; ++guard) {
+    for (size_t at = pos_of(weighed.find(kota, 0)), guard = 0; at != npos && guard < 1000; ++guard) {
         ++found;
-        at = weighed.find(kota, at + 1);
+        at = pos_of(weighed.find(kota, at + 1));
     }
     EXPECT_EQ(found, 200u);
     EXPECT_EQ(weighed.count(kota), 200u);
@@ -695,7 +695,7 @@ TEST(Search_Tests, ADecompositionTheOrderingPullsApart) {
         EXPECT_FALSE(txt::contains_normalized(text, base)) << c.text;
         EXPECT_FALSE(txt::contains_fold(text, base)) << c.text;
         // down every road, not only the one-shot one
-        EXPECT_EQ(txt::normalized_text(text).find(txt::normalized_searcher(base)), npos) << c.text;
+        EXPECT_EQ(pos_of(txt::normalized_text(text).find(txt::normalized_searcher(base))), npos) << c.text;
         EXPECT_EQ(txt::normalized_text(text).count(txt::normalized_searcher(base)), 0u) << c.text;
         EXPECT_EQ(txt::folded_text(text).count(txt::fold_searcher(base)), 0u) << c.text;
         EXPECT_EQ(txt::normalized_matches(text, txt::normalized_searcher(base)).count(), 0u) << c.text;
@@ -765,8 +765,8 @@ TEST(Search_Tests, PartOfADecompositionTheOrderingPullsApart) {
         txt::normalized_searcher d(string("d"));
         EXPECT_EQ(pos_of(txt::find_normalized(run, string("d"))), one) << s;
         EXPECT_EQ(pos_of(txt::find_normalized(run, string("d"), one + 1)), two) << s;
-        EXPECT_EQ(txt::normalized_text(run).find(d), one) << s;
-        EXPECT_EQ(txt::normalized_text(run).find(d, one + 1), two) << s;
+        EXPECT_EQ(pos_of(txt::normalized_text(run).find(d)), one) << s;
+        EXPECT_EQ(pos_of(txt::normalized_text(run).find(d, one + 1)), two) << s;
         EXPECT_EQ(txt::normalized_text(run).count(d), 2u) << s;
         txt::normalized_matches every(run, d);
         std::vector<size_t> at;
@@ -803,8 +803,8 @@ TEST(Search_Tests, AMatchIsTheCharactersItCovers) {
         txt::normalized_searcher searcher(p);
         EXPECT_EQ(txt::find_normalized(text, p)->pos, 0u);
         EXPECT_FALSE(txt::find_normalized(text, p, 1));   // it begins at 0, not at 2
-        EXPECT_EQ(txt::normalized_text(text).find(searcher), 0u);
-        EXPECT_EQ(txt::normalized_text(text).find(searcher, 1), npos);
+        EXPECT_EQ(pos_of(txt::normalized_text(text).find(searcher)), 0u);
+        EXPECT_EQ(pos_of(txt::normalized_text(text).find(searcher, 1)), npos);
         txt::normalized_matches every(text, searcher);
         size_t seen = 0;
         for (auto it = every.begin(); it != every.end(); ++it) {
@@ -883,4 +883,257 @@ TEST(Search_Tests, ASearchFromInsideMarksThatWerePutInOrder) {
     EXPECT_EQ(txt::find_normalized(ordered, same)->pos, 0u);
     EXPECT_EQ(txt::find_normalized(ordered + same, same, 1)->pos, 6u);
     EXPECT_EQ(txt::find_normalized(ordered, ordered.substr(5), 1)->pos, 5u);
+}
+
+TEST(Search_Tests, ADefaultObjectIsAnEmptyOne) {
+    // A text, a range and a pattern made with nothing are an empty text
+    // and an empty pattern: asked, they answer as ones built from "".
+    // The range read a null state for its text and its pattern, and the
+    // text read the last position of a mapping it never had.
+    txt::folded_text ft;
+    EXPECT_EQ(ft.find(""), txt::folded_text("").find(""));
+    EXPECT_EQ(ft.find("", 1), txt::folded_text("").find("", 1));
+    EXPECT_EQ(ft.find("a"), txt::folded_text("").find("a"));
+    EXPECT_EQ(ft.count("a"), 0u);
+    EXPECT_FALSE(ft.contains("a"));
+    EXPECT_TRUE(ft.contains(""));
+    EXPECT_TRUE(ft.empty());
+    EXPECT_EQ(ft.text().size(), 0u);
+    txt::normalized_text nt;
+    EXPECT_EQ(nt.find(""), txt::normalized_text("").find(""));
+    EXPECT_TRUE(nt.contains(""));
+
+    txt::fold_matches fm;
+    EXPECT_EQ(fm.text().size(), 0u);
+    EXPECT_TRUE(fm.pattern().empty());
+    EXPECT_EQ(fm.pattern().pattern(), "");
+    EXPECT_TRUE(fm.empty());
+    EXPECT_EQ(fm.count(), 0u);
+    EXPECT_TRUE(fm.begin() == fm.end());
+    txt::normalized_matches nm;
+    EXPECT_EQ(nm.text().size(), 0u);
+    EXPECT_TRUE(nm.pattern().empty());
+}
+
+TEST(Search_Tests, TheMappedTextIsATypeOfItsOwnName) {
+    // points() gives txt::mapped_text, which a program can name: the code
+    // points of the mapping and the byte each came from, one more for the
+    // end of the text
+    static_assert(std::is_same_v<decltype(std::declval<const txt::folded_text&>().points()), const txt::mapped_text&>);
+    static_assert(std::is_same_v<decltype(std::declval<const txt::normalized_text&>().points()), const txt::mapped_text&>);
+    static_assert(std::is_same_v<decltype(std::declval<const txt::fold_matches&>().points()), const txt::mapped_text&>);
+    static_assert(std::is_same_v<decltype(std::declval<const txt::normalized_matches&>().points()), const txt::mapped_text&>);
+    txt::folded_text ft(string("Straße"));
+    const txt::mapped_text& m = ft.points();
+    std::u32string points(m.points.begin(), m.points.end());
+    EXPECT_EQ(points, U"strasse");
+    std::vector<size_t> at(m.at.begin(), m.at.end());
+    EXPECT_EQ(at, (std::vector<size_t>{0, 1, 2, 3, 4, 4, 6, 7}));
+    EXPECT_EQ(txt::fold_matches(string("Straße"), string("SS")).points().points.size(), 7u);
+}
+
+TEST(Search_Tests, CountTakesTheTextsFindTakes) {
+    // searcher::count took only a string, where find and contains take a
+    // slice and a C text as well
+    txt::searcher ab(string("ab"));
+    string text("xabyabzab");
+    EXPECT_EQ(ab.count(text), 3u);
+    EXPECT_EQ(ab.count(text.as_slice(1, 5)), 2u);           // "abyab"
+    EXPECT_EQ(ab.count(text.as_slice(2, 5)), 1u);           // "byabz"
+    EXPECT_EQ(ab.count("ababab"), 3u);
+    const char* pointer = "ab-ab";
+    EXPECT_EQ(ab.count(pointer), 2u);
+    char buffer[] = "abab\0ab";
+    EXPECT_EQ(ab.count(buffer), 2u);                        // up to the NUL, as find reads it
+    EXPECT_EQ(txt::searcher(string()).count("abc"), 0u);
+}
+
+TEST(Search_Tests, APreparedTextFindsWhatAPreparedPatternFinds) {
+    // folded_text::find gave the position alone, where fold_searcher::find
+    // gives the position and the bytes the match covers: both give an
+    // occurrence now, the same one
+    string text("Die Straße, die STRASSE");
+    txt::folded_text ft(text);
+    txt::fold_searcher f(string("strasse"));
+    static_assert(std::is_same_v<decltype(ft.find(f)), sgcl::optional<txt::occurrence>>);
+    EXPECT_EQ(ft.find(f), f.find(text));
+    EXPECT_EQ(ft.find(f), (txt::occurrence{4, 7}));
+    EXPECT_EQ(ft.find(f, 5), (txt::occurrence{17, 7}));
+    EXPECT_EQ(ft.find(string("STRASSE"), 5), f.find(text, 5));
+    EXPECT_FALSE(ft.find(f, 18));
+    EXPECT_EQ(ft.find(string()), (txt::occurrence{0, 0}));
+    txt::normalized_text nt(string("cafe\u0301 caf\u00e9"));
+    txt::normalized_searcher n(string("café"));
+    EXPECT_EQ(nt.find(n), (txt::occurrence{0, 6}));
+    EXPECT_EQ(nt.find(n, 1), (txt::occurrence{7, 5}));
+    EXPECT_EQ(nt.find(n, 1), n.find(string("cafe\u0301 caf\u00e9"), 1));
+}
+
+// DESIGN 408: a start far past the end, where `from + the pattern's size`
+// wraps round; the pattern that is the text itself; broken UTF-8 on both
+// sides; a pattern of marks alone
+TEST(Search_Tests, TheEdges) {
+    string text("xxab");
+    // A start past the end finds nothing, however far past: the sum of the
+    // start and the pattern's size wrapped and the search began again at 0
+    for (size_t from : {size_t(4), size_t(5), npos - 2, npos - 1, npos}) {
+        EXPECT_EQ(txt::searcher(string("ab")).find(text, from), npos) << from;
+        EXPECT_EQ(txt::searcher(string("abc")).find(string("xxabc"), from), npos) << from;
+        EXPECT_EQ(txt::searcher(string("b")).find(text, from), npos) << from;
+        EXPECT_FALSE(txt::find_fold(text, string("AB"), from)) << from;
+        EXPECT_FALSE(txt::find_normalized(text, string("ab"), from)) << from;
+        EXPECT_FALSE(txt::folded_text(text).find(string("ab"), from)) << from;
+        EXPECT_FALSE(txt::fold_searcher(string("ab")).find(text, from)) << from;
+    }
+    // The last start that still holds the pattern, and one past it
+    EXPECT_EQ(txt::searcher(string("ab")).find(text, 2), 2u);
+    EXPECT_EQ(txt::searcher(string("ab")).find(text, 3), npos);
+    EXPECT_EQ(txt::searcher(string("ab")).find(text.as_slice(), npos), npos);
+
+    // The pattern is the text
+    string same("Stra\u00dfe");
+    EXPECT_EQ(txt::searcher(same).find(same), 0u);
+    EXPECT_EQ(txt::searcher(same).count(same), 1u);
+    EXPECT_EQ(txt::find_fold(same, same), (txt::occurrence{0, same.size()}));
+    EXPECT_EQ(txt::find_normalized(same, same), (txt::occurrence{0, same.size()}));
+    EXPECT_EQ(txt::fold_matches(same, same).count(), 1u);
+    EXPECT_EQ(txt::normalized_matches(same, same).count(), 1u);
+
+    // One byte, one code point
+    EXPECT_EQ(txt::searcher(string("a")).find(string("a")), 0u);
+    EXPECT_EQ(txt::searcher(string("a")).count(string("aaa")), 3u);
+    EXPECT_EQ(txt::find_fold(string("A"), string("a")), (txt::occurrence{0, 1}));
+
+    // Broken UTF-8: a byte a replacement, which finds a U+FFFD written as one
+    // and another broken byte, never half a sequence that is whole
+    string broken("a\xFF" "b\xC3");
+    EXPECT_EQ(txt::find_fold(broken, string("\xFE")), (txt::occurrence{1, 1}));
+    EXPECT_EQ(txt::find_fold(broken, string("\ufffd"), 2), (txt::occurrence{3, 1}));
+    EXPECT_EQ(txt::find_normalized(broken, string("B\xC3")), nullopt);
+    EXPECT_EQ(txt::find_normalized(broken, string("b\xC3")), (txt::occurrence{2, 2}));
+    EXPECT_EQ(txt::fold_matches(broken, string("\xFF")).count(), 2u);
+    EXPECT_EQ(txt::searcher(string("\xBC")).find(string("\xC5\xBC")), 1u);    // bytes are bytes to the plain one
+    EXPECT_FALSE(txt::find_fold(string("\xC5\xBC"), string("\xBC")));        // and not to the folded one
+
+    // A pattern of marks alone never starts a match: a match takes whole characters
+    EXPECT_FALSE(txt::find_normalized(string("e\u0301"), string("\u0301")));
+    EXPECT_FALSE(txt::find_fold(string("e\u0301"), string("\u0301")));
+    EXPECT_EQ(txt::find_normalized(string("\u0301"), string("\u0301")), (txt::occurrence{0, 2}));
+
+    // A pattern longer than the text, and the empty text with a pattern
+    EXPECT_FALSE(txt::find_fold(string("s"), string("\u00df")));
+    EXPECT_EQ(txt::find_fold(string("\u00df"), string("ss")), (txt::occurrence{0, 2}));
+    EXPECT_FALSE(txt::fold_searcher(string("a")).find(string()));
+    EXPECT_EQ(txt::fold_searcher(string("a")).count(string()), 0u);
+    EXPECT_EQ(txt::normalized_searcher(string()).count(string("abc")), 0u);
+    EXPECT_TRUE(txt::fold_matches(string(), string("a")).empty());
+
+    // The occurrence: a value, equal by its fields
+    EXPECT_EQ(txt::occurrence{}, (txt::occurrence{0, 0}));
+    EXPECT_NE((txt::occurrence{1, 2}), (txt::occurrence{1, 3}));
+
+    // Copied and moved ranges and prepared texts answer as the original
+    txt::fold_matches m(string("a A a"), string("a"));
+    auto copy = m;
+    auto moved = std::move(copy);
+    EXPECT_EQ(moved.count(), 3u);
+    EXPECT_EQ(m.count(), 3u);
+    txt::folded_text ft(string("Aa"));
+    auto ft_moved = std::move(ft);
+    EXPECT_EQ(ft_moved.count(string("a")), 2u);
+    (void)ft.count(string("a"));                          // usable, whatever it holds
+    // a prepared text moved from answers as the empty text: its mapping
+    // went with the move, and the empty pattern read the end of it
+    EXPECT_EQ(ft.find(string()), (txt::occurrence{0, 0}));   // NOLINT(bugprone-use-after-move)
+    EXPECT_FALSE(ft.find(string(), 1));
+    EXPECT_FALSE(ft.find(string("a")));
+    txt::normalized_text nt(string("é"));
+    auto nt_moved = std::move(nt);
+    EXPECT_EQ(nt_moved.find(string("é")), (txt::occurrence{0, 3}));
+    EXPECT_EQ(nt.find(string(), 0), (txt::occurrence{0, 0}));   // NOLINT(bugprone-use-after-move)
+    EXPECT_FALSE(nt.find(string(), 1));
+}
+
+namespace {
+    // a = std::move(a) without the compiler's warning about it
+    template<class T>
+    void move_into_itself(T& a) {
+        T& same = a;
+        a = std::move(same);
+    }
+}
+
+// A prepared pattern, text or range moved from is the empty one: its
+// pattern or text empty too, answering as one made of "" (the coordinator's
+// decision after DESIGN 429). A copy is unchanged; a move into itself keeps
+// the object; one assigned into after the move is the new one
+TEST(Search_Tests, AMovedFromObjectIsTheEmptyOne) {
+    string text("Ala STRASSE ala");
+    // the searchers
+    txt::fold_searcher f(string("strasse"));
+    auto f_moved = std::move(f);
+    EXPECT_EQ(f_moved.find(text), (txt::occurrence{4, 7}));
+    EXPECT_EQ(f.pattern(), string());                          // NOLINT(bugprone-use-after-move)
+    EXPECT_TRUE(f.empty());
+    EXPECT_EQ(f.size(), 0u);
+    EXPECT_EQ(f.find(text), txt::fold_searcher(string()).find(text));
+    EXPECT_EQ(f.count(text), 0u);
+    f = txt::fold_searcher(string("ala"));
+    EXPECT_EQ(f.count(text), 2u);
+    move_into_itself(f);
+    EXPECT_EQ(f.count(text), 2u);
+    EXPECT_EQ(f.pattern(), string("ala"));
+    txt::fold_searcher assigned(string("x"));
+    assigned = std::move(f_moved);
+    EXPECT_EQ(assigned.pattern(), string("strasse"));
+    EXPECT_TRUE(f_moved.pattern().empty());                    // NOLINT(bugprone-use-after-move)
+    auto copied = assigned;
+    EXPECT_EQ(copied.pattern(), assigned.pattern());           // a copy leaves the original whole
+    txt::normalized_searcher n(string("é"));
+    auto n_moved = std::move(n);
+    EXPECT_TRUE(n.pattern().empty() && n.empty());             // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(n_moved.count(string("é")), 1u);
+
+    // the prepared texts
+    txt::folded_text ft(text);
+    auto ft_moved = std::move(ft);
+    EXPECT_EQ(ft_moved.count(string("ala")), 2u);
+    EXPECT_EQ(ft.text().size(), 0u);                           // NOLINT(bugprone-use-after-move)
+    EXPECT_TRUE(ft.empty());
+    std::vector<size_t> at(ft.points().at.begin(), ft.points().at.end());
+    EXPECT_EQ(at, std::vector<size_t>{0});                     // as the one made with nothing
+    EXPECT_EQ(ft.find(string()), txt::folded_text().find(string()));
+    EXPECT_FALSE(ft.find(string(), 1));
+    EXPECT_EQ(ft.count(string("a")), 0u);
+    ft = txt::folded_text(string("Aa"));
+    EXPECT_EQ(ft.count(string("a")), 2u);
+    move_into_itself(ft);
+    EXPECT_EQ(ft.count(string("a")), 2u);
+    txt::folded_text ft_assigned;
+    ft_assigned = std::move(ft);
+    EXPECT_EQ(ft_assigned.count(string("a")), 2u);
+    EXPECT_TRUE(ft.empty());                                   // NOLINT(bugprone-use-after-move)
+    txt::normalized_text nt(string("é"));
+    auto nt_moved = std::move(nt);
+    EXPECT_TRUE(nt.empty() && nt.text().empty());              // NOLINT(bugprone-use-after-move)
+
+    // the ranges
+    txt::fold_matches m(text, string("ala"));
+    auto m_moved = std::move(m);
+    EXPECT_EQ(m_moved.count(), 2u);
+    EXPECT_TRUE(m.empty());                                    // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(m.count(), 0u);
+    EXPECT_TRUE(m.begin() == m.end());
+    EXPECT_EQ(m.text().size(), 0u);
+    EXPECT_TRUE(m.pattern().pattern().empty());
+    m = txt::fold_matches(string("aa"), string("a"));
+    EXPECT_EQ(m.count(), 2u);
+    move_into_itself(m);
+    EXPECT_EQ(m.count(), 2u);
+    auto shared = m;
+    EXPECT_EQ(shared.count(), 2u);
+    txt::normalized_matches nm(string("é é"), string("é"));
+    auto nm_moved = std::move(nm);
+    EXPECT_EQ(nm_moved.count(), 2u);
+    EXPECT_TRUE(nm.empty() && nm.text().empty());              // NOLINT(bugprone-use-after-move)
 }

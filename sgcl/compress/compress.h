@@ -12,6 +12,7 @@
 #include "flate.h"
 #include "gzip.h"
 #include "level.h"
+#include "limits.h"
 #include "lzma.h"
 #include "lzw.h"
 #include "sevenzip.h"

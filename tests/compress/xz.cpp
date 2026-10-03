@@ -514,6 +514,22 @@ TEST(Bcj2_Tests, DamagedStreamsFailOrDiffer) {
 
 // ---------------------------------------------------------------- xz
 
+// Text compresses as it stands, as lzma's does: a literal, a character
+// array, a std::string_view and a string make the same bytes
+TEST(Xz_Tests, TextAsItStands) {
+    static_assert(noexcept(xz::compress("text")));
+    static_assert(!noexcept(xz::compress("text", xz::options{})));
+    auto want = xz::compress(sgcl::string("hello, hello, hello"));
+    const char array[] = "hello, hello, hello";
+    EXPECT_TRUE(xz::compress("hello, hello, hello") == want);
+    EXPECT_TRUE(xz::compress(array) == want);
+    EXPECT_TRUE(xz::compress(std::string_view("hello, hello, hello")) == want);
+    EXPECT_TRUE(xz::compress("hello, hello, hello", {.check = xz::check::sha256}) ==
+                xz::compress(sgcl::string("hello, hello, hello"), {.check = xz::check::sha256}));
+    EXPECT_EQ(text(value_of(xz::decompress(xz::compress("hello")))), "hello");
+    EXPECT_THROW(xz::compress("hello", {.delta = 300}), std::invalid_argument);
+}
+
 // What we make at every level and check, decoded by liblzma and by us;
 // what liblzma makes at every preset and check, decoded by us
 TEST(Xz_Tests, BothWaysWithLiblzma) {

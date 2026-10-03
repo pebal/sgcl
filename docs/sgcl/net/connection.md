@@ -1,155 +1,200 @@
-# sgcl::net::connection, net::listener, net::udp::socket
+[sgcl](../README.md) › [net](README.md)
+
+# sgcl::net::connection
 
 ```cpp
-#include "sgcl/net/connection.h"   // or "sgcl/net/net.h"
+#include "sgcl/net/connection.h"   // or "sgcl/net.h"
 
 namespace sgcl::net {
-    class connection;   // a stream both ways: TCP, unix, TLS (net::tls), a pair in memory; a handle of one word
-    class listener;     // what tcp::listen and unix_domain::listen give: the connections it accepts
-    struct datagram;    // a datagram received: its size, its sender, whether it was cut
-    class udp::socket;   // what udp::bind and udp::connect give
+    class connection;
 }
 ```
 
-The connections of the module. Each is a handle of one word, a `tracked_ptr` to the object inside, as a [`string`](../core/string.md) is: a copy is the same connection, a handle passed into a task by value keeps it alive for as long as the task runs, and an `expected<connection, io::error>` reads `c->read(b)`. They are made by [`tcp`, `udp` and `unix_domain`](socket.md) and by `connection::in_memory()`.
+`sgcl::net::connection` is a stream of bytes both ways: a TCP socket, a unix socket, a TLS session
+([net::tls](tls/README.md)), or one end of a pair in memory ([in_memory](connection/in_memory.md)). It is Go's
+`net.Conn` with its `Read`, `Write`, `Close`, `CloseWrite`, `LocalAddr` and `RemoteAddr`
+([read](connection/read.md), [write](connection/write.md), [close](connection/close.md),
+[close_write](connection/close_write.md), [local_endpoint](connection/local_endpoint.md),
+[remote_endpoint](connection/remote_endpoint.md)), its deadlines and its socket options, and what Go takes from
+`io` and `bufio` for it: `io.ReadFull`, `io.ReadAll` and `io.Copy(c, c)` are [read_full](connection/read_full.md),
+[read_all](connection/read_all.md) and [copy_to](connection/copy_to.md), `bufio.NewReader(c).ReadString('\n')` is
+[read_line](connection/read_line.md).
 
-Every operation that may wait comes twice: `read(b)` takes the thread until the data comes, `co_await async_read(b)` gives the worker back meanwhile. Both wait on the [reactor](../async/reactor.md), so a close from any task or thread and a deadline on the module's [clock](../core/clock.md) end either form.
+A connection is a handle of one word, a `tracked_ptr` to the object inside, as a [string](../core/string.md) is: a
+copy is the same connection, as a `*net.TCPConn` is in Go, and a handle passed by value into a task keeps the
+connection alive for as long as the task runs. An `expected<connection, io::error>` reads `c->read(b)`, and
+`c.read(b)` once unwrapped. It is a stream as it is, as a `net.Conn` is an `io.ReadWriteCloser`: `read` and
+`async_read`, `write` and `async_write`, `close` and `async_close` make it an [io::reader](../io/reader.md) and an
+[io::writer](../io/writer.md), so [buffered_reader](../io/buffered_reader.md), [limit_reader](../io/limit_reader.md)
+and [io::copy](../io/copy.md) take it, and a connection [net::tls](tls/README.md) makes is one too. A stream made of
+a connection (`io::reader in = c;`) holds the connection itself, not the handle, which may go first.
+
+Every operation that may wait comes twice: `read(b)` takes the thread until the data comes, `co_await
+async_read(b)` gives the worker back meanwhile. Both wait on the [reactor](../async/readable.md), so a close from any
+task or thread, and a deadline on the module's [clock](../core/clock.md) (a `manual_clock` included), end either
+form: the blocking form parks the thread in the descriptor's slot on the reactor rather than polling the
+descriptor, which neither a close nor the manual clock could interrupt.
 
 ## Rules
 
-- **Full duplex, one at a time per direction.** One read and one write may run at once; two reads at once are taken one after the other (a [`mutex`](../async/mutex.md) of the library per direction, which parks no worker), as are two writes, so that a message written from each of two tasks lands whole.
-- **A write writes everything or fails**; a read returns what has come, at least one byte, and 0 at the end of the stream. A write that fails part way (a deadline passing in a long write, a reset) reports the error alone: how many bytes went out before it is lost, as in io, and the stream is then of no use but to close.
-- **Deadlines are absolute**, on the module's clock, as Go's: a read (write) that starts after the deadline of its direction, or would wait past it, fails with `ETIMEDOUT` (`is_timeout()`) and takes nothing, even when data is there. `time_point()` removes it. A change applies to the operations in progress: a deadline in the past set from another task ends a read at once. A limit per operation is `c.set_read_deadline(clock::now() + 5s)` before each; `async::timeout(c.read(b), 5s)` is not the same, since the read lost to the timer runs on and takes the data. `close()` gives the descriptor back at once, deadlines and all.
-- **`close()` from another task cancels**: the reads, writes and accepts in progress end with `io::errc::closed`, and a second close does nothing. The descriptor goes back to the system when the last operation in progress has let go of it, never under one (the race of a close with a read is closed, `io/detail/descriptor.h`). A connection not closed is closed by its destructor, on the collector's thread after the sweep that finds it dead: later than the last use.
-- **A write to a peer that closed is `EPIPE`**, never a `SIGPIPE`.
-- **Lines** (`read_line`) go through a buffer of 8 KB the first call puts in front of the connection; `read` takes from that buffer first from then on. A line is bounded (64 KB by default, `set_max_line`): the input is the network's.
-- A connection is a stream as it is ([stream](../io/stream.md)): `read` and `async_read`, `write` and `async_write`, `close` and `async_close`, so `buffered_reader`, `limit_reader` and `io::copy` take it, and a connection [`net::tls`](tls.md) makes is one too.
+- Made by [tcp::connect](tcp/connect.md), [unix_domain::connect](unix_domain/connect.md),
+  [listener::accept](listener/accept.md), [tls::connect](tls/connect.md), [tls::client](tls/client.md),
+  [tls::server](tls/server.md) and [in_memory](connection/in_memory.md). A connection made by the default
+  constructor holds none (`!c`); an operation on it is a contract violation (debug builds assert).
+- A handle is a tracked word: on a stack, in a task, in a managed object. In a global or a `std` container it goes
+  into a [rooted](../core/rooted.md), `rooted<net::connection>`; it takes part in the atomics by its word
+  ([atomic](../core/atomic-handle.md)), compared by identity.
+- Full duplex, one at a time per direction. One read and one write may run at once; two reads at once are taken one
+  after the other, by a [mutex](../async/mutex.md) of the library per direction which parks no worker, and so are
+  two writes, so that a message written from each of two tasks lands whole.
+- A write writes everything or fails; a read returns what has come, at least one byte, and 0 at the end of the
+  stream. A write that fails part way (a deadline passing in a long write, a reset) reports the error alone: how
+  many bytes went out before it is lost, as in io, and the stream is then of no use but to close.
+- The deadlines are absolute, on the module's clock, as Go's: a read (a write) that starts after the deadline of its
+  direction, or would wait past it, fails with `ETIMEDOUT` (`is_timeout()`) and takes nothing, even when data is
+  there ([set_deadline](connection/set_deadline.md)).
+- [close](connection/close.md) from another task cancels: the reads, writes and accepts in progress end with
+  `io::errc::closed`. The descriptor goes back to the system when the last operation in progress has let go of
+  it, never under one. A connection not closed is closed by its destructor, on the collector's thread after the
+  sweep that finds it dead: later than the last use.
+- A write to a peer that closed is `EPIPE`, never a `SIGPIPE` (`SO_NOSIGPIPE`, `MSG_NOSIGNAL`). Every socket is
+  non-blocking and close-on-exec.
+- [read_line](connection/read_line.md) puts a buffer of 8 KB in front of the connection at its first call, and
+  `read` takes from that buffer first from then on. A line is bounded, 64 KB by default
+  ([set_max_line](connection/set_max_line.md)): the input is the network's.
+- Errors are values, [expected\<T, io::error\>](../io/error.md): the code (an `errno` value, `io::errc::closed`, or
+  one of [net::errc](errc.md)), the operation and the connection, so that `message()` reads `read tcp
+  127.0.0.1:50000->127.0.0.1:8080: Operation timed out`, a unix socket named by its path and a pair in memory by
+  `pipe`.
 
-## Members
+## Member functions
 
-### connection
+| Function | Description |
+|---|---|
+| [(constructor)](connection/connection.md) | constructs the handle: no connection, or a copy that is the same connection |
+| `(destructor)` | releases the handle; the socket is closed by `close`, or when the collector finds the connection dead |
+| `operator=` | makes the handle the same connection as another |
+
+#### Reading
+
+| Function | Description |
+|---|---|
+| [read, async_read](connection/read.md) | reads what has come, at least one byte |
+| [read_full, async_read_full](connection/read_full.md) | fills the whole buffer, or says why not |
+| [read_all, async_read_all](connection/read_all.md) | reads to the end of the stream, into a `vector<byte>` |
+| [read_all_text, async_read_all_text](connection/read_all_text.md) | reads to the end of the stream, into a `string` |
+| [read_line, async_read_line](connection/read_line.md) | reads the next line |
+| [set_max_line](connection/set_max_line.md) | sets the longest line `read_line` takes |
+| [max_line](connection/max_line.md) | the longest line `read_line` takes |
+
+#### Writing
+
+| Function | Description |
+|---|---|
+| [write, async_write](connection/write.md) | writes all of the data or fails |
+| [read_from, async_read_from](connection/read_from.md) | sends a file from its position to its end (`sendfile` over TCP) |
+| [copy_to, async_copy_to](connection/copy_to.md) | copies everything to the end of this stream into another connection |
+
+#### Closing
+
+| Function | Description |
+|---|---|
+| [close, async_close](connection/close.md) | ends the connection both ways, and the operations in progress |
+| [close_write](connection/close_write.md) | ends the writing half (`shutdown(SHUT_WR)`) |
+| [is_closed](connection/is_closed.md) | checks whether the connection was closed |
+
+#### Deadlines
+
+| Function | Description |
+|---|---|
+| [set_deadline](connection/set_deadline.md) | sets the deadline of both directions |
+| [set_read_deadline](connection/set_read_deadline.md) | sets the deadline of the reads |
+| [set_write_deadline](connection/set_write_deadline.md) | sets the deadline of the writes |
+| [read_deadline](connection/read_deadline.md) | the deadline of the reads |
+| [write_deadline](connection/write_deadline.md) | the deadline of the writes |
+
+#### Socket options
+
+| Function | Description |
+|---|---|
+| [set_no_delay](connection/set_no_delay.md) | turns Nagle's algorithm off or on (TCP) |
+| [set_keep_alive](connection/set_keep_alive.md) | sets the silence after which keep-alive probes go out (TCP) |
+
+#### Observers
+
+| Function | Description |
+|---|---|
+| [local_endpoint](connection/local_endpoint.md) | the address of this end |
+| [remote_endpoint](connection/remote_endpoint.md) | the address of the peer |
+| [path](connection/path.md) | the path of a unix socket |
+| [operator bool](connection/operator_bool.md) | checks whether the handle holds a connection |
+
+#### In memory
+
+| Function | Description |
+|---|---|
+| [in_memory](connection/in_memory.md) | makes two ends connected in memory, Go's `net.Pipe` (static) |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==, operator!=](connection/operator_cmp.md) | checks whether two handles are the same connection |
+
+## Example
 
 ```cpp
-connection() noexcept;                                         // no connection: an operation on it is a contract violation
-expected<size_t, io::error> read(const slice<byte>& buffer) const;        // what has come, 0 at the end
-async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const;
-expected<size_t, io::error> read_full(const slice<byte>& buffer) const;   // the whole buffer, or io::errc::unexpected_eof, the end before the first byte included
-async::task<expected<size_t, io::error>> async_read_full(const slice<byte>& buffer) const;
-expected<vector<byte>, io::error> read_all() const;                // to the end of the stream
-async::task<expected<vector<byte>, io::error>> async_read_all() const;
-expected<string, io::error> read_all_text() const;
-async::task<expected<string, io::error>> async_read_all_text() const;
-expected<optional<string>, io::error> read_line() const;                // without "\n" and "\r\n"; nullopt at the end
-async::task<expected<optional<string>, io::error>> async_read_line() const;
-void set_max_line(size_t bytes) const;                         // 64 KB by default; longer: io::errc::line_too_long
-size_t max_line() const noexcept;
+#include "sgcl/async.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
+#include "sgcl/net.h"
 
-expected<size_t, io::error> write(const slice<const byte>& data) const;   // everything, or the error
-async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const;
-expected<size_t, io::error> write(const string& text) const;
-async::task<expected<size_t, io::error>> async_write(const string& text) const;   // holds the string while it runs
-expected<size_t, io::error> read_from(const io::file& f) const;         // the file from its position to its end, written here (what io::copy(c, f) calls): sendfile over TCP
-async::task<expected<size_t, io::error>> async_read_from(io::file f) const;
-expected<size_t, io::error> copy_to(const connection& other) const;     // to the end of this stream, written to other; an echo is c.copy_to(c)
-async::task<expected<size_t, io::error>> async_copy_to(const connection& other) const;
+using namespace sgcl;
+using namespace std::chrono_literals;
 
-expected<void, io::error> close() const;  async::task<expected<void, io::error>> async_close() const;   // both ways, now; ends the operations in progress
-expected<void, io::error> close_write() const;                          // shutdown(SHUT_WR): the peer reads the end, this side still reads
-bool is_closed() const noexcept;
+// Answers each line with PONG until the client ends its half
+async::task<> answer(net::listener l) {
+    net::connection c = co_await l.async_accept();
+    for (;;) {
+        auto line = co_await c.async_read_line();
+        if (!line || !*line) {
+            break;  // an error, or the end of the stream
+        }
+        co_await c.async_write("PONG " + **line + "\n");
+    }
+    co_await c.async_close();
+}
 
-endpoint local_endpoint() const;                               // empty for unix and the pair in memory
-endpoint remote_endpoint() const;
-string path() const;                                           // a unix socket's path, else empty
+int main() {
+    net::listener l = net::tcp::listen("127.0.0.1:0");
+    auto server = async::spawn(answer(l));
 
-void set_deadline(time_point t) const;                         // both directions; time_point() removes it
-void set_read_deadline(time_point t) const;
-void set_write_deadline(time_point t) const;
-time_point read_deadline() const;                              // time_point() when there is none
-time_point write_deadline() const;
-
-expected<void, io::error> set_no_delay(bool on) const;                  // TCP; on by default, as in Go; EOPNOTSUPP for anything else
-expected<void, io::error> set_keep_alive(duration idle) const;          // TCP; probes after 15 s by default, as in Go; zero turns them off
-
-static pair<connection, connection> in_memory();               // two connected ends, Go's net.Pipe
-explicit operator bool() const noexcept;
-friend bool operator==(const connection&, const connection&) noexcept;   // the same connection
-```
-
-`in_memory()` gives two ends connected in memory: what one writes the other reads, a write waiting for the reads that take it (nothing is buffered, nothing copied twice), with deadlines, `close` and `close_write` as on a socket. For tests of a protocol without sockets.
-
-```cpp
-async::task<> ask(string address) {
-    auto c = co_await net::tcp::async_connect(address, 5s);
-    if (!c) co_return;
-    c->set_deadline(clock::now() + 10s);          // the whole conversation within 10 s
+    net::connection c = net::tcp::connect(l.local_endpoint());
+    c.set_deadline(clock::now() + 10s);  // the whole conversation within 10 s
     for (int i : range(3)) {
-        co_await c->async_write("PING " + to_string(i) + "\r\n");
-        auto line = co_await c->async_read_line();
-        if (!line || !*line) break;               // an error, or the end of the stream
-        println("{}", **line);
+        c.write("PING " + to_string(i) + "\n");
+        println("{}", c.read_line()->value());
     }
-    co_await c->async_close();
+    c.close_write();
+    server.wait();
+    c.close();
+    l.close();
 }
 ```
 
-### listener
+Output:
 
-```cpp
-listener() noexcept;
-expected<connection, io::error> accept() const;         // the next connection
-async::task<expected<connection, io::error>> async_accept() const;
-expected<void, io::error> close() const;                // no more; the accepts in progress end; a unix listener removes its file
-bool is_closed() const noexcept;
-endpoint local_endpoint() const;               // ":0" given: the port the system chose
-string path() const;                           // a unix listener's path
-```
-
-`accept` has no deadline of its own: `close()` from another task is how a wait for the next connection is ended (Go's `SetDeadline` on a listener, which a server uses for the same, is not here). It skips a connection aborted before it was taken (`ECONNABORTED`). When the descriptors run out (`EMFILE`, `ENFILE`) it waits, 5 ms and doubling to a second, and tries again rather than spin or fail, as Go's server does; it fails with `io::errc::closed` after `close()`, or on an error that will not pass. (macOS drops the connection it could not take; Linux leaves it in the backlog.) An accepted TCP connection has Nagle off and keep-alive on, as a dialed one.
-
-### udp::socket, udp::datagram
-
-```cpp
-struct udp::datagram {
-    size_t size = 0;           // the bytes in the buffer
-    endpoint from;             // the sender (an IPv4 peer of a dual-stack socket reported as IPv4)
-    bool truncated = false;    // the datagram was longer than the buffer, and cut (MSG_TRUNC)
-};
-
-expected<udp::datagram, io::error> receive_from(const slice<byte>& buffer) const;
-async::task<expected<udp::datagram, io::error>> async_receive_from(const slice<byte>& buffer) const;
-expected<size_t, io::error> send_to(const slice<const byte>& data, const endpoint& to) const;
-async::task<expected<size_t, io::error>> async_send_to(const slice<const byte>& data, const endpoint& to) const;
-expected<size_t, io::error> receive(const slice<byte>& buffer) const;      // a socket from udp::connect: from its one peer
-async::task<expected<size_t, io::error>> async_receive(const slice<byte>& buffer) const;
-expected<size_t, io::error> send(const slice<const byte>& data) const;     // to its one peer
-async::task<expected<size_t, io::error>> async_send(const slice<const byte>& data) const;
-expected<void, io::error> close() const;
-bool is_closed() const noexcept;
-endpoint local_endpoint() const;
-endpoint remote_endpoint() const;                               // the peer of a connected socket, else empty
-void set_deadline(time_point t) const;
-void set_read_deadline(time_point t) const;
-void set_write_deadline(time_point t) const;
-time_point read_deadline() const noexcept;                      // time_point() when there is none
-time_point write_deadline() const noexcept;
-```
-
-A datagram is sent whole or not at all; `ENOBUFS` (the interface's queue full) is an error, as in Go, not a wait: the socket has room, so a wait for writability would come back at once. An empty buffer takes the next datagram and reports `size` 0, `truncated` when it had bytes (macOS alone would answer with a datagram of nothing and keep the real one queued). An IPv4 address given to `send_to` on a socket bound to both families goes through the mapping.
-
-```cpp
-async::task<> udp_echo() {
-    auto s = co_await net::udp::async_bind(":5353");
-    if (!s) co_return;
-    vector<byte> datagram(8192);
-    slice<byte> room = datagram;
-    while (auto d = co_await s->async_receive_from(room)) {
-        co_await s->async_send_to(room.first(d->size), d->from);
-    }
-}
+```text
+PONG PING 0
+PONG PING 1
+PONG PING 2
 ```
 
 ## See also
 
-- [socket](socket.md): what makes them; [io stream](../io/stream.md), [buffered](../io/buffered.md): what `stream()` plugs into
-- [reactor](../async/reactor.md), [clock](../core/clock.md): where the waits wait, and the time of the deadlines
+- [tcp](tcp.md), [unix_domain](unix_domain.md), [listener](listener.md): what makes a connection
+- [io::reader](../io/reader.md), [io::writer](../io/writer.md), [buffered_reader](../io/buffered_reader.md): what a
+  connection plugs into
+- [reactor](../async/readable.md), [clock](../core/clock.md): where the waits wait, and the time of the deadlines
+- [io::error](../io/error.md), [errc](errc.md): what a failure says
 - `tests/net/socket.cpp`, `tests/net/memory.cpp`, `tests/net/race.cpp`

@@ -59,16 +59,19 @@ namespace sgcl::async {
     // the try and the park is kept on the word (Ready) and the park takes
     // it instead of sleeping, and the call is tried again.
     //
-    // `readable(fd)` and `writable(fd)`, for any other descriptor: a
-    // channel that gets one signal when fd can be read (or written)
-    // without blocking, then is closed; a one-shot registration each
-    // (kqueue's EV_ONESHOT), under a lock. A task writes `co_await
-    // readable(fd)->receive()` and holds no thread until the data comes; a
-    // select bounds it (`readable(fd)->on_receive(f), timeout(1s, g)`), a
-    // stop token cancels it. The two ways do not mix on one descriptor
-    // number: the kernel keeps one entry per number and filter, and the
-    // second registration would take the first's. `exited(pid)` is the
-    // same for the end of a process.
+    // `readable(fd)` and `writable(fd)`, for any other descriptor: an
+    // event set when fd can be read (or written) without blocking, or
+    // when the wait is ended with nothing (cancel_waits); a one-shot
+    // registration each (kqueue's EV_ONESHOT), under a lock. Under the
+    // event a channel of signals, which gets a signal for the readiness
+    // and is closed at the wake. A task writes `co_await readable(fd)` and
+    // holds no thread until the data comes, a thread `readable(fd).wait()`;
+    // a select bounds it (`readable(fd).on_set(f), timeout(1s, g)`), a
+    // stop token cancels it. A wait woken by the event tries its call
+    // again, and waits again when it would block. The two ways do not mix
+    // on one descriptor number: the kernel keeps one entry per number and
+    // filter, and the second registration would take the first's.
+    // `exited(pid)` is the same for the end of a process.
     //
     // Under both one thread on the kernel's queue (kqueue here, epoll on
     // Linux, IOCP to come), asleep in the kernel until something is ready.
@@ -341,7 +344,7 @@ namespace sgcl::async {
             // taken yet), and it is not on the list. A level waiter (the
             // one-shot way on epoll, which looks at the level itself after
             // the push) always stays.
-            bool push(int dir, const tracked_ptr<PollWaiter>& w, bool level = false) {
+            bool push(int dir, const tracked_ptr<PollWaiter>& w, bool level = false) noexcept {
                 _lock();
                 w->next = overflow(dir);
                 overflow(dir) = w;
@@ -358,7 +361,7 @@ namespace sgcl::async {
 
             // A waiter of the overflow list taken off by itself: true when
             // it was still there (no wake will come)
-            bool remove(int dir, PollWaiter* w) {
+            bool remove(int dir, PollWaiter* w) noexcept {
                 _lock();
                 for (tracked_ptr<PollWaiter>* link = &overflow(dir); *link; link = &(*link)->next) {
                     if (link->get() == w) {
@@ -432,7 +435,7 @@ namespace sgcl::async {
             }
 
         private:
-            void _clear_record(int dir) {
+            void _clear_record(int dir) noexcept {
                 if (frame(dir)) {
                     frame(dir) = nullptr;
                 }
@@ -494,7 +497,7 @@ namespace sgcl::async {
         // A chunk of slots, plain memory, never given back; the roots of
         // its tracked words beside it
         struct PollChunk {
-            PollChunk()
+            PollChunk() noexcept
             : roots(make_tracked<PollRoots>()) {
                 for (unsigned i = 0; i < PollChunkSize; ++i) {
                     slots[i].roots = roots.get();
@@ -585,7 +588,7 @@ namespace sgcl::async {
             // The slot of a descriptor number, its chunk made on the first
             // call; null for a number past the table (a wait on it fails:
             // io::errc::unsupported)
-            PollSlot* slot(int fd) {
+            PollSlot* slot(int fd) noexcept {
                 if (fd < 0 || unsigned(fd) >= poll_number_limit.load(std::memory_order_relaxed)) {
                     return nullptr;
                 }
@@ -756,7 +759,7 @@ namespace sgcl::async {
             // Under _m: the queue closed, the incarnation taken back first
             // (sequentially consistent: the waiters' look after their
             // publication, against the sweep that follows)
-            void _close_queue() {
+            void _close_queue() noexcept {
                 _live.store(0, std::memory_order_seq_cst);
                 if (_kq >= 0) {
                     _queue.store(-1, std::memory_order_release);
@@ -776,13 +779,13 @@ namespace sgcl::async {
             using Waits = std::vector<root_ptr<IoWait>>;
 
             // 0, or the errno of the registration
-            int _register(int fd, PollSlot& s, int dir) {
+            int _register(int fd, PollSlot& s, int dir) noexcept {
                 struct kevent ev;
                 EV_SET(&ev, fd, dir ? EVFILT_WRITE : EVFILT_READ, EV_ADD | EV_CLEAR, 0, 0, (void*)(uintptr_t)_udata(fd, s));
                 return ::kevent(_queue.load(std::memory_order_acquire), &ev, 1, nullptr, 0, nullptr) == 0 ? 0 : errno;
             }
 
-            void _wake_thread() {
+            void _wake_thread() noexcept {
                 if (_kq >= 0) {
                     struct kevent ev;
                     EV_SET(&ev, 1, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
@@ -817,7 +820,7 @@ namespace sgcl::async {
                         auto it = _pending.find(key);
                         if (it != _pending.end()) {   // registered already: this wait rides on it
                             _join(it->second, std::move(wait));
-                        } else {   // the node made whole before it enters the table, so that a bad_alloc leaves no empty one there
+                        } else {   // the node made whole before it enters the table
                             IoNode node;
                             node.number = ++_numbers;
                             node.waits.push_back(std::move(wait));
@@ -845,7 +848,7 @@ namespace sgcl::async {
             // count reaches twice what was left the time before. The
             // registration then holds at most about twice the waits still
             // open, at a constant cost per wait.
-            static void _join(IoNode& node, root_ptr<IoWait> wait) {
+            static void _join(IoNode& node, root_ptr<IoWait> wait) noexcept {
                 if (node.waits.size() >= node.sweep_at) {
                     std::erase_if(node.waits, [](const root_ptr<IoWait>& w) { return w->ch->closed(); });
                     node.sweep_at = std::max<size_t>(8, 2 * node.waits.size());
@@ -855,14 +858,14 @@ namespace sgcl::async {
 
             // Under _m: the node's waits moved out and the node gone
             template<class It>
-            void _take(It it, Waits& out) {
+            void _take(It it, Waits& out) noexcept {
                 for (auto& w : it->second.waits) {
                     out.push_back(std::move(w));
                 }
                 _pending.erase(it);
             }
 
-            void _take_all(Waits& out) {
+            void _take_all(Waits& out) noexcept {
                 for (auto& [key, node] : _pending) {
                     for (auto& w : node.waits) {
                         out.push_back(std::move(w));
@@ -1009,7 +1012,7 @@ namespace sgcl::async {
             // (Go's netpollopen); EEXIST: the entry made already (by a
             // waiter of the other direction in an older incarnation's
             // queue number, or a stale entry of a dup), set to this one
-            int _register(int fd, PollSlot& s, int dir) {
+            int _register(int fd, PollSlot& s, int dir) noexcept {
                 (void)dir;
                 struct epoll_event ev = {};
                 ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
@@ -1024,7 +1027,7 @@ namespace sgcl::async {
                 return ::epoll_ctl(q, EPOLL_CTL_MOD, fd, &ev) == 0 ? 0 : errno;
             }
 
-            void _wake_thread() {
+            void _wake_thread() noexcept {
                 if (_wake_fd >= 0) {
                     uint64_t one = 1;
                     (void)!::write(_wake_fd, &one, sizeof(one));

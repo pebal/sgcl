@@ -95,7 +95,7 @@ namespace sgcl::net::tls::detail {
     // HKDF-Expand with the info HkdfLabel = uint16 length, the label
     // "tls13 " + label as a vector of one-byte length, the context as one
     template<class H>
-    inline void expand_label_with(const slice<byte>& out, const slice<const byte>& secret, const char* label, const slice<const byte>& context) {
+    inline void expand_label_with(const slice<byte>& out, const slice<const byte>& secret, const char* label, const slice<const byte>& context) noexcept {
         size_t label_size = std::strlen(label);
         assert(out.size() <= 0xFFFF && 6 + label_size <= 255 && context.size() <= 255);
         uint8_t info[2 + 1 + 255 + 1 + 255];
@@ -115,7 +115,7 @@ namespace sgcl::net::tls::detail {
         crypto::hkdf<H>::expand_to(out, secret, bytes_of(info, n));
     }
 
-    inline void expand_label(Hash h, const slice<byte>& out, const slice<const byte>& secret, const char* label, const slice<const byte>& context) {
+    inline void expand_label(Hash h, const slice<byte>& out, const slice<const byte>& secret, const char* label, const slice<const byte>& context) noexcept {
         if (h == Hash::sha256) {
             expand_label_with<crypto::sha256>(out, secret, label, context);
         } else {
@@ -180,7 +180,7 @@ namespace sgcl::net::tls::detail {
     // Derive-Secret(secret, label, messages) = HKDF-Expand-Label(secret,
     // label, Transcript-Hash(messages), Hash.length), the transcript hash
     // given
-    inline void derive_secret(Hash h, Secret& out, const Secret& secret, const char* label, const slice<const byte>& transcript_hash) {
+    inline void derive_secret(Hash h, Secret& out, const Secret& secret, const char* label, const slice<const byte>& transcript_hash) noexcept {
         out.size = uint8_t(hash_size(h));
         expand_label(h, room_of(out.bytes, out.size), secret.view(), label, transcript_hash);
     }
@@ -210,7 +210,7 @@ namespace sgcl::net::tls::detail {
 
     // key = HKDF-Expand-Label(secret, "key", "", key_size), iv =
     // HKDF-Expand-Label(secret, "iv", "", 12)
-    inline void traffic_keys(Hash h, TrafficKeys& out, const Secret& secret, size_t key_size) {
+    inline void traffic_keys(Hash h, TrafficKeys& out, const Secret& secret, size_t key_size) noexcept {
         assert(key_size <= sizeof out.key);
         out.key_size = uint8_t(key_size);
         expand_label(h, room_of(out.key, key_size), secret.view(), "key", slice<const byte>());
@@ -219,7 +219,7 @@ namespace sgcl::net::tls::detail {
 
     // application_traffic_secret_N+1 = HKDF-Expand-Label(secret_N, "traffic
     // upd", "", Hash.length), in place (§7.2): the old secret gone
-    inline void update_traffic_secret(Hash h, Secret& secret) {
+    inline void update_traffic_secret(Hash h, Secret& secret) noexcept {
         Secret next;
         next.size = uint8_t(hash_size(h));
         expand_label(h, room_of(next.bytes, next.size), secret.view(), "traffic upd", slice<const byte>());
@@ -229,7 +229,7 @@ namespace sgcl::net::tls::detail {
     // finished_key = HKDF-Expand-Label(base, "finished", "", Hash.length);
     // verify_data = HMAC(finished_key, transcript hash) (§4.4.4), into out
     // (Hash.length bytes)
-    inline void verify_data(Hash h, uint8_t* out, const Secret& base, const slice<const byte>& transcript_hash) {
+    inline void verify_data(Hash h, uint8_t* out, const Secret& base, const slice<const byte>& transcript_hash) noexcept {
         Secret finished_key;
         finished_key.size = uint8_t(hash_size(h));
         expand_label(h, room_of(finished_key.bytes, finished_key.size), base.view(), "finished", slice<const byte>());
@@ -251,7 +251,7 @@ namespace sgcl::net::tls::detail {
     // each zeroing what the next no longer needs
     class KeySchedule {
     public:
-        explicit KeySchedule(Hash h)
+        explicit KeySchedule(Hash h) noexcept
         : _hash(h) {
             uint8_t zeros[MaxHashSize] = {};
             extract(_hash, _early, slice<const byte>(), bytes_of(zeros, hash_size(_hash)));
@@ -268,7 +268,7 @@ namespace sgcl::net::tls::detail {
         // With the shared secret of the key exchange and the transcript
         // hash of ClientHello..ServerHello: the handshake secret and the
         // two handshake traffic secrets. The early secret is zeroed
-        void handshake(const slice<const byte>& shared_secret, const slice<const byte>& hello_hash) {
+        void handshake(const slice<const byte>& shared_secret, const slice<const byte>& hello_hash) noexcept {
             Secret derived;
             _derived(derived, _early);
             extract(_hash, _handshake, derived.view(), shared_secret);
@@ -282,7 +282,7 @@ namespace sgcl::net::tls::detail {
         // directions and the exporter master secret. The handshake secret
         // is zeroed (its traffic secrets stay until the caller is done
         // with the handshake's records: finish_handshake())
-        void application(const slice<const byte>& server_finished_hash) {
+        void application(const slice<const byte>& server_finished_hash) noexcept {
             Secret derived;
             _derived(derived, _handshake);
             uint8_t zeros[MaxHashSize] = {};
@@ -320,7 +320,7 @@ namespace sgcl::net::tls::detail {
         }
 
     private:
-        void _derived(Secret& out, const Secret& from) {
+        void _derived(Secret& out, const Secret& from) noexcept {
             uint8_t empty[MaxHashSize];
             empty_hash(_hash, empty);
             derive_secret(_hash, out, from, "derived", bytes_of(empty, hash_size(_hash)));

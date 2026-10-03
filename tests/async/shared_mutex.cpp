@@ -245,3 +245,119 @@ TEST(SharedMutex_Test, ThreadsAndTasksMixed) {
     g.m.unlock();
     sgcl::async::scheduler::stop();
 }
+
+namespace {
+    // The start of a worker's thread refused, as std::thread refuses one
+    // (the scheduler's test hook)
+    void refuse_thread(unsigned) {
+        throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again), "thread");
+    }
+
+    template<class F>
+    bool soon(F&& f) {
+        auto until = std::chrono::steady_clock::now() + 5s;
+        while (!f()) {
+            if (std::chrono::steady_clock::now() > until) {
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
+    }
+
+    sgcl::async::task<> read_once(sgcl::async::shared_mutex& m, std::atomic<int>& n) {
+        auto g = co_await m.scoped_lock_shared();
+        ++n;
+    }
+
+    sgcl::async::task<> write_once(sgcl::async::shared_mutex& m, std::atomic<int>& n) {
+        auto g = co_await m.scoped_lock();
+        ++n;
+    }
+}
+
+// The writer's guard ends with two readers waiting for it and the workers
+// stopped, which their wakes cannot start: the destructor throws nothing,
+// wakes both (not the first alone) and lets the next writer in; the
+// readers run when the workers next start
+TEST(SharedMutex_Test, AWritersGuardWhoseWakesCannotStartTheWorkersLosesNoReader) {
+    sgcl::async::shared_mutex m;
+    std::atomic<int> read = {0};
+    auto r1 = read_once(m, read);
+    auto r2 = read_once(m, read);
+    {
+        auto g = m.scoped_lock().wait();
+        r1.resume();                                           // by hand: their waits are tasks on the workers
+        r2.resume();
+        sgcl::async::detail::wait_for_idle_workers();          // both waiting for the writer
+        sgcl::async::scheduler::stop();
+        sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    }
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_EQ(read.load(), 0);
+    (void)sgcl::async::scheduler::workers();
+    ASSERT_TRUE(soon([&] { return r1.done() && r2.done(); }));
+    EXPECT_EQ(read.load(), 2);
+    EXPECT_TRUE(m.try_lock());                                 // the writers' mutex let go of too
+    m.unlock();
+    sgcl::async::scheduler::stop();
+}
+
+// A reader's guard ends with a writer waiting for it and the workers
+// stopped: the same for the one wake of the writer
+TEST(SharedMutex_Test, AReadersGuardWhoseWakeCannotStartTheWorkersLosesNoWriter) {
+    sgcl::async::shared_mutex m;
+    std::atomic<int> written = {0};
+    auto w = write_once(m, written);
+    {
+        auto g = m.scoped_lock_shared().wait();
+        w.resume();                                            // by hand: its wait for the reader is a task on the workers
+        sgcl::async::detail::wait_for_idle_workers();
+        sgcl::async::scheduler::stop();
+        sgcl::async::detail::scheduler_start_test_hook.store(&refuse_thread);
+    }
+    sgcl::async::detail::scheduler_start_test_hook.store(nullptr);
+    EXPECT_EQ(written.load(), 0);
+    (void)sgcl::async::scheduler::workers();
+    ASSERT_TRUE(soon([&] { return w.done(); }));
+    EXPECT_EQ(written.load(), 1);
+    EXPECT_TRUE(m.try_lock_shared());
+    m.unlock_shared();
+    sgcl::async::scheduler::stop();
+}
+
+// The guards have the members of mutex::guard: owner() is the mutex held,
+// release() lets go of it still locked, and both give nothing for an
+// empty guard (moved from or released). A shared mutex is an object, not
+// a handle, so the mutex is given by its address
+TEST(SharedMutex_Test, TheGuardsHaveOwnerAndReleaseAsMutexGuard) {
+    sgcl::async::shared_mutex m;
+    {
+        auto g = m.scoped_lock().wait();
+        auto h = std::move(g);
+        EXPECT_EQ(g.owner(), nullptr);
+        EXPECT_EQ(g.release(), nullptr);
+        EXPECT_EQ(h.owner(), &m);
+        auto held = h.release();
+        EXPECT_EQ(held, &m);
+        EXPECT_EQ(h.owner(), nullptr);
+        EXPECT_FALSE(m.try_lock_shared());                     // still locked, the caller's to unlock
+        held->unlock();
+    }
+    {
+        auto g = m.scoped_lock_shared().wait();
+        auto h = std::move(g);
+        EXPECT_EQ(g.owner(), nullptr);
+        EXPECT_EQ(g.release(), nullptr);
+        EXPECT_EQ(h.owner(), &m);
+        auto held = h.release();
+        EXPECT_EQ(held, &m);
+        EXPECT_EQ(h.owner(), nullptr);
+        EXPECT_FALSE(m.try_lock());                            // a reader still in
+        held->unlock_shared();
+    }
+    EXPECT_TRUE(m.try_lock());
+    m.unlock();
+    static_assert(noexcept(std::declval<const sgcl::async::shared_mutex::guard&>().owner()));
+    static_assert(noexcept(std::declval<const sgcl::async::shared_mutex::shared_guard&>().owner()));
+}

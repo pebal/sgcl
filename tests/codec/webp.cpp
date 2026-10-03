@@ -6,7 +6,8 @@
 // codec: WebP (webp.h, decode.h, detail/webp_container.h, detail/vp8l_*.h).
 // Every lossless file of libwebp-test-data pixel for pixel against libwebp
 // and Go's x/image/webp, and against the MD5 of what dwebp writes; the lossy
-// ones errc::unsupported until VP8. Files made here (webp_builder.h): the
+// ones (VP8, VP8 with ALPH) against libwebp's and Go's planes and pixels.
+// Files made here (webp_builder.h): the
 // predictor modes 14 and 15, which RFC 9649 leaves out, decoding as 0 in both
 // decoders; animations of every blending and disposal against libwebp's
 // WebPAnimDecoder (blended pixels within one of it, the rest exact); the
@@ -898,6 +899,47 @@ TEST(CodecWebp_Tests, FramesShareEndAndFail) {
     EXPECT_EQ(e2.error(), e1.error());
 }
 
+TEST(CodecWebp_Tests, TheLoopCountBeforeTheFirstFrame) {
+    // ANIM read when the frames are made, ICCP, EXIF and unknown chunks
+    // before it taken as next() takes them: loop_count() right from the
+    // start, from memory and from a stream, and the frames as they were
+    const std::vector<Frame> frames = {{0, 0, 4, 3, false, false, false, 1, 10}, {2, 0, 2, 2, true, true, true, 2, 20}};
+    const std::string plain = animation(4, 3, frames, 7);
+    const std::string icc(40, 'p'), exif = "MM\0*\0\0\0\x08\0\0";
+    const std::string head = wb::vp8x(0x02 | 0x10 | 0x20 | 0x08, 4, 3);
+    std::string rest = plain.substr(12 + head.size());
+    const std::string extended = wb::riff(head + wb::chunk("ICCP", icc) + wb::chunk("XYZW", "abc") + rest + wb::chunk("EXIF", exif));
+    for (const std::string* data : {&plain, &extended}) {
+        codec::frames clip = *codec::webp::frames(bytes(*data));
+        EXPECT_EQ(clip.loop_count(), 7u);
+        pieces p{data, 5};
+        codec::frames streamed = *codec::decode_frames(io::reader(p));
+        EXPECT_EQ(streamed.loop_count(), 7u);
+        const Read a = read_all(codec::webp::frames(bytes(*data)));
+        EXPECT_EQ(a.failure, "");
+        EXPECT_EQ(a.canvases.size(), 2u);
+        EXPECT_EQ(a.plays, 7u);
+        EXPECT_EQ(a.canvases, read_all(codec::webp::frames(bytes(plain))).canvases);
+    }
+    // a second ANIM passed over, as libwebp's demuxer passes it: the count
+    // the first says, before the first frame and after the last
+    const std::string anim7 = wb::anim(7, 0xff336699u);
+    const size_t at = plain.find(anim7);
+    ASSERT_NE(at, std::string::npos);
+    std::string twice_body = plain.substr(12);
+    twice_body.insert(at - 12 + anim7.size(), wb::anim(3));
+    const std::string twice = wb::riff(twice_body);
+    EXPECT_EQ(codec::webp::frames(bytes(twice))->loop_count(), 7u);
+    EXPECT_EQ(read_all(codec::webp::frames(bytes(twice))).plays, 7u);
+    EXPECT_EQ(against_libwebp(twice, frames, 4), "");
+    // the metadata before ANIM is the image's still
+    codec::image first = *codec::webp::decode(bytes(extended));
+    EXPECT_EQ(first.icc().size(), icc.size());
+    // forever, and a still image's 1
+    EXPECT_EQ(codec::webp::frames(bytes(animation(4, 3, frames, 0)))->loop_count(), 0u);
+    EXPECT_EQ(codec::webp::frames(bytes(simple(3, 2, wb::pattern(3, 2, 1, true))))->loop_count(), 1u);
+}
+
 TEST(CodecWebp_Tests, TheKernelsAgainstOnePixelAtATime) {
     // each kernel over random words and every length to 40, against its
     // formula one pixel at a time (in a SIMD build: the vector loop and its
@@ -1102,10 +1144,15 @@ TEST(CodecWebp_Tests, TheFuzzersFindsAsLibwebpTakesThem) {
     }
     const std::string here = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/'));
     for (const char* name : {"regress_simple_short_header_after_stop", "regress_lossy_transform_rows_past_16_bits",
-                             "regress_lossy_zero_run_is_non_zero", "regress_anmf_area"}) {
+                             "regress_lossy_zero_run_is_non_zero", "regress_anmf_area", "regress_anmf_padding"}) {
         const std::string data = read_file(here + "/fuzz/seeds/webp_decode/" + name);
         ASSERT_FALSE(data.empty()) << name;
         EXPECT_EQ(acceptance(name, data), "");
+        // a still image against WebPDecodeRGBA, which reads no animation
+        // (an animation's frames are acceptance's, against WebPAnimDecoder)
+        if (data.size() >= 21 && data.compare(12, 4, "VP8X") == 0 && (data[20] & 0x02)) {
+            continue;
+        }
         auto ours = codec::decode(bytes(data), {.want = pixel_format::rgba8});
         auto theirs = run_oracle(c_oracle(), "webp", write_file(std::string(name) + ".webp", data));
         EXPECT_EQ(bool(ours), bool(theirs)) << name;
@@ -1180,6 +1227,38 @@ TEST(CodecWebp_Tests, TheFilterLevelClampedOnceAsLibwebp) {
             auto theirs = run_oracle(c_oracle(), "webpyuv", path);
             ASSERT_TRUE(theirs) << name;
             EXPECT_TRUE(theirs->pixels == planes) << name << " against libwebp";
+        }
+        if (!go_webp_oracle().empty()) {
+            auto theirs = run_oracle(go_webp_oracle(), "webpyuv", path);
+            ASSERT_TRUE(theirs) << name;
+            EXPECT_TRUE(theirs->pixels == planes) << name << " against Go";
+        }
+    }
+}
+
+// A key frame with segmentation on and no segment data: its segments'
+// quantizer and filter level are absolute zeros, as libwebp and Go take
+// them, where RFC 6386's reference decoder takes deltas of zero from the
+// frame's (the fuzzer's find, a 1 x 13 image 30 levels off libwebp's; and
+// small_31x13.webp with its header so rewritten, 609 of 629 bytes of the
+// planes off). The planes against both, the pixels against WebPDecodeRGBA
+TEST(CodecWebp_Tests, SegmentsWithoutDataAsLibwebp) {
+    const std::string here = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/'));
+    for (const char* name : {"regress_lossy_segments_without_data", "segments_without_data.webp"}) {
+        const std::string path = here + "/fuzz/seeds/webp_decode/" + name;
+        const std::string data = read_file(path);
+        ASSERT_FALSE(data.empty()) << name;
+        const std::string planes = yuv_of(data);
+        ASSERT_FALSE(planes.empty()) << name;
+        if (!c_oracle().empty()) {
+            auto theirs = run_oracle(c_oracle(), "webpyuv", path);
+            ASSERT_TRUE(theirs) << name;
+            EXPECT_TRUE(theirs->pixels == planes) << name << " against libwebp";
+            auto ours = codec::decode(bytes(data), {.want = pixel_format::rgba8});
+            ASSERT_TRUE(ours) << name;
+            auto rgba = run_oracle(c_oracle(), "webp", path);
+            ASSERT_TRUE(rgba) << name;
+            EXPECT_TRUE(rgba->pixels == rgba_of(*ours)) << name << " against WebPDecodeRGBA";
         }
         if (!go_webp_oracle().empty()) {
             auto theirs = run_oracle(go_webp_oracle(), "webpyuv", path);

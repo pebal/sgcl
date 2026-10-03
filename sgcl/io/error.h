@@ -10,12 +10,13 @@
 #include "../core/string.h"
 
 #include <cerrno>
+#include <cstdint>
 #include <string>
 #include <system_error>
 
 namespace sgcl::io {
-    // The failures of io that no errno names: the end of a stream where
-    // more was required (read_full), a stream closed by the program
+    // The failures of io that no errno names: the end of a stream part way
+    // through what was required (read_full), a stream closed by the program
     // (a read after close()), an invalid path or pattern, a line past
     // the bound a buffered reader was given. They form the io category
     // beside the system one; every error of the module is a
@@ -44,7 +45,7 @@ namespace sgcl::io {
                 return "io";
             }
 
-            std::string message(int c) const override {
+            std::string message(int c) const noexcept override {
                 switch (static_cast<errc>(c)) {
                     case errc::unexpected_eof: return "unexpected end of stream";
                     case errc::closed: return "stream closed";
@@ -89,21 +90,33 @@ namespace sgcl::io {
     // look_path's; is_exists: EEXIST;
     // is_permission: EACCES or EPERM; is_closed: errc::closed or EBADF;
     // is_eof: errc::unexpected_eof; is_interrupted: EINTR; is_timeout:
-    // ETIMEDOUT or EAGAIN).
+    // ETIMEDOUT or EAGAIN). count() is what the operation had done when it
+    // failed: the bytes read_full read before the stream ended (Go's n
+    // beside io.ErrUnexpectedEOF); 0 for the others.
+    //
+    // The code is held as its two parts, the count in the four bytes an
+    // error_code leaves free between them: four words, as before the count,
+    // so that an expected<T, error> on the paths of every read and write
+    // grew by nothing (a fifth word added a store to read_byte's return). A
+    // count past 32 bits is held as UINT32_MAX.
     class error {
     public:
-        error() = default;
+        error() noexcept = default;
 
-        error(error_code code, const string& op, const string& path = {})
-        : _code(code), _op(op), _path(path) {
+        error(error_code code, const string& op, const string& path = {}, size_t count = 0) noexcept
+        : _value(code.value())
+        , _count(count < UINT32_MAX ? static_cast<uint32_t>(count) : UINT32_MAX)
+        , _category(&code.category())
+        , _op(op)
+        , _path(path) {
         }
 
-        error(errc e, const string& op, const string& path = {})
-        : error(make_error_code(e), op, path) {
+        error(errc e, const string& op, const string& path = {}, size_t count = 0) noexcept
+        : error(make_error_code(e), op, path, count) {
         }
 
         error_code code() const noexcept {
-            return _code;
+            return error_code(_value, *_category);
         }
 
         const string& op() const noexcept {
@@ -114,21 +127,27 @@ namespace sgcl::io {
             return _path;
         }
 
-        string message() const {
+        size_t count() const noexcept {
+            return _count;
+        }
+
+        string message() const noexcept {
             std::string m(_op.data(), _op.size());
             if (!_path.empty()) {
-                m += ' ';
+                if (!m.empty()) {
+                    m += ' ';
+                }
                 m.append(_path.data(), _path.size());
             }
             if (!m.empty()) {
                 m += ": ";
             }
-            m += _code.message();
+            m += _category->message(_value);
             return string(m);
         }
 
         bool is_not_found() const noexcept {
-            return _is(std::errc::no_such_file_or_directory) || _code == errc::not_found;
+            return _is(std::errc::no_such_file_or_directory) || code() == errc::not_found;
         }
 
         bool is_exists() const noexcept {
@@ -140,11 +159,11 @@ namespace sgcl::io {
         }
 
         bool is_closed() const noexcept {
-            return _code == errc::closed || _is(std::errc::bad_file_descriptor);
+            return code() == errc::closed || _is(std::errc::bad_file_descriptor);
         }
 
         bool is_eof() const noexcept {
-            return _code == errc::unexpected_eof;
+            return code() == errc::unexpected_eof;
         }
 
         bool is_interrupted() const noexcept {
@@ -156,19 +175,21 @@ namespace sgcl::io {
         }
 
         bool is_exit_status() const noexcept {
-            return _code == errc::exit_status;
+            return code() == errc::exit_status;
         }
 
         friend bool operator==(const error& a, const error& b) noexcept {
-            return a._code == b._code;
+            return a.code() == b.code();
         }
 
     private:
         bool _is(std::errc e) const noexcept {
-            return _code == std::make_error_condition(e);
+            return code() == std::make_error_condition(e);
         }
 
-        error_code _code;
+        int _value = 0;
+        uint32_t _count = 0;
+        const std::error_category* _category = &std::system_category();
         string _op;
         string _path;
     };
@@ -181,11 +202,11 @@ namespace sgcl::io {
     namespace detail {
         // The error of a failed result, to hand on: `return fail(r);`
         template<class T>
-        unexpected<error> fail(const expected<T, error>& r) {
+        unexpected<error> fail(const expected<T, error>& r) noexcept {
             return unexpected<error>(r.error());
         }
 
-        inline unexpected<error> fail(error e) {
+        inline unexpected<error> fail(error e) noexcept {
             return unexpected<error>(std::move(e));
         }
     }

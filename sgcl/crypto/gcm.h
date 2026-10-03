@@ -63,7 +63,7 @@ namespace sgcl::crypto {
         }
 
         // The key from data: a wrong length is errc::invalid_key
-        static expected<aes_gcm, error> from_key(const slice<const byte>& key) {
+        static expected<aes_gcm, error> from_key(const slice<const byte>& key) noexcept {
             if (!detail::is_aes_key_size(key.size())) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("aes_gcm", key.size()))));
             }
@@ -110,7 +110,7 @@ namespace sgcl::crypto {
         detail::GcmKey _key;
         size_t _key_size = 0;
 
-        aes_gcm(const aes_gcm& other, int)
+        aes_gcm(const aes_gcm& other, int) noexcept
         : _key(other._key), _key_size(other._key_size) {
         }
 

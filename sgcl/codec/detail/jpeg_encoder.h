@@ -204,7 +204,14 @@ namespace sgcl::codec::detail {
         : _im(im), _set(s), _sink(sink) {
         }
 
-        bool run() {
+        // false when the sink failed, or for an image JPEG cannot hold (a
+        // side past 65 535, SOF's 16 bits), refused before anything is
+        // written: the error in the sink's failure
+        bool run() noexcept(NothrowSink<Sink>) {
+            if (const auto& s = ImageAccess::state(_im); s.width > 65535 || s.height > 65535) {
+                _sink.failure = error(errc::invalid_argument, 0, "jpeg: a side past 65535 pixels, more than SOF holds");
+                return false;
+            }
             _setup();
             // headers
             _marker(0xD8);
@@ -311,7 +318,7 @@ namespace sgcl::codec::detail {
             int dc = 0;                // the last DC, for the difference
         };
 
-        void _setup() {
+        void _setup() noexcept {
             const auto& st = ImageAccess::state(_im);
             _width = st.width;
             _height = st.height;
@@ -365,26 +372,26 @@ namespace sgcl::codec::detail {
         // a word's bytes and their stuffing), to the sink when it is full
         static constexpr size_t OutputBlock = 65536;
 
-        void _drain() {
+        void _drain() noexcept(NothrowSink<Sink>) {
             if (_ok && _olen) {
                 _ok = _sink.put(_out.data(), _olen);
             }
             _olen = 0;
         }
 
-        void _byte(uint8_t b) {
+        void _byte(uint8_t b) noexcept(NothrowSink<Sink>) {
             _out[_olen++] = b;
             if (_olen >= OutputBlock) {
                 _drain();
             }
         }
 
-        void _marker(uint8_t code) {
+        void _marker(uint8_t code) noexcept(NothrowSink<Sink>) {
             _byte(0xFF);
             _byte(code);
         }
 
-        void _segment(uint8_t code, const uint8_t* body, size_t n) {
+        void _segment(uint8_t code, const uint8_t* body, size_t n) noexcept(NothrowSink<Sink>) {
             _marker(code);
             _byte(uint8_t((n + 2) >> 8));
             _byte(uint8_t(n + 2));
@@ -393,7 +400,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        void _dht(uint8_t tc_th, unsigned t, bool dc) {
+        void _dht(uint8_t tc_th, unsigned t, bool dc) noexcept(NothrowSink<Sink>) {
             const uint8_t* counts;
             const uint8_t* values;
             unsigned n;
@@ -425,7 +432,7 @@ namespace sgcl::codec::detail {
         // store when none of them is 0xFF (one test of the eight at once),
         // else a byte at a time with the zeros.
         // bits: the value in its low n bits and nothing above (n <= 32)
-        void _put(uint32_t bits, int n) {
+        void _put(uint32_t bits, int n) noexcept(NothrowSink<Sink>) {
             if (n < _free) {
                 _acc = _acc << n | bits;
                 _free -= n;
@@ -439,7 +446,7 @@ namespace sgcl::codec::detail {
             _free = 64 - r;
         }
 
-        void _word(uint64_t w) {
+        void _word(uint64_t w) noexcept(NothrowSink<Sink>) {
             if (_olen + 16 > OutputBlock) {
                 _drain();
             }
@@ -464,7 +471,7 @@ namespace sgcl::codec::detail {
         }
 
         // The pending bits, the last byte filled with ones
-        void _flush_bits() {
+        void _flush_bits() noexcept(NothrowSink<Sink>) {
             int pending = 64 - _free;
             if (pending == 0) {
                 return;
@@ -486,7 +493,7 @@ namespace sgcl::codec::detail {
         // ---- the image, MCU row by MCU row ----------------------------------
 
         // Row y of the image (the last one for rows past it) as gray8 or rgb8
-        const uint8_t* _source(uint32_t y) {
+        const uint8_t* _source(uint32_t y) noexcept {
             const auto& st = ImageAccess::state(_im);
             y = std::min(y, _height - 1);
             const auto* p = reinterpret_cast<const uint8_t*>(st.pixels.data()) + size_t(y) * st.stride;
@@ -500,7 +507,7 @@ namespace sgcl::codec::detail {
         // The full-resolution rows of MCU row m: each component's (RGB to
         // YCbCr by jpeg_color.h), its last column repeated to its whole
         // blocks (at its subsampled width)
-        void _convert_rows(uint32_t m) {
+        void _convert_rows(uint32_t m) noexcept {
             for (unsigned r = 0; r < _vmax * 8; ++r) {
                 const uint8_t* s = _source(m * _vmax * 8 + r);
                 if (_gray) {
@@ -525,7 +532,7 @@ namespace sgcl::codec::detail {
 
         // Each component's rows at its sampling: a copy, or the average of
         // two samples across or of four (jpeg_color.h's downsample)
-        void _subsample(uint32_t m) {
+        void _subsample(uint32_t m) noexcept {
             for (unsigned c = 0; c < _ncomp; ++c) {
                 Component& k = _comp[c];
                 const unsigned ex = _hmax / k.h, ey = _vmax / k.v;
@@ -571,7 +578,7 @@ namespace sgcl::codec::detail {
         // the mask of the nonzero ones): a run is the distance to the next
         // set bit, 16 zeros a ZRL, the rest after the last one an EOB
         template<bool Counting>
-        void _code_block(const int16_t* b, Component& k, unsigned t) {
+        void _code_block(const int16_t* b, Component& k, unsigned t) noexcept(NothrowSink<Sink>) {
             CodedBlock c;
             coded_block(b, c);
             const Category dc = _category(c.z[0] - k.dc);
@@ -614,7 +621,8 @@ namespace sgcl::codec::detail {
         }
 
         // Every MCU of the image, once: counted or coded
-        void _pass() {
+        void _pass() noexcept(NothrowSink<Sink>) {
+
             for (unsigned c = 0; c < _ncomp; ++c) {
                 _comp[c].dc = 0;
             }

@@ -12,7 +12,11 @@ using namespace sgcl::async;
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <system_error>
 #include <thread>
+
+#include <sys/resource.h>
+#include <unistd.h>
 
 namespace {
     using namespace std::chrono_literals;
@@ -139,4 +143,35 @@ TEST(Signal_Test, ABurstIsCoalesced) {
     EXPECT_GE(b, 1);
     EXPECT_LE(b, 4);
     sgcl::async::reset_signals({SIGUSR1});
+}
+
+// The module's pipe cannot be made (the descriptors of the process used
+// up): signals() says so with a std::system_error, installs no handler and
+// leaves nothing started, and the next call, with descriptors to spare,
+// starts the delivery as if nothing had happened
+TEST(Signal_Test, APipeThatCannotBeMadeIsAnError) {
+    sgcl::async::detail::signals_instance().stop();   // the thread and the pipe gone: the next registration makes them
+    struct rlimit old = {};
+    ASSERT_EQ(::getrlimit(RLIMIT_NOFILE, &old), 0);
+    int lowest = ::dup(0);                            // the lowest free descriptor
+    ASSERT_GE(lowest, 0);
+    ::close(lowest);
+    struct rlimit low = old;
+    low.rlim_cur = (rlim_t)lowest;                     // no descriptor from it on
+    ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &low), 0);
+    bool threw = false;
+    try {
+        (void)sgcl::async::signals({SIGUSR2});
+    } catch (const std::system_error& e) {
+        threw = e.code() == std::errc::too_many_files_open;
+    }
+    ::setrlimit(RLIMIT_NOFILE, &old);
+    EXPECT_TRUE(threw);
+    EXPECT_EQ(disposition(SIGUSR2), SIG_DFL);          // no handler left without a pipe behind it
+    auto ch = sgcl::async::signals({SIGUSR2});
+    ::raise(SIGUSR2);
+    auto n = ch.receive().wait();
+    ASSERT_TRUE(n);
+    EXPECT_EQ(*n, SIGUSR2);
+    sgcl::async::reset_signals({SIGUSR2});
 }

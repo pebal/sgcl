@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <deque>
+#include <forward_list>
+#include <list>
 #include <iterator>
 #include <random>
 #include <sstream>
@@ -22,6 +24,19 @@ static_assert(std::sortable<sgcl::deque<int>::iterator>);
 static_assert(std::ranges::random_access_range<sgcl::deque<int>>);
 static_assert(std::ranges::random_access_range<const sgcl::deque<int>>);
 static_assert(sizeof(sgcl::deque<int>::iterator) == 3 * sizeof(void*));   // raw: the map, the index, the slot
+// Running out of memory ends the program: an insertion throws only what
+// the element's construction throws (DESIGN 356)
+static_assert(noexcept(std::declval<sgcl::deque<int>&>().push_back(1)));
+static_assert(noexcept(std::declval<sgcl::deque<int>&>().push_front(1)));
+static_assert(noexcept(std::declval<sgcl::deque<int>&>().emplace_back()));
+static_assert(noexcept(std::declval<sgcl::deque<int>&>().insert(std::declval<sgcl::deque<int>&>().cbegin(), 1)));
+static_assert(noexcept(std::declval<sgcl::deque<int>&>().erase(std::declval<sgcl::deque<int>&>().cbegin())));
+static_assert(noexcept(std::declval<sgcl::deque<int>&>().shrink_to_fit()));
+static_assert(noexcept(std::declval<sgcl::deque<std::string>&>().push_back(std::string())));
+static_assert(!noexcept(std::declval<sgcl::deque<std::string>&>().push_back(std::declval<const std::string&>())));
+static_assert(noexcept(std::declval<sgcl::deque<int>&>()[0]));
+static_assert(noexcept(std::declval<const sgcl::deque<int>&>().front()));
+static_assert(noexcept(std::declval<const sgcl::deque<int>&>().back()));
 
 namespace {
     struct MoveOnly {
@@ -1350,4 +1365,289 @@ TEST(Deque_Test, FillInsertOfAnElementOfTheDeque) {
     s.insert(s.begin() + 1, 1, outside);   // not an element: no copy before the pushes
     EXPECT_EQ(s[1], "z");
     EXPECT_EQ(s.size(), 10u);
+}
+
+// A range of forward-only iterators inserted at the front is pushed at the
+// front, as one of any other kind is: the elements there keep their
+// places, so references to them stay valid (std's deque keeps them)
+TEST(Deque_Test, AFrontInsertOfAForwardRangeKeepsTheReferences) {
+    sgcl::deque<int> dq = {1, 2, 3};
+    int* first = &dq[0];
+    int* last = &dq[2];
+    std::forward_list<int> forward = {7, 8, 9};
+    auto it = dq.insert(dq.begin(), forward.begin(), forward.end());
+    EXPECT_EQ(it, dq.begin());
+    EXPECT_EQ(to_vector(dq), (std::vector<int>{7, 8, 9, 1, 2, 3}));
+    EXPECT_EQ(&dq[3], first);
+    EXPECT_EQ(&dq[5], last);
+    std::forward_list<int> more = {5, 6};
+    it = dq.insert(dq.begin() + 1, more.begin(), more.end());   // the front half: pushed at the front, rotated
+    EXPECT_EQ(*it, 5);
+    EXPECT_EQ(to_vector(dq), (std::vector<int>{7, 5, 6, 8, 9, 1, 2, 3}));
+}
+
+// A deque is made from a pair of iterators without naming its element type
+TEST(Deque_Test, DeducedFromAPairOfIterators) {
+    std::list<int> source = {1, 2, 3};
+    sgcl::deque dq(source.begin(), source.end());
+    static_assert(std::is_same_v<decltype(dq), sgcl::deque<int>>);
+    EXPECT_EQ(dq.size(), 3u);
+}
+
+// A count or a size past max_size() is length_error before anything is
+// built, as std's
+TEST(Deque_Test, ACountPastMaxSizeIsLengthError) {
+    sgcl::deque<int> dq = {1, 2};
+    size_t too_many = dq.max_size() + size_t(1);
+    EXPECT_THROW(dq.resize(too_many), sgcl::length_error);
+    EXPECT_THROW(dq.resize(too_many, 7), sgcl::length_error);
+    EXPECT_THROW(dq.insert(dq.begin(), too_many, 7), sgcl::length_error);
+    EXPECT_THROW(dq.assign(too_many, 7), sgcl::length_error);
+    EXPECT_THROW({ sgcl::deque<int> built(too_many, 7); }, sgcl::length_error);
+    EXPECT_THROW({ sgcl::deque<int> built(too_many); }, sgcl::length_error);
+    EXPECT_EQ(to_vector(dq), (std::vector<int>{1, 2}));
+}
+
+// A resize that throws leaves the deque as it was
+TEST(Deque_Test, AResizeThatThrowsLeavesTheDeque) {
+    sgcl::deque<Thrower> things;
+    things.emplace_back(1);
+    things.emplace_back(2);
+    Thrower::remaining = 3;   // the third copy throws
+    EXPECT_THROW(things.resize(6, Thrower(9)), std::runtime_error);
+    Thrower::remaining = -1;
+    EXPECT_EQ(things.size(), 2u);
+    EXPECT_EQ(things[1].value, 2);
+}
+
+// at() names the function, as vector's does
+TEST(Deque_Test, AtNamesItself) {
+    sgcl::deque<int> dq = {1};
+    try {
+        (void)dq.at(1);
+        ADD_FAILURE();
+    } catch (const sgcl::out_of_range& e) {
+        EXPECT_STREQ(e.what(), "sgcl::deque::at");
+    }
+}
+
+// Boundaries (DESIGN 408)
+
+// A count past max_size() beside the elements there is length_error, the
+// deque unchanged (SIZE_MAX, and one past with two held); at and
+// operator[] at the ends; a count within max_size() that no memory holds
+// ends the program at the push the heap refuses
+TEST(Deque_Test, CountsAtTheLimits) {
+    sgcl::deque<int> d = {1, 2};
+    EXPECT_EQ(d.max_size(), size_t(PTRDIFF_MAX));
+    EXPECT_THROW(d.insert(d.end(), d.max_size() - 1, 7), sgcl::length_error);
+    EXPECT_THROW(d.insert(d.begin() + 1, SIZE_MAX, 7), sgcl::length_error);
+    EXPECT_THROW(d.resize(SIZE_MAX), sgcl::length_error);
+    EXPECT_THROW(d.assign(SIZE_MAX, 7), sgcl::length_error);
+    EXPECT_EQ(to_vector(d), (std::vector<int>{1, 2}));
+    EXPECT_THROW(d.at(2), std::out_of_range);
+    EXPECT_THROW(d.at(SIZE_MAX), std::out_of_range);
+    EXPECT_EQ(d.at(1), 2);
+}
+
+TEST(Deque_Test, ACountNoMemoryHoldsEnds) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");   // a forked child may not allocate managed memory (os.h)
+    auto resize = [] {
+        collector::set_memory_limit(collector::get_committed_memory() + (size_t(64) << 20));   // refused at 64 MB more
+        sgcl::deque<int> d;
+        d.resize(d.max_size());
+    };
+    EXPECT_DEATH(resize(), "sgcl: out of managed memory");
+}
+
+namespace {
+    // Every member on an empty deque without a map (default or moved from)
+    template<class T>
+    void expect_deque_works_empty(sgcl::deque<T>& d, const T& value) {
+        EXPECT_TRUE(d.empty());
+        EXPECT_EQ(d.size(), 0u);
+        EXPECT_EQ(d.begin(), d.end());
+        EXPECT_EQ(d.rbegin(), d.rend());
+        EXPECT_THROW(d.at(0), std::out_of_range);
+        EXPECT_EQ(d.erase(d.begin(), d.end()), d.end());
+        EXPECT_EQ(d.erase(d.end()), d.end());
+        EXPECT_EQ(sgcl::erase(d, value), 0u);
+        EXPECT_TRUE(d == sgcl::deque<T>());
+        EXPECT_FALSE(d < sgcl::deque<T>());
+        d.shrink_to_fit();
+        d.clear();
+        d.resize(0, value);
+        d.assign(0, value);
+        sgcl::deque<T> copy(d);
+        EXPECT_TRUE(copy.empty());
+        sgcl::deque<T> other = {value};
+        d.swap(other);
+        d.swap(other);
+        EXPECT_TRUE(d.empty());
+        d.push_front(value);
+        d.push_back(value);
+        EXPECT_EQ(d.size(), 2u);
+        d.pop_back();
+        d.pop_front();
+        EXPECT_TRUE(d.empty());
+    }
+}
+
+TEST(Deque_Test, MovedFromAndDefaultWorkAsEmpty) {
+    sgcl::deque<std::string> d = {"a", "b"};
+    sgcl::deque<std::string> to(std::move(d));
+    EXPECT_EQ(to.size(), 2u);
+    expect_deque_works_empty(d, std::string("x"));
+    sgcl::deque<std::string> assigned = {"c"};
+    assigned = std::move(to);
+    EXPECT_EQ(assigned.size(), 2u);
+    expect_deque_works_empty(to, std::string("y"));
+    sgcl::deque<int> none(0);
+    expect_deque_works_empty(none, 1);
+    sgcl::deque<int> none_of(0, 3);
+    expect_deque_works_empty(none_of, 1);
+}
+
+// The deque on both sides: a copy and a move assignment to itself and swap
+// with itself keep its elements where they are
+TEST(Deque_Test, ADequeOnBothSidesKeepsItself) {
+    sgcl::deque<std::string> d;
+    for (int i = 0; i < 300; ++i) {   // several blocks
+        d.push_back(std::to_string(i));
+    }
+    const auto before = d;
+    auto* first = &d.front();
+    auto& self = d;
+    d = self;
+    EXPECT_EQ(d, before);
+    EXPECT_EQ(&d.front(), first);
+    d = std::move(self);
+    EXPECT_EQ(d, before);
+    EXPECT_EQ(&d.front(), first);
+    d.swap(self);
+    swap(d, self);
+    EXPECT_EQ(d, before);
+    EXPECT_EQ(&d.front(), first);
+    EXPECT_TRUE(d == self);
+}
+
+// erase(d, value) with an element of d as the value: the elements moved
+// over the one the value referred to and the rest were compared with what
+// had been moved there. The element is now taken out of the comparison
+// first, in any block, a move-only element too
+TEST(Deque_Test, EraseOfAValueThatIsAnElement) {
+    sgcl::deque<int> d = {1, 2, 1, 3, 1};
+    EXPECT_EQ(sgcl::erase(d, d[0]), 3u);
+    EXPECT_EQ(to_vector(d), (std::vector<int>{2, 3}));
+    sgcl::deque<int> many;
+    for (int i = 0; i < 3000; ++i) {   // blocks of 1024
+        many.push_back(i % 3);
+    }
+    many.push_front(5);
+    EXPECT_EQ(sgcl::erase(many, many[1500]), 1000u);   // 1500 - 1 = 1499, of the residue 2
+    EXPECT_EQ(many.size(), 2001u);
+    EXPECT_EQ(std::count(many.begin(), many.end(), 2), 0);
+    sgcl::deque<std::unique_ptr<int>> u;
+    u.push_back(nullptr);
+    u.push_back(std::make_unique<int>(1));
+    u.push_front(nullptr);
+    EXPECT_EQ(sgcl::erase(u, u[1]), 2u);   // the null at the front and the one after it
+    ASSERT_EQ(u.size(), 1u);
+    EXPECT_EQ(*u[0], 1);
+    sgcl::deque<std::string> one = {"only"};
+    EXPECT_EQ(sgcl::erase(one, one.front()), 1u);
+    EXPECT_TRUE(one.empty());
+}
+
+// The deque's own element as the argument: assign and resize of copies of
+// an element, shrinking past it and growing past a block; emplace in the
+// middle from an element moved out of the deque itself
+TEST(Deque_Test, ItsOwnElementAsTheArgument) {
+    sgcl::deque<std::string> d = {"a", "b", "long enough to live on the heap", "d"};
+    d.assign(2, d[2]);   // the element is past the new size: popped after the copies
+    EXPECT_EQ(std::vector<std::string>(d.begin(), d.end()), (std::vector<std::string>{"long enough to live on the heap", "long enough to live on the heap"}));
+    d.assign(5, d[1]);
+    EXPECT_EQ(d.size(), 5u);
+    EXPECT_EQ(d[4], "long enough to live on the heap");
+    d.resize(2000, d[3]);
+    EXPECT_EQ(d[1999], "long enough to live on the heap");
+    d.resize(1, d[1500]);
+    EXPECT_EQ(d.size(), 1u);
+    sgcl::deque<std::string> m = {"one", "two", "three", "four", "five"};
+    m.emplace(m.begin() + 2, std::move(m[4]));
+    EXPECT_EQ(m[2], "five");
+    m.emplace(m.begin() + 4, std::move(m[0]));
+    EXPECT_EQ(m[4], "one");
+    EXPECT_EQ(m.size(), 7u);
+}
+
+namespace {
+    struct WholeBlock {
+        char bytes[5000] = {};
+        int value = 0;
+
+        WholeBlock() = default;
+
+        WholeBlock(int v)
+        : value(v) {
+        }
+    };
+}
+
+// One element a block (an element past 4096 bytes): one element pushed,
+// inserted before, erased back to empty, at both ends
+TEST(Deque_Test, OneElementABlock) {
+    sgcl::deque<WholeBlock> d;
+    d.emplace_back(1);
+    d.emplace(d.begin(), 0);
+    d.emplace(d.end(), 2);
+    d.emplace(d.begin() + 1, 9);
+    ASSERT_EQ(d.size(), 4u);
+    EXPECT_EQ(d[0].value, 0);
+    EXPECT_EQ(d[1].value, 9);
+    EXPECT_EQ(d[3].value, 2);
+    EXPECT_EQ(d.erase(d.begin() + 1), d.begin() + 1);
+    EXPECT_EQ(d.erase(d.end() - 1), d.end());
+    EXPECT_EQ(d.erase(d.begin()), d.begin());
+    EXPECT_EQ(d.size(), 1u);
+    EXPECT_EQ(d.front().value, 1);
+    EXPECT_EQ(d.erase(d.begin(), d.end()), d.end());
+    EXPECT_TRUE(d.empty());
+    d.emplace_front(3);
+    EXPECT_EQ(d.back().value, 3);
+}
+
+// The iterators and references as the page states them: the ends' pushes
+// keep the references, also across a new map; an erasure or a pop at
+// either end keeps the iterators to the other elements; swap keeps both,
+// now into the other deque
+TEST(Deque_Test, IteratorsAsThePageStatesThem) {
+    sgcl::deque<int> d;
+    for (int i = 0; i < 100; ++i) {
+        d.push_back(i);
+    }
+    int* fifty = &d[50];
+    for (int i = 0; i < 5000; ++i) {   // the map regrown at both ends
+        d.push_back(i);
+        d.push_front(-i);
+    }
+    EXPECT_EQ(*fifty, 50);
+    d.insert(d.begin(), 3, 7);
+    d.insert(d.end(), {8, 9});
+    EXPECT_EQ(*fifty, 50);
+    auto it = d.begin() + 5000;
+    const int at_it = *it;
+    d.erase(d.begin(), d.begin() + 2);
+    d.pop_front();
+    EXPECT_EQ(*it, at_it);
+    d.erase(d.end() - 2, d.end());
+    d.pop_back();
+    EXPECT_EQ(*it, at_it);
+    d.shrink_to_fit();
+    EXPECT_EQ(*fifty, 50);
+    sgcl::deque<int> other;
+    auto first = d.begin();
+    d.swap(other);
+    EXPECT_EQ(first, other.begin());
+    EXPECT_EQ(*fifty, 50);
 }

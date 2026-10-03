@@ -227,6 +227,9 @@ namespace {
         bool chunked = false;
         std::string bytes = request_bytes(o, chunked);
         check(!chunked);
+        if (o.text.size() >= BodyInPlaceMin) {
+            bytes.append(o.text.view());   // written from where it lies after the head (write_head_and_body), not among its bytes
+        }
         size_t end = find_head_end(bytes.data(), bytes.size());
         check(end != 0);
         string head(std::string_view(bytes).substr(0, end));

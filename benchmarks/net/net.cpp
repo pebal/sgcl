@@ -68,7 +68,7 @@ namespace {
                 break;
             }
             auto r = co_await c.async_read_full(buf);
-            if (!r) {
+            if (!r || *r == 0) {
                 break;
             }
             ++ok;

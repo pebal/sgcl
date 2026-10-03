@@ -171,3 +171,63 @@ TEST(Properties_Tests, TheCoreAnswersUnderTheModulesNames) {
     EXPECT_EQ(txt::is_space(U'\u0085'), unicode::is_space(U'\u0085'));
     EXPECT_EQ(sgcl::string("Ab c").runes().count_of(txt::is_upper), 1u);
 }
+
+// DESIGN 408: the boundaries of the code space and of a text. A value past
+// U+10FFFF and a surrogate are no characters: every answer is the one of a
+// code point of no property, never a read past a table
+TEST(Properties_Tests, TheEdgesOfTheCodeSpace) {
+    using enum txt::category;
+    for (char32_t c : {char32_t(0x110000), char32_t(0x7FFFFFFF), char32_t(0xFFFFFFFF)}) {
+        EXPECT_EQ(txt::category_of(c), unassigned) << std::hex << uint32_t(c);
+        EXPECT_EQ(txt::script_of(c), txt::script::unknown);
+        EXPECT_FALSE(txt::is_alpha(c) || txt::is_digit(c) || txt::is_alnum(c) || txt::is_punct(c));
+        EXPECT_FALSE(txt::is_mark(c) || txt::is_control(c) || txt::is_format(c) || txt::is_printable(c));
+        EXPECT_FALSE(txt::is_emoji(c) || txt::is_space(c) || txt::is_upper(c) || txt::is_lower(c));
+        EXPECT_EQ(txt::numeric_value_of(c), -1);
+        EXPECT_EQ(txt::columns(c), 1u);                         // "the rest one": no table says otherwise
+    }
+    // The last code point and the first and last surrogate
+    static_assert(txt::category_of(char32_t(0x10FFFF)) == unassigned && txt::numeric_value_of(char32_t(0x10FFFF)) == -1);
+    static_assert(txt::category_of(char32_t(0x10FFFD)) == private_use);
+    static_assert(txt::category_of(char32_t(0xDFFF)) == surrogate && !txt::is_printable(char32_t(0xDBFF)));
+    static_assert(txt::category_of(U'\0') == control && txt::is_control(U'\0') && txt::columns(U'\0') == 0);
+    static_assert(txt::is_control(U'\u009F') && !txt::is_control(U' ') && txt::is_control(U'\u007F'));
+    static_assert(!txt::is_control(U' ') && txt::is_printable(U' ') && !txt::is_printable(U' '));
+    static_assert(txt::numeric_value_of(U'0') == 0 && txt::numeric_value_of(U'9') == 9);
+    static_assert(txt::numeric_value_of(U'/') == -1 && txt::numeric_value_of(U':') == -1);
+    static_assert(!txt::is_emoji(U'¨') && txt::is_emoji(U'©'));      // the first one, the copyright sign
+}
+
+TEST(Properties_Tests, TheColumnsOfAnEmptyOddOrBrokenText) {
+    // Empty: a string, a slice, a literal, an array of zeros, a null pointer
+    EXPECT_EQ(txt::columns(string()), 0u);
+    EXPECT_EQ(txt::columns(slice<const char>()), 0u);
+    static_assert(txt::columns("") == 0);
+    const char zeros[4] = {};
+    EXPECT_EQ(txt::columns(zeros), 0u);
+    const char* null = nullptr;
+    EXPECT_EQ(txt::columns(null), 0u);
+    char* mutable_null = nullptr;
+    EXPECT_EQ(txt::columns(mutable_null), 0u);
+
+    // One byte: the ASCII run of the text answers as the code point does,
+    // for every byte below 0x80
+    for (int b = 0; b < 0x80; ++b) {
+        string one(1, char(b));
+        ASSERT_EQ(txt::columns(one), txt::columns(char32_t(b))) << b;
+    }
+
+    // Broken UTF-8: each replacement is one column, and the text answers
+    // the sum over its runes whatever the bytes are
+    for (const char* bytes : {"a\xE2\x82", "\xE2\x82" "a", "\x80", "\xC0\xAF", "\xED\xA0\x80", "\xF4\x90\x80\x80",
+                              "\xF0\x9F\x98", "\xFF\xFE", "\xE6\xBC" "\xE6\xBC\xA2"}) {
+        string s = bytes;
+        size_t sum = 0;
+        for (char32_t c : s.runes()) {
+            sum += txt::columns(c);
+        }
+        EXPECT_EQ(txt::columns(s), sum) << s.view();
+        EXPECT_GT(txt::columns(s), 0u) << s.view();
+    }
+    EXPECT_EQ(txt::columns(string("a\xE2\x82")), 3u);           // a and a replacement for each byte of the cut sequence
+}

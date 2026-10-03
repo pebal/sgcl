@@ -1,434 +1,235 @@
-# sgcl::forward_list
+[sgcl](../README.md) › [core](README.md)
+
+# sgcl::forward_list\<T\>
 
 ```cpp
-#include "sgcl/core/forward_list.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/forward_list.h"   // or "sgcl/core.h"
 
 namespace sgcl {
     template<class T>
     class forward_list;
+
+    template<class T>
+    class forward_list<unique_ptr<T>>;
 }
 ```
 
-`sgcl::forward_list<T>` is `std::forward_list` over managed nodes: singly linked nodes behind a sentinel, the one `before_begin()` addresses. The interface is the one of `std::forward_list` (constructors, `assign`, `front`, forward iterators, `insert_after`, `emplace_after`, `erase_after`, `push_front`, `merge`, `splice_after`, `remove`, `remove_if`, `reverse`, `unique`, `sort`, three-way comparison, `std::erase`/`std::erase_if`; no `size()`), and so is the behaviour: an element is constructed at insertion and destroyed at removal, references and iterators to the other elements stay valid through every insertion, erasure and relink.
+`sgcl::forward_list<T>` is `std::forward_list` over managed nodes: singly linked nodes behind a sentinel, the one
+`before_begin()` addresses. The interface is the one of `std::forward_list` (constructors, `assign`, `front`,
+forward iterators, `insert_after`, `emplace_after`, `erase_after`, `push_front`, `merge`, `splice_after`, `remove`,
+`remove_if`, `reverse`, `unique`, `sort`, three-way comparison, `std::erase` and `std::erase_if`; no `size()`), and
+so is the behaviour: an element is constructed at insertion and destroyed at removal, references and iterators to
+the other elements stay valid through every insertion, erasure and relink.
 
-What differs is who frees the nodes. The links are `tracked_ptr`s, so the sentinel keeps every node alive and the list walks them through raw pointers; an `erase_after` unlinks a node and destroys its element, and the collector reclaims the node later, once nothing refers to it. Nothing is ever freed by hand, so a cycle through a list is collected like any other cycle. The list object is one word, the sentinel: a bare link with no element inside the list itself, not a node of its own, so an empty list allocates nothing and `insert_after` and `erase_after` work the same at any position. A node is as big as its `std` counterpart and pays no malloc rounding ([Benchmarks: Containers](benchmarks.md#containers): 14.5 ns per `push_front` against 22.1 ns for `std::forward_list`).
+What differs is who frees the nodes. The links are `tracked_ptr`s, so the sentinel keeps every node alive and the
+list walks them through raw pointers; an `erase_after` unlinks a node and destroys its element, and the collector
+reclaims the node later, once nothing refers to it. Nothing is ever freed by hand, so a cycle through a list is
+collected like any other cycle. The list object is one word, the sentinel: a bare link with no element inside the
+list itself, not a node of its own, so an empty list allocates nothing and `insert_after` and `erase_after` work the
+same at any position. A node is as big as its `std` counterpart and pays no malloc rounding
+([Benchmarks: Containers](benchmarks.md#containers): 12.8 ns per `push_front` against 21.3 ns for
+`std::forward_list`).
+
+There is no allocator parameter. Beside the members of `std::forward_list`, a list carries the questions, the
+searches and the writes of the [mixins](mixin/README.md) every sequence of the library has, so that `l.contains(x)`
+and `l.min()` read as `l.push_front(x)` does.
 
 ## Rules
 
-- A forward_list holds a `tracked_ptr` (the sentinel), so it lives where one may: on a stack or inside a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame ([The rules](README.md#the-rules), 1).
-- The list destroys an element the moment it is erased, popped, cleared, assigned over or the list is destroyed, exactly like `std::forward_list`. The one exception is a list dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it ([Containers](README.md#containers)).
-- An iterator to an erased element is invalid as in `std`: it keeps the node's memory mapped but not the element. A `tracked_ptr` may not address an element of a list ([The rules](README.md#the-rules), 4): elements are reached through the list, its iterators, references and raw pointers.
-- Iterators are raw node pointers, trivially copyable and at home in any container, a `std::vector` too: the list roots every linked node. Stepping and dereferencing are plain loads, with no write barrier.
-- Relinking operations (`splice_after`, `merge`, `sort`, `reverse`) move nodes, never elements, and every node stays reachable through a `tracked_ptr` while it is being moved: every reference stays valid.
-- Thread safety is that of `std::forward_list`: concurrent readers, or one writer, with the program's own synchronization. The collector never waits for a mutator and never touches a node the list still links.
-
-## Members
-
-### Types
-
-```cpp
-using value_type = T;
-using size_type = size_t;
-using difference_type = ptrdiff_t;
-using reference = T&;
-using const_reference = const T&;
-using pointer = T*;
-using const_pointer = const T*;
-using iterator = /* forward iterator over T */;
-using const_iterator = /* forward iterator over const T */;
-```
-
-`iterator` converts to `const_iterator`; both model `std::forward_iterator`.
-
-### Constructors
-
-```cpp
-forward_list();
-explicit forward_list(size_type count) requires std::default_initializable<T>;
-forward_list(size_type count, const T& value);
-template<std::input_iterator InputIt> forward_list(InputIt first, InputIt last);
-template<std::ranges::input_range R> explicit forward_list(R&& r);   // from a range of what T is made of: the pieces of a string, a view, another container (not a forward_list: that is the copy)
-forward_list(std::initializer_list<T> ilist);
-forward_list(const forward_list& other);
-forward_list(forward_list&& other);
-```
-
-The sentinel is inside the list: an empty list allocates nothing. `forward_list(count)` holds `count` value-initialized elements, `forward_list(count, value)` `count` copies. A copy has nodes of its own; a move takes the chain of `other`, which keeps its sentinel and is empty. An element constructor that throws leaves the list empty and the exception propagates.
-
-```cpp
-forward_list<int> zeros(4);                          // 0 0 0 0
-forward_list<string> words(2, "x");             // "x" "x"
-forward_list digits = {1, 2, 3};
-forward_list<int> copy(digits.begin(), digits.end());
-forward_list<int> taken = std::move(digits);         // digits is empty now
-```
-
-### Destructor
-
-```cpp
-~forward_list();
-```
-
-Destroys the elements, unless the list dies in a sweep: then its nodes are garbage of the same sweep and destroy their elements themselves. The nodes are left to the collector.
-
-### operator=
-
-```cpp
-forward_list& operator=(const forward_list& other);
-forward_list& operator=(forward_list&& other) noexcept;
-forward_list& operator=(std::initializer_list<T> ilist);
-```
-
-Copy assignment is `assign(other.begin(), other.end())`. Move assignment clears this list and takes the chain of `other`, which is empty afterwards.
-
-```cpp
-forward_list a = {1, 2, 3};
-forward_list<int> b;
-b = a;              // a copy, in nodes of its own
-b = {4, 5};         // two elements
-b = std::move(a);   // a is empty
-```
-
-### assign
-
-```cpp
-void assign(size_type count, const T& value);
-template<std::input_iterator InputIt> void assign(InputIt first, InputIt last);
-void assign(std::initializer_list<T> ilist);
-```
-
-Replaces the contents: the existing elements are assigned over in their nodes, the surplus erased, the missing ones appended.
-
-```cpp
-forward_list l = {1, 2, 3};
-l.assign(2, 9);          // 9 9, in the first two nodes
-l.assign({7, 8, 9, 10});
-```
-
-### front
-
-```cpp
-reference front();
-const_reference front() const;
-```
-
-The first element; the list must not be empty.
-
-### Iterators
-
-```cpp
-iterator before_begin() noexcept;               const_iterator before_begin() const noexcept;
-const_iterator cbefore_begin() const noexcept;
-iterator begin() noexcept;                      const_iterator begin() const noexcept;
-const_iterator cbegin() const noexcept;
-iterator end() noexcept;                        const_iterator end() const noexcept;
-const_iterator cend() const noexcept;
-```
-
-Forward iterators, raw node pointers. `before_begin()` is the sentinel, the position to insert or erase after for the front; it must not be dereferenced. `end()` is a null iterator. An iterator keeps nothing alive by itself and is invalidated only by the erasure of its own element.
-
-```cpp
-forward_list l = {3, 1, 2};
-auto it = std::ranges::find(l, 1);
-*it = 10;                                      // 3 10 2
-auto before = l.before_begin();
-l.insert_after(before, 0);                     // 0 3 10 2
-```
-
-### empty, max_size
-
-```cpp
-bool empty() const noexcept;
-size_type max_size() const noexcept;           // PTRDIFF_MAX
-```
-
-There is no `size()`, as in `std::forward_list`: `std::ranges::distance(l)` counts the nodes.
-
-### clear
-
-```cpp
-void clear() noexcept;
-```
-
-Destroys every element and unlinks every node.
-
-### insert_after, emplace_after
-
-```cpp
-iterator insert_after(const_iterator pos, const T& value);
-iterator insert_after(const_iterator pos, T&& value);
-iterator insert_after(const_iterator pos, size_type count, const T& value);
-template<std::input_iterator InputIt> iterator insert_after(const_iterator pos, InputIt first, InputIt last);
-iterator insert_after(const_iterator pos, std::initializer_list<T> ilist);
-template<class... A> iterator emplace_after(const_iterator pos, A&&... a);
-```
-
-Inserts after `pos` (`before_begin()` for the front) and returns an iterator to the last inserted element (`pos` when nothing is inserted). A node is made and its element constructed in one step, so no node ever holds an unconstructed element; a range is built as a chain and linked in, so a throwing constructor leaves the list as it was.
-
-```cpp
-forward_list l = {1, 4};
-auto it = l.insert_after(l.begin(), 2);        // 1 2 4, it -> 2
-it = l.insert_after(it, 2, 3);                 // 1 2 3 3 4, it -> the second 3
-l.emplace_after(it, 9);                        // 1 2 3 3 9 4
-l.insert_after(l.before_begin(), {-1, 0});     // -1 0 1 2 3 3 9 4
-```
-
-### erase_after
-
-```cpp
-iterator erase_after(const_iterator pos);
-iterator erase_after(const_iterator first, const_iterator last);
-```
-
-Destroys the element after `pos`, or the elements in `(first, last)`, and unlinks their nodes; returns the iterator to the element after the erased ones (`end()` when there is none after `pos`). The nodes are the collector's once unlinked.
-
-```cpp
-forward_list l = {1, 2, 3, 4, 5};
-auto it = l.erase_after(l.before_begin());     // 2 3 4 5, it -> 2
-l.erase_after(it, l.end());                    // 2
-```
-
-### push_front, emplace_front, pop_front
-
-```cpp
-void push_front(const T& value);
-void push_front(T&& value);
-template<class... A> reference emplace_front(A&&... a);
-void pop_front();
-```
-
-Prepends an element in a node of its own, (`emplace_front`) returning a reference to it; `pop_front` destroys the first element and unlinks its node. The list must not be empty for `pop_front`.
-
-```cpp
-forward_list<tracked_ptr<int>> ptrs;
-for (int i : range(1000)) {
-    ptrs.push_front(make_tracked<int>(i));
-}
-int& first = *ptrs.emplace_front(make_tracked<int>(-1));
-ptrs.pop_front();                                  // the int behind `first` is unreachable now
-```
-
-### resize
-
-```cpp
-void resize(size_type count) requires std::default_initializable<T>;
-void resize(size_type count, const value_type& value);
-```
-
-Erases the elements past `count`, or appends value-initialized elements (copies of `value`) up to it; one walk of the list.
-
-```cpp
-forward_list l = {1, 2, 3};
-l.resize(5);          // 1 2 3 0 0
-l.resize(2);          // 1 2
-l.resize(4, 7);       // 1 2 7 7
-```
-
-### The mixins
-
-```cpp
-// mixin::enumerable
-template<class Pred> size_t find_index(Pred pred) const;   // npos when none
-template<class Pred> T* find_if(Pred pred) noexcept;       // null when none; and const
-template<class Pred> bool exists(Pred pred) const;  template<class Pred> bool all(Pred pred) const;
-template<class Pred> size_t count_of(Pred pred) const;
-template<class F> void for_each(F f);                      // and const
-bool contains(const auto& value) const;                    // elements with ==: anything an element compares with
-size_t index_of(const auto& value) const;  size_t last_index_of(const auto& value) const;   // npos when none
-decltype(auto) min() const;  decltype(auto) max() const;   // elements with <; and with a comparator
-// mixin::ordered
-bool is_sorted() const;  bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted forward_list; and with a comparator
-auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // and const, and with a comparator
-void sort();  template<class Compare> void sort(Compare cmp);  template<class Proj> void sort_by(Proj proj);  void stable_sort();   // the list's own, on the nodes
-// mixin::sequence
-void fill(const auto& value);  void reverse() noexcept;
-// mixin::equatable, mixin::comparable: == and <=>, below
-```
-
-The members of the mixins every sequence of the library carries ([the mixins](mixin/README.md)): the questions of [mixin::enumerable](mixin/enumerable.md), the order of [mixin::ordered](mixin/ordered.md), the writes of [mixin::sequence](mixin/sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null. `reverse` and `sort` are the list's own, on the nodes (below).
-
-```cpp
-forward_list l = {5, 3, 9, 3};
-assert(l.contains(9) && l.index_of(3) == 1 && l.last_index_of(3) == 3 && l.index_of(7) == npos);
-assert(l.find_index([](int x) { return x > 4; }) == 0 && l.exists([](int x) { return x == 9; }) && !l.all([](int x) { return x > 3; }));
-if (int* big = l.find_if([](int x) { return x > 8; })) {
-    *big = 8;
-}
-assert(l.count_of([](int x) { return x == 3; }) == 2 && l.min() == 3 && l.max() == 8);
-l.sort();                                        // 3 3 5 8
-assert(l.is_sorted());
-l.sort([](int a, int b) { return a > b; });     // 8 5 3 3
-l.reverse();                                     // 3 3 5 8
-int sum = 0;
-l.for_each([&](int x) { sum += x; });         // 19
-l.fill(0);
-```
-
-### swap
-
-```cpp
-void swap(forward_list& other) noexcept;
-template<class T> void swap(forward_list<T>& lhs, forward_list<T>& rhs) noexcept;
-```
-
-Exchanges the chains the sentinels hold; no element is touched.
-
-### merge
-
-```cpp
-void merge(forward_list& other);
-void merge(forward_list&& other);
-template<class Compare> void merge(forward_list& other, Compare comp);
-template<class Compare> void merge(forward_list&& other, Compare comp);
-```
-
-Merges two sorted lists into this one, stable: of equal elements, those of this list come first; `other` is empty afterwards. The nodes are relinked, never copied.
-
-```cpp
-forward_list<int> a = {1, 3, 5}, b = {2, 4, 6};
-a.merge(b);                                    // a is 1 2 3 4 5 6, b is empty
-```
-
-### splice_after
-
-```cpp
-void splice_after(const_iterator pos, forward_list& other);
-void splice_after(const_iterator pos, forward_list&& other);
-void splice_after(const_iterator pos, forward_list& other, const_iterator it);
-void splice_after(const_iterator pos, forward_list&& other, const_iterator it);
-void splice_after(const_iterator pos, forward_list& other, const_iterator first, const_iterator last);
-void splice_after(const_iterator pos, forward_list&& other, const_iterator first, const_iterator last);
-```
-
-Moves the nodes of `other`, the node after `it`, or the nodes in `(first, last)`, after `pos`; no element is copied or destroyed and every iterator stays valid, now naming an element of this list. `other` may be this list. Moving all of `other` walks it to its last node.
-
-```cpp
-forward_list<int> a = {1, 2}, b = {3, 4, 5};
-a.splice_after(a.begin(), b, b.before_begin());   // a is 1 3 2, b is 4 5
-a.splice_after(a.before_begin(), b);              // a is 4 5 1 3 2, b is empty
-```
-
-### remove, remove_if
-
-```cpp
-size_type remove(const T& value);
-template<class UnaryPredicate> size_type remove_if(UnaryPredicate pred);
-```
-
-Erase every element equal to `value`, or satisfying `pred`, and return how many were erased.
-
-```cpp
-forward_list l = {1, 2, 2, 3, 4};
-size_t twos = l.remove(2);                                       // 2; l is 1 3 4
-size_t big = l.remove_if([](int x) { return x > 2; });           // 2; l is 1
-```
-
-### unique
-
-```cpp
-size_type unique();
-template<class BinaryPredicate> size_type unique(BinaryPredicate pred);
-```
-
-Erases every element equal to the one before it (`pred(previous, current)`), keeping the first of each run; returns how many were erased.
-
-```cpp
-forward_list l = {1, 1, 2, 2, 2, 3};
-size_t dropped = l.unique();                   // 3; l is 1 2 3
-```
-
-### reverse
-
-```cpp
-void reverse() noexcept;
-```
-
-Reverses the order of the nodes, in place.
-
-### sort
-
-```cpp
-void sort();
-template<class Compare> void sort(Compare comp);
-```
-
-A stable merge sort in place: the nodes are relinked, never detached.
-
-```cpp
-forward_list l = {3, 1, 2};
-l.sort();                                      // 1 2 3
-l.sort(std::greater<>());                      // 3 2 1
-```
-
-### Comparisons
-
-```cpp
-friend bool operator==(const forward_list& lhs, const forward_list& rhs);
-friend auto operator<=>(const forward_list& lhs, const forward_list& rhs);
-```
-
-From [mixin::equatable](mixin/equatable.md) and [mixin::comparable](mixin/comparable.md), for elements that compare. Element-wise, as for `std::forward_list`, in one walk of both lists: `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
-
-```cpp
-forward_list<int> a = {1, 2}, b = {1, 3};
-bool less = a < b;                  // true
-bool same = a == b;                 // false
-```
-
-### std::erase, std::erase_if
-
-```cpp
-template<class T, class U> typename forward_list<T>::size_type erase(forward_list<T>& c, const U& value);
-template<class T, class Pred> typename forward_list<T>::size_type erase_if(forward_list<T>& c, Pred pred);
-```
-
-Declared in `sgcl` and brought into `std`: `remove_if` under the standard names, returning how many elements were erased.
-
-```cpp
-forward_list l = {1, 2, 2, 3, 4};
-size_t twos = std::erase(l, 2);                                  // 2; l is 1 3 4
-size_t big = std::erase_if(l, [](int x) { return x > 2; });      // 2; l is 1
-```
-
-### forward_list<unique_ptr<T>>
-
-```cpp
-template<class T>
-class forward_list<unique_ptr<T>> : public std::forward_list<unique_ptr<T>>;
-```
-
-A `unique_ptr` owns its object and needs no tracing, so a forward_list of them is a plain `std::forward_list` with the constructors of the base: it may live anywhere a `std::forward_list` may, and the objects die when their `unique_ptr` does.
-
-```cpp
-forward_list<unique_ptr<int>> owned;
-owned.push_front(make_tracked<int>(1));
-owned.pop_front();                                 // the int is destroyed here, deterministically
-```
+- A forward_list holds a `tracked_ptr` (the sentinel), so it lives where one may: on a stack or inside a managed
+  object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
+  ([The rules](README.md#the-rules), 1).
+- The list destroys an element the moment it is erased, popped, cleared, assigned over or the list is destroyed,
+  exactly like `std::forward_list`. The one exception is a list dying in a sweep, inside a managed object nobody
+  refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches
+  it ([Containers](README.md#containers)).
+- An iterator to an erased element is invalid as in `std`: it keeps the node's memory mapped but not the element.
+  A `tracked_ptr` may not address an element of a list ([The rules](README.md#the-rules), 4): elements are reached
+  through the list, its iterators, references and raw pointers.
+- Iterators are raw node pointers, trivially copyable and at home in any container, a `std::vector` too: the list
+  roots every linked node. Stepping and dereferencing are plain loads, with no write barrier.
+- Relinking operations (`splice_after`, `merge`, `sort`, `reverse`) move nodes, never elements, and every node
+  stays reachable through a `tracked_ptr` while it is being moved: every reference stays valid.
+- Thread safety is that of `std::forward_list`: concurrent readers, or one writer, with the program's own
+  synchronization. The collector never waits for a mutator and never touches a node the list still links.
+
+## Template parameters
+
+| Parameter | Description |
+|---|---|
+| `T` | The type of the elements: any object type that is not a reference or an array; an operation that copies or moves elements requires `T` to be copyable or movable, and the constructor and the `resize` of a number alone a `T` that is default-initializable. `forward_list<unique_ptr<T>>` is a [specialization](#specializations). |
+
+## Member types
+
+| Type | Definition |
+|---|---|
+| `value_type` | `T` |
+| `size_type` | `size_t` |
+| `difference_type` | `ptrdiff_t` |
+| `reference` | `T&` |
+| `const_reference` | `const T&` |
+| `pointer` | `T*` |
+| `const_pointer` | `const T*` |
+| `iterator` | a pointer to a node in a class of the library, `std::forward_iterator` over `T` |
+| `const_iterator` | the same over `const T`; an `iterator` converts to it |
+
+## Member functions
+
+| Function | Description |
+|---|---|
+| [(constructor)](forward_list/forward_list.md) | constructs the list |
+| `(destructor)` | destroys the elements, unless the list dies in a sweep; the nodes are left to the collector |
+| [operator=](forward_list/operator_assign.md) | assigns values to the container |
+| [assign](forward_list/assign.md) | assigns values to the container, in the nodes it has |
+
+#### Element access
+
+| Function | Description |
+|---|---|
+| [front](forward_list/front.md) | access the first element |
+
+#### Iterators
+
+| Function | Description |
+|---|---|
+| [before_begin, cbefore_begin](forward_list/before_begin.md) | an iterator to the sentinel, before the first element |
+| [begin, cbegin](forward_list/begin.md) | an iterator to the beginning |
+| [end, cend](forward_list/end.md) | an iterator to the end |
+
+#### Capacity
+
+| Function | Description |
+|---|---|
+| [empty](forward_list/empty.md) | checks whether the list is empty |
+| [max_size](forward_list/max_size.md) | the largest number of elements a list may hold |
+
+#### Modifiers
+
+| Function | Description |
+|---|---|
+| [clear](forward_list/clear.md) | destroys every element |
+| [insert_after](forward_list/insert_after.md) | inserts elements after an element |
+| [emplace_after](forward_list/emplace_after.md) | constructs an element in place after an element |
+| [erase_after](forward_list/erase_after.md) | erases an element after an element, or a range |
+| [push_front](forward_list/push_front.md) | inserts an element at the beginning |
+| [emplace_front](forward_list/emplace_front.md) | constructs an element in place at the beginning |
+| [pop_front](forward_list/pop_front.md) | removes the first element |
+| [resize](forward_list/resize.md) | changes the number of elements |
+| [swap](forward_list/swap.md) | swaps the contents |
+
+#### Operations
+
+| Function | Description |
+|---|---|
+| [merge](forward_list/merge.md) | merges two sorted lists |
+| [splice_after](forward_list/splice_after.md) | moves nodes from another list, or within this one |
+| [remove, remove_if](forward_list/remove.md) | erases the elements equal to a value, or satisfying a predicate |
+| [reverse](forward_list/reverse.md) | reverses the order of the nodes |
+| [unique](forward_list/unique.md) | erases consecutive equal elements |
+| [sort](forward_list/sort.md) | sorts the nodes, stable |
+
+#### From mixin::enumerable
+
+The questions asked of the elements, carried by every container of the library
+([mixin::enumerable](mixin/enumerable.md)). A question that compares elements exists only for elements that
+compare.
+
+| Function | Description |
+|---|---|
+| [contains](mixin/enumerable/contains.md) | checks whether an element is equal to a value |
+| `index_of` | the position of the first element equal to a value, `npos` when none |
+| `last_index_of` | the position of the last element equal to a value, `npos` when none |
+| `find_if` | a pointer to the first element the predicate accepts, null when none |
+| `find_index` | the position of the first element the predicate accepts, `npos` when none |
+| `exists` | checks whether the predicate accepts some element |
+| `all` | checks whether the predicate accepts every element |
+| `count_of` | the number of elements the predicate accepts |
+| `min`, `max` | the smallest, the largest element |
+| `for_each` | calls a function with every element |
+
+#### From mixin::ordered
+
+The order of the elements ([mixin::ordered](mixin/ordered.md)). The mixin's sorts are not a list's: `sort` is the
+list's own, on the nodes, and `sort_by` and `stable_sort` need random access.
+
+| Function | Description |
+|---|---|
+| `is_sorted` | checks whether the elements are sorted |
+| `binary_search` | checks whether a sorted list holds a value |
+| `lower_bound`, `upper_bound` | the first element not less than, greater than a value, in a sorted list |
+| `sorted_index_of` | the position of a value in a sorted list |
+
+#### From mixin::sequence
+
+The writes over every element ([mixin::sequence](mixin/sequence.md)); `reverse` is the list's own, on the nodes.
+
+| Function | Description |
+|---|---|
+| `fill` | assigns a value to every element |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==, operator\<=\>](forward_list/operator_cmp.md) | compare the elements lexicographically |
+| [swap](forward_list/swap2.md) | swaps the contents of two lists |
+| [erase, erase_if](forward_list/erase_if.md) | erase every element equal to a value, or satisfying a predicate |
+
+## Specializations
+
+`forward_list<unique_ptr<T>>` is a `std::forward_list<unique_ptr<T>>` with the constructors of the base. A
+`unique_ptr` owns its object and needs no tracing, so a list of them may live anywhere a `std::forward_list` may,
+and the objects die when their `unique_ptr` does, at the `pop_front` or the `erase_after` that removes it.
+
+## Complexity
+
+- Insertion or removal of an element after a given one: constant. A node is allocated per element
+  ([Benchmarks: Containers](benchmarks.md#containers)).
+- Access to the first element: constant. There is no access by position and no `size()`:
+  `std::ranges::distance(l)` counts the nodes.
+- `splice_after` of one element: constant; of a whole list, linear in its size, walked to its last node; of a range,
+  linear in the range.
+- `merge`, `remove`, `remove_if`, `unique`, `reverse`: linear. `sort`: `N log N` comparisons.
+
+## Iterator invalidation
+
+| Operations | Invalidated |
+|---|---|
+| all read-only operations, `swap`, `splice_after`, `merge`, `sort`, `reverse` | never; an iterator to a moved node names its element in the list it is in now |
+| `insert_after`, `emplace_after`, `push_front`, `emplace_front` | never |
+| `erase_after`, `pop_front`, `remove`, `remove_if`, `unique` | the erased elements |
+| `resize`, `assign`, copy `operator=` | the erased elements, when the list shrinks |
+| `clear`, move `operator=` | all the elements of this list |
+
+`before_begin()` addresses the sentinel inside the list object: it stays valid as long as the list object, and
+`end()` is a null iterator, valid always.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/core.h"
-#include "sgcl/io/io.h"
+#include "sgcl/core.h"
+#include "sgcl/io.h"
 #include <ranges>
 
 using namespace sgcl;
 
 struct Vertex {
     int id;
-    forward_list<tracked_ptr<Vertex>> edges;       // an adjacency list, inside the vertex
+    forward_list<tracked_ptr<Vertex>> edges;  // an adjacency list, inside the vertex
 };
 
 int main() {
     println("values and a graph in forward lists");
-    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
-    // A list of values on the stack: the nodes are on the managed heap
+    // counted after the first line: io's own objects are not the example's
+    auto base = collector::get_live_object_count();
+
+    // a list of values on the stack: the nodes are on the managed heap
     forward_list numbers = {5, 3, 9, 1};
     numbers.push_front(7);
-    numbers.sort();                                 // 1 3 5 7 9, the nodes relinked in place
+    numbers.sort();  // the nodes relinked in place
     numbers.remove_if([](int x) { return x > 5; });
 
-    // A graph: every vertex points at every other, so every vertex is in a cycle
+    // a graph: every vertex points at every other, so every vertex is in a cycle
     forward_list<tracked_ptr<Vertex>> vertices;
     for (int i : range(100)) {
         vertices.push_front(make_tracked<Vertex>(i));
@@ -441,21 +242,22 @@ int main() {
         }
     }
 
-    // Keep one vertex, drop the list: the whole graph stays reachable through it
+    // keep one vertex, drop the list: the whole graph stays reachable through it
     tracked_ptr keep = vertices.front();
     vertices.clear();
-    keep->edges.remove_if([](const tracked_ptr<Vertex>& w) { return w->id % 2; });     // the odd ids, kept by the cycle still
+    // the odd ids leave its edges, kept by the cycles still
+    keep->edges.remove_if([](const tracked_ptr<Vertex>& w) { return w->id % 2; });
 
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    int edges = int(std::ranges::distance(keep->edges));
-    println("{} numbers, vertex {} with {} edges, {} live objects", std::ranges::distance(numbers), keep->id, edges, collector::get_live_object_count() - base);
+    println("{} numbers {}", std::ranges::distance(numbers), numbers);
+    println("vertex {} with {} edges", keep->id, std::ranges::distance(keep->edges));
+    println("{} live objects", collector::get_live_object_count() - base);
 
-    keep = nullptr;                                 // the cycle is unreachable now: collected as a whole
-    collector::force_collect(true);             // optional, as above
+    keep = nullptr;  // the cycle is unreachable now: collected as a whole
+    collector::force_collect(true);  // optional, as above
     println("{} live objects after the graph is gone", collector::get_live_object_count() - base);
-    return std::ranges::distance(numbers) == 3 && edges == 50 ? 0 : 1;
 }
 ```
 
@@ -463,14 +265,18 @@ Output:
 
 ```text
 values and a graph in forward lists
-3 numbers, vertex 99 with 50 edges, 9954 live objects
+3 numbers [1, 3, 5]
+vertex 99 with 50 edges
+9954 live objects
 3 live objects after the graph is gone
 ```
 
-The list `numbers` dies at the end of `main` and destroys its elements then; its nodes are freed by the collector once nothing refers to them.
+The list `numbers` dies at the end of `main` and destroys its elements then; its nodes are freed by the collector
+once nothing refers to them.
 
 ## See also
 
+- [list](list.md): a doubly linked list with `size()`, `push_back` and reverse iteration
 - [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md)
-- [list](list.md) for a doubly linked list with `size()`, `push_back` and reverse iteration
-- [README: Containers](README.md#containers), [README: The rules](README.md#the-rules), [README: Stack roots](../../garbage_collector/overview.md#stack-roots)
+- [README: Containers](README.md#containers), [README: The rules](README.md#the-rules),
+  [Stack roots](../../garbage_collector/overview.md#stack-roots)

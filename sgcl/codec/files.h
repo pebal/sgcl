@@ -30,7 +30,7 @@ namespace sgcl::codec {
     // What save writes: each field is for the formats it names, the others
     // leave it alone. img.save("photo.jpg", {.quality = 90})
     struct save_options {
-        compress::level level = png::options{}.level;                // PNG: 0 stores, 1 fastest, 9 smallest; 7 the default
+        compress::level level = detail::PngLevel;                    // PNG: 0 stores, 1 fastest, 9 smallest; 7 the default
         int quality = 85;                                            // JPEG and HEIC: 1..100
         jpeg::subsampling subsampling = jpeg::subsampling::s420;     // JPEG
     };
@@ -49,7 +49,7 @@ namespace sgcl::codec {
     namespace detail {
         // by value: a task is lazy, the caller's arguments may be gone
         // before it runs
-        inline async::task<expected<image, error>> load_task(string path, decode_options o) {
+        inline async::task<expected<image, error>> load_task(string path, decode_options o) noexcept {
             co_return co_await async::spawn_blocking([path, o] { return load(path, o); });
         }
 
@@ -59,7 +59,7 @@ namespace sgcl::codec {
         // .png, .jpg or .jpeg, .heic or .heif; .gif, .webp and .avif are
         // formats the module reads and does not write; anything else,
         // including no extension, is unknown
-        inline SaveFormat save_format(const string& path, std::string& extension) {
+        inline SaveFormat save_format(const string& path, std::string& extension) noexcept {
             const std::string p(path.data(), path.size());
             const size_t dot = p.rfind('.');
             const size_t slash = p.find_last_of("/\\");
@@ -109,7 +109,7 @@ namespace sgcl::codec {
                 }
             }
 
-            expected<void, error> create() {
+            expected<void, error> create() noexcept {
                 auto f = io::create(_part);
                 if (!f) {
                     return unexpected(error(f.error(), 0));
@@ -124,7 +124,7 @@ namespace sgcl::codec {
             }
 
             // closed, then renamed over path
-            expected<void, error> done(const string& path) {
+            expected<void, error> done(const string& path) noexcept {
                 auto closed = _file->close();
                 _file.reset();
                 if (!closed) {
@@ -152,7 +152,7 @@ namespace sgcl::codec {
             }
             if (f == SaveFormat::unknown) {
                 return unexpected(error(errc::unsupported, 0,
-                                        string(extension.empty() ? std::string("codec: a path with no extension (.png, .jpg, .jpeg, .heic)")
+                                        string(extension.empty() ? std::string("codec: a path with no extension (.png, .jpg, .jpeg, .heic, .heif)")
                                                                  : std::string("codec: .") + extension + " is no format the module writes")));
             }
             PartFile part(path);
@@ -178,13 +178,14 @@ namespace sgcl::codec {
             return part.done(path);
         }
 
-        inline async::task<expected<void, error>> save_task(image im, string path, save_options o) {
+        inline async::task<expected<void, error>> save_task(image im, string path, save_options o) noexcept {
+
             co_return co_await async::spawn_blocking([im, path, o] { return detail::save(im, path, o); });
         }
     }
 
     // The same, run on the blocking pool for a task
-    inline async::task<expected<image, error>> async_load(const string& path, const decode_options& o = {}) {
+    inline async::task<expected<image, error>> async_load(const string& path, const decode_options& o = {}) noexcept {
         return detail::load_task(path, o);
     }
 
@@ -197,7 +198,8 @@ namespace sgcl::codec {
         return detail::save(im, path, o);
     }
 
-    inline async::task<expected<void, error>> async_save(const image& im, const string& path, const save_options& o = {}) {
+    inline async::task<expected<void, error>> async_save(const image& im, const string& path, const save_options& o = {}) noexcept {
+
         return detail::save_task(im, path, o);
     }
 
@@ -210,11 +212,11 @@ namespace sgcl::codec {
         return detail::save(*this, path, o);
     }
 
-    inline async::task<expected<void, error>> image::async_save(const string& path) const {
+    inline async::task<expected<void, error>> image::async_save(const string& path) const noexcept {
         return detail::save_task(*this, path, save_options{});
     }
 
-    inline async::task<expected<void, error>> image::async_save(const string& path, const save_options& o) const {
+    inline async::task<expected<void, error>> image::async_save(const string& path, const save_options& o) const noexcept {
         return detail::save_task(*this, path, o);
     }
 }

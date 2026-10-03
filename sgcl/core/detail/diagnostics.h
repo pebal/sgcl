@@ -32,10 +32,7 @@ namespace sgcl::detail {
             sink(level, line.data(), line.size());
             return;
         }
-        try {
-            std::cout << line << std::endl;
-        } catch (...) {
-        }
+        std::cout << line << std::endl;
     }
 
     // The id of the calling thread as std::cout writes it

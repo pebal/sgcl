@@ -10,6 +10,7 @@
 #include "../unique_ptr.h"
 #include "anchor.h"
 #include "maker.h"
+#include "nothrow_function.h"
 #include "slot.h"
 #include "transparent.h"
 
@@ -213,24 +214,20 @@ namespace sgcl::detail {
 
     // Owns one unlinked node. The element dies with the handle if it is not
     // inserted somewhere; the node itself is reclaimed by the collector.
-    // Mapped is void for the sets.
-    template<class Node, class Key, class Mapped>
-    class NodeHandle {
-        static constexpr bool IsMap = !std::is_void_v<Mapped>;
-
+    // The part of the handle a map's and a set's share; NodeHandle below
+    // is the handle, with a map's key and mapped value or a set's value,
+    // as std's node handles have them.
+    template<class Node>
+    class HashNodeHandleBase {
     public:
-        using key_type = Key;
-        using mapped_type = Mapped;
-        using value_type = typename Node::value_type;
+        HashNodeHandleBase() noexcept = default;
 
-        NodeHandle() noexcept = default;
-
-        NodeHandle(NodeHandle&& other) noexcept
+        HashNodeHandleBase(HashNodeHandleBase&& other) noexcept
         : _node(other._node) {
             other._node = nullptr;
         }
 
-        NodeHandle& operator=(NodeHandle&& other) {
+        HashNodeHandleBase& operator=(HashNodeHandleBase&& other) noexcept {
             if (this != &other) {
                 _release();
                 _node = other._node;
@@ -239,7 +236,7 @@ namespace sgcl::detail {
             return *this;
         }
 
-        ~NodeHandle() {
+        ~HashNodeHandleBase() {
             _release();
         }
 
@@ -251,33 +248,12 @@ namespace sgcl::detail {
             return _node != nullptr;
         }
 
-        key_type& key() const requires IsMap {
-            return const_cast<key_type&>(_node->slot.value.first);
-        }
-
-        template<class M = Mapped> requires (!std::is_void_v<M>)
-        M& mapped() const {
-            return _node->slot.value.second;
-        }
-
-        value_type& value() const requires (!IsMap) {
-            return _node->slot.value;
-        }
-
-        void swap(NodeHandle& other) noexcept {
-            _node.swap(other._node);
-        }
-
-        friend void swap(NodeHandle& lhs, NodeHandle& rhs) noexcept {
-            lhs.swap(rhs);
-        }
-
-    private:
+    protected:
         tracked_ptr<Node> _node;
 
         // Roots the node from the moment it is handed over: it is unlinked
         // from the table only after this.
-        explicit NodeHandle(Node* node) noexcept
+        explicit HashNodeHandleBase(Node* node) noexcept
         : _node(node) {
         }
 
@@ -286,11 +262,78 @@ namespace sgcl::detail {
         // that is garbage of the same sweep: that node destroys its
         // element when the sweep reaches it, so it is left alone here
         // (if_alive: the rule of a destructor's tracked_ptr members).
-        void _release() {
+        void _release() noexcept {
             if (auto node = _node.if_alive()) {
                 node->slot.destroy();
             }
             _node = nullptr;
+        }
+
+        template<class> friend class HashTable;
+    };
+
+    // A map's handle: the key, writable out of any table, and the value
+    template<class Node, class Key, class Mapped>
+    class NodeHandle
+    : public HashNodeHandleBase<Node> {
+        using Base = HashNodeHandleBase<Node>;
+
+    public:
+        using key_type = Key;
+        using mapped_type = Mapped;
+
+        NodeHandle() noexcept = default;
+
+        key_type& key() const noexcept {
+            return const_cast<key_type&>(this->_node->slot.value.first);
+        }
+
+        mapped_type& mapped() const noexcept {
+            return this->_node->slot.value.second;
+        }
+
+        void swap(NodeHandle& other) noexcept {
+            this->_node.swap(other._node);
+        }
+
+        friend void swap(NodeHandle& lhs, NodeHandle& rhs) noexcept {
+            lhs.swap(rhs);
+        }
+
+    private:
+        explicit NodeHandle(Node* node) noexcept
+        : Base(node) {
+        }
+
+        template<class> friend class HashTable;
+    };
+
+    // A set's handle: the element, writable out of any table
+    template<class Node, class Key>
+    class NodeHandle<Node, Key, void>
+    : public HashNodeHandleBase<Node> {
+        using Base = HashNodeHandleBase<Node>;
+
+    public:
+        using value_type = Key;
+
+        NodeHandle() noexcept = default;
+
+        value_type& value() const noexcept {
+            return this->_node->slot.value;
+        }
+
+        void swap(NodeHandle& other) noexcept {
+            this->_node.swap(other._node);
+        }
+
+        friend void swap(NodeHandle& lhs, NodeHandle& rhs) noexcept {
+            lhs.swap(rhs);
+        }
+
+    private:
+        explicit NodeHandle(Node* node) noexcept
+        : Base(node) {
         }
 
         template<class> friend class HashTable;
@@ -352,6 +395,7 @@ namespace sgcl::detail {
     template<class Traits>
     class HashTable {
         static constexpr bool ordered = Traits::ordered;
+        static constexpr bool unique = Traits::unique;
 
         using Node = std::conditional_t<ordered, OrderedHashNode<typename Traits::value_type>, HashNode<typename Traits::value_type>>;
         using Sentinel = std::conditional_t<ordered, OrderedHashNodeBase, HashNodeBase>;
@@ -375,22 +419,14 @@ namespace sgcl::detail {
         using local_iterator = std::conditional_t<Traits::const_iterators, const_local_iterator, HashLocalIterator<Node, value_type>>;
         using node_type = NodeHandle<Node, key_type, typename Traits::mapped_type>;
 
-        static constexpr bool unique = Traits::unique;
-
-        struct insert_return_type {
-            iterator position;
-            bool inserted;
-            node_type node;
-        };
-
-        HashTable() {
+        HashTable() noexcept(std::is_nothrow_default_constructible_v<hasher> && std::is_nothrow_default_constructible_v<key_equal>) {
         }
 
-        explicit HashTable(size_type bucket_count, const hasher& hash = hasher(), const key_equal& equal = key_equal())
+        explicit HashTable(size_type bucket_count, const hasher& hash = hasher(), const key_equal& equal = key_equal()) noexcept(std::is_nothrow_copy_constructible_v<hasher> && std::is_nothrow_copy_constructible_v<key_equal>)
         : _hash(hash)
         , _equal(equal) {
             if (bucket_count) {
-                _rehash(std::bit_ceil(bucket_count));
+                _rehash(std::bit_ceil(std::min(bucket_count, MaxBuckets)));
             }
         }
 
@@ -429,7 +465,7 @@ namespace sgcl::detail {
             }
         }
 
-        HashTable(HashTable&& other)
+        HashTable(HashTable&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> && std::is_nothrow_move_constructible_v<key_equal>)
         : _buckets(other._buckets)
         , _before_begin(other._before_begin)
         , _bucket_count(other._bucket_count)
@@ -458,7 +494,8 @@ namespace sgcl::detail {
 
         // The hasher and the equality are moved first: one of them throwing
         // then leaves both tables as they were, not two over one chain
-        HashTable& operator=(HashTable&& other) {
+        HashTable& operator=(HashTable&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> && std::is_nothrow_move_constructible_v<key_equal>
+                                                          && std::is_nothrow_move_assignable_v<hasher> && std::is_nothrow_move_assignable_v<key_equal>) {
             if (this != &other) {
                 hasher hash(std::move(other._hash));
                 key_equal equal(std::move(other._equal));
@@ -557,29 +594,29 @@ namespace sgcl::detail {
             _size = 0;
         }
 
-        auto insert(const value_type& value) {
+        auto insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _insert(value);
         }
 
-        auto insert(value_type&& value) {
+        auto insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _insert(std::move(value));
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        auto insert(P&& value) {
+        auto insert(P&& value) noexcept(_nothrow_emplace<P&&>()) {
             return emplace(std::forward<P>(value));
         }
 
-        iterator insert(const_iterator, const value_type& value) {
+        iterator insert(const_iterator, const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _position(_insert(value));
         }
 
-        iterator insert(const_iterator, value_type&& value) {
+        iterator insert(const_iterator, value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _position(_insert(std::move(value)));
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator, P&& value) {
+        iterator insert(const_iterator, P&& value) noexcept(_nothrow_emplace<P&&>()) {
             return _position(emplace(std::forward<P>(value)));
         }
 
@@ -594,7 +631,7 @@ namespace sgcl::detail {
             insert(ilist.begin(), ilist.end());
         }
 
-        auto insert(node_type&& nh) {
+        auto insert(node_type&& nh) noexcept {
             if constexpr(unique) {
                 if (nh.empty()) {
                     return insert_return_type{end(), false, node_type()};
@@ -619,12 +656,23 @@ namespace sgcl::detail {
             }
         }
 
-        iterator insert(const_iterator, node_type&& nh) {
-            return _position(insert(std::move(nh)));
+        // The hint is not used. A key that is there already leaves the
+        // element in the handle, as std's does: only the iterator to the
+        // element that holds the key comes back
+        iterator insert(const_iterator, node_type&& nh) noexcept {
+            if constexpr(unique) {
+                auto result = insert(std::move(nh));
+                if (!result.inserted) {
+                    nh = std::move(result.node);
+                }
+                return result.position;
+            } else {
+                return insert(std::move(nh));
+            }
         }
 
         template<class... A>
-        auto emplace(A&&... a) {
+        auto emplace(A&&... a) noexcept(_nothrow_emplace<A&&...>()) {
             if constexpr(sizeof...(A) == 1 && (std::is_same_v<std::remove_cvref_t<A>, value_type> && ...)) {
                 return _insert(std::forward<A>(a)...);
             } else {
@@ -634,21 +682,21 @@ namespace sgcl::detail {
         }
 
         template<class... A>
-        iterator emplace_hint(const_iterator, A&&... a) {
+        iterator emplace_hint(const_iterator, A&&... a) noexcept(_nothrow_emplace<A&&...>()) {
             return _position(emplace(std::forward<A>(a)...));
         }
 
-        iterator erase(const_iterator pos) {
+        iterator erase(const_iterator pos) noexcept {
             return iterator(_wrap(_erase(pos._node)));
         }
 
-        iterator erase(iterator pos) requires (!std::is_same_v<iterator, const_iterator>) {
+        iterator erase(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
             return erase(const_iterator(pos));
         }
 
         // Every node is linked until its own _erase roots it; `stop` stays
         // linked throughout.
-        iterator erase(const_iterator first, const_iterator last) {
+        iterator erase(const_iterator first, const_iterator last) noexcept {
             auto node = first._node;
             auto stop = last._node;
             while (node != stop) {
@@ -657,13 +705,13 @@ namespace sgcl::detail {
             return iterator(node);
         }
 
-        size_type erase(const key_type& key) {
+        size_type erase(const key_type& key) noexcept {
             return _erase_key(key);
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
             && (!std::is_convertible_v<K&&, iterator>) && (!std::is_convertible_v<K&&, const_iterator>)
-        size_type erase(K&& key) {
+        size_type erase(K&& key) noexcept(_nothrow_lookup<std::remove_cvref_t<K>>()) {
             return _erase_key(key);
         }
 
@@ -681,7 +729,7 @@ namespace sgcl::detail {
         }
 
         // The handle roots the node before it is unlinked.
-        node_type extract(const_iterator pos) {
+        node_type extract(const_iterator pos) noexcept {
             node_type nh(_node(pos._node));
             if (nh._node) {
                 _unlink(nh._node.get());
@@ -689,29 +737,36 @@ namespace sgcl::detail {
             return nh;
         }
 
-        node_type extract(const key_type& key) {
+        node_type extract(const key_type& key) noexcept {
             return _extract_key(key);
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
             && (!std::is_convertible_v<K&&, iterator>) && (!std::is_convertible_v<K&&, const_iterator>)
-        node_type extract(K&& key) {
+        node_type extract(K&& key) noexcept(_nothrow_lookup<std::remove_cvref_t<K>>()) {
             return _extract_key(key);
         }
 
         // Relinks the nodes: no element is copied or destroyed. A node whose
         // key this table (if unique) already holds stays in the source. The
-        // source's nodes must be this table's kind: an ordered table's carry
-        // the order's two words, and a relink across the kinds would read
-        // an element where the other kind keeps its links.
-        template<class T> requires std::is_same_v<typename HashTable<T>::value_type, value_type> && (T::ordered == ordered)
-        void merge(HashTable<T>& source) {
+        // source is walked in its own order, so an ordered table appends
+        // the source's nodes in the order of their insertions. The
+        // source's nodes must be this table's kind, as std asks of a merge:
+        // the same node handle, so a map's of the same Key and T, a set's of
+        // the same Key (a set of pairs does not take a map's nodes), and an
+        // ordered table's from an ordered one, whose nodes carry the
+        // order's two words.
+        template<class T> requires std::is_same_v<typename HashTable<T>::node_type, node_type>
+        void merge(HashTable<T>& source) noexcept {
             if ((void*)&source == (void*)this) {
                 return;
             }
-            NodePtr p(_node(source._chain_first()));
+            auto stop = source._end_node();
+            auto first = source._first();
+            NodePtr p(first == stop ? nullptr : _node(first));
             while (p) {
-                NodePtr next(_node(p->next.get()));
+                auto after = HashTable<T>::_next(p.get());   // before the unlink changes the node's links
+                NodePtr next(after == stop ? nullptr : _node(after));
                 auto node = p.get();
                 auto hash = _hash(_key(node));
                 auto prev = _find_before(hash, _key(node));
@@ -727,67 +782,67 @@ namespace sgcl::detail {
             }
         }
 
-        template<class T> requires std::is_same_v<typename HashTable<T>::value_type, value_type> && (T::ordered == ordered)
-        void merge(HashTable<T>&& source) {
+        template<class T> requires std::is_same_v<typename HashTable<T>::node_type, node_type>
+        void merge(HashTable<T>&& source) noexcept {
             merge(source);
         }
 
         // lookup
 
-        size_type count(const key_type& key) const {
+        size_type count(const key_type& key) const noexcept {
             return _count(key);
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        size_type count(const K& key) const {
+        size_type count(const K& key) const noexcept(_nothrow_lookup<K>()) {
             return _count(key);
         }
 
-        iterator find(const key_type& key) {
+        iterator find(const key_type& key) noexcept {
             return iterator(_wrap(_find(key)));
         }
 
-        const_iterator find(const key_type& key) const {
+        const_iterator find(const key_type& key) const noexcept {
             return const_iterator(_wrap(_find(key)));
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        iterator find(const K& key) {
+        iterator find(const K& key) noexcept(_nothrow_lookup<K>()) {
             return iterator(_wrap(_find(key)));
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        const_iterator find(const K& key) const {
+        const_iterator find(const K& key) const noexcept(_nothrow_lookup<K>()) {
             return const_iterator(_wrap(_find(key)));
         }
 
-        bool contains(const key_type& key) const {
+        bool contains(const key_type& key) const noexcept {
             return _find(key) != nullptr;
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        bool contains(const K& key) const {
+        bool contains(const K& key) const noexcept(_nothrow_lookup<K>()) {
             return _find(key) != nullptr;
         }
 
-        std::pair<iterator, iterator> equal_range(const key_type& key) {
+        std::pair<iterator, iterator> equal_range(const key_type& key) noexcept {
             auto [first, last] = _equal_range(key);
             return {iterator(_wrap(first)), iterator(_wrap(last))};
         }
 
-        std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const {
+        std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const noexcept {
             auto [first, last] = _equal_range(key);
             return {const_iterator(_wrap(first)), const_iterator(_wrap(last))};
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        std::pair<iterator, iterator> equal_range(const K& key) {
+        std::pair<iterator, iterator> equal_range(const K& key) noexcept(_nothrow_lookup<K>()) {
             auto [first, last] = _equal_range(key);
             return {iterator(_wrap(first)), iterator(_wrap(last))};
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        std::pair<const_iterator, const_iterator> equal_range(const K& key) const {
+        std::pair<const_iterator, const_iterator> equal_range(const K& key) const noexcept(_nothrow_lookup<K>()) {
             auto [first, last] = _equal_range(key);
             return {const_iterator(_wrap(first)), const_iterator(_wrap(last))};
         }
@@ -802,7 +857,7 @@ namespace sgcl::detail {
             return max_size();
         }
 
-        size_type bucket_size(size_type n) const {
+        size_type bucket_size(size_type n) const noexcept {
             size_type count = 0;
             for (auto p = _bucket_first(n); p && (hash_bucket(p->hash, _mask)) == n; p = p->next.get()) {
                 ++count;
@@ -810,36 +865,36 @@ namespace sgcl::detail {
             return count;
         }
 
-        size_type bucket(const key_type& key) const {
+        size_type bucket(const key_type& key) const noexcept {
             return hash_bucket(_hash(key), _mask);
         }
 
         template<class K> requires TransparentLookup<hasher, key_equal>
-        size_type bucket(const K& key) const {
+        size_type bucket(const K& key) const noexcept(nothrow_function_object<const hasher, const K&>) {
             return hash_bucket(_hash(key), _mask);
         }
 
-        local_iterator begin(size_type n) {
+        local_iterator begin(size_type n) noexcept {
             return local_iterator(_bucket_first(n), n, _mask);
         }
 
-        const_local_iterator begin(size_type n) const {
+        const_local_iterator begin(size_type n) const noexcept {
             return const_local_iterator(_bucket_first(n), n, _mask);
         }
 
-        const_local_iterator cbegin(size_type n) const {
+        const_local_iterator cbegin(size_type n) const noexcept {
             return begin(n);
         }
 
-        local_iterator end(size_type n) {
+        local_iterator end(size_type n) noexcept {
             return local_iterator(nullptr, n, _mask);
         }
 
-        const_local_iterator end(size_type n) const {
+        const_local_iterator end(size_type n) const noexcept {
             return const_local_iterator(nullptr, n, _mask);
         }
 
-        const_local_iterator cend(size_type n) const {
+        const_local_iterator cend(size_type n) const noexcept {
             return end(n);
         }
 
@@ -855,7 +910,7 @@ namespace sgcl::detail {
 
         // Values that are not positive (or not numbers) are ignored. The
         // table grows on the next insert if it is now overloaded.
-        void max_load_factor(float z) {
+        void max_load_factor(float z) noexcept {
             if (z > 0.0f) {
                 _max_load_factor = z;
                 _next_resize = _threshold(_bucket_count);
@@ -863,32 +918,74 @@ namespace sgcl::detail {
         }
 
         // Rounds up to a power of two; never below what the elements need.
-        void rehash(size_type count) {
+        // Only relinks the nodes: running out of memory ends the program
+        // (a count past MaxBuckets is taken as it, an array the heap refuses).
+        void rehash(size_type count) noexcept {
             auto needed = std::max(count, _buckets_for(_size));
             if (needed) {
-                needed = std::bit_ceil(needed);
+                needed = std::bit_ceil(std::min(needed, MaxBuckets));
                 if (needed != _bucket_count) {
                     _rehash(needed);
                 }
             }
         }
 
-        void reserve(size_type count) {
+        void reserve(size_type count) noexcept {
             rehash(_buckets_for(count));
         }
 
         // observers
 
-        hasher hash_function() const {
+        hasher hash_function() const noexcept(std::is_nothrow_copy_constructible_v<hasher>) {
             return _hash;
         }
 
-        key_equal key_eq() const {
+        key_equal key_eq() const noexcept(std::is_nothrow_copy_constructible_v<key_equal>) {
             return _equal;
         }
 
     protected:
         using mapped_type = typename Traits::mapped_type;   // void for a set
+
+        // What insert(node_type&&) of a table of unique keys returns; the
+        // containers of unique keys make it a member type of theirs, as std
+        // does (a multi table's node insert returns the iterator)
+        struct insert_return_type {
+            iterator position;
+            bool inserted;
+            node_type node;
+        };
+
+        // A lookup by K: the hash and the equality are required noexcept for
+        // the key type (the containers' static_asserts); a transparent
+        // lookup by another type is as noexcept as their calls with it
+        template<class K>
+        static constexpr bool _nothrow_lookup() noexcept {
+            if constexpr(std::is_same_v<K, key_type>) {
+                return true;
+            } else {
+                return nothrow_function_object<const hasher, const K&> && nothrow_function_object<const key_equal, const key_type&, const K&>;
+            }
+        }
+
+        // An insertion constructs the element and nothing else may throw:
+        // the growth only relinks, and running out of memory ends the
+        // program
+        template<class... A>
+        static constexpr bool _nothrow_emplace() noexcept {
+            return std::is_nothrow_constructible_v<value_type, A...>;
+        }
+
+        // The element of _try_emplace: a set's from the key, a map's pair
+        // piecewise from the key and the mapped value's arguments
+        template<class K, class... A>
+        static constexpr bool _nothrow_keyed() noexcept {
+            if constexpr(std::is_void_v<mapped_type>) {
+                return std::is_nothrow_constructible_v<value_type, K>;
+            } else {
+                return std::is_nothrow_constructible_v<key_type, K> && std::is_nothrow_constructible_v<mapped_type, A...>;
+            }
+        }
 
         // The element node behind a link: every linked node but the
         // sentinel is one, and the sentinel is never reached this way.
@@ -966,7 +1063,7 @@ namespace sgcl::detail {
         // One that is there already is left alone: a cache touching its
         // newest element again (most hits, in one with an eviction order)
         // pays a load, not the eight stores of a relink
-        void _to_back(HashNodeBase* node) requires ordered {
+        void _to_back(HashNodeBase* node) noexcept requires ordered {
             if (_order(node)->after.get() == _before_begin.get()) {
                 return;
             }
@@ -974,7 +1071,7 @@ namespace sgcl::detail {
             _order_link(node, _before_begin.get());
         }
 
-        void _to_front(HashNodeBase* node) requires ordered {
+        void _to_front(HashNodeBase* node) noexcept requires ordered {
             if (_order(node)->before.get() == _before_begin.get()) {
                 return;
             }
@@ -986,7 +1083,7 @@ namespace sgcl::detail {
         // table), the run of the nodes with it, their count; nothing
         // constructed, the walk reads the links
         template<class K>
-        Node* _find(const K& key) const {
+        Node* _find(const K& key) const noexcept(_nothrow_lookup<K>()) {
             if (!_bucket_count) {
                 return nullptr;
             }
@@ -1000,7 +1097,7 @@ namespace sgcl::detail {
         // stored as a weak one). The key of a map's element from `key`,
         // the mapped value from `a...`; a set's element from `key` alone.
         template<class K, class... A>
-        std::pair<Node*, bool> _try_emplace(K&& key, A&&... a) {
+        std::pair<Node*, bool> _try_emplace(K&& key, A&&... a) noexcept(_nothrow_lookup<std::remove_cvref_t<K>>() && _nothrow_keyed<K&&, A&&...>()) {
             auto hash = _hash(key);
             if (auto prev = _find_before(hash, key)) {
                 return {_node(prev->next.get()), false};
@@ -1011,9 +1108,9 @@ namespace sgcl::detail {
         // The miss of _try_emplace, out of line: the hit (a lookup) is the
         // hot path of operator[] and of the weak containers' insertions
         template<class K, class... A>
-        SGCL_NOINLINE Node* _emplace_absent(size_t hash, K&& key, A&&... a) {
+        SGCL_NOINLINE Node* _emplace_absent(size_t hash, K&& key, A&&... a) noexcept(_nothrow_keyed<K&&, A&&...>()) {
             auto node = _make_keyed(std::forward<K>(key), std::forward<A>(a)...);
-            _link_fresh(hash, node, nullptr);
+            _link_new(hash, node, nullptr);
             return node.get();
         }
 
@@ -1021,7 +1118,7 @@ namespace sgcl::detail {
         // element erased, in one walk of the bucket (take); nothing when
         // the key is absent
         template<class K>
-        optional<mapped_type> _take(const K& key) requires (!std::is_void_v<mapped_type>) {
+        optional<mapped_type> _take(const K& key) noexcept(_nothrow_lookup<K>() && std::is_nothrow_move_constructible_v<mapped_type>) requires (!std::is_void_v<mapped_type>) {
             if (!_bucket_count) {
                 return nullopt;
             }
@@ -1096,6 +1193,18 @@ namespace sgcl::detail {
             return true;
         }
 
+        // The predicate of erase_if called with an element: a set's key as
+        // const, as its iterators give it (a key changed in place would no
+        // longer hash to its bucket), a map's pair as it is
+        template<class Pred>
+        static bool _taken(Pred& pred, value_type& value) {
+            if constexpr(Traits::const_iterators) {
+                return pred(std::as_const(value));
+            } else {
+                return pred(value);
+            }
+        }
+
         template<class Pred>
         // erase_if: one walk, the nodes the predicate takes unlinked and
         // destroyed on the way
@@ -1103,7 +1212,7 @@ namespace sgcl::detail {
             size_type count = 0;
             auto stop = _end_node();
             for (auto p = _first(); p != stop;) {
-                if (pred(_node(p)->slot.value)) {
+                if (_taken(pred, _node(p)->slot.value)) {
                     p = _erase(p);
                     ++count;
                 } else {
@@ -1115,6 +1224,13 @@ namespace sgcl::detail {
 
     private:
         static constexpr size_type MinBucketCount = 8;
+
+        // The most buckets an array is made of: the largest power of two
+        // of entries within the bytes of an address space. A count past it
+        // is taken as it, an array the heap refuses, so that the program
+        // ends as at any refused managed allocation (DESIGN 356): rounded
+        // up as it is, its power of two would be undefined
+        static constexpr size_type MaxBuckets = std::bit_floor(size_type(std::numeric_limits<difference_type>::max()) / sizeof(LinkPtr));
 
         tracked_ptr<LinkPtr> _buckets;        // managed array: each entry the node before its bucket's first
         tracked_ptr<Sentinel> _before_begin;   // sentinel: its next is the first node of the chain; in an ordered table, its after the first of the order and its before the last
@@ -1158,7 +1274,7 @@ namespace sgcl::detail {
         // A node with its element constructed. If the constructor throws,
         // the slot marks the node Destroyed and the holder just drops it.
         template<class... A>
-        NodePtr _make_node(A&&... a) {
+        NodePtr _make_node(A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             static_assert(sizeof(Array<sizeof(Node)>) <= PageDataSize, "Element is too large");
             auto node = unique_ptr<Node>(UniquePtr<Node>(_node(Maker<Node>::make_tracked().release())));
             node.get()->slot.construct(std::forward<A>(a)...);
@@ -1169,7 +1285,7 @@ namespace sgcl::detail {
         // arguments of its mapped value (_try_emplace): the pair piecewise,
         // a set's element from the key alone
         template<class K, class... A>
-        NodePtr _make_keyed(K&& key, A&&... a) {
+        NodePtr _make_keyed(K&& key, A&&... a) noexcept(_nothrow_keyed<K&&, A&&...>()) {
             if constexpr(std::is_void_v<mapped_type>) {
                 static_assert(sizeof...(A) == 0, "a set's element is its key alone");
                 return _make_node(std::forward<K>(key));
@@ -1181,7 +1297,7 @@ namespace sgcl::detail {
         // The node before the first node with `key`, or null: found in the
         // bucket of `hash`, hashes compared first.
         template<class K>
-        HashNodeBase* _find_before(size_t hash, const K& key) const {
+        HashNodeBase* _find_before(size_t hash, const K& key) const noexcept(_nothrow_lookup<K>()) {
             if (!_bucket_count) {
                 return nullptr;
             }
@@ -1205,7 +1321,7 @@ namespace sgcl::detail {
 
         // One past the run of nodes with the key of `first` (they are
         // adjacent in the chain).
-        HashNodeBase* _run_end(const HashNodeBase* first) const {
+        HashNodeBase* _run_end(const HashNodeBase* first) const noexcept {
             auto p = first->next.get();
             while (p && p->hash == first->hash && _equal(_key(p), _key(first))) {
                 p = p->next.get();
@@ -1242,7 +1358,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        std::pair<HashNodeBase*, HashNodeBase*> _equal_range(const K& key) const {
+        std::pair<HashNodeBase*, HashNodeBase*> _equal_range(const K& key) const noexcept(_nothrow_lookup<K>()) {
             auto first = _find(key);
             if (!first) {
                 return {nullptr, nullptr};
@@ -1259,7 +1375,7 @@ namespace sgcl::detail {
         // `last` is the next in insertion order, which the chain that
         // _run_length walks need not reach.)
         template<class K>
-        size_type _count(const K& key) const {
+        size_type _count(const K& key) const noexcept(_nothrow_lookup<K>()) {
             if constexpr(unique) {
                 return _find(key) ? 1 : 0;
             } else {
@@ -1292,7 +1408,7 @@ namespace sgcl::detail {
         // front of its bucket, the table grown first when it is full. The
         // key is read from the argument, so a pair of a range is hashed
         // and looked up where it is and copied once, into the node.
-        auto _insert(V&& value) {
+        auto _insert(V&& value) noexcept(_nothrow_emplace<V&&>()) {
             if constexpr(!_keyed<V>) {
                 return _insert(value_type(std::forward<V>(value)));
             } else {
@@ -1304,11 +1420,11 @@ namespace sgcl::detail {
                         return std::pair<iterator, bool>(iterator(prev->next.get()), false);
                     }
                     auto node = _make_node(std::forward<V>(value));
-                    _link_fresh(hash, node, nullptr);
+                    _link_new(hash, node, nullptr);
                     return std::pair<iterator, bool>(iterator(node.get()), true);
                 } else {
                     auto node = _make_node(std::forward<V>(value));
-                    _link_fresh(hash, node, prev);
+                    _link_new(hash, node, prev);
                     return iterator(node.get());
                 }
             }
@@ -1316,47 +1432,28 @@ namespace sgcl::detail {
 
         // A node made before the lookup (emplace): with the key present in a
         // unique table the element dies at once and the node is garbage.
-        auto _insert_node(const NodePtr& node) {
-            size_t hash;
-            HashNodeBase* prev;
-            try {
-                hash = _hash(_key(node.get()));
-                prev = _find_before(hash, _key(node.get()));
-            }
-            catch (...) {
-                node.get()->slot.destroy();
-                throw;
-            }
+        // The hash and the equality are noexcept and a growth cannot fail
+        // (running out of memory ends the program): nothing to undo.
+        auto _insert_node(const NodePtr& node) noexcept {
+            auto hash = _hash(_key(node.get()));
+            auto prev = _find_before(hash, _key(node.get()));
             if constexpr(unique) {
                 if (prev) {
                     node.get()->slot.destroy();
                     return std::pair<iterator, bool>(iterator(prev->next.get()), false);
                 }
-                _link_fresh(hash, node, nullptr);
+                _link_new(hash, node, nullptr);
                 return std::pair<iterator, bool>(iterator(node.get()), true);
             } else {
-                _link_fresh(hash, node, prev);
-                return iterator(node.get());
-            }
-        }
-
-        // Links a node made for this insert: a failure to grow leaves the
-        // table as it was and destroys the element.
-        void _link_fresh(size_t hash, const NodePtr& node, HashNodeBase* prev) {
-            try {
                 _link_new(hash, node, prev);
-            }
-            catch (...) {
-                node.get()->slot.destroy();
-                throw;
+                return iterator(node.get());
             }
         }
 
         // Links a node (rooted by the caller): at the front of its bucket,
         // or before the first node of its key when `prev` precedes one
-        // (multi tables keep equal keys adjacent). Grows first if needed;
-        // nothing changes if that fails.
-        void _link_new(size_t hash, const NodePtr& node, HashNodeBase* prev) {
+        // (multi tables keep equal keys adjacent). Grows first if needed.
+        void _link_new(size_t hash, const NodePtr& node, HashNodeBase* prev) noexcept {
             if (_size >= _next_resize) {
                 _grow();
                 if (prev) {
@@ -1398,7 +1495,7 @@ namespace sgcl::detail {
         // or at the front of the whole list when the bucket was empty (the
         // bucket then points at the sentinel, and the bucket of the node
         // that was first is made to point at the new one)
-        void _link_front(size_type bucket, const NodePtr& node) {
+        void _link_front(size_type bucket, const NodePtr& node) noexcept {
             auto buckets = _buckets.get();
             if (auto before = buckets[bucket].get()) {
                 node->next = before->next;
@@ -1415,7 +1512,7 @@ namespace sgcl::detail {
 
         // Unlinks `node` (rooted by the caller), leaving its element alone;
         // its own link is cleared.
-        void _unlink(HashNodeBase* node) {
+        void _unlink(HashNodeBase* node) noexcept {
             auto bucket = hash_bucket(node->hash, _mask);
             auto prev = _buckets.get()[bucket].get();
             while (prev->next.get() != node) {
@@ -1426,7 +1523,7 @@ namespace sgcl::detail {
 
         // The same with the predecessor in hand (a lookup by key returns
         // it): no walk of the bucket's chain.
-        void _unlink_after(HashNodeBase* prev, HashNodeBase* node) {
+        void _unlink_after(HashNodeBase* prev, HashNodeBase* node) noexcept {
             auto bucket = hash_bucket(node->hash, _mask);
             auto buckets = _buckets.get();
             auto next = node->next.get();
@@ -1450,7 +1547,7 @@ namespace sgcl::detail {
 
         // Returns the node that followed. The node is rooted here while it
         // is unlinked and its element destroyed.
-        HashNodeBase* _erase(HashNodeBase* node) {
+        HashNodeBase* _erase(HashNodeBase* node) noexcept {
             if (!node) {
                 return nullptr;
             }
@@ -1462,7 +1559,7 @@ namespace sgcl::detail {
         }
 
         // The node after prev unlinked and its element destroyed
-        void _erase_after(HashNodeBase* prev, HashNodeBase* node) {
+        void _erase_after(HashNodeBase* prev, HashNodeBase* node) noexcept {
             Anchor keep(node);
             _unlink_after(prev, node);
             _node(node)->slot.destroy();
@@ -1471,7 +1568,7 @@ namespace sgcl::detail {
         template<class K>
         // Every node with the key erased, or extracted into a node handle
         // (the first one, for extract)
-        size_type _erase_key(const K& key) {
+        size_type _erase_key(const K& key) noexcept(_nothrow_lookup<K>()) {
             if (!_bucket_count) {
                 return 0;
             }
@@ -1484,9 +1581,13 @@ namespace sgcl::detail {
                 _erase_after(prev, prev->next.get());
                 return 1;
             } else {
+                // The run's end found before anything is erased: the key
+                // may be one of the run's own (erase(it->first)), read
+                // no more once its element is destroyed
+                auto last = _run_end(prev->next.get());
                 size_type count = 0;
                 HashNodeBase* node;
-                while ((node = prev->next.get()) && node->hash == hash && _equal(_key(node), key)) {
+                while ((node = prev->next.get()) != last) {
                     _erase_after(prev, node);   // prev stays: the next one moves up behind it
                     ++count;
                 }
@@ -1495,7 +1596,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        node_type _extract_key(const K& key) {
+        node_type _extract_key(const K& key) noexcept(_nothrow_lookup<K>()) {
             node_type nh;
             if (_bucket_count) {
                 if (auto prev = _find_before(_hash(key), key)) {
@@ -1509,17 +1610,27 @@ namespace sgcl::detail {
 
         // The load factor's arithmetic: the buckets `count` elements need,
         // the elements `bucket_count` buckets hold, the growth (to a power
-        // of two, at least double)
+        // of two, at least double). The buckets past MaxBuckets are
+        // MaxBuckets: a quotient past size_t (a count near it, a load
+        // factor near zero) would not convert
         size_type _buckets_for(size_type count) const noexcept {
-            return (size_type)std::ceil((double)count / (double)_max_load_factor);
+            auto needed = std::ceil((double)count / (double)_max_load_factor);
+            return needed < (double)MaxBuckets ? (size_type)needed : MaxBuckets;
         }
 
+        // No buckets hold no element, whatever the factor: the first
+        // insertion makes the array (0 times an infinite factor is NaN,
+        // which made the largest size, and the insertion went on into
+        // an array that was not there)
         size_type _threshold(size_type bucket_count) const noexcept {
+            if (!bucket_count) {
+                return 0;
+            }
             auto t = (double)bucket_count * (double)_max_load_factor;
             return t < (double)max_size() ? (size_type)t : max_size();
         }
 
-        void _grow() {
+        void _grow() noexcept {
             auto needed = std::bit_ceil(_buckets_for(_size + 1));
             _rehash(std::max({needed, _bucket_count * 2, MinBucketCount}));
         }
@@ -1529,7 +1640,7 @@ namespace sgcl::detail {
         // order. The rest of the old chain is rooted from the stack while
         // its head is moved. The sentinel, made on the first call, is a
         // bare HashNodeBase: it never carries an element.
-        void _rehash(size_type count) {
+        void _rehash(size_type count) noexcept {
             auto buckets = unique_ptr<LinkPtr>(Maker<LinkPtr[]>::make_tracked_data(count));
             if (!_before_begin) {
                 _before_begin = unique_ptr<Sentinel>(Maker<Sentinel>::make_tracked());

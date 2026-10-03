@@ -26,6 +26,8 @@ namespace sgcl {
     , public mixin::lookup<sorted_multimap<Key, T, Compare>> {
         using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, true>>;
 
+        static_assert(detail::nothrow_function_object<Compare, const Key&, const Key&>, "sgcl::sorted_multimap: Compare must be noexcept");
+
     public:
         using key_type = Key;
         using mapped_type = T;
@@ -63,12 +65,12 @@ namespace sgcl {
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(P&& value) {
+        iterator insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->emplace(std::forward<P>(value));
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator hint, P&& value) {
+        iterator insert(const_iterator hint, P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->emplace_hint(hint, std::forward<P>(value));
         }
     };

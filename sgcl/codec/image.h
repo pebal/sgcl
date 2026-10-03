@@ -6,6 +6,7 @@
 #pragma once
 
 #include "error.h"
+#include "detail/exif.h"
 #include "detail/pixels.h"
 #include "../async/coroutine.h"
 #include "../core/aliases.h"
@@ -47,7 +48,8 @@ namespace sgcl::codec {
             vector<byte> exif;
             vector<byte> icc;
 
-            ImageState(uint32_t w, uint32_t h, pixel_format f, size_t row, size_t bytes)
+            // bytes as image_bytes gives them: within what an address holds
+            ImageState(uint32_t w, uint32_t h, pixel_format f, size_t row, size_t bytes) noexcept
             : width(w), height(h), format(f), stride(row), pixels(bytes) {
             }
         };
@@ -77,25 +79,28 @@ namespace sgcl::codec {
             static ImageState& state(const image& im) noexcept;
             static tracked_ptr<ImageState> word(const image& im) noexcept;
 
-            // The orientation of EXIF (1 to 8); anything else is 1, the
+            // The orientation a decoder read (EXIF's tag, ImageIO's number,
+            // as wide as either): 1 to 8 as it is, anything else 1, the
             // image as it is stored
-            static void set_orientation(const image& im, unsigned value) noexcept;
+            static void set_orientation(const image& im, long long value) noexcept;
         };
     }
 
     // An image: its size, its pixel format and its pixels, plus the
     // metadata the file had (EXIF and the ICC profile, as bytes). A handle
-    // of one word: copies share the pixels, clone() makes new ones. The
-    // pixels lie row after row in one managed buffer, stride() bytes a
-    // row; a slice of them (pixels(), row()) keeps the buffer alive.
+    // of one word: copies share the pixels, clone() makes new ones; a move
+    // copies the word, as a tracked_ptr's does, so a moved-from image is
+    // still the image. The pixels lie row after row in one managed buffer,
+    // stride() bytes a row; a slice of them (pixels(), row()) keeps the
+    // buffer alive.
     class image {
     public:
         // width × height pixels of the format, all zero (black, and
-        // transparent where there is alpha). A side of zero or a format
-        // outside the list is invalid_argument, a buffer past what an
-        // address holds length_error: a contract, not a condition of the
-        // data (a decoder checks the size of a file against its limits
-        // before it makes the image).
+        // transparent where there is alpha; white for cmyk8, no ink). A
+        // side of zero or a format outside the list is invalid_argument, a
+        // buffer past what an address holds length_error: a contract, not
+        // a condition of the data (a decoder checks the size of a file
+        // against its limits before it makes the image).
         image(uint32_t width, uint32_t height, pixel_format f)
         : _s(make_tracked<detail::ImageState>(width, height, f, detail::row_bytes(width, f), detail::image_bytes(width, height, f))) {
         }
@@ -119,11 +124,11 @@ namespace sgcl::codec {
         }
 
         // Every row, from the top
-        slice<byte> pixels() {
+        slice<byte> pixels() noexcept {
             return _s->pixels.as_slice();
         }
 
-        slice<const byte> pixels() const {
+        slice<const byte> pixels() const noexcept {
             return std::as_const(_s->pixels).as_slice();
         }
 
@@ -161,7 +166,7 @@ namespace sgcl::codec {
         }
 
         // A new image of the same format, pixels and metadata
-        image clone() const {
+        image clone() const noexcept {
             image out(_s->width, _s->height, _s->format);
             sgcl::detail::copy_bytes(out._s->pixels.data(), _s->pixels.data(), _s->pixels.size());
             out._copy_metadata(*this);
@@ -187,11 +192,40 @@ namespace sgcl::codec {
             return _s->orientation;
         }
 
+        // The orientation set, 1 to 8 (one outside is invalid_argument, a
+        // contract), and the tag of exif() set to it when the block has
+        // one, so that a file written from the image says the same. Like
+        // the pixels, the metadata is the image's: every copy sees it.
+        void set_orientation(unsigned value) {
+            if (value < 1 || value > 8) {
+                throw invalid_argument("sgcl::codec::image::set_orientation: an orientation outside 1..8");
+            }
+            _set_orientation(value);
+        }
+
+        // The EXIF block set to a copy of the bytes (empty: none), as the
+        // encoders write it; orientation() becomes the block's when it has
+        // the tag, and stays as it was when not
+        void set_exif(const slice<const byte>& bytes) noexcept {
+            _s->exif = _copy_of(bytes);
+            const auto* p = reinterpret_cast<const uint8_t*>(_s->exif.data());
+            bool little = false;
+            if (detail::exif_orientation_at(p, _s->exif.size(), little) != _s->exif.size()) {
+                _s->orientation = static_cast<uint8_t>(detail::exif_orientation(p, _s->exif.size()));
+            }
+        }
+
+        // The ICC profile set to a copy of the bytes (empty: none)
+        void set_icc(const slice<const byte>& bytes) noexcept {
+            _s->icc = _copy_of(bytes);
+        }
+
         // A new image as it is meant to be shown: turned and mirrored by
-        // orientation(), sides swapped for 5 to 8, orientation() 1. The
-        // EXIF bytes stay as they were (the tag in them still says what it
-        // said of the stored image).
-        image oriented() const {
+        // orientation(), sides swapped for 5 to 8, orientation() 1, and the
+        // tag of its EXIF block 1 where the block has one (the rest of the
+        // block as it was), so that a file written from it is not turned
+        // again by a viewer.
+        image oriented() const noexcept {
             const unsigned o = _s->orientation;
             const bool swap = o >= 5;
             image out(swap ? _s->height : _s->width, swap ? _s->width : _s->height, _s->format);
@@ -204,7 +238,7 @@ namespace sgcl::codec {
                 case 8: _orient<8>(out); break;
             }
             out._copy_metadata(*this);
-            out._s->orientation = 1;
+            out._set_orientation(1);
             return out;
         }
 
@@ -216,8 +250,8 @@ namespace sgcl::codec {
         // codec::load and codec::save in files.h, which codec.h brings in
         expected<void, error> save(const string& path) const;
         expected<void, error> save(const string& path, const save_options& o) const;
-        async::task<expected<void, error>> async_save(const string& path) const;
-        async::task<expected<void, error>> async_save(const string& path, const save_options& o) const;
+        async::task<expected<void, error>> async_save(const string& path) const noexcept;
+        async::task<expected<void, error>> async_save(const string& path, const save_options& o) const noexcept;
 
     private:
         friend struct detail::ImageAccess;
@@ -241,7 +275,21 @@ namespace sgcl::codec {
             }
         }
 
-        void _copy_metadata(const image& from) {
+        // A new block of the bytes (which may be the image's own: a slice
+        // keeps them alive while they are copied)
+        static vector<byte> _copy_of(const slice<const byte>& bytes) noexcept {
+            vector<byte> out(bytes.size());
+            sgcl::detail::copy_bytes(out.data(), bytes.data(), bytes.size());
+            return out;
+        }
+
+        // orientation() and the tag of the EXIF block, a value of 1 to 8
+        void _set_orientation(unsigned value) noexcept {
+            _s->orientation = static_cast<uint8_t>(value);
+            detail::set_exif_orientation(reinterpret_cast<uint8_t*>(_s->exif.data()), _s->exif.size(), value);
+        }
+
+        void _copy_metadata(const image& from) noexcept {
             _s->orientation = from._s->orientation;
             _s->exif = from._s->exif;
             _s->icc = from._s->icc;
@@ -253,7 +301,8 @@ namespace sgcl::codec {
         // to bottom, 5 transposed (source (y, x)), 6 turned clockwise, 7
         // transposed across the other diagonal, 8 turned counterclockwise
         template<unsigned B>
-        void _orient(image& out) const {
+        void _orient(image& out) const noexcept {
+
             const ptrdiff_t w = _s->width;
             const ptrdiff_t h = _s->height;
             const ptrdiff_t s = static_cast<ptrdiff_t>(_s->stride);
@@ -296,7 +345,7 @@ namespace sgcl::codec {
             return im._s;
         }
 
-        inline void ImageAccess::set_orientation(const image& im, unsigned value) noexcept {
+        inline void ImageAccess::set_orientation(const image& im, long long value) noexcept {
             im._s->orientation = static_cast<uint8_t>(value >= 1 && value <= 8 ? value : 1);
         }
     }

@@ -31,7 +31,7 @@ namespace sgcl::async {
             // At zero the round is over: its channel closed from the start,
             // so that on_done serves a group that never counted up (the
             // first add opens a new round, as every later one does)
-            WaitGroupState()
+            WaitGroupState() noexcept   // the close of a channel just made wakes nobody
             : _round(detail::make_linked_state<void>()) {
                 _round.load(std::memory_order_relaxed)->close();
             }
@@ -72,23 +72,25 @@ namespace sgcl::async {
             // A case of a select: f() when the count is zero (the channel of
             // the current round, closed at zero)
             template<class F>
-            auto on_done(F f) {
+            auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
                 return _round.load(std::memory_order_acquire)->on_receive(std::move(f));
             }
 
             // Waits for zero: `g.wait()` on a thread, `co_await g` in a task,
             // as a task is waited for
-            void wait() {
+            // noexcept: nobody sends on a round's channel, the count reaching
+            // zero closes it (mutex.h: MutexState::lock)
+            void wait() noexcept {
                 assert(!detail::on_worker() && "wait() blocks the worker: co_await the group from a task");
                 _wait();
             }
 
-            auto operator co_await() {
+            auto operator co_await() noexcept {
                 return detail::either([this] { return _co_wait(); }, [this] { _wait(); });
             }
 
         private:
-            void _wait() {
+            void _wait() noexcept {
                 while (_count.load(std::memory_order_acquire) > 0) {
                     tracked_ptr<detail::ChannelState<void>> round = _round.load(std::memory_order_acquire);
                     if (_count.load(std::memory_order_acquire) == 0) {
@@ -121,7 +123,7 @@ namespace sgcl::async {
     // constructor; there is no empty group.
     class wait_group {
     public:
-        wait_group()
+        wait_group() noexcept
         : _s(make_tracked<detail::WaitGroupState>()) {
         }
 
@@ -144,17 +146,17 @@ namespace sgcl::async {
 
         // A case of a select: f() when the count is zero
         template<class F>
-        auto on_done(F f) const {
+        auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_done(std::move(f));
         }
 
         // Waits for zero: `g.wait()` on a thread, `co_await g` in a task,
         // as a task is waited for
-        void wait() const {
+        void wait() const noexcept {
             _s->wait();
         }
 
-        auto operator co_await() const {
+        auto operator co_await() const noexcept {
             return _s->operator co_await();
         }
 

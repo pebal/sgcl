@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/bytes.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -481,7 +483,7 @@ namespace sgcl::compress::detail {
             std::fill(std::begin(_mark), std::end(_mark), 0);
         }
 
-        void add(const SimpleFilter& f) {
+        void add(const SimpleFilter& f) noexcept {
             _stages.push_back(f);
         }
 
@@ -490,12 +492,12 @@ namespace sgcl::compress::detail {
         }
 
         // Room for more bytes (the ready ones handed out first)
-        size_t room() {
+        size_t room() noexcept {
             if (_buffer.size() < Capacity) {
                 _buffer.resize(Capacity);
             }
             if (_begin == _last() && _begin > 0) {
-                std::memmove(_buffer.data(), _buffer.data() + _begin, _end - _begin);
+                sgcl::detail::move_bytes(_buffer.data(), _buffer.data() + _begin, _end - _begin);
                 for (size_t k = 0; k < _stages.size(); ++k) {
                     _mark[k] -= _begin;
                 }
@@ -506,7 +508,7 @@ namespace sgcl::compress::detail {
         }
 
         void push(const uint8_t* p, size_t n) noexcept {
-            std::memcpy(_buffer.data() + _end, p, n);
+            sgcl::detail::copy_bytes(_buffer.data() + _end, p, n);
             _end += n;
         }
 

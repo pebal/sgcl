@@ -24,6 +24,8 @@ namespace sgcl {
     , public mixin::equatable<sorted_multiset<Key, Compare>> {
         using Base = detail::RbTree<detail::SetTraits<Key, Compare, true>>;
 
+        static_assert(detail::nothrow_function_object<Compare, const Key&, const Key&>, "sgcl::sorted_multiset: Compare must be noexcept");
+
     public:
         using key_type = Key;
         using typename Base::value_type;

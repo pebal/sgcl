@@ -111,7 +111,7 @@ namespace sgcl::txt {
 
         // Section 6.3. The basic code points come out as they are, then
         // the rest as deltas over an integer that only ever grows.
-        inline bool puny_encode(const code_points& in, std::string& out) {
+        inline bool puny_encode(const code_points& in, std::string& out) noexcept {
             size_t basic = 0;
             for (auto c : in) {
                 if (c < 0x80) {
@@ -178,7 +178,7 @@ namespace sgcl::txt {
         // made, and the code point that comes out is checked to be one:
         // the RFC's own decoder lets n run to 2^32 and leaves it to the
         // caller to notice.
-        inline bool puny_decode(std::string_view text, code_points& out) {
+        inline bool puny_decode(std::string_view text, code_points& out) noexcept {
             size_t at = 0;
             // "consume all code points before the last delimiter, and if
             // more than zero were consumed then consume one more". A
@@ -430,7 +430,10 @@ namespace sgcl::txt {
             bool check_hyphens = true;
             bool check_bidi = true;
             bool check_joiners = true;
-            bool verify_dns_length = true;          // to_ascii only
+            // An empty label is refused (but a last one after another:
+            // "example.com."), by to_ascii and to_unicode both; to_ascii
+            // also holds each label to 1..63 bytes and the name to 253
+            bool verify_dns_length = true;
             // A label that says "xn--" and is not punycode is left as it
             // stands rather than refused. Off by default and only there
             // for a parser that must not lose a name it cannot read
@@ -475,7 +478,7 @@ namespace sgcl::txt {
             size_t size = 0;            // and how many bytes of it there were
 
             // Which rule it broke, in words (message_of(rule))
-            string message() const {
+            string message() const noexcept {
                 return string(message_of(rule));
             }
         };
@@ -552,7 +555,7 @@ namespace sgcl::txt {
         // — which is what cost identifier.h 311 differences before it
         // was found.
         inline void idna_mapped(code_points& out, code_points& taken,
-                                code_points& folded, char32_t c) {
+                                code_points& folded, char32_t c) noexcept {
             switch (c) {
                 case 0x1E9E: out.push_back(0x00DF); return;     // capital sharp s
                 case 0x3002: case 0xFF61: out.push_back(U'.'); return;
@@ -619,7 +622,7 @@ namespace sgcl::txt {
         // stop is a starter, a mark never crosses one, and nothing
         // composes with it.
         inline bool idna_map(std::string_view text, bool transitional, code_points& out,
-                             std::vector<pair<size_t, size_t>>* stops = nullptr) {
+                             std::vector<pair<size_t, size_t>>* stops = nullptr) noexcept {
             bool ascii = true;
             out.reserve(text.size());
             // two scratch buffers for the whole name: idna_mapped takes
@@ -707,7 +710,7 @@ namespace sgcl::txt {
             return true;
         }
 
-        inline void idna_nfc(const code_points& in, code_points& out) {
+        inline void idna_nfc(const code_points& in, code_points& out) noexcept {
             out.reserve(in.size());
             for (auto c : in) {
                 decompose_into<false>(out, c);
@@ -716,7 +719,7 @@ namespace sgcl::txt {
             compose_buffer(out);
         }
 
-        inline bool idna_is_nfc(const char32_t* p, size_t n) {
+        inline bool idna_is_nfc(const char32_t* p, size_t n) noexcept {
             // the quick check first, and it settles almost every label:
             // only where it says "maybe" does the label have to be
             // normalized and compared
@@ -769,7 +772,7 @@ namespace sgcl::txt {
         // one may be resolved, they are needed, and they want the Script
         // property (which properties.h has) and a table for the digits;
         // it is an afternoon's work, not a design question.
-        inline bool idna_joiners_ok(const char32_t* p, size_t n) {
+        inline bool idna_joiners_ok(const char32_t* p, size_t n) noexcept {
             for (size_t i = 0; i < n; ++i) {
                 if (p[i] != 0x200C && p[i] != 0x200D) {
                     continue;
@@ -815,7 +818,7 @@ namespace sgcl::txt {
         // reader starts from — a label that mixes the two directions can
         // be drawn in an order that is not the order it is stored in, and
         // two different names would then look like one.
-        inline bool idna_bidi_ok(const char32_t* p, size_t n) {
+        inline bool idna_bidi_ok(const char32_t* p, size_t n) noexcept {
             auto first = bidi_of(p[0]);
             bool rtl = first == bidi::r || first == bidi::al;
             if (!rtl && first != bidi::l) {
@@ -870,7 +873,7 @@ namespace sgcl::txt {
         // been normalized whole, and only one that came out of punycode
         // has not been.
         inline idna::error idna_validate(const char32_t* p, size_t n, bool check_nfc,
-                                         bool transitional, const idna::options& o) {
+                                         bool transitional, const idna::options& o) noexcept {
             if (check_nfc && !idna_is_nfc(p, n)) {
                 return idna::error::not_normalized;     // 1
             }
@@ -943,7 +946,7 @@ namespace sgcl::txt {
 
         // A name lent by the thread (detail/lent.h) goes back empty
         template<class F>
-        void lent_each(IdnaName& name, F& f) {
+        void lent_each(IdnaName& name, F& f) noexcept {
             f(name.points);
             f(name.starts);
             f(name.ends);
@@ -1050,7 +1053,7 @@ namespace sgcl::txt {
         // from 527 ns to 677 and reading an encoded one back from 498 to
         // 677, all of it two heap arrays and their growth, for an answer
         // that is wanted once in however many thousand names.
-        inline void idna_locate(idna::failure& f, std::string_view text, bool transitional) {
+        inline void idna_locate(idna::failure& f, std::string_view text, bool transitional) noexcept {
             if (f.rule == idna::error::none || f.label == idna::failure::whole_name) {
                 return;
             }
@@ -1073,7 +1076,7 @@ namespace sgcl::txt {
 
         // Into `name`, which comes empty: a name lent by the thread, so
         // that the arrays of one name are not allocated for every name
-        inline void idna_process(std::string_view text, const idna::options& o, IdnaName& name) {
+        inline void idna_process(std::string_view text, const idna::options& o, IdnaName& name) noexcept {
             lent<code_points> mapped;
             lent<code_points> composed;
             bool ascii = idna_map(text, o.transitional, *mapped);

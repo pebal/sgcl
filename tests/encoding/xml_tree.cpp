@@ -312,3 +312,31 @@ TEST(XmlTree_Tests, AttributeWithAFallback) {
     EXPECT_EQ(t->attribute("lang", "en"), "pl");
     EXPECT_EQ(t->attribute("dir", "ltr"), "ltr");
 }
+
+// A made element is in the namespace its own declaration gives its prefix
+// (or the default one), as the parsed element is: set, erase and the builder
+TEST(XmlTree_Tests, MadeElementsInTheirNamespace) {
+    const sgcl::string svg_uri("http://www.w3.org/2000/svg");
+    auto svg = xml("svg").set("xmlns", svg_uri);
+    EXPECT_EQ(svg.namespace_uri(), svg_uri);
+    EXPECT_EQ(svg, xml::parse(sgcl::string("<svg xmlns='http://www.w3.org/2000/svg'/>")).value());
+    EXPECT_EQ(svg.set("xmlns", "urn:other").namespace_uri(), "urn:other");
+    EXPECT_EQ(svg.erase("xmlns").namespace_uri(), "");
+    EXPECT_EQ(xml("svg").set("xmlns:x", "urn:x").namespace_uri(), "");   // another prefix's
+    // a prefix declared after an attribute of it: both in the namespace
+    auto p = xml("p:a").set("p:x", "1").set("xmlns:p", "urn:p");
+    EXPECT_EQ(p.namespace_uri(), "urn:p");
+    EXPECT_EQ(p.attribute("{urn:p}x").value(), "1");
+    EXPECT_EQ(p, xml::parse(sgcl::string("<p:a p:x='1' xmlns:p='urn:p'/>")).value());
+    EXPECT_EQ(p.erase("xmlns:p").namespace_uri(), "");
+    EXPECT_FALSE(p.erase("xmlns:p").attribute("{urn:p}x"));
+    xml::builder b("svg");
+    b.set("xmlns", svg_uri);
+    EXPECT_EQ(b.build().namespace_uri(), svg_uri);
+    xml::builder nb("p:a");
+    nb.set("p:x", "1").set("xmlns:p", "urn:p");
+    EXPECT_EQ(nb.build(), p);
+    // an element read keeps the namespace its ancestor gave it
+    auto doc = xml::parse(sgcl::string("<r xmlns='urn:r'><a/></r>")).value();
+    EXPECT_EQ(doc.child("a").set("k", "v").namespace_uri(), "urn:r");
+}

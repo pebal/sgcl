@@ -1,48 +1,91 @@
+[sgcl](../README.md) › [compress](README.md)
+
 # sgcl::compress::error
 
 ```cpp
-#include "sgcl/compress/error.h"   // or "sgcl/compress/compress.h"
+#include "sgcl/compress/error.h"   // or "sgcl/compress.h"
 
 namespace sgcl::compress {
-    enum class errc : uint8_t {
-        corrupt = 1, checksum, unexpected_end, unsupported, too_large,
-        invalid_header, invalid_argument, dictionary_required, io,
-        password_required, wrong_password, insecure_path
-    };
     class error;
-    const std::error_category& compress_category() noexcept;
 }
 ```
 
-The error of every format of the module, one type under each format's name (`flate::error`, `gzip::error`, `zip::error`): a value, copied, compared, held in an `expected`.
+`sgcl::compress::error` is what went wrong in compressed data or in an archive: the [code](errc.md), the byte of the
+compressed input (of the archive) where it was found, the error of the stream underneath when one failed, and a
+[message](error/message.md) that says all of it. It is the error of every format of the module, one type under each
+format's name: `flate::error`, `gzip::error`, `zip::error`, `tar::error` and the others are aliases of it.
 
-| code | what |
+Data in memory is decompressed into an [expected](../core/expected.md)`<vector<byte>, compress::error>`: the bytes,
+or the error that says why not. A reader of the module is an [io stream](../io/README.md), and its reads fail with an
+`io::error` of the [compress category](compress_category.md) (`"read gzip: checksum mismatch"`); the reader's
+`last_error()` keeps the whole `compress::error`, offset and detail included. The archives (`zip`, `tar`,
+`sevenzip`) return it from every function that reads or writes one.
+
+## Rules
+
+- A value: copied, compared, held in an `expected`. It holds a [string](../core/string.md) (the detail) and an
+  optional `io::error`, so it lives where a string may.
+- The offset counts bytes from the start of the compressed input or of the archive.
+- An error that did not come from the data has no place: a file that does not open, cannot be made, written or
+  closed, a failure of what a writer writes into, a mistake of the calls to a writer, a name the archive does not
+  hold, a limit the caller set on what is extracted. Its offset is 0, and its message is the words alone
+  (`"zip: no entry none.txt"`, `"input/output error: open missing.zip: No such file or directory"`).
+- A format that knows more says it in the message: a zip or tar error names its entry
+  (`"zip: entry a/b.txt: CRC-32 mismatch"`), a gzip error what failed (`"gzip: CRC-32 mismatch"`).
+- A default-constructed error is `errc::corrupt` at offset 0.
+
+## Member functions
+
+| Function | Description |
 |---|---|
-| `corrupt` | data the format does not allow: a Huffman code that is not one, a distance before the start, an entry longer than its directory says |
-| `checksum` | a CRC-32, an Adler-32 or a bzip2 block's CRC does not match |
-| `unexpected_end` | the data ends in the middle |
-| `unsupported` | a zip method other than store and deflate, encryption, a sparse tar file |
-| `too_large` | past a limit: the size decompressed (`limits`), a pax header, a 7z key of more than 2^24 rounds |
-| `invalid_header` | a gzip, zip or tar header that cannot be read |
-| `invalid_argument` | what a writer cannot write: a gzip name past ISO 8859-1, bytes past a tar entry's size |
-| `dictionary_required` | a zlib stream made with a preset dictionary, read without it or with another |
-| `io` | the source or the sink failed: `io_error()` says how |
-| `password_required` | a 7z entry or header encrypted (7zAES), read without a password |
-| `wrong_password` | 7z data encrypted under another password — or damaged, which decrypts alike |
-| `insecure_path` | an entry extracted ([`sevenzip::extract`](sevenzip.md#extract)) whose name, or a link's target, would leave the directory, as Go's `ErrInsecurePath`: compress's code of `io::errc::insecure_path`, by the rule of [`io::path::is_local`](../io/path.md) |
+| [(constructor)](error/error.md) | constructs an error of a code and an offset, with a detail, or of a stream's error |
 
-## Members
+#### Observers
+
+| Function | Description |
+|---|---|
+| [code](error/code.md) | what went wrong, an [errc](errc.md) |
+| [offset](error/offset.md) | the byte of the compressed input where it was found; 0 when it is not the data's |
+| [io_error](error/io_error.md) | the stream's own error, when the source or the sink failed |
+| [message](error/message.md) | the whole of it as a sentence: `"offset 20: gzip: CRC-32 mismatch"` |
+
+## Non-member functions
+
+| Function | Description |
+|---|---|
+| [operator==](error/operator_cmp.md) | the same code, place, detail and stream error |
+
+## Example
 
 ```cpp
-error();
-error(errc code, uint64_t offset);
-error(errc code, uint64_t offset, const string& detail);   // the detail said in place of the code's own words
-error(const io::error& e, uint64_t offset);                 // errc::io, the stream's error kept
-errc code() const noexcept;
-uint64_t offset() const noexcept;                    // the byte of the compressed input (of the archive) where it was found
-const optional<io::error>& io_error() const noexcept;
-string message() const;                              // "offset 1234: gzip: CRC-32 mismatch"
-friend bool operator==(const error&, const error&) noexcept;
+#include "sgcl/compress.h"
+#include "sgcl/io.h"
+
+using namespace sgcl;
+
+int main() {
+    auto packed = compress::gzip::compress("hello, hello, hello");
+    packed[packed.size() - 8] ^= byte(1);  // a bit of the CRC-32 flipped
+
+    auto back = compress::gzip::decompress(packed);
+    if (!back) {
+        const compress::error& e = back.error();
+        println("{}", e.message());
+        println("at byte {} of {}", e.offset(), packed.size());
+    }
+}
 ```
 
-A format that knows more says it in `message()`: a zip or tar error names its entry ("zip: entry a/b.txt: CRC-32 mismatch"). `make_error_code(errc)` and `compress_category()` make the `error_code` a stream's `io::error` carries.
+Output:
+
+```text
+offset 20: gzip: CRC-32 mismatch
+at byte 20 of 28
+```
+
+## See also
+
+- [errc](errc.md): the codes
+- [compress_category](compress_category.md), [make_error_code](make_error_code.md): the code inside an `io::error`
+- [io::error](../io/error.md): the error of the streams
+- [sgcl::compress](README.md)

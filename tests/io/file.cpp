@@ -330,6 +330,32 @@ TEST_F(IoFile_Tests, AsyncFormsHoldTheirArguments) {
     sgcl::async::scheduler::stop();
 }
 
+// The async whole-file writes given bytes without an owner (an array in a
+// task's frame): the pool's job may outlive the frame of a task let go of,
+// so the bytes go to it copied into a managed block. A FIFO holds the job
+// in its open until the test reads it, after the task that gave the bytes
+// has stopped waiting, changed them and ended
+TEST_F(IoFile_Tests, AsyncWholeFileWritesCopyBytesWithoutAnOwner) {
+    for (bool append : {false, true}) {
+        string fifo = at(append ? "append" : "write");
+        ASSERT_EQ(::mkfifo(fifo.c_str(), 0600), 0);
+        auto run = [fifo, append]() -> task<bool> {
+            std::array<std::byte, 64> plain;   // in the frame: no owner
+            plain.fill(std::byte('a'));
+            slice<const byte> data(plain.data(), plain.size());
+            auto t = append ? io::async_append_file(fifo, data) : io::async_write_file(fifo, data);
+            auto r = co_await with_timeout(std::move(t), std::chrono::milliseconds(20));
+            plain.fill(std::byte('b'));
+            co_return !r;   // timed out: the job waits in the open of the FIFO
+        };
+        ASSERT_TRUE(spawn(run()).wait());
+        auto got = io::read_file(fifo);   // the reading end: the job's open goes on
+        ASSERT_TRUE(got);
+        EXPECT_EQ(as_text(std::span<const byte>(got->data(), got->size())), std::string(64, 'a')) << (append ? "append_file" : "write_file");
+    }
+    sgcl::async::scheduler::stop();
+}
+
 // What io::open returns goes where a file or a handle is wanted, with no
 // `*` (DESIGN 220): a file, a stream handle, a task's co_return; a file
 // that is not there is thrown as bad_expected_access with the io::error,

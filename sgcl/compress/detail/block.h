@@ -46,7 +46,7 @@ namespace sgcl::compress::detail {
     // past it, a managed vector's buffer (a gzip header or a pax record
     // past the block, a central directory)
     template<size_t Block>
-    slice<byte> managed_bytes(size_t n) {
+    slice<byte> managed_bytes(size_t n) noexcept {
         static_assert(Block <= 32768, "a block the largest object holds");
         if constexpr (Block > 1024) {
             if (n <= 1024) {
@@ -93,7 +93,7 @@ namespace sgcl::compress::detail {
 
         // n bytes, the first `keep` of them kept; plain memory given back
         // when it shrinks
-        void resize(size_t n, size_t keep) {
+        void resize(size_t n, size_t keep) noexcept {
             if (managed()) {
                 if (n != _managed.size()) {
                     _replace(n, keep);
@@ -112,7 +112,7 @@ namespace sgcl::compress::detail {
 
         // Managed from here on (a task's read comes), the first `keep`
         // bytes kept: a block of Block bytes, or more when keep needs it
-        void to_managed(size_t keep) {
+        void to_managed(size_t keep) noexcept {
             if (!managed()) {
                 _replace(std::max(std::min(_size, Block), keep), keep);
                 _plain = std::vector<uint8_t>();
@@ -121,7 +121,7 @@ namespace sgcl::compress::detail {
 
         // The bytes [from, from + n), for a read into them: a slice that
         // holds them when they are managed
-        slice<byte> room(size_t from, size_t n) {
+        slice<byte> room(size_t from, size_t n) noexcept {
             if (managed()) {
                 return _managed.subslice(from, n);
             }
@@ -132,7 +132,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        void _replace(size_t n, size_t keep) {
+        void _replace(size_t n, size_t keep) noexcept {
             auto s = managed_bytes<Block>(n);
             size_t held = managed() ? _managed.size() : _plain.size();
             if (size_t k = std::min({keep, n, held})) {
@@ -173,20 +173,20 @@ namespace sgcl::compress::detail {
             _n = 0;
         }
 
-        void push_back(uint8_t b) {
+        void push_back(uint8_t b) noexcept {
             _room(_n + 1);
             _block.data()[_n++] = byte(b);
         }
 
         template<class It>
-        void insert(End, It first, It last) {
+        void insert(End, It first, It last) noexcept {
             const size_t n = size_t(std::distance(first, last));
             _room(_n + n);
             std::copy(first, last, reinterpret_cast<uint8_t*>(_block.data()) + _n);
             _n += n;
         }
 
-        void append(const uint8_t* p, size_t n) {
+        void append(const uint8_t* p, size_t n) noexcept {
             _room(_n + n);
             sgcl::detail::copy_bytes(_block.data() + _n, p, n);
             _n += n;
@@ -198,7 +198,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        void _room(size_t need) {
+        void _room(size_t need) noexcept {
             if (need > _block.size()) {
                 const size_t cap = std::max({need, 2 * _block.size(), size_t(32768)});
                 slice<byte> grown = managed_bytes<32768>(cap);
@@ -211,11 +211,11 @@ namespace sgcl::compress::detail {
         size_t _n = 0;
     };
 
-    inline void append_bytes(ManagedOutput& out, const uint8_t* p, size_t n) {
+    inline void append_bytes(ManagedOutput& out, const uint8_t* p, size_t n) noexcept {
         out.append(p, n);
     }
 
-    inline void append_byte(ManagedOutput& out, uint8_t b) {
+    inline void append_byte(ManagedOutput& out, uint8_t b) noexcept {
         out.push_back(b);
     }
 
@@ -227,18 +227,18 @@ namespace sgcl::compress::detail {
     // it grows when a write needs more.
     class OutputStage {
     public:
-        slice<const byte> stage(const uint8_t* p, size_t n) {
+        slice<const byte> stage(const uint8_t* p, size_t n) noexcept {
             _room(n);
             sgcl::detail::copy_bytes(_block.data(), p, n);
             return _block.first(n);
         }
 
-        slice<const byte> stage(const std::vector<uint8_t>& v) {
+        slice<const byte> stage(const std::vector<uint8_t>& v) noexcept {
             return stage(v.data(), v.size());
         }
 
         // Two pieces one after another, in one write
-        slice<const byte> stage(const std::vector<uint8_t>& a, const slice<const byte>& b) {
+        slice<const byte> stage(const std::vector<uint8_t>& a, const slice<const byte>& b) noexcept {
             _room(a.size() + b.size());
             sgcl::detail::copy_bytes(_block.data(), a.data(), a.size());
             sgcl::detail::copy_bytes(_block.data() + a.size(), b.data(), b.size());
@@ -246,7 +246,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        void _room(size_t n) {
+        void _room(size_t n) noexcept {
             if (_block.size() < n) {
                 n = std::max(n, 2 * _block.size());
                 _block = n <= 1024 ? managed_bytes<1024>(1024) : n <= 8192 ? managed_bytes<8192>(8192) : managed_bytes<32768>(std::max<size_t>(n, 32768));

@@ -104,7 +104,7 @@ namespace sgcl::crypto {
             // Taken as a secret (SHAKE derives keys as often as not): up to
             // 64 bytes in the secret_bytes itself; read_to for a buffer of
             // one's own
-            secret_bytes read(size_t n) {
+            secret_bytes read(size_t n) noexcept {
                 secret_bytes out(n);
                 read_to(out.as_slice());
                 return out;
@@ -150,7 +150,7 @@ namespace sgcl::crypto {
     class shake128 : public detail::Shake<168> {
     public:
         // The first n bytes of the output over data, in one call
-        static secret_bytes of(const slice<const byte>& data, size_t n) {
+        static secret_bytes of(const slice<const byte>& data, size_t n) noexcept {
             shake128 x;
             x.update(data);
             return x.read(n);
@@ -160,7 +160,7 @@ namespace sgcl::crypto {
     // SHAKE256: 256 bits of security when at least 64 bytes are read
     class shake256 : public detail::Shake<136> {
     public:
-        static secret_bytes of(const slice<const byte>& data, size_t n) {
+        static secret_bytes of(const slice<const byte>& data, size_t n) noexcept {
             shake256 x;
             x.update(data);
             return x.read(n);

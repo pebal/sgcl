@@ -12,11 +12,19 @@
 //     one byte and U+FFFD (as Go); valid() is "no U+FFFD from a bad byte",
 //     count() and rune_count() the number of steps, runes() the same
 //     code points; a valid text walked from its end gives them reversed;
+//     split("") a code point a piece; a backward search from any byte of
+//     a valid text starts with the code point that begins at or before it;
+//     the code points of UTF-16 units (rune_count, split(u"")) a surrogate
+//     pair one, a lone surrogate one;
 //   - to_utf16 and to_utf32 give those code points, and from_utf16 and
 //     from_utf32 give back the text with every bad byte U+FFFD (the text
 //     itself when it was valid); any units given to from_utf16 make valid
 //     UTF-8, which to_utf16 takes back to the units when they were
 //     well-formed UTF-16;
+//   - the case of any UTF-16 units (to_lower, to_upper, equal_fold) is the
+//     case of their code points in a u32string, a surrogate pair one code
+//     point and a lone surrogate its own value, the size kept; of
+//     well-formed units the case of their UTF-8;
 //   - parse<T>(to_string(n)) == n for every integer type; parse of any
 //     text either fails, with an offset inside the text, or reads all of
 //     it; any base, including one no number is written in, is an error
@@ -109,6 +117,57 @@ namespace {
             ++k;
         }
         check(k == points.size());
+        // split by nothing: a code point a piece, the pieces the text again
+        size_t pieces = 0, covered = 0;
+        for (auto piece : text.split("")) {
+            check(piece.data() == text.data() + covered && piece.size() >= 1 && piece.size() <= 4);
+            covered += piece.size();
+            ++pieces;
+        }
+        check(pieces == points.size() && covered == s.size());
+        // equal_fold: a text equals itself and its own case changes; an
+        // ill-formed byte equals only itself, so a text with one byte
+        // changed into another ill-formed one is not equal
+        check(text.equal_fold(s));
+        check(text.equal_fold(text.to_lower()) && text.equal_fold(text.to_upper()));
+        for (size_t i = 0; i < s.size(); i += utf8::decode(s, i).second) {
+            if (utf8::decode(s, i) == pair<char32_t, size_t>(utf8::replacement, 1)) {
+                std::string other(s);
+                other[i] = uint8_t(other[i]) == 0xFF ? char(0xFE) : char(0xFF);   // ill-formed anywhere
+                check(!text.equal_fold(other));
+                break;
+            }
+        }
+        // a value that is no code point is in no text, U+FFFD included
+        for (char32_t bad : {char32_t(0xD800), char32_t(0xDFFF), char32_t(0x110000)}) {
+            check(text.find(bad) == npos && !text.contains(bad) && text.rfind(bad) == npos);
+        }
+        if (!points.empty()) {
+            // a backward search from any byte starts with the code point
+            // that begins at or before it, a forward one with the first
+            // that begins at or after it: against the starts walked forward,
+            // in any text, ill-formed bytes being code points of their own
+            std::vector<size_t> starts;
+            for (size_t i = 0; i < s.size(); i += utf8::decode(s, i).second) {
+                starts.push_back(i);
+            }
+            char32_t target = points[points.size() / 2];
+            std::u32string_view set(&target, 1);
+            for (size_t pos = 0; pos < s.size(); pos += 1 + pos / 8) {
+                size_t expected_of = npos, expected_not = npos;
+                for (size_t j = 0; j < starts.size() && starts[j] <= pos; ++j) {
+                    (points[j] == target ? expected_of : expected_not) = starts[j];
+                }
+                check(text.find_last_of(set, pos) == expected_of);
+                check(text.find_last_not_of(set, pos) == expected_not);
+                size_t first_of = npos, first_not = npos;
+                for (size_t j = starts.size(); j-- > 0 && starts[j] >= pos;) {
+                    (points[j] == target ? first_of : first_not) = starts[j];
+                }
+                check(text.find_first_of(set, pos) == first_of);
+                check(text.find_first_not_of(set, pos) == first_not);
+            }
+        }
         if (valid) {
             // from the end, the same code points reversed
             size_t end = s.size();
@@ -140,6 +199,49 @@ namespace {
         check(txt::to_utf16(txt::from_utf16(u16)) == u16);
     }
 
+    // The code points of UTF-16 units as the case functions take them: a
+    // surrogate pair one, any other unit (a lone surrogate too) its value
+    std::u32string points_of(std::u16string_view units) {
+        std::u32string out;
+        for (size_t i = 0; i < units.size(); ++i) {
+            char32_t u = units[i];
+            if (u >= 0xD800 && u < 0xDC00 && i + 1 < units.size() && units[i + 1] >= 0xDC00 && units[i + 1] < 0xE000) {
+                out.push_back(0x10000 + ((u - 0xD800) << 10) + (char32_t(units[i + 1]) - 0xDC00));
+                ++i;
+            } else {
+                out.push_back(u);
+            }
+        }
+        return out;
+    }
+
+    // The case of any UTF-16 units against a u32string of their code
+    // points: to_lower and to_upper give the same code points, the size
+    // kept, the same object exactly when nothing changes; a text
+    // equal_folds its own case changes, and against the other case of
+    // those and against units with one bit of one unit flipped answers as
+    // the code points do
+    void utf16_case(const u16string& wide, char16_t seed) {
+        std::u32string points = points_of(wide.view());
+        u32string w32{std::u32string_view(points)};
+        for (int upper = 0; upper < 2; ++upper) {
+            u16string m = upper ? wide.to_upper() : wide.to_lower();
+            u32string m32 = upper ? w32.to_upper() : w32.to_lower();
+            check(m.size() == wide.size());
+            check(points_of(m.view()) == m32.view());
+            check((m.object() == wide.object()) == (m32.object() == w32.object()));
+            check(wide.equal_fold(m) && m.equal_fold(wide));
+            check((upper ? m.to_lower() : m.to_upper()).equal_fold(wide) == (upper ? m32.to_lower() : m32.to_upper()).equal_fold(w32));
+        }
+        if (!wide.empty()) {
+            std::u16string other(wide.view());
+            other[seed % other.size()] ^= char16_t(1u << (seed >> 12));
+            u32string other32{std::u32string_view(points_of(other))};
+            check(wide.equal_fold(other) == w32.equal_fold(other32));
+            check(u16string(other).equal_fold(wide) == other32.equal_fold(w32));
+        }
+    }
+
     void utf16_units(std::string_view bytes) {
         std::vector<char16_t> raw(bytes.size() / 2);
         std::memcpy(raw.data(), bytes.data(), raw.size() * 2);
@@ -156,7 +258,30 @@ namespace {
         }
         string text = txt::from_utf16(units);
         check(utf8::valid(text.view()));
+        // the code points of the units: a surrogate pair is one, a lone
+        // surrogate one; split by nothing gives them a piece each
+        u16string wide{std::u16string_view(units.data(), units.size())};
+        size_t steps = 0;
+        for (size_t i = 0; i < units.size(); ++i, ++steps) {
+            if (units[i] >= 0xD800 && units[i] < 0xDC00 && i + 1 < units.size() && units[i + 1] >= 0xDC00 && units[i + 1] < 0xE000) {
+                ++i;
+            }
+        }
+        check(wide.rune_count() == steps);
+        size_t pieces = 0, covered = 0;
+        for (auto piece : wide.split(u"")) {
+            check(piece.size() == 1 || piece.size() == 2);
+            covered += piece.size();
+            ++pieces;
+        }
+        check(pieces == steps && covered == units.size());
+        utf16_case(wide, raw.empty() ? 0 : raw[0]);
         auto back = txt::to_utf16(text);
+        if (well_formed) {
+            // the case of well-formed UTF-16 is the case of its UTF-8
+            check(txt::from_utf16(wide.to_lower()) == text.to_lower());
+            check(txt::from_utf16(wide.to_upper()) == text.to_upper());
+        }
         if (well_formed) {
             check(back == units);
         }

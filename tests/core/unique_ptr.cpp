@@ -178,3 +178,15 @@ TEST(UniqueGcTrackedPtr_Tests, Casts) {
     EXPECT_EQ(cbar, nullptr);
     EXPECT_EQ(pbar->get_value(), 5);
 }
+
+// An assignment that converts returns the library's unique_ptr, as every
+// other assignment of it does; null too
+TEST(UniqueGcTrackedPtr_Tests, AConvertingAssignmentReturnsTheLibrarysPointer) {
+    unique_ptr<Bar> bar;
+    EXPECT_TRUE((std::is_same_v<decltype(bar = make_tracked<Foo>(1)), unique_ptr<Bar>&>));
+    EXPECT_TRUE((std::is_same_v<decltype(bar = nullptr), unique_ptr<Bar>&>));
+    unique_ptr<Bar>& same = (bar = make_tracked<Foo>(2));
+    EXPECT_EQ(&same, &bar);
+    EXPECT_EQ(bar->get_value(), 2);
+    EXPECT_TRUE(bool(bar = nullptr) == false);
+}

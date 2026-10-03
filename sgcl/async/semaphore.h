@@ -32,11 +32,13 @@ namespace sgcl::async {
 
         // Takes a permit, waiting for one: `co_await s.acquire()` in a task,
         // `s.acquire().wait()` on a thread
-        auto acquire() {
+        auto acquire() noexcept {
             return _ch.receive();
         }
 
-        bool try_acquire() {
+        // noexcept: the receive wakes no sender, since release never
+        // waits (mutex.h: MutexState::lock)
+        bool try_acquire() noexcept {
             return _ch.try_receive();
         }
 
@@ -45,7 +47,7 @@ namespace sgcl::async {
         }
 
         template<class F>
-        auto on_acquire(F f) {
+        auto on_acquire(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _ch.on_receive(std::move(f));
         }
 

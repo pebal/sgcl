@@ -237,6 +237,13 @@ TEST(XmlTyped_Tests, Errors) {
     EXPECT_EQ(nested.error().message(), "2:1 /catalog/book[2]/rating: expected an integer, found \"x\"");
     // a document that is not well formed is that error, not the mapping's
     EXPECT_EQ(error_of(xml::parse<book>(string("<book>"))).code(), errc::unexpected_end);
+    // a tree read into a type and a value written have no input text: the
+    // path and the words, no place
+    auto tree = xml::parse(string("<book id='1'><title>t</title><rating>x</rating></book>")).value();
+    EXPECT_EQ(error_of(tree.as<book>()).message(), "/book/rating: expected an integer, found \"x\"");
+    EXPECT_EQ(error_of(xml().as<book>()).message(), "no element to read");
+    EXPECT_EQ(error_of(xml::stringify("1x", book{})).message(), "/1x: '1x' is not the name of an element");
+    EXPECT_EQ(error_of(xml::from("b", tracked_ptr<book>())).message(), "a null value has no element");
 }
 
 // What XML has no form for: a map, a tuple, a variant, a list of lists, a
@@ -265,6 +272,13 @@ TEST(XmlTyped_Tests, WhatHasNoForm) {
     nested_lists nl;
     nl.v.push_back(vector<int>{1});
     EXPECT_EQ(error_of(xml::stringify("x", nl)).code(), errc::unsupported_value);
+    // a list is a field's element repeated: as the root it has no element
+    auto root_list = xml::stringify("v", vector<int>{1, 2});
+    ASSERT_FALSE(root_list.has_value());
+    EXPECT_EQ(root_list.error().code(), errc::unsupported_value);
+    EXPECT_EQ(root_list.error().message(), "/v: a list has no element of its own in XML: it is a field's element repeated");
+    EXPECT_EQ(error_of(xml::parse<vector<int>>(string("<v>1</v>"))).message(),
+              "1:1 /v: a list has no element of its own in XML: it is a field's element repeated");
 
     struct record_attribute {
         author a;
