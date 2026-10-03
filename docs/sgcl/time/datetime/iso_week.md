@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::iso_week
 
@@ -6,7 +6,7 @@
 time::iso_week iso_week() const noexcept;
 ```
 
-The week of ISO 8601 the zone's clock shows at the instant, Go's `t.ISOWeek()`: an [iso_week](../iso_week.md), the
+The week of ISO 8601 the zone's clock shows at the instant, Go's `t.ISOWeek()`: an [iso_week](../iso_week/README.md), the
 year the week belongs to and the week, 1 to 52 or 53. A week belongs to the year of its Thursday, so the first days of
 January may be in the last week of the year before.
 
@@ -51,6 +51,6 @@ Output:
 
 ## See also
 
-- [iso_week](../iso_week.md): the type
+- [iso_week](../iso_week/README.md): the type
 - [weekday](weekday.md): the day of the week
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

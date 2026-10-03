@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::size
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [empty](empty.md): whether the text mapped to nothing
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

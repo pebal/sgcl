@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::bit_length
 
@@ -56,4 +56,4 @@ Output:
 - [trailing_zeros](trailing_zeros.md): the zero bits below the lowest one
 - [bit](bit.md): one bit
 - [operator\<\<](operator_arith.md): a shift by a count of bits
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

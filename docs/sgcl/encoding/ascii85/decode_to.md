@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](README.md)
 
 # sgcl::encoding::ascii85::decode_to
 
@@ -32,7 +32,7 @@ A text found wrong has had the bytes before the error written into `out`. `out` 
 
 ## Return value
 
-The number of bytes written, or the [error](../error.md) with its offset, as [decode](decode.md)'s.
+The number of bytes written, or the [error](../error/README.md) with its offset, as [decode](decode.md)'s.
 
 ## Complexity
 
@@ -76,4 +76,4 @@ sgcl: the buffer is smaller than the most the text decodes to
 - [max_decoded_size](max_decoded_size.md): a size that always serves
 - [decode](decode.md): into a vector of its own
 - [encode_to](encode_to.md): the other way
-- [sgcl::encoding::ascii85](../ascii85.md)
+- [sgcl::encoding::ascii85](README.md)

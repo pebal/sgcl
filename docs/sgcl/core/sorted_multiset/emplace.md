@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::emplace
 
@@ -74,4 +74,4 @@ Output:
 
 - [emplace_hint](emplace_hint.md): the same with a hint
 - [insert](insert.md): inserts an element built already
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

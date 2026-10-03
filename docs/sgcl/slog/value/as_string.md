@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::as_string
 
@@ -14,7 +14,7 @@ None.
 
 ## Return value
 
-The text, a new [string](../../core/string.md).
+The text, a new [string](../../core/string/README.md).
 
 ## Complexity
 
@@ -54,4 +54,4 @@ peer 10.0.0.2:443
 
 - [text](text.md)
 - [kind](../value-kind.md): `string`
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

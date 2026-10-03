@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::set_memory_limit_percent
 
@@ -6,7 +6,7 @@
 static void set_memory_limit_percent(unsigned percent) noexcept;
 ```
 
-Sets the ceiling on committed managed memory ([The memory limit](../collector.md#the-memory-limit)) to `percent`
+Sets the ceiling on committed managed memory ([The memory limit](README.md#the-memory-limit)) to `percent`
 of the memory the process may use: the cgroup limit on Linux, else the physical memory. The ceiling is `0`,
 disabled, when the system does not say how much that is. The call wins over `SGCL_MEMORY_LIMIT` in the
 environment, and takes effect as [set_memory_limit](set_memory_limit.md) does.
@@ -57,4 +57,4 @@ true
 
 - [set_memory_limit](set_memory_limit.md): the ceiling in bytes
 - [config](../config.md): `heap_limit_percent`, the default share
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [match](../match.md)
+[sgcl](../../README.md) › [txt](../README.md) › [match](README.md)
 
 # sgcl::txt::match::operator[]
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [group](group.md): a group, or nothing when it took no part
-- [sgcl::txt::match](../match.md)
+- [sgcl::txt::match](README.md)

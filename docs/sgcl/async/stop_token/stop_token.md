@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::stop_token::stop_token
 
@@ -55,4 +55,4 @@ may be stopped
 
 - [stop_source::token](../stop_source/token.md): a token with a source
 - [stop_possible](stop_possible.md): whether a token has one
-- [sgcl::async::stop_token](../stop_token.md)
+- [sgcl::async::stop_token](README.md)

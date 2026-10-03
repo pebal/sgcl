@@ -73,4 +73,4 @@ true false '' out
 
 - [fd](file/fd.md): the descriptor of a file
 - [open](open.md): a file opened by the library
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

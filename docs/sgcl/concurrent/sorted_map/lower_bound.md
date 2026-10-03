@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::lower_bound
 
@@ -73,4 +73,4 @@ true
 
 - [upper_bound](upper_bound.md): the first element whose key is greater than a key
 - [find](find.md): the element under a key
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

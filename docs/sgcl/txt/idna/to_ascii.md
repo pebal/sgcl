@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](README.md)
 
 # sgcl::txt::idna::to_ascii
 
@@ -8,7 +8,7 @@ expected<string, failure> to_ascii(const string& name, options o = {});
 
 Returns the name as the DNS carries it, by section 4.2 of [UTS #46](https://www.unicode.org/reports/tr46/): mapped
 (the case folded, the compatibility forms and the ideographic full stops written plainly, the default ignorable code
-points dropped), normalized to NFC, every label held to the checks [options](../idna-options.md) ask for, and every
+points dropped), normalized to NFC, every label held to the checks [options](../idna-options/README.md) ask for, and every
 label with something above ASCII in it encoded as [punycode](../punycode/encode.md) and prefixed with `xn--`. A name
 that is wrong in any of those ways is not a name: nothing comes back but the rule it broke, and there is no text to
 use by mistake. [ascii_form](ascii_form.md) gives the text as well.
@@ -27,7 +27,7 @@ digits, hyphens and stops and no `xn--` label, is checked over its bytes and com
 
 ## Return value
 
-The name in ASCII, or the [failure](../idna-failure.md): the first rule the name broke and the label that broke it.
+The name in ASCII, or the [failure](../idna-failure/README.md): the first rule the name broke and the label that broke it.
 
 ## Complexity
 
@@ -70,4 +70,4 @@ x..xn--zca
 
 - [to_unicode](to_unicode.md): the other way
 - [ascii_form](ascii_form.md): the text even when it is wrong
-- [sgcl::txt::idna](../idna.md)
+- [sgcl::txt::idna](README.md)

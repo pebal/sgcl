@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::vector)
 
@@ -15,7 +15,7 @@ Compares two vectors by their elements.
 
 Both take part only when `T` is [req::equatable](../../core/req/equatable.md): a vector of elements without `==`
 has no `==` either. `<`, `<=`, `>`, `>=` and `<=>` compare the elements lexicographically, from
-[mixin::comparable](../../core/mixin/comparable.md), when `T` is
+[mixin::comparable](../../core/mixin/comparable/README.md), when `T` is
 [req::comparable](../../core/req/comparable.md).
 
 ## Parameters
@@ -70,5 +70,5 @@ false
 
 ## See also
 
-- [mixin::comparable](../../core/mixin/comparable.md): `<=>` by the elements
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [mixin::comparable](../../core/mixin/comparable/README.md): `<=>` by the elements
+- [sgcl::immutable::vector\<T\>](README.md)

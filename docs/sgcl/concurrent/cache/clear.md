@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::clear
 
@@ -64,4 +64,4 @@ hits 1, misses 1
 
 - [erase](erase.md): erases the entry of a key
 - [hits](hits.md), [misses](misses.md): the counts the `clear` keeps
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

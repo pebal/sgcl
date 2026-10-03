@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::close
 
@@ -68,4 +68,4 @@ the connection went back: true
 ## See also
 
 - [body](body.md): the body as a stream, with no close of its own
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

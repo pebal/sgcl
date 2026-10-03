@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [percent](../percent.md)
+[sgcl](../../README.md) › [txt](../README.md) › [percent](README.md)
 
 # sgcl::txt::percent::encode
 
@@ -16,7 +16,7 @@ either left alone or written as three characters, and every byte has a spelling.
 | Parameter | Description |
 |---|---|
 | `text` | the text, or any bytes in a string |
-| `keep` | the characters left alone; [unreserved](../percent.md#member-objects) by default |
+| `keep` | the characters left alone; [unreserved](README.md#member-objects) by default |
 
 ## Return value
 
@@ -59,5 +59,5 @@ a%20b/c:d%3F
 ## See also
 
 - [decode](decode.md): the way back
-- [percent_set](../percent_set.md)
-- [sgcl::txt::percent](../percent.md)
+- [percent_set](../percent_set/README.md)
+- [sgcl::txt::percent](README.md)

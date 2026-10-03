@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [iso_week](../iso_week.md)
+[sgcl](../../README.md) › [time](../README.md) › [iso_week](README.md)
 
 # sgcl::time::operator== (sgcl::time::iso_week)
 
@@ -48,4 +48,4 @@ true false
 ## See also
 
 - [date::iso_week](../date/iso_week.md): the week of a date
-- [sgcl::time::iso_week](../iso_week.md)
+- [sgcl::time::iso_week](README.md)

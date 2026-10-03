@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [receive_channel](../receive_channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [receive_channel](README.md)
 
 # sgcl::async::operator==, operator!= (sgcl::async::receive_channel)
 
@@ -52,4 +52,4 @@ true true
 ## See also
 
 - [(constructor)](receive_channel.md): the receiving end is the same channel
-- [sgcl::async::receive_channel\<T\>](../receive_channel.md)
+- [sgcl::async::receive_channel\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::erase
 
@@ -55,4 +55,4 @@ true
 ## See also
 
 - [set](set.md): the object with a member set
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

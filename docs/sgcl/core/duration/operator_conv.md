@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::operator std::chrono::nanoseconds
 
@@ -60,4 +60,4 @@ Output:
 
 - [(constructor)](duration.md): the conversion from a `std::chrono` duration
 - [nanoseconds](nanoseconds.md): the count as an `int64_t`
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

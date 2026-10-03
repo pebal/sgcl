@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [priority_queue](README.md)
 
 # sgcl::priority_queue\<T, Container, Compare\>::pop
 
@@ -64,4 +64,4 @@ Output:
 
 - [top](top.md): access the largest element
 - [push](push.md): inserts an element
-- [sgcl::priority_queue\<T, Container, Compare\>](../priority_queue.md)
+- [sgcl::priority_queue\<T, Container, Compare\>](README.md)

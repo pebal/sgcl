@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [priority_queue](README.md)
 
 # sgcl::swap (sgcl::priority_queue)
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [swap](swap.md): the member form
-- [sgcl::priority_queue\<T, Container, Compare\>](../priority_queue.md)
+- [sgcl::priority_queue\<T, Container, Compare\>](README.md)

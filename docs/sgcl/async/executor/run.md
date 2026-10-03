@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::run
 
@@ -90,4 +90,4 @@ run() returned
 - [run_until](run_until.md): the loop until a task is done, its result left in it
 - [poll](poll.md): one pass, for a loop of the program's own
 - [stop](stop.md): makes `run` return
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

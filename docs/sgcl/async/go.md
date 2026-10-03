@@ -27,7 +27,7 @@ destroys its frame itself then; the memory is the collector's from then on. It i
    `async::go([&ch]() -> async::task<> { ... })`, Go's `go func() { ... }()`. The closure is copied into the frame of
    a task of its own, which lives as long as the task, and the captures with it ([spawn](spawn.md) says why a called
    lambda with captures would not do). Takes part only when `f()` returns a task.
-3. Starts the task on `ex`, an [executor](executor.md) or a [strand](strand.md), and lets go of it; `ex.go(t)`.
+3. Starts the task on `ex`, an [executor](executor/README.md) or a [strand](strand/README.md), and lets go of it; `ex.go(t)`.
 4. (2) on `ex`.
 
 ## Parameters
@@ -52,7 +52,7 @@ None.
 
 - (1)–(2) `std::system_error` when the push starts the scheduler (the first start, or the first after a stop) and a
   worker's thread cannot be started; (2) also what the move constructor of `F` throws.
-- (3)–(4) What the `go` of `ex` throws ([executor](executor.md), [strand](strand.md)).
+- (3)–(4) What the `go` of `ex` throws ([executor](executor/README.md), [strand](strand/README.md)).
 
 What the task throws, nobody reads: it goes to [on_unhandled](on_unhandled.md)'s handler, which by default prints it
 and ends the program, as a goroutine's panic ends a Go program.
@@ -60,7 +60,7 @@ and ends the program, as a goroutine's panic ends a Go program.
 ## Notes
 
 Letting go is not cancelling: a task started by `go` that is to stop early is given a
-[stop_token](stop_token.md) and looks at it. A task that nothing will wake again lives as long as what it waits for,
+[stop_token](stop_token/README.md) and looks at it. A task that nothing will wake again lives as long as what it waits for,
 and is collected with it ([detach](task/detach.md)).
 
 ## Example
@@ -109,4 +109,4 @@ Output:
 - [go_blocking](go_blocking.md): a blocking call on the blocking pool, let go of the same way
 - [detach](task/detach.md): lets go of a task already started
 - [on_unhandled](on_unhandled.md): what becomes of what the task throws
-- [task_group](task_group.md): tasks started together, waited for and stopped as one
+- [task_group](task_group/README.md): tasks started together, waited for and stopped as one

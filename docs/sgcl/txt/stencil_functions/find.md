@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](../stencil_functions.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](README.md)
 
 # sgcl::txt::stencil_functions::find
 
@@ -53,4 +53,4 @@ QUIET true
 ## See also
 
 - [add](add.md)
-- [sgcl::txt::stencil_functions](../stencil_functions.md)
+- [sgcl::txt::stencil_functions](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::at
 
@@ -13,7 +13,7 @@ Returns a reference to the value under `key`, with bounds checking: a key that i
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the hash and the equality take. Take part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string.md) do: a `string_view`
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string/README.md) do: a `string_view`
   or a literal finds a `string` key with no string made for the search.
 
 ## Parameters
@@ -38,7 +38,7 @@ throw; none from them when they are noexcept or the function objects of `std`.
 ## Notes
 
 [operator[]](operator_at.md) inserts the key instead of throwing; `get`, `try_get` and `value_or` of
-[mixin::lookup](../mixin/lookup.md) answer an absent key without an exception. The reference is valid while the
+[mixin::lookup](../mixin/lookup/README.md) answer an absent key without an exception. The reference is valid while the
 element is in the map.
 
 ## Example
@@ -73,4 +73,4 @@ out of range: sgcl::map::at
 
 - [operator[]](operator_at.md): the value under a key, inserted when absent
 - [find](find.md): an iterator to the element under a key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

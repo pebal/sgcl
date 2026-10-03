@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [attrs](../attrs.md)
+[sgcl](../../README.md) › [slog](../README.md) › [attrs](README.md)
 
 # sgcl::slog::attrs::empty
 
@@ -51,4 +51,4 @@ one: false
 ## See also
 
 - [size](size.md)
-- [sgcl::slog::attrs](../attrs.md)
+- [sgcl::slog::attrs](README.md)

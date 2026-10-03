@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::clear
 
@@ -69,4 +69,4 @@ Output:
 
 - [erase](erase.md): erases elements
 - [erase_if](erase_if.md): erases every element satisfying a predicate
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

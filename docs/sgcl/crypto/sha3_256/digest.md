@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha3_256](../sha3_256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha3_256](README.md)
 
 # sgcl::crypto::sha3_256::digest
 
@@ -60,5 +60,5 @@ ec01498288516fc926459f58e2c6ad8df9b473cb0fc08c2596da7cf0e49be4b298d88cea927ac7f5
 ## See also
 
 - [value](value.md): the same bytes
-- [hash::mixin::hasher](../../hash/mixin/hasher.md): the shape every hasher shares
-- [sgcl::crypto::sha3_256](../sha3_256.md)
+- [hash::mixin::hasher](../../hash/mixin/hasher/README.md): the shape every hasher shares
+- [sgcl::crypto::sha3_256](README.md)

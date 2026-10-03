@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::max_size
 
@@ -28,7 +28,7 @@ None.
 ## Notes
 
 The bound is that of the type, not of the memory: managed memory runs out far below it, and an allocation the
-heap refuses ends the program ([collector](../collector.md#the-memory-limit)).
+heap refuses ends the program ([collector](../collector/README.md#the-memory-limit)).
 
 ## Example
 
@@ -57,4 +57,4 @@ true
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

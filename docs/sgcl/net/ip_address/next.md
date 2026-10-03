@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::next
 
@@ -53,4 +53,4 @@ invalid IP
 
 - [prev](prev.md): the other way
 - [ip_network::masked](../ip_network/masked.md): the first address of a network
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

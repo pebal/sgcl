@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::operator=
 
@@ -67,4 +67,4 @@ second first.txt
 
 - [(constructor)](file.md): a handle made empty or as a copy
 - [operator==](operator_cmp.md): whether two handles are the same file
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

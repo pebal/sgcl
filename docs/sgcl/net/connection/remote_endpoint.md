@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::remote_endpoint
 
@@ -10,7 +10,7 @@ Returns the address and port of the peer: Go's `Conn.RemoteAddr`. A connection a
 families from an IPv4 peer reports the IPv4 address, not the IPv4-mapped IPv6 one, and so does a connection dialed to
 an IPv4-mapped address; a zone is the interface's name, as the system gives it, also when the address dialed named
 the interface by its number (`fe80::1%1` is `fe80::1%lo0`). A unix socket and a pair in
-memory have none: the [endpoint](../endpoint.md) is empty (`!is_valid()`).
+memory have none: the [endpoint](../endpoint/README.md) is empty (`!is_valid()`).
 
 ## Parameters
 
@@ -56,5 +56,5 @@ true
 ## See also
 
 - [local_endpoint](local_endpoint.md): the address of this end
-- [endpoint](../endpoint.md): an address and a port
-- [sgcl::net::connection](../connection.md)
+- [endpoint](../endpoint/README.md): an address and a port
+- [sgcl::net::connection](README.md)

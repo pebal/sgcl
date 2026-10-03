@@ -77,4 +77,4 @@ woken: true, nothing to read: true
 ## See also
 
 - [readable](readable.md), [writable](writable.md): the waits it ends
-- [event](event.md): what a wait is
+- [event](event/README.md): what a wait is

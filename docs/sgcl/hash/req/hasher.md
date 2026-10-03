@@ -11,24 +11,24 @@ namespace sgcl::hash::req {
 }
 ```
 
-A hasher of the library: a type that said so by deriving from [mixin::hasher\<H\>](../mixin/hasher.md) with itself
+A hasher of the library: a type that said so by deriving from [mixin::hasher\<H\>](../mixin/hasher/README.md) with itself
 as `H`. It is what a function over any hasher asks for, `hash::req::hasher auto& h`, and such a function then has
 the whole shape: `update`, `value`, `digest`, `reset`, `of`, `copy_from`, `digest_size` and `block_size`. A `const`
 or a reference on `H` is dropped first, so `req::hasher<const crc32&>` holds as well.
 
-The requirement is nominal, as the [requirements of the containers](../../core/req.md) are: a type is a hasher
+The requirement is nominal, as the [requirements of the containers](../../core/req/README.md) are: a type is a hasher
 because it said so, not because it happens to have an `update`, and the error for anything else is one line at the
 call. It is Go's `hash.Hash`, asked for statically.
 
 ## Satisfied by
 
-- every hasher of this module: [crc32](../crc32.md), [crc32c](../crc32c.md), [crc64](../crc64.md),
-  [crc64_iso](../crc64_iso.md), [adler32](../adler32.md), [fnv32](../fnv32.md), [fnv32a](../fnv32a.md),
-  [fnv64](../fnv64.md), [fnv64a](../fnv64a.md), [fnv128](../fnv128.md), [fnv128a](../fnv128a.md),
-  [xxh3_64](../xxh3_64.md), [xxh3_128](../xxh3_128.md), [maphash](../maphash.md), [siphash](../siphash.md);
-- the digests of crypto: [sha1](../../crypto/sha1.md), [sha224 and sha256](../../crypto/sha256.md), [sha384, sha512
-  and sha512_256](../../crypto/sha512.md), [sha3_224, sha3_256, sha3_384 and sha3_512](../../crypto/sha3_256.md), and
-  [hmac\<H\>](../../crypto/hmac.md);
+- every hasher of this module: [crc32](../crc32/README.md), [crc32c](../crc32c/README.md), [crc64](../crc64/README.md),
+  [crc64_iso](../crc64_iso/README.md), [adler32](../adler32/README.md), [fnv32](../fnv32/README.md), [fnv32a](../fnv32a/README.md),
+  [fnv64](../fnv64/README.md), [fnv64a](../fnv64a/README.md), [fnv128](../fnv128/README.md), [fnv128a](../fnv128a/README.md),
+  [xxh3_64](../xxh3_64/README.md), [xxh3_128](../xxh3_128/README.md), [maphash](../maphash/README.md), [siphash](../siphash/README.md);
+- the digests of crypto: [sha1](../../crypto/sha1/README.md), [sha224 and sha256](../../crypto/sha256/README.md), [sha384, sha512
+  and sha512_256](../../crypto/sha512/README.md), [sha3_224, sha3_256, sha3_384 and sha3_512](../../crypto/sha3_256/README.md), and
+  [hmac\<H\>](../../crypto/hmac/README.md);
 - a class of the program that derives from `mixin::hasher` with itself as the argument.
 
 Not by a class derived from one of these: `struct mine : hash::crc32 {}` derives from `mixin::hasher<crc32>`, not
@@ -74,6 +74,6 @@ false false
 
 ## See also
 
-- [mixin::hasher](../mixin/hasher.md): the shape a hasher declares itself with
-- [req](../../core/req.md): the requirements of core, nominal in the same way
+- [mixin::hasher](../mixin/hasher/README.md): the shape a hasher declares itself with
+- [req](../../core/req/README.md): the requirements of core, nominal in the same way
 - [sgcl::hash](../README.md)

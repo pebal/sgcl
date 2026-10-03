@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](../stencil_functions.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](README.md)
 
 # sgcl::txt::stencil_functions::stencil_functions
 
@@ -48,4 +48,4 @@ upper:true escape_html:true default:true shout:false
 ## See also
 
 - [builtin](builtin.md): the same six, shared
-- [sgcl::txt::stencil_functions](../stencil_functions.md)
+- [sgcl::txt::stencil_functions](README.md)

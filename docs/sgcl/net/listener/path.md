@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::path
 
@@ -55,5 +55,5 @@ true
 ## See also
 
 - [local_endpoint](local_endpoint.md): a TCP listener's address
-- [unix_domain](../unix_domain.md): stream sockets in the file system
-- [sgcl::net::listener](../listener.md)
+- [unix_domain](../unix_domain/README.md): stream sockets in the file system
+- [sgcl::net::listener](README.md)

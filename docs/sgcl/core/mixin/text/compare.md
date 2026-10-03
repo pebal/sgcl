@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::compare
 
@@ -90,4 +90,4 @@ out of range
 
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons with a view, a literal or a pointer as operators
 - [equal_fold](equal_fold.md): the same letters in either case
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

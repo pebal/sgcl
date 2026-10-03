@@ -21,7 +21,7 @@ namespace sgcl::compress::tar {
 What an entry of a tar archive is: the type flag of its header, by name. A type flag the list has no name for is a
 file, as POSIX says of ustar (`'7'`, contiguous, among them); GNU's `'D'` (a directory with the listing of an
 incremental dump as its data) is a directory, the listing stepped over. Only a `file` has data: the
-[entry](tar-entry.md)'s size is 0 for every other kind.
+[entry](tar-entry/README.md)'s size is 0 for every other kind.
 
 | Value | Description |
 |---|---|
@@ -63,5 +63,5 @@ latest -> v2/ true
 
 ## See also
 
-- [entry](tar-entry.md)
+- [entry](tar-entry/README.md)
 - [sgcl::compress::tar](tar.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [format_sink](../format_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [format_sink](README.md)
 
 # sgcl::txt::format_sink::fill
 
@@ -62,4 +62,4 @@ Output:
 ## See also
 
 - [put](put.md): a character or a run of text
-- [sgcl::txt::format_sink](../format_sink.md)
+- [sgcl::txt::format_sink](README.md)

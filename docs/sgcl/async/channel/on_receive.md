@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::on_receive
 
@@ -95,4 +95,4 @@ quit
 - [on_send](on_send.md): a send as a case
 - [select](../select.md), [otherwise](../otherwise.md): the wait over the cases, and the case taken at once
 - [receive](receive.md): the receive alone
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::verify_digest_pss
 
@@ -77,4 +77,4 @@ false
 - [sign_digest_pss](../rsa-private_key/sign_digest_pss.md): makes the signature
 - [verify_digest](verify_digest.md): the PKCS #1 v1.5 signatures
 - [verify_pss](verify_pss.md): a message, hashed inside
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

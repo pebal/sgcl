@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::at
 
@@ -37,7 +37,7 @@ date's own fields do: `at(24, 0, z)` is midnight of the next day, and so is `at(
 
 ## Return value
 
-The [datetime](../datetime.md) of that instant, in the zone `z`. An instant past either end of a datetime's range,
+The [datetime](../datetime/README.md) of that instant, in the zone `z`. An instant past either end of a datetime's range,
 the years 1677 to 2262 (`date(3000, 1, 1).at(0, 0, z)`), is that end.
 
 ## Complexity
@@ -90,5 +90,5 @@ Output:
 - [try_at](try_at.md): the instant only when there is exactly one
 - [start_of_day](start_of_day.md): the first instant of the date
 - [earlier_t, later_t](../earlier_t.md): the tags
-- [datetime](../datetime.md), [zone](../zone.md)
-- [sgcl::time::date](../date.md)
+- [datetime](../datetime/README.md), [zone](../zone/README.md)
+- [sgcl::time::date](README.md)

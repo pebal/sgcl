@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](README.md)
 
 # sgcl::concurrent::weak_map\<Key, T\>::emplace
 
@@ -84,4 +84,4 @@ false (1.5, 2)
 
 - [try_emplace](try_emplace.md): the same insertion, and its account
 - [insert](insert.md): inserts a copy or a moved value
-- [sgcl::concurrent::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::concurrent::weak_map\<Key, T\>](README.md)

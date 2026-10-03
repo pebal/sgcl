@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::copy
 
@@ -67,4 +67,4 @@ out of range
 
 - [str](str.md): the characters as a `std::basic_string`
 - [view, operator view_type](view.md): the characters as a view, nothing copied
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

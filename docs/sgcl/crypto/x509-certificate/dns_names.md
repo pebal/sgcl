@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::dns_names
 
@@ -68,4 +68,4 @@ Output:
 ## See also
 
 - [verify_hostname](verify_hostname.md): checks a host against them
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md) › [encoder](../base32-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base32::encoder::write, async_write
 
@@ -18,7 +18,7 @@ write the text of `"hello, world"`.
 
 A failure of the writer under it is kept for good: this write and every later `write` and `close` report it. A
 write after `close()` is `io::errc::closed`. The text and the byte of the writers of the library,
-`b32.write("text")`, are [io::mixin::writer](../../io/mixin/writer.md)'s, through this one.
+`b32.write("text")`, are [io::mixin::writer](../../io/mixin/writer/README.md)'s, through this one.
 
 ## Parameters
 
@@ -71,4 +71,4 @@ write base32: stream closed
 
 - [close, async_close](close.md): the last group
 - [encode](../base32/encode.md): the text at once
-- [sgcl::encoding::base32::encoder](../base32-encoder.md)
+- [sgcl::encoding::base32::encoder](README.md)

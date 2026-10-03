@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](README.md)
 
 # sgcl::compress::gzip::compress
 
@@ -14,7 +14,7 @@ static vector<byte> compress(const T& text, const options& o);                  
 ```
 
 Compresses the whole of the data at once into one gzip member: the header of the options, the DEFLATE data, the CRC-32
-and the length of the data, at the [level](../level.md) of the options (6 unless told otherwise). The header of the
+and the length of the data, at the [level](../level/README.md) of the options (6 unless told otherwise). The header of the
 options is written as it is: a name and a comment converted from UTF-8 to ISO 8859-1, or past it written as their
 UTF-8 bytes, as gzip(1) writes a file's name ([gzip_header](../gzip_header.md)); the time as Unix seconds (0, "not
 known", for none or one before 1970 or past 2106), the level's hint (2 for level 9, 4 for level 1), the operating system
@@ -78,5 +78,5 @@ Output:
 ## See also
 
 - [decompress](decompress.md): the other way
-- [gzip::writer](../gzip-writer.md): a stream
-- [sgcl::compress::gzip](../gzip.md)
+- [gzip::writer](../gzip-writer/README.md): a stream
+- [sgcl::compress::gzip](README.md)

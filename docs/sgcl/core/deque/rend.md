@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::rend, crend
 
@@ -56,4 +56,4 @@ the last odd: 23, 1 from the back
 
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the beginning
 - [end, cend](end.md): an iterator to the end
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

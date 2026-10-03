@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [builder](../xml-builder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [builder](README.md)
 
 # sgcl::encoding::xml::builder::set
 
@@ -62,4 +62,4 @@ svg:version [http://www.w3.org/2000/svg]
 
 - [push_back](push_back.md): a child
 - [xml::set](../xml/set.md): one attribute set, a new node
-- [sgcl::encoding::xml::builder](../xml-builder.md)
+- [sgcl::encoding::xml::builder](README.md)

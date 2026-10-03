@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::headers
 
@@ -63,5 +63,5 @@ DEK-Info = AES-128-CBC,  00FF00FF
 ## See also
 
 - [to_string](to_string.md): the headers written back, `Proc-Type` first
-- [ordered_map](../../core/ordered_map.md): a map in the order of insertion
-- [sgcl::encoding::pem](../pem.md)
+- [ordered_map](../../core/ordered_map/README.md): a map in the order of insertion
+- [sgcl::encoding::pem](README.md)

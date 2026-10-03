@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [dumper](../hex-dumper.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [dumper](README.md)
 
 # sgcl::encoding::hex::dumper::is_closed
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [close, async_close](close.md): the end of the dumper
-- [sgcl::encoding::hex::dumper](../hex-dumper.md)
+- [sgcl::encoding::hex::dumper](README.md)

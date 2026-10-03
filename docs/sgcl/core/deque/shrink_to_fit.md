@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::shrink_to_fit
 
@@ -63,4 +63,4 @@ Output:
 
 - [clear](clear.md): destroys every element, drops the blocks and the map
 - [pop_front](pop_front.md), [pop_back](pop_back.md): remove an element, keeping an emptied block as the spare
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_path
 
@@ -17,9 +17,9 @@ resolved, and in a special URL `\` is `/`.
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL path` and the value asked for, when the standard refuses the value or declines to apply it: a URL
-with an opaque path; and a value past 512 MiB, or a URL that would pass it ([the limit](../url.md#rules)).
+with an opaque path; and a value past 512 MiB, or a URL that would pass it ([the limit](README.md#rules)).
 
 ## Complexity
 
@@ -56,4 +56,4 @@ set URL path /y: invalid URL
 ## See also
 
 - [path](path.md): the path
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

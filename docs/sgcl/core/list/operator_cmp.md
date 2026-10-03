@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::list)
 
@@ -8,7 +8,7 @@ friend constexpr auto operator<=>(const list& a, const list& b);    // (2)
 ```
 
 Compare two lists by their elements, as `std::list`'s operators do. Both are hidden friends of
-[mixin::equatable](../mixin/equatable.md) and [mixin::comparable](../mixin/comparable.md), found through the
+[mixin::equatable](../mixin/equatable/README.md) and [mixin::comparable](../mixin/comparable/README.md), found through the
 list's type.
 
 1. `true` when `a` and `b` have equal elements in the same order. The two lists are walked together, up to the
@@ -71,5 +71,5 @@ true false
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md)
-- [sgcl::list\<T\>](../list.md)
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md)
+- [sgcl::list\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [format_pattern](../format_pattern.md)
+[sgcl](../../README.md) › [txt](../README.md) › [format_pattern](README.md)
 
 # sgcl::txt::format_pattern\<A...\>::view
 
@@ -49,4 +49,4 @@ Output:
 
 ## See also
 
-- [sgcl::txt::format_pattern](../format_pattern.md)
+- [sgcl::txt::format_pattern](README.md)

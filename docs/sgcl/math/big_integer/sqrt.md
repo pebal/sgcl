@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::sqrt
 
@@ -62,4 +62,4 @@ sgcl::math::big_integer::sqrt: the square root of a negative number
 ## See also
 
 - [pow](pow.md): a power
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [range](../range.md)
+[sgcl](../../README.md) › [core](../README.md) › [range](README.md)
 
 # sgcl::range\<It\>::front
 
@@ -49,4 +49,4 @@ two 5
 ## See also
 
 - [begin](begin.md): the iterator to the first element
-- [sgcl::range\<It\>](../range.md)
+- [sgcl::range\<It\>](README.md)

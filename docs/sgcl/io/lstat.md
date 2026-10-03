@@ -26,7 +26,7 @@ link itself, its type `file_type::symlink`. Go's `os.Lstat`, the system's `lstat
 
 ## Return value
 
-What the file system says, or the [error](error.md) of the call; the operation is `lstat` and the path `path`.
+What the file system says, or the [error](error/README.md) of the call; the operation is `lstat` and the path `path`.
 
 ## Complexity
 

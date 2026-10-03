@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::empty
 
@@ -59,4 +59,4 @@ false 2
 
 - [max_size](max_size.md): the largest number of elements
 - [clear](clear.md): destroys every element
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

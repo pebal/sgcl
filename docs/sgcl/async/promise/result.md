@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::result
 
@@ -74,4 +74,4 @@ stopped
 
 - [wait, operator co_await](wait.md): waits for the set
 - [done](done.md): whether `result()` would wait
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

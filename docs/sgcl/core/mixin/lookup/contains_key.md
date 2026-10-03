@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](../lookup.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](README.md)
 
 # sgcl::mixin::lookup\<Derived\>::contains_key
 
@@ -33,7 +33,7 @@ the key's; none with the key type, whose calls the map requires noexcept.
 ## Notes
 
 The maps have a `contains(key)` of their own, which asks the same: `contains_key` is the name a function over any
-`req::lookup` map can call, as `contains` of [mixin::enumerable](../enumerable.md) asks about an element.
+`req::lookup` map can call, as `contains` of [mixin::enumerable](../enumerable/README.md) asks about an element.
 
 ## Example
 
@@ -63,4 +63,4 @@ true
 ## See also
 
 - [try_get](try_get.md): a pointer to the value, null when absent
-- [sgcl::mixin::lookup\<Derived\>](../lookup.md)
+- [sgcl::mixin::lookup\<Derived\>](README.md)

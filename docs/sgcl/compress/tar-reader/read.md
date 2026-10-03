@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](../tar-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](README.md)
 
 # sgcl::compress::tar::reader::read, async_read
 
@@ -23,7 +23,7 @@ after the last it gives 0. Data that ends inside the entry is the error of the r
 ## Return value
 
 The number of bytes put into `out`, 0 at the end of the entry, or an error: an `io::error` of the
-[compress category](../compress_category.md) naming the entry (the whole [error](../error.md) is in
+[compress category](../compress_category.md) naming the entry (the whole [error](../error/README.md) is in
 [last_error](last_error.md)), or the error of `in` as it came.
 
 ## Complexity
@@ -71,4 +71,4 @@ Output:
 ## See also
 
 - [next](next.md)
-- [sgcl::compress::tar::reader](../tar-reader.md)
+- [sgcl::compress::tar::reader](README.md)

@@ -42,7 +42,7 @@ struct std::is_error_code_enum<sgcl::net::tls::alert> : std::true_type {};
 ```
 
 The alerts of TLS 1.3 (RFC 8446 §6.2), by their numbers on the wire. An alert this side sent ends a connection
-with an [io::error](../../io/error.md) of the category `"tls"` ([category](category.md)) whose code is the alert's
+with an [io::error](../../io/error/README.md) of the category `"tls"` ([category](category.md)) whose code is the alert's
 number: `std::is_error_code_enum` is specialized, so an `alert` converts to an `error_code`
 ([make_error_code](make_error_code.md)) and `e.code() == net::tls::alert::decode_error` asks for it. An alert the
 peer sent has a code of its own in the category, and [alert_of](alert_of.md) gives the alert of either, with
@@ -128,5 +128,5 @@ tls: no application protocol
 
 - [alert_of](alert_of.md), [is_remote](is_remote.md): the alert of an error and its side
 - [category](category.md), [make_error_code](make_error_code.md): the codes
-- [io::error](../../io/error.md)
+- [io::error](../../io/error/README.md)
 - [net::tls](README.md)

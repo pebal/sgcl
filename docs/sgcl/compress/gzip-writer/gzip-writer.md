@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [writer](../gzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [writer](README.md)
 
 # sgcl::compress::gzip::writer::writer
 
@@ -19,7 +19,7 @@ The encoder's memory (its window and tables) is taken here, and kept across a [r
 
 | Parameter | Description |
 |---|---|
-| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer.md), a file, a buffer, a socket |
+| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer/README.md), a file, a buffer, a socket |
 | `o` | the level and the [header](../gzip_header.md) ([options](../gzip-options.md)) |
 
 ## Complexity
@@ -65,4 +65,4 @@ monday,12
 ## See also
 
 - [close](close.md): the end of the stream
-- [sgcl::compress::gzip::writer](../gzip-writer.md)
+- [sgcl::compress::gzip::writer](README.md)

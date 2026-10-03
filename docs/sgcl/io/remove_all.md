@@ -27,7 +27,7 @@ would refuse it only after everything under it was gone.
 
 ## Return value
 
-Nothing, or the [error](error.md) of the first entry that could not be removed, or `std::errc::invalid_argument` for
+Nothing, or the [error](error/README.md) of the first entry that could not be removed, or `std::errc::invalid_argument` for
 a path whose last element is `.` or `..`; the operation is `remove_all` and the path `path`.
 
 ## Complexity

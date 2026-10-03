@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](../tar-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](README.md)
 
 # sgcl::compress::tar::reader::close, async_close
 
@@ -64,4 +64,4 @@ true
 
 ## See also
 
-- [sgcl::compress::tar::reader](../tar-reader.md)
+- [sgcl::compress::tar::reader](README.md)

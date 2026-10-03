@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](../hkdf.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](README.md)
 
 # sgcl::crypto::hkdf\<H\>::derive_to
 
@@ -67,4 +67,4 @@ Output:
 
 - [derive](derive.md): the bytes as a `secret_bytes`
 - [expand_to](expand_to.md): the second step into a buffer
-- [sgcl::crypto::hkdf\<H\>](../hkdf.md)
+- [sgcl::crypto::hkdf\<H\>](README.md)

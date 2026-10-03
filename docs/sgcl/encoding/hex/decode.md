@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::decode
 
@@ -19,7 +19,7 @@ its offset. No `0x` before the digits, no space between them.
 
 ## Return value
 
-The bytes, or the [error](../error.md): its code, its offset and a message.
+The bytes, or the [error](../error/README.md): its code, its offset and a message.
 
 ## Complexity
 
@@ -62,4 +62,4 @@ de ad: offset 2: invalid character ' '
 
 - [encode](encode.md), [encode_upper](encode_upper.md): the digits of bytes
 - [decode_to](decode_to.md): into the caller's buffer
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [cookie](../cookie.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [cookie](README.md)
 
 # sgcl::net::http::cookie::parse
 
@@ -29,7 +29,7 @@ the range of `time::datetime`.
 
 ## Return value
 
-The cookie, or the [error](../../../io/error.md) `net::errc::invalid_cookie` ([errc](../../errc.md)) for a first pair
+The cookie, or the [error](../../../io/error/README.md) `net::errc::invalid_cookie` ([errc](../../errc.md)) for a first pair
 without a `=` or with a name that is not a token.
 
 ## Complexity
@@ -79,4 +79,4 @@ parse cookie no equals sign: invalid cookie
 
 - [to_string](to_string.md): the other direction
 - [(constructor)](cookie.md): a `Set-Cookie` literal of the program
-- [sgcl::net::http::cookie](../cookie.md)
+- [sgcl::net::http::cookie](README.md)

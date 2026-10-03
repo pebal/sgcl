@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::reader::has_close
 
@@ -59,4 +59,4 @@ true false false
 ## See also
 
 - [close, async_close](close.md)
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_local](../task_local.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_local](README.md)
 
 # sgcl::async::task_local\<T\>::task_local
 
@@ -61,4 +61,4 @@ back at 0
 ## See also
 
 - [set](set.md), [get](get.md): the value of a task
-- [sgcl::async::task_local\<T\>](../task_local.md)
+- [sgcl::async::task_local\<T\>](README.md)

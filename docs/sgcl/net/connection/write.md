@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::write, async_write
 
@@ -36,7 +36,7 @@ A write to a pair in memory waits for the reads of the other end that take it: n
 
 ## Return value
 
-The number of bytes written, all of them. Or the [io::error](../../io/error.md), its operation `write` and its path
+The number of bytes written, all of them. Or the [io::error](../../io/error/README.md), its operation `write` and its path
 the connection:
 
 - `io::errc::closed` when the connection was closed before the call, or while it waited ([close](close.md)), or its
@@ -102,4 +102,4 @@ ab string literal
 - [read, async_read](read.md): the other direction
 - [read_from](read_from.md): a file written to the connection
 - [close_write](close_write.md): the end of what this side writes
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

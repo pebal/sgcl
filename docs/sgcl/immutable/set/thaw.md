@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::thaw
 
@@ -6,7 +6,7 @@
 builder thaw() const noexcept;
 ```
 
-Returns a [builder](../set-builder.md) over this set: a set changed in place and frozen into a set when it is
+Returns a [builder](../set-builder/README.md) over this set: a set changed in place and frozen into a set when it is
 done, as the [map's](../map/thaw.md) builder is for a map. The builder starts from this set's trie, which the two
 share, and copies nothing until it changes. This set is unchanged, whatever the builder does.
 
@@ -53,5 +53,5 @@ Output:
 
 ## See also
 
-- [set::builder](../set-builder.md): the builder and its members
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](../set.md)
+- [set::builder](../set-builder/README.md): the builder and its members
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::operator==, operator!= (sgcl::net::listener)
 
@@ -52,4 +52,4 @@ true false true
 ## See also
 
 - [(constructor)](listener.md): a copy that is the same listener
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

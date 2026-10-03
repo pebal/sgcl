@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::emplace
 
@@ -66,4 +66,4 @@ Output:
 
 - [insert](insert.md): inserts elements
 - [emplace_back](emplace_back.md), [emplace_front](emplace_front.md): construct an element in place at an end
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

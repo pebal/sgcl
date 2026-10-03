@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw.md) › [writer](../lzw-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw/README.md) › [writer](README.md)
 
 # sgcl::compress::lzw::writer::writer
 
@@ -13,7 +13,7 @@ of `literal_width` bits. Nothing is written yet.
 
 | Parameter | Description |
 |---|---|
-| `out` | the writer the codes go to: any [io writer](../../io/writer.md) |
+| `out` | the writer the codes go to: any [io writer](../../io/writer/README.md) |
 | `o` | the order of the bits in the bytes ([order](../lzw-order.md)) |
 | `literal_width` | the bits of a literal, 2 to 8 |
 
@@ -53,4 +53,4 @@ compress::lzw: literal width outside 2..8
 ## See also
 
 - [write](write.md)
-- [sgcl::compress::lzw::writer](../lzw-writer.md)
+- [sgcl::compress::lzw::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::to_ecdh
 
@@ -6,7 +6,7 @@
 p256::ecdh_key to_ecdh() const;
 ```
 
-The same scalar as an [ecdh_key](../p256-ecdh_key.md), Go's `PrivateKey.ECDH`: for a protocol that needs a signature
+The same scalar as an [ecdh_key](../p256-ecdh_key/README.md), Go's `PrivateKey.ECDH`: for a protocol that needs a signature
 and an agreement from one key. A key is used for one purpose, as in Go, so the ECDSA key does not agree and the ECDH
 key does not sign; this is the way from the one to the other, and there is no way back. The new key is an object of
 its own, zeroed when it goes. `p384::private_key::to_ecdh` gives a `p384::ecdh_key`.
@@ -63,5 +63,5 @@ true
 
 ## See also
 
-- [p256::ecdh_key](../p256-ecdh_key.md): what it gives
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [p256::ecdh_key](../p256-ecdh_key/README.md): what it gives
+- [sgcl::crypto::p256::private_key](README.md)

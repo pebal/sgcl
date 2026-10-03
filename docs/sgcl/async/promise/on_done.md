@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::on_done
 
@@ -71,4 +71,4 @@ gave up
 - [wait, operator co_await](wait.md): the wait alone
 - [done](done.md): whether the case would be served at once
 - [select](../select.md), [timeout](../timeout.md)
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

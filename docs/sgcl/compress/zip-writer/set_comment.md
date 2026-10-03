@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](../zip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](README.md)
 
 # sgcl::compress::zip::writer::set_comment
 
@@ -19,7 +19,7 @@ the writer's first error, and so is a comment set after the close, which no end 
 
 ## Return value
 
-Nothing, or the [error](../error.md): a comment too long, a call after the close, or the error kept from before.
+Nothing, or the [error](../error/README.md): a comment too long, a call after the close, or the error kept from before.
 
 ## Complexity
 
@@ -55,4 +55,4 @@ zip: comment longer than 65535 bytes
 ## See also
 
 - [comment](../zip-archive/comment.md)
-- [sgcl::compress::zip::writer](../zip-writer.md)
+- [sgcl::compress::zip::writer](README.md)

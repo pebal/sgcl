@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [wait_group](../wait_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [wait_group](README.md)
 
 # sgcl::async::wait_group::add
 
@@ -69,4 +69,4 @@ Output:
 - [done](done.md): counts one off
 - [count](count.md): the work not yet counted off
 - [wait, operator co_await](wait.md): waits for zero
-- [sgcl::async::wait_group](../wait_group.md)
+- [sgcl::async::wait_group](README.md)

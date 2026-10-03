@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::split
 
@@ -17,7 +17,7 @@ pieces split(int, size_type = 0) const = delete;                                
 ```
 
 Splits the string at the occurrences of `sep`: the pieces between them, in order, as a range of slices into the
-string, [pieces](../string-pieces.md).
+string, [pieces](../string-pieces/README.md).
 
 1. Splits at the characters of a view.
 2. Splits at a character.
@@ -42,7 +42,7 @@ into nothing, where Go's `strings.Split` gives one empty piece. With `max_parts`
 pieces, and the last holds the rest of the string, separators and all; 0 is no limit.
 
 Nothing is searched by the call: each piece is found as the walk reaches it, one search per piece, and nothing is
-allocated. Each piece is a [slice](../slice.md) that holds the string's object, valid on its own wherever it is
+allocated. Each piece is a [slice](../slice/README.md) that holds the string's object, valid on its own wherever it is
 kept. The separator is copied into the range, one of up to 16 bytes inside it and a longer one in a string of its
 own, so a temporary separator in the head of a range-for cannot dangle.
 
@@ -55,7 +55,7 @@ own, so a temporary separator in the head of a range-for cannot dangle.
 
 ## Return value
 
-The range of the pieces, a [pieces](../string-pieces.md) holding this string, the separator and the limit; its
+The range of the pieces, a [pieces](../string-pieces/README.md) holding this string, the separator and the limit; its
 elements are `string_slice`s, `slice<const CharT>`.
 
 ## Complexity
@@ -71,7 +71,7 @@ linear in the length of the string, one search for the separator per piece.
 
 ## Notes
 
-The code points of a text are walked without pieces by [runes](../runes.md), as `char32_t`s.
+The code points of a text are walked without pieces by [runes](../runes/README.md), as `char32_t`s.
 
 The pieces are kept as they are by a container of slices, `vector<string_slice> parts(s.split(','))`, or as strings
 of their own by a container of strings, `vector<string> parts(s.split(','))`: every sequence of the library has a
@@ -122,6 +122,6 @@ true false
 
 - [fields](fields.md): the words between runs of white space
 - [join](join.md): one string of the pieces with a separator between each two
-- [pieces](../string-pieces.md): the range `split` returns
-- [slice](../slice.md): what a piece is
-- [sgcl::string](../string.md)
+- [pieces](../string-pieces/README.md): the range `split` returns
+- [slice](../slice/README.md): what a piece is
+- [sgcl::string](README.md)

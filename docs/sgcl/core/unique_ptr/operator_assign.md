@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::operator=
 
@@ -70,4 +70,4 @@ empty: true true
 
 - [(constructor)](unique_ptr.md): constructs the owner
 - [reset](reset.md): destroys the object, or replaces it
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

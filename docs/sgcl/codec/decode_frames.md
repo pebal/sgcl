@@ -14,7 +14,7 @@ namespace sgcl::codec {
 ```
 
 Reads an animation, GIF or WebP, told by its signature ([sniff](sniff.md)), as [gif::frames](gif/frames.md) and
-[webp::frames](webp/frames.md) read it: the [frames](frames.md), each decoded when [next](frames/next.md) asks for it.
+[webp::frames](webp/frames.md) read it: the [frames](frames/README.md), each decoded when [next](frames/next.md) asks for it.
 A still WebP, and a GIF of one image, are one frame; a file of no image is `errc::corrupt` at the first
 [next](frames/next.md), as `decode` of it is. Any other format is `errc::unsupported`, PNG and JPEG among
 them; [decode](decode.md) gives the image of those, and the first frame of an animation.
@@ -34,7 +34,7 @@ them; [decode](decode.md) gives the image of those, and the first frame of an an
 
 ## Return value
 
-The frames, with the size of the canvas and what is known of the loop count; or the [error](error.md) of what is
+The frames, with the size of the canvas and what is known of the loop count; or the [error](error/README.md) of what is
 read before the first frame: `errc::unsupported` for a file that is not GIF or WebP, `errc::too_large` for a canvas
 past `o.limits`, `errc::invalid_argument` for an `o.want` outside the list of pixel formats, the decoder's error for
 a header the format does not allow, and (2) `errc::io` when the stream fails, with io's error inside.
@@ -86,7 +86,7 @@ offset 0: not an animation format the module reads (GIF, WebP)
 
 ## See also
 
-- [frames](frames.md): what it returns
+- [frames](frames/README.md): what it returns
 - [gif::frames](gif/frames.md), [webp::frames](webp/frames.md): the same of one format
 - [decode](decode.md): a still image, or the first frame
 - [codec](README.md)

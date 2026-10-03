@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::is_array
 
@@ -59,4 +59,4 @@ missing false
 
 - [type](type.md): the kind of the value
 - [elements](elements.md): the elements
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

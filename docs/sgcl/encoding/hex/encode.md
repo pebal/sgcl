@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::encode
 
@@ -61,4 +61,4 @@ deadbeef
 
 - [encode_upper](encode_upper.md): upper-case digits
 - [decode](decode.md): the bytes of digits
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

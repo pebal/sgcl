@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes](../aes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes](README.md)
 
 # sgcl::crypto::aes::operator=
 
@@ -61,4 +61,4 @@ sgcl::crypto::aes: used after being moved from
 
 - [(constructor)](aes.md): sets up a key schedule, or takes another object's over
 - [clone](clone.md): a copy of the key schedule, made on purpose
-- [sgcl::crypto::aes](../aes.md)
+- [sgcl::crypto::aes](README.md)

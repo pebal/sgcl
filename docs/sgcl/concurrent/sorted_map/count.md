@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::count
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [contains](contains.md): the same question with a `bool` answer
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

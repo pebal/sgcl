@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](../x509-certificate_pool.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](README.md)
 
 # sgcl::crypto::x509::certificate_pool::certificates
 
@@ -89,4 +89,4 @@ www.example.com
 ## See also
 
 - [contains](contains.md)
-- [sgcl::crypto::x509::certificate_pool](../x509-certificate_pool.md)
+- [sgcl::crypto::x509::certificate_pool](README.md)

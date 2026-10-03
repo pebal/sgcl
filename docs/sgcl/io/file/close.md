@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::close
 
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md) of `close(2)`, its operation `close` and its path the file's (`EIO`, or on some
+Nothing, or the [error](../error/README.md) of `close(2)`, its operation `close` and its path the file's (`EIO`, or on some
 file systems the error of a write the kernel had kept).
 
 ## Complexity
@@ -77,4 +77,4 @@ write closed.txt: stream closed
 
 - [is_closed](is_closed.md): whether the file was closed
 - [fd](fd.md): `-1` once closed
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

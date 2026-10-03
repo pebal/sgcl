@@ -10,7 +10,7 @@ namespace sgcl::async {
 }
 ```
 
-Returns an [event](event.md) set at the point `t` of the module's clock: [after](after.md) by a point, waited for
+Returns an [event](event/README.md) set at the point `t` of the module's clock: [after](after.md) by a point, waited for
 the same three ways (`co_await`, `wait()`, `on_set(f)` in a [select](select.md)). A point that has passed sets
 the event at once, by the timer thread: a wait returns without delay, though `is_set()` read right after the call
 may still be `false`. A point of `time_point::max()` is never reached.
@@ -77,5 +77,5 @@ done
 - [after](after.md): the same after a while
 - [sleep_until](sleep_until.md): a task or a thread waiting until a point
 - [timeout](timeout.md): a point as the deadline of a select
-- [clock](../core/clock.md): the clock the points are of
-- [event](event.md): what `at` returns
+- [clock](../core/clock/README.md): the clock the points are of
+- [event](event/README.md): what `at` returns

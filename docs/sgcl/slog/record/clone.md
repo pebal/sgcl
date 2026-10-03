@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::clone
 
@@ -10,7 +10,7 @@ Returns a copy of the record that owns all it holds, to keep after `handle` retu
 copied, the attributes copied with the logger's and the call's joined into one tree, a type described by its fields
 made a group of copies of them, a container, a variant or a `json` of the program its two texts (as
 [value::text](../value/text.md) and [value::json](../value/json.md) write it); a text form longer than 4 GiB − 1 is
-cut to fit, at the start of a code point. [memory](../memory.md) keeps clones. A clone of a clone is a clone again.
+cut to fit, at the start of a code point. [memory](../memory/README.md) keeps clones. A clone of a clone is a clone again.
 
 ## Parameters
 
@@ -74,5 +74,5 @@ Output:
 
 ## See also
 
-- [memory](../memory.md): a handler that keeps clones
-- [sgcl::slog::record](../record.md)
+- [memory](../memory/README.md): a handler that keeps clones
+- [sgcl::slog::record](README.md)

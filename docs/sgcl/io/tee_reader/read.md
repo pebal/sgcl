@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [tee_reader](../tee_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [tee_reader](README.md)
 
 # sgcl::io::tee_reader::read, async_read
 
@@ -71,4 +71,4 @@ write mirror: stream closed
 
 ## See also
 
-- [sgcl::io::tee_reader](../tee_reader.md)
+- [sgcl::io::tee_reader](README.md)

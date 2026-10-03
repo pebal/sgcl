@@ -16,16 +16,16 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
-What a certificate's [public key](x509-public_key.md) is: one of the module's key types, or none. The value is the
+What a certificate's [public key](x509-public_key/README.md) is: one of the module's key types, or none. The value is the
 index of the key in the public key's `value()`.
 
 | Value | Description |
 |---|---|
 | `none` | an algorithm the module has no type for (DSA, X25519, P-521, ML-DSA), or a key its type refuses |
-| `rsa` | an [rsa::public_key](rsa-public_key.md) |
-| `p256` | a [p256::public_key](p256-public_key.md) |
+| `rsa` | an [rsa::public_key](rsa-public_key/README.md) |
+| `p256` | a [p256::public_key](p256-public_key/README.md) |
 | `p384` | a p384::public_key ([p384](p384.md)) |
-| `ed25519` | an [ed25519::public_key](ed25519-public_key.md) |
+| `ed25519` | an [ed25519::public_key](ed25519-public_key/README.md) |
 
 ## Example
 

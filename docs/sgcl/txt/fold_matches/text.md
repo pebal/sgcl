@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](README.md)
 
 # sgcl::txt::fold_matches::text
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [pattern](pattern.md): the pattern
-- [sgcl::txt::fold_matches, normalized_matches](../fold_matches.md)
+- [sgcl::txt::fold_matches, normalized_matches](README.md)

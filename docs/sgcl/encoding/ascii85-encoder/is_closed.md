@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md) › [encoder](../ascii85-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85/README.md) › [encoder](README.md)
 
 # sgcl::encoding::ascii85::encoder::is_closed
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [close, async_close](close.md): the last group
-- [sgcl::encoding::ascii85::encoder](../ascii85-encoder.md)
+- [sgcl::encoding::ascii85::encoder](README.md)

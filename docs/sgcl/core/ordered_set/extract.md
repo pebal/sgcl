@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::extract
 
@@ -9,7 +9,7 @@ template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3
 ```
 
 Unlinks a node from the chain and from the order and hands it over in a
-[node handle](../ordered_set-node_type.md), the element untouched: the handle owns it now, and destroys it if it
+[node handle](../ordered_set-node_type/README.md), the element untouched: the handle owns it now, and destroys it if it
 dies without having been inserted. Out of the set, the element may change (`value()` of the handle is
 writable): this is the way to change an element, which an iterator only reads. [insert](insert.md) links the
 node again, here or in another `ordered_set` with the same `Key`, at the end of the order.
@@ -77,7 +77,7 @@ true
 
 ## See also
 
-- [node_type](../ordered_set-node_type.md): the node handle
+- [node_type](../ordered_set-node_type/README.md): the node handle
 - [insert](insert.md): links the node of a handle
 - [merge](merge.md): relinks the nodes of another set
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

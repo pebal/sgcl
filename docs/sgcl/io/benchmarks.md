@@ -8,7 +8,7 @@ The setup, the machine and how the timers are read are described with
 
 ## Child processes
 
-A [command](command.md) that starts `true` and waits for it, `command("true").run()`, on an Apple M-series core
+A [command](command/README.md) that starts `true` and waits for it, `command("true").run()`, on an Apple M-series core
 (`bench_io`, `benchmarks/go/exec`): the child is made with `posix_spawn` and its exit waited for on the reactor, where
 Go forks on macOS.
 

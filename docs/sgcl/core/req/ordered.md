@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::ordered
 
@@ -12,9 +12,9 @@ namespace sgcl::req {
 ```
 
 A range whose elements have an order the program may ask about: [enumerable](enumerable.md), `R` carries
-[mixin::ordered](../mixin/ordered.md), and the elements are [comparable](comparable.md). It gives `is_sorted`,
+[mixin::ordered](../mixin/ordered/README.md), and the elements are [comparable](comparable.md). It gives `is_sorted`,
 `binary_search`, `lower_bound`, `upper_bound`, `sorted_index_of` and `sort`, and with comparable elements `min`
-and `max` of [mixin::enumerable](../mixin/enumerable.md) are there too.
+and `max` of [mixin::enumerable](../mixin/enumerable/README.md) are there too.
 
 ## Satisfied by
 
@@ -58,5 +58,5 @@ false false
 ## See also
 
 - [comparable](comparable.md), [sequence](sequence.md)
-- [mixin::ordered](../mixin/ordered.md): the members it gives
-- [sgcl::req](../req.md)
+- [mixin::ordered](../mixin/ordered/README.md): the members it gives
+- [sgcl::req](README.md)

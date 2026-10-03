@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::visit (sgcl::variant)
 
@@ -92,4 +92,4 @@ a node, 1
 ## See also
 
 - [get](get.md), [get_if](get_if.md): one alternative, asked for by index or by type
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

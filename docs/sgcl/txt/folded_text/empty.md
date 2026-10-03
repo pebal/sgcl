@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::empty
 
@@ -48,4 +48,4 @@ true false true
 ## See also
 
 - [size](size.md): the number of code points
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

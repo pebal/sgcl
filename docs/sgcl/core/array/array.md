@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::array
 
@@ -106,4 +106,4 @@ true true
 
 - [to_array](../to_array.md): an array from a built-in array
 - [fill](fill.md): assigns a value to every element
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

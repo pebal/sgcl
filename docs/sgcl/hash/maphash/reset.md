@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [maphash](../maphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [maphash](README.md)
 
 # sgcl::hash::maphash::reset
 
@@ -51,4 +51,4 @@ true
 ## See also
 
 - [(constructor)](maphash.md): a hasher with the process's seed or a seed
-- [sgcl::hash::maphash](../maphash.md)
+- [sgcl::hash::maphash](README.md)

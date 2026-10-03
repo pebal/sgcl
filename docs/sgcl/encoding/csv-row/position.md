@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [row](../csv-row.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [row](README.md)
 
 # sgcl::encoding::csv::row::position
 
@@ -62,4 +62,4 @@ Output:
 
 - [line](line.md): the line the record starts on
 - [error::line](../error/line.md), [error::column](../error/column.md): the place of a mistake
-- [sgcl::encoding::csv::row](../csv-row.md)
+- [sgcl::encoding::csv::row](README.md)

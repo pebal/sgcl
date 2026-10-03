@@ -10,7 +10,7 @@ namespace sgcl::net::tls {
 }
 ```
 
-Returns the error category of TLS, named `"tls"`: the category of the code of every [io::error](../../io/error.md)
+Returns the error category of TLS, named `"tls"`: the category of the code of every [io::error](../../io/error/README.md)
 that a handshake or a record ends with, beside the system's for the transport's own failures (`ETIMEDOUT`,
 `ECONNRESET`) and the generic one for a config refused (`EINVAL`). One object, made at the first call.
 
@@ -82,5 +82,5 @@ true
 
 - [alert](alert.md), [make_error_code](make_error_code.md)
 - [alert_of](alert_of.md), [is_remote](is_remote.md), [certificate_reason](certificate_reason.md)
-- [io::error](../../io/error.md)
+- [io::error](../../io/error/README.md)
 - [net::tls](README.md)

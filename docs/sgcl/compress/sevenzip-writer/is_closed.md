@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](../sevenzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](README.md)
 
 # sgcl::compress::sevenzip::writer::is_closed
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [close](close.md)
-- [sgcl::compress::sevenzip::writer](../sevenzip-writer.md)
+- [sgcl::compress::sevenzip::writer](README.md)

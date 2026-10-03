@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read_line, async_read_line
 
@@ -23,7 +23,7 @@ None.
 
 ## Return value
 
-The line, empty for an empty line; `nullopt` at the end of the stream. Or the [io::error](../../io/error.md):
+The line, empty for an empty line; `nullopt` at the end of the stream. Or the [io::error](../../io/error/README.md):
 
 - `io::errc::line_too_long`, its operation `read_line`, when the line passes [max_line](max_line.md);
 - the error of the [read](read.md) underneath otherwise.
@@ -83,5 +83,5 @@ Output:
 
 - [set_max_line](set_max_line.md): the bound of a line
 - [read, async_read](read.md): bytes, taken from the line's buffer first
-- [buffered_reader](../../io/buffered_reader.md): lines over any reader
-- [sgcl::net::connection](../connection.md)
+- [buffered_reader](../../io/buffered_reader/README.md): lines over any reader
+- [sgcl::net::connection](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::bucket_count
 
@@ -76,4 +76,4 @@ Output:
 
 - [reserve](reserve.md): grows the array up front
 - [size](size.md): the count the growth is decided by
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

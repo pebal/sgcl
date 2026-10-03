@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::comment
 
@@ -62,4 +62,4 @@ sgcl::encoding::xml: a comment cannot hold "--" or end with '-'
 
 - [text_node](text_node.md), [instruction](instruction.md): the other nodes of an element's content
 - [options](../xml-options.md): `keep_comments`
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

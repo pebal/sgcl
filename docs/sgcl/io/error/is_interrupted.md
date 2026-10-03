@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_interrupted
 
@@ -58,4 +58,4 @@ done after 3 attempts
 ## See also
 
 - [last_error](../last_error.md): an error from `errno`
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

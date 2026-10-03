@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::try_receive
 
@@ -82,4 +82,4 @@ true false
 - [receive](receive.md): waits for an element
 - [on_receive](on_receive.md): with `otherwise`, a receive in a select that never waits
 - [try_send](try_send.md): sends without waiting
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

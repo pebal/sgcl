@@ -70,4 +70,4 @@ true
 
 - [open](open.md): what takes them
 - [create](create.md): `write | create | truncate`
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

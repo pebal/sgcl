@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md) › [reader](../xz-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz/README.md) › [reader](README.md)
 
 # sgcl::compress::xz::reader::reset
 
@@ -53,4 +53,4 @@ second
 ## See also
 
 - [(constructor)](xz-reader.md)
-- [sgcl::compress::xz::reader](../xz-reader.md)
+- [sgcl::compress::xz::reader](README.md)

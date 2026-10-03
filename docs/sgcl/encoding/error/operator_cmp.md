@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::error)
 
@@ -7,7 +7,7 @@ friend bool operator==(const error& a, const error& b) noexcept;
 ```
 
 Compares two errors by everything they say: the code, the offset (and whether the error has a place in a text at all),
-the line, the column, the path, the words of the detail, and the stream's error, by its code as [io::error](../../io/error.md) compares. `!=` is made from it by the
+the line, the column, the path, the words of the detail, and the stream's error, by its code as [io::error](../../io/error/README.md) compares. `!=` is made from it by the
 compiler. A test compares an error with the one it expects.
 
 ## Parameters
@@ -57,4 +57,4 @@ false
 ## See also
 
 - [code](code.md): the code alone, for a test of the kind
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

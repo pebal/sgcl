@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::push_front
 
@@ -67,4 +67,4 @@ true
 
 - [emplace_front](emplace_front.md): the element constructed from arguments
 - [pop_front](pop_front.md): the list without its first element
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

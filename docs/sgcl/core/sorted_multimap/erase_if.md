@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::erase_if (sgcl::sorted_multimap)
 
@@ -69,4 +69,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases the elements at a position, in a range or under a key
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

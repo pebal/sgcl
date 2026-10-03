@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::erase
 
@@ -79,4 +79,4 @@ Output:
 - [erase, erase_if](erase_if.md): erase every element equal to a value, or satisfying a predicate
 - [clear](clear.md): destroys every element
 - [pop_back](pop_back.md): removes the last element
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::operator bool, has_value
 
@@ -62,4 +62,4 @@ false negative
 
 - [value, operator U](value.md): the value, `bad_expected_access` without one
 - [error](error.md): the error
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::value
 
@@ -58,4 +58,4 @@ Output:
 
 - [verify](verify.md): checks a received tag
 - [digest](digest.md): the same bytes, under the name every hasher has
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [sgcl::crypto::hmac\<H\>](README.md)

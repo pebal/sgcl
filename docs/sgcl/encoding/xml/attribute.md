@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::attribute
 
@@ -69,4 +69,4 @@ false
 
 - [attributes](attributes.md): every attribute, in order
 - [set](set.md), [erase](erase.md): the element with an attribute changed
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

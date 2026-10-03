@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::key_eq
 
@@ -59,4 +59,4 @@ Output:
 
 - [hash_function](hash_function.md): the hash function
 - [find](find.md): a lookup by the hash and the equality
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [reader](../xml-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [reader](README.md)
 
 # sgcl::encoding::xml::reader::peek, async_peek
 
@@ -63,4 +63,4 @@ Output:
 
 - [next](next.md): the next token, taken
 - [read](read.md), [skip](skip.md): what follows a peek
-- [sgcl::encoding::xml::reader](../xml-reader.md)
+- [sgcl::encoding::xml::reader](README.md)

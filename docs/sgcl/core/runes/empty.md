@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](README.md)
 
 # sgcl::runes::empty
 
@@ -47,4 +47,4 @@ true false
 ## See also
 
 - [count](count.md): the number of code points
-- [sgcl::runes](../runes.md)
+- [sgcl::runes](README.md)

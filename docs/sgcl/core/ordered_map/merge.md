@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::merge
 
@@ -12,8 +12,8 @@ a node whose key is here already stays in `source`, in its place there. No eleme
 every iterator follows its node. The nodes taken are appended to this map's order in `source`'s order, the order
 of their insertions. Merging a map into itself does nothing.
 
-`source` is an `ordered_map` with the same `Key` and `T` and any hash and equality. A [map](../map.md) or a
-[multimap](../multimap.md) is not: their nodes are of another shape, without the two words of the order, and
+`source` is an `ordered_map` with the same `Key` and `T` and any hash and equality. A [map](../map/README.md) or a
+[multimap](../multimap/README.md) is not: their nodes are of another shape, without the two words of the order, and
 the call does not compile.
 
 ## Parameters
@@ -70,4 +70,4 @@ false
 
 - [extract](extract.md): takes one node out
 - [insert](insert.md): links the node of a handle
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

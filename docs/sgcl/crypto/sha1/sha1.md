@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha1](../sha1.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha1](README.md)
 
 # sgcl::crypto::sha1::sha1
 
@@ -47,4 +47,4 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709
 
 - [update](update.md): hashes bytes in
 - [reset](reset.md): back to what the constructor made
-- [sgcl::crypto::sha1](../sha1.md)
+- [sgcl::crypto::sha1](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unexpected](../unexpected.md)
+[sgcl](../../README.md) › [core](../README.md) › [unexpected](README.md)
 
 # sgcl::unexpected\<E\>::error
 
@@ -54,4 +54,4 @@ repaired
 ## See also
 
 - [(constructor)](unexpected.md): constructs the `unexpected`
-- [sgcl::unexpected\<E\>](../unexpected.md)
+- [sgcl::unexpected\<E\>](README.md)

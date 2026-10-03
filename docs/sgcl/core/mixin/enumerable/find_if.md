@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](../enumerable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](README.md)
 
 # sgcl::mixin::enumerable\<Derived\>::find_if
 
@@ -9,7 +9,7 @@ template<class Pred> constexpr auto find_if(Pred pred) const noexcept(/* see bel
 
 Finds the first element `pred` accepts, calling it on the elements from the first on, and returns a pointer to
 it rather than an iterator: null when there is none, so the result is tested and used in one `if`. On a range
-whose iterator gives values rather than elements (`range(n)`, the [runes](../../runes.md) of a text) there is no
+whose iterator gives values rather than elements (`range(n)`, the [runes](../../runes/README.md) of a text) there is no
 element to point to, and the value found is returned in an `optional`, empty when there is none: tested and read
 in one `if` the same way.
 
@@ -86,4 +86,4 @@ true
 
 - [find_index](find_index.md): the position of the first element a predicate accepts
 - [exists](exists.md): checks whether a predicate accepts some element
-- [sgcl::mixin::enumerable\<Derived\>](../enumerable.md)
+- [sgcl::mixin::enumerable\<Derived\>](README.md)

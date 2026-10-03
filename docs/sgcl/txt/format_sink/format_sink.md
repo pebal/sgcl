@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [format_sink](../format_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [format_sink](README.md)
 
 # sgcl::txt::format_sink::format_sink
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [size](size.md): what was counted
-- [sgcl::txt::format_sink](../format_sink.md)
+- [sgcl::txt::format_sink](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](../weak_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](README.md)
 
 # sgcl::weak_ptr\<T\>::expired
 
@@ -62,5 +62,5 @@ true
 ## See also
 
 - [lock](lock.md): the object as a `tracked_ptr`
-- [collector](../collector.md): `force_collect`
-- [sgcl::weak_ptr\<T\>](../weak_ptr.md)
+- [collector](../collector/README.md): `force_collect`
+- [sgcl::weak_ptr\<T\>](README.md)

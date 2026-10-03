@@ -20,7 +20,7 @@ None.
 
 ## Return value
 
-The arguments, `argv[0]` first, each a [string](../core/string.md). Empty when the platform's copy cannot be read.
+The arguments, `argv[0]` first, each a [string](../core/string/README.md). Empty when the platform's copy cannot be read.
 
 ## Complexity
 
@@ -84,6 +84,6 @@ int main() {
 
 ## See also
 
-- [flags](flags.md): the command line read into variables, as Go's `flag` package reads it
+- [flags](flags/README.md): the command line read into variables, as Go's `flag` package reads it
 - [executable](executable.md): the path of the running program
 - [env](env.md), [getenv](getenv.md): the other half of a program's configuration

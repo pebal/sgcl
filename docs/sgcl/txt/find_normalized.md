@@ -54,7 +54,7 @@ None.
 ## Notes
 
 Both sides are decomposed **on every call**, so a loop over the occurrences is quadratic:
-[normalized_matches](fold_matches.md), or a [normalized_text](folded_text.md) kept, decomposes the text once
+[normalized_matches](fold_matches/README.md), or a [normalized_text](folded_text/README.md) kept, decomposes the text once
 ([Benchmarks: search](benchmarks.md#search)).
 
 ## Example
@@ -85,6 +85,6 @@ false false
 ## See also
 
 - [contains_normalized](contains_normalized.md): whether there is an occurrence
-- [normalized_matches](fold_matches.md): every occurrence, the text decomposed once
+- [normalized_matches](fold_matches/README.md): every occurrence, the text decomposed once
 - [find_fold](find_fold.md): blind to case
 - [nfd](nfc_t.md): the decomposition

@@ -21,7 +21,7 @@ a Windows system call, UTF-32 where a code point is an integer — ASCII and ISO
 encodings the Encoding Standard of the WHATWG lists, what a browser must understand, which is what a file or a web
 page may still arrive in: bytes in `iso-8859-2` announced by an HTTP header, a file written by a program from the
 nineties. The library keeps text in UTF-8 and nothing here changes that: everything [decode](decode.md)s to a
-[string](../core/string.md) and everything [encode](encode.md)s from one.
+[string](../core/string/README.md) and everything [encode](encode.md)s from one.
 
 An encoding is a value, not a tag, and this is the one place in the module where that is so. Elsewhere — the four
 normalization forms — the choice is made when the program is written, so a tag costs nothing and saves a table;
@@ -34,7 +34,7 @@ here the name comes out of a header while the program runs (`charset=iso-8859-2`
   byte of UTF-8 does; a character an encoding cannot write is encoded as `'?'`, what every library that does this has
   always done and what a reader can at least see. Neither throws, and neither stops the rest of the text from coming
   through. A program that must not store a changed text decodes with [strict](strict_t.md), which gives the first
-  such byte instead ([decode_error](decode_error.md)).
+  such byte instead ([decode_error](decode_error/README.md)).
 - **What is not here.** The multi byte legacy encodings of the same list — Shift_JIS, EUC-JP, GB18030, Big5 and
   EUC-KR — are not implemented, and that is a decision rather than an oversight. Their tables come to some three or
   four hundred kilobytes against the six hundred the whole module holds today; a linker drops what a program never

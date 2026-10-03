@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::push_front
 
@@ -42,7 +42,7 @@ If an exception is thrown, the deque is as it was before the call.
 ## Notes
 
 The references to the other elements stay valid, the iterators do not
-([Iterator invalidation](../deque.md#iterator-invalidation)). `std::vector` has no `push_front`: a deque is the
+([Iterator invalidation](README.md#iterator-invalidation)). `std::vector` has no `push_front`: a deque is the
 container with cheap insertion at both ends.
 
 ## Example
@@ -74,4 +74,4 @@ Output:
 - [emplace_front](emplace_front.md): constructs an element in place at the beginning
 - [pop_front](pop_front.md): removes the first element
 - [push_back](push_back.md): appends an element at the end
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

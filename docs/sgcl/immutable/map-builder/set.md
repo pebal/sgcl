@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md) › [builder](../map-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](../map/README.md) › [builder](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::set
 
@@ -74,4 +74,4 @@ true true 8080
 
 - [insert](insert.md): adds an element only when its key is absent
 - [erase](erase.md): takes out the element under a key
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](../map-builder.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](README.md)

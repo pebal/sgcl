@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::array)
 
@@ -8,7 +8,7 @@ friend constexpr auto operator<=>(const array& a, const array& b);    // (2)
 ```
 
 Compares two arrays of the same type element by element, as for `std::array`. The operators come with
-[mixin::equatable](../mixin/equatable.md) and [mixin::comparable](../mixin/comparable.md), hidden friends found by
+[mixin::equatable](../mixin/equatable/README.md) and [mixin::comparable](../mixin/comparable/README.md), hidden friends found by
 the arguments' type; `!=`, `<`, `<=`, `>` and `>=` follow from them.
 
 1. `true` when every element of `a` is equal to the element of `b` at the same position, by `==`. Takes part
@@ -75,5 +75,5 @@ true true
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md)
-- [sgcl::array\<T, N\>](../array.md)
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md)
+- [sgcl::array\<T, N\>](README.md)

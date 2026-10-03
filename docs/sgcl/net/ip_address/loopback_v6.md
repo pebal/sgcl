@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::loopback_v6
 
@@ -48,4 +48,4 @@ Output:
 
 - [loopback_v4](loopback_v4.md): the same of the other family
 - [is_loopback](is_loopback.md): the predicate
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

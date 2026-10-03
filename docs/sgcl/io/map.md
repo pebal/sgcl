@@ -12,10 +12,10 @@ namespace sgcl::io {
 }
 ```
 
-Maps a file into memory: its bytes as a [slice](../core/slice.md), read and written where they lie, the operating
+Maps a file into memory: its bytes as a [slice](../core/slice/README.md), read and written where they lie, the operating
 system bringing the pages in as they are touched (`mmap`; `MapViewOfFile` on Windows). The result is a
-[mapping](mapping.md), a handle; `io::mapping m = io::map(p);` takes it out of the `expected`, and throws its error
-when there is none ([expected](../core/expected.md)).
+[mapping](mapping/README.md), a handle; `io::mapping m = io::map(p);` takes it out of the `expected`, and throws its error
+when there is none ([expected](../core/expected/README.md)).
 
 1. The file at `path`, as the [options](map_options.md) say: a writable mapping, a private one, or a range. The file
    is opened for reading, and for writing as well for a writable shared mapping.
@@ -35,7 +35,7 @@ The mapping holds its descriptor until it is closed or collected: the one (1) an
 
 ## Return value
 
-The mapping, or an [error](error.md) whose `path()` is the file's:
+The mapping, or an [error](error/README.md) whose `path()` is the file's:
 
 - `is_not_found()` for a missing file, and the other errors of the open (operation `open`);
 - `is_permission()` for a writable shared mapping of a file the program may not write: (1) when the open is
@@ -110,6 +110,6 @@ map short.txt: stream closed
 
 ## See also
 
-- [mapping](mapping.md): what it returns
+- [mapping](mapping/README.md): what it returns
 - [map_options](map_options.md): writable, private, a range
-- [shared_memory](shared_memory.md): a named region between processes
+- [shared_memory](shared_memory/README.md): a named region between processes

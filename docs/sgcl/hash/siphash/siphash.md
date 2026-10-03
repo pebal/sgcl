@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [siphash](../siphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [siphash](README.md)
 
 # sgcl::hash::siphash::siphash
 
@@ -11,7 +11,7 @@ reference implementation read them, so a key written down as bytes gives the ref
 `siphash.New(key)` of `dchest/siphash`.
 
 There is no hasher without a key. A program makes one once from a source of randomness,
-[crypto::random](../../crypto/random.md), and keeps it secret, for as long as the table it hashes lives.
+[crypto::random](../../crypto/random/README.md), and keeps it secret, for as long as the table it hashes lives.
 
 ## Parameters
 
@@ -55,4 +55,4 @@ true
 ## See also
 
 - [of](../mixin/hasher/of.md): the hash under a key in one call
-- [sgcl::hash::siphash](../siphash.md)
+- [sgcl::hash::siphash](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md) › [iterator](../runes-iterator.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](../runes/README.md) › [iterator](README.md)
 
 # sgcl::runes::iterator::width
 
@@ -54,4 +54,4 @@ U+1F600: 4
 
 - [pos](pos.md): the byte position of the code point
 - [utf8::width](../utf8/width.md): the width of a code point's encoding
-- [sgcl::runes::iterator](../runes-iterator.md)
+- [sgcl::runes::iterator](README.md)

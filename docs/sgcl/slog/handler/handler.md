@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [handler](../handler.md)
+[sgcl](../../README.md) › [slog](../README.md) › [handler](README.md)
 
 # sgcl::slog::handler::handler
 
@@ -18,7 +18,7 @@ Constructs a handler.
    - a `tracked_ptr`: held by it;
    - a handler of the program given by reference: referenced, with the managed object it lies in kept, if it lies
      in one; one on a stack or a global is the caller's to keep alive;
-   - a temporary of the program's, or a handle of the library ([memory](../memory.md)) however given:
+   - a temporary of the program's, or a handle of the library ([memory](../memory/README.md)) however given:
      copied or moved into a managed object of its own.
 
 ## Parameters
@@ -77,4 +77,4 @@ false 1 2
 
 - [operator bool](operator_bool.md)
 - [io::writer::writer](../../io/writer/writer.md): the same rules for a writer
-- [sgcl::slog::handler](../handler.md)
+- [sgcl::slog::handler](README.md)

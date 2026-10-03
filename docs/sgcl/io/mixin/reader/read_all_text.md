@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](../reader.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](README.md)
 
 # sgcl::io::mixin::reader\<Derived\>::read_all_text, async_read_all_text
 
@@ -8,7 +8,7 @@ async::task<expected<string, error>> async_read_all_text() noexcept    // (2)
     requires req::async_reader<Derived&>;
 ```
 
-Reads this stream to its end and returns its bytes as a [string](../../../core/string.md), taken as they are. It is
+Reads this stream to its end and returns its bytes as a [string](../../../core/string/README.md), taken as they are. It is
 [io::read_all_text](../../read_all_text.md) over this stream: the bytes gathered, then one string of their size.
 
 1. Reads on the calling thread.
@@ -66,4 +66,4 @@ to the end.
 
 - [io::read_all_text](../../read_all_text.md): the same over any stream
 - [read_all](read_all.md): the same as bytes
-- [sgcl::io::mixin::reader\<Derived\>](../reader.md)
+- [sgcl::io::mixin::reader\<Derived\>](README.md)

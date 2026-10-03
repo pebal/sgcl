@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::signature
 
@@ -51,4 +51,4 @@ Output:
 
 - [check_signature_from](check_signature_from.md): checks it under the issuer's key
 - [signature_algorithm](signature_algorithm.md)
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

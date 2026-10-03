@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [stack](README.md)
 
 # sgcl::concurrent::stack\<T\>::pop
 
@@ -67,4 +67,4 @@ hello
 
 - [try_pop](try_pop.md): returns at once when the stack is empty
 - [push](push.md): puts an element and wakes a waiting `pop`
-- [sgcl::concurrent::stack\<T\>](../stack.md)
+- [sgcl::concurrent::stack\<T\>](README.md)

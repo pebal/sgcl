@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [compress](../README.md) › [error](README.md)
 
 # sgcl::compress::error::io_error
 
@@ -52,5 +52,5 @@ true
 
 ## See also
 
-- [io::error](../../io/error.md): the error of the streams
-- [sgcl::compress::error](../error.md)
+- [io::error](../../io/error/README.md): the error of the streams
+- [sgcl::compress::error](README.md)

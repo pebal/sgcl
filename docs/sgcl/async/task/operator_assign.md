@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::operator=
 
@@ -36,7 +36,7 @@ None.
 
 A task let go of is not cancelled: what it sends, writes or changes after its wait it still does, and what it throws
 goes to [on_unhandled](../on_unhandled.md)'s handler. A task that is to stop early is given a
-[stop_token](../stop_token.md) and stops on it.
+[stop_token](../stop_token/README.md) and stops on it.
 
 ## Example
 
@@ -75,4 +75,4 @@ false
 
 - [detach](detach.md): lets go of the task without assigning
 - [(constructor)](task.md): the move constructor
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

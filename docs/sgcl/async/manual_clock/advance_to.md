@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [manual_clock](../manual_clock.md)
+[sgcl](../../README.md) › [async](../README.md) › [manual_clock](README.md)
 
 # sgcl::async::manual_clock::advance_to
 
@@ -68,4 +68,4 @@ true true
 
 - [advance](advance.md): by a span
 - [at](../at.md), [sleep_until](../sleep_until.md): the points a test advances to
-- [sgcl::async::manual_clock](../manual_clock.md)
+- [sgcl::async::manual_clock](README.md)

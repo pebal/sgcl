@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::pow
 
@@ -70,4 +70,4 @@ sgcl::math::big_integer::pow: a result past the longest number
 - [mod_pow](mod_pow.md): a power modulo a number
 - [sqrt](sqrt.md): the whole part of the square root
 - [operator\<\<](operator_arith.md): a power of two as a shift
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

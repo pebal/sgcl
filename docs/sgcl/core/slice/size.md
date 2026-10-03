@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::size
 
@@ -7,7 +7,7 @@ size_type size() const noexcept;
 ```
 
 The number of elements: `end() - begin()`. For a text slice, the number of code units, bytes for UTF-8; the number of
-code points is `rune_count()` ([mixin::text](../mixin/text.md)).
+code points is `rune_count()` ([mixin::text](../mixin/text/README.md)).
 
 ## Parameters
 
@@ -50,4 +50,4 @@ Output:
 
 - [size_bytes](size_bytes.md): the size in bytes
 - [empty](empty.md): checks whether the slice is empty
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

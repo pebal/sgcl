@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::buffered
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [peek](peek.md): the next bytes, not consumed
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

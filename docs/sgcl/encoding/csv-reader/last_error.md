@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::last_error
 
@@ -69,6 +69,6 @@ the end
 
 ## See also
 
-- [error](../error.md): the code, the place and the message
+- [error](../error/README.md): the code, the place and the message
 - [next](next.md): `nullopt` at the end and at a mistake
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

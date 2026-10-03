@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::variant\<Ts...\>::valueless_by_exception
 
@@ -64,4 +64,4 @@ false 0
 ## See also
 
 - [index](index.md): `variant_npos` when valueless
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

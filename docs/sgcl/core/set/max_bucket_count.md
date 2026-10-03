@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::max_bucket_count
 
@@ -49,4 +49,4 @@ true
 
 - [bucket_count](bucket_count.md): the number of buckets
 - [max_size](max_size.md): the largest number of elements
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

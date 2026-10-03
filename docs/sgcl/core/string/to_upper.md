@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::to_upper
 
@@ -7,7 +7,7 @@ basic_string to_upper() const;
 ```
 
 Returns the string with every letter in upper case, by Unicode's simple case mapping, one code point to one
-([unicode::to_upper](../unicode.md)): `"łódź"` to `"ŁÓDŹ"`. The other characters stay as they are, and so does
+([unicode::to_upper](../unicode/README.md)): `"łódź"` to `"ŁÓDŹ"`. The other characters stay as they are, and so does
 `ß`, whose upper case is two letters, `"SS"`, which only the full mapping gives. No language's rules apply; the full
 mapping and the rules of a language are [txt::to_upper_full](../../txt/to_upper_full.md).
 
@@ -77,7 +77,7 @@ true
 ## See also
 
 - [to_lower](to_lower.md): every letter in lower case
-- [unicode](../unicode.md): the case of a code point
-- [mixin::text](../mixin/text.md): `equal_fold`, the same letters in either case
+- [unicode](../unicode/README.md): the case of a code point
+- [mixin::text](../mixin/text/README.md): `equal_fold`, the same letters in either case
 - [txt::to_upper_full](../../txt/to_upper_full.md): the full case mapping and the rules of a language
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

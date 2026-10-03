@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [entry](../zip-entry.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [entry](README.md)
 
 # sgcl::compress::zip::entry::is_symlink
 
@@ -55,4 +55,4 @@ latest true -> v2/readme.txt
 
 ## See also
 
-- [sgcl::compress::zip::entry](../zip-entry.md)
+- [sgcl::compress::zip::entry](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc32c](../crc32c.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc32c](README.md)
 
 # sgcl::hash::crc32c::update
 
@@ -65,4 +65,4 @@ true
 
 - [mixin::hasher::update](../mixin/hasher/update.md): a text, a digest, a std::span of bytes
 - [of](../mixin/hasher/of.md): the same in one call
-- [sgcl::hash::crc32c](../crc32c.md)
+- [sgcl::hash::crc32c](README.md)

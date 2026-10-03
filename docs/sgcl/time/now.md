@@ -10,13 +10,13 @@ namespace sgcl::time {
 }
 ```
 
-The time now, read from the system's clock, in the local zone: Go's `time.Now()`. A [datetime](datetime.md), to the
+The time now, read from the system's clock, in the local zone: Go's `time.Now()`. A [datetime](datetime/README.md), to the
 nanosecond the clock gives.
 
-While a test has a [manual_clock](../async/manual_clock.md) installed, it is the wall time of the install moved on by
+While a test has a [manual_clock](../async/manual_clock/README.md) installed, it is the wall time of the install moved on by
 as much as the manual time has been advanced, so that code which asks for the time — an expiry, a header of HTTP, a
 log's rotation — is tested with no real waiting, as the timers are. The time elapsed is measured with a
-[stopwatch](stopwatch.md), on the monotonic clock, not with two readings of `now()`, which a change of the system's
+[stopwatch](stopwatch/README.md), on the monotonic clock, not with two readings of `now()`, which a change of the system's
 clock moves.
 
 ## Parameters
@@ -64,8 +64,8 @@ Sample output:
 
 ## See also
 
-- [datetime](datetime.md): what `now()` is
-- [stopwatch](stopwatch.md): the time elapsed, on the monotonic clock
-- [manual_clock](../async/manual_clock.md): a test's clock
+- [datetime](datetime/README.md): what `now()` is
+- [stopwatch](stopwatch/README.md): the time elapsed, on the monotonic clock
+- [manual_clock](../async/manual_clock/README.md): a test's clock
 - [zone::local](zone/local.md): the local zone
 - [time](README.md): the module

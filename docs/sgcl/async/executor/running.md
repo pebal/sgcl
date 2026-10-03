@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::running
 
@@ -56,4 +56,4 @@ after: false
 ## See also
 
 - [run](run.md), [poll](poll.md): what makes it true
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

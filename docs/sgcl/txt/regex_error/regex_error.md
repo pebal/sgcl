@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex_error](../regex_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex_error](README.md)
 
 # sgcl::txt::regex_error::regex_error
 
@@ -55,4 +55,4 @@ the pattern is longer than 16 bytes at 16
 ## See also
 
 - [regex::compile](../regex/compile.md)
-- [sgcl::txt::regex_error](../regex_error.md)
+- [sgcl::txt::regex_error](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::sign
 
@@ -50,4 +50,4 @@ Output:
 
 - [abs](abs.md): the number without its sign
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

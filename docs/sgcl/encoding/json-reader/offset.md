@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::offset
 
@@ -58,4 +58,4 @@ Output:
 
 - [depth](depth.md): the arrays and objects open
 - [last_error](last_error.md): the offset of an error
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [sgcl::encoding::json::reader](README.md)

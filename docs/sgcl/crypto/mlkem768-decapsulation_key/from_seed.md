@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::decapsulation_key::from_seed
 
@@ -19,7 +19,7 @@ same key, in every implementation of FIPS 203. `mlkem512::decapsulation_key::fro
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with `errc::invalid_key` for a seed of another length.
+The key, or a [crypto::error](../error/README.md) with `errc::invalid_key` for a seed of another length.
 
 ## Complexity
 
@@ -31,8 +31,8 @@ None.
 
 ## Notes
 
-The seed is a secret: a seed a program keeps belongs in a [secret](../secret.md) or a
-[secret_bytes](../secret_bytes.md) ([read_secret](../read_secret.md) reads a file into one), never in a managed
+The seed is a secret: a seed a program keeps belongs in a [secret](../secret/README.md) or a
+[secret_bytes](../secret_bytes/README.md) ([read_secret](../read_secret.md) reads a file into one), never in a managed
 `vector` or `string`, which the collector frees without zeroing.
 
 ## Example
@@ -69,4 +69,4 @@ sgcl::crypto::mlkem768: a seed is 64 bytes
 
 - [seed](seed.md): the seed of a key
 - [generate](generate.md): a key of a fresh seed
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

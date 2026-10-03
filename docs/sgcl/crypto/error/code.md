@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [error](README.md)
 
 # sgcl::crypto::error::code
 
@@ -68,4 +68,4 @@ not a key: an Ed25519 public key is 32 bytes
 
 - [errc](../errc.md): the codes
 - [message](message.md): the error as a text
-- [sgcl::crypto::error](../error.md)
+- [sgcl::crypto::error](README.md)

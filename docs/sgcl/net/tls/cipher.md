@@ -21,9 +21,9 @@ of the server's list the client offers. Go fixes its TLS 1.3 suites; here a conf
 
 | Value | Description |
 |---|---|
-| `aes_128_gcm_sha256` | `TLS_AES_128_GCM_SHA256`: AES-128 in GCM ([aes_gcm](../../crypto/aes_gcm.md)) and SHA-256; first by default |
+| `aes_128_gcm_sha256` | `TLS_AES_128_GCM_SHA256`: AES-128 in GCM ([aes_gcm](../../crypto/aes_gcm/README.md)) and SHA-256; first by default |
 | `aes_256_gcm_sha384` | `TLS_AES_256_GCM_SHA384`: AES-256 in GCM and SHA-384; last by default |
-| `chacha20_poly1305_sha256` | `TLS_CHACHA20_POLY1305_SHA256`: ChaCha20-Poly1305 ([chacha20_poly1305](../../crypto/chacha20_poly1305.md)) and SHA-256; second by default |
+| `chacha20_poly1305_sha256` | `TLS_CHACHA20_POLY1305_SHA256`: ChaCha20-Poly1305 ([chacha20_poly1305](../../crypto/chacha20_poly1305/README.md)) and SHA-256; second by default |
 
 ## Example
 

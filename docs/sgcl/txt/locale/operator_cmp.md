@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [locale](../locale.md)
+[sgcl](../../README.md) › [txt](../README.md) › [locale](README.md)
 
 # sgcl::txt::locale::operator==
 
@@ -49,4 +49,4 @@ true true
 ## See also
 
 - [subtag](subtag.md)
-- [sgcl::txt::locale](../locale.md)
+- [sgcl::txt::locale](README.md)

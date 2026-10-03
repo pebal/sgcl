@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](README.md)
 
 # sgcl::runes::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../runes-iterator.md) to the first code point of the text, decoded: at byte position 0. For an
+Returns an [iterator](../runes-iterator/README.md) to the first code point of the text, decoded: at byte position 0. For an
 empty text it equals [end](end.md).
 
 ## Parameters
@@ -54,4 +54,4 @@ U+0106 at 0, 2 bytes
 ## See also
 
 - [end](end.md): the iterator past the last code point
-- [sgcl::runes](../runes.md)
+- [sgcl::runes](README.md)

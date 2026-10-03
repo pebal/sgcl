@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::datetime
 
@@ -15,9 +15,9 @@ Constructs a datetime.
 
 1. 1970-01-01T00:00:00Z, in UTC.
 2. The instant `t` of the system clock, in the zone `z`, the local zone unless another is given, as in Go. It is what
-   `std::chrono::system_clock::now()` and [io::file_info::modified](../../io/file_info.md) are, of the same range and unit,
+   `std::chrono::system_clock::now()` and [io::file_info::modified](../../io/file_info/README.md) are, of the same range and unit,
    taken as they are; a `sys_time` of a coarser unit (`sys_seconds`, `sys_days`) converts to it.
-3. The datetime a literal in the program spells in a [layout](../layout.md):
+3. The datetime a literal in the program spells in a [layout](../layout/README.md):
    `time::datetime t("2026-09-24T12:41:15+02:00", time::rfc3339)`. What [parse](parse.md) reads, or
    `bad_expected_access<time::error>` with `parse`'s error.
 4. The same for a [pattern](../README.md#patterns) of `%`, read in the zone `z` (UTC unless another is given)
@@ -45,7 +45,7 @@ and its error is a value.
 
 - (1–2) None.
 - (3–4) `bad_expected_access<time::error>` when `text` is not a datetime of the layout or the pattern; its
-  `error()` is the [error](../error.md) of `parse`.
+  `error()` is the [error](../error/README.md) of `parse`.
 
 ## Example
 
@@ -88,4 +88,4 @@ a day that the month has expected (byte 0)
 - [parse](parse.md): reads a text from outside the program
 - [from_unix](from_unix.md): a datetime of the seconds since 1970
 - [to_sys](to_sys.md): the instant back as a `std::chrono::sys_time`
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

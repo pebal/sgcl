@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::set_status
 
@@ -8,7 +8,7 @@ response_writer& set_status(int code);
 
 Sets the status of the response, Go's `WriteHeader` without the sending: the head goes when the handler returns or
 at the first [flush](flush.md). The status is 200 unless set. An informational status (100 to 199) is not the
-handler's: the server sends `100 Continue` itself ([server](../server.md#the-head)). After the head has gone, the call
+handler's: the server sends `100 Continue` itself ([server](../server/README.md#the-head)). After the head has gone, the call
 is ignored.
 
 ## Parameters
@@ -78,4 +78,4 @@ Output:
 
 - [status](status.md): the status set
 - [error](error.md), [redirect](redirect.md): a status with its body or its `Location`
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

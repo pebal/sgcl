@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](../weak_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](README.md)
 
 # sgcl::weak_ptr\<T\>::swap
 
@@ -62,4 +62,4 @@ true 1
 ## See also
 
 - [reset](reset.md): drops the cell
-- [sgcl::weak_ptr\<T\>](../weak_ptr.md)
+- [sgcl::weak_ptr\<T\>](README.md)

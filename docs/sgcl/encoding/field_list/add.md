@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [field_list](../field_list.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [field_list](README.md)
 
 # sgcl::encoding::field_list::add
 
@@ -13,13 +13,13 @@ Adds a field of the object: its name in the formats and the member itself, in th
 The list keeps the name as a pointer and the member as its address, and the format reads both after `describe`
 returns: the name is a literal, or characters that live as long; the member is a member of the object `describe`
 was called on. The member's type is checked at compile time against the [types a field may
-have](../field_list.md#the-types-a-field-may-have).
+have](README.md#the-types-a-field-may-have).
 
 1. A name given as a pointer, measured to its first NUL.
 2. A literal or a character array: its length is its type's, so no name is measured for every value described.
    An array that holds a shorter string (a zero before its last character) is measured as a pointer is.
 
-The [field](../field.md) returned takes the options of the field, chained: `f.add("age", age).omit_empty()`. It
+The [field](../field/README.md) returned takes the options of the field, chained: `f.add("age", age).omit_empty()`. It
 refers to the field by its place in the list, so a `field` kept (`auto opts = f.add("age", age)`) sets the options
 of that field even after other fields were added.
 
@@ -81,6 +81,6 @@ Output:
 
 ## See also
 
-- [field](../field.md): the options of a field
+- [field](../field/README.md): the options of a field
 - [size](size.md): the number of fields
-- [sgcl::encoding::field_list](../field_list.md)
+- [sgcl::encoding::field_list](README.md)

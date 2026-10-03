@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](../enumerable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](README.md)
 
 # sgcl::mixin::enumerable\<Derived\>::find_index
 
@@ -56,4 +56,4 @@ true
 
 - [find_if](find_if.md): a pointer to the first element a predicate accepts
 - [index_of](index_of.md): the position of the first element equal to a value
-- [sgcl::mixin::enumerable\<Derived\>](../enumerable.md)
+- [sgcl::mixin::enumerable\<Derived\>](README.md)

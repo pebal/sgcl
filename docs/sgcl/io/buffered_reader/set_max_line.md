@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::set_max_line
 
@@ -67,4 +67,4 @@ ok again
 
 - [max_line](max_line.md): the bound
 - [read_line](read_line.md), [lines](lines.md): what it bounds
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

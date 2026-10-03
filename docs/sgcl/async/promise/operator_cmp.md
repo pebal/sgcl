@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::operator==, operator!= (sgcl::async::promise)
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [(constructor)](promise.md): a copy is the same promise
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

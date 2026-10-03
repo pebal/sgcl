@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::key
 
@@ -12,7 +12,7 @@ value follows it. A key outside an object and a key after a key are mistakes, ke
 [flush](flush.md). The writer does not look for a key written twice in one object: what it is given is what it
 writes.
 
-1. A key held in a [string](../../core/string.md).
+1. A key held in a [string](../../core/string/README.md).
 2. A literal or a character array, to its first NUL, written from where it lies with no string made.
 
 ## Parameters
@@ -64,4 +64,4 @@ json: two keys in a row: syntax error
 
 - [value](value.md): the member's value
 - [begin_object](begin_object.md): opens an object
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [sgcl::encoding::json::writer](README.md)

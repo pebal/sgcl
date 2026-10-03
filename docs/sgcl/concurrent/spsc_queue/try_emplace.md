@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::try_emplace
 
@@ -76,4 +76,4 @@ right 21
 
 - [try_push](try_push.md): appends a copy or a moved value
 - [push](push.md): waits for room
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

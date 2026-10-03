@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc64](../crc64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc64](README.md)
 
 # sgcl::hash::crc64::digest
 
@@ -7,7 +7,7 @@ array<byte, 8> digest() const noexcept;
 ```
 
 `value()` as eight bytes, the most significant first: Go's `h.Sum(nil)`, and the form a function written over any
-hasher ([req::hasher](../req/hasher.md)) takes, [crypto::sha256](../../crypto/sha256.md) among them. A block of xz
+hasher ([req::hasher](../req/hasher.md)) takes, [crypto::sha256](../../crypto/sha256/README.md) among them. A block of xz
 stores the CRC the other way round, the least significant byte first: a format writes [value](value.md) in its own
 order rather than taking `digest()`.
 
@@ -61,4 +61,4 @@ fa3919dfbbc95d99
 ## See also
 
 - [value](value.md): the CRC as a number
-- [sgcl::hash::crc64](../crc64.md)
+- [sgcl::hash::crc64](README.md)

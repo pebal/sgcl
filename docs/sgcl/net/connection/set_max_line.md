@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::set_max_line
 
@@ -68,4 +68,4 @@ ok again
 
 - [max_line](max_line.md): the bound now
 - [read_line, async_read_line](read_line.md): what the bound limits
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

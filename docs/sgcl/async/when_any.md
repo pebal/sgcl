@@ -15,11 +15,11 @@ namespace sgcl::async {
 
 Races the tasks given and gives the index of the first to finish: `co_await async::when_any(a, b)` in a task,
 `async::when_any(a, b).wait()` on a thread. The others are let go of: they run on to their ends, and their frames
-are the collector's then. A race whose losers are to stop gives the tasks a [stop_token](stop_token.md) and requests
+are the collector's then. A race whose losers are to stop gives the tasks a [stop_token](stop_token/README.md) and requests
 the stop after the wait.
 
 1. The index of the first of `ts` to finish; at least one task (a `static_assert` says so).
-2. The same over a [vector](../core/vector.md) of tasks of one type; a vector of none gives `SIZE_MAX` at once, as
+2. The same over a [vector](../core/vector/README.md) of tasks of one type; a vector of none gives `SIZE_MAX` at once, as
    nothing can finish first.
 
 The tasks are taken over (moved in) and started by the call, each in a small task of its own that awaits it and
@@ -126,5 +126,5 @@ the loser stopped
 - [when_all](when_all.md): every result
 - [with_timeout](with_timeout.md), [with_deadline](with_deadline.md): a task raced against a timer
 - [select](select.md): a race of channels rather than tasks
-- [stop_source](stop_source.md), [stop_token](stop_token.md): stopping the losers
-- [task](task.md): what is raced
+- [stop_source](stop_source/README.md), [stop_token](stop_token/README.md): stopping the losers
+- [task](task/README.md): what is raced

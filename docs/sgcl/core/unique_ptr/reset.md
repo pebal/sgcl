@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::reset
 
@@ -70,4 +70,4 @@ false
 
 - [release](release.md): hands the raw pointer out and leaves the owner empty
 - [operator=](operator_assign.md): destroys the object, if any, and takes another over
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

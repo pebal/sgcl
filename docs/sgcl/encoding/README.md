@@ -7,11 +7,11 @@
 ```
 
 What Go has in `encoding/...`: the formats data is written in when it leaves a program and read in when it comes
-back. The byte codecs — [base64](base64.md), [base32](base32.md), [hex](hex.md), [ascii85](ascii85.md),
-[pem](pem.md) and the binary numbers ([big_endian](big_endian.md), [little_endian](little_endian.md),
-[varint](varint.md)) — [json](json.md) (an immutable value, a reader of tokens and values, a writer),
-[csv](csv.md) (a reader, its rows, a writer), [xml](xml.md) (a tree that never changes, a reader of tokens, a
-writer), and the description of a program's own types by their fields, [field_list](field_list.md), which JSON,
+back. The byte codecs — [base64](base64/README.md), [base32](base32/README.md), [hex](hex/README.md), [ascii85](ascii85/README.md),
+[pem](pem/README.md) and the binary numbers ([big_endian](big_endian/README.md), [little_endian](little_endian/README.md),
+[varint](varint/README.md)) — [json](json/README.md) (an immutable value, a reader of tokens and values, a writer),
+[csv](csv/README.md) (a reader, its rows, a writer), [xml](xml/README.md) (a tree that never changes, a reader of tokens, a
+writer), and the description of a program's own types by their fields, [field_list](field_list/README.md), which JSON,
 CSV and XML read and write alike. The module depends on [core](../core/README.md), [txt](../txt/README.md) (the
 character encodings an XML declaration names), [async](../async/README.md) and [io](../io/README.md) (a codec is a
 stream as well as a function); the index of the whole interface is [the modules](../README.md).
@@ -26,14 +26,14 @@ with nothing to choose (`hex`, `ascii85`, `varint`) has the same methods as stat
 the same way, and a codec of one's own — base64 with the alphabet of `crypt(3)` — is one line.
 
 A reading refuses what it cannot tell apart, and says where. Nothing in the module throws on its input: a function
-that reads a whole text returns an [expected](../core/expected.md)`<T, encoding::error>`, a stream that reads one
-fails its read with an `io::error` and keeps the [error](error.md) for the asking. One type of error serves every
+that reads a whole text returns an [expected](../core/expected/README.md)`<T, encoding::error>`, a stream that reads one
+fails its read with an `io::error` and keeps the [error](error/README.md) for the asking. One type of error serves every
 format, with the code, the byte of the input it was found at, the line and the column where the format has lines,
 and the path inside the structure where it has one.
 
 ## The rules
 
-1. **One error type, under every format's name.** The errors of the module are [error](error.md) and
+1. **One error type, under every format's name.** The errors of the module are [error](error/README.md) and
    [errc](errc.md), and each format names the same type `error` (`encoding::base64::error`,
    `encoding::pem::error`, `encoding::json::error`). The offset is where the input stops being the start of
    something valid, so base64's `QQ=x` fails at the `x` and a cut text at its end; `message()` reads
@@ -44,8 +44,8 @@ and the path inside the structure where it has one.
    asked for (`length_error`), a PEM type that is not a label, a name that is not one of XML, a CSV separator that
    cannot be one (`invalid_argument`), an element pushed into a JSON builder of an object or a member set in one of
    an array (`logic_error`), a field of a CSV row asked by `at` past the row's end (`out_of_range`). A text the program itself writes may be constructed and throws
-   [bad_expected_access](../core/bad_expected_access.md) when it is wrong; a text from outside is parsed. A
-   result longer than a [string](../core/string.md) holds (4 GiB) is `length_error`. Each page's Exceptions say
+   [bad_expected_access](../core/bad_expected_access/README.md) when it is wrong; a text from outside is parsed. A
+   result longer than a [string](../core/string/README.md) holds (4 GiB) is `length_error`. Each page's Exceptions say
    which.
 3. **Strict by default.** base64 and base32 refuse a character outside the alphabet, a line ending included
    (RFC 4648 section 3.3), and bits past the data in the last character (section 3.5), which would let two
@@ -59,14 +59,14 @@ and the path inside the structure where it has one.
    with its high bit set, bits past the data in a PEM block, a malformed PEM block.
 5. **Memory.** A codec is plain data — the characters of its alphabet and a table back — and holds no tracked
    pointer, so the constants are constants and a codec lives anywhere. What a codec returns is the library's: a
-   [string](../core/string.md) for text and a [vector](../core/vector.md)`<byte>` for bytes; the input is a
+   [string](../core/string/README.md) for text and a [vector](../core/vector/README.md)`<byte>` for bytes; the input is a
    `slice<const byte>` (a vector, a string's bytes, a raw buffer) or a `const string&`. `encode_to` and
    `decode_to` write into the caller's buffer and allocate nothing. A stream codec is a handle, one tracked word to
    a managed object holding its block, 8 KB of `array<byte, N>` as io's buffers are, and the stream under it; it
-   lives where a `tracked_ptr` may ([the rules of core](../core/README.md#the-rules), 1). A [json](json.md) and an
-   [xml](xml.md) node hold tracked words too, and live there as well.
+   lives where a `tracked_ptr` may ([the rules of core](../core/README.md#the-rules), 1). A [json](json/README.md) and an
+   [xml](xml/README.md) node hold tracked words too, and live there as well.
 6. **A program's own types** are read and written through one description, a method
-   `void describe(field_list& f)` that names each field ([field_list](field_list.md)): `json::parse<T>`,
+   `void describe(field_list& f)` that names each field ([field_list](field_list/README.md)): `json::parse<T>`,
    `json::stringify`, `csv::reader::read<T>`, `xml::parse<T>` and the rest take any type that has one, and so does
    [slog](../slog/README.md) when it writes a value of the program's. Go's struct
    tags are that description; Go's `binary.Read` and `binary.Write` of structures and `encoding/gob` (a
@@ -103,47 +103,47 @@ and the path inside the structure where it has one.
 
 | Class | Header | Description |
 |---|---|---|
-| [ascii85](ascii85.md) | `ascii85.h` | Ascii85 as `btoa` writes it and Go reads it, four bytes as five characters, `z` for four zeros: `encode`, `decode`, the streams; a group past 32 bits refused |
-| [ascii85::decoder](ascii85-decoder.md) | `ascii85.h` | a reader of the bytes another reader's Ascii85 decodes to |
-| [ascii85::encoder](ascii85-encoder.md) | `ascii85.h` | a writer that writes the Ascii85 of what it is given to another writer |
-| [base32](base32.md) | `base32.h` | base32 of RFC 4648, five bytes as eight characters: `standard`, `hex`, an alphabet of one's own, strict or `lenient()`, the members of base64 |
-| [base32::decoder](base32-decoder.md) | `base32.h` | a reader of the bytes another reader's base32 decodes to |
-| [base32::encoder](base32-encoder.md) | `base32.h` | a writer that writes the base32 of what it is given to another writer |
-| [base64](base64.md) | `base64.h` | base64 of RFC 4648, three bytes as four characters: `standard`, `url`, `raw_standard`, `raw_url`, an alphabet of one's own, strict or `lenient()`; `encode`, `decode`, into the caller's buffer, as streams |
-| [base64::decoder](base64-decoder.md) | `base64.h` | a reader of the bytes another reader's base64 decodes to |
-| [base64::encoder](base64-encoder.md) | `base64.h` | a writer that writes the base64 of what it is given to another writer |
-| [big_endian](big_endian.md) | `binary.h` | numbers of 16, 32 and 64 bits read, written and appended most significant byte first, Go's `binary.BigEndian` |
-| [csv](csv.md) | `csv.h` | CSV of RFC 4180 as Go reads and writes it: the reader, its rows, the writer, a text or a file of a program's records in one call |
+| [ascii85](ascii85/README.md) | `ascii85.h` | Ascii85 as `btoa` writes it and Go reads it, four bytes as five characters, `z` for four zeros: `encode`, `decode`, the streams; a group past 32 bits refused |
+| [ascii85::decoder](ascii85-decoder/README.md) | `ascii85.h` | a reader of the bytes another reader's Ascii85 decodes to |
+| [ascii85::encoder](ascii85-encoder/README.md) | `ascii85.h` | a writer that writes the Ascii85 of what it is given to another writer |
+| [base32](base32/README.md) | `base32.h` | base32 of RFC 4648, five bytes as eight characters: `standard`, `hex`, an alphabet of one's own, strict or `lenient()`, the members of base64 |
+| [base32::decoder](base32-decoder/README.md) | `base32.h` | a reader of the bytes another reader's base32 decodes to |
+| [base32::encoder](base32-encoder/README.md) | `base32.h` | a writer that writes the base32 of what it is given to another writer |
+| [base64](base64/README.md) | `base64.h` | base64 of RFC 4648, three bytes as four characters: `standard`, `url`, `raw_standard`, `raw_url`, an alphabet of one's own, strict or `lenient()`; `encode`, `decode`, into the caller's buffer, as streams |
+| [base64::decoder](base64-decoder/README.md) | `base64.h` | a reader of the bytes another reader's base64 decodes to |
+| [base64::encoder](base64-encoder/README.md) | `base64.h` | a writer that writes the base64 of what it is given to another writer |
+| [big_endian](big_endian/README.md) | `binary.h` | numbers of 16, 32 and 64 bits read, written and appended most significant byte first, Go's `binary.BigEndian` |
+| [csv](csv/README.md) | `csv.h` | CSV of RFC 4180 as Go reads and writes it: the reader, its rows, the writer, a text or a file of a program's records in one call |
 | [csv::options](csv-options.md) | `csv.h` | the settings of a reader and a writer: the separator, comments, lazy quotes, leading spaces, the same count of fields, the bound of a record |
-| [csv::reader](csv-reader.md) | `csv.h` | the records of a text or a stream one at a time, the header, a program's types by their fields |
-| [csv::row](csv-row.md) | `csv.h` | one record: its fields by index and by the header's name, the line and the place of each field |
-| [csv::writer](csv-writer.md) | `csv.h` | records into a stream, quoted where they need it, `\n` or `\r\n` |
-| [error](error.md) | `error.h` | why an input is not what its format says, the same type for every format: the code, the offset, the line and the column, the path, the error of a stream, `message()` |
-| [field](field.md) | `fields.h` | one field of a description: `required`, `omit_empty`, `quoted`, `names`, `tagged`, `attribute`, `text` |
-| [field_list](field_list.md) | `fields.h` | the description of a program's type by its fields, `describe(field_list&)`, read and written by JSON, CSV and XML alike |
-| [hex](hex.md) | `hex.h` | hexadecimal, two characters a byte: `encode`, `encode_upper`, `decode` of either case, `dump` as `hexdump -C`, the streams |
-| [hex::decoder](hex-decoder.md) | `hex.h` | a reader of the bytes another reader's hexadecimal decodes to |
-| [hex::dumper](hex-dumper.md) | `hex.h` | a writer that writes the dump of what it is given to another writer, Go's `hex.Dumper` |
-| [hex::encoder](hex-encoder.md) | `hex.h` | a writer that writes the hexadecimal of what it is given to another writer |
-| [json](json.md) | `json.h` | one JSON value, immutable: `parse`, `to_string`, the lookups, `set`, `erase`, `push_back`, JSON Pointer, `==` and `hash`; a program's types (`parse<T>`, `stringify`, `as<T>`), files (`load`, `save`) |
-| [json::builder](json-builder.md) | `json.h` | an array or an object made a member at a time, without a copy per step |
+| [csv::reader](csv-reader/README.md) | `csv.h` | the records of a text or a stream one at a time, the header, a program's types by their fields |
+| [csv::row](csv-row/README.md) | `csv.h` | one record: its fields by index and by the header's name, the line and the place of each field |
+| [csv::writer](csv-writer/README.md) | `csv.h` | records into a stream, quoted where they need it, `\n` or `\r\n` |
+| [error](error/README.md) | `error.h` | why an input is not what its format says, the same type for every format: the code, the offset, the line and the column, the path, the error of a stream, `message()` |
+| [field](field/README.md) | `fields.h` | one field of a description: `required`, `omit_empty`, `quoted`, `names`, `tagged`, `attribute`, `text` |
+| [field_list](field_list/README.md) | `fields.h` | the description of a program's type by its fields, `describe(field_list&)`, read and written by JSON, CSV and XML alike |
+| [hex](hex/README.md) | `hex.h` | hexadecimal, two characters a byte: `encode`, `encode_upper`, `decode` of either case, `dump` as `hexdump -C`, the streams |
+| [hex::decoder](hex-decoder/README.md) | `hex.h` | a reader of the bytes another reader's hexadecimal decodes to |
+| [hex::dumper](hex-dumper/README.md) | `hex.h` | a writer that writes the dump of what it is given to another writer, Go's `hex.Dumper` |
+| [hex::encoder](hex-encoder/README.md) | `hex.h` | a writer that writes the hexadecimal of what it is given to another writer |
+| [json](json/README.md) | `json.h` | one JSON value, immutable: `parse`, `to_string`, the lookups, `set`, `erase`, `push_back`, JSON Pointer, `==` and `hash`; a program's types (`parse<T>`, `stringify`, `as<T>`), files (`load`, `save`) |
+| [json::builder](json-builder/README.md) | `json.h` | an array or an object made a member at a time, without a copy per step |
 | [json::member](json-member.md) | `json.h` | a key and its value, what an object holds |
 | [json::options](json-options.md) | `json.h` | what a reading accepts: the depth, duplicate keys, invalid UTF-8, numbers kept as text, unknown fields, the size of a token |
-| [json::reader](json-reader.md) | `json.h` | JSON a token or a value at a time, from a text or a stream: `next`, `more`, `read`, `skip` |
+| [json::reader](json-reader/README.md) | `json.h` | JSON a token or a value at a time, from a text or a stream: `next`, `more`, `read`, `skip` |
 | [json::style](json-style.md) | `json.h` | how a value is written: compact, or indented (`json::compact`, `json::pretty`) |
-| [json::token](json-token.md) | `json.h` | a token of the reader: its kind and its text |
-| [json::writer](json-writer.md) | `json.h` | JSON into a stream, a token or a value at a time, its structure checked |
-| [little_endian](little_endian.md) | `binary.h` | numbers of 16, 32 and 64 bits read, written and appended least significant byte first, Go's `binary.LittleEndian` |
-| [pem](pem.md) | `pem.h` | a block of RFC 7468, its type, headers and bytes: `parse`, `parse_all`, `to_string` |
-| [varint](varint.md) | `binary.h` | the variable-length integers of Go and protobuf, unsigned and zigzag-signed, from bytes and from a buffered reader |
-| [xml](xml.md) | `xml.h` | a node of an XML tree that never changes: `parse`, the names, attributes, children and text, `set`, `erase`, `push_back`, `to_string`; a program's types; XML 1.0 fifth edition with namespaces, no DTD, UTF-16 and 27 single-byte encodings |
+| [json::token](json-token/README.md) | `json.h` | a token of the reader: its kind and its text |
+| [json::writer](json-writer/README.md) | `json.h` | JSON into a stream, a token or a value at a time, its structure checked |
+| [little_endian](little_endian/README.md) | `binary.h` | numbers of 16, 32 and 64 bits read, written and appended least significant byte first, Go's `binary.LittleEndian` |
+| [pem](pem/README.md) | `pem.h` | a block of RFC 7468, its type, headers and bytes: `parse`, `parse_all`, `to_string` |
+| [varint](varint/README.md) | `binary.h` | the variable-length integers of Go and protobuf, unsigned and zigzag-signed, from bytes and from a buffered reader |
+| [xml](xml/README.md) | `xml.h` | a node of an XML tree that never changes: `parse`, the names, attributes, children and text, `set`, `erase`, `push_back`, `to_string`; a program's types; XML 1.0 fifth edition with namespaces, no DTD, UTF-16 and 27 single-byte encodings |
 | [xml::attr](xml-attr.md) | `xml.h` | an attribute as the document writes it: its name, its value, its namespace |
-| [xml::builder](xml-builder.md) | `xml.h` | an element made an attribute and a child at a time, without a copy per step |
+| [xml::builder](xml-builder/README.md) | `xml.h` | an element made an attribute and a child at a time, without a copy per step |
 | [xml::options](xml-options.md) | `xml.h` | what a reading accepts and keeps: the depth, the size of a token, comments and white space |
-| [xml::reader](xml-reader.md) | `xml.h` | XML a token at a time, from a text or a stream: `next`, `peek`, `read`, `skip` |
+| [xml::reader](xml-reader/README.md) | `xml.h` | XML a token at a time, from a text or a stream: `next`, `peek`, `read`, `skip` |
 | [xml::style](xml-style.md) | `xml.h` | how a node is written: on one line or indented, with or without the declaration (`xml::compact`, `xml::pretty`) |
-| [xml::token](xml-token.md) | `xml.h` | a token of the reader: its kind, its names, attributes and text |
-| [xml::writer](xml-writer.md) | `xml.h` | XML into a stream: `start`, `attribute`, `text`, `cdata`, `comment`, `instruction`, `end`, `node`, `flush` |
+| [xml::token](xml-token/README.md) | `xml.h` | a token of the reader: its kind, its names, attributes and text |
+| [xml::writer](xml-writer/README.md) | `xml.h` | XML into a stream: `start`, `attribute`, `text`, `cdata`, `comment`, `instruction`, `end`, `node`, `flush` |
 
 ## Enumerations
 
@@ -158,7 +158,7 @@ and the path inside the structure where it has one.
 ## See also
 
 - [Benchmarks](benchmarks.md): the byte codecs, JSON, CSV and XML against Go's packages
-- [expected](../core/expected.md): the value or the error
+- [expected](../core/expected/README.md): the value or the error
 - [io](../io/README.md): the streams a codec reads and writes
 - [hash](../hash/README.md): checksums of the same bytes
 - [The modules](../README.md)

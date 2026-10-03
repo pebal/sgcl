@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::offset
 
@@ -10,8 +10,8 @@ The byte of the input where the input stops being the start of something valid, 
 character outside the alphabet, the padding where the data cannot end, the first character after the padding, the
 end of the input when it is cut. `QQ=x` fails at the `x`, 3, and `QUJ` at its end, 3. A strict base64 or base32
 refuses bits past the data at the character that carries them. For a stream, the offset counts every byte the
-stream gave. An error that did not come from an input text (of `stringify`, `from` or `as` of [json](../json.md)
-and [xml](../xml.md), a mistake of the calls to an [xml::writer](../xml-writer.md), a file of `load` or `save` that
+stream gave. An error that did not come from an input text (of `stringify`, `from` or `as` of [json](../json/README.md)
+and [xml](../xml/README.md), a mistake of the calls to an [xml::writer](../xml-writer/README.md), a file of `load` or `save` that
 does not open, read or write) has an offset of 0, which its [message](message.md) does not show.
 
 ## Parameters
@@ -63,4 +63,4 @@ QUJ=: offset 2: bits past the data in the last character at 2
 ## See also
 
 - [line](line.md), [column](column.md): the place a person reads
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

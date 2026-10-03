@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::send, async_send
 
@@ -23,7 +23,7 @@ A socket of [udp::bind](../udp/bind.md) has no peer, and its `send` fails with `
 
 ## Return value
 
-The number of bytes sent, all of `data`. Or the [io::error](../../io/error.md), its operation `write` and its path
+The number of bytes sent, all of `data`. Or the [io::error](../../io/error/README.md), its operation `write` and its path
 the socket: `io::errc::closed` after [close](close.md), `ETIMEDOUT` (`is_timeout()`) when the write deadline
 passed, `EDESTADDRREQ` for a socket with no peer, `EMSGSIZE` for a datagram too long, the `errno` of `send`
 otherwise.
@@ -71,4 +71,4 @@ true
 
 - [receive, async_receive](receive.md): the other direction
 - [send_to, async_send_to](send_to.md): to any address
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

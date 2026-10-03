@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::save, async_save
 
@@ -31,7 +31,7 @@ written over, and a new line follows the text.
 
 ## Return value
 
-Nothing; otherwise the [error](../error.md): `errc::io` when the file cannot be written, the error of the file
+Nothing; otherwise the [error](../error/README.md): `errc::io` when the file cannot be written, the error of the file
 system in `io_error()`, with no place (its message is `input/output error: ` and the stream's message), and (1–2)
 what [stringify](stringify.md) fails with, `errc::unsupported_value` for a value with no form in XML.
 
@@ -96,4 +96,4 @@ true
 
 - [load](load.md): the way back
 - [to_string](to_string.md), [stringify](stringify.md): the text without a file
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](../x509-certificate_pool.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](README.md)
 
 # sgcl::crypto::x509::certificate_pool::append_pem
 
@@ -73,4 +73,4 @@ Output:
 
 - [from_pem](from_pem.md): a new pool of a text
 - [add](add.md)
-- [sgcl::crypto::x509::certificate_pool](../x509-certificate_pool.md)
+- [sgcl::crypto::x509::certificate_pool](README.md)

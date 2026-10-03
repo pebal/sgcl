@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::text, async_text
 
@@ -21,7 +21,7 @@ None.
 
 ## Return value
 
-The body, or the [error](../../../io/error.md) of its reading: `io::errc::unexpected_eof` for a body cut short,
+The body, or the [error](../../../io/error/README.md) of its reading: `io::errc::unexpected_eof` for a body cut short,
 `net::errc::malformed_response` for a broken chunked framing, `ETIMEDOUT` when the client's `timeout` passes,
 `std::errc::connection_reset` for an HTTP/2 stream the server reset, or the error of the connection.
 
@@ -79,4 +79,4 @@ buy milk
 ## See also
 
 - [bytes](bytes.md), [json](json.md), [save](save.md), [body](body.md): the body in another form
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

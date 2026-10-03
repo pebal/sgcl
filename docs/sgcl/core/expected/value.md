@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::value, operator U
 
@@ -152,5 +152,5 @@ no number no number
 
 - [operator->, operator*](operator_deref.md): the value, checked, under the operators
 - [value_or](value_or.md): the value, or another one when there is none
-- [bad_expected_access](../bad_expected_access.md): the exception and its `what()`
-- [sgcl::expected\<T, E\>](../expected.md)
+- [bad_expected_access](../bad_expected_access/README.md): the exception and its `what()`
+- [sgcl::expected\<T, E\>](README.md)

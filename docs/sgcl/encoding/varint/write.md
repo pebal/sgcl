@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [varint](../varint.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [varint](README.md)
 
 # sgcl::encoding::varint::write
 
@@ -7,7 +7,7 @@ static size_t write(const slice<byte>& at, uint64_t v) noexcept;
 ```
 
 Writes the varint of `v` into the front of `at`: Go's `binary.PutUvarint`. `at` holds the bytes the number takes,
-a precondition checked by `assert`; [max_size](../varint.md#member-objects), 10, always does. The bytes after the
+a precondition checked by `assert`; [max_size](README.md#member-objects), 10, always does. The bytes after the
 number are left as they were.
 
 ## Parameters
@@ -55,4 +55,4 @@ Output:
 - [write_signed](write_signed.md): a signed number
 - [append](append.md): at the back of a vector
 - [read, async_read](read.md): the other way
-- [sgcl::encoding::varint](../varint.md)
+- [sgcl::encoding::varint](README.md)

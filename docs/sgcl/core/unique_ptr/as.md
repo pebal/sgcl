@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::as
 
@@ -72,4 +72,4 @@ true false 1
 
 - [is](is.md): checks whether the object was created as a given type
 - [static_pointer_cast, const_pointer_cast, dynamic_pointer_cast](pointer_cast.md): the casts, moving the ownership
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

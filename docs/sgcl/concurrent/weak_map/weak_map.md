@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](README.md)
 
 # sgcl::concurrent::weak_map\<Key, T\>::weak_map
 
@@ -7,7 +7,7 @@ weak_map();                            // (1)
 weak_map(const weak_map&) = delete;    // (2)
 ```
 
-1. An empty map: the table of [concurrent::map](../map.md) with sixteen buckets, its head node and its counters, and
+1. An empty map: the table of [concurrent::map](../map/README.md) with sixteen buckets, its head node and its counters, and
    the first sweep due after sixteen insertions.
 2. The map is not copyable, and not movable: a structure shared by threads has one place.
 
@@ -26,7 +26,7 @@ None.
 ## Notes
 
 The map holds tracked pointers, so it lives on a thread's stack or inside a managed object; the map a whole program
-shares goes into a managed object held by a [root_ptr](../../core/root_ptr.md).
+shares goes into a managed object held by a [root_ptr](../../core/root_ptr/README.md).
 
 ## Example
 
@@ -65,4 +65,4 @@ false
 ## See also
 
 - [try_emplace](try_emplace.md), [insert](insert.md): add an entry
-- [sgcl::concurrent::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::concurrent::weak_map\<Key, T\>](README.md)

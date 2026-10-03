@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_map](README.md)
 
 # sgcl::weak_map\<Key, T\>::find
 
@@ -70,4 +70,4 @@ true
 - [contains](contains.md): checks whether an object has an entry
 - [count](count.md): the number of entries of an object
 - [operator[]](operator_at.md): the value of an object, made when it has none
-- [sgcl::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::weak_map\<Key, T\>](README.md)

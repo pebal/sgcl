@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::source
 
@@ -6,7 +6,7 @@
 const std::source_location& source() const noexcept;
 ```
 
-Returns where the call that made the record is, the [message](../message.md)'s place: there whether or not the
+Returns where the call that made the record is, the [message](../message/README.md)'s place: there whether or not the
 logger writes it, which [has_source](has_source.md) says.
 
 ## Parameters
@@ -51,4 +51,4 @@ line 8 of int main()
 
 - [has_source](has_source.md)
 - [options](../options.md): `source`
-- [sgcl::slog::record](../record.md)
+- [sgcl::slog::record](README.md)

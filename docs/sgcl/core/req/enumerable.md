@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::enumerable
 
@@ -11,7 +11,7 @@ namespace sgcl::req {
 }
 ```
 
-A range of the library: `R` carries [mixin::enumerable](../mixin/enumerable.md), which gives it `contains`,
+A range of the library: `R` carries [mixin::enumerable](../mixin/enumerable/README.md), which gives it `contains`,
 `index_of`, `find_if`, `count_of`, `min`, `max` and `for_each` as members. It is the requirement every other
 requirement of a range builds on.
 
@@ -23,7 +23,7 @@ The requirement is nominal: it asks whether the type declared itself by carrying
 
 - every container of the library that iterates: `vector`, `array`, `dynamic_array`, `deque`, `list`,
   `forward_list`, the maps and sets, the immutable containers;
-- [slice](../slice.md) and [range](../range.md).
+- [slice](../slice/README.md) and [range](../range/README.md).
 
 Not by a `std` container, and not by `string`. A `std` container becomes one through an adapter:
 `range(v.begin(), v.end())`, or `slice(v)` for contiguous memory.
@@ -61,5 +61,5 @@ false 2
 ## See also
 
 - [bidirectional](bidirectional.md), [sequence](sequence.md), [ordered](ordered.md), [lookup](lookup.md): what builds on it
-- [mixin::enumerable](../mixin/enumerable.md): the members it gives
-- [sgcl::req](../req.md)
+- [mixin::enumerable](../mixin/enumerable/README.md): the members it gives
+- [sgcl::req](README.md)

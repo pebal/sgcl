@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::operator[]
 
@@ -10,7 +10,7 @@ Returns the character at the position `i`, read only: a string is never modified
 terminator, `CharT()`, as `std::string` gives it.
 
 A position past `size()` is undefined behaviour, as in `std`; a debug build asserts it. The checked access is `at`,
-which throws `out_of_range` for a position not below `size()` ([mixin::text](../mixin/text.md)).
+which throws `out_of_range` for a position not below `size()` ([mixin::text](../mixin/text/README.md)).
 
 ## Parameters
 
@@ -33,7 +33,7 @@ None.
 ## Notes
 
 In a `string` a position is a byte: `s[i]` of a UTF-8 text is a byte of a code point, which for a letter outside
-ASCII is one of two to four. The code points are walked by `runes()` ([runes](../runes.md)).
+ASCII is one of two to four. The code points are walked by `runes()` ([runes](../runes/README.md)).
 
 ## Example
 
@@ -70,4 +70,4 @@ out_of_range
 
 - [front](front.md), [back](back.md): the first and the last character
 - [data](data.md): the characters, terminated
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

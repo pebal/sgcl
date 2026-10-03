@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::rel
 
@@ -21,7 +21,7 @@ it is an error — one path absolute and the other relative, or a base that keep
 
 ## Return value
 
-The relative path, `.` when the two are the same, or an [error](../error.md) with `errc::invalid_path`, the
+The relative path, `.` when the two are the same, or an [error](../error/README.md) with `errc::invalid_path`, the
 operation `rel` and `target` as its path, when it cannot be found lexically.
 
 ## Complexity
@@ -64,4 +64,4 @@ a to /b: rel /b: invalid path
 
 - [abs](abs.md): the absolute form of a path
 - [join](join.md): the base and the result joined back
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

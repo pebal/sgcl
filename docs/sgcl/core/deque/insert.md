@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::insert
 
@@ -71,7 +71,7 @@ and every element is destroyed exactly once, but the values, and the size, may h
 
 An insertion at either end keeps the references to the other elements valid and invalidates the iterators, as
 `std::deque`'s does, a range of forward-only iterators included; an insertion in the middle invalidates both
-([Iterator invalidation](../deque.md#iterator-invalidation)).
+([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -126,4 +126,4 @@ Output:
 - [emplace](emplace.md): constructs an element in place
 - [push_back](push_back.md), [push_front](push_front.md): insert an element at either end
 - [erase](erase.md): erases elements
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

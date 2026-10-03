@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::empty
 
@@ -55,4 +55,4 @@ true true
 
 - [size](size.md): the number of characters
 - [object](object.md): the address of the string's object, null when empty
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

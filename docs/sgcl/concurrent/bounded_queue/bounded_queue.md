@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](../bounded_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](README.md)
 
 # sgcl::concurrent::bounded_queue\<T\>::bounded_queue
 
@@ -31,7 +31,7 @@ The capacity is at least two because in a ring of one cell a cell published at a
 carry one number. The buffer is raw storage: no element is constructed in it until a push, and it is zeroed when the
 element may hold tracked pointers, so that the collector, which traces every cell, finds null pointers in the cells
 without an element. A capacity whose buffer the managed heap cannot give, up to `SIZE_MAX`, ends the program as any
-refused managed allocation does ([collector](../../core/collector.md#the-memory-limit)): a capacity past the largest
+refused managed allocation does ([collector](../../core/collector/README.md#the-memory-limit)): a capacity past the largest
 ring an address space holds is taken as that ring, refused in the same way.
 
 ## Example
@@ -69,4 +69,4 @@ false
 
 - [capacity](capacity.md): the number of cells
 - [try_push](try_push.md), [push](push.md): append an element
-- [sgcl::concurrent::bounded_queue\<T\>](../bounded_queue.md)
+- [sgcl::concurrent::bounded_queue\<T\>](README.md)

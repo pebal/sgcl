@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::raw_subject
 
@@ -7,7 +7,7 @@ slice<const byte> raw_subject() const noexcept;
 ```
 
 Returns the subject's distinguished name as the bytes of its encoding: what a child's [raw_issuer](raw_issuer.md) is
-compared with when a chain is built, and what a [certificate_pool](../x509-certificate_pool.md) indexes its
+compared with when a chain is built, and what a [certificate_pool](../x509-certificate_pool/README.md) indexes its
 certificates by.
 
 ## Parameters
@@ -52,4 +52,4 @@ Output:
 
 - [subject](subject.md): the same name, read
 - [raw_issuer](raw_issuer.md)
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

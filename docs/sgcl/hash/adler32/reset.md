@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [adler32](../adler32.md)
+[sgcl](../../README.md) › [hash](../README.md) › [adler32](README.md)
 
 # sgcl::hash::adler32::reset
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [(constructor)](adler32.md): a hasher as it is made
-- [sgcl::hash::adler32](../adler32.md)
+- [sgcl::hash::adler32](README.md)

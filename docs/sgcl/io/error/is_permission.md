@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_permission
 
@@ -59,4 +59,4 @@ true true
 ## See also
 
 - [chmod](../chmod.md): the permissions of a file
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

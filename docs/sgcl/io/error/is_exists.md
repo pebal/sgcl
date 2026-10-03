@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_exists
 
@@ -8,7 +8,7 @@ bool is_exists() const noexcept;
 
 Checks whether the operation failed because something is at the path already: `EEXIST`
 (`std::errc::file_exists`), whatever the category it is reported in. A [mkdir](../mkdir.md) of a directory that is
-there, a file opened with `open_flags::exclusive` that exists, a [shared_memory](../shared_memory.md) created
+there, a file opened with `open_flags::exclusive` that exists, a [shared_memory](../shared_memory/README.md) created
 under a name that is taken. Go's `errors.Is(err, fs.ErrExist)`.
 
 ## Parameters
@@ -49,4 +49,4 @@ mkdir .: File exists: exists? true
 ## See also
 
 - [is_not_found](is_not_found.md)
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::upper_bound
 
@@ -65,4 +65,4 @@ true
 
 - [lower_bound](lower_bound.md): the first element whose key is not less than a key
 - [equal_range](equal_range.md): both, from one search
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::variant\<Ts...\>::index
 
@@ -62,4 +62,4 @@ Output:
 
 - [holds_alternative](holds_alternative.md): checks for an alternative by its type
 - [valueless_by_exception](valueless_by_exception.md): checks whether the variant holds nothing
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

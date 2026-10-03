@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](../copy_on_write.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](README.md)
 
 # sgcl::concurrent::copy_on_write\<T\>::update
 
@@ -36,7 +36,7 @@ If an exception is thrown, the value is as it was: the copy being changed is nob
 
 Lock-free: some writer's exchange always succeeds. `f` runs on copies nobody else sees, possibly more than once,
 so it should be a change of its argument and nothing else, without effects outside it. A lost exchange backs off
-exponentially before the next copy, as the [stack](../stack.md) does at its head: sixteen writers at one value
+exponentially before the next copy, as the [stack](../stack/README.md) does at its head: sixteen writers at one value
 took 500 to 600 ns per update without the backoff and 20 with it, measured.
 
 ## Example
@@ -79,4 +79,4 @@ Output:
 
 - [compare_exchange](compare_exchange.md): the same exchange, the change decided by the caller
 - [store](store.md): replaces the value without looking at it
-- [sgcl::concurrent::copy_on_write\<T\>](../copy_on_write.md)
+- [sgcl::concurrent::copy_on_write\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::upper_bound
 
@@ -81,4 +81,4 @@ Output:
 
 - [lower_bound](lower_bound.md): the first element not less than a value
 - [binary_search](binary_search.md): checks whether a sorted range holds a value
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

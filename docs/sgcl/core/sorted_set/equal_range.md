@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::equal_range
 
@@ -16,7 +16,7 @@ Returns the range of the elements equivalent to `key`: [lower_bound](lower_bound
 [upper_bound](upper_bound.md) of the key, found in one search. In a set the range holds one element or none.
 
 - (3–4) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Take part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -69,4 +69,4 @@ true 30
 
 - [lower_bound](lower_bound.md), [upper_bound](upper_bound.md): the two ends of the range
 - [find](find.md): the element with a key
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

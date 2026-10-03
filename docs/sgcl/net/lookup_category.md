@@ -59,5 +59,5 @@ false
 
 ## See also
 
-- [dns](dns.md): the lookups whose failures these are
+- [dns](dns/README.md): the lookups whose failures these are
 - [category](category.md): the module's own codes

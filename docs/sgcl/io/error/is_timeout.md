@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_timeout
 
@@ -50,4 +50,4 @@ true true false
 
 ## See also
 
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

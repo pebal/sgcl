@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::empty
 
@@ -62,4 +62,4 @@ true
 
 - [full](full.md): checks whether the queue holds as many elements as it has cells
 - [size](size.md): the number of elements
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

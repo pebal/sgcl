@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::encode_upper
 
@@ -60,4 +60,4 @@ Output:
 
 - [encode](encode.md): lower-case digits
 - [decode](decode.md): the bytes of digits of either case
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

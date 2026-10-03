@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [decoder](../base64-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [decoder](README.md)
 
 # sgcl::encoding::base64::decoder::operator bool
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](base64-decoder.md): a decoder that holds none
-- [sgcl::encoding::base64::decoder](../base64-decoder.md)
+- [sgcl::encoding::base64::decoder](README.md)

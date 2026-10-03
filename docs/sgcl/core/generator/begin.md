@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [core](../README.md) › [generator](README.md)
 
 # sgcl::generator\<T\>::begin
 
@@ -65,4 +65,4 @@ Output:
 
 - [end](end.md): the end iterator
 - [iterator](../generator-iterator.md): what `begin` returns
-- [sgcl::generator\<T\>](../generator.md)
+- [sgcl::generator\<T\>](README.md)

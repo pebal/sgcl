@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [layout](../layout.md)
+[sgcl](../../README.md) › [time](../README.md) › [layout](README.md)
 
 # sgcl::time::operator== (sgcl::time::layout)
 
@@ -49,4 +49,4 @@ true
 
 ## See also
 
-- [sgcl::time::layout](../layout.md)
+- [sgcl::time::layout](README.md)

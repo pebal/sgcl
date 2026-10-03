@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::find
 
@@ -22,7 +22,7 @@ The value of the name, or null.
 
 ## Complexity
 
-Constant on average: a mapping is an [ordered_map](../../core/ordered_map.md).
+Constant on average: a mapping is an [ordered_map](../../core/ordered_map/README.md).
 
 ## Exceptions
 
@@ -53,4 +53,4 @@ Ada true
 ## See also
 
 - [at](at.md): an element of a list
-- [sgcl::txt::value](../value.md)
+- [sgcl::txt::value](README.md)

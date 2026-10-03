@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](../frame_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](README.md)
 
 # sgcl::frame_ptr\<Promise\>::resume
 
@@ -84,4 +84,4 @@ failed
 ## See also
 
 - [done](done.md): checks whether there is anything left to resume
-- [sgcl::frame_ptr\<Promise\>](../frame_ptr.md)
+- [sgcl::frame_ptr\<Promise\>](README.md)

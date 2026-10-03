@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [chacha20_poly1305](../chacha20_poly1305.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [chacha20_poly1305](README.md)
 
 # sgcl::crypto::chacha20_poly1305::clone
 
@@ -57,4 +57,4 @@ the same key
 ## See also
 
 - [(constructor)](chacha20_poly1305.md): takes a key, or another object's over
-- [sgcl::crypto::chacha20_poly1305](../chacha20_poly1305.md)
+- [sgcl::crypto::chacha20_poly1305](README.md)

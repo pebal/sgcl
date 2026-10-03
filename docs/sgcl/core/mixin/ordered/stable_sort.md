@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::stable_sort
 
@@ -95,4 +95,4 @@ egg tea
 
 - [sort](sort.md): sorts the elements, not keeping the order of equivalent ones
 - [sort_by](sort_by.md): sorts the elements by a key taken from each
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

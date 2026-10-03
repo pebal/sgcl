@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::to_string
 
@@ -46,4 +46,4 @@ http://example.com/a/%7e?x#y
 ## See also
 
 - [parse](parse.md): the text read
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

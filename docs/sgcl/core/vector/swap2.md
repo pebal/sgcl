@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::swap (sgcl::vector)
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [swap](swap.md): the member form, `a.swap(b)`
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

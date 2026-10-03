@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_task](../blocking_task.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_task](README.md)
 
 # sgcl::async::blocking_task\<T\>::blocking_task
 
@@ -60,4 +60,4 @@ moved from: done false
 
 - [operator=](operator_assign.md): takes over another handle's job
 - [spawn_blocking](../spawn_blocking.md): makes a handle with a job
-- [sgcl::async::blocking_task\<T\>](../blocking_task.md)
+- [sgcl::async::blocking_task\<T\>](README.md)

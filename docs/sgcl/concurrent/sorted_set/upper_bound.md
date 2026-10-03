@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](README.md)
 
 # sgcl::concurrent::sorted_set\<Key, Compare\>::upper_bound
 
@@ -67,4 +67,4 @@ true
 ## See also
 
 - [lower_bound](lower_bound.md): the first key not less than a key
-- [sgcl::concurrent::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::concurrent::sorted_set\<Key, Compare\>](README.md)

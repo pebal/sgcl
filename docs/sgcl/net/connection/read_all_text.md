@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read_all_text, async_read_all_text
 
@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-The text, empty when the stream was at its end; or the [io::error](../../io/error.md) of the [read](read.md) that
+The text, empty when the stream was at its end; or the [io::error](../../io/error/README.md) of the [read](read.md) that
 failed.
 
 ## Complexity
@@ -67,4 +67,4 @@ hello from the server
 
 - [read_all](read_all.md): the same into bytes
 - [read_line](read_line.md): a line at a time
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

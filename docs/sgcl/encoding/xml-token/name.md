@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [token](../xml-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [token](README.md)
 
 # sgcl::encoding::xml::token::name
 
@@ -55,4 +55,4 @@ svg:svg
 ## See also
 
 - [local_name](local_name.md), [namespace_uri](namespace_uri.md): the parts of an element's name
-- [sgcl::encoding::xml::token](../xml-token.md)
+- [sgcl::encoding::xml::token](README.md)

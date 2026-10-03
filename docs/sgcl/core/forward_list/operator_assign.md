@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::operator=
 
@@ -77,4 +77,4 @@ Output:
 
 - [assign](assign.md): replaces the contents with copies of a value or a range
 - [(constructor)](forward_list.md): constructs a list
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

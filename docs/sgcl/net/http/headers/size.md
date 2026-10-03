@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::size
 
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [empty](empty.md): whether there is no field
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

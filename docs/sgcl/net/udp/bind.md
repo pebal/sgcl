@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](README.md)
 
 # sgcl::net::udp::bind, async_bind
 
@@ -28,7 +28,7 @@ A port 0 lets the system choose one, which the socket's [local_endpoint](../udp-
 
 ## Return value
 
-The [udp::socket](../udp-socket.md); or the [io::error](../../io/error.md), its operation `bind udp` (`lookup` for
+The [udp::socket](../udp-socket/README.md); or the [io::error](../../io/error/README.md), its operation `bind udp` (`lookup` for
 a failure of the lookup) and its path the address given: `net::errc::invalid_address` for an address that is not
 `"host:port"`, `net::errc::host_not_found` for a name nobody knows, `EADDRINUSE` for a port taken, the `errno` of
 the socket otherwise.
@@ -72,5 +72,5 @@ bind udp 5353: invalid address
 ## See also
 
 - [connect, async_connect](connect.md): a socket with its peer fixed
-- [udp::socket](../udp-socket.md): what it gives
-- [sgcl::net::udp](../udp.md)
+- [udp::socket](../udp-socket/README.md): what it gives
+- [sgcl::net::udp](README.md)

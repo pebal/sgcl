@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::find
 
@@ -14,8 +14,8 @@ key, reading raw pointers only.
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the hash and the equality take. Take part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string.md) do: a `string_view`,
-  a [string_slice](../string.md) or a literal finds a `string` key with no string made for the search.
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string/README.md) do: a `string_view`,
+  a [string_slice](../string/README.md) or a literal finds a `string` key with no string made for the search.
 
 ## Parameters
 
@@ -72,4 +72,4 @@ apple 1
 - [contains](contains.md): checks whether a key is there
 - [at](at.md): the value under a key, with bounds checking
 - [equal_range](equal_range.md): the range of the elements under a key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

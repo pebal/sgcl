@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex_matches](../regex_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex_matches](README.md)
 
 # sgcl::txt::regex_matches::regex_matches
 
@@ -34,7 +34,7 @@ make one, and makes it the same way.
 ## Exceptions
 
 - (1–2) None.
-- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Example
@@ -62,4 +62,4 @@ true 2
 ## See also
 
 - [regex::all](../regex/all.md): the same range from the pattern
-- [sgcl::txt::regex_matches](../regex_matches.md)
+- [sgcl::txt::regex_matches](README.md)

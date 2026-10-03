@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md) › [node_type](../sorted_set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set/README.md) › [node_type](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::node_type::operator=
 
@@ -71,4 +71,4 @@ assign
 ## See also
 
 - [(constructor)](sorted_set-node_type.md): constructs a handle
-- [sgcl::sorted_set\<Key, Compare\>::node_type](../sorted_set-node_type.md)
+- [sgcl::sorted_set\<Key, Compare\>::node_type](README.md)

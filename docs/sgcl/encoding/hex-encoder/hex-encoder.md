@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [encoder](../hex-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [encoder](README.md)
 
 # sgcl::encoding::hex::encoder::encoder
 
@@ -59,4 +59,4 @@ true
 
 - [encoder_to](../hex/encoder_to.md): an encoder with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::hex::encoder](../hex-encoder.md)
+- [sgcl::encoding::hex::encoder](README.md)

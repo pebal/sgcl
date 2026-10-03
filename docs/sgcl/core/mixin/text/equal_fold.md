@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::equal_fold
 
@@ -84,5 +84,5 @@ true false
 ## See also
 
 - [compare](compare.md): the order of the characters, case and all
-- [utf8, unicode, runes](../../utf8.md): `unicode::equal_fold`, `unicode::to_lower`
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [utf8, unicode, runes](../../utf8/README.md): `unicode::equal_fold`, `unicode::to_lower`
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

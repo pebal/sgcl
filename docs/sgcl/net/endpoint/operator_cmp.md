@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [endpoint](../endpoint.md)
+[sgcl](../../README.md) › [net](../README.md) › [endpoint](README.md)
 
 # sgcl::net::endpoint::operator==, operator\<=\>
 
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [ip_address::operator==, operator\<=\>](../ip_address/operator_cmp.md): the order of addresses
-- [sgcl::net::endpoint](../endpoint.md)
+- [sgcl::net::endpoint](README.md)

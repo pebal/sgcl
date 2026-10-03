@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::erase
 
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [set](set.md): the element with an attribute set
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

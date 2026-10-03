@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](README.md)
 
 # sgcl::compress::lzma::compress
 
@@ -75,5 +75,5 @@ compress::lzma: lc 0..8, lp 0..4, pb 0..4
 ## See also
 
 - [decompress](decompress.md): the other way
-- [lzma::writer](../lzma-writer.md): a stream, with the end marker
-- [sgcl::compress::lzma](../lzma.md)
+- [lzma::writer](../lzma-writer/README.md): a stream, with the end marker
+- [sgcl::compress::lzma](README.md)

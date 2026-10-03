@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::bits
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [size](size.md): the bytes of the modulus
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

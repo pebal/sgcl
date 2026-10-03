@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [condition_variable](../condition_variable.md)
+[sgcl](../../README.md) › [async](../README.md) › [condition_variable](README.md)
 
 # sgcl::async::condition_variable::notify_one
 
@@ -73,4 +73,4 @@ Output:
 
 - [notify_all](notify_all.md): wakes every waiter
 - [wait](wait.md): what the notify ends
-- [sgcl::async::condition_variable](../condition_variable.md)
+- [sgcl::async::condition_variable](README.md)

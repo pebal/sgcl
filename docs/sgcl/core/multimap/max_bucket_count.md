@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::max_bucket_count
 
@@ -48,4 +48,4 @@ true
 ## See also
 
 - [bucket_count](bucket_count.md): the number of buckets
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

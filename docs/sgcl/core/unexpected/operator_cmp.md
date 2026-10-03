@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unexpected](../unexpected.md)
+[sgcl](../../README.md) › [core](../README.md) › [unexpected](README.md)
 
 # sgcl::operator== (sgcl::unexpected)
 
@@ -52,4 +52,4 @@ true true
 ## See also
 
 - [operator==](../expected/operator_cmp.md): an `expected` compared with an `unexpected`
-- [sgcl::unexpected\<E\>](../unexpected.md)
+- [sgcl::unexpected\<E\>](README.md)

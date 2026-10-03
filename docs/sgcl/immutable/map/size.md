@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::size
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the map is empty
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::day
 
@@ -48,4 +48,4 @@ Output:
 
 - [year](year.md), [month](month.md): the rest of the date
 - [year_day](year_day.md): the day of the year
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

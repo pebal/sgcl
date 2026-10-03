@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::operator==, operator!= (sgcl::map)
 
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [find](find.md): an iterator to the element under a key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

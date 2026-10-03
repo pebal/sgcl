@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [locale](../locale.md)
+[sgcl](../../README.md) › [txt](../README.md) › [locale](README.md)
 
 # sgcl::txt::locale::locale
 
@@ -61,4 +61,4 @@ false
 
 - [root](root.md)
 - [subtag](subtag.md)
-- [sgcl::txt::locale](../locale.md)
+- [sgcl::txt::locale](README.md)

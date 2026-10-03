@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::local_endpoint
 
@@ -7,7 +7,7 @@ endpoint local_endpoint() const noexcept;
 ```
 
 Returns the address and port of this end: Go's `Conn.LocalAddr`. A dialed TCP connection's port is the one the
-system chose for it. A unix socket and a pair in memory have none: the [endpoint](../endpoint.md) is empty
+system chose for it. A unix socket and a pair in memory have none: the [endpoint](../endpoint/README.md) is empty
 (`!is_valid()`); a unix socket is named by its [path](path.md).
 
 ## Parameters
@@ -57,5 +57,5 @@ false
 ## See also
 
 - [remote_endpoint](remote_endpoint.md): the address of the peer
-- [endpoint](../endpoint.md): an address and a port
-- [sgcl::net::connection](../connection.md)
+- [endpoint](../endpoint/README.md): an address and a port
+- [sgcl::net::connection](README.md)

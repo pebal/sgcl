@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::size
 
@@ -67,4 +67,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the map holds an element, without the count
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

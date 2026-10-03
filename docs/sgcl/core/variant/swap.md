@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::variant\<Ts...\>::swap
 
@@ -57,4 +57,4 @@ two 1
 ## See also
 
 - [swap](swap2.md): the same as a free function
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

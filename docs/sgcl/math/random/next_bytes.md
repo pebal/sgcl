@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::next_bytes
 
@@ -11,13 +11,13 @@ wanted are dropped, so every call starts on a new draw: two calls of 4 bytes tak
 takes one.
 
 The bytes are for a simulation, a test, a replay; keys, nonces and tokens come from
-[crypto::random](../../crypto/random.md).
+[crypto::random](../../crypto/random/README.md).
 
 ## Parameters
 
 | Parameter | Description |
 |---|---|
-| `out` | the bytes filled: an array, a [vector](../../core/vector.md) of `byte` or a part of one |
+| `out` | the bytes filled: an array, a [vector](../../core/vector/README.md) of `byte` or a part of one |
 
 ## Return value
 
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [next_uint64](next_uint64.md): the words the bytes are made of
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

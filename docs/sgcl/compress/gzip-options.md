@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [gzip](gzip.md)
+[sgcl](../README.md) › [compress](README.md) › [gzip](gzip/README.md)
 
 # sgcl::compress::gzip::options
 
@@ -16,9 +16,9 @@ namespace sgcl::compress {
 }
 ```
 
-`sgcl::compress::gzip::options` is how a gzip stream is made: the [level](level.md) of the encoder and the
+`sgcl::compress::gzip::options` is how a gzip stream is made: the [level](level/README.md) of the encoder and the
 [header](gzip_header.md) written before the data — a name, a comment, the time the data was modified, an extra
-field, the system that made it. [compress](gzip/compress.md) and the [writer](gzip-writer.md) take it.
+field, the system that made it. [compress](gzip/compress.md) and the [writer](gzip-writer/README.md) take it.
 
 ## Rules
 
@@ -31,7 +31,7 @@ field, the system that made it. [compress](gzip/compress.md) and the [writer](gz
 
 | Member | Description |
 |---|---|
-| `level` | how hard the encoder works, 0 to 9 or `level::huffman_only`; 6 by default ([level](level.md)) |
+| `level` | how hard the encoder works, 0 to 9 or `level::huffman_only`; 6 by default ([level](level/README.md)) |
 | `header` | the header of the member; empty by default: no name, no comment, no time, the system unknown (255) |
 
 ## Example
@@ -61,5 +61,5 @@ notes.txt
 ## See also
 
 - [gzip_header](gzip_header.md)
-- [level](level.md)
-- [sgcl::compress::gzip](gzip.md)
+- [level](level/README.md)
+- [sgcl::compress::gzip](gzip/README.md)

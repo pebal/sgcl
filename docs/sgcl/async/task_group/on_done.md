@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::on_done
 
@@ -73,4 +73,4 @@ all finished
 
 - [select](../select.md): the cases and how one is chosen
 - [wait, operator co_await](wait.md): the wait outside a select, which rethrows
-- [sgcl::async::task_group](../task_group.md)
+- [sgcl::async::task_group](README.md)

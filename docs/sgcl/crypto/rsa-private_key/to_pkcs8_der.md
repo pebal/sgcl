@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::to_pkcs8_der
 
@@ -8,7 +8,7 @@ secret_bytes to_pkcs8_der() const;
 
 Writes the key as a PKCS #8 PrivateKeyInfo (`PRIVATE KEY` in PEM), version 0 with the `rsaEncryption` identifier, as
 Go's `x509.MarshalPKCS8PrivateKey` and OpenSSL write it, byte for byte. The bytes hold the secret: a
-[secret_bytes](../secret_bytes.md).
+[secret_bytes](../secret_bytes/README.md).
 
 ## Parameters
 
@@ -55,4 +55,4 @@ true
 
 - [from_pkcs8_der](from_pkcs8_der.md): reads it back
 - [to_pem](to_pem.md): the same as PEM
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

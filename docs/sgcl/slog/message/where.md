@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [message](../message.md)
+[sgcl](../../README.md) › [slog](../README.md) › [message](README.md)
 
 # sgcl::slog::message::where
 
@@ -52,4 +52,4 @@ called at line 11 of int main()
 
 - [text](text.md)
 - [record::source](../record/source.md): the place as a handler reads it
-- [sgcl::slog::message](../message.md)
+- [sgcl::slog::message](README.md)

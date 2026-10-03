@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::zero
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [max](max.md), [min](min.md): the ends of the range
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

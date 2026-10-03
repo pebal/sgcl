@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [object](../object.md)
+[sgcl](../../README.md) › [txt](../README.md) › [object](README.md)
 
 # sgcl::txt::object::set
 
@@ -57,4 +57,4 @@ to++ be++ or+ not+
 ## See also
 
 - [object](object.md): the constructors
-- [sgcl::txt::object](../object.md)
+- [sgcl::txt::object](README.md)

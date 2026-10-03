@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::hardware_concurrency
 
@@ -48,4 +48,4 @@ Sample output:
 ## See also
 
 - [config](../config.md): `workers` and `sweep_threads_max`, the defaults derived from it
-- [sgcl::thread](../thread.md)
+- [sgcl::thread](README.md)

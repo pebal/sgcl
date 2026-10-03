@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](README.md)
 
 # sgcl::runes::end
 
@@ -6,7 +6,7 @@
 iterator end() const noexcept;
 ```
 
-Returns the [iterator](../runes-iterator.md) past the last code point: at the byte position equal to the size of the
+Returns the [iterator](../runes-iterator/README.md) past the last code point: at the byte position equal to the size of the
 text. It is not dereferenced.
 
 ## Parameters
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first code point
-- [sgcl::runes](../runes.md)
+- [sgcl::runes](README.md)

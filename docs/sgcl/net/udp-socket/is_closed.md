@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::is_closed
 
@@ -50,4 +50,4 @@ true
 ## See also
 
 - [close](close.md): closes the socket
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

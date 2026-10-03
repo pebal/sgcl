@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::deque)
 
@@ -15,8 +15,8 @@ Compares two deques by their elements, as `std::deque` compares them.
    one, else a `std::weak_ordering` built from `<`. Takes part only when `T` is
    [req::comparable](../req/comparable.md).
 
-`!=`, `<`, `<=`, `>` and `>=` follow from them. The operators come from [mixin::equatable](../mixin/equatable.md)
-and [mixin::comparable](../mixin/comparable.md), found through the deque's type.
+`!=`, `<`, `<=`, `>` and `>=` follow from them. The operators come from [mixin::equatable](../mixin/equatable/README.md)
+and [mixin::comparable](../mixin/comparable/README.md), found through the deque's type.
 
 ## Parameters
 
@@ -77,6 +77,6 @@ true false
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md): the operators of every
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md): the operators of every
   container of the library
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

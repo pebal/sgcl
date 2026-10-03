@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::operator+ (sgcl::string)
 
@@ -108,4 +108,4 @@ alice@example.com false
 
 - [concat](concat.md): one string of a few pieces in order, made once
 - [join](join.md): one string of the parts with a separator between each two
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

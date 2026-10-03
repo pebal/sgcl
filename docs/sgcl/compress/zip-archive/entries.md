@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](../zip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](README.md)
 
 # sgcl::compress::zip::archive::entries
 
@@ -6,7 +6,7 @@
 slice<const entry> entries() const noexcept;
 ```
 
-Returns every [entry](../zip-entry.md) of the archive, in the order of its central directory: what each record
+Returns every [entry](../zip-entry/README.md) of the archive, in the order of its central directory: what each record
 says, the name, the time, the sizes, the CRC-32, the method, the mode. The slice keeps the entries alive, shared
 with the archive and its copies.
 
@@ -59,4 +59,4 @@ docs/b.txt       1     3
 ## See also
 
 - [find](find.md): an entry by its name
-- [sgcl::compress::zip::archive](../zip-archive.md)
+- [sgcl::compress::zip::archive](README.md)

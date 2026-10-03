@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](../x509-name.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](README.md)
 
 # sgcl::crypto::x509::name::to_string
 
@@ -73,4 +73,4 @@ CN=sgcl test CA
 ## See also
 
 - [attributes](attributes.md): the attributes in the order of the encoding
-- [sgcl::crypto::x509::name](../x509-name.md)
+- [sgcl::crypto::x509::name](README.md)

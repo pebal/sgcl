@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::ends_with
 
@@ -57,4 +57,4 @@ true true false
 ## See also
 
 - [starts_with](starts_with.md): the other end
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

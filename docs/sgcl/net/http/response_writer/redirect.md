@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::redirect
 
@@ -66,5 +66,5 @@ Output:
 
 ## See also
 
-- [client](../client.md): follows a redirect
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [client](../client/README.md): follows a redirect
+- [sgcl::net::http::response_writer](README.md)

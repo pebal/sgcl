@@ -13,10 +13,10 @@ namespace sgcl::async {
 }
 ```
 
-A timeout on a task: the task's result, or the error [timed_out](timed_out.md) when `d` passed first. It is what
+A timeout on a task: the task's result, or the error [timed_out](timed_out/README.md) when `d` passed first. It is what
 the [timeout](timeout.md) case is for a select, and what Go writes as `select { case r := <-done: case
 <-time.After(d): }` or with `context.WithTimeout`. A deadline that passed is a failure the library reports, so it
-is an [expected](../core/expected.md), as every failure of the library is; a task of nothing gives
+is an [expected](../core/expected/README.md), as every failure of the library is; a task of nothing gives
 `expected<void, timed_out>`. What the task itself threw is the task's, not a failure of the timeout, and comes
 through as it is.
 
@@ -24,7 +24,7 @@ through as it is.
 2. The same, and the stop of `loser` requested when `d` passed first.
 
 `with_timeout(t, d)` is [with_deadline](with_deadline.md)`(t, clock::now() + d)`: the deadline is counted from
-the call, not from the first wait for the result. The result is a [task](task.md), waited for as one: awaited
+the call, not from the first wait for the result. The result is a [task](task/README.md), waited for as one: awaited
 (`co_await async::with_timeout(t, d)`), waited for from a thread (`async::with_timeout(t, d).wait()`), spawned or
 not (a wait starts it).
 
@@ -74,7 +74,7 @@ the stop of `loser` wakes a task and the workers cannot be started.
 - A timeout of zero, or less, is a deadline that has passed: a task done already gives its result, any other is
   `timed_out` and runs on. A deadline of zero is still a timer: a task that finishes in the few microseconds before
   the timer thread fires it wins the race.
-- The time is the module's clock, so a [manual_clock](manual_clock.md) serves the race.
+- The time is the module's clock, so a [manual_clock](manual_clock/README.md) serves the race.
 
 ## Example
 
@@ -124,8 +124,8 @@ slow timed out
 ## See also
 
 - [with_deadline](with_deadline.md): the same by a point of the clock, or by a token's stop
-- [timed_out](timed_out.md): the error
+- [timed_out](timed_out/README.md): the error
 - [timeout](timeout.md): a wait bounded in a select
 - [when_any](when_any.md): a race of tasks
-- [task_group](task_group.md): a scope of tasks stopped as one
-- [stop_source](stop_source.md): the source given for the loser
+- [task_group](task_group/README.md): a scope of tasks stopped as one
+- [stop_source](stop_source/README.md): the source given for the loser

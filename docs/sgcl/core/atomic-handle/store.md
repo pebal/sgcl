@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::store
 
@@ -54,4 +54,4 @@ welcome | maintenance at 22:00
 
 - [load, operator H](load.md): reads the handle
 - [exchange](exchange.md): replaces it and returns the old one
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

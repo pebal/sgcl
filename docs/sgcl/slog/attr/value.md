@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [attr](../attr.md)
+[sgcl](../../README.md) › [slog](../README.md) › [attr](README.md)
 
 # sgcl::slog::attr::value
 
@@ -6,7 +6,7 @@
 slog::value value() const noexcept;
 ```
 
-Returns the value of the attribute, a view of the record's ([value](../value.md)).
+Returns the value of the attribute, a view of the record's ([value](../value/README.md)).
 
 ## Parameters
 
@@ -49,5 +49,5 @@ true 1.5s 1500000000
 ## See also
 
 - [key](key.md)
-- [sgcl::slog::value](../value.md)
-- [sgcl::slog::attr](../attr.md)
+- [sgcl::slog::value](../value/README.md)
+- [sgcl::slog::attr](README.md)

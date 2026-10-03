@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::load_factor
 
@@ -56,4 +56,4 @@ true
 
 - [max_load_factor](max_load_factor.md): the load factor the table grows at
 - [bucket_count](bucket_count.md): the number of buckets
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

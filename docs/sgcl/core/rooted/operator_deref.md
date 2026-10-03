@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [rooted](../rooted.md)
+[sgcl](../../README.md) › [core](../README.md) › [rooted](README.md)
 
 # sgcl::rooted\<T\>::operator\*, operator-\>
 
@@ -60,4 +60,4 @@ hello, ada
 ## See also
 
 - [get](get.md): the address of the value
-- [sgcl::rooted\<T\>](../rooted.md)
+- [sgcl::rooted\<T\>](README.md)

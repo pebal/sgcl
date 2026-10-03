@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::upper_bound
 
@@ -14,7 +14,7 @@ the key. With [lower_bound](lower_bound.md) it bounds the elements of a closed r
 `[lower_bound(a), upper_bound(b))` holds every element from `a` to `b`.
 
 - (3–4) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Take part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -69,4 +69,4 @@ true
 
 - [lower_bound](lower_bound.md): the first element not less than a key
 - [equal_range](equal_range.md): both bounds at once
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

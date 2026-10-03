@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc32c](../crc32c.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc32c](README.md)
 
 # sgcl::hash::crc32c::reset
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [(constructor)](crc32c.md): a hasher as it is made
-- [sgcl::hash::crc32c](../crc32c.md)
+- [sgcl::hash::crc32c](README.md)

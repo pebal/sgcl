@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md) › [builder](../set-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](../set/README.md) › [builder](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::freeze
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [set::thaw](../set/thaw.md): a builder over a set
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](../set-builder.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](README.md)

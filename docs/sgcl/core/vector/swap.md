@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::swap
 
@@ -31,7 +31,7 @@ None.
 
 Iterators, pointers and references to the elements stay valid and refer to the same elements, which now belong
 to the other vector, as with `std::vector`; an `end()` taken before is the end of the other vector. A
-[slice](../slice.md) holds the buffer it was taken from, whichever vector holds it now.
+[slice](../slice/README.md) holds the buffer it was taken from, whichever vector holds it now.
 
 ## Example
 
@@ -63,4 +63,4 @@ true
 
 - [swap](swap2.md): the non-member form, `swap(a, b)`
 - [operator=](operator_assign.md): assigns another vector
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

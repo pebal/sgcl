@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](../atomic-tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](README.md)
 
 # sgcl::atomic\<tracked_ptr\<T\>\>::notify_all
 
@@ -66,4 +66,4 @@ Output:
 
 - [notify_one](notify_one.md): wakes one waiting thread
 - [wait](wait.md): blocks while the pointer is the one given
-- [sgcl::atomic\<tracked_ptr\<T\>\>](../atomic-tracked_ptr.md)
+- [sgcl::atomic\<tracked_ptr\<T\>\>](README.md)

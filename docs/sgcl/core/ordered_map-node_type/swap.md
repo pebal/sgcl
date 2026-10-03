@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md) › [node_type](../ordered_map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map/README.md) › [node_type](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type::swap
 
@@ -62,4 +62,4 @@ true 2
 ## See also
 
 - [operator=](operator_assign.md): takes the node of another handle
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type](../ordered_map-node_type.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

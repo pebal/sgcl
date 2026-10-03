@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::as
 
@@ -69,4 +69,4 @@ true 2
 
 - [is](is.md): checks whether the object was created as a given type
 - [static_pointer_cast, const_pointer_cast, dynamic_pointer_cast](pointer_cast.md): the casts of `std::shared_ptr`
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

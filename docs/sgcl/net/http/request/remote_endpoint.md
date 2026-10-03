@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::remote_endpoint
 
@@ -7,7 +7,7 @@ net::endpoint remote_endpoint() const noexcept;
 ```
 
 Returns the address and the port of the client a received request came from, Go's `r.RemoteAddr`, as a
-[net::endpoint](../../endpoint.md): the peer of the connection, not a field of the request (a proxy in front of the
+[net::endpoint](../../endpoint/README.md): the peer of the connection, not a field of the request (a proxy in front of the
 server puts the client's own address in a field such as `X-Forwarded-For`, read with [header](header.md)). A request
 the program built has an empty endpoint.
 
@@ -63,4 +63,4 @@ from 127.0.0.1, a port above 0: true
 ## See also
 
 - [header](header.md): a field of the request
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

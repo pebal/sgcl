@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [xml](xml.md)
+[sgcl](../README.md) › [encoding](README.md) › [xml](xml/README.md)
 
 # sgcl::encoding::xml::style
 
@@ -20,7 +20,7 @@ namespace sgcl::encoding {
 ```
 
 `sgcl::encoding::xml::style` is how a node is written by [to_string](xml/to_string.md),
-[stringify](xml/stringify.md) and a [writer](xml-writer.md): on one line, or indented by `indent` spaces a level,
+[stringify](xml/stringify.md) and a [writer](xml-writer/README.md): on one line, or indented by `indent` spaces a level,
 with or without the XML declaration in front. `xml::compact` and `xml::pretty` are the two constants of `xml` for
 the common cases. Go's `MarshalIndent(v, prefix, indent)` takes a prefix too, which has no counterpart here.
 
@@ -60,5 +60,5 @@ Output:
 
 ## See also
 
-- [to_string](xml/to_string.md), [stringify](xml/stringify.md), [writer](xml-writer.md): what takes a style
-- [sgcl::encoding::xml](xml.md)
+- [to_string](xml/to_string.md), [stringify](xml/stringify.md), [writer](xml-writer/README.md): what takes a style
+- [sgcl::encoding::xml](xml/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::bucket
 
@@ -77,4 +77,4 @@ true
 
 - [bucket_size](bucket_size.md): the number of elements in a bucket
 - [begin, cbegin](begin.md): the local iterators of a bucket
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

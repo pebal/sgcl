@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](README.md)
 
 # sgcl::concurrent::weak_map\<Key, T\>::find
 
@@ -79,4 +79,4 @@ true
 
 - [contains](contains.md): checks whether an object has an entry
 - [count](count.md): the number of entries of an object
-- [sgcl::concurrent::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::concurrent::weak_map\<Key, T\>](README.md)

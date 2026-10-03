@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::from_pkix_der
 
@@ -18,7 +18,7 @@ numbers are checked as [from_modulus](from_modulus.md) checks them.
 
 ## Return value
 
-The key, or a [crypto::error](../error.md):
+The key, or a [crypto::error](../error/README.md):
 
 - `errc::malformed` with the offset of the byte for DER that is not one SubjectPublicKeyInfo in strict DER, or
   parameters other than NULL;
@@ -66,4 +66,4 @@ offset 4: sgcl::crypto::rsa: not an RSA key
 - [to_pkix_der](to_pkix_der.md): writes the encoding
 - [x509::certificate::raw_subject_public_key_info](../x509-certificate/raw_subject_public_key_info.md): the
   SubjectPublicKeyInfo of a certificate
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::operator[]
 
@@ -69,4 +69,4 @@ true
 
 - [at](at.md): the value under a key, which must be there
 - [try_emplace](try_emplace.md): inserts a value built from arguments when the key is absent
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [queue](README.md)
 
 # sgcl::concurrent::queue\<T\>::push
 
@@ -88,4 +88,4 @@ Grace
 - [emplace](emplace.md): constructs the element in place
 - [push_range](push_range.md): appends the elements of a range with one exchange
 - [try_pop](try_pop.md), [pop](pop.md): take the first element
-- [sgcl::concurrent::queue\<T\>](../queue.md)
+- [sgcl::concurrent::queue\<T\>](README.md)

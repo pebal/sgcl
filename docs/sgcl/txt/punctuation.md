@@ -13,7 +13,7 @@ namespace sgcl::txt {
 }
 ```
 
-What a [collator](collator.md) makes of punctuation, spaces and symbols — of what the algorithm calls the variable
+What a [collator](collator/README.md) makes of punctuation, spaces and symbols — of what the algorithm calls the variable
 elements. CLDR calls the setting `alternate` (`ka`), and Thai asks for `shifted`; it is the `punctuation` of
 [collator::options](collator-options.md), and [collator::shifts_punctuation](collator/shifts_punctuation.md) says
 what a collator settled on.
@@ -50,4 +50,4 @@ false true false
 ## See also
 
 - [collator::options](collator-options.md): the settings of a collator
-- [collator](collator.md)
+- [collator](collator/README.md)

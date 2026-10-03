@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [semaphore](../semaphore.md)
+[sgcl](../../README.md) › [async](../README.md) › [semaphore](README.md)
 
 # sgcl::async::semaphore::acquire
 
@@ -7,7 +7,7 @@ auto acquire() noexcept;
 ```
 
 Takes a permit, waiting while there is none: a receive of one of the channel's signals. The call does nothing yet;
-it returns an [operation](../operation.md), carried out in one of two ways
+it returns an [operation](../operation/README.md), carried out in one of two ways
 ([README: Waiting operations](../README.md#waiting-operations)):
 
 - `co_await s.acquire()` in a task: the task suspends while no permit is free, holding no thread, and is resumed by
@@ -20,7 +20,7 @@ None.
 
 ## Return value
 
-An [operation](../operation.md). Carried out, by `co_await` or by `.wait()`, it gives a `bool`: `true`, a permit
+An [operation](../operation/README.md). Carried out, by `co_await` or by `.wait()`, it gives a `bool`: `true`, a permit
 taken. The channel of a semaphore is never closed, so the wait ends only with a permit.
 
 ## Complexity
@@ -72,4 +72,4 @@ true
 - [try_acquire](try_acquire.md): a permit without the wait
 - [release](release.md): gives a permit back
 - [on_acquire](on_acquire.md): the acquire as a case of a select
-- [sgcl::async::semaphore](../semaphore.md)
+- [sgcl::async::semaphore](README.md)

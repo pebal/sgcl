@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::erase
 
@@ -51,7 +51,7 @@ Lock-free, and linearizable at the compare-exchange that links the marker at the
 erasures of one element, exactly one returns 1 (or erases it, for (3)). The thread that erases cannot know who is
 reading the element, so it does not destroy it: the collector does, once nothing holds the node. An element that
 must be released promptly is held by a `tracked_ptr` whose object does its own cleanup, or watched by an
-[expiry_queue](../../core/expiry_queue.md).
+[expiry_queue](../../core/expiry_queue/README.md).
 
 `it = m.erase(it)` erases the elements a walk chooses, while other threads insert and erase, without a lock.
 
@@ -92,4 +92,4 @@ test
 
 - [clear](clear.md): erases every element
 - [insert](insert.md), [try_emplace](try_emplace.md): insert an element
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

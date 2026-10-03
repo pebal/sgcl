@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::random_access
 
@@ -53,4 +53,4 @@ false
 
 - [the mixins](../mixin/README.md): `mixin::random_access`, the declaration without methods this requirement asks for
 - [bidirectional](bidirectional.md), [contiguous](contiguous.md)
-- [sgcl::req](../req.md)
+- [sgcl::req](README.md)

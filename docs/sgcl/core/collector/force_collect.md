@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::force_collect
 
@@ -79,4 +79,4 @@ true
 
 - [get_live_object_count](get_live_object_count.md): a count after a full cycle
 - [clear_stack](clear_stack.md): the zeroing alone
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

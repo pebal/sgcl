@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::hash_function
 
@@ -53,4 +53,4 @@ Output:
 
 - [key_eq](key_eq.md): a copy of the equality of the keys
 - [bucket](bucket.md): the bucket of a key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

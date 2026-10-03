@@ -17,10 +17,10 @@ changes. No method writes an element in place; every change — `set`, `push_bac
 `req::immutable<R>` is "R carries `mixin::immutable`" ([the mixins](README.md)): a function that takes
 `const req::immutable auto&` can keep what it was given, hand it to another thread or compare it with a later
 version, without a copy and without a lock, because nothing it holds will change under it. The four immutable
-containers carry it: [immutable::vector](../../immutable/vector.md), [immutable::list](../../immutable/list.md),
-[immutable::map](../../immutable/map.md), [immutable::set](../../immutable/set.md).
+containers carry it: [immutable::vector](../../immutable/vector/README.md), [immutable::list](../../immutable/list/README.md),
+[immutable::map](../../immutable/map/README.md), [immutable::set](../../immutable/set/README.md).
 
-Not the same as not being written: `slice<const T>` and `sorted_set` carry no [mixin::sequence](sequence.md)
+Not the same as not being written: `slice<const T>` and `sorted_set` carry no [mixin::sequence](sequence/README.md)
 either, but the object under a `slice<const T>` may change behind it and a `sorted_set` has `insert`. What they
 do not say, `mixin::immutable` says: the value is final.
 

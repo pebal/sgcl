@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [constant_time](../constant_time.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [constant_time](README.md)
 
 # sgcl::crypto::constant_time::equal
 
@@ -66,5 +66,5 @@ false
 
 ## See also
 
-- [hmac](../hmac.md): a tag under a key, and its `verify`
-- [sgcl::crypto::constant_time](../constant_time.md)
+- [hmac](../hmac/README.md): a tag under a key, and its `verify`
+- [sgcl::crypto::constant_time](README.md)

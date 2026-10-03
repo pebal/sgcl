@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::parse
 
@@ -27,7 +27,7 @@ This is what Go's `big.Rat.SetString` is for; where Go answers `false`, `parse` 
 
 ## Return value
 
-The fraction, or a [parse_error](../parse_error.md) whose offset is the byte where the reading stopped:
+The fraction, or a [parse_error](../parse_error/README.md) whose offset is the byte where the reading stopped:
 
 - `"empty text"`: an empty text;
 - `"no digits after the sign"`: a sign alone, a slash with no digits before or after it, a point alone, an `e`
@@ -40,7 +40,7 @@ The fraction, or a [parse_error](../parse_error.md) whose offset is the byte whe
 
 ## Complexity
 
-The reading of the digits as a [big_integer](../big_integer.md), then a power of ten for a point or an exponent
+The reading of the digits as a [big_integer](../big_integer/README.md), then a power of ten for a point or an exponent
 (at most a million digits) and the gcd of the reduction.
 
 ## Exceptions
@@ -94,5 +94,5 @@ Output:
 
 - [to_string](to_string.md), [to_decimal](to_decimal.md): write the text
 - [(constructor)](rational.md): a fraction from a literal text
-- [parse_error](../parse_error.md): why a text is not a fraction
-- [sgcl::math::rational](../rational.md)
+- [parse_error](../parse_error/README.md): why a text is not a fraction
+- [sgcl::math::rational](README.md)

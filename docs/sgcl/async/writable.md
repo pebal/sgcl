@@ -10,7 +10,7 @@ namespace sgcl::async {
 }
 ```
 
-Returns an [event](event.md) set when `fd` can be written without blocking, or when the wait is ended with nothing
+Returns an [event](event/README.md) set when `fd` can be written without blocking, or when the wait is ended with nothing
 ([cancel_waits](cancel_waits.md), a stop of the reactor): what [readable](readable.md) is for a read, with its rules.
 A task writes `co_await async::writable(fd)` and holds no thread while the descriptor's buffer is full; a write woken
 by it tries again, and a write that would block waits again.
@@ -96,4 +96,4 @@ written 1048576, read 1048576
 
 - [readable](readable.md): the same for a read, and the rules of the reactor
 - [cancel_waits](cancel_waits.md): the waits on a descriptor ended before its close
-- [event](event.md): what a wait is
+- [event](event/README.md): what a wait is

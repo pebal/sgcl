@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::close
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-Nothing, or the [io::error](../../io/error.md) of the close, its operation `close`.
+Nothing, or the [io::error](../../io/error/README.md) of the close, its operation `close`.
 
 ## Complexity
 
@@ -65,4 +65,4 @@ true true
 
 - [is_closed](is_closed.md): whether the socket was closed
 - [set_deadline](set_deadline.md): an end to the waits without a close
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

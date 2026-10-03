@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::remove
 
@@ -20,7 +20,7 @@ included, is closed, and `remove` has nothing to do: it succeeds.
 
 ## Return value
 
-Nothing, or an [error](../error.md) with the operation `remove` and the name as its path: `is_not_found()` when there
+Nothing, or an [error](../error/README.md) with the operation `remove` and the name as its path: `is_not_found()` when there
 is no object of the name, `errc::invalid_path` for a bad name, the error of `shm_unlink` otherwise.
 
 ## Complexity
@@ -60,4 +60,4 @@ remove sgcl-example-remove: No such file or directory
 
 - [create](create.md): makes an object under the name
 - [close](close.md): the region given back, the name kept
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

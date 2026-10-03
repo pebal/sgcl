@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::pow
 
@@ -9,7 +9,7 @@ rational pow(int64_t exponent) const;
 The fraction to the power `exponent`. The parts are raised each, by [big_integer::pow](../big_integer/pow.md): a
 power of a fraction in lowest terms is in lowest terms, so no gcd is taken. A negative exponent is the power of
 the [inverse](inverse.md), `(2/3)^-2` is `9/4`, `INT64_MIN` included; zero to a negative power is `domain_error`.
-`0^0` is 1, as for a [big_integer](../big_integer.md).
+`0^0` is 1, as for a [big_integer](../big_integer/README.md).
 
 ## Parameters
 
@@ -63,4 +63,4 @@ sgcl::math::rational::inverse: the inverse of zero
 
 - [inverse](inverse.md): one over the fraction
 - [big_integer::pow](../big_integer/pow.md): the power of a whole number
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

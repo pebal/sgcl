@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [builder](../xml-builder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [builder](README.md)
 
 # sgcl::encoding::xml::builder::build
 
@@ -70,4 +70,4 @@ Output:
 ## See also
 
 - [push_back](push_back.md), [set](set.md): what the element is made of
-- [sgcl::encoding::xml::builder](../xml-builder.md)
+- [sgcl::encoding::xml::builder](README.md)

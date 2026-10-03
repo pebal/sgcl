@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [token](../json-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [token](README.md)
 
 # sgcl::encoding::json::token::as_uint
 
@@ -65,4 +65,4 @@ Output:
 
 - [as_int](as_int.md): the same as an `int64_t`
 - [as_double](as_double.md): any number, rounded
-- [sgcl::encoding::json::token](../json-token.md)
+- [sgcl::encoding::json::token](README.md)

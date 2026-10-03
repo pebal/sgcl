@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [function](../function.md)
+[sgcl](../../README.md) › [core](../README.md) › [function](README.md)
 
 # sgcl::function\<R(Args...)\>::operator bool
 
@@ -52,4 +52,4 @@ false false true
 ## See also
 
 - [operator==](operator_cmp.md): the same question as `f == nullptr`
-- [sgcl::function\<R(Args...)\>](../function.md)
+- [sgcl::function\<R(Args...)\>](README.md)

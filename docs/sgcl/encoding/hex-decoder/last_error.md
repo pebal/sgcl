@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [decoder](../hex-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [decoder](README.md)
 
 # sgcl::encoding::hex::decoder::last_error
 
@@ -6,7 +6,7 @@
 const optional<error>& last_error() const noexcept;
 ```
 
-Why the decoder's reads fail: the [error](../error.md) of the text, with its code and its offset in the text, or,
+Why the decoder's reads fail: the [error](../error/README.md) of the text, with its code and its offset in the text, or,
 when the reader under it failed, an error of the code `io` whose `io_error()` is that reader's. Empty while
 nothing failed. The failed read itself carries only an `io::error`, whose code is the [errc](../errc.md) code in
 the `encoding` category; this is the place.
@@ -57,4 +57,4 @@ offset 4: invalid character 0x0A
 ## See also
 
 - [read, async_read](read.md): the reads that fail
-- [sgcl::encoding::hex::decoder](../hex-decoder.md)
+- [sgcl::encoding::hex::decoder](README.md)

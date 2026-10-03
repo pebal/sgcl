@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::tailored
 
@@ -7,7 +7,7 @@ bool tailored() const noexcept;
 ```
 
 Returns whether the library has an order of its own for the language of the collator's locale, one of the 88 in
-the tables ([collator](../collator.md#the-root-order-and-a-languages-own)). Where it has none, the collator puts
+the tables ([collator](README.md#the-root-order-and-a-languages-own)). Where it has none, the collator puts
 the text in the root order, which is an answer rather than a failure: English, French, Italian, Dutch and German
 ask for nothing the root order does not already do.
 
@@ -52,4 +52,4 @@ pl:true de:false tlh:false sr-Latn:false
 ## See also
 
 - [where](where.md): the locale
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

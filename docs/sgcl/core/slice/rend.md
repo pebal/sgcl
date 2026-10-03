@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::rend, crend
 
@@ -52,4 +52,4 @@ cba
 ## See also
 
 - [rbegin, crbegin](rbegin.md): the reverse iterator to the beginning
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

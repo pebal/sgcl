@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::root_ptr\<T\>::root_ptr
 
@@ -88,4 +88,4 @@ true 1
 
 - [operator=](operator_assign.md): stores another pointer in the cell
 - [ptr, operator tracked_ptr\<T\>&](ptr.md): the cell's word
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

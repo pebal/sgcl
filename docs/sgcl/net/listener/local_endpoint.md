@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::local_endpoint
 
@@ -8,7 +8,7 @@ endpoint local_endpoint() const noexcept;
 
 Returns the address and port the listener listens on: Go's `Listener.Addr`. A port 0 given (`"127.0.0.1:0"`) is
 the port the system chose, the one to connect to; no host given (`":0"`) is the IPv6 wildcard `::`, one socket for
-both families. A unix listener has none: the [endpoint](../endpoint.md) is empty, its [path](path.md) names it.
+both families. A unix listener has none: the [endpoint](../endpoint/README.md) is empty, its [path](path.md) names it.
 
 ## Parameters
 
@@ -59,4 +59,4 @@ true
 
 - [tcp::listen](../tcp/listen.md): what the address given means
 - [path](path.md): a unix listener's name
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

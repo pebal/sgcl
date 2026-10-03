@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::count
 
@@ -56,4 +56,4 @@ Output:
 
 - [contains](contains.md): checks whether the map holds a key
 - [find](find.md): finds the element under a key
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

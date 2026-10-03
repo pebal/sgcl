@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::max_bucket_count
 
@@ -48,4 +48,4 @@ true
 ## See also
 
 - [bucket_count](bucket_count.md): the number of buckets
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

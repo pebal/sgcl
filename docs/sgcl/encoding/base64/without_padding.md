@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](README.md)
 
 # sgcl::encoding::base64::without_padding
 
@@ -55,4 +55,4 @@ true
 
 - [padded](padded.md): whether a codec pads
 - [lenient](lenient.md): the other choice of a codec
-- [sgcl::encoding::base64](../base64.md)
+- [sgcl::encoding::base64](README.md)

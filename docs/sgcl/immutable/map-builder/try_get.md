@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md) › [builder](../map-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](../map/README.md) › [builder](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::try_get
 
@@ -69,4 +69,4 @@ Output:
 
 - [contains](contains.md): checks whether the builder has an element under a key
 - [set](set.md): puts a value under a key
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](../map-builder.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](README.md)

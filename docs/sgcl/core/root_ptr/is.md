@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::root_ptr\<T\>::is
 
@@ -62,4 +62,4 @@ false
 
 - [type](type.md): the type the object was created with
 - [as](as.md): the pointer to the whole object as a given type
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

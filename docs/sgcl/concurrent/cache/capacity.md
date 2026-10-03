@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::capacity
 
@@ -60,4 +60,4 @@ Output:
 
 - [size](size.md): the number of entries
 - [(constructor)](cache.md): sets the capacity
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

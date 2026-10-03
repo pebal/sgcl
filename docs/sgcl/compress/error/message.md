@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [compress](../README.md) › [error](README.md)
 
 # sgcl::compress::error::message
 
@@ -54,4 +54,4 @@ offset 0: zlib: not a deflate stream with a window of 32 KB or less
 ## See also
 
 - [code](code.md), [offset](offset.md), [io_error](io_error.md): the parts of it
-- [sgcl::compress::error](../error.md)
+- [sgcl::compress::error](README.md)

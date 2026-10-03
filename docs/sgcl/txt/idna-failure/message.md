@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md) › [failure](../idna-failure.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna/README.md) › [failure](README.md)
 
 # sgcl::txt::idna::failure::message
 
@@ -50,4 +50,4 @@ no error
 ## See also
 
 - [message_of](../idna/message_of.md): the same of an error
-- [sgcl::txt::idna::failure](../idna-failure.md)
+- [sgcl::txt::idna::failure](README.md)

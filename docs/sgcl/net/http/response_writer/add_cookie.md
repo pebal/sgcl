@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::add_cookie
 
@@ -70,6 +70,6 @@ theme=dark
 
 ## See also
 
-- [cookie](../cookie.md): the fields of a cookie, written and read
+- [cookie](../cookie/README.md): the fields of a cookie, written and read
 - [request::cookie](../request/cookie.md): a cookie the client sent back
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

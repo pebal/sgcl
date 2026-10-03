@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::query
 
@@ -49,4 +49,4 @@ q=a%20b&lang=pl []
 
 - [query_params](query_params.md): the pairs
 - [with_query](with_query.md): another query
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

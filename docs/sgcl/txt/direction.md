@@ -16,7 +16,7 @@ namespace sgcl::txt {
 
 Which way a paragraph runs as a whole: what [paragraph_direction](paragraph_direction.md) and
 [bidi_runs::paragraph](bidi_runs/paragraph.md) answer, and what a caller passes to [levels](levels.md),
-[visual_order](visual_order.md), [mirrored](mirrored.md) and [bidi_runs](bidi_runs.md) instead of letting the text
+[visual_order](visual_order.md), [mirrored](mirrored.md) and [bidi_runs](bidi_runs/README.md) instead of letting the text
 say.
 
 `automatic`, the default, lets the text decide by rules P2 and P3 of [UAX #9](https://www.unicode.org/reports/tr9/):

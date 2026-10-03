@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::poll
 
@@ -84,4 +84,4 @@ frame 4
 
 - [run](run.md): the loop of the executor's own
 - [running](running.md): whether a run or a poll is in progress
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

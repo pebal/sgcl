@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::from_tzif
 
@@ -30,7 +30,7 @@ client sends keeps only the ones still in use.
 
 ## Return value
 
-The zone, or an [error](../error.md) whose sentence starts with `TZif:` and whose offset is the byte of the file
+The zone, or an [error](../error/README.md) whose sentence starts with `TZif:` and whose offset is the byte of the file
 where the reading stopped: `"TZif: not a TZif file (no \"TZif\" at the start)"`, `"TZif: the header is cut
 short"`, `"TZif: the transition times are not in ascending order"`, and for a footer that is not a TZ string,
 `"TZif: the footer is not a POSIX TZ string: "` and [from_posix](from_posix.md)'s sentence, at the footer's byte.
@@ -75,4 +75,4 @@ TZif: the header is cut short (byte 30)
 
 - [load](load.md): a zone of the system's database
 - [from_posix](from_posix.md): a zone from a TZ string alone
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::try_emplace
 
@@ -99,4 +99,4 @@ Output:
 - [emplace](emplace.md): builds the element first
 - [insert_or_assign](insert_or_assign.md): assigns to the value when the key is there
 - [operator[]](operator_at.md): the value under a key, value-initialized when absent
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

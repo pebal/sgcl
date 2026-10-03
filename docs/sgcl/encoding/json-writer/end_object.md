@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::end_object
 
@@ -63,4 +63,4 @@ json: end_object without an open object: syntax error
 
 - [begin_object](begin_object.md): opens it
 - [end_array](end_array.md): closes an array
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [sgcl::encoding::json::writer](README.md)

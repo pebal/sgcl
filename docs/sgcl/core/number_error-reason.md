@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [number_error](number_error.md)
+[sgcl](../README.md) › [core](README.md) › [number_error](number_error/README.md)
 
 # sgcl::number_error::reason
 
@@ -52,5 +52,5 @@ true
 
 ## See also
 
-- [number_error](number_error.md)
+- [number_error](number_error/README.md)
 - [parse](parse.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::operator-\>, operator*
 
@@ -78,4 +78,4 @@ no point
 
 - [value, operator U](value.md): the value, by name and by conversion
 - [operator bool, has_value](operator_bool.md): checks whether there is a value
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

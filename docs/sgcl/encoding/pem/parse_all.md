@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::parse_all
 
@@ -19,7 +19,7 @@ block.
 
 ## Return value
 
-The blocks, empty for a text with none; or the [error](../error.md) of the first malformed block, with its line and
+The blocks, empty for a text with none; or the [error](../error/README.md) of the first malformed block, with its line and
 its column, as `parse` reports it.
 
 ## Complexity
@@ -62,4 +62,4 @@ B 3
 ## See also
 
 - [parse](parse.md): the first block
-- [sgcl::encoding::pem](../pem.md)
+- [sgcl::encoding::pem](README.md)

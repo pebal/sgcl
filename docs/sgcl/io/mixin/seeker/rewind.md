@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [seeker](../seeker.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [seeker](README.md)
 
 # sgcl::io::mixin::seeker\<Derived\>::rewind
 
@@ -55,4 +55,4 @@ read twice
 
 - [tell](tell.md): the position
 - [seek_from](../../seek_from.md): where a seek counts from
-- [sgcl::io::mixin::seeker\<Derived\>](../seeker.md)
+- [sgcl::io::mixin::seeker\<Derived\>](README.md)

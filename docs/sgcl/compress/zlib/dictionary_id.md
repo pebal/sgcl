@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](README.md)
 
 # sgcl::compress::zlib::dictionary_id
 
@@ -59,4 +59,4 @@ false
 
 - [reader::dictionary_id](../zlib-reader/dictionary_id.md): the same, of a stream
 - [options](../zlib-options.md)
-- [sgcl::compress::zlib](../zlib.md)
+- [sgcl::compress::zlib](README.md)

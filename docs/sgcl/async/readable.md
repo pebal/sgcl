@@ -10,11 +10,11 @@ namespace sgcl::async {
 }
 ```
 
-Returns an [event](event.md) set when `fd` can be read without blocking (data, or the end of the stream), or when the
+Returns an [event](event/README.md) set when `fd` can be read without blocking (data, or the end of the stream), or when the
 wait is ended with nothing ([cancel_waits](cancel_waits.md), a stop of the reactor). A task writes
 `co_await async::readable(fd)` and holds no thread until the data comes; a thread writes `async::readable(fd).wait()`;
 a [select](select.md) bounds the wait (`async::readable(fd).on_set(f), async::timeout(1s, g)`) and a
-[stop_token](stop_token.md) cancels it, since the wait is an event like any other. A wait woken by the event looks at
+[stop_token](stop_token/README.md) cancels it, since the wait is an event like any other. A wait woken by the event looks at
 the descriptor again: the read says whether there is data, and a read that would block waits again.
 
 Under it is the reactor: one thread on the kernel's queue (kqueue on macOS and FreeBSD, epoll on Linux, IOCP to
@@ -55,7 +55,7 @@ several waits on one descriptor in one direction share one registration.
 - The event is readiness, not data, and the end of a wait sets it too: after it `is_set()` is true either way, so the
   code that waited checks the result of its operation, never the event alone. A descriptor the kernel cannot watch
   (a regular file, on kqueue) is set at once, and the read says what is what.
-- The event is a handle ([event](event.md)): one word, a tracked word, on a stack, in a task, in a managed object; in
+- The event is a handle ([event](event/README.md)): one word, a tracked word, on a stack, in a task, in a managed object; in
   a global or a `std` container, a `rooted<async::event>`. Its state lives as long as something holds it, the
   reactor's registration included.
 - The kernel's queue is made by the first wait; when it cannot be (`kqueue()` failing with the descriptors
@@ -120,6 +120,6 @@ read x
 - [writable](writable.md): the same for a write
 - [cancel_waits](cancel_waits.md): the waits on a descriptor ended before its close
 - [exited](exited.md): the end of a child process
-- [event](event.md): what a wait is
-- [select](select.md), [timeout](timeout.md), [stop_token](stop_token.md): bounding and cancelling a wait
+- [event](event/README.md): what a wait is
+- [select](select.md), [timeout](timeout.md), [stop_token](stop_token/README.md): bounding and cancelling a wait
 - [spawn_blocking](spawn_blocking.md): a blocking call on a thread of its own, for what the reactor cannot watch

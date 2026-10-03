@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::empty
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

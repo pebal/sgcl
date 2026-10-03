@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::day
 
@@ -47,4 +47,4 @@ Output:
 
 - [year](year.md), [month](month.md): the other fields
 - [days_in_month](days_in_month.md): the last day of the month
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

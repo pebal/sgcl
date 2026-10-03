@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](README.md)
 
 # sgcl::compress::flate::decompress
 
@@ -32,7 +32,7 @@ nothing after it, as zlib and Go do. The output stops at the limits' `max_size` 
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): a code that is not one, a distance before the start, a stored block
+The decompressed bytes, or the [error](../error/README.md): a code that is not one, a distance before the start, a stored block
 whose length does not match its complement (`errc::corrupt`), data cut short (`errc::unexpected_end`), output past
 `max_size` (`errc::too_large`).
 
@@ -76,6 +76,6 @@ offset 9: unexpected end of the compressed data
 ## See also
 
 - [compress](compress.md): the other way
-- [flate::reader](../flate-reader.md): a stream
+- [flate::reader](../flate-reader/README.md): a stream
 - [limits](../limits.md)
-- [sgcl::compress::flate](../flate.md)
+- [sgcl::compress::flate](README.md)

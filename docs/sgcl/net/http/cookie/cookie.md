@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [cookie](../cookie.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [cookie](README.md)
 
 # sgcl::net::http::cookie::cookie
 
@@ -66,4 +66,4 @@ lang pl /docs Strict
 
 - [parse](parse.md): a `Set-Cookie` value from outside, its error returned
 - [to_string](to_string.md): the cookie written
-- [sgcl::net::http::cookie](../cookie.md)
+- [sgcl::net::http::cookie](README.md)

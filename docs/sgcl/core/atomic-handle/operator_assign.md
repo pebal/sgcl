@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::operator=
 
@@ -54,4 +54,4 @@ hello
 
 - [store](store.md): the same with a memory order
 - [load, operator H](load.md): the read
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

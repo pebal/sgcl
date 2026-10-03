@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-The name, or the [error](error.md) of the call; the operation is `hostname`.
+The name, or the [error](error/README.md) of the call; the operation is `hostname`.
 
 ## Complexity
 
@@ -45,4 +45,4 @@ int main() {
 ## See also
 
 - [pid](pid.md): the id of the process
-- [net::dns](../net/dns.md): the addresses of a name
+- [net::dns](../net/dns/README.md): the addresses of a name

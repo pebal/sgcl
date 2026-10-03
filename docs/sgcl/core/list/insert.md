@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::insert
 
@@ -96,4 +96,4 @@ Output:
 - [emplace](emplace.md): constructs an element in place
 - [push_back](push_back.md), [push_front](push_front.md): add an element at an end
 - [splice](splice.md): moves nodes from another list instead of copying elements
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

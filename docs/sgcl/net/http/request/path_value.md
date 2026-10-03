@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::path_value
 
@@ -65,4 +65,4 @@ Ann B | notes/2024/may.txt | []
 
 - [route](../server/route.md): the patterns and their wildcards
 - [query](query.md): a value of the query
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

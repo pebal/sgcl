@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::as_bool
 
@@ -49,4 +49,4 @@ true
 
 - [type](type.md)
 - [kind](../value-kind.md): `boolean`
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

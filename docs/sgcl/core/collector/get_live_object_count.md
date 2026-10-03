@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_live_object_count
 
@@ -71,4 +71,4 @@ Output:
 
 - [get_live_objects](get_live_objects.md): the addresses of the live objects
 - [get_type_statistics](get_type_statistics.md): the live objects by type
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

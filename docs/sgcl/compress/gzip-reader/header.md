@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [reader](../gzip-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [reader](README.md)
 
 # sgcl::compress::gzip::reader::header, async_header
 
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-The header, or the [error](../error.md) of reading it: not gzip (`errc::invalid_header`), a method other than
+The header, or the [error](../error/README.md) of reading it: not gzip (`errc::invalid_header`), a method other than
 deflate (`errc::unsupported`), a header CRC-16 that does not match (`errc::checksum`), a header past 1 MiB
 (`errc::too_large`), the stream cut short (`errc::unexpected_end`), a failure of `in` (`errc::io`).
 
@@ -70,4 +70,4 @@ GET /about
 ## See also
 
 - [gzip_header](../gzip_header.md)
-- [sgcl::compress::gzip::reader](../gzip-reader.md)
+- [sgcl::compress::gzip::reader](README.md)

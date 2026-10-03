@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::is_v4_mapped
 
@@ -48,4 +48,4 @@ true false
 ## See also
 
 - [unmap](unmap.md): the IPv4 address of a mapped one
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

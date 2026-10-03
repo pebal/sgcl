@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [words](../words.md)
+[sgcl](../../README.md) › [txt](../README.md) › [words](README.md)
 
 # sgcl::txt::words::words
 
@@ -14,7 +14,7 @@ explicit words(P text);                                            // (5)
 ```
 
 Constructs the range of the words of a text. `txt::words(s)` looks like a call and is a construction, as
-[runes](../../core/runes.md) is. Nothing is found until the walk.
+[runes](../../core/runes/README.md) is. Nothing is found until the walk.
 
 1. An empty range, over no text.
 2. The words of a slice of UTF-8 bytes, a piece of a buffer as much as a piece of a string; the range keeps the slice,
@@ -68,4 +68,4 @@ true
 ## See also
 
 - [text](text.md): the slice the range walks
-- [sgcl::txt::words](../words.md)
+- [sgcl::txt::words](README.md)

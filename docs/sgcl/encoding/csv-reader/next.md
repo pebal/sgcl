@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::next, async_next
 
@@ -68,4 +68,4 @@ lines]
 - [rows](rows.md): every record in a range-for
 - [read](read.md): the next record as a value of a type
 - [last_error](last_error.md): why the reading stopped
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

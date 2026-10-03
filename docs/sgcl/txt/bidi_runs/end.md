@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs.md)
+[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](README.md)
 
 # sgcl::txt::bidi_runs::end
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first piece
-- [sgcl::txt::bidi_runs](../bidi_runs.md)
+- [sgcl::txt::bidi_runs](README.md)

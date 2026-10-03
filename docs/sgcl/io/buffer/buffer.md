@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::buffer
 
@@ -73,4 +73,4 @@ Output:
 
 - [operator=](operator_assign.md)
 - [release](release.md): the bytes out of a buffer
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

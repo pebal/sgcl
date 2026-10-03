@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::multimap
 
@@ -36,7 +36,7 @@ Constructs a multimap from one of the sources below.
   once, into its node; an element of any other type is converted to a `value_type` first, once.
 
 - (2–4) A `bucket_count` the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-  allocation does ([collector](../collector.md#the-memory-limit)): a count past the largest array an address space
+  allocation does ([collector](../collector/README.md#the-memory-limit)): a count past the largest array an address space
   holds is taken as that array, refused in the same way.
 
 ## Parameters
@@ -116,4 +116,4 @@ Output:
 
 - [operator=](operator_assign.md): replaces the elements of a multimap
 - [reserve](reserve.md): the buckets for the elements to come
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

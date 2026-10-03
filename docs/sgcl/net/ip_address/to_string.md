@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::to_string
 
@@ -60,4 +60,4 @@ invalid IP
 ## See also
 
 - [parse](parse.md): the text read
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

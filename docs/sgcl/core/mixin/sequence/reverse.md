@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [sequence](../sequence.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [sequence](README.md)
 
 # sgcl::mixin::sequence\<Derived\>::reverse
 
@@ -65,4 +65,4 @@ Output:
 
 - [fill](fill.md): assigns a value to every element
 - [sort](../ordered/sort.md): sorts the elements
-- [sgcl::mixin::sequence\<Derived\>](../sequence.md)
+- [sgcl::mixin::sequence\<Derived\>](README.md)

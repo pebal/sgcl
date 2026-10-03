@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::clone
 
@@ -58,4 +58,4 @@ false
 
 - [(constructor)](hmac.md): an hmac under a key
 - [reset](reset.md): the same key for a new message
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [sgcl::crypto::hmac\<H\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::find
 
@@ -14,7 +14,7 @@ level while the keys are less than `key`, stepping over erased nodes without tou
 list, where the first node whose key is not less than `key` is the element when its key is not greater either.
 
 - (3–4) Take part only when `Compare` declares `is_transparent`: the key is of any type the comparison takes, and
-  no `Key` is built for the search (a `string_view` or a literal for a [string](../../core/string.md) key).
+  no `Key` is built for the search (a `string_view` or a literal for a [string](../../core/string/README.md) key).
 
 ## Parameters
 
@@ -76,4 +76,4 @@ ssh 22
 - [contains](contains.md): checks whether the map holds a key
 - [value_or](value_or.md): a copy of the value under a key, or a fallback
 - [lower_bound](lower_bound.md): the first element from a key on
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

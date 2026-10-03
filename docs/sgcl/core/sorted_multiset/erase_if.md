@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::erase_if (sgcl::sorted_multiset)
 
@@ -67,4 +67,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases one element, a range, or every element with a key
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

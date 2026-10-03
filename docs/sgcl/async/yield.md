@@ -26,7 +26,7 @@ computes for a second holds its worker for a second unless it yields. Go's `runt
 tokio's `yield_now()`.
 
 On a worker the task goes to the end of the worker's ring, where an idle worker may steal it. On an
-[executor](executor.md) or a [strand](strand.md) it goes to the back of that queue and stays there: a yield on a
+[executor](executor/README.md) or a [strand](strand/README.md) it goes to the back of that queue and stays there: a yield on a
 strand leaves the strand to the next task, which runs before this one comes back.
 
 ## Parameters
@@ -86,6 +86,6 @@ b 2
 
 ## See also
 
-- [scheduler](scheduler.md): the queues a task goes back to
-- [executor](executor.md), [strand](strand.md): a yield on them
+- [scheduler](scheduler/README.md): the queues a task goes back to
+- [executor](executor/README.md), [strand](strand/README.md): a yield on them
 - [on_workers](on_workers.md), [on](on.md): the other awaitables that move a task

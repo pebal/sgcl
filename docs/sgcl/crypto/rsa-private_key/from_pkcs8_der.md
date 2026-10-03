@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::from_pkcs8_der
 
@@ -18,7 +18,7 @@ the public key after it, which is passed over: the RSAPrivateKey inside is read 
 
 ## Return value
 
-The key, or a [crypto::error](../error.md): `errc::malformed` with the offset of the byte for DER that is not one
+The key, or a [crypto::error](../error/README.md): `errc::malformed` with the offset of the byte for DER that is not one
 PrivateKeyInfo in strict DER; `errc::unsupported` for an RSASSA-PSS key or a key of another algorithm; and the errors
 of [from_pkcs1_der](from_pkcs1_der.md) for the key inside.
 
@@ -62,4 +62,4 @@ offset 4: sgcl::crypto::rsa: DER: a PKCS#8 version is 0 or 1
 
 - [to_pkcs8_der](to_pkcs8_der.md): writes the encoding
 - [from_pem](from_pem.md): the key from PEM, either encoding
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::try_emplace
 
@@ -99,4 +99,4 @@ Output:
 - [emplace](emplace.md): builds the element first
 - [insert](insert.md): inserts a built element
 - [value_or](value_or.md): a copy of the value under a key
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [token](../json-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [token](README.md)
 
 # sgcl::encoding::json::token::text
 
@@ -61,5 +61,5 @@ two"2
 
 - [type](type.md): the kind of the token
 - [as_int](as_int.md), [as_double](as_double.md): a number's value
-- [slice](../../core/slice.md)
-- [sgcl::encoding::json::token](../json-token.md)
+- [slice](../../core/slice/README.md)
+- [sgcl::encoding::json::token](README.md)

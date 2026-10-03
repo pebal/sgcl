@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::empty
 
@@ -63,4 +63,4 @@ true
 ## See also
 
 - [size](size.md): the number of entries
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

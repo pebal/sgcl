@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::decode
 
@@ -17,7 +17,7 @@ The offset of the error is where the text stops being the start of valid base32,
 end, the first character that is not padding inside the padding, the first one after it, the character with bits
 past the data, the end of a cut text. The code is `invalid_character` for a character outside the alphabet,
 `unexpected_end` for a cut text and `syntax` for the rest ([errc](../errc.md)). Go reads some of these texts as
-bytes ([From code written for Go](../base32.md#from-code-written-for-go)).
+bytes ([From code written for Go](README.md#from-code-written-for-go)).
 
 ## Parameters
 
@@ -27,7 +27,7 @@ bytes ([From code written for Go](../base32.md#from-code-written-for-go)).
 
 ## Return value
 
-The bytes, or the [error](../error.md): its code, its offset and a message.
+The bytes, or the [error](../error/README.md): its code, its offset and a message.
 
 ## Complexity
 
@@ -73,4 +73,4 @@ MZ: offset 1: bits past the data in the last character
 - [encode](encode.md): the text of bytes
 - [decode_to](decode_to.md): into the caller's buffer
 - [decoder_from](decoder_from.md): as a stream
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

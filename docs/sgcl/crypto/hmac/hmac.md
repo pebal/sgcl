@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::hmac
 
@@ -64,4 +64,4 @@ Output:
 
 - [operator=](operator_assign.md): the move assignment
 - [clone](clone.md): a second hmac under the same key
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [sgcl::crypto::hmac\<H\>](README.md)

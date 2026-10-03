@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md) › [writer](../lzma-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma/README.md) › [writer](README.md)
 
 # sgcl::compress::lzma::writer::last_error
 
@@ -53,4 +53,4 @@ write lzma: invalid argument
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::lzma::writer](../lzma-writer.md)
+- [sgcl::compress::lzma::writer](README.md)

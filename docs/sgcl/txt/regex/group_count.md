@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::group_count
 
@@ -7,7 +7,7 @@ size_t group_count() const noexcept;
 ```
 
 Returns the number of capturing groups of the pattern, named or not; `(?: )` does not capture and the whole match
-is not counted. A [match](../match.md) of the pattern has groups `1` to `group_count()`.
+is not counted. A [match](../match/README.md) of the pattern has groups `1` to `group_count()`.
 
 ## Parameters
 
@@ -50,4 +50,4 @@ Output:
 
 - [group_index](group_index.md): the number of a named group
 - [match::group](../match/group.md): what a group matched
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::text
 
@@ -6,7 +6,7 @@
 string text() const;
 ```
 
-Returns the bytes held, from the first not yet read to the end, as a [string](../../core/string.md), a copy, without
+Returns the bytes held, from the first not yet read to the end, as a [string](../../core/string/README.md), a copy, without
 taking them. Unlike [data](data.md), the string is the bytes as they were at the call, whatever is written after.
 The bytes are not checked: a string holds any bytes.
 
@@ -52,4 +52,4 @@ Output:
 
 - [data](data.md): the bytes held, as a view
 - [read_all_text](../mixin/reader/read_all_text.md): the bytes taken out as a string
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

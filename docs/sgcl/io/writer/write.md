@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::write, async_write
 
@@ -81,4 +81,4 @@ ok (2 bytes from a task)
 
 - [mixin::writer::write](../mixin/writer/write.md): a text or one byte
 - [has_write](has_write.md), [has_async_write](has_async_write.md): which half is the stream's own
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::decapsulation_key::decapsulate
 
@@ -24,7 +24,7 @@ key is 32 bytes in every set.
 
 ## Return value
 
-The shared key, a [secret\<32\>](../secret.md), or a [crypto::error](../error.md) with `errc::malformed` for a
+The shared key, a [secret\<32\>](../secret/README.md), or a [crypto::error](../error/README.md) with `errc::malformed` for a
 ciphertext of another length.
 
 ## Complexity
@@ -82,4 +82,4 @@ sgcl::crypto::mlkem768: a ciphertext of the wrong length
 - [mlkem768::encapsulation_key::encapsulate](../mlkem768-encapsulation_key/encapsulate.md): the shared key and its
   ciphertext
 - [ML-KEM](../mlkem.md): the implicit rejection and what is secret
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

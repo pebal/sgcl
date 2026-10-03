@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::value
 
@@ -40,7 +40,7 @@ Makes a value. None of them is explicit, so a value is written as the thing it h
 9. A C text: the characters up to the NUL, copied into a string.
 10. The characters of the slice, copied into a string.
 - (11–12) A list of the values, in order. `value v{"one"}` is therefore a list of one text, where `value v("one")` is
-  the text; a list nested in an [object](../object.md) needs no type named, `{"tags", {"one", "two"}}`.
+  the text; a list nested in an [object](../object/README.md) needs no type named, `{"tags", {"one", "two"}}`.
 - (13–14) Deleted: a character is a byte of UTF-8, not a number and not a truth, and without these it would become
   `true`. Text is written as text, `"A"`, and a number as a number, `int('A')`.
 
@@ -92,6 +92,6 @@ Output:
 
 ## See also
 
-- [list](../list.md), [object](../object.md): a list and a mapping written as data
+- [list](../list/README.md), [object](../object/README.md): a list and a mapping written as data
 - [value_kind](../value_kind.md)
-- [sgcl::txt::value](../value.md)
+- [sgcl::txt::value](README.md)

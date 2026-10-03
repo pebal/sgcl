@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [condition_variable](../condition_variable.md)
+[sgcl](../../README.md) › [async](../README.md) › [condition_variable](README.md)
 
 # sgcl::async::condition_variable::wait
 
@@ -19,8 +19,8 @@ void wait(Lock& lock, Pred pred);                             // (4)
 Lets go of the mutex, waits for a notify and takes the mutex back. The waiter is put on the queue before the mutex
 is let go of, so no notify made under the mutex after the wait began is lost.
 
-1. With the [guard](../mutex-guard.md) of a mutex, which holds it locked. The call does nothing yet; it returns an
-   [operation](../operation.md), carried out in one of two ways
+1. With the [guard](../mutex-guard/README.md) of a mutex, which holds it locked. The call does nothing yet; it returns an
+   [operation](../operation/README.md), carried out in one of two ways
    ([README: Waiting operations](../README.md#waiting-operations)): `co_await cv.wait(g)` in a task, which waits
    for the notify and for the mutex holding no thread, and `cv.wait(g).wait()` on a thread, which blocks.
 2. The same until `pred()` is `true`: the predicate is checked under the mutex before every wait, and a wait is
@@ -43,7 +43,7 @@ is let go of, so no notify made under the mutex after the wait began is lost.
 
 ## Return value
 
-- (1–2) An [operation](../operation.md). Carried out, by `co_await` or by `.wait()`, it gives nothing, the mutex held
+- (1–2) An [operation](../operation/README.md). Carried out, by `co_await` or by `.wait()`, it gives nothing, the mutex held
   again.
 - (3–4) None.
 
@@ -114,4 +114,4 @@ all played
 
 - [notify_one](notify_one.md), [notify_all](notify_all.md): what ends the wait
 - [scoped_lock](../mutex/scoped_lock.md): the guard of a task
-- [sgcl::async::condition_variable](../condition_variable.md)
+- [sgcl::async::condition_variable](README.md)

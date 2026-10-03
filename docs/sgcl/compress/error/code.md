@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [compress](../README.md) › [error](README.md)
 
 # sgcl::compress::error::code
 
@@ -52,4 +52,4 @@ a dictionary is needed
 ## See also
 
 - [errc](../errc.md): the codes
-- [sgcl::compress::error](../error.md)
+- [sgcl::compress::error](README.md)

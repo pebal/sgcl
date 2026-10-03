@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [token](../json-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [token](README.md)
 
 # sgcl::encoding::json::token::as_double
 
@@ -65,4 +65,4 @@ true -1
 ## See also
 
 - [as_int](as_int.md), [as_uint](as_uint.md): an integer, exactly
-- [sgcl::encoding::json::token](../json-token.md)
+- [sgcl::encoding::json::token](README.md)

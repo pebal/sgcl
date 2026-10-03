@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::dump
 
@@ -63,4 +63,4 @@ Output:
 
 - [dumper_to](dumper_to.md): the dump as a stream
 - [encode](encode.md): the digits alone
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

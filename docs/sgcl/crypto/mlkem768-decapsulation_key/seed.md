@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::decapsulation_key::seed
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The seed, as a [secret\<64\>](../secret.md): zeroed when it goes, never in managed memory.
+The seed, as a [secret\<64\>](../secret/README.md): zeroed when it goes, never in managed memory.
 
 ## Complexity
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [from_seed](from_seed.md): the key of a seed
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [reader](../xml-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [reader](README.md)
 
 # sgcl::encoding::xml::reader::next, async_next
 
@@ -7,7 +7,7 @@ optional<token> next();                                // (1)
 async::task<optional<token>> async_next() noexcept;    // (2)
 ```
 
-The next [token](../xml-token.md) of the document, every one: the XML declaration, the DOCTYPE, the comments
+The next [token](../xml-token/README.md) of the document, every one: the XML declaration, the DOCTYPE, the comments
 whatever the options, the white space between elements. A token [peek](peek.md) looked at is given now.
 
 1. Reads the stream on the thread that calls it, when the token is not in the buffer yet.
@@ -78,5 +78,5 @@ Output:
 
 - [peek](peek.md): the next token, left where it is
 - [read](read.md): the next node whole
-- [token](../xml-token.md)
-- [sgcl::encoding::xml::reader](../xml-reader.md)
+- [token](../xml-token/README.md)
+- [sgcl::encoding::xml::reader](README.md)

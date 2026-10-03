@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::size
 
@@ -27,7 +27,7 @@ None.
 ## Notes
 
 `std::tuple_size<array<T, N>>` gives the same number from the type alone
-([Specializations](../array.md#specializations)).
+([Specializations](README.md#specializations)).
 
 ## Example
 
@@ -58,4 +58,4 @@ Output:
 
 - [empty](empty.md): checks whether the array is empty
 - [max_size](max_size.md): the largest number of elements
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

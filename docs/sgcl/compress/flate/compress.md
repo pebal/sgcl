@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](README.md)
 
 # sgcl::compress::flate::compress
 
@@ -13,7 +13,7 @@ template<class T>
 static vector<byte> compress(const T& text, const options& o) noexcept;                    // (6)
 ```
 
-Compresses the whole of the data at once into DEFLATE data with nothing around it, at the [level](../level.md) of the
+Compresses the whole of the data at once into DEFLATE data with nothing around it, at the [level](../level/README.md) of the
 options (6 unless told otherwise). With a dictionary in the options, the first matches may refer to its last 32 KB; the
 reader must be given the same bytes. At level 0 the dictionary is not used. It never fails: any bytes compress.
 
@@ -72,5 +72,5 @@ Output:
 ## See also
 
 - [decompress](decompress.md): the other way
-- [flate::writer](../flate-writer.md): a stream
-- [sgcl::compress::flate](../flate.md)
+- [flate::writer](../flate-writer/README.md): a stream
+- [sgcl::compress::flate](README.md)

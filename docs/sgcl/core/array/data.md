@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::data
 
@@ -29,7 +29,7 @@ None.
 ## Notes
 
 The pointer is into the array itself, which has no memory of its own: it is valid as long as the array. A
-[slice](../slice.md) from [as_slice](as_slice.md) is the same view with its length.
+[slice](../slice/README.md) from [as_slice](as_slice.md) is the same view with its length.
 
 ## Example
 
@@ -66,4 +66,4 @@ true
 
 - [as_slice, operator slice](as_slice.md): the elements as a slice
 - [begin, cbegin](begin.md): an iterator to the first element
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

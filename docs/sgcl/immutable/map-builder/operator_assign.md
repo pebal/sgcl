@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md) › [builder](../map-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](../map/README.md) › [builder](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::operator=
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [(constructor)](map-builder.md): constructs a builder
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](../map-builder.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](README.md)

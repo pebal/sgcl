@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::erase, sgcl::erase_if (sgcl::list)
 
@@ -86,4 +86,4 @@ Output:
 
 - [remove, remove_if](remove.md): the same as members
 - [erase](erase.md): erases the elements at a position or in a range
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

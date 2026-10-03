@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::operator=
 
@@ -77,4 +77,4 @@ Output:
 
 - [(constructor)](sorted_multimap.md): constructs a multimap
 - [clear](clear.md): destroys every element
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

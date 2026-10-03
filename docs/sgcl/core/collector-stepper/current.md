@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md) › [stepper](../collector-stepper.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](../collector/README.md) › [stepper](README.md)
 
 # sgcl::collector::stepper::current
 
@@ -51,4 +51,4 @@ true
 ## See also
 
 - [step](step.md): one gate
-- [sgcl::collector::stepper](../collector-stepper.md)
+- [sgcl::collector::stepper](README.md)

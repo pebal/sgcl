@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](../fold_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](README.md)
 
 # sgcl::txt::fold_searcher::count
 
@@ -52,5 +52,5 @@ Output:
 ## See also
 
 - [find](find.md): the first occurrence
-- [fold_matches, normalized_matches](../fold_matches.md): every occurrence, as a range
-- [sgcl::txt::fold_searcher, normalized_searcher](../fold_searcher.md)
+- [fold_matches, normalized_matches](../fold_matches/README.md): every occurrence, as a range
+- [sgcl::txt::fold_searcher, normalized_searcher](README.md)

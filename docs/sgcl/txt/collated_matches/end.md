@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](../collated_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](README.md)
 
 # sgcl::txt::collated_matches::end
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first occurrence
-- [sgcl::txt::collated_matches](../collated_matches.md)
+- [sgcl::txt::collated_matches](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [standard_stream](../standard_stream.md)
+[sgcl](../../README.md) › [io](../README.md) › [standard_stream](README.md)
 
 # sgcl::io::standard_stream::file
 
@@ -6,7 +6,7 @@
 io::file file() const noexcept;
 ```
 
-Returns the [file](../file.md) over the stream's descriptor, made on the first use of the stream: for what takes a
+Returns the [file](../file/README.md) over the stream's descriptor, made on the first use of the stream: for what takes a
 file rather than a stream, a child's standard stream shared with the program's (`cmd.out = io::stdout.file()`), a
 [stat](../file/stat.md) of the descriptor. The file is the stream's own and lives as long as the process; the
 handle returned is a copy of it.
@@ -55,6 +55,6 @@ written through the file
 
 ## See also
 
-- [command](../command.md): `in`, `out`, `err`, where a file is inherited as a descriptor
+- [command](../command/README.md): `in`, `out`, `err`, where a file is inherited as a descriptor
 - [fd](fd.md): the descriptor
-- [sgcl::io::standard_stream](../standard_stream.md)
+- [sgcl::io::standard_stream](README.md)

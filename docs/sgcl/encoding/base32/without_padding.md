@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::without_padding
 
@@ -52,4 +52,4 @@ offset 2: invalid character '='
 
 - [padded](padded.md): whether a codec pads
 - [lenient](lenient.md): the other choice of a codec
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

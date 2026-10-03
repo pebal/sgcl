@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unexpected](../unexpected.md)
+[sgcl](../../README.md) › [core](../README.md) › [unexpected](README.md)
 
 # sgcl::unexpected\<E\>::swap
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [swap](swap2.md): the same as a free function
-- [sgcl::unexpected\<E\>](../unexpected.md)
+- [sgcl::unexpected\<E\>](README.md)

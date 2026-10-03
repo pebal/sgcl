@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::zone
 
@@ -6,7 +6,7 @@
 time::zone zone() const noexcept;
 ```
 
-The [zone](../zone.md) the instant is seen in, Go's `t.Location()`. Two datetimes compare equal by their instants
+The [zone](../zone/README.md) the instant is seen in, Go's `t.Location()`. Two datetimes compare equal by their instants
 alone; `a.zone() == b.zone()` asks whether they are seen in the same zone too.
 
 ## Parameters
@@ -51,4 +51,4 @@ true false
 
 - [in](in.md): the same instant in another zone
 - [offset](offset.md), [abbreviation](abbreviation.md), [is_dst](is_dst.md): what the zone is at the instant
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

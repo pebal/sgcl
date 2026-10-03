@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::to_sys
 
@@ -53,4 +53,4 @@ Output:
 
 - [(constructor)](datetime.md): a datetime of a `std::chrono::sys_time`
 - [unix_nano](unix_nano.md): the count as a number
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

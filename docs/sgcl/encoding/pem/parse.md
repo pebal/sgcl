@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::parse
 
@@ -24,13 +24,13 @@ on to the next, which hides the one a program was looking for.
 
 ## Return value
 
-The block, or the [error](../error.md), with its line and its column in the text:
+The block, or the [error](../error/README.md), with its line and its column in the text:
 
 - `unexpected_end`: no block in the text (`no PEM block`, at its end), a `BEGIN` without its `END`;
 - `syntax`: a boundary line without its closing dashes or with text after them, a type that is not a label, an
   `END` of another type than its `BEGIN`, a header line without a name or one that reads as a boundary line,
   bits past the data in the last character of the base64;
-- `invalid_character`, `unexpected_end` and `syntax` of the base64, as [base64](../base64.md) reports them: a
+- `invalid_character`, `unexpected_end` and `syntax` of the base64, as [base64](../base64/README.md) reports them: a
   character outside the alphabet, the padding.
 
 ## Complexity
@@ -78,4 +78,4 @@ DATA: 3 bytes
 
 - [parse_all](parse_all.md): every block of a text
 - [(constructor)](pem.md): a block of a text the program writes
-- [sgcl::encoding::pem](../pem.md)
+- [sgcl::encoding::pem](README.md)

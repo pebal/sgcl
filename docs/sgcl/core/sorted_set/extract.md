@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::extract
 
@@ -8,14 +8,14 @@ node_type extract(const key_type& key) noexcept;                           // (2
 template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3)
 ```
 
-Unlinks a node from the tree and hands it over in a [node handle](../sorted_set-node_type.md), the element
+Unlinks a node from the tree and hands it over in a [node handle](../sorted_set-node_type/README.md), the element
 untouched: the handle owns the element from now on, and destroys it if it dies without the node being inserted
 anywhere.
 
 1. Extracts the node of the element at `pos`.
 2. Extracts the node of the element with the key `key`; an empty handle when there is none.
 3. As (2), with a key of another type, compared without building a `key_type`. Takes part only when `Compare`
-   declares `is_transparent`, as `std::less` of a [string](../string.md) does, and `K` converts to neither
+   declares `is_transparent`, as `std::less` of a [string](../string/README.md) does, and `K` converts to neither
    `iterator` nor `const_iterator`.
 
 Through the handle the key may be changed, since the node is out of any tree, and the node inserted again, here or
@@ -83,5 +83,5 @@ true
 
 - [insert](insert.md): inserts a node handle
 - [merge](merge.md): moves every node whose key is free
-- [node_type](../sorted_set-node_type.md): the node handle
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [node_type](../sorted_set-node_type/README.md): the node handle
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::emplace
 
@@ -80,4 +80,4 @@ v false 2
 - [emplace_hint](emplace_hint.md): the same, with a hint
 - [try_emplace](try_emplace.md): builds the element only when the key is absent
 - [insert](insert.md): inserts elements or nodes
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

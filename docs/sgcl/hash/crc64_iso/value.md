@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc64_iso](../crc64_iso.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc64_iso](README.md)
 
 # sgcl::hash::crc64_iso::value
 
@@ -55,4 +55,4 @@ b90956c775a41001
 
 - [digest](digest.md): the same as bytes
 - [of](../mixin/hasher/of.md): the CRC of data in one call
-- [sgcl::hash::crc64_iso](../crc64_iso.md)
+- [sgcl::hash::crc64_iso](README.md)

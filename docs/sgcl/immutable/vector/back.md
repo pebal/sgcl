@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::back
 
@@ -49,4 +49,4 @@ Output:
 
 - [front](front.md): the first element
 - [push_back](push_back.md), [pop_back](pop_back.md): the vector with an element more or less at the end
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

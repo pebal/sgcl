@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::equatable
 
@@ -12,12 +12,12 @@ namespace sgcl::req {
 ```
 
 A value whose objects can be compared for equality: `a == b` is valid for two `const T&` and gives something
-convertible to `bool`. A container of the library has `==` from [mixin::equatable](../mixin/equatable.md) only
+convertible to `bool`. A container of the library has `==` from [mixin::equatable](../mixin/equatable/README.md) only
 when its elements are equatable, so `vector<T>` satisfies it exactly when `T` does. That is exactly what the standard
 containers ask of their elements for `==`; `std::equality_comparable` would also ask for a `!=`, which a type
 with a converting `==` cannot always form.
 
-The questions of [mixin::enumerable](../mixin/enumerable.md) that compare elements (`contains`, `index_of`,
+The questions of [mixin::enumerable](../mixin/enumerable/README.md) that compare elements (`contains`, `index_of`,
 `last_index_of`) and the `==` of the containers take part only for elements that satisfy it.
 
 ## Satisfied by
@@ -79,5 +79,5 @@ true false
 ## See also
 
 - [comparable](comparable.md): a value with an order
-- [mixin::equatable](../mixin/equatable.md): `==` of a container, by its elements
-- [sgcl::req](../req.md)
+- [mixin::equatable](../mixin/equatable/README.md): `==` of a container, by its elements
+- [sgcl::req](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::verify
 
@@ -7,7 +7,7 @@
 ```
 
 Checks whether `tag` is the tag of the message so far: what a received tag is checked with, never `==`. The two are
-compared in constant time ([constant_time](../constant_time.md)), so the time a check takes does not tell an attacker
+compared in constant time ([constant_time](../constant_time/README.md)), so the time a check takes does not tell an attacker
 how many leading bytes of a forgery were right; the tag computed for the comparison is zeroed before it returns. A tag
 of another length is false. The hmac goes on, as after [value](value.md).
 
@@ -65,5 +65,5 @@ false
 ## See also
 
 - [value](value.md): the tag itself
-- [constant_time](../constant_time.md): the comparison it makes
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [constant_time](../constant_time/README.md): the comparison it makes
+- [sgcl::crypto::hmac\<H\>](README.md)

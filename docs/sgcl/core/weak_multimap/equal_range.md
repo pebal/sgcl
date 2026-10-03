@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::equal_range
 
@@ -8,7 +8,7 @@ pair<const_iterator, const_iterator> equal_range(const key_pointer& object) cons
 ```
 
 Returns the range of the entries of `object`, `[first, last)`: they stand together in the table, the newest first,
-as in [multimap](../multimap.md). The range is a range of its own: a walk from `first` ends with the object's
+as in [multimap](../multimap/README.md). The range is a range of its own: a walk from `first` ends with the object's
 entries, at `last`, and an [erase](erase.md) through it returns at most `last`. A null pointer has no entries, and
 its range is empty.
 
@@ -24,7 +24,7 @@ its range is empty.
 ## Return value
 
 A pair of iterators, the first entry of `object` and the end of its run; both [end](end.md) when `object` has no
-entry or is null. A [range](../range.md) is made from the pair, for a range-for.
+entry or is null. A [range](../range/README.md) is made from the pair, for a range-for.
 
 ## Complexity
 
@@ -88,4 +88,4 @@ other
 - [find](find.md): the first entry of an object
 - [count](count.md): the number of entries of an object
 - [erase](erase.md): erases an entry, up to the end of its range
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

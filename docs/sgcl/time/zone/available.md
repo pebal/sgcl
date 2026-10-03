@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::available
 
@@ -58,4 +58,4 @@ true true
 ## See also
 
 - [load](load.md): a zone by its name
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

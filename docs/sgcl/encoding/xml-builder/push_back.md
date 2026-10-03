@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [builder](../xml-builder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [builder](README.md)
 
 # sgcl::encoding::xml::builder::push_back
 
@@ -57,4 +57,4 @@ Output:
 
 - [set](set.md): an attribute
 - [xml::push_back](../xml/push_back.md): one child added, a new node
-- [sgcl::encoding::xml::builder](../xml-builder.md)
+- [sgcl::encoding::xml::builder](README.md)

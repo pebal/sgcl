@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex_error](../regex_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex_error](README.md)
 
 # sgcl::txt::regex_error::offset
 
@@ -52,4 +52,4 @@ x(?<=y): 1
 ## See also
 
 - [message](message.md): the sentence
-- [sgcl::txt::regex_error](../regex_error.md)
+- [sgcl::txt::regex_error](README.md)

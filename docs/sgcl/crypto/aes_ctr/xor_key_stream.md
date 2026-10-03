@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](../aes_ctr.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](README.md)
 
 # sgcl::crypto::aes_ctr::xor_key_stream
 
@@ -77,4 +77,4 @@ sgcl::crypto::aes_ctr::xor_key_stream: the output is shorter than the input
 ## See also
 
 - [seek](seek.md): moves to the start of a block
-- [sgcl::crypto::aes_ctr](../aes_ctr.md)
+- [sgcl::crypto::aes_ctr](README.md)

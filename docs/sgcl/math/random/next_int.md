@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::next_int
 
@@ -12,14 +12,14 @@ A whole number drawn so that every value is as likely.
 
 1. In `[0, bound)`: Lemire's multiplication with the rejection that makes it exact, and a mask for a power of two.
    It is what Go's `Int64N` does, so from the same stream the same numbers.
-2. In `[first, last)`, half-open like [range(first, last)](../../core/range.md): a die is `next_int(1, 7)`. Any two
+2. In `[first, last)`, half-open like [range(first, last)](../../core/range/README.md): a die is `next_int(1, 7)`. Any two
    `int64_t` are taken, the span between them up to 2^64 - 1: `next_int(INT64_MIN, INT64_MAX)` is fine.
 3. In `[0, bound)` for a bound of any size: as many bits as the bound has, drawn again while the value is not
    below it, which takes fewer than two draws on the average. A bound within `int64_t` gives what (1) gives from the
    same stream.
 
 (3) is declared with the class and defined in `sgcl/math/big_integer.h`, which a program that has a
-[big_integer](../big_integer.md) includes anyway; `sgcl/math/random.h` alone does not bring it.
+[big_integer](../big_integer/README.md) includes anyway; `sgcl/math/random.h` alone does not bring it.
 
 ## Parameters
 
@@ -87,4 +87,4 @@ sgcl::math::random::next_int: a bound of zero or below
 
 - [next_double](next_double.md): a fraction of one
 - [pick](pick.md): an element of a range, at a position drawn so
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

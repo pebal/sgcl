@@ -19,7 +19,7 @@ Returns the text the bytes `bytes` stand for in the encoding `from`, as UTF-8.
    That is an invalid sequence of UTF-8 (a `U+FFFD` written in it is a character), a lone surrogate or a unit cut
    short in UTF-16 and UTF-32, a byte over 127 in ASCII, a byte a single byte encoding does not define.
 2. With the tag [strict](strict_t.md), `decode(bytes, from, txt::strict)`: the text, or the first such byte as a
-   [decode_error](decode_error.md) — what a program that must not store a changed text asks.
+   [decode_error](decode_error/README.md) — what a program that must not store a changed text asks.
 
 3. The encoding named by `name`, as [encoding_from_name](encoding_from_name.md) reads it (`iso-8859-2`, `Latin2`,
    `cp1250`, out of a header's `charset=`), then as (1); nothing when nobody knows the name. Not an error: a name out
@@ -91,6 +91,6 @@ false
 ## See also
 
 - [encode](encode.md): the way back
-- [decode_error](decode_error.md), [strict_t](strict_t.md)
+- [decode_error](decode_error/README.md), [strict_t](strict_t.md)
 - [from_utf16](from_utf16.md), [from_utf32](from_utf32.md): units rather than bytes
 - [sgcl::txt](README.md)

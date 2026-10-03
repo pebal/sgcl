@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::set_read_deadline
 
@@ -6,7 +6,7 @@
 void set_read_deadline(time_point t) const noexcept;
 ```
 
-Sets the deadline of the reads to `t`, an absolute time on the module's [clock](../../core/clock.md): Go's
+Sets the deadline of the reads to `t`, an absolute time on the module's [clock](../../core/clock/README.md): Go's
 `Conn.SetReadDeadline`. A read that starts after it, or would wait past it, fails with `ETIMEDOUT` (`is_timeout()`)
 and takes nothing, even when data is there; the writes are not touched. `time_point()` removes it. A change applies
 to the reads in progress: a deadline in the past, set from another task, ends a read that waits at once.
@@ -65,4 +65,4 @@ read pipe: Operation timed out true
 
 - [set_deadline](set_deadline.md): both directions, and how a deadline differs from a timeout
 - [read_deadline](read_deadline.md): the deadline now
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::fd
 
@@ -6,9 +6,9 @@
 int fd() const noexcept;
 ```
 
-Returns the descriptor under the stream, for a stream that has one: a [file](../file.md), a standard stream, a
+Returns the descriptor under the stream, for a stream that has one: a [file](../file/README.md), a standard stream, a
 socket — a stream whose type has `fd()`. A child process takes such a stream as its descriptor, with no pipe and no
-task between: `io::stdout` given as a command's output shares the program's own ([command](../command.md)).
+task between: `io::stdout` given as a command's output shares the program's own ([command](../command/README.md)).
 
 ## Parameters
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [file::fd](../file/fd.md): the descriptor of a file
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

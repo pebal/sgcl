@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::to_string
 
@@ -52,4 +52,4 @@ invalid Prefix
 
 - [write_text](write_text.md): the same text with no string made
 - [parse](parse.md): the text read
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

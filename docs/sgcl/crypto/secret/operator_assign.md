@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret](../secret.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret](README.md)
 
 # sgcl::crypto::secret\<N\>::operator=
 
@@ -64,4 +64,4 @@ true true
 
 - [(constructor)](secret.md): the same for a construction
 - [clone](clone.md): a copy by name
-- [sgcl::crypto::secret\<N\>](../secret.md)
+- [sgcl::crypto::secret\<N\>](README.md)

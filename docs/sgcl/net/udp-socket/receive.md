@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::receive, async_receive
 
@@ -23,7 +23,7 @@ Receives the next datagram into `buffer`, waiting until one comes: the `Read` of
 
 ## Return value
 
-The number of bytes in `buffer`. Or the [io::error](../../io/error.md), its operation `read` and its path the
+The number of bytes in `buffer`. Or the [io::error](../../io/error/README.md), its operation `read` and its path the
 socket: `io::errc::closed` after [close](close.md), `ETIMEDOUT` (`is_timeout()`) when the read deadline passed, the
 `errno` of `recvmsg` otherwise.
 
@@ -75,4 +75,4 @@ true
 
 - [send, async_send](send.md): the other direction
 - [receive_from, async_receive_from](receive_from.md): with the sender
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

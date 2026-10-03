@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::permitted_uri_domains, excluded_uri_domains
 
@@ -80,4 +80,4 @@ Output:
 ## See also
 
 - [uris](uris.md): the URIs they apply to
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

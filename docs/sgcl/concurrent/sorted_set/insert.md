@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](README.md)
 
 # sgcl::concurrent::sorted_set\<Key, Compare\>::insert
 
@@ -100,4 +100,4 @@ false
 
 - [emplace](emplace.md): constructs the key in place
 - [erase](erase.md): erases a key
-- [sgcl::concurrent::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::concurrent::sorted_set\<Key, Compare\>](README.md)

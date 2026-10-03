@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [rooted](../rooted.md)
+[sgcl](../../README.md) › [core](../README.md) › [rooted](README.md)
 
 # sgcl::rooted\<T\>::get
 
@@ -58,4 +58,4 @@ true
 
 - [operator\*, operator->](operator_deref.md): the value
 - [ptr](ptr.md): the value as a `tracked_ptr`
-- [sgcl::rooted\<T\>](../rooted.md)
+- [sgcl::rooted\<T\>](README.md)

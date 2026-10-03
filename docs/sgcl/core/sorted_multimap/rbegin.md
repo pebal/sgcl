@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::rbegin, crbegin
 
@@ -58,4 +58,4 @@ c
 
 - [rend, crend](rend.md): the reverse iterator past the first element
 - [max](max.md): the last element with the largest key
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

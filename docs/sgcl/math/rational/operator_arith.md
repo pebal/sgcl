@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::operator+=, operator-=, operator\*=, operator/=, operator-, sgcl::math::operator+, operator-, operator\*, operator/ (sgcl::math::rational)
 
@@ -99,4 +99,4 @@ sgcl::math::rational::inverse: the inverse of zero 1
 
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons
 - [inverse](inverse.md), [pow](pow.md), [abs](abs.md): the other arithmetic
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

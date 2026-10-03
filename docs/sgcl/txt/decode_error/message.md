@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [decode_error](../decode_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [decode_error](README.md)
 
 # sgcl::txt::decode_error::message
 
@@ -47,4 +47,4 @@ not utf-8
 ## See also
 
 - [offset](offset.md)
-- [sgcl::txt::decode_error](../decode_error.md)
+- [sgcl::txt::decode_error](README.md)

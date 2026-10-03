@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [dumper](../hex-dumper.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [dumper](README.md)
 
 # sgcl::encoding::hex::dumper::write, async_write
 
@@ -18,7 +18,7 @@ writes of everything written, whatever the pieces.
 
 A failure of the writer under it is kept for good: this write and every later `write` and `close` report it. A
 write after `close()` is `io::errc::closed`. The text and the byte of the writers of the library,
-`wire.write("text")`, are [io::mixin::writer](../../io/mixin/writer.md)'s, through this one.
+`wire.write("text")`, are [io::mixin::writer](../../io/mixin/writer/README.md)'s, through this one.
 
 ## Parameters
 
@@ -68,4 +68,4 @@ Output:
 
 - [close, async_close](close.md): the short line at the end
 - [dump](../hex/dump.md): the dump at once
-- [sgcl::encoding::hex::dumper](../hex-dumper.md)
+- [sgcl::encoding::hex::dumper](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::row
 
@@ -13,7 +13,7 @@ bytes into [pixels](pixels.md).
 1. The row to read and write.
 2. The row to read.
 
-The [slice](../../core/slice.md) holds the block of the pixels, as one from [pixels](pixels.md) does: it keeps the
+The [slice](../../core/slice/README.md) holds the block of the pixels, as one from [pixels](pixels.md) does: it keeps the
 whole image's pixels alive after the image is gone.
 
 ## Parameters
@@ -67,4 +67,4 @@ sgcl::codec::image::row
 
 - [pixels](pixels.md): every row
 - [height](height.md): the number of rows
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

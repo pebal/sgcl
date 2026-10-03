@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [encapsulation_key](../mlkem768-encapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [encapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::encapsulation_key::bytes
 
@@ -57,4 +57,4 @@ true
 ## See also
 
 - [from_bytes](from_bytes.md): the key of its bytes
-- [sgcl::crypto::mlkem768::encapsulation_key](../mlkem768-encapsulation_key.md)
+- [sgcl::crypto::mlkem768::encapsulation_key](README.md)

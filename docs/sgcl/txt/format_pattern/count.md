@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [format_pattern](../format_pattern.md)
+[sgcl](../../README.md) › [txt](../README.md) › [format_pattern](README.md)
 
 # sgcl::txt::format_pattern\<A...\>::count
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [parts](parts.md): the steps
-- [sgcl::txt::format_pattern](../format_pattern.md)
+- [sgcl::txt::format_pattern](README.md)

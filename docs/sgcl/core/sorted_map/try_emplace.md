@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::try_emplace
 
@@ -101,4 +101,4 @@ Output:
 - [emplace](emplace.md): builds the element before the search
 - [insert_or_assign](insert_or_assign.md): inserts an element or assigns to its value
 - [operator[]](operator_at.md): the value under a key, inserted when absent
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

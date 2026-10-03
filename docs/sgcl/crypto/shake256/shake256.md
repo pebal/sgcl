@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [shake256](../shake256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [shake256](README.md)
 
 # sgcl::crypto::shake256::shake256
 
@@ -51,4 +51,4 @@ Output:
 
 - [update](update.md): absorbs bytes in
 - [reset](reset.md): back to what the constructor made
-- [sgcl::crypto::shake256](../shake256.md)
+- [sgcl::crypto::shake256](README.md)

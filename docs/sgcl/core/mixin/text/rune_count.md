@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::rune_count
 
@@ -63,4 +63,4 @@ Output:
 
 - [length](length.md): the number of units
 - [runes](runes.md): the code points, walked
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

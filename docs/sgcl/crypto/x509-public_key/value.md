@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [public_key](../x509-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [public_key](README.md)
 
 # sgcl::crypto::x509::public_key::value
 
@@ -6,7 +6,7 @@
 const value_type& value() const noexcept;
 ```
 
-Returns the key as the [variant](../../core/variant.md) of the key types, `monostate` for none, for a `visit` that
+Returns the key as the [variant](../../core/variant/README.md) of the key types, `monostate` for none, for a `visit` that
 handles every kind in one place.
 
 ## Parameters
@@ -57,4 +57,4 @@ Output:
 ## See also
 
 - [kind](kind.md)
-- [sgcl::crypto::x509::public_key](../x509-public_key.md)
+- [sgcl::crypto::x509::public_key](README.md)

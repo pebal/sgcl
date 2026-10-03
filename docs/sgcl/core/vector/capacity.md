@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::capacity
 
@@ -68,4 +68,4 @@ Output:
 - [reserve](reserve.md): reserves storage
 - [shrink_to_fit](shrink_to_fit.md): replaces the buffer by one sized for the elements
 - [size](size.md): the number of elements
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

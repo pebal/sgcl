@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc64](../crc64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc64](README.md)
 
 # sgcl::hash::crc64::crc64
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [resume](resume.md): a hasher going on from a saved CRC
-- [sgcl::hash::crc64](../crc64.md)
+- [sgcl::hash::crc64](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::bytes
 
@@ -7,7 +7,7 @@ secret<64> bytes() const;
 ```
 
 Returns the 64 bytes of Go's `ed25519.PrivateKey`: the seed, then the public key.
-[from_private_bytes](from_private_bytes.md) takes them back. They come as a [secret\<64\>](../secret.md), move-only
+[from_private_bytes](from_private_bytes.md) takes them back. They come as a [secret\<64\>](../secret/README.md), move-only
 and zeroed when it goes.
 
 ## Parameters
@@ -58,4 +58,4 @@ true
 
 - [from_private_bytes](from_private_bytes.md): the reverse
 - [seed](seed.md): the seed alone
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [sgcl::crypto::ed25519::private_key](README.md)

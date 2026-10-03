@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_searcher](../collated_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_searcher](README.md)
 
 # sgcl::txt::collated_searcher::size
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [empty](empty.md): whether there is nothing to look for
-- [sgcl::txt::collated_searcher](../collated_searcher.md)
+- [sgcl::txt::collated_searcher](README.md)

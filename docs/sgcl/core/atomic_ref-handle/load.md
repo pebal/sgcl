@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [handle](../atomic_ref-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [handle](README.md)
 
 # sgcl::atomic_ref\<H\>::load, operator H
 
@@ -59,4 +59,4 @@ starting -> running
 
 - [store](store.md): replaces the handle
 - [exchange](exchange.md): replaces it and returns the old one
-- [sgcl::atomic_ref\<H\>](../atomic_ref-handle.md)
+- [sgcl::atomic_ref\<H\>](README.md)

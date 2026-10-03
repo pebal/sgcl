@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::vector
 
@@ -86,4 +86,4 @@ true
 
 - [operator=](operator_assign.md): makes the variable hold another version
 - [push_back](push_back.md): the vector with one more element
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

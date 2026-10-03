@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](README.md)
 
 # sgcl::concurrent::sorted_set\<Key, Compare\>::clear
 
@@ -56,4 +56,4 @@ true 0
 ## See also
 
 - [erase](erase.md): erases one key
-- [sgcl::concurrent::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::concurrent::sorted_set\<Key, Compare\>](README.md)

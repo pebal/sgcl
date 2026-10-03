@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::from
 
@@ -7,7 +7,7 @@ template<class T> static expected<xml, error> from(const string& name, const T& 
 ```
 
 The element `name` made of a value of a program's type, described by `describe(field_list&)` and mapped as
-[A program's types](../xml.md#a-programs-types) says: its fields as child elements, attributes and text, in the
+[A program's types](README.md#a-programs-types) says: its fields as child elements, attributes and text, in the
 order `describe` names them. A value that is text (a number, a string, an enum) is `<name>text</name>`. The tree
 may be changed further, put into another, or written by [to_string](to_string.md).
 
@@ -26,7 +26,7 @@ in a text: its `message()` is the path and the words.
 
 ## Return value
 
-The element; otherwise the [error](../error.md), `errc::unsupported_value`.
+The element; otherwise the [error](../error/README.md), `errc::unsupported_value`.
 
 ## Complexity
 
@@ -84,4 +84,4 @@ Output:
 - [stringify](stringify.md): the text of the element at once
 - [as](as.md): the way back
 - [writer::value](../xml-writer/value.md): a value written onto a stream
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

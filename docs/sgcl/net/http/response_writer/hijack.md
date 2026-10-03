@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::hijack
 
@@ -7,7 +7,7 @@ expected<pair<net::connection, io::reader>, io::error> hijack() noexcept;
 ```
 
 Hands the connection over to the program, Go's `Hijacker.Hijack`, for a WebSocket or a protocol of its own: the
-[connection](../../connection.md), and a [reader](../../../io/reader.md) of what is left of it, whose first bytes are
+[connection](../../connection/README.md), and a [reader](../../../io/reader/README.md) of what is left of it, whose first bytes are
 the ones the server had read past this request. The server then sends nothing more on it, does not close it and
 does not log the exchange; what is written, read and closed is the program's.
 
@@ -87,5 +87,5 @@ WORLD
 
 ## See also
 
-- [connection](../../connection.md): what is handed over
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [connection](../../connection/README.md): what is handed over
+- [sgcl::net::http::response_writer](README.md)

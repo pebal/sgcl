@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [field](../field.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [field](README.md)
 
 # sgcl::encoding::field::attribute
 
@@ -66,5 +66,5 @@ b2 pl Lalka
 ## See also
 
 - [text](text.md): the element's text
-- [xml](../xml.md): the format that reads it
-- [sgcl::encoding::field](../field.md)
+- [xml](../xml/README.md): the format that reads it
+- [sgcl::encoding::field](README.md)

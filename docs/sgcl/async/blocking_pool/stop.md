@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](../blocking_pool.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](README.md)
 
 # sgcl::async::blocking_pool::stop
 
@@ -60,4 +60,4 @@ after it: 0 threads
 
 - [wait_idle](wait_idle.md): the jobs run, the threads kept
 - [scheduler::stop](../scheduler/stop.md): the workers, the timers, the reactor and the pool
-- [sgcl::async::blocking_pool](../blocking_pool.md)
+- [sgcl::async::blocking_pool](README.md)

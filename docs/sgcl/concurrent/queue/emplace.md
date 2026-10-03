@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [queue](README.md)
 
 # sgcl::concurrent::queue\<T\>::emplace
 
@@ -71,4 +71,4 @@ report 1
 
 - [push](push.md): appends a copy or a moved value
 - [push_range](push_range.md): appends the elements of a range with one exchange
-- [sgcl::concurrent::queue\<T\>](../queue.md)
+- [sgcl::concurrent::queue\<T\>](README.md)

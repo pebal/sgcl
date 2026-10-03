@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](README.md)
 
 # sgcl::encoding::ascii85::encode
 
@@ -66,4 +66,4 @@ zrr
 - [decode](decode.md): the bytes of a text
 - [encode_to](encode_to.md): into the caller's buffer
 - [encoder_to](encoder_to.md): as a stream
-- [sgcl::encoding::ascii85](../ascii85.md)
+- [sgcl::encoding::ascii85](README.md)

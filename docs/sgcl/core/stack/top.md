@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [core](../README.md) › [stack](README.md)
 
 # sgcl::stack\<T, Container\>::top
 
@@ -67,4 +67,4 @@ peak
 ## See also
 
 - [push](push.md), [pop](pop.md): insert and remove the top element
-- [sgcl::stack\<T, Container\>](../stack.md)
+- [sgcl::stack\<T, Container\>](README.md)

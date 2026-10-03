@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::operator==, operator\<=\> (sgcl::net::url)
 
@@ -57,4 +57,4 @@ true
 ## See also
 
 - [to_string](to_string.md): the serialization
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

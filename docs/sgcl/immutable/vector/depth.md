@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::depth
 
@@ -64,4 +64,4 @@ Output:
 
 - [operator[]](operator_at.md): the element at a position, `depth()` branches away
 - [size](size.md): the number of elements
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

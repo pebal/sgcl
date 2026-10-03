@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::last_error
 
@@ -7,7 +7,7 @@ const optional<error>& last_error() const noexcept;
 ```
 
 The error the reader stopped at: what tells an error from the end of the input, when a method returned `nullopt`
-or `false`. The [error](../error.md) has the [code](../errc.md), the offset of the byte in the whole input, the
+or `false`. The [error](../error/README.md) has the [code](../errc.md), the offset of the byte in the whole input, the
 line and the column (in code points), counted across the blocks the reader let go, the path inside the value for
 a [typed read](read.md), and the error of the stream when the stream failed (`errc::io`). The reader keeps the
 first error: every call after it returns `nullopt` or `false`, and the error stays as it was.
@@ -69,6 +69,6 @@ false
 
 ## See also
 
-- [error](../error.md), [errc](../errc.md): the codes and the place
+- [error](../error/README.md), [errc](../errc.md): the codes and the place
 - [offset](offset.md): where the reader is
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [sgcl::encoding::json::reader](README.md)

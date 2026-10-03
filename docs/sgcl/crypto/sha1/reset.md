@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha1](../sha1.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha1](README.md)
 
 # sgcl::crypto::sha1::reset
 
@@ -53,4 +53,4 @@ a9993e364706816aba3e25717850c26c9cd0d89d
 ## See also
 
 - [(constructor)](sha1.md): a hasher of nothing yet
-- [sgcl::crypto::sha1](../sha1.md)
+- [sgcl::crypto::sha1](README.md)

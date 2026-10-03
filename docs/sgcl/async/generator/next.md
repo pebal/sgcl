@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [async](../README.md) › [generator](README.md)
 
 # sgcl::async::generator\<T\>::next
 
@@ -15,7 +15,7 @@ on the consumer's worker, and its `co_yield` resumes the consumer where the gene
 between two values (a channel, a sleep, a task) is the consumer's too: neither holds a thread meanwhile, and the
 consumer's frame is held by the generator's promise for the length of the wait. Before it resumes the generator,
 `next()` gives its frame the consumer's executor and task-locals, so that a wait of the generator resumes it where the
-consumer runs and the functions under it see the consumer's [task-locals](../task_local.md).
+consumer runs and the functions under it see the consumer's [task-locals](../task_local/README.md).
 
 A `next()` past the end, or on an empty generator, gives nothing at once. An exception the coroutine throws comes out
 of the `co_await` that ran into it, once; the generator is finished after it.
@@ -92,4 +92,4 @@ true false
 
 - [done](done.md): checks whether the coroutine has ended
 - [receive](../channel/receive.md): what the generator above waits on
-- [sgcl::async::generator\<T\>](../generator.md)
+- [sgcl::async::generator\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::reader::operator bool
 
@@ -7,7 +7,7 @@ explicit operator bool() const noexcept;
 ```
 
 Checks whether the reader holds a stream. A default-constructed reader holds none, and so does one made of an empty
-handle (a default-constructed [buffered_reader](../buffered_reader.md)) or of a null pointer to a handle or to a
+handle (a default-constructed [buffered_reader](../buffered_reader/README.md)) or of a null pointer to a handle or to a
 stream of the program's.
 
 ## Parameters
@@ -53,4 +53,4 @@ false false false true
 ## See also
 
 - [(constructor)](reader.md)
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

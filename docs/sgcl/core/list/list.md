@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::list
 
@@ -99,4 +99,4 @@ Output:
 
 - [operator=](operator_assign.md), [assign](assign.md): replace the contents of a list
 - [insert](insert.md): inserts elements at a position
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

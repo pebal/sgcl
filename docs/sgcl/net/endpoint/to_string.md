@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [endpoint](../endpoint.md)
+[sgcl](../../README.md) › [net](../README.md) › [endpoint](README.md)
 
 # sgcl::net::endpoint::to_string
 
@@ -53,4 +53,4 @@ invalid AddrPort
 
 - [write_text](write_text.md): the same text with no string made
 - [parse](parse.md): the text read
-- [sgcl::net::endpoint](../endpoint.md)
+- [sgcl::net::endpoint](README.md)

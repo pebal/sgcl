@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::transform
 
@@ -68,4 +68,4 @@ Output:
 
 - [and_then](and_then.md): a function of the value that may fail
 - [transform_error](transform_error.md): the error mapped
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

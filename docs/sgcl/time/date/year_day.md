@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::year_day
 
@@ -50,4 +50,4 @@ Output:
 
 - [weekday](weekday.md), [iso_week](iso_week.md): the other numbers of a day
 - [parse](parse.md): reads the ordinal date
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](README.md)
 
 # sgcl::encoding::ascii85::decoder_from
 
@@ -8,8 +8,8 @@ static decoder decoder_from(const io::reader& in) noexcept;
 
 A reader of the bytes the Ascii85 text of `in` decodes to: Go's `ascii85.NewDecoder`. The text may come in pieces
 of any size, and is read as [decode](decode.md) reads it. An invalid text fails the read that reaches it, after
-the bytes before the error were handed out, and every read after; the [decoder](../ascii85-decoder.md)'s
-[last_error()](../ascii85-decoder/last_error.md) holds the [error](../error.md) with its offset in the text. The
+the bytes before the error were handed out, and every read after; the [decoder](../ascii85-decoder/README.md)'s
+[last_error()](../ascii85-decoder/last_error.md) holds the [error](../error/README.md) with its offset in the text. The
 decoder is a handle of one word, made with its state: a managed object holding an 8 KB block and `in`.
 
 ## Parameters
@@ -54,7 +54,7 @@ Hello, World!
 
 ## See also
 
-- [ascii85::decoder](../ascii85-decoder.md): the stream
+- [ascii85::decoder](../ascii85-decoder/README.md): the stream
 - [encoder_to](encoder_to.md): the other way
 - [decode](decode.md): the bytes at once
-- [sgcl::encoding::ascii85](../ascii85.md)
+- [sgcl::encoding::ascii85](README.md)

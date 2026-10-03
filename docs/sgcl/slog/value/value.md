@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::value
 
@@ -43,4 +43,4 @@ true <nil> null
 ## See also
 
 - [type](type.md)
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

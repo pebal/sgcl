@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::second
 
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [hour](hour.md), [minute](minute.md), [nanosecond](nanosecond.md): the rest of the time of day
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

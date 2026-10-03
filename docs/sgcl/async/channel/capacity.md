@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::capacity
 
@@ -57,4 +57,4 @@ full at 3
 
 - [size](size.md): the number of elements in the buffer
 - [(constructor)](channel.md): where the capacity is given
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

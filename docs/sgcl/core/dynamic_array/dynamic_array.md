@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::dynamic_array\<T\>::dynamic_array
 
@@ -21,7 +21,7 @@ Constructs an array from one of the sources below. Its size is fixed from then o
    struct of them) the buffer is zeroed in one pass; any other type is constructed element by element.
 3. `count` copies of `value`.
 4. The elements of the range `[first, last)`. A forward range is counted first and the buffer allocated once; a
-   single-pass range is collected into a [vector](../vector.md) first and moved from there.
+   single-pass range is collected into a [vector](../vector/README.md) first and moved from there.
 5. The elements of the range `r`, each made from what the range gives: the pieces of a string, a view, another
    container; as (4) over the range's iterators. Takes part only when `T` is constructible from the elements of
    `r` and `r` is not a dynamic_array of the same type, which is the copy (7). The counterpart of
@@ -110,4 +110,4 @@ Output:
 ## See also
 
 - [operator=](operator_assign.md): replaces the contents of an array
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [sgcl::dynamic_array\<T\>](README.md)

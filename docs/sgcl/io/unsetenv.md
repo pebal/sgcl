@@ -21,7 +21,7 @@ is no error.
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call: `std::errc::invalid_argument` for a name that is empty or holds
+Nothing, or the [error](error/README.md) of the call: `std::errc::invalid_argument` for a name that is empty or holds
 `=`. The operation is `unsetenv` and the path the name.
 
 ## Complexity

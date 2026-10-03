@@ -42,7 +42,7 @@ was. [image::save](image/save.md) is the same as a method of the image, and [loa
 
 ## Return value
 
-Nothing; or the [error](error.md): `errc::unsupported` for an extension of no format the module writes (and for HEIC
+Nothing; or the [error](error/README.md): `errc::unsupported` for an extension of no format the module writes (and for HEIC
 where the system has no HEVC encoder), `errc::invalid_argument` for a HEIC quality outside 1 to 100 and for an image
 the format cannot hold (a JPEG side past 65 535 pixels, a PNG side past 2^31 − 1), and `errc::io` when the file
 cannot be created, written, closed or renamed, with io's error inside ([io_error](error/io_error.md)). (2) gives it
@@ -64,7 +64,7 @@ Linear in the size of the image.
 A save whose result is not looked at fails quietly: `codec::save(picture, "out.png");` as a statement throws nothing
 when the file cannot be written.
 
-The encoder writes into the open `.part` file as into any [io::writer](../io/writer.md), as the image is encoded:
+The encoder writes into the open `.part` file as into any [io::writer](../io/writer/README.md), as the image is encoded:
 every format's `encode` into a stream returns `expected<void, codec::error>`, with `errc::io` when the stream fails.
 
 ## Example

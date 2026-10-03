@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [writer](../xml-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [writer](README.md)
 
 # sgcl::encoding::xml::writer::declaration
 
@@ -56,4 +56,4 @@ the XML declaration after something was written
 ## See also
 
 - [instruction](instruction.md): a processing instruction, whose target is never `xml`
-- [sgcl::encoding::xml::writer](../xml-writer.md)
+- [sgcl::encoding::xml::writer](README.md)

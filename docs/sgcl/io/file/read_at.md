@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::read_at, async_read_at
 
@@ -25,7 +25,7 @@ threads and tasks read one file at once without a seek between them.
 ## Return value
 
 The number of bytes read, fewer than the size of `buffer` when the end comes first; 0 at or past the end. Or the
-[error](../error.md), its operation `read_at` and its path the file's: `errc::closed` for a closed file, otherwise
+[error](../error/README.md), its operation `read_at` and its path the file's: `errc::closed` for a closed file, otherwise
 the `errno` of `pread(2)` (`ESPIPE` for a pipe, which has no offsets).
 
 ## Complexity
@@ -39,7 +39,7 @@ None.
 ## Notes
 
 `buffer` handed to (2) without an owner (a plain array, a `std::span`) is read into a managed block on the pool and
-copied into `buffer` when the task resumes; a slice with an owner (a `vector`, an [array](../../core/array.md)) is
+copied into `buffer` when the task resumes; a slice with an owner (a `vector`, an [array](../../core/array/README.md)) is
 read into as it is.
 
 ## Example
@@ -104,4 +104,4 @@ aaaa bbbb cc
 
 - [write_at, async_write_at](write_at.md): the other direction
 - [read, async_read](read.md): a read at the position
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

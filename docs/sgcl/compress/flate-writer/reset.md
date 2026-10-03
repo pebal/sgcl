@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md) › [writer](../flate-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate/README.md) › [writer](README.md)
 
 # sgcl::compress::flate::writer::reset
 
@@ -62,4 +62,4 @@ second
 ## See also
 
 - [(constructor)](flate-writer.md)
-- [sgcl::compress::flate::writer](../flate-writer.md)
+- [sgcl::compress::flate::writer](README.md)

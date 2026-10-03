@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs.md)
+[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](README.md)
 
 # sgcl::txt::bidi_runs::bidi_runs
 
@@ -16,7 +16,7 @@ explicit bidi_runs(const slice<const char>& text,                               
 
 Constructs the pieces of a text in the order they are drawn: the bidirectional algorithm of
 [UAX #9](https://www.unicode.org/reports/tr9/) is run over the whole text, a paragraph at a time (rule P1), and the
-pieces are cut and held. `txt::bidi_runs(s)` looks like a call and is a construction, as [runes](../../core/runes.md) is.
+pieces are cut and held. `txt::bidi_runs(s)` looks like a call and is a construction, as [runes](../../core/runes/README.md) is.
 
 1. No pieces, over no text.
 2. The pieces of a string; the range holds a slice of it, and with it the string's object.
@@ -80,4 +80,4 @@ true
 
 - [paragraph](paragraph.md): the direction the paragraph resolved to
 - [text](text.md): the slice the pieces are cut from
-- [sgcl::txt::bidi_runs](../bidi_runs.md)
+- [sgcl::txt::bidi_runs](README.md)

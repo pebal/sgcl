@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::type
 
@@ -71,4 +71,4 @@ a record
 
 - [kind](../json-kind.md): the kinds
 - [is_null](is_null.md), [is_number](is_number.md), [is_object](is_object.md): one kind asked
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

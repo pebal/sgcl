@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [entry](../sevenzip-entry.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [entry](README.md)
 
 # sgcl::compress::sevenzip::entry::is_symlink
 
@@ -58,4 +58,4 @@ latest: true
 
 ## See also
 
-- [sgcl::compress::sevenzip::entry](../sevenzip-entry.md)
+- [sgcl::compress::sevenzip::entry](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::to_front
 
@@ -60,4 +60,4 @@ Output:
 
 - [to_back](to_back.md): moves an element to the end of the order
 - [front](front.md): the oldest element
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

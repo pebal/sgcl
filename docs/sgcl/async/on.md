@@ -21,7 +21,7 @@ namespace sgcl::async {
 }
 ```
 
-An awaitable that moves the task to an [executor](executor.md) or a [strand](strand.md): after
+An awaitable that moves the task to an [executor](executor/README.md) or a [strand](strand/README.md): after
 `co_await async::on(ex)` the task goes on on `ex` from the next line, and whatever it awaits from then on wakes it
 there. A task already there goes on at once, without a hop. It works from anywhere: from the pool, from another
 executor or strand, from a thread that is no worker and no executor (a task resumed by hand). Kotlin's
@@ -92,5 +92,5 @@ shown on the main thread: true
 ## See also
 
 - [on_workers](on_workers.md): back to the pool
-- [executor](executor.md), [strand](strand.md): where a task goes
+- [executor](executor/README.md), [strand](strand/README.md): where a task goes
 - [yield](yield.md): to the back of the queue it is on

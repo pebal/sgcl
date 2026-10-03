@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [writer](../gzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [writer](README.md)
 
 # sgcl::compress::gzip::writer::close, async_close
 
@@ -69,4 +69,4 @@ write gzip: stream closed
 
 - [flush](flush.md): everything so far decodable, the stream going on
 - [last_error](last_error.md): the error the close gives
-- [sgcl::compress::gzip::writer](../gzip-writer.md)
+- [sgcl::compress::gzip::writer](README.md)

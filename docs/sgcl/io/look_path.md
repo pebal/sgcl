@@ -23,7 +23,7 @@ program up so.
 
 ## Return value
 
-The path of the executable, or the [error](error.md) `errc::not_found` (`executable file not found in PATH`) when
+The path of the executable, or the [error](error/README.md) `errc::not_found` (`executable file not found in PATH`) when
 there is none, the name empty included; the operation is `look_path` and the path the name.
 
 ## Complexity
@@ -62,5 +62,5 @@ sh
 
 ## See also
 
-- [command](command.md): the program started under the path found
+- [command](command/README.md): the program started under the path found
 - [executable](executable.md): the path of the running program

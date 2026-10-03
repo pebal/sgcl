@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::bucket_count
 
@@ -64,4 +64,4 @@ Output:
 
 - [rehash](rehash.md), [reserve](reserve.md): set the number of buckets
 - [load_factor](load_factor.md): the elements per bucket
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

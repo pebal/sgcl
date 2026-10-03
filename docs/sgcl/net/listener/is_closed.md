@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::is_closed
 
@@ -50,4 +50,4 @@ true
 ## See also
 
 - [close](close.md): stops listening
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

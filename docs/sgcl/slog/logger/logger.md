@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [logger](../logger.md)
+[sgcl](../../README.md) › [slog](../README.md) › [logger](README.md)
 
 # sgcl::slog::logger::logger
 
@@ -14,12 +14,12 @@ Constructs a logger with an output of its own.
 1. Text lines on `io::stderr` from `info` up, in the local time: what the [default logger](../default_logger.md)
    starts as.
 2. As [options](../options.md) say: the output (text or JSON on a writer, or a handler of the program), the level
-   or a [level_var](../level_var.md), `source`, `utc`, `buffered` and the sampling.
+   or a [level_var](../level_var/README.md), `source`, `utc`, `buffered` and the sampling.
 3. Text lines on `out` from the level `l`: `options{.out = out, .level = l}`. An empty writer is no output: every
    record is lost and counted by [dropped](dropped.md), as a failed write is.
 4. The records given to the handler `h` from the level `l`: `options{.handler = h, .level = l}`. Any type with
-   `handle(const record&)` converts to a [handler](../handler.md), so `slog::logger(kept)` of a
-   [memory](../memory.md) takes it. An empty handler is none: the lines go to `io::stderr`, as in (3).
+   `handle(const record&)` converts to a [handler](../handler/README.md), so `slog::logger(kept)` of a
+   [memory](../memory/README.md) takes it. An empty handler is none: the lines go to `io::stderr`, as in (3).
 
 ## Parameters
 
@@ -73,4 +73,4 @@ time=2026-09-28T14:05:01.123+02:00 level=DEBUG msg="text from debug"
 
 - [options](../options.md)
 - [with](with.md), [group](group.md): loggers that share this one's output
-- [sgcl::slog::logger](../logger.md)
+- [sgcl::slog::logger](README.md)

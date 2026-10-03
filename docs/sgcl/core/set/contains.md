@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::contains
 
@@ -12,7 +12,7 @@ of [mixin::enumerable](../mixin/enumerable/contains.md), which would walk every 
 
 - (2) The key is of any type the hash and the equality take, and no `Key` is built for the search. Takes part
   only when `Hash` and `KeyEqual` both declare `is_transparent`, as `std::hash` and `std::equal_to` of a
-  [string](../string.md) do.
+  [string](../string/README.md) do.
 
 ## Parameters
 
@@ -64,4 +64,4 @@ false
 
 - [find](find.md): an iterator to the element with a key
 - [count](count.md): the number of elements with a key
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

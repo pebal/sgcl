@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [core](../README.md) › [stack](README.md)
 
 # sgcl::stack\<T, Container\>::push
 
@@ -58,4 +58,4 @@ Output:
 
 - [emplace](emplace.md): constructs an element in place at the top
 - [pop](pop.md): removes the top element
-- [sgcl::stack\<T, Container\>](../stack.md)
+- [sgcl::stack\<T, Container\>](README.md)

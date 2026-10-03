@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::rbegin, crbegin
 
@@ -57,4 +57,4 @@ Output:
 
 - [rend, crend](rend.md): the end of the order read backwards
 - [begin, cbegin](begin.md): the order from the smallest element
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

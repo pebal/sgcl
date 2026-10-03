@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::equal_range
 
@@ -41,8 +41,8 @@ Constant on average, linear in the size when every key falls into one bucket.
 
 ## Notes
 
-`equal_range` is there for code written for a [multimap](../multimap.md) as well; it also gives a map
-`values_of` of [mixin::lookup](../mixin/lookup.md).
+`equal_range` is there for code written for a [multimap](../multimap/README.md) as well; it also gives a map
+`values_of` of [mixin::lookup](../mixin/lookup/README.md).
 
 ## Example
 
@@ -73,4 +73,4 @@ true true
 
 - [find](find.md): an iterator to the element under a key
 - [count](count.md): the number of elements under a key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

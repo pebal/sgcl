@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::value_comp
 
@@ -50,4 +50,4 @@ true {3, 3, 1}
 ## See also
 
 - [key_comp](key_comp.md): the comparison of the keys
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

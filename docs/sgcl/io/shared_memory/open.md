@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::open
 
@@ -22,7 +22,7 @@ keeps it in the region.
 
 ## Return value
 
-The handle of the mapped region, or an [error](../error.md) with the operation `open` and the name as its path:
+The handle of the mapped region, or an [error](../error/README.md) with the operation `open` and the name as its path:
 
 - `is_not_found()` when there is no object of the name;
 - `errc::invalid_path` for a bad name (empty, or with `/` or `\`);
@@ -65,4 +65,4 @@ open sgcl-example-open: No such file or directory
 
 - [create](create.md): the object made
 - [remove](remove.md): the name taken away
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

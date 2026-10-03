@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [parse_error](../parse_error.md)
+[sgcl](../../README.md) › [math](../README.md) › [parse_error](README.md)
 
 # sgcl::math::operator== (sgcl::math::parse_error)
 
@@ -51,4 +51,4 @@ true false
 ## See also
 
 - [message](message.md): the sentence the members make
-- [sgcl::math::parse_error](../parse_error.md)
+- [sgcl::math::parse_error](README.md)

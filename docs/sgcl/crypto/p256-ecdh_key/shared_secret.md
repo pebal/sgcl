@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](../p256-ecdh_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](README.md)
 
 # sgcl::crypto::p256::ecdh_key::shared_secret
 
@@ -10,8 +10,8 @@ The secret this key shares with `peer`, Go's `ecdh.PrivateKey.ECDH`: the x-coord
 big-endian (SEC 1 §3.3.1, what TLS and Go give). The peer computes the same secret from its own key and this key's
 public one.
 
-The secret is not a key: it is put through a key derivation, [hkdf](../hkdf.md) with the protocol's salt and info,
-before it keys anything. The peer is a [public_key](../p256-public_key.md), so it was checked when it was made: on the
+The secret is not a key: it is put through a key derivation, [hkdf](../hkdf/README.md) with the protocol's salt and info,
+before it keys anything. The peer is a [public_key](../p256-public_key/README.md), so it was checked when it was made: on the
 curve and not the identity.
 
 `p384::ecdh_key::shared_secret` takes a `p384::public_key` and gives a `secret<48>`.
@@ -24,7 +24,7 @@ curve and not the identity.
 
 ## Return value
 
-The shared secret, a [secret\<32\>](../secret.md), or a [crypto::error](../error.md) with `errc::invalid_key` if the
+The shared secret, a [secret\<32\>](../secret/README.md), or a [crypto::error](../error/README.md) with `errc::invalid_key` if the
 product were the identity, which a key in range and a point of the curve do not allow on a curve of prime order.
 
 ## Complexity
@@ -79,6 +79,6 @@ true
 ## See also
 
 - [public_key](public_key.md): what the peer receives from this key
-- [hkdf](../hkdf.md): the key derived from the secret
-- [secret](../secret.md): the form of the secret
-- [sgcl::crypto::p256::ecdh_key](../p256-ecdh_key.md)
+- [hkdf](../hkdf/README.md): the key derived from the secret
+- [secret](../secret/README.md): the form of the secret
+- [sgcl::crypto::p256::ecdh_key](README.md)

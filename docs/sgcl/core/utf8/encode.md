@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::encode
 
@@ -31,7 +31,7 @@ None.
 
 ## Notes
 
-[encoded](../utf8-encoded.md) is the same encoding kept in a value with its length, which converts to a
+[encoded](../utf8-encoded/README.md) is the same encoding kept in a value with its length, which converts to a
 `std::string_view`.
 
 ## Example
@@ -63,5 +63,5 @@ Output:
 
 - [decode](decode.md): the reverse
 - [width](width.md): the bytes an encoding takes
-- [encoded](../utf8-encoded.md): the encoding as a value
-- [sgcl::utf8](../utf8.md)
+- [encoded](../utf8-encoded/README.md): the encoding as a value
+- [sgcl::utf8](README.md)

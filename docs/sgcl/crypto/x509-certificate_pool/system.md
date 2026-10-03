@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](../x509-certificate_pool.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](README.md)
 
 # sgcl::crypto::x509::certificate_pool::system, async_system
 
@@ -25,7 +25,7 @@ None.
 
 ## Return value
 
-A pool of the roots, or a [crypto::error](../error.md) `errc::unsupported` when none of the places holds a
+A pool of the roots, or a [crypto::error](../error/README.md) `errc::unsupported` when none of the places holds a
 certificate.
 
 ## Complexity
@@ -96,4 +96,4 @@ Sample output:
 
 - [verify](../x509-certificate/verify.md): takes these roots when none are given
 - [from_file](from_file.md): roots of the program's own
-- [sgcl::crypto::x509::certificate_pool](../x509-certificate_pool.md)
+- [sgcl::crypto::x509::certificate_pool](README.md)

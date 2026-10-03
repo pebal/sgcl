@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::max_bucket_count
 
@@ -49,4 +49,4 @@ true
 
 - [bucket_count](bucket_count.md): the number of buckets
 - [max_size](max_size.md): the largest number of elements
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

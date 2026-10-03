@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::decapsulation_key::generate
 
@@ -6,7 +6,7 @@
 static decapsulation_key generate() noexcept;
 ```
 
-A new key, Go's `GenerateKey768`: a seed d‖z of 64 bytes from [crypto::random](../random.md), and the key FIPS 203's
+A new key, Go's `GenerateKey768`: a seed d‖z of 64 bytes from [crypto::random](../random/README.md), and the key FIPS 203's
 ML-KEM.KeyGen_internal makes of it. `mlkem512::decapsulation_key::generate` and
 `mlkem1024::decapsulation_key::generate` make keys of their sets the same way.
 
@@ -52,4 +52,4 @@ false
 ## See also
 
 - [from_seed](from_seed.md): the key of a known seed
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

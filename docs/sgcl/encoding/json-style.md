@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [json](json.md)
+[sgcl](../README.md) › [encoding](README.md) › [json](json/README.md)
 
 # sgcl::encoding::json::style
 
@@ -21,8 +21,8 @@ namespace sgcl::encoding {
 ```
 
 `sgcl::encoding::json::style` is how a value is written: by [to_string](json/to_string.md),
-[stringify](json/stringify.md) and the [writer](json-writer.md). Two are constants of the class:
-[compact](json.md#member-objects), the default, with no space at all, and [pretty](json.md#member-objects), an
+[stringify](json/stringify.md) and the [writer](json-writer/README.md). Two are constants of the class:
+[compact](json/README.md#member-objects), the default, with no space at all, and [pretty](json/README.md#member-objects), an
 indent of 2, the text of Go's `MarshalIndent(v, "", "  ")`. A plain struct: set the fields that differ and pass
 it.
 
@@ -74,4 +74,4 @@ Output:
 
 - [to_string](json/to_string.md), [stringify](json/stringify.md): the text in a style
 - [options](json-options.md): what a parse accepts
-- [sgcl::encoding::json](json.md)
+- [sgcl::encoding::json](json/README.md)

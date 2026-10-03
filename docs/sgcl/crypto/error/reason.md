@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [error](README.md)
 
 # sgcl::crypto::error::reason
 
@@ -57,4 +57,4 @@ true
 
 - [x509::reason](../x509-reason.md): the reasons
 - [x509](../x509.md): certificates and their verification
-- [sgcl::crypto::error](../error.md)
+- [sgcl::crypto::error](README.md)

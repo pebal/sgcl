@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::not_before
 
@@ -8,7 +8,7 @@ time::datetime not_before() const noexcept;
 
 Returns the first instant at which the certificate is valid.
 
-The validity is in UTC. A time the certificate holds outside the years of [time::datetime](../../time/datetime.md),
+The validity is in UTC. A time the certificate holds outside the years of [time::datetime](../../time/datetime/README.md),
 1678 to 2261 (the common `99991231235959Z`, "no expiry"), is the end of that range here, while a verification compares
 the time as the certificate has it. Both ends of the period are valid, as RFC 5280 §4.1.2.5 has it.
 
@@ -57,4 +57,4 @@ Output:
 
 - [not_after](not_after.md): the end of the validity
 - [verify_options](../x509-verify_options.md): the time a verification asks for
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

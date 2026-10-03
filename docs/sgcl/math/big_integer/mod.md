@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::mod
 
@@ -59,4 +59,4 @@ Output:
 - [operator%](operator_arith.md): the remainder with the sign of the dividend
 - [div_rem](div_rem.md): the quotient and the remainder of one division
 - [mod_pow](mod_pow.md), [mod_inverse](mod_inverse.md): the modular power and inverse
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

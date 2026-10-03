@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::add_days
 
@@ -29,8 +29,8 @@ None.
 
 ## Notes
 
-A day of the calendar is not a [duration](../../core/duration.md): where the clock changes it is 23 or 25 hours,
-which is why a date steps by days, and an instant of a [datetime](../datetime.md) moved a day keeps its time of the
+A day of the calendar is not a [duration](../../core/duration/README.md): where the clock changes it is 23 or 25 hours,
+which is why a date steps by days, and an instant of a [datetime](../datetime/README.md) moved a day keeps its time of the
 clock by its own `add_days`.
 
 ## Example
@@ -60,4 +60,4 @@ Output:
 - [add_months](add_months.md), [add_years](add_years.md): the calendar's other steps
 - [days_until](days_until.md): the days between two dates
 - [operator+, operator-](operator_arith.md): the same in operators
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::equal_range
 
@@ -67,4 +67,4 @@ b c | d
 
 - [count](count.md): the number of elements under a key
 - [lower_bound](lower_bound.md), [upper_bound](upper_bound.md): the ends of the run
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

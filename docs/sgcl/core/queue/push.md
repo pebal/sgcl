@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [queue](README.md)
 
 # sgcl::queue\<T, Container\>::push
 
@@ -60,4 +60,4 @@ Output:
 
 - [emplace](emplace.md): constructs the element in place
 - [pop](pop.md): removes the first element
-- [sgcl::queue\<T, Container\>](../queue.md)
+- [sgcl::queue\<T, Container\>](README.md)

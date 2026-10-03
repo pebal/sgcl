@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::shifts_punctuation
 
@@ -55,4 +55,4 @@ false true false
 ## See also
 
 - [punctuation](../punctuation.md), [options](../collator-options.md)
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

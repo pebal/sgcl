@@ -23,7 +23,7 @@ wants it honoured skips those bytes itself, which keeps that decision where it b
 
 ## Return value
 
-A [byte_order_mark](byte_order_mark.md): the encoding and the size, or no encoding and 0.
+A [byte_order_mark](byte_order_mark/README.md): the encoding and the size, or no encoding and 0.
 
 ## Complexity
 
@@ -57,6 +57,6 @@ utf-16le, 2 bytes: hi
 
 ## See also
 
-- [byte_order_mark](byte_order_mark.md)
+- [byte_order_mark](byte_order_mark/README.md)
 - [decode](decode.md)
 - [sgcl::txt](README.md)

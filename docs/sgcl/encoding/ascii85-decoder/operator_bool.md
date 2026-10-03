@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md) › [decoder](../ascii85-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85/README.md) › [decoder](README.md)
 
 # sgcl::encoding::ascii85::decoder::operator bool
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](ascii85-decoder.md): a decoder that holds none
-- [sgcl::encoding::ascii85::decoder](../ascii85-decoder.md)
+- [sgcl::encoding::ascii85::decoder](README.md)

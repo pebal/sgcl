@@ -125,5 +125,5 @@ true
 
 - [reason](reason.md): the phrase of a code
 - [response::status](response/status.md), [response::ok](response/ok.md): the status a client receives
-- [response_writer](response_writer.md): the status a handler sends
+- [response_writer](response_writer/README.md): the status a handler sends
 - [sgcl::net::http](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [public_key](../x25519-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [public_key](README.md)
 
 # sgcl::crypto::x25519::public_key::to_pkix_der
 
@@ -58,4 +58,4 @@ MCowBQYDK2VuAyEAhSDwCYkwp1R0i33ctD73Wg2/Og0mOBr066SpjqqbTmo=
 
 - [from_pkix_der](from_pkix_der.md): the reverse
 - [bytes](bytes.md): the 32 bytes alone
-- [sgcl::crypto::x25519::public_key](../x25519-public_key.md)
+- [sgcl::crypto::x25519::public_key](README.md)

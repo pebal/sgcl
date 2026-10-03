@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [field_list](../field_list.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [field_list](README.md)
 
 # sgcl::encoding::field_list::field_list
 
@@ -13,7 +13,7 @@ Constructs a list. A format makes one for each object it reads or writes and han
 1. An empty list. Its first sixteen fields are kept in the list itself, the ones past them in a block of their
    own: a type of up to sixteen fields is described with nothing allocated, once for every record of an array or
    every row of a CSV file.
-2. A list is neither copied nor moved: the [field](../field.md) that [add](add.md) returns refers to it.
+2. A list is neither copied nor moved: the [field](../field/README.md) that [add](add.md) returns refers to it.
 
 ## Parameters
 
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [add](add.md): a field added
-- [sgcl::encoding::field_list](../field_list.md)
+- [sgcl::encoding::field_list](README.md)

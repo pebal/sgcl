@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](README.md)
 
 # sgcl::concurrent::priority_queue\<T, Compare\>::size
 
@@ -65,4 +65,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the queue holds an element
-- [sgcl::concurrent::priority_queue\<T, Compare\>](../priority_queue.md)
+- [sgcl::concurrent::priority_queue\<T, Compare\>](README.md)

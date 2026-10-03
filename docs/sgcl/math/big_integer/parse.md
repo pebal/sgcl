@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::parse
 
@@ -23,7 +23,7 @@ and a wrong one throws.
 
 ## Return value
 
-The number, or a [parse_error](../parse_error.md) whose `offset()` is the byte where the reading stopped and whose
+The number, or a [parse_error](../parse_error/README.md) whose `offset()` is the byte where the reading stopped and whose
 `message()` says why, ending with `at byte` and the offset:
 
 - `"empty text"`: an empty text, at byte 0;
@@ -89,5 +89,5 @@ Output:
 
 - [(constructor)](big_integer.md): a number from a text the program writes
 - [to_string](to_string.md): writes the text
-- [parse_error](../parse_error.md): why a text is not a number
-- [sgcl::math::big_integer](../big_integer.md)
+- [parse_error](../parse_error/README.md): why a text is not a number
+- [sgcl::math::big_integer](README.md)

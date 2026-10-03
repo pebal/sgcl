@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::sort
 
@@ -15,7 +15,7 @@ Sorts the elements, stable: equal elements keep their order.
 
 A merge sort in place, as `std::forward_list::sort`: the nodes are counted first, then relinked within the list,
 never detached, and no element is moved or copied, so iterators and references stay valid, naming the same elements
-at their new places. It hides the sorts of [mixin::ordered](../mixin/ordered.md), which need random access;
+at their new places. It hides the sorts of [mixin::ordered](../mixin/ordered/README.md), which need random access;
 `sort_by` and `stable_sort` are not a forward_list's.
 
 ## Parameters
@@ -84,4 +84,4 @@ Output:
 - [merge](merge.md): merges two sorted lists
 - [unique](unique.md): erases consecutive equal elements
 - [reverse](reverse.md): reverses the order of the nodes
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

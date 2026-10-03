@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [writer](../csv-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [writer](README.md)
 
 # sgcl::encoding::csv::writer::write
 
@@ -24,9 +24,9 @@ reader of the same options reads the record; a record of no fields is an empty l
 text is gathered in the writer; [flush](flush.md) hands it to the stream.
 
 1. The fields of a list: `w.write({"a", "b"})`.
-2. The fields of a [row](../csv-row.md) as it was read, with this writer's separator.
+2. The fields of a [row](../csv-row/README.md) as it was read, with this writer's separator.
 3. The fields of any range of texts: a `vector<string>`, a vector of `std::string`, of `const char*`, of slices.
-4. The fields of a value of a type with `describe(field_list&)` ([field_list](../field_list.md)), in the order
+4. The fields of a value of a type with `describe(field_list&)` ([field_list](../field_list/README.md)), in the order
    `describe` names them; takes part only when `T` has `describe`, a method or a free function. The first such
    record writes the header of the field names before it. A field is written as one text: a number in decimal,
    NaN and the infinities as `NaN`, `+Inf`, `-Inf`, a boolean `true` or `false`, an enum with `names` by its name,
@@ -106,4 +106,4 @@ x;y
 - [flush](flush.md): the text into the stream
 - [csv::save](../csv/save.md): values into a file
 - [reader::read\<T\>](../csv-reader/read.md): a record read back as a value
-- [sgcl::encoding::csv::writer](../csv-writer.md)
+- [sgcl::encoding::csv::writer](README.md)

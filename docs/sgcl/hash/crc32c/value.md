@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc32c](../crc32c.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc32c](README.md)
 
 # sgcl::hash::crc32c::value
 
@@ -55,4 +55,4 @@ e3069283
 
 - [digest](digest.md): the same as bytes
 - [of](../mixin/hasher/of.md): the CRC of data in one call
-- [sgcl::hash::crc32c](../crc32c.md)
+- [sgcl::hash::crc32c](README.md)

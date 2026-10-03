@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::operator=
 
@@ -98,4 +98,4 @@ true true
 
 - [(constructor)](string.md): constructs a string
 - [swap](swap.md): swaps the words of two strings
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

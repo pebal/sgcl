@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [rooted](../rooted.md)
+[sgcl](../../README.md) › [core](../README.md) › [rooted](README.md)
 
 # sgcl::rooted\<T\>::swap
 
@@ -61,4 +61,4 @@ left right
 ## See also
 
 - [operator=](operator_assign.md): shares another `rooted`'s value
-- [sgcl::rooted\<T\>](../rooted.md)
+- [sgcl::rooted\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [siphash](../siphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [siphash](README.md)
 
 # sgcl::hash::siphash::digest
 
@@ -62,4 +62,4 @@ b952f7b25d5dc18c
 ## See also
 
 - [value](value.md): the hash as a number
-- [sgcl::hash::siphash](../siphash.md)
+- [sgcl::hash::siphash](README.md)

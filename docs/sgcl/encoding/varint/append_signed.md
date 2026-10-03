@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [varint](../varint.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [varint](README.md)
 
 # sgcl::encoding::varint::append_signed
 
@@ -56,4 +56,4 @@ Output:
 
 - [append](append.md): an unsigned number
 - [read_signed, async_read_signed](read_signed.md): the other way
-- [sgcl::encoding::varint](../varint.md)
+- [sgcl::encoding::varint](README.md)

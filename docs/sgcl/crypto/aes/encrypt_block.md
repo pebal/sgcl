@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes](../aes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes](README.md)
 
 # sgcl::crypto::aes::encrypt_block
 
@@ -30,7 +30,7 @@ Constant, and in constant time: nothing depends on the key or the block but valu
 ## Notes
 
 A block encrypted on its own is the primitive a mode is built from, not a way to encrypt data: the same block
-gives the same ciphertext every time. [aes_gcm](../aes_gcm.md) encrypts data.
+gives the same ciphertext every time. [aes_gcm](../aes_gcm/README.md) encrypts data.
 
 ## Example
 
@@ -64,5 +64,5 @@ Output:
 ## See also
 
 - [decrypt_block](decrypt_block.md): decrypts one block
-- [aes_ctr](../aes_ctr.md): AES as a stream cipher
-- [sgcl::crypto::aes](../aes.md)
+- [aes_ctr](../aes_ctr/README.md): AES as a stream cipher
+- [sgcl::crypto::aes](README.md)

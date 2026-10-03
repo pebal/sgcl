@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::erase_if (sgcl::map)
 
@@ -72,4 +72,4 @@ Output:
 
 - [erase](erase.md): erases the element at an iterator or under a key
 - [clear](clear.md): destroys every element
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

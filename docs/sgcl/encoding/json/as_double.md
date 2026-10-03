@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::as_double
 
@@ -67,4 +67,4 @@ Output:
 
 - [as_int](as_int.md), [as_uint](as_uint.md): an integer, exactly
 - [number_text](number_text.md): the literal of a number kept as text
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

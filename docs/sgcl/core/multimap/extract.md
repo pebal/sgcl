@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::extract
 
@@ -8,7 +8,7 @@ node_type extract(const key_type& key) noexcept;                           // (2
 template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3)
 ```
 
-Unlinks an element's node from the multimap and hands it over in a [node handle](../map-node_type.md), the element
+Unlinks an element's node from the multimap and hands it over in a [node handle](../map-node_type/README.md), the element
 untouched: the handle owns it from then on, and destroys it if the handle dies without having inserted it
 anywhere.
 
@@ -18,7 +18,7 @@ anywhere.
    both declare `is_transparent`, and `K` converts to neither `iterator` nor `const_iterator`.
 
 Out of the multimap, the key may be changed through the handle's [key()](../map-node_type/key.md), and the node
-inserted again, here or into another multimap or [map](../map.md), by [insert](insert.md).
+inserted again, here or into another multimap or [map](../map/README.md), by [insert](insert.md).
 
 ## Parameters
 
@@ -75,7 +75,7 @@ Output:
 
 ## See also
 
-- [node_type](../map-node_type.md): the node handle
+- [node_type](../map-node_type/README.md): the node handle
 - [insert](insert.md): inserts a node handle's node
 - [merge](merge.md): relinks the nodes of another container
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [format_sink](../format_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [format_sink](README.md)
 
 # sgcl::txt::format_sink::put
 
@@ -68,4 +68,4 @@ Output:
 
 - [fill](fill.md): one character a number of times
 - [write_padded](../write_padded.md): a text in its field
-- [sgcl::txt::format_sink](../format_sink.md)
+- [sgcl::txt::format_sink](README.md)

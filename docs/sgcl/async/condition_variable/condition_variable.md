@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [condition_variable](../condition_variable.md)
+[sgcl](../../README.md) › [async](../README.md) › [condition_variable](README.md)
 
 # sgcl::async::condition_variable::condition_variable
 
@@ -58,4 +58,4 @@ false
 ## See also
 
 - [wait](wait.md): the wait for a notify
-- [sgcl::async::condition_variable](../condition_variable.md)
+- [sgcl::async::condition_variable](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::wait, operator co_await
 
@@ -27,7 +27,7 @@ None.
 
 - (1) A reference to the value in the promise's state: every waiter reads the one value, and a lone reader may move
   it out.
-- (2) The [awaiter](../promise.md#member-types) of `co_await p`, which gives what (1) or (3) gives.
+- (2) The [awaiter](README.md#member-types) of `co_await p`, which gives what (1) or (3) gives.
 - (3) None.
 
 ## Complexity
@@ -82,4 +82,4 @@ Output:
 - [result](result.md): the value without a wait when the promise is set
 - [on_done](on_done.md): the wait as a case of a select
 - [set_value](set_value.md), [set_exception](set_exception.md): what ends the wait
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

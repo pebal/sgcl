@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::is_none
 
@@ -49,4 +49,4 @@ true false
 
 - [kind](kind.md)
 - [truthy](truthy.md)
-- [sgcl::txt::value](../value.md)
+- [sgcl::txt::value](README.md)

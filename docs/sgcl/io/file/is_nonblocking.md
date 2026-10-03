@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::is_nonblocking
 
@@ -51,4 +51,4 @@ false true true
 ## See also
 
 - [read, async_read](read.md): what each kind of file waits on
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

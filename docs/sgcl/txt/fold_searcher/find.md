@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](../fold_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](README.md)
 
 # sgcl::txt::fold_searcher::find
 
@@ -61,4 +61,4 @@ Output:
 
 - [contains](contains.md): whether there is an occurrence
 - [folded_text::find](../folded_text/find.md): the text mapped once instead
-- [sgcl::txt::fold_searcher, normalized_searcher](../fold_searcher.md)
+- [sgcl::txt::fold_searcher, normalized_searcher](README.md)

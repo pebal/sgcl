@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::abbreviation_at
 
@@ -62,4 +62,4 @@ UTC -03:00
 
 - [offset_at](offset_at.md): the offset at an instant
 - [name](name.md): the name of the zone
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

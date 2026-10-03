@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::to_string
 
@@ -65,4 +65,4 @@ true
 
 - [parse](parse.md): the text read back
 - [(constructor)](pem.md): a block of its parts
-- [sgcl::encoding::pem](../pem.md)
+- [sgcl::encoding::pem](README.md)

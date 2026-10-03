@@ -26,7 +26,7 @@ char*)`, an exact match for a literal, which compiles to something else.
 
 ## Return value
 
-Nothing, or the [error](error.md): `is_not_found()` when nothing is at the path (`std::errc::no_such_file_or_directory`),
+Nothing, or the [error](error/README.md): `is_not_found()` when nothing is at the path (`std::errc::no_such_file_or_directory`),
 `std::errc::directory_not_empty` for a directory with entries, or the error of the call; the operation is `remove`
 and the path `path`.
 

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [async](../README.md) › [generator](README.md)
 
 # sgcl::async::generator\<T\>::generator
 
@@ -76,4 +76,4 @@ true
 
 - [operator=](operator_assign.md): destroys the coroutine held and takes another's over
 - [next](next.md): runs the coroutine to its next value
-- [sgcl::async::generator\<T\>](../generator.md)
+- [sgcl::async::generator\<T\>](README.md)

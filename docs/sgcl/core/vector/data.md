@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::data
 
@@ -32,7 +32,7 @@ None.
 
 The pointer keeps nothing alive. It is valid until the vector reallocates or is destroyed, as with
 `std::vector`; a `tracked_ptr` may not be made from it, as it may not address an element of a buffer. A view of
-the elements that keeps the buffer alive is a [slice](../slice.md), from [as_slice](as_slice.md).
+the elements that keeps the buffer alive is a [slice](../slice/README.md), from [as_slice](as_slice.md).
 
 ## Example
 
@@ -64,4 +64,4 @@ true
 
 - [as_slice](as_slice.md): the elements as a slice that holds the buffer
 - [begin, cbegin](begin.md): an iterator to the beginning
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

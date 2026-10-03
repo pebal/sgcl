@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::from_pkcs8_der
 
@@ -22,7 +22,7 @@ The DER is read strictly; a scalar with a zero byte too many or too few is read 
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with the offset of the byte where the reading stopped:
+The key, or a [crypto::error](../error/README.md) with the offset of the byte where the reading stopped:
 
 - `errc::malformed` for DER that is not a PrivateKeyInfo;
 - `errc::unsupported` for a key of another algorithm or of another curve;
@@ -38,7 +38,7 @@ None.
 
 ## Notes
 
-The DER holds the secret scalar: it belongs in a [secret_bytes](../secret_bytes.md), as
+The DER holds the secret scalar: it belongs in a [secret_bytes](../secret_bytes/README.md), as
 [to_pkcs8_der](to_pkcs8_der.md) gives it and [read_secret](../read_secret.md) reads a file, never in managed memory.
 A key in PEM is read by [from_pem](from_pem.md), which decodes the base64 straight into a `secret_bytes`.
 
@@ -79,4 +79,4 @@ true
 - [to_pkcs8_der](to_pkcs8_der.md): the PrivateKeyInfo of a key
 - [from_sec1_der](from_sec1_der.md): the older form, `EC PRIVATE KEY`
 - [from_pem](from_pem.md): either form in PEM
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

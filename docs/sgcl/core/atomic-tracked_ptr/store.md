@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](../atomic-tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](README.md)
 
 # sgcl::atomic\<tracked_ptr\<T\>\>::store
 
@@ -69,4 +69,4 @@ true
 
 - [load, operator tracked_ptr\<T\>](load.md): reads the pointer
 - [exchange](exchange.md): replaces it and returns the old one
-- [sgcl::atomic\<tracked_ptr\<T\>\>](../atomic-tracked_ptr.md)
+- [sgcl::atomic\<tracked_ptr\<T\>\>](README.md)

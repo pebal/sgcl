@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [csv](csv.md)
+[sgcl](../README.md) › [encoding](README.md) › [csv](csv/README.md)
 
 # sgcl::encoding::csv::options
 
@@ -13,7 +13,7 @@ namespace sgcl::encoding {
 }
 ```
 
-`sgcl::encoding::csv::options` are the settings of a [reader](csv-reader.md) and a [writer](csv-writer.md), given to
+`sgcl::encoding::csv::options` are the settings of a [reader](csv-reader/README.md) and a [writer](csv-writer/README.md), given to
 their constructors: Go's `csv.Reader` fields under names of their own, and the bound of a record a reader of a
 stream holds. A writer reads `separator` and `comment` alone. A program sets the ones it needs by name:
 `encoding::csv::reader r(text, {.separator = ';', .comment = '#'})`.
@@ -90,4 +90,4 @@ sgcl::encoding::csv: the separator is a quote, a line ending, NUL or not ASCII
 ## See also
 
 - [reader](csv-reader/csv-reader.md), [writer](csv-writer/csv-writer.md): the constructors that take the options
-- [sgcl::encoding::csv](csv.md)
+- [sgcl::encoding::csv](csv/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [token](../xml-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [token](README.md)
 
 # sgcl::encoding::xml::token::is_start
 
@@ -58,4 +58,4 @@ Output:
 
 - [is_end](is_end.md): the end of an element of a name
 - [reader::peek](../xml-reader/peek.md)
-- [sgcl::encoding::xml::token](../xml-token.md)
+- [sgcl::encoding::xml::token](README.md)

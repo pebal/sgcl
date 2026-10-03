@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::count
 
@@ -57,4 +57,4 @@ Output:
 
 - [contains](contains.md): checks whether a key is there
 - [find](find.md): an iterator to the element under a key
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

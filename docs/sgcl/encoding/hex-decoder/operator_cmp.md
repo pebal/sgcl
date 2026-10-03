@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [decoder](../hex-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [decoder](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::hex::decoder)
 
@@ -54,4 +54,4 @@ true true true
 ## See also
 
 - [(constructor)](hex-decoder.md): a copy that shares the stream
-- [sgcl::encoding::hex::decoder](../hex-decoder.md)
+- [sgcl::encoding::hex::decoder](README.md)

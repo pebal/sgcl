@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](README.md)
 
 # sgcl::concurrent::sorted_set\<Key, Compare\>::contains
 
@@ -66,4 +66,4 @@ true
 
 - [find](find.md): finds the key
 - [count](count.md): the number of keys equivalent to a key
-- [sgcl::concurrent::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::concurrent::sorted_set\<Key, Compare\>](README.md)

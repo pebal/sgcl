@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::operator[]
 
@@ -31,7 +31,7 @@ None.
 
 A `pos` outside the vector is undefined behaviour, as with `std::vector`; [at](at.md) is the same access with
 the check. The reference is valid as long as the element: until it is removed, the vector reallocates or the
-vector is destroyed. It does not keep the buffer alive; a [slice](../slice.md) from [as_slice](as_slice.md) does.
+vector is destroyed. It does not keep the buffer alive; a [slice](../slice/README.md) from [as_slice](as_slice.md) does.
 
 ## Example
 
@@ -64,4 +64,4 @@ Output:
 
 - [at](at.md): access an element with bounds checking
 - [front](front.md), [back](back.md): access the first, the last element
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

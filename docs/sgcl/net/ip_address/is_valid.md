@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::is_valid
 
@@ -49,4 +49,4 @@ false
 ## See also
 
 - [(constructor)](ip_address.md): the empty address
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

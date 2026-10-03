@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::bytes, async_bytes
 
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-The body, or the [error](../../../io/error.md) of its reading: `net::errc::body_too_large`,
+The body, or the [error](../../../io/error/README.md) of its reading: `net::errc::body_too_large`,
 `io::errc::unexpected_eof` for a body cut short, or the error of the connection.
 
 ## Complexity
@@ -76,4 +76,4 @@ Output:
 ## See also
 
 - [text](text.md): the body as text; [body](body.md): the body as a stream
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

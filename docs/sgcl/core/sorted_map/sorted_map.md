@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::sorted_map
 
@@ -55,7 +55,7 @@ no map is constructed.
 
 ## Notes
 
-The deduction guides of the class ([sorted_map](../sorted_map.md#deduction-guides)) give the key and the mapped
+The deduction guides of the class ([sorted_map](README.md#deduction-guides)) give the key and the mapped
 type from a range of pairs or from an initializer list whose pairs are spelled out (`std::pair{1, 2.0}`): a
 braced pair alone names no type.
 
@@ -132,4 +132,4 @@ true
 
 - [operator=](operator_assign.md): replaces the contents of a map
 - [insert](insert.md): inserts elements into a map
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

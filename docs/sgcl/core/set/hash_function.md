@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::hash_function
 
@@ -60,4 +60,4 @@ Output:
 
 - [key_eq](key_eq.md): the equality of the keys
 - [bucket](bucket.md): the bucket a hash falls into
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::stop
 
@@ -6,7 +6,7 @@
 async::stop_token stop() const noexcept;
 ```
 
-Returns a [stop token](../../../async/stop_token.md) of a received request, Go's `r.Context()`: it is stopped when
+Returns a [stop token](../../../async/stop_token/README.md) of a received request, Go's `r.Context()`: it is stopped when
 the server closes ([close](../server/close.md), or the end of a [shutdown](../server/shutdown.md) for this
 connection) and when a write of the response fails, the client gone. A long handler waits on it or checks it, and
 gives up the work nobody will receive. A request the program built has a token that is never stopped.
@@ -72,4 +72,4 @@ the handler saw the stop
 ## See also
 
 - [close](../server/close.md): what stops it
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

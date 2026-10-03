@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::format_value (sgcl::net::url)
 
@@ -8,7 +8,7 @@ void format_value(txt::format_sink& out, const url& u, const txt::format_spec& s
 
 Writes a URL for [txt::format](../../txt/format.md) and the functions built on it (`println`, `print`), which
 find it beside the class: `{}` writes [to_string](to_string.md), `"https://example.com/a%20b"`, in the width, the fill and the
-alignment of the field as a [string](../../core/string.md) is written, to the left by default (`{:>20}`,
+alignment of the field as a [string](../../core/string/README.md) is written, to the left by default (`{:>20}`,
 `{:*<20}`). Nothing is allocated for it.
 
 Any type or precision, `{:x}` or `{:.3}`, is an error: of the compiler in a literal pattern, and `nullopt` from a
@@ -64,4 +64,4 @@ false
 
 - [to_string](to_string.md): the text written
 - [txt::format](../../txt/format.md): the patterns and the fields
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

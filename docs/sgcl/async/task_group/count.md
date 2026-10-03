@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::count
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [wait, operator co_await](wait.md): waits for the count to reach zero
-- [sgcl::async::task_group](../task_group.md)
+- [sgcl::async::task_group](README.md)

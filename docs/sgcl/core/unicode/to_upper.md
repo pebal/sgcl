@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unicode](../unicode.md)
+[sgcl](../../README.md) › [core](../README.md) › [unicode](README.md)
 
 # sgcl::unicode::to_upper
 
@@ -70,4 +70,4 @@ true
 
 - [to_lower](to_lower.md): the lower case
 - [is_lower](is_lower.md): whether a code point has an upper case other than itself
-- [sgcl::unicode](../unicode.md)
+- [sgcl::unicode](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration_error](../duration_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration_error](README.md)
 
 # sgcl::duration_error::message
 
@@ -53,4 +53,4 @@ a unit expected: ns, us, ms, s, m or h
 ## See also
 
 - [offset](offset.md): where the reading stopped
-- [sgcl::duration_error](../duration_error.md)
+- [sgcl::duration_error](README.md)

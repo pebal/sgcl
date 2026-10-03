@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::type
 
@@ -68,4 +68,4 @@ true
 
 - [is](is.md): checks whether the object was created as a given type
 - [as](as.md): the pointer to the whole object as a given type
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

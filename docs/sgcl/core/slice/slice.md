@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::slice
 
@@ -82,7 +82,7 @@ Constructs a slice.
 
 - (6–19) are implicit, so a function that takes a slice takes these as they are.
 
-A [vector](../vector.md) and a [string](../string.md) of the library convert to a slice by themselves, with their
+A [vector](../vector/README.md) and a [string](../string/README.md) of the library convert to a slice by themselves, with their
 object as the owner: `f(v)`, `f(s)` for a function that takes a slice.
 
 ## Parameters
@@ -146,4 +146,4 @@ false true true
 
 - [as_slice](../vector/as_slice.md): the slice of a vector, or of a part of it
 - [subslice](subslice.md): a piece of a slice, the same owner
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

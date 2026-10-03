@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](../lookup.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](README.md)
 
 # sgcl::mixin::lookup\<Derived\>::try_get
 
@@ -75,4 +75,4 @@ Output:
 
 - [get](get.md): a copy of the value in an optional
 - [contains_key](contains_key.md): checks whether the map has a value under a key
-- [sgcl::mixin::lookup\<Derived\>](../lookup.md)
+- [sgcl::mixin::lookup\<Derived\>](README.md)

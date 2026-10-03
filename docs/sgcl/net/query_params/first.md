@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [query_params](../query_params.md)
+[sgcl](../../README.md) › [net](../README.md) › [query_params](README.md)
 
 # sgcl::net::query_params::first
 
@@ -19,9 +19,9 @@ string, where `parse` makes two strings a pair; a server's request reads a query
 
 ## Return value
 
-The first value of `name`, unescaped, or the empty string when there is none; an [io::error](../../io/error.md) of the
+The first value of `name`, unescaped, or the empty string when there is none; an [io::error](../../io/error/README.md) of the
 code `net::errc::invalid_url` ([errc](../errc.md)), the operation `parse query` and the text, when the text is past
-512 MiB ([the limit](../query_params.md#rules)). The pairs are not written, so their written length is not looked at.
+512 MiB ([the limit](README.md#rules)). The pairs are not written, so their written length is not looked at.
 
 ## Complexity
 
@@ -55,4 +55,4 @@ Output:
 ## See also
 
 - [get](get.md): the same of parsed pairs
-- [sgcl::net::query_params](../query_params.md)
+- [sgcl::net::query_params](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [token](../xml-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [token](README.md)
 
 # sgcl::encoding::xml::token::text
 
@@ -57,4 +57,4 @@ Output:
 ## See also
 
 - [type](type.md): what the token is
-- [sgcl::encoding::xml::token](../xml-token.md)
+- [sgcl::encoding::xml::token](README.md)

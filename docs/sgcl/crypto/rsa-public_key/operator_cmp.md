@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::operator==, operator!= (sgcl::crypto::rsa::public_key)
 
@@ -57,4 +57,4 @@ true
 ## See also
 
 - [modulus](modulus.md), [exponent](exponent.md): the numbers compared
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

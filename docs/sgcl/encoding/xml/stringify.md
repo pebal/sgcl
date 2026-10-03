@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::stringify
 
@@ -22,7 +22,7 @@ than by an `XMLName` field; `stringify(name, v, xml::pretty)` is `xml.MarshalInd
 
 ## Return value
 
-The text; otherwise the [error](../error.md) of [from](from.md), `errc::unsupported_value`.
+The text; otherwise the [error](../error/README.md) of [from](from.md), `errc::unsupported_value`.
 
 ## Complexity
 
@@ -80,4 +80,4 @@ Output:
 - [parse](parse.md): `parse<T>`, the way back
 - [save](save.md): the text into a file
 - [writer::value](../xml-writer/value.md): a value written onto a stream
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

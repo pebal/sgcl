@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::owned
 
@@ -50,4 +50,4 @@ true false
 ## See also
 
 - [owner](owner.md): the managed object the elements lie in
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

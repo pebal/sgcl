@@ -22,8 +22,8 @@ namespace sgcl::compress {
 ```
 
 `sgcl::compress::gzip_header` is the header of a gzip member (RFC 1952, 2.3): every field optional. The
-[writer](gzip-writer.md) and [compress](gzip/compress.md) write the one of their [options](gzip-options.md) before the
-data; the [reader](gzip-reader.md) reads each member's ([header](gzip-reader/header.md)).
+[writer](gzip-writer/README.md) and [compress](gzip/compress.md) write the one of their [options](gzip-options.md) before the
+data; the [reader](gzip-reader/README.md) reads each member's ([header](gzip-reader/header.md)).
 [compress_file](gzip/compress_file.md) writes the file's name and time into it, as gzip(1) does. It is Go's
 `gzip.Header`, and goes by the name `gzip::header` too.
 
@@ -86,4 +86,4 @@ café.txt | a menu | 2026-09-21T14:13:20Z | 255
 ## See also
 
 - [gzip::options](gzip-options.md), [gzip::reader::header](gzip-reader/header.md)
-- [sgcl::compress::gzip](gzip.md)
+- [sgcl::compress::gzip](gzip/README.md)

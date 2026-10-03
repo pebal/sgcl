@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::stat
 
@@ -6,7 +6,7 @@
 expected<file_info, error> stat() const noexcept;
 ```
 
-What is known of the open file: the `fstat(2)` of the descriptor, as a [file_info](../file_info.md). The file is the
+What is known of the open file: the `fstat(2)` of the descriptor, as a [file_info](../file_info/README.md). The file is the
 one the descriptor holds, even when its path names another file by now or none.
 
 ## Parameters
@@ -15,8 +15,8 @@ None.
 
 ## Return value
 
-The [file_info](../file_info.md): its `name` the base of the file's [path](path.md), its `size`, `type`, `mode`
-and `modified`. Or the [error](../error.md), its operation `stat` and its path the file's: `errc::closed` for a
+The [file_info](../file_info/README.md): its `name` the base of the file's [path](path.md), its `size`, `type`, `mode`
+and `modified`. Or the [error](../error/README.md), its operation `stat` and its path the file's: `errc::closed` for a
 closed file, otherwise the `errno` of `fstat(2)`.
 
 ## Complexity
@@ -63,6 +63,6 @@ true
 
 ## See also
 
-- [file_info](../file_info.md): what it returns
+- [file_info](../file_info/README.md): what it returns
 - [stat](../stat.md): the same of a path
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

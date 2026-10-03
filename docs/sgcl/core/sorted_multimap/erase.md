@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::erase
 
@@ -19,7 +19,7 @@ later.
 3. Erases the elements of the range `[first, last)`. Erasing `[begin(), end())` is a [clear](clear.md).
 4. Erases every element under `key`.
 5. As (4), with a key of another type, compared without building a `key_type`. Takes part only when `Compare`
-   declares `is_transparent`, as `std::less` of a [string](../string.md) does, and `K` converts to neither
+   declares `is_transparent`, as `std::less` of a [string](../string/README.md) does, and `K` converts to neither
    `iterator` nor `const_iterator`.
 
 ## Parameters
@@ -78,4 +78,4 @@ Output:
 
 - [extract](extract.md): takes a node out without destroying the element
 - [erase_if](erase_if.md): erases the elements a predicate accepts
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

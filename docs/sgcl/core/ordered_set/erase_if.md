@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::erase_if (sgcl::ordered_set)
 
@@ -66,4 +66,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases the element at a position, in a range or equal to a key
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

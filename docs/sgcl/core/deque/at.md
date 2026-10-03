@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::at
 
@@ -65,4 +65,4 @@ out of range: sgcl::deque::at
 
 - [operator[]](operator_at.md): access an element without the check
 - [front](front.md), [back](back.md): access the first, the last element
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

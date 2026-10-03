@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md) › [writer](../xz-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz/README.md) › [writer](README.md)
 
 # sgcl::compress::xz::writer::last_error
 
@@ -53,4 +53,4 @@ write xz: invalid argument
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::xz::writer](../xz-writer.md)
+- [sgcl::compress::xz::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::any
 
@@ -31,7 +31,7 @@ Constructs an `any`.
 
 - (4–6) The value goes into the word when `VT` is a pointer word (`tracked_ptr`, `weak_ptr`), into the buffer when
   it is a small value that cannot hold a pointer, and into a managed node of its own otherwise
-  ([any](../any.md)).
+  ([any](README.md)).
 
 ## Parameters
 
@@ -96,4 +96,4 @@ false false true
 - [operator=](operator_assign.md): assigns another `any` or a value
 - [emplace](emplace.md): constructs a value in place
 - [make_any](../make_any.md): an `any` with a value constructed in place
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

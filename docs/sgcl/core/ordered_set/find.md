@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::find
 
@@ -14,8 +14,8 @@ node compared before the element. The order plays no part in it.
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the hash and the equality take. Take part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string.md) do: a `string_view`,
-  a literal or a [string_slice](../string.md) finds a `string` element with no string made for the search.
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string/README.md) do: a `string_view`,
+  a literal or a [string_slice](../string/README.md) finds a `string` element with no string made for the search.
 
 ## Parameters
 
@@ -72,4 +72,4 @@ true
 ## See also
 
 - [contains](contains.md): checks whether an element is there
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

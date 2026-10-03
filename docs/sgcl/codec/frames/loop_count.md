@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [frames](../frames.md)
+[sgcl](../../README.md) › [codec](../README.md) › [frames](README.md)
 
 # sgcl::codec::frames::loop_count
 
@@ -67,4 +67,4 @@ Output:
 ## See also
 
 - [next](next.md): the next frame
-- [sgcl::codec::frames](../frames.md)
+- [sgcl::codec::frames](README.md)

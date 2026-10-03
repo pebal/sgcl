@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::reader::reader
 
@@ -77,4 +77,4 @@ from a tracked_ptr
 
 - [operator bool](operator_bool.md): whether a reader holds a stream
 - [writer](../writer/writer.md): the writer's constructors
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

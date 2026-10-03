@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [range](../range.md)
+[sgcl](../../README.md) › [core](../README.md) › [range](README.md)
 
 # sgcl::range\<It\>::range
 
@@ -72,4 +72,4 @@ true true
 ## See also
 
 - [begin](begin.md), [end](end.md): the iterators
-- [sgcl::range\<It\>](../range.md)
+- [sgcl::range\<It\>](README.md)

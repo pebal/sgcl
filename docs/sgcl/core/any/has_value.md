@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::has_value
 
@@ -55,4 +55,4 @@ false true
 ## See also
 
 - [type](type.md): the type of the value held
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

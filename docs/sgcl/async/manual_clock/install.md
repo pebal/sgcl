@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [manual_clock](../manual_clock.md)
+[sgcl](../../README.md) › [async](../README.md) › [manual_clock](README.md)
 
 # sgcl::async::manual_clock::install
 
@@ -64,4 +64,4 @@ true
 
 - [uninstall](uninstall.md): the steady clock again
 - [installed](installed.md): whether this clock is the module's time
-- [sgcl::async::manual_clock](../manual_clock.md)
+- [sgcl::async::manual_clock](README.md)

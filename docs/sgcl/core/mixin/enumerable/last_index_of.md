@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](../enumerable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](README.md)
 
 # sgcl::mixin::enumerable\<Derived\>::last_index_of
 
@@ -58,4 +58,4 @@ true
 
 - [index_of](index_of.md): the position of the first element equal to a value
 - [contains](contains.md): checks whether an element is equal to a value
-- [sgcl::mixin::enumerable\<Derived\>](../enumerable.md)
+- [sgcl::mixin::enumerable\<Derived\>](README.md)

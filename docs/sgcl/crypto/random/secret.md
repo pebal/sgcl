@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [random](README.md)
 
 # sgcl::crypto::random::secret
 
@@ -6,7 +6,7 @@
 secret_bytes secret(size_t n) noexcept;
 ```
 
-Returns `n` random bytes that are a secret, a key or a seed, in a [secret_bytes](../secret_bytes.md): up to 64 bytes
+Returns `n` random bytes that are a secret, a key or a seed, in a [secret_bytes](../secret_bytes/README.md): up to 64 bytes
 in the object itself, past that in plain memory, never in managed memory, and zeroed when it goes.
 
 ## Parameters
@@ -56,5 +56,5 @@ Output:
 ## See also
 
 - [bytes](bytes.md): random bytes for what is not a secret
-- [secret_bytes](../secret_bytes.md): the secret it returns
-- [sgcl::crypto::random](../random.md)
+- [secret_bytes](../secret_bytes/README.md): the secret it returns
+- [sgcl::crypto::random](README.md)

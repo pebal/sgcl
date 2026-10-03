@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](../frame_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](README.md)
 
 # sgcl::frame_ptr\<Promise\>::handle
 
@@ -83,4 +83,4 @@ true
 
 - [promise](promise.md): the promise, without the handle
 - [release](release.md): the handle, the frame let go
-- [sgcl::frame_ptr\<Promise\>](../frame_ptr.md)
+- [sgcl::frame_ptr\<Promise\>](README.md)

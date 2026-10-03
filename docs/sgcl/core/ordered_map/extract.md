@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::extract
 
@@ -9,7 +9,7 @@ template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3
 ```
 
 Unlinks a node from the chain and from the order and hands it over in a
-[node handle](../ordered_map-node_type.md), the element untouched: the handle owns it now, and destroys it if it
+[node handle](../ordered_map-node_type/README.md), the element untouched: the handle owns it now, and destroys it if it
 dies without having been inserted. Out of the map, the key may change (`key()` of the handle is writable);
 [insert](insert.md) links the node again, here or in another `ordered_map` with the same `Key` and `T`, at the
 end of the order.
@@ -77,7 +77,7 @@ true
 
 ## See also
 
-- [node_type](../ordered_map-node_type.md): the node handle
+- [node_type](../ordered_map-node_type/README.md): the node handle
 - [insert](insert.md): links the node of a handle
 - [merge](merge.md): relinks the nodes of another map
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

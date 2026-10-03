@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::json)
 
@@ -76,4 +76,4 @@ true
 
 - [hash](hash.md): alike for equal values
 - [type](type.md): the kind of a value
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::image
 
@@ -63,4 +63,4 @@ sgcl::codec::image: a side of zero pixels
 
 - [pixel_format](../pixel_format.md): the formats
 - [clone](clone.md): a new image of the pixels of another
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

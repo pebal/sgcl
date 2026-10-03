@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [queue](README.md)
 
 # sgcl::queue\<T, Container\>::operator=
 
@@ -70,4 +70,4 @@ x y
 
 - [(constructor)](queue.md): constructs the queue
 - [swap](swap.md): swaps the contents
-- [sgcl::queue\<T, Container\>](../queue.md)
+- [sgcl::queue\<T, Container\>](README.md)

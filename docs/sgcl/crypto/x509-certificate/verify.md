@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::verify
 
@@ -41,7 +41,7 @@ expires. **Policies are not validated** ([policies](policies.md)).
 
 ## Return value
 
-The first chain that passes, leaf first and root last; or a [crypto::error](../error.md) `errc::verification` with its
+The first chain that passes, leaf first and root last; or a [crypto::error](../error/README.md) `errc::verification` with its
 [reason](../x509-reason.md) and the certificate at fault in its message; or `errc::unsupported` when the roots are the
 system's and the system has none.
 
@@ -64,7 +64,7 @@ reads the system's roots, as [certificate_pool::system](../x509-certificate_pool
 
 ## Notes
 
-Compare `reason()`, not errors: [error](../error.md)'s `==` compares the message too, so `r.error() ==
+Compare `reason()`, not errors: [error](../error/README.md)'s `==` compares the message too, so `r.error() ==
 error(reason::expired, "")` is never true.
 
 Where this verification and OpenSSL's answer differently, it is mostly Go's answer (the tests hold both):
@@ -213,5 +213,5 @@ int main() {
 
 - [verify_options](../x509-verify_options.md): what the second form takes
 - [reason](../x509-reason.md): why a chain does not verify
-- [certificate_pool](../x509-certificate_pool.md): the roots and the intermediates
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [certificate_pool](../x509-certificate_pool/README.md): the roots and the intermediates
+- [sgcl::crypto::x509::certificate](README.md)

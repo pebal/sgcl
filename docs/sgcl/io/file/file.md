@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::file
 
@@ -63,4 +63,4 @@ written through the copy
 - [open](../open.md), [create](../create.md): what makes a file
 - [operator=](operator_assign.md): the handle made the same file as another
 - [operator bool](operator_bool.md): whether the handle holds a file
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

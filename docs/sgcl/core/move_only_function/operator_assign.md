@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [move_only_function](../move_only_function.md)
+[sgcl](../../README.md) › [core](../README.md) › [move_only_function](README.md)
 
 # sgcl::move_only_function\<R(Args...)\>::operator=
 
@@ -76,4 +76,4 @@ false
 ## See also
 
 - [swap](swap.md): swaps the callables of two `move_only_function` objects
-- [sgcl::move_only_function\<R(Args...)\>](../move_only_function.md)
+- [sgcl::move_only_function\<R(Args...)\>](README.md)

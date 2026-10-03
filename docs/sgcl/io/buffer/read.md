@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::read, async_read
 
@@ -65,4 +65,4 @@ Output:
 
 - [data](data.md): the bytes held, without taking them
 - [read_full](../mixin/reader/read_full.md), [read_all](../mixin/reader/read_all.md)
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

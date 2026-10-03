@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::clear
 
@@ -61,4 +61,4 @@ red red
 ## See also
 
 - [sweep](sweep.md): drops only the dead entries
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::type
 
@@ -58,4 +58,4 @@ true true
 
 - [is](is.md): checks whether the object was created as a given type
 - [as](as.md): moves the object into an owner of a given type
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

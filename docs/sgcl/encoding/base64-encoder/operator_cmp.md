@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [encoder](../base64-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [encoder](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::base64::encoder)
 
@@ -54,4 +54,4 @@ true false true
 ## See also
 
 - [(constructor)](base64-encoder.md): a copy that shares the stream
-- [sgcl::encoding::base64::encoder](../base64-encoder.md)
+- [sgcl::encoding::base64::encoder](README.md)

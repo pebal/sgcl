@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [time](../README.md) › [error](README.md)
 
 # sgcl::time::error::error
 
@@ -56,4 +56,4 @@ a date of ten characters expected (byte 9)
 ## See also
 
 - [message](message.md), [offset](offset.md): what the error says
-- [sgcl::time::error](../error.md)
+- [sgcl::time::error](README.md)

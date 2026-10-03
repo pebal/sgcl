@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](../fold_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](README.md)
 
 # sgcl::txt::fold_searcher::empty
 
@@ -48,4 +48,4 @@ true 2 0
 ## See also
 
 - [size](size.md): the number of code points
-- [sgcl::txt::fold_searcher, normalized_searcher](../fold_searcher.md)
+- [sgcl::txt::fold_searcher, normalized_searcher](README.md)

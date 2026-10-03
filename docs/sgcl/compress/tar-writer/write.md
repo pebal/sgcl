@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](../tar-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](README.md)
 
 # sgcl::compress::tar::writer::write, async_write
 
@@ -16,7 +16,7 @@ program likes, `size` bytes in all.
    runs: `data` lives until the task is done.
 
 The text forms (a string, a literal, a `std::string_view`) and one byte come from
-[mixin::writer](../../io/mixin/writer.md), and so does `copy_from`, which writes a
+[mixin::writer](../../io/mixin/writer/README.md), and so does `copy_from`, which writes a
 whole reader's bytes into the entry.
 
 ## Parameters
@@ -69,4 +69,4 @@ tar: entry a.txt: a write past its size
 ## See also
 
 - [write_header](write_header.md)
-- [sgcl::compress::tar::writer](../tar-writer.md)
+- [sgcl::compress::tar::writer](README.md)

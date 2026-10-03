@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [xml](xml.md)
+[sgcl](../README.md) › [encoding](README.md) › [xml](xml/README.md)
 
 # sgcl::encoding::xml::options
 
@@ -19,7 +19,7 @@ namespace sgcl::encoding {
 ```
 
 `sgcl::encoding::xml::options` is what [parse](xml/parse.md), [load](xml/load.md) and a
-[reader](xml-reader.md) accept and keep: the limits for a document from outside, and the nodes a tree leaves out
+[reader](xml-reader/README.md) accept and keep: the limits for a document from outside, and the nodes a tree leaves out
 by default. The limits are the only things that grow with the input but the tree itself: a document of any size
 is read with a reader a node at a time.
 
@@ -68,5 +68,5 @@ Output:
 
 ## See also
 
-- [parse](xml/parse.md), [reader](xml-reader.md): what takes the options
-- [sgcl::encoding::xml](xml.md)
+- [parse](xml/parse.md), [reader](xml-reader/README.md): what takes the options
+- [sgcl::encoding::xml](xml/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md) › [writer](../lzma-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma/README.md) › [writer](README.md)
 
 # sgcl::compress::lzma::writer::close, async_close
 
@@ -60,4 +60,4 @@ write lzma: stream closed
 ## See also
 
 - [last_error](last_error.md): the error the close gives
-- [sgcl::compress::lzma::writer](../lzma-writer.md)
+- [sgcl::compress::lzma::writer](README.md)

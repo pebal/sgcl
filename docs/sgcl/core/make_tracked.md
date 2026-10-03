@@ -12,9 +12,9 @@ namespace sgcl {
 ```
 
 Creates an object of type `T` on the managed heap, constructed from `a...`, and returns it as a
-[unique_ptr](unique_ptr.md)`<T>`. It is the one way an object enters the managed heap (the containers make their
+[unique_ptr](unique_ptr/README.md)`<T>`. It is the one way an object enters the managed heap (the containers make their
 nodes and buffers the same way, internally), and the counterpart of `std::make_unique`: deterministic ownership
-until the `unique_ptr` is moved into a [tracked_ptr](tracked_ptr.md), after which the collector owns the object and
+until the `unique_ptr` is moved into a [tracked_ptr](tracked_ptr/README.md), after which the collector owns the object and
 destroys it when nothing reaches it, or until the `unique_ptr` is dropped, which destroys the object at once. In Go
 the same is `new(T)` or `&T{...}`, whose object is the collector's from the start.
 
@@ -72,7 +72,7 @@ When the committed memory would cross the ceiling (`collector::get_memory_limit(
 collection and waits for it; if that does not free enough, the program ends with one line on stderr
 (`sgcl: out of managed memory: …`) and `std::terminate()`. A destructor run by the sweep that allocates past the
 ceiling ends the program at once
-([collector](collector.md#the-memory-limit),
+([collector](collector/README.md#the-memory-limit),
 [Memory](../../garbage_collector/overview.md#memory)). The allocation itself throws nothing.
 
 ## Example
@@ -123,10 +123,10 @@ origin at 0,0
 
 ## See also
 
-- [unique_ptr](unique_ptr.md): the owner it returns
-- [tracked_ptr](tracked_ptr.md): the pointer the collector follows
-- [weak_ptr](weak_ptr.md): a pointer that keeps nothing alive
-- [vector](vector.md), [array](array.md): managed sequences, which take the place of managed arrays
-- [collector](collector.md), [config](config.md): the memory ceiling and the page size
+- [unique_ptr](unique_ptr/README.md): the owner it returns
+- [tracked_ptr](tracked_ptr/README.md): the pointer the collector follows
+- [weak_ptr](weak_ptr/README.md): a pointer that keeps nothing alive
+- [vector](vector/README.md), [array](array/README.md): managed sequences, which take the place of managed arrays
+- [collector](collector/README.md), [config](config.md): the memory ceiling and the page size
 - [README: Pointers](README.md#pointers), [README: The rules](README.md#the-rules),
   [Memory](../../garbage_collector/overview.md#memory)

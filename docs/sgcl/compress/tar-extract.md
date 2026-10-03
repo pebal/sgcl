@@ -17,7 +17,7 @@ Unpacks the archive under the directory, as `tar -x` does: `tar::extract("site.t
 bzip2 around the archive are read by its first bytes, whatever its name.
 
 **Every name is checked before anything is written**: an entry, or a link's target, that would leave the directory
-(the rule of [io::path::is_local](../io/path.md), [is_local](tar-entry/is_local.md)) is `errc::insecure_path`, and
+(the rule of [io::path::is_local](../io/path/README.md), [is_local](tar-entry/is_local.md)) is `errc::insecure_path`, and
 nothing is written; so is a total size past the options' `max_size` (`errc::too_large`), 1 GiB unless set, as the
 module's [limits](limits.md) have it for `decompress`: `tar -x` has no bound, this one has, since an archive comes
 from outside. The archive is read twice for this, once for the names and once for the data. Then the directory and
@@ -38,8 +38,8 @@ is left out, as Go's tools leave them; a file there already is written over.
 
 ## Return value
 
-Nothing, or the [error](error.md): a name that would leave the directory (`errc::insecure_path`), the files past
-`max_size` (`errc::too_large`), the archive's own errors as the [reader](tar-reader.md) gives them, a failure of the
+Nothing, or the [error](error/README.md): a name that would leave the directory (`errc::insecure_path`), the files past
+`max_size` (`errc::too_large`), the archive's own errors as the [reader](tar-reader/README.md) gives them, a failure of the
 file system (`errc::io`).
 
 ## Complexity
@@ -87,6 +87,6 @@ false false
 ## See also
 
 - [create](tar-create.md): the other way
-- [reader](tar-reader.md): an archive entry by entry
+- [reader](tar-reader/README.md): an archive entry by entry
 - `tests/compress/files.cpp`: tested both ways against bsdtar
 - [sgcl::compress::tar](tar.md)

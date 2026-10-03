@@ -11,7 +11,7 @@ namespace sgcl::encoding {
 ```
 
 The `std::error_category` of the codes of [errc](errc.md), named `"encoding"`: the category of the `error_code`
-an [io::error](../io/error.md) carries when a decoder read as a stream fails on its input. One object for the whole
+an [io::error](../io/error/README.md) carries when a decoder read as a stream fails on its input. One object for the whole
 program, so that a code's category compares with it by address. Its `message(value)` gives a code's words,
 `"invalid character"`, and `"unknown encoding error"` for a value that is not one of the list.
 

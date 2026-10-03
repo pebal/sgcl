@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::find_last_not_of
 
@@ -82,4 +82,4 @@ Output:
 
 - [find_first_not_of](find_first_not_of.md): the first character that is not in a set
 - [find_last_of](find_last_of.md): the last character that is in a set
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

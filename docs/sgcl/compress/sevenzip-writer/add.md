@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](../sevenzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](README.md)
 
 # sgcl::compress::sevenzip::writer::add
 
@@ -62,4 +62,4 @@ Output:
 
 - [create](create.md), [add_directory](add_directory.md)
 - [add_file](add_file.md): a file as an entry
-- [sgcl::compress::sevenzip::writer](../sevenzip-writer.md)
+- [sgcl::compress::sevenzip::writer](README.md)

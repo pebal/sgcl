@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::empty
 
@@ -54,4 +54,4 @@ true
 
 - [size](size.md): the number of elements
 - [clear](clear.md): destroys every element
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

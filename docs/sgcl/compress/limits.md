@@ -21,7 +21,7 @@ otherwise, and stops with `errc::too_large` where the data would pass them.
 
 The `decompress` of every format, `zip::archive::read` and `sevenzip::archive::read` stop at `max_size` bytes;
 `limits{UINT64_MAX}` lifts the bound. A stream has no `max_size` of its own: its reader decides how much it reads,
-and [io::limit_reader](../io/limit_reader.md) over it bounds what a program takes. `max_memory` bounds what a header makes a
+and [io::limit_reader](../io/limit_reader/README.md) over it bounds what a program takes. `max_memory` bounds what a header makes a
 decoder allocate — LZMA's and LZMA2's dictionaries, up to 4 GiB by the format, PPMd's model, a 7z folder's decoders
 together — in memory and in a stream alike: more is `errc::too_large` before anything is taken. `max_entries`
 bounds the files, folders and streams a 7z header may list, whose table is made before any entry is read.
@@ -76,5 +76,5 @@ offset 64: decompressed data past the limit
 ## See also
 
 - [errc](errc.md): `too_large`
-- [io::limit_reader](../io/limit_reader.md): a bound on a stream
+- [io::limit_reader](../io/limit_reader/README.md): a bound on a stream
 - [sgcl::compress](README.md)

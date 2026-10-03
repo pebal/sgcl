@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::close
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md) of the file's close (`errc::io`).
+Nothing, or the [error](../error/README.md) of the file's close (`errc::io`).
 
 ## Complexity
 
@@ -56,4 +56,4 @@ true
 ## See also
 
 - [open](open.md)
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

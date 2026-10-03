@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::max_size
 
@@ -58,4 +58,4 @@ length_error
 
 - [size](size.md): the number of characters
 - [(constructor)](string.md): constructs a string
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

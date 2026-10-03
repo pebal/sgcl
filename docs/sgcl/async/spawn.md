@@ -21,16 +21,16 @@ namespace sgcl::async {
 ```
 
 Starts a task and returns its handle, for the result: `auto t = async::spawn(f());`, then `t.wait()` on a thread or
-`co_await t` in a task. It returns at once; a worker of the [scheduler](scheduler.md) runs the task to its next
+`co_await t` in a task. It returns at once; a worker of the [scheduler](scheduler/README.md) runs the task to its next
 suspension, and whatever the task waits for there makes it ready again. Go's `go f()` with a handle kept;
 [go](go.md) is the start whose handle nobody keeps.
 
 1. Puts the task on the scheduler's queue of the ready, as its member [spawn](task/spawn.md) does, and gives it back.
-2. Runs the [operation](operation.md) `op` concurrently, as a task of its own: `async::spawn(ch.receive())` is a
+2. Runs the [operation](operation/README.md) `op` concurrently, as a task of its own: `async::spawn(ch.receive())` is a
    task whose result is what `co_await ch.receive()` gives.
 3. Starts the task of the coroutine function `f`, passed uncalled: a lambda with captures,
    `async::spawn([x]() -> async::task<int> { ... })`. Takes part only when `f()` returns a task.
-4. Starts the task on `ex`, an [executor](executor.md) or a [strand](strand.md): queued there, and run by the thread
+4. Starts the task on `ex`, an [executor](executor/README.md) or a [strand](strand/README.md): queued there, and run by the thread
    that runs the executor, or by a worker in the strand's turn; `ex.spawn(t)`.
 5. (3) on `ex`.
 
@@ -67,14 +67,14 @@ coroutine with parameters, may be called and its task passed (1, 4).
 
 - (1)–(3) `std::system_error` when the push starts the scheduler (the first start, or the first after a stop) and a
   worker's thread cannot be started; (3) also what the move constructor of `F` throws.
-- (4)–(5) What the `spawn` of `ex` throws ([executor](executor.md), [strand](strand.md)).
+- (4)–(5) What the `spawn` of `ex` throws ([executor](executor/README.md), [strand](strand/README.md)).
 
 ## Notes
 
 The result is `[[nodiscard]]`: a task whose handle nobody keeps is started with [go](go.md), which says so. A
 started task whose object is dropped all the same runs on to its end ([detach](task/detach.md)). A task is started
 once: `t` may not have been started already by a spawn, a wait or a `resume` (debug builds assert it). The task takes
-the task-locals of the task the calling thread runs, if any ([task_local](task_local.md)).
+the task-locals of the task the calling thread runs, if any ([task_local](task_local/README.md)).
 
 ## Example
 
@@ -162,7 +162,7 @@ true
 ## See also
 
 - [go](go.md): a start whose handle nobody keeps
-- [task](task.md): what is started; [spawn](task/spawn.md): the member
+- [task](task/README.md): what is started; [spawn](task/spawn.md): the member
 - [when_all](when_all.md), [when_any](when_any.md): every result of several tasks, the first to finish
-- [executor](executor.md), [strand](strand.md): where else a task runs
+- [executor](executor/README.md), [strand](strand/README.md): where else a task runs
 - [spawn_blocking](spawn_blocking.md): a blocking call on a pool of threads apart from the workers

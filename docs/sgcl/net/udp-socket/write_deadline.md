@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::write_deadline
 
@@ -53,4 +53,4 @@ true true
 
 - [read_deadline](read_deadline.md): the other direction
 - [set_write_deadline](set_write_deadline.md): sets it
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

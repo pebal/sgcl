@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::detach
 
@@ -34,7 +34,7 @@ the calling thread, for a task that is done, and on the thread that ends it othe
 
 ## Notes
 
-Letting go is not cancelling; a task stops early only through its [stop_token](../stop_token.md), which it looks at
+Letting go is not cancelling; a task stops early only through its [stop_token](../stop_token/README.md), which it looks at
 itself. What follows from that:
 
 - A task that nothing will wake again lives until what it waits for is closed or let go of itself, and is collected
@@ -90,4 +90,4 @@ log: two
 - [go](../go.md): a spawn and a detach in one
 - [destroy](destroy.md): destroys a task that never ran or is done
 - [on_unhandled](../on_unhandled.md): what becomes of what a task let go of throws
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md) › [options](../idna-options.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna/README.md) › [options](README.md)
 
 # sgcl::txt::idna::options::standard
 
@@ -52,4 +52,4 @@ a label with nothing in it
 ## See also
 
 - [whatwg](whatwg.md): the profile of a URL parser
-- [sgcl::txt::idna::options](../idna-options.md)
+- [sgcl::txt::idna::options](README.md)

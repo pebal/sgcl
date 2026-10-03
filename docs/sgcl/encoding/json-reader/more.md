@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::more, async_more
 
@@ -75,4 +75,4 @@ false
 
 - [next](next.md), [read](read.md), [skip](skip.md): what reads the element
 - [depth](depth.md): the arrays and objects open
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [sgcl::encoding::json::reader](README.md)

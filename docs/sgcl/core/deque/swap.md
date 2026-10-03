@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::swap
 
@@ -58,4 +58,4 @@ Output:
 
 - [swap](swap2.md): the non-member swap
 - [operator=](operator_assign.md): assigns another deque
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

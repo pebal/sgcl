@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::emplace_after
 
@@ -58,4 +58,4 @@ Output:
 
 - [insert_after](insert_after.md): inserts elements after a position
 - [emplace_front](emplace_front.md): constructs an element in place at the beginning
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

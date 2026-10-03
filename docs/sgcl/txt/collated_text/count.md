@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::count
 
@@ -55,5 +55,5 @@ Output:
 ## See also
 
 - [find](find.md): the first occurrence
-- [collated_matches](../collated_matches.md): every occurrence, as a range
-- [sgcl::txt::collated_text](../collated_text.md)
+- [collated_matches](../collated_matches/README.md): every occurrence, as a range
+- [sgcl::txt::collated_text](README.md)

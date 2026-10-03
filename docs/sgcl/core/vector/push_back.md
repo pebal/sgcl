@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::push_back
 
@@ -81,4 +81,4 @@ Output:
 - [insert](insert.md): inserts elements at any position
 - [emplace_back](emplace_back.md), [pop_back](pop_back.md): construct an element in place at the end, remove
   the last element
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

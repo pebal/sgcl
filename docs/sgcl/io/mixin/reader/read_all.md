@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](../reader.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](README.md)
 
 # sgcl::io::mixin::reader\<Derived\>::read_all, async_read_all
 
@@ -65,4 +65,4 @@ Output:
 
 - [io::read_all](../../read_all.md): the same over any stream, and how the bytes are gathered
 - [read_all_text](read_all_text.md): the same as a string
-- [sgcl::io::mixin::reader\<Derived\>](../reader.md)
+- [sgcl::io::mixin::reader\<Derived\>](README.md)

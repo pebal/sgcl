@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::forward_list
 
@@ -101,4 +101,4 @@ Output:
 
 - [operator=](operator_assign.md), [assign](assign.md): replace the contents of a list
 - [insert_after](insert_after.md): inserts elements after a position
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

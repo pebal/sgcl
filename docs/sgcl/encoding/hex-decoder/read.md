@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [decoder](../hex-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [decoder](README.md)
 
 # sgcl::encoding::hex::decoder::read, async_read
 
@@ -18,7 +18,7 @@ of any size. At the end of the text, the end of the decoding: `0`, or the error 
 
 A text that is not digits fails the read that reaches the error, after the bytes before it were handed out, and
 every read after. The `io::error` has the [errc](../errc.md) code in the `encoding` category, and
-[last_error](last_error.md) holds the [error](../error.md) with its offset in the text. A failure of the reader
+[last_error](last_error.md) holds the [error](../error/README.md) with its offset in the text. A failure of the reader
 under it is the read's failure too, kept for good.
 
 ## Parameters
@@ -77,4 +77,4 @@ offset 13: invalid character 'g'
 
 - [last_error](last_error.md): where the text went wrong
 - [decode](../hex/decode.md): the bytes at once
-- [sgcl::encoding::hex::decoder](../hex-decoder.md)
+- [sgcl::encoding::hex::decoder](README.md)

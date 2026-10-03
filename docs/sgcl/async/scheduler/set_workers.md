@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::set_workers
 
@@ -67,4 +67,4 @@ Output:
 
 - [workers](workers.md): the number now
 - [set_worker_spin](set_worker_spin.md): how long an idle worker looks for work
-- [sgcl::async::scheduler](../scheduler.md)
+- [sgcl::async::scheduler](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::write, async_write
 
@@ -76,4 +76,4 @@ aXYdef!
 
 - [seek](seek.md): the write position
 - [mixin::writer::write](../mixin/writer/write.md): a text or one byte
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

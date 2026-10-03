@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_map](README.md)
 
 # sgcl::weak_map\<Key, T\>::weak_map
 
@@ -78,4 +78,4 @@ false
 
 - [operator=](operator_assign.md): takes the entries of another map over
 - [emplace](emplace.md), [operator[]](operator_at.md): add an entry
-- [sgcl::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::weak_map\<Key, T\>](README.md)

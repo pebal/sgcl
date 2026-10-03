@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [receive_channel](../receive_channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [receive_channel](README.md)
 
 # sgcl::async::receive_channel\<T\>::empty
 
@@ -53,4 +53,4 @@ false
 ## See also
 
 - [size](size.md): the number of elements in the buffer alone
-- [sgcl::async::receive_channel\<T\>](../receive_channel.md)
+- [sgcl::async::receive_channel\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_map](README.md)
 
 # sgcl::weak_map\<Key, T\>::operator=
 
@@ -70,4 +70,4 @@ false b true
 
 - [(constructor)](weak_map.md): constructs the map
 - [clear](clear.md): erases every entry
-- [sgcl::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::weak_map\<Key, T\>](README.md)

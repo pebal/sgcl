@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [message](../message.md)
+[sgcl](../../README.md) › [slog](../README.md) › [message](README.md)
 
 # sgcl::slog::message::text
 
@@ -49,4 +49,4 @@ server started (14 bytes)
 
 - [where](where.md)
 - [record::message](../record/message.md): the text as a handler reads it
-- [sgcl::slog::message](../message.md)
+- [sgcl::slog::message](README.md)

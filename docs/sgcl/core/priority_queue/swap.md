@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [priority_queue](README.md)
 
 # sgcl::priority_queue\<T, Container, Compare\>::swap
 
@@ -55,4 +55,4 @@ Output:
 
 - [swap](swap2.md): the non-member form
 - [operator=](operator_assign.md): assigns the contents
-- [sgcl::priority_queue\<T, Container, Compare\>](../priority_queue.md)
+- [sgcl::priority_queue\<T, Container, Compare\>](README.md)

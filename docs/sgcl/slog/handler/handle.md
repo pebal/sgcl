@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [handler](../handler.md)
+[sgcl](../../README.md) › [slog](../README.md) › [handler](README.md)
 
 # sgcl::slog::handler::handle
 
@@ -60,5 +60,5 @@ from a logger with 2 attributes
 ## See also
 
 - [enabled](enabled.md)
-- [record](../record.md): what a handler reads
-- [sgcl::slog::handler](../handler.md)
+- [record](../record/README.md): what a handler reads
+- [sgcl::slog::handler](README.md)

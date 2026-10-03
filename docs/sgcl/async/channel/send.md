@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::send
 
@@ -11,7 +11,7 @@ auto send() const noexcept;                                                     
 ```
 
 Sends an element, waiting for room in the buffer or, on a rendezvous, for a receiver. The call makes an
-[operation](../operation.md) that holds the element and does nothing yet; carried out, the send hands the element to
+[operation](../operation/README.md) that holds the element and does nothing yet; carried out, the send hands the element to
 a waiting receiver when the buffer is empty, or puts it in the buffer when there is room, or waits with it until a
 receiver moves it into the buffer or, on a rendezvous, takes it.
 
@@ -32,7 +32,7 @@ waiting sender's element is moved into the buffer, or a rendezvous's small ring,
 
 ## Return value
 
-An [operation](../operation.md) that gives a `bool`, both by `co_await` in a task and by `.wait()` on a thread:
+An [operation](../operation/README.md) that gives a `bool`, both by `co_await` in a task and by `.wait()` on a thread:
 `true` when the element was delivered, to a receiver or into the buffer; `false` when the channel was closed before
 the send or while it waited, the element undelivered and dropped with the operation.
 
@@ -101,4 +101,4 @@ true
 - [try_send](try_send.md): sends only when it can without waiting
 - [on_send](on_send.md): a send as a case of a select
 - [receive](receive.md), [close](close.md)
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

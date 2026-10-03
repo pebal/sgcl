@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::stdin_pipe
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-The program's end of the pipe, a [file](../file.md), or the error of [pipe](../pipe.md).
+The program's end of the pipe, a [file](../file/README.md), or the error of [pipe](../pipe.md).
 
 ## Complexity
 
@@ -58,4 +58,4 @@ an error
 
 - [stdout_pipe](stdout_pipe.md), [stderr_pipe](stderr_pipe.md): the pipes the child writes to
 - [pipe](../pipe.md): a pipe of the program's
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

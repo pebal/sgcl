@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md) › [entry](../expiry_queue-entry.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue/README.md) › [entry](README.md)
 
 # sgcl::expiry_queue\<T\>::entry::operator bool
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [(constructor)](expiry_queue-entry.md): constructs an empty handle
-- [sgcl::expiry_queue\<T\>::entry](../expiry_queue-entry.md)
+- [sgcl::expiry_queue\<T\>::entry](README.md)

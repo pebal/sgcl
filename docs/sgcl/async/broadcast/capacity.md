@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](README.md)
 
 # sgcl::async::broadcast\<T\>::capacity
 
@@ -56,4 +56,4 @@ capacity 4
 
 - [(constructor)](broadcast.md): where the capacity is given
 - [lagged](../broadcast-subscription/lagged.md): the values a subscription lost
-- [sgcl::async::broadcast\<T\>](../broadcast.md)
+- [sgcl::async::broadcast\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::write
 
@@ -8,7 +8,7 @@ void write(format_sink& out, const format_spec& spec, std::string_view nested = 
 
 Writes what the value holds into `out` the way [format](../format.md) writes it, with the
 [specification](../format.md#the-specification) `spec` and, for a list or a mapping, the specification of the
-elements `nested`: it is what a field of a [stencil](../stencil.md) does, and what `txt::format("{}", v)` calls.
+elements `nested`: it is what a field of a [stencil](../stencil/README.md) does, and what `txt::format("{}", v)` calls.
 Every alternative goes to `format`'s own writers; nothing is a second implementation. It is total:
 
 - A specification the alternative will not take — `{:d}` over a name — is written with as much of it as the
@@ -78,5 +78,5 @@ Output:
 ## See also
 
 - [to_string](to_string.md): the same with no specification, as a string
-- [format_sink](../format_sink.md), [format_spec](../format_spec.md)
-- [sgcl::txt::value](../value.md)
+- [format_sink](../format_sink/README.md), [format_spec](../format_spec.md)
+- [sgcl::txt::value](README.md)

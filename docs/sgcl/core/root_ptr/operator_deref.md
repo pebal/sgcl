@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::root_ptr\<T\>::operator\*, operator-\>
 
@@ -61,4 +61,4 @@ Output:
 
 - [get](get.md): the raw pointer
 - [operator bool](operator_bool.md): checks whether the pointer is not null
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

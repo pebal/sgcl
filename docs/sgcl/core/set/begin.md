@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::begin, cbegin
 
@@ -88,4 +88,4 @@ true true
 - [end, cend](end.md): the iterator past the last element
 - [find](find.md): an iterator to the element with a key
 - [bucket](bucket.md): the bucket of a key
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

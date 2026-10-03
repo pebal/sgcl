@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::begin, cbegin
 
@@ -34,7 +34,7 @@ None.
 The iterators are random-access: a step within a block and the access are plain loads, a step across a block
 boundary one load of the map, so `std::ranges` algorithms and `std::sort` work on the deque. An iterator does not
 keep its element valid; it is invalidated exactly when a `std::deque` iterator is: by any insertion, and by an
-erasure of its element or in the middle ([Iterator invalidation](../deque.md#iterator-invalidation)).
+erasure of its element or in the middle ([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -68,4 +68,4 @@ Output:
 
 - [end, cend](end.md): an iterator to the end
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the beginning
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

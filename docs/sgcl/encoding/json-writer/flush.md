@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::flush, async_flush
 
@@ -109,4 +109,4 @@ true
 
 - [(constructor)](json-writer.md): the stream the text goes to
 - [io streams](../../io/README.md)
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [sgcl::encoding::json::writer](README.md)

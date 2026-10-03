@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](../chacha20.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](README.md)
 
 # sgcl::crypto::chacha20::chacha20
 
@@ -87,4 +87,4 @@ sgcl::crypto::chacha20: a nonce of 8 bytes, not 12 or 24
 - [from_key](from_key.md): a key that came with data
 - [clone](clone.md): a copy that goes on from the same place
 - [operator=](operator_assign.md): takes another object's state over
-- [sgcl::crypto::chacha20](../chacha20.md)
+- [sgcl::crypto::chacha20](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::xml)
 
@@ -64,4 +64,4 @@ true
 ## See also
 
 - [to_string](to_string.md): what `parse` reads back as the same tree
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [row](../csv-row.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [row](README.md)
 
 # sgcl::encoding::csv::row::operator[]
 
@@ -70,4 +70,4 @@ Bob 27 false false
 
 - [at](at.md): a field by its index, checked
 - [get](get.md): the field of a column as a string, or a fallback
-- [sgcl::encoding::csv::row](../csv-row.md)
+- [sgcl::encoding::csv::row](README.md)

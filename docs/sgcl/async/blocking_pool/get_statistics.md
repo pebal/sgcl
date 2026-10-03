@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](../blocking_pool.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](README.md)
 
 # sgcl::async::blocking_pool::get_statistics
 
@@ -58,4 +58,4 @@ after a job: 1 threads, 1 idle, 0 queued
 
 - [max_threads](max_threads.md): the cap on the threads
 - [scheduler::get_statistics](../scheduler/get_statistics.md): the same for the workers
-- [sgcl::async::blocking_pool](../blocking_pool.md)
+- [sgcl::async::blocking_pool](README.md)

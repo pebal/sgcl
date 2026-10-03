@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::swap
 
@@ -68,4 +68,4 @@ true
 
 - [operator=](operator_assign.md): replaces the contents
 - [merge](merge.md): moves the nodes of another set into this one
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

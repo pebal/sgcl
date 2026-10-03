@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::reserve
 
@@ -37,7 +37,7 @@ The capacity after `reserve` is what the buffer's size class holds, which may be
 standard allows: `reserve(100)` of `int`s gives 124. Past a page it is what the pages hold next to the
 buffer's header, so that a doubling fills whole pages again: `reserve(131072)` of `int`s gives 147 452.
 
-The old buffer is left to the collector, as after any reallocation: a [slice](../slice.md) taken before still
+The old buffer is left to the collector, as after any reallocation: a [slice](../slice/README.md) taken before still
 reads the elements as they were.
 
 ## Example
@@ -81,4 +81,4 @@ capacity 147452
 
 - [capacity](capacity.md), [shrink_to_fit](shrink_to_fit.md): the capacity, a buffer sized for the elements
 - [push_back](push_back.md): appends an element, growing the buffer when needed
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [core](../README.md) › [generator](README.md)
 
 # sgcl::generator\<T\>::end
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [begin](begin.md): runs the coroutine to its first value
-- [sgcl::generator\<T\>](../generator.md)
+- [sgcl::generator\<T\>](README.md)

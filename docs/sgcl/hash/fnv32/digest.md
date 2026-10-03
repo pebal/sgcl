@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [fnv32](../fnv32.md)
+[sgcl](../../README.md) › [hash](../README.md) › [fnv32](README.md)
 
 # sgcl::hash::fnv32::digest
 
@@ -7,7 +7,7 @@ array<byte, 4> digest() const noexcept;
 ```
 
 `value()` as four bytes, the most significant first: Go's `h.Sum(nil)`, and the form a function written over any
-hasher ([req::hasher](../req/hasher.md)) takes, [crypto::sha256](../../crypto/sha256.md) among them.
+hasher ([req::hasher](../req/hasher.md)) takes, [crypto::sha256](../../crypto/sha256/README.md) among them.
 
 ## Parameters
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [value](value.md): the hash as a number
-- [sgcl::hash::fnv32](../fnv32.md)
+- [sgcl::hash::fnv32](README.md)

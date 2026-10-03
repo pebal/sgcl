@@ -13,7 +13,7 @@ namespace sgcl::txt {
 
 Returns the byte position of every code point of the text in the order it is drawn, left to right, the ones rule X9
 of [UAX #9](https://www.unicode.org/reports/tr9/) removes (the embedding, override and pop characters and the
-boundary neutrals) left out. It is the answer of [bidi_runs](bidi_runs.md) one character at a time: what a caret
+boundary neutrals) left out. It is the answer of [bidi_runs](bidi_runs/README.md) one character at a time: what a caret
 steps over in mixed text, where the right arrow key may move backwards through the bytes, and what a renderer that
 lays out character by character walks.
 
@@ -68,6 +68,6 @@ Output:
 
 ## See also
 
-- [bidi_runs](bidi_runs.md): the same order, cut into pieces
+- [bidi_runs](bidi_runs/README.md): the same order, cut into pieces
 - [levels](levels.md): the level of every code point
 - [txt](README.md)

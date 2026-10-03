@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_exit_status
 
@@ -7,7 +7,7 @@ bool is_exit_status() const noexcept;
 ```
 
 Checks whether a child process ended with a failure status: `errc::exit_status`, which the wait of a
-[command](../command.md) reports, as Go's `*exec.ExitError`. The status itself is in the command's state.
+[command](../command/README.md) reports, as Go's `*exec.ExitError`. The status itself is in the command's state.
 
 ## Parameters
 
@@ -47,5 +47,5 @@ true
 
 ## See also
 
-- [command](../command.md), [process_state](../process_state.md): the child and its status
-- [sgcl::io::error](../error.md)
+- [command](../command/README.md), [process_state](../process_state/README.md): the child and its status
+- [sgcl::io::error](README.md)

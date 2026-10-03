@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [txt](../README.md) › [list](README.md)
 
 # sgcl::txt::list::list
 
@@ -59,4 +59,4 @@ Output:
 
 ## See also
 
-- [sgcl::txt::list](../list.md)
+- [sgcl::txt::list](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::code
 
@@ -58,4 +58,4 @@ true io
 
 - [errc](../errc.md), [category](../category.md): the codes of the module
 - [message](message.md): the text of the error
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

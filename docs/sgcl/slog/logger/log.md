@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [logger](../logger.md)
+[sgcl](../../README.md) › [slog](../README.md) › [logger](README.md)
 
 # sgcl::slog::logger::log, debug, info, warn, error
 
@@ -15,7 +15,7 @@ template<class... A>
 void error(message m, const A&... kv) const;                 // (5)
 ```
 
-Writes a record: the time, the level, the [message](../message.md) `m` and the attributes `kv`, after the logger's
+Writes a record: the time, the level, the [message](../message/README.md) `m` and the attributes `kv`, after the logger's
 own ([with](with.md)), slog's `Log`, `Debug`, `Info`, `Warn` and `Error`. A record below the logger's level is one
 comparison and makes nothing ([enabled](enabled.md)).
 
@@ -25,12 +25,12 @@ comparison and makes nothing ([enabled](enabled.md)).
 4. A record of `level::warn`.
 5. A record of `level::error`.
 
-- (1–5) The attributes are pairs, a key then a value, and [groups](../group.md) standing where a key would: the key
+- (1–5) The attributes are pairs, a key then a value, and [groups](../group/README.md) standing where a key would: the key
   a literal or a `const char*`, the value one of the kinds the module takes
   ([The kinds of values](../README.md#the-kinds-of-values)). An odd count, a key that is not a string, a group given
   as a value, a character or a value of another kind is an error of the build. The line is made whole in the
   thread's plain memory and written by one `write`, or batched with `options::buffered`; with a handler of the
-  program, the handler's `handle` is called on this thread with the [record](../record.md).
+  program, the handler's `handle` is called on this thread with the [record](../record/README.md).
 
 ## Parameters
 
@@ -88,4 +88,4 @@ time=2026-09-28T14:05:01.123+02:00 level=INFO+2 msg="between info and warn" rati
 
 - [debug, info, warn, error](../debug.md): the same through the default logger
 - [enabled](enabled.md): whether a record of a level is written
-- [sgcl::slog::logger](../logger.md)
+- [sgcl::slog::logger](README.md)

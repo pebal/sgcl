@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::operator==, operator\<=\>
 
@@ -61,4 +61,4 @@ true
 ## See also
 
 - [unmap](unmap.md): an IPv4-mapped address as IPv4
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

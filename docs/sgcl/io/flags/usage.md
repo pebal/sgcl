@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [flags](../flags.md)
+[sgcl](../../README.md) › [io](../README.md) › [flags](README.md)
 
 # sgcl::io::flags::usage
 
@@ -64,4 +64,4 @@ serves the files named
 
 - [parse](parse.md): prints the usage for `-h` and after a refused command line
 - [(constructor)](flags.md): the description
-- [sgcl::io::flags](../flags.md)
+- [sgcl::io::flags](README.md)

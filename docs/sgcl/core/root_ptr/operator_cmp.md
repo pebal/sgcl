@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::root_ptr)
 
@@ -70,4 +70,4 @@ true
 ## See also
 
 - [get](get.md): the raw pointer
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

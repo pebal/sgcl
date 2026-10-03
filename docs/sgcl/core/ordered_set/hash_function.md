@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::hash_function
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [key_eq](key_eq.md): a copy of the equality of the keys
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

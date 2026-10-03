@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [event](../event.md)
+[sgcl](../../README.md) › [async](../README.md) › [event](README.md)
 
 # sgcl::async::event::event
 
@@ -56,4 +56,4 @@ true false
 
 - [operator=](operator_assign.md): makes the handle one of another event
 - [operator==](operator_cmp.md): whether two handles are the same event
-- [sgcl::async::event](../event.md)
+- [sgcl::async::event](README.md)

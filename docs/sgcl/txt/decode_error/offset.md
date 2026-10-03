@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [decode_error](../decode_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [decode_error](README.md)
 
 # sgcl::txt::decode_error::offset
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [from](from.md)
-- [sgcl::txt::decode_error](../decode_error.md)
+- [sgcl::txt::decode_error](README.md)

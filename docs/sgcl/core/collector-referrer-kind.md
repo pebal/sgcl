@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [collector](collector.md) › [referrer](collector-referrer.md)
+[sgcl](../README.md) › [core](README.md) › [collector](collector/README.md) › [referrer](collector-referrer.md)
 
 # sgcl::collector::referrer::kind
 
@@ -51,4 +51,4 @@ true
 ## See also
 
 - [referrer](collector-referrer.md): the fields
-- [sgcl::collector](collector.md)
+- [sgcl::collector](collector/README.md)

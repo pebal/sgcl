@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [queue](README.md)
 
 # sgcl::queue\<T, Container\>::emplace
 
@@ -61,4 +61,4 @@ xxx
 ## See also
 
 - [push](push.md): appends a value
-- [sgcl::queue\<T, Container\>](../queue.md)
+- [sgcl::queue\<T, Container\>](README.md)

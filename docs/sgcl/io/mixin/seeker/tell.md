@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [seeker](../seeker.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [seeker](README.md)
 
 # sgcl::io::mixin::seeker\<Derived\>::tell
 
@@ -58,4 +58,4 @@ seek tell.txt: stream closed
 
 - [size](size.md): the size, the position kept
 - [rewind](rewind.md): back to the first byte
-- [sgcl::io::mixin::seeker\<Derived\>](../seeker.md)
+- [sgcl::io::mixin::seeker\<Derived\>](README.md)

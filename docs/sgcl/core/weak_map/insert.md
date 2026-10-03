@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_map](README.md)
 
 # sgcl::weak_map\<Key, T\>::insert
 
@@ -105,4 +105,4 @@ false first
 - [emplace](emplace.md): constructs the value in place
 - [insert_or_assign](insert_or_assign.md): assigns the value when the object has one
 - [operator[]](operator_at.md): the value of an object, made when it has none
-- [sgcl::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::weak_map\<Key, T\>](README.md)

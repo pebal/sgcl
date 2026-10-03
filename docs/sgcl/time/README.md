@@ -13,21 +13,21 @@ has them for `<chrono>`, both ways. The module depends on [core](../core/README.
 [concurrent](../concurrent/README.md) (the registry of zones) and [txt](../txt/README.md) (`txt::format`); the
 index of the whole interface is [the modules](../README.md).
 
-A span of time is [sgcl::duration](../core/duration.md), a class of core, not of this module: the timers of async
+A span of time is [sgcl::duration](../core/duration/README.md), a class of core, not of this module: the timers of async
 take one, so it lives below both. It is Go's `time.Duration` with Go's text (`"1h30m"`, `duration::parse`,
 `to_string()`, `seconds()`, saturated arithmetic), and every `std::chrono` duration of an integral count converts
 into it. The timers themselves — Go's `time.Sleep`, `After`, `Tick`, `NewTimer` and `AfterFunc` — are async's
 `sleep`, `after`, `tick` and `timeout` ([timers](../async/README.md#time)), and so is the monotonic clock with a test's
-[manual_clock](../async/manual_clock.md); the [stopwatch](stopwatch.md) and [now](now.md) follow the core's
-[clock](../core/clock.md), which a test's manual clock moves, so code that measures itself or asks for the time is
+[manual_clock](../async/manual_clock/README.md); the [stopwatch](stopwatch/README.md) and [now](now.md) follow the core's
+[clock](../core/clock/README.md), which a test's manual clock moves, so code that measures itself or asks for the time is
 tested with no real waiting.
 
-A date, an instant and a zone are values: a [date](date.md) is four bytes of days, a [datetime](datetime.md) the
-nanoseconds since 1970 and its [zone](zone.md), a zone one word. What cannot fail does not: a date built from
+A date, an instant and a zone are values: a [date](date/README.md) is four bytes of days, a [datetime](datetime/README.md) the
+nanoseconds since 1970 and its [zone](zone/README.md), a zone one word. What cannot fail does not: a date built from
 numbers carries a day or a month out of its range into the next, as Go's `time.Date` does, a time of the clock
 that a change of the clock skipped is moved on, and a result past either end of a range is the end. What may fail —
 a text from a person, a file or the network, a zone the system may not have — is read into an
-[expected](../core/expected.md) of the value or an [error](error.md) that says why and at which byte.
+[expected](../core/expected/README.md) of the value or an [error](error/README.md) that says why and at which byte.
 
 ## The rules
 
@@ -40,11 +40,11 @@ a text from a person, a file or the network, a zone the system may not have — 
    spelled as a literal (`time::date d("2026-09-24")`, `time::zone warsaw("Europe/Warsaw")`) — which throw
    `bad_expected_access<time::error>` with the message of `parse` or `load`.
 3. A text or a name that comes from outside the program (a setting, the user, a header) is read by `parse`,
-   `load`, `from_tzif` or `from_posix` into an `expected<T, time::error>`: the value, or an [error](error.md) with a
+   `load`, `from_tzif` or `from_posix` into an `expected<T, time::error>`: the value, or an [error](error/README.md) with a
    sentence and the byte of the text or of the file the reading stopped on, `message()` and `offset()`.
-4. A [date](date.md) is a plain value, trivially copyable: it lives anywhere. A [zone](zone.md) is a `tracked_ptr`
-   to its data, and a [datetime](datetime.md) holds one, so both live where a `tracked_ptr` may — on a stack, in a
-   managed object, in a container of the library — as a [string](../core/string.md) does
+4. A [date](date/README.md) is a plain value, trivially copyable: it lives anywhere. A [zone](zone/README.md) is a `tracked_ptr`
+   to its data, and a [datetime](datetime/README.md) holds one, so both live where a `tracked_ptr` may — on a stack, in a
+   managed object, in a container of the library — as a [string](../core/string/README.md) does
    ([the rules of core](../core/README.md#the-rules), 1), and a function takes them as `const zone&` and
    `const datetime&`.
 5. The zones are read from the files of the system's tz database, `/usr/share/zoneinfo` and the other places Unix
@@ -72,7 +72,7 @@ with no letters to quote; Go's and CLDR's both have their traps of a silent wron
 - A writer never fails: a specifier it does not know, or one the value does not answer (`%H` of a date, `%Q` of a
   datetime), is written as it stands.
 - `%S` and `%T` write the fraction of a second the value holds, as `std::format` does: nine digits for a datetime
-  (`12:41:15.000000000`), none for a `sys_seconds`. A text to the second is `%X`, or a [layout](layout.md): the
+  (`12:41:15.000000000`), none for a `sys_seconds`. A text to the second is `%X`, or a [layout](layout/README.md): the
   header of HTTP is `t.format(time::http)`.
 - `%Z` writes the zone's abbreviation (`CEST`; `UTC`; a fixed offset's name), `%z` the offset `+0200`, `%Ez` and
   `%Oz` `+02:00`; seconds of an offset are dropped.
@@ -87,7 +87,7 @@ with no letters to quote; Go's and CLDR's both have their traps of a silent wron
   unless another is), read by the compatible rule of [at](date/at.md); a `%Z` naming an abbreviation that zone shows
   then settles a time shown twice (`"2026-10-25 02:30 CET"` in Warsaw is the second 02:30), and `UTC`, `GMT`, `UT`
   and `Z` mean UTC. A second of 60 is read only as a leap second, the last second of a day in UTC.
-- Every refusal is an [error](error.md) with a sentence and the byte of the text where the field that failed
+- Every refusal is an [error](error/README.md) with a sentence and the byte of the text where the field that failed
   starts.
 - Where this writes otherwise than libc++, following the standard's text: `%G` of the years -999 to -1 (`-0999`,
   libc++ `-999`), `%EC` of a negative year (floored, libc++ truncates), the `-` of a negative duration once before
@@ -98,7 +98,7 @@ with no letters to quote; Go's and CLDR's both have their traps of a silent wron
 
 In `txt::format` a time is a value like any other: `{}` writes its `to_string()` (a datetime RFC 3339 with the
 fraction where there is one, a date `%F`, a weekday and a month their English names, a
-[duration](../core/duration.md) Go's text), a pattern after the colon writes the pattern, and a width pads the
+[duration](../core/duration/README.md) Go's text), a pattern after the colon writes the pattern, and a width pads the
 whole: `{:>12%F}`. The field is the one `std::format` gives `<chrono>` — `[[fill]align][width]` and then the pattern
 from its first `%` to the brace, colons and all — and it is checked where the program is compiled: `{:%Q}` of a
 datetime or `{:%H}` of a date does not compile. A weekday takes `%a`, `%A`, `%u` and `%w`, a month `%b`, `%B`, `%h`
@@ -118,14 +118,14 @@ nothing allocated ([txt::format](../txt/format.md)).
 
 | Class | Header | Description |
 |---|---|---|
-| [date](date.md) | `date.h` | a date of the Gregorian calendar, with no time of day and no zone: the fields, the ISO week, the calendar's arithmetic (`add_months` cut to the month's end), ISO 8601 and patterns of `%` read and written, `at(9, 30, zone)` |
-| [datetime](datetime.md) | `datetime.h` | an instant and the zone it is seen in (Go's `time.Time`): the fields of the zone's clock, `t + d` and `t2 - t1`, the calendar's arithmetic across a change of the clock, `truncate`, `round`, the layouts and patterns |
+| [date](date/README.md) | `date.h` | a date of the Gregorian calendar, with no time of day and no zone: the fields, the ISO week, the calendar's arithmetic (`add_months` cut to the month's end), ISO 8601 and patterns of `%` read and written, `at(9, 30, zone)` |
+| [datetime](datetime/README.md) | `datetime.h` | an instant and the zone it is seen in (Go's `time.Time`): the fields of the zone's clock, `t + d` and `t2 - t1`, the calendar's arithmetic across a change of the clock, `truncate`, `round`, the layouts and patterns |
 | [earlier_t, later_t](earlier_t.md) | `date.h` | the tags that choose which instant a time of the clock shown twice, or skipped, is read as |
-| [error](error.md) | `error.h` | why a text is not a date or a file not a zone: `message()` and `offset()` |
-| [iso_week](iso_week.md) | `date.h` | a week of ISO 8601: the year it belongs to and its number |
-| [layout](layout.md) | `layout.h` | a format known by name, written and read by code of its own: `rfc3339`, `rfc3339_nano`, `http`, `email`, `iso8601` |
-| [stopwatch](stopwatch.md) | `stopwatch.h` | the time elapsed since a start, on the library's monotonic clock; `measure(f)` |
-| [zone](zone.md) | `zone.h` | a time zone: UTC, a fixed offset, a zone of the system's tz database, one from a TZif file or a POSIX TZ string, the local one; the offset, the abbreviation and daylight saving time at an instant, the changes around it |
+| [error](error/README.md) | `error.h` | why a text is not a date or a file not a zone: `message()` and `offset()` |
+| [iso_week](iso_week/README.md) | `date.h` | a week of ISO 8601: the year it belongs to and its number |
+| [layout](layout/README.md) | `layout.h` | a format known by name, written and read by code of its own: `rfc3339`, `rfc3339_nano`, `http`, `email`, `iso8601` |
+| [stopwatch](stopwatch/README.md) | `stopwatch.h` | the time elapsed since a start, on the library's monotonic clock; `measure(f)` |
+| [zone](zone/README.md) | `zone.h` | a time zone: UTC, a fixed offset, a zone of the system's tz database, one from a TZif file or a POSIX TZ string, the local one; the offset, the abbreviation and daylight saving time at an instant, the changes around it |
 
 ## Enumerations
 
@@ -139,17 +139,17 @@ nothing allocated ([txt::format](../txt/format.md)).
 | Constant | Header | Description |
 |---|---|---|
 | `earlier` | `date.h` | the tag of the first of a time shown twice, and of the change for a skipped one ([earlier_t](earlier_t.md)) |
-| `email` | `layout.h` | the date of e-mail, RFC 5322: `Thu, 24 Sep 2026 12:41:15 +0200` ([layout](layout.md)) |
-| `http` | `layout.h` | the date of HTTP, RFC 9110's IMF-fixdate: `Thu, 24 Sep 2026 10:41:15 GMT` ([layout](layout.md)) |
-| `iso8601` | `layout.h` | ISO 8601, written as `rfc3339_nano`, read in its broad profile ([layout](layout.md)) |
+| `email` | `layout.h` | the date of e-mail, RFC 5322: `Thu, 24 Sep 2026 12:41:15 +0200` ([layout](layout/README.md)) |
+| `http` | `layout.h` | the date of HTTP, RFC 9110's IMF-fixdate: `Thu, 24 Sep 2026 10:41:15 GMT` ([layout](layout/README.md)) |
+| `iso8601` | `layout.h` | ISO 8601, written as `rfc3339_nano`, read in its broad profile ([layout](layout/README.md)) |
 | `later` | `date.h` | the tag of the second of a time shown twice ([earlier_t](earlier_t.md)) |
-| `rfc3339` | `layout.h` | RFC 3339 to the second: `2026-09-24T12:41:15+02:00` ([layout](layout.md)) |
-| `rfc3339_nano` | `layout.h` | RFC 3339 with the fraction of a second: `2026-09-24T12:41:15.122575+02:00` ([layout](layout.md)) |
+| `rfc3339` | `layout.h` | RFC 3339 to the second: `2026-09-24T12:41:15+02:00` ([layout](layout/README.md)) |
+| `rfc3339_nano` | `layout.h` | RFC 3339 with the fraction of a second: `2026-09-24T12:41:15.122575+02:00` ([layout](layout/README.md)) |
 
 ## See also
 
-- [duration](../core/duration.md): the span of time, in core
-- [sleep, after, tick, timeout](../async/README.md#time), [clock](../core/clock.md),
-  [manual_clock](../async/manual_clock.md): the timers and the clock the stopwatch reads
+- [duration](../core/duration/README.md): the span of time, in core
+- [sleep, after, tick, timeout](../async/README.md#time), [clock](../core/clock/README.md),
+  [manual_clock](../async/manual_clock/README.md): the timers and the clock the stopwatch reads
 - [txt::format](../txt/format.md): the patterns of values in text
 - [The modules](../README.md)

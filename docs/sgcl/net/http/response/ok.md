@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::ok
 
@@ -68,4 +68,4 @@ Output:
 ## See also
 
 - [status](status.md): the code itself
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

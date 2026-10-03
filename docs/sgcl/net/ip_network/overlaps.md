@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::overlaps
 
@@ -56,4 +56,4 @@ false
 ## See also
 
 - [contains](contains.md): one address
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

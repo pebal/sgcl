@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](../enumerable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](README.md)
 
 # sgcl::mixin::enumerable\<Derived\>::for_each
 
@@ -69,4 +69,4 @@ Output:
 ## See also
 
 - [count_of](count_of.md): the number of elements a predicate accepts
-- [sgcl::mixin::enumerable\<Derived\>](../enumerable.md)
+- [sgcl::mixin::enumerable\<Derived\>](README.md)

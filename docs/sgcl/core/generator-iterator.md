@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [generator](generator.md)
+[sgcl](../README.md) › [core](README.md) › [generator](generator/README.md)
 
 # sgcl::generator\<T\>::iterator
 
@@ -14,7 +14,7 @@ namespace sgcl {
 }
 ```
 
-An input iterator over the values of a [generator](generator.md), for the range-for: what
+An input iterator over the values of a [generator](generator/README.md), for the range-for: what
 [begin](generator/begin.md) and [end](generator/end.md) return. It holds a pointer to the generator, null at the
 end. Dereferencing gives the current value as a `T&`, which may be moved from (see [value](generator/value.md));
 `++` runs the coroutine to its next `co_yield` and turns into the end iterator when the coroutine ends.
@@ -78,4 +78,4 @@ Output:
 ## See also
 
 - [begin](generator/begin.md), [end](generator/end.md): the iterators of a generator
-- [generator](generator.md): the coroutine type
+- [generator](generator/README.md): the coroutine type

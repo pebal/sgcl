@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [slog](README.md) › [attrs](attrs.md)
+[sgcl](../README.md) › [slog](README.md) › [attrs](attrs/README.md)
 
 # sgcl::slog::attrs::iterator
 
@@ -13,8 +13,8 @@ namespace sgcl::slog {
 }
 ```
 
-`sgcl::slog::attrs::iterator` is the input iterator of [attrs](attrs.md) and of a [record](record.md)
-([begin](record/begin.md)): its `*` is an [attr](attr.md), made by value when it is asked for. At the place a
+`sgcl::slog::attrs::iterator` is the input iterator of [attrs](attrs/README.md) and of a [record](record/README.md)
+([begin](record/begin.md)): its `*` is an [attr](attr/README.md), made by value when it is asked for. At the place a
 logger's group left for the attributes of the call it goes on through those, and after the last it compares equal
 to the end.
 
@@ -29,7 +29,7 @@ to the end.
 | Type | Definition |
 |---|---|
 | `iterator_category` | `std::input_iterator_tag` |
-| `value_type` | [attr](attr.md) |
+| `value_type` | [attr](attr/README.md) |
 | `difference_type` | `std::ptrdiff_t` |
 
 ## Member functions
@@ -68,4 +68,4 @@ b = 2
 
 ## See also
 
-- [sgcl::slog::attrs](attrs.md)
+- [sgcl::slog::attrs](attrs/README.md)

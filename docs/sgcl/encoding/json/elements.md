@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::elements
 
@@ -6,7 +6,7 @@
 slice<const json> elements() const noexcept;
 ```
 
-The elements of an array, in their order, as a [slice](../../core/slice.md) of the array's own buffer: nothing is
+The elements of an array, in their order, as a [slice](../../core/slice/README.md) of the array's own buffer: nothing is
 copied, and the slice keeps the buffer alive as long as it is kept, as a Go slice keeps its array. For a value
 that is not an array, an empty slice.
 
@@ -58,4 +58,4 @@ c
 - [members](members.md): the members of an object
 - [operator[]](operator_at.md): one element by its index
 - [size](size.md): the number of elements
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

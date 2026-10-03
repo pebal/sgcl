@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::bits
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [address](address.md): the address
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

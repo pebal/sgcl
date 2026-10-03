@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::emplace
 
@@ -63,4 +63,4 @@ xxx false 1
 
 - [insert](insert.md): inserts an element looked up first
 - [emplace_hint](emplace_hint.md): the same with a hint
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

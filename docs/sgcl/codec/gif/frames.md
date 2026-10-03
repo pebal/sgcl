@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [gif](../gif.md)
+[sgcl](../../README.md) › [codec](../README.md) › [gif](README.md)
 
 # sgcl::codec::gif::frames
 
@@ -10,7 +10,7 @@ static expected<codec::frames, error> frames(const io::reader& in,              
 ```
 
 Opens a GIF as an animation: reads the header, the logical screen with its color table and the extensions before
-the first image, and returns the [frames](../frames.md), whose [next](../frames/next.md) decodes the frames one by
+the first image, and returns the [frames](../frames/README.md), whose [next](../frames/next.md) decodes the frames one by
 one as the program asks for them. Each [frame](../frame.md) is the whole canvas as it is shown.
 
 1. Reads the file in memory, in place. The frames hold the bytes while they live: a slice of unmanaged memory must
@@ -89,5 +89,5 @@ Output:
 
 - [decode](decode.md): the first frame alone
 - [codec::decode_frames](../decode_frames.md): GIF or WebP, told by its signature
-- [frames](../frames.md), [frame](../frame.md)
-- [sgcl::codec::gif](../gif.md)
+- [frames](../frames/README.md), [frame](../frame.md)
+- [sgcl::codec::gif](README.md)

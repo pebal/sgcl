@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::seconds
 
@@ -56,4 +56,4 @@ Output:
 
 - [milliseconds](milliseconds.md): the whole milliseconds
 - [minutes](minutes.md), [hours](hours.md): the larger units, with the fraction
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

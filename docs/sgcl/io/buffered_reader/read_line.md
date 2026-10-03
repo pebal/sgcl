@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::read_line, async_read_line
 
@@ -81,4 +81,4 @@ false
 - [lines](lines.md): the lines as a range
 - [read_until](read_until.md): a token up to any delimiter, the delimiter kept
 - [set_max_line](set_max_line.md): a bound for a stream that is not trusted
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

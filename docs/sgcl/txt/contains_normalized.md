@@ -37,7 +37,7 @@ None.
 ## Notes
 
 Both sides are decomposed on every call: a pattern asked of many texts is a
-[normalized_searcher](fold_searcher.md), a text asked many questions a [normalized_text](folded_text.md).
+[normalized_searcher](fold_searcher/README.md), a text asked many questions a [normalized_text](folded_text/README.md).
 
 ## Example
 

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::cookie
 
@@ -64,6 +64,6 @@ dark | pl | []
 
 ## See also
 
-- [cookie](../cookie.md): a cookie and its attributes, as `Set-Cookie` carries it
+- [cookie](../cookie/README.md): a cookie and its attributes, as `Set-Cookie` carries it
 - [header](header.md): a field of the request
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

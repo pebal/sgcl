@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::parse, async_parse
 
@@ -25,7 +25,7 @@ The one value of a text or of a stream, with nothing but white space around it: 
 - (3–4) The value of the stream `in`, read to its end on the thread that calls: the whole stream is one value.
 - (5–6) The same in a task, `co_await json::async_parse(in)`: the stream is read with `co_await`, and the worker
   is free while it waits.
-- (7–12) The same as a program's `T`: a type described by its fields ([field_list](../field_list.md)) or any kind
+- (7–12) The same as a program's `T`: a type described by its fields ([field_list](../field_list/README.md)) or any kind
   a field may have, `json::parse<user>(text)`. The members are read into the fields by their names; a key no
   field has is skipped, unless `options::reject_unknown_fields`; a field that is not there keeps its value,
   unless it is `required()`. An integer field takes a number whose value is an integer, `1.0` and `1e2` among
@@ -45,12 +45,12 @@ key given twice in one object are errors, and arrays and objects nest at most 51
 
 ## Return value
 
-The value, or an [error](../error.md) that says why and where: the code ([errc](../errc.md)), the byte of the
+The value, or an [error](../error/README.md) that says why and where: the code ([errc](../errc.md)), the byte of the
 input, the line and the column — `1:13: invalid character ']' where a value was expected`, the same words and
 place from a text and from a stream holding it. A number out of a double's range (`1e400`) is `out_of_range`, a
 key given twice `duplicate_key`, nesting past `max_depth` `depth_limit`, a text that ends early or holds no value
 `unexpected_end`, anything but white space after the value `syntax` (`1:10: invalid character 'x' after the
-value`), a stream that fails `io` with the stream's [io error](../../io/error.md) inside. (7–12) add the
+value`), a stream that fails `io` with the stream's [io error](../../io/error/README.md) inside. (7–12) add the
 path of the value that failed as a JSON Pointer: `1:51 /manager/age: expected an integer, found a string`,
 `type_mismatch`; `missing_field`, `unknown_field`, and `out_of_range` for a number a field cannot hold.
 
@@ -152,5 +152,5 @@ Output:
 
 - [load](load.md): the value of a file, in one call
 - [to_string](to_string.md), [stringify](stringify.md): the way back to a text
-- [reader](../json-reader.md): a text read a piece at a time
-- [sgcl::encoding::json](../json.md)
+- [reader](../json-reader/README.md): a text read a piece at a time
+- [sgcl::encoding::json](README.md)

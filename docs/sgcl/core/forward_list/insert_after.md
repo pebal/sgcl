@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::insert_after
 
@@ -93,4 +93,4 @@ Output:
 - [emplace_after](emplace_after.md): constructs an element in place after a position
 - [push_front](push_front.md): inserts an element at the beginning
 - [splice_after](splice_after.md): moves nodes from another list instead of copying elements
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

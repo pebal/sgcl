@@ -41,7 +41,7 @@ config refused before the handshake leaves it as it was.
 
 ## Return value
 
-The TLS connection over `transport`, its handshake done. Or the [io::error](../../io/error.md):
+The TLS connection over `transport`, its handshake done. Or the [io::error](../../io/error/README.md):
 
 - `EINVAL` for a config the handshake cannot start with: no identity, no group or no cipher suite, an ALPN protocol
   of 0 or more than 255 bytes;
@@ -171,5 +171,5 @@ true true
 
 - [listen, async_listen](listen.md): a TCP listener that runs this handshake for each connection
 - [client, async_client](client.md): the other side
-- [config](config.md), [identity](identity.md): the settings and the certificate
+- [config](config.md), [identity](identity/README.md): the settings and the certificate
 - [net::tls](README.md)

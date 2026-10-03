@@ -28,7 +28,7 @@ exist.
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call (`is_exists()` when something is at `link`); the operation is
+Nothing, or the [error](error/README.md) of the call (`is_exists()` when something is at `link`); the operation is
 `symlink` and the path `link`.
 
 ## Complexity

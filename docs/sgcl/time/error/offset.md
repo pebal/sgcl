@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [time](../README.md) › [error](README.md)
 
 # sgcl::time::error::offset
 
@@ -54,4 +54,4 @@ an hour from 0 to 23 expected
 ## See also
 
 - [message](message.md): why the reading stopped
-- [sgcl::time::error](../error.md)
+- [sgcl::time::error](README.md)

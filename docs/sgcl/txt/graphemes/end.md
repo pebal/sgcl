@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes.md)
+[sgcl](../../README.md) › [txt](../README.md) › [graphemes](README.md)
 
 # sgcl::txt::graphemes::end
 
@@ -6,7 +6,7 @@
 iterator end() const noexcept;
 ```
 
-Returns the [iterator](../graphemes-iterator.md) past the last element: at the byte position of the end of the text,
+Returns the [iterator](../graphemes-iterator/README.md) past the last element: at the byte position of the end of the text,
 the size of the slice.
 
 ## Parameters
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first element
-- [sgcl::txt::graphemes](../graphemes.md)
+- [sgcl::txt::graphemes](README.md)

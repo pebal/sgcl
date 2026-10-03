@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::swap (sgcl::array)
 
@@ -58,4 +58,4 @@ Output:
 ## See also
 
 - [swap](swap.md): the member form
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

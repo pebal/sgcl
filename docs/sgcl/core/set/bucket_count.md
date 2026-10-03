@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::bucket_count
 
@@ -71,4 +71,4 @@ Output:
 
 - [rehash](rehash.md), [reserve](reserve.md): set the number of buckets
 - [load_factor](load_factor.md): the elements per bucket
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

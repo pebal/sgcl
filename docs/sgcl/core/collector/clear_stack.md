@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::clear_stack
 
@@ -77,4 +77,4 @@ Output:
 - [force_collect](force_collect.md): a full collection, after the same zeroing
 - [config](../config.md): `stack_clear_size`, `stack_guard_margin`
 - [Stack roots](../../../garbage_collector/overview.md#stack-roots): how the stacks are scanned
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

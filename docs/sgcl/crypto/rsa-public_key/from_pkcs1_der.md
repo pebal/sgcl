@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::from_pkcs1_der
 
@@ -17,7 +17,7 @@ in strict DER and nothing after it. The numbers are checked as [from_modulus](fr
 
 ## Return value
 
-The key, or a [crypto::error](../error.md): `errc::malformed` with the offset of the byte for DER that is not one
+The key, or a [crypto::error](../error/README.md): `errc::malformed` with the offset of the byte for DER that is not one
 RSAPublicKey in strict DER; `errc::invalid_key` and `errc::unsupported` for the numbers, as
 [from_modulus](from_modulus.md) has them.
 
@@ -61,4 +61,4 @@ sgcl::crypto::rsa: DER: an RSAPublicKey is a SEQUENCE
 
 - [to_pkcs1_der](to_pkcs1_der.md): writes the encoding
 - [from_pkix_der](from_pkix_der.md): the encoding of certificates
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

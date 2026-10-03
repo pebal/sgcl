@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::serve_tls, async_serve_tls
 
@@ -10,7 +10,7 @@ async::task<expected<void, io::error>> async_serve_tls(const string& address,   
 
 Listens over TLS 1.3 on `address` with the config `c` and serves until [shutdown](shutdown.md) or [close](close.md),
 Go's `ListenAndServeTLS`: [serve](serve.md) of a listener of [tls::listen](../../tls/listen.md), with the certificate
-and key of the [identities](../../tls/identity.md) in `c.identities`.
+and key of the [identities](../../tls/identity/README.md) in `c.identities`.
 
 The config's ALPN list is completed as Go completes `NextProtos`: `"h2"` added at the end when the server's `http2`
 is on and the list has none (taken out when it is off), `"http/1.1"` added when missing, the protocols already there
@@ -83,4 +83,4 @@ hello over HTTP/1.1
 
 - [serve_tls](../serve_tls.md): one handler over https in one call, the certificate and key read from their files
 - [serve](serve.md): a TLS listener of the program's, which keeps its own ALPN
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

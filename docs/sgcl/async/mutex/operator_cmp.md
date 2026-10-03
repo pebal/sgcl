@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](README.md)
 
 # sgcl::async::operator==, operator!= (sgcl::async::mutex)
 
@@ -53,4 +53,4 @@ true false true
 ## See also
 
 - [(constructor)](mutex.md): a handle of the same mutex
-- [sgcl::async::mutex](../mutex.md)
+- [sgcl::async::mutex](README.md)

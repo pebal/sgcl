@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::thaw
 
@@ -6,7 +6,7 @@
 builder thaw() const noexcept;
 ```
 
-Returns a [builder](../map-builder.md) over this map: a map changed in place, one element at a time, and frozen
+Returns a [builder](../map-builder/README.md) over this map: a map changed in place, one element at a time, and frozen
 into a map when it is done, the transient of Clojure and immer. The builder starts from this map's trie, which the
 two share, and copies nothing until it changes: the first change through a node the map holds copies that node
 once, and the changes after it are made in place. This map is unchanged, whatever the builder does.
@@ -66,5 +66,5 @@ Output:
 
 ## See also
 
-- [map::builder](../map-builder.md): the builder and its members
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [map::builder](../map-builder/README.md): the builder and its members
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

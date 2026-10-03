@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](README.md)
 
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::set)
 
@@ -60,4 +60,4 @@ true true true
 ## See also
 
 - [find](find.md): the element equal to a key
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](README.md)

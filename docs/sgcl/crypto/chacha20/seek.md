@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](../chacha20.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](README.md)
 
 # sgcl::crypto::chacha20::seek
 
@@ -65,4 +65,4 @@ true
 ## See also
 
 - [xor_key_stream](xor_key_stream.md): XORs the keystream into the data
-- [sgcl::crypto::chacha20](../chacha20.md)
+- [sgcl::crypto::chacha20](README.md)

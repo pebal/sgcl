@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [flags](../flags.md)
+[sgcl](../../README.md) › [io](../README.md) › [flags](README.md)
 
 # sgcl::io::flags::parse
 
@@ -30,7 +30,7 @@ The variables before a refused argument are set, as in Go; the variable of a val
 ## Return value
 
 - (1) None: it returns only when the command line was taken.
-- (2) Nothing, or the [error](../error.md): `errc::help_requested` (Go's `flag.ErrHelp`) for `-h` or `-help`;
+- (2) Nothing, or the [error](../error/README.md): `errc::help_requested` (Go's `flag.ErrHelp`) for `-h` or `-help`;
   `errc::invalid_argument` for a command line refused, with Go's message as the error's `path()`, so that
   `message()` is `flag <Go's message>: invalid command line`.
 
@@ -145,4 +145,4 @@ flag: help requested
 
 - [usage](usage.md): the text `-h` prints
 - [add](add.md), [positional](positional.md): what the parse fills
-- [sgcl::io::flags](../flags.md)
+- [sgcl::io::flags](README.md)

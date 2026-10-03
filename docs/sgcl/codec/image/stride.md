@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::stride
 
@@ -54,4 +54,4 @@ Output:
 
 - [row](row.md): one row, `stride()` bytes
 - [pixel_format](../pixel_format.md): the bytes of a pixel of each format
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

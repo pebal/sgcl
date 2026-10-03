@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [writer](../zlib-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [writer](README.md)
 
 # sgcl::compress::zlib::writer::write, async_write
 
@@ -16,7 +16,7 @@ last bytes it has not decided on yet, so what is written comes out behind the in
    writes. The bytes are read when the task runs: `data` lives until the task is done.
 
 The text forms (a string, a literal, a `std::string_view`) and one byte come from
-[mixin::writer](../../io/mixin/writer.md).
+[mixin::writer](../../io/mixin/writer/README.md).
 
 ## Parameters
 
@@ -97,4 +97,4 @@ Output:
 ## See also
 
 - [flush](flush.md), [close](close.md): what comes out after the writes
-- [sgcl::compress::zlib::writer](../zlib-writer.md)
+- [sgcl::compress::zlib::writer](README.md)

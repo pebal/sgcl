@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::message
 
@@ -6,7 +6,7 @@
 slice<const char> message() const noexcept;
 ```
 
-Returns the text of the record's [message](../message.md): a view of the caller's text in the record a handler is
+Returns the text of the record's [message](../message/README.md): a view of the caller's text in the record a handler is
 given, of the clone's own copy in a [clone](clone.md).
 
 ## Parameters
@@ -52,4 +52,4 @@ made on the fly
 ## See also
 
 - [message::text](../message/text.md)
-- [sgcl::slog::record](../record.md)
+- [sgcl::slog::record](README.md)

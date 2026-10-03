@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::make
 
@@ -81,4 +81,4 @@ alpha.example
 - [of](of.md): the canonical object in a pool of one's own
 - [pool](pool.md): the default pool
 - [intern_string](../intern_string.md): `make` for strings, under a name that reads
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

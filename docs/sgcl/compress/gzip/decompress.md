@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](README.md)
 
 # sgcl::compress::gzip::decompress
 
@@ -27,7 +27,7 @@ decompress a thousand times over.
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): a header that is not gzip's (`errc::invalid_header`), a method
+The decompressed bytes, or the [error](../error/README.md): a header that is not gzip's (`errc::invalid_header`), a method
 other than deflate (`errc::unsupported`), the data as for flate (`errc::corrupt`, `errc::unexpected_end`), a CRC-32 that
 does not match (`errc::checksum`) or a length that does not (`errc::corrupt`), output past `max_size`
 (`errc::too_large`).
@@ -73,6 +73,6 @@ offset 20: unexpected end of data
 ## See also
 
 - [compress](compress.md): the other way
-- [gzip::reader](../gzip-reader.md): a stream
+- [gzip::reader](../gzip-reader/README.md): a stream
 - [limits](../limits.md)
-- [sgcl::compress::gzip](../gzip.md)
+- [sgcl::compress::gzip](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::mapping::flush
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-Nothing, or an [error](../error.md): `is_closed()` once the mapping is [closed](close.md) (operation `flush`), the
+Nothing, or an [error](../error/README.md): `is_closed()` once the mapping is [closed](close.md) (operation `flush`), the
 error of `msync` otherwise (operation `msync`).
 
 ## Complexity
@@ -59,4 +59,4 @@ flush counter.txt: stream closed
 
 - [writable_data](writable_data.md): the bytes to write into
 - [close](close.md): the file given back
-- [sgcl::io::mapping](../mapping.md)
+- [sgcl::io::mapping](README.md)

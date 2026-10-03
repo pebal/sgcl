@@ -30,7 +30,7 @@ gets the permissions `p`, masked by the umask. Go's `os.Create`.
 
 ## Return value
 
-The [file](file.md), opened for writing only, or the [error](error.md) of [open](open.md), its operation `open`
+The [file](file/README.md), opened for writing only, or the [error](error/README.md) of [open](open.md), its operation `open`
 (`is_not_found()` for a directory on the way that is not there, `is_permission()`).
 
 ## Complexity
@@ -74,4 +74,4 @@ open no/such/dir/out.txt: No such file or directory
 - [open](open.md): any flags
 - [write_file](write_file.md): a file created and written in one call
 - [temp_file](temp_file.md): a new file under a random name
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

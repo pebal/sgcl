@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [little_endian](../little_endian.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [little_endian](README.md)
 
 # sgcl::encoding::little_endian::read_u32
 
@@ -54,4 +54,4 @@ Output:
 
 - [write_u32](write_u32.md): the other way
 - [big_endian::read_u32](../big_endian/read_u32.md): the other order
-- [sgcl::encoding::little_endian](../little_endian.md)
+- [sgcl::encoding::little_endian](README.md)

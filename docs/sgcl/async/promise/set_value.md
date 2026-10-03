@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::set_value
 
@@ -80,4 +80,4 @@ true
 
 - [set_exception](set_exception.md): sets an exception instead
 - [wait, operator co_await](wait.md): what the waiters get
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::starts_rune
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [decode_last](decode_last.md): the code point before a position
-- [sgcl::utf8](../utf8.md)
+- [sgcl::utf8](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::get (sgcl::array)
 
@@ -20,7 +20,7 @@ compile time, by a `static_assert`.
 3. The element of an array that is going away, as an rvalue reference: it may be moved from.
 
 With the specializations of `std::tuple_size` and `std::tuple_element`
-([Specializations](../array.md#specializations)), `get` is what makes structured bindings of an array work:
+([Specializations](README.md#specializations)), `get` is what makes structured bindings of an array work:
 `auto [x, y, z] = a`.
 
 ## Parameters
@@ -72,4 +72,4 @@ taken 2
 ## See also
 
 - [at](at.md): the element at a position given at run time, with bounds checking
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

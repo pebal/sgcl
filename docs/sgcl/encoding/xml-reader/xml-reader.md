@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [reader](../xml-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [reader](README.md)
 
 # sgcl::encoding::xml::reader::reader
 
@@ -75,4 +75,4 @@ down
 
 - [operator=](operator_assign.md): takes another reader over
 - [xml::parse](../xml/parse.md): a document read whole
-- [sgcl::encoding::xml::reader](../xml-reader.md)
+- [sgcl::encoding::xml::reader](README.md)

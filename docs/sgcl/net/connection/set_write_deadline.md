@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::set_write_deadline
 
@@ -6,7 +6,7 @@
 void set_write_deadline(time_point t) const noexcept;
 ```
 
-Sets the deadline of the writes to `t`, an absolute time on the module's [clock](../../core/clock.md): Go's
+Sets the deadline of the writes to `t`, an absolute time on the module's [clock](../../core/clock/README.md): Go's
 `Conn.SetWriteDeadline`. A write that starts after it, or would wait past it for room, fails with `ETIMEDOUT`
 (`is_timeout()`); the reads are not touched. `time_point()` removes it. A change applies to the writes in progress.
 A write that fails part way reports the error alone, and the connection is then of no use but to close.
@@ -57,4 +57,4 @@ write pipe: Operation timed out true
 
 - [set_deadline](set_deadline.md): both directions
 - [write_deadline](write_deadline.md): the deadline now
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

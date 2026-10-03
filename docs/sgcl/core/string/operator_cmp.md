@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::string)
 
@@ -33,7 +33,7 @@ Compare two strings, or a string and a text slice, by their characters.
   operands the other way round: `b == a` of a slice and a string is (3).
 
 A string against a `std::basic_string_view`, a literal or a pointer compares by the friends of
-[mixin::text](../mixin/text.md), which a text slice shares: `name == "alice"` reads the characters, makes no string.
+[mixin::text](../mixin/text/README.md), which a text slice shares: `name == "alice"` reads the characters, makes no string.
 
 ## Parameters
 
@@ -100,4 +100,4 @@ true
 
 - [hash](hash.md): the hash of the characters, kept in the object
 - [object](object.md): the identity of a string
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

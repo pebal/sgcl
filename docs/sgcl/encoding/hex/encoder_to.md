@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::encoder_to
 
@@ -8,7 +8,7 @@ static encoder encoder_to(const io::writer& out) noexcept;
 
 A writer that writes the lower-case digits of what it is given to `out`: Go's `hex.NewEncoder`. A byte is a whole
 group, so every write goes out at once and nothing waits; [close()](../hex-encoder/close.md) ends the encoder and
-leaves `out` open. The [encoder](../hex-encoder.md) is a handle of one word, made with its state: a managed object
+leaves `out` open. The [encoder](../hex-encoder/README.md) is a handle of one word, made with its state: a managed object
 holding an 8 KB block and `out`.
 
 ## Parameters
@@ -57,7 +57,7 @@ Output:
 
 ## See also
 
-- [hex::encoder](../hex-encoder.md): the stream
+- [hex::encoder](../hex-encoder/README.md): the stream
 - [decoder_from](decoder_from.md): the other way
 - [encode](encode.md): the digits at once
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

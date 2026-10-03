@@ -27,7 +27,7 @@ Copies the bytes and the permissions of the regular file at `from` to `to`, repl
 
 ## Return value
 
-Nothing, or the [error](error.md) of the copy; the operation is `copy_file` and the path `from`.
+Nothing, or the [error](error/README.md) of the copy; the operation is `copy_file` and the path `from`.
 
 ## Complexity
 

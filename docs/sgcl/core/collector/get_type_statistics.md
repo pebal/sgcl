@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_type_statistics
 
@@ -83,4 +83,4 @@ buffers of tracked_ptr<Node>: 1, 8 B each element
 
 - [type_statistics](../collector-type_statistics.md): the fields
 - [get_statistics](get_statistics.md): the counters of the collector's work
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

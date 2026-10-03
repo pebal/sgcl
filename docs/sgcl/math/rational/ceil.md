@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::ceil
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The whole number, a [big_integer](../big_integer.md).
+The whole number, a [big_integer](../big_integer/README.md).
 
 ## Complexity
 
@@ -49,4 +49,4 @@ Output:
 
 - [floor](floor.md): the largest whole number not above
 - [to_decimal](to_decimal.md): rounded to a number of places
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

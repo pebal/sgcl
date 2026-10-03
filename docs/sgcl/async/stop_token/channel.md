@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::stop_token::channel
 
@@ -9,7 +9,7 @@ receive_channel<void> channel() const noexcept;
 Returns the receiving end of the channel the stop closes: a handle to the channel of signals inside the stop's
 state, which it keeps alive. What the module does with a channel it receives on it does with this one: a receive on
 it ends, `false`, when the stop is requested; `on_receive(f)` is a case of a [select](../select.md); a function that
-takes a [receive_channel](../receive_channel.md)`<void>` to end its work on takes this one. [on_stop](on_stop.md)
+takes a [receive_channel](../receive_channel/README.md)`<void>` to end its work on takes this one. [on_stop](on_stop.md)
 and [stopped](stopped.md) are this channel's case and receive under names of their own.
 
 The token must have a source (an assertion in debug builds): [stop_possible](stop_possible.md) says.
@@ -20,7 +20,7 @@ None.
 
 ## Return value
 
-The receiving end of the stop's channel, a [receive_channel](../receive_channel.md)`<void>`: closed when the stop
+The receiving end of the stop's channel, a [receive_channel](../receive_channel/README.md)`<void>`: closed when the stop
 is requested, never sent on by the library.
 
 ## Complexity
@@ -35,7 +35,7 @@ None.
 
 The channel is the stop's own, and the handle has no `close()` and no `send()`: a close of it would read as a stop
 that stopped neither the children of the source nor its deadline, and a send would wake a task in
-[stopped](stopped.md) with no stop requested. The stop is requested through the [stop_source](../stop_source.md).
+[stopped](stopped.md) with no stop requested. The stop is requested through the [stop_source](../stop_source/README.md).
 
 ## Example
 
@@ -67,5 +67,5 @@ false
 
 - [on_stop](on_stop.md): the case of a select on this channel
 - [stopped](stopped.md): the wait for the stop
-- [receive_channel](../receive_channel.md): what is returned
-- [sgcl::async::stop_token](../stop_token.md)
+- [receive_channel](../receive_channel/README.md): what is returned
+- [sgcl::async::stop_token](README.md)

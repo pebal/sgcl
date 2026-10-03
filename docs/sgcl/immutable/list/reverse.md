@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::reverse
 
@@ -30,7 +30,7 @@ This list is never changed, so an exception leaves it as it was; no new list is 
 
 ## Notes
 
-`reverse` is a member of its own, not the `reverse` of [mixin::sequence](../../core/mixin/sequence.md), which
+`reverse` is a member of its own, not the `reverse` of [mixin::sequence](../../core/mixin/sequence/README.md), which
 writes in place: the list returns the reversed list. It is how a list built by `push_front`, newest first, is
 read oldest first.
 
@@ -60,4 +60,4 @@ Output:
 ## See also
 
 - [push_front](push_front.md): the list with one more element in front
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [siphash](../siphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [siphash](README.md)
 
 # sgcl::hash::siphash::value
 
@@ -56,4 +56,4 @@ true
 
 - [digest](digest.md): the same as bytes
 - [of](../mixin/hasher/of.md): the hash of data in one call
-- [sgcl::hash::siphash](../siphash.md)
+- [sgcl::hash::siphash](README.md)

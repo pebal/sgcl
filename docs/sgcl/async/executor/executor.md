@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::executor
 
@@ -58,4 +58,4 @@ hello from the executor's thread
 ## See also
 
 - [run](run.md), [poll](poll.md): a thread runs the executor
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

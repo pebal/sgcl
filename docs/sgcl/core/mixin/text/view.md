@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::view, operator view_type
 
@@ -33,7 +33,7 @@ None.
 ## Notes
 
 The view holds nothing: it is valid while some string or slice holds the characters, and one taken from a
-temporary dangles as it would from a `std::string`. A [slice](../../slice.md) of the text holds its object, and is
+temporary dangles as it would from a `std::string`. A [slice](../../slice/README.md) of the text holds its object, and is
 the piece to keep.
 
 ## Example
@@ -74,5 +74,5 @@ Output:
 ## See also
 
 - [str](str.md): the characters as a `std::basic_string`, a copy
-- [slice](../../slice.md): a piece of the text that holds it
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [slice](../../slice/README.md): a piece of the text that holds it
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::permutation
 
@@ -17,7 +17,7 @@ The numbers `0 … n - 1` in a random order, every order as likely: the numbers 
 
 ## Return value
 
-A [vector](../../core/vector.md) of the `n` numbers; empty for `n` of zero.
+A [vector](../../core/vector/README.md) of the `n` numbers; empty for `n` of zero.
 
 ## Complexity
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [shuffle](shuffle.md): the elements of a range of one's own in a random order
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::emplace_front
 
@@ -56,4 +56,4 @@ Output:
 ## See also
 
 - [push_front](push_front.md): the list with a copy of a value in front
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

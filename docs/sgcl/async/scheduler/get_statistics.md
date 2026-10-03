@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::get_statistics
 
@@ -63,4 +63,4 @@ now: 2 workers, 0 tasks queued
 
 - [workers](workers.md): the number of workers, the scheduler started
 - [blocking_pool::get_statistics](../blocking_pool/get_statistics.md): the same for the blocking pool
-- [sgcl::async::scheduler](../scheduler.md)
+- [sgcl::async::scheduler](README.md)

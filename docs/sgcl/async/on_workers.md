@@ -20,10 +20,10 @@ namespace sgcl::async {
 }
 ```
 
-An awaitable that moves the task to the pool of workers of the [scheduler](scheduler.md): after
+An awaitable that moves the task to the pool of workers of the [scheduler](scheduler/README.md): after
 `co_await async::on_workers()` the task goes on on a worker from the next line, and whatever it awaits from then on
 wakes it on the pool. A task on a worker with no executor goes on at once, without a hop. It is the way back from an
-[executor](executor.md) or a [strand](strand.md): a task that left the main thread for a computation. Kotlin's
+[executor](executor/README.md) or a [strand](strand/README.md): a task that left the main thread for a computation. Kotlin's
 `withContext(Dispatchers.Default)`; [on](on.md) is the way to an executor.
 
 ## Parameters
@@ -82,5 +82,5 @@ on a worker after: true
 ## See also
 
 - [on](on.md): to an executor or a strand
-- [scheduler](scheduler.md): the pool of workers
-- [executor](executor.md): a task on a thread of the program's choosing
+- [scheduler](scheduler/README.md): the pool of workers
+- [executor](executor/README.md): a task on a thread of the program's choosing

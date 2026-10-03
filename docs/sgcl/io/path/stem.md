@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::stem
 
@@ -89,4 +89,4 @@ photos/a.jpeg -> a.jpg
 - [ext](ext.md): the extension
 - [base](base.md): the last element
 - [walk_dir](../walk_dir.md), [rename](../rename.md): the walk and the rename of the second program
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

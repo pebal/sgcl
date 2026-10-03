@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::collator
 
@@ -20,7 +20,7 @@ Constructs a collator of the root order or of a language's.
 4. The root order with the strength and the settings of `how`.
 5. The order of the language of `where`, with the strength of `how`; each setting `how` gives overrules the
    language's, and each it leaves unset takes the language's.
-6. (2) for the language the tag `tag` names, read as [locale](../locale.md)`(tag)` reads it: `txt::collator("pl")`,
+6. (2) for the language the tag `tag` names, read as [locale](../locale/README.md)`(tag)` reads it: `txt::collator("pl")`,
    a BCP-47 tag or a POSIX name (`pl-PL`, `pl_PL.UTF-8`); an unknown tag is the root order.
 7. (5) for the language the tag `tag` names.
 
@@ -84,4 +84,4 @@ true true
 
 - [options](../collator-options.md): the settings
 - [tailored](tailored.md): whether the language has an order of its own
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

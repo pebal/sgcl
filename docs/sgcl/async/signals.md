@@ -36,7 +36,7 @@ went, until [reset_signals](reset_signals.md) or [ignore_signals](ignore_signals
 
 ## Return value
 
-The channel of the numbers delivered: a [channel](channel.md) as any other, a handle copied into the tasks that
+The channel of the numbers delivered: a [channel](channel/README.md) as any other, a handle copied into the tasks that
 wait on it, and in a global a `rooted<async::channel<int>>` ([Handles](README.md#handles)).
 
 ## Complexity
@@ -115,5 +115,5 @@ Output:
 - [reset_signals](reset_signals.md): the disposition from before back
 - [ignore_signals](ignore_signals.md): the signals ignored
 - [run](run.md): the entry of a program, whose token the first SIGINT or SIGTERM stops, over these channels
-- [stop_token](stop_token.md): the stop a signal usually requests, handed down as a token
-- [channel](channel.md), [select](select.md): what `signals` returns, and where it is a case
+- [stop_token](stop_token/README.md): the stop a signal usually requests, handed down as a token
+- [channel](channel/README.md), [select](select.md): what `signals` returns, and where it is a case

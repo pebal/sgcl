@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [txt](README.md) › [growing_sink](growing_sink.md) › lent_t
+[sgcl](../README.md) › [txt](README.md) › [growing_sink](growing_sink/README.md) › lent_t
 
 # sgcl::txt::growing_sink::lent_t
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [growing_sink](growing_sink/growing_sink.md): the constructor that takes it
-- [sgcl::txt::growing_sink](growing_sink.md)
+- [sgcl::txt::growing_sink](growing_sink/README.md)

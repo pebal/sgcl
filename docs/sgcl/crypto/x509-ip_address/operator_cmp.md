@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [ip_address](../x509-ip_address.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [ip_address](README.md)
 
 # sgcl::crypto::x509::operator==, operator!= (sgcl::crypto::x509::ip_address)
 
@@ -56,4 +56,4 @@ true
 
 ## See also
 
-- [sgcl::crypto::x509::ip_address](../x509-ip_address.md)
+- [sgcl::crypto::x509::ip_address](README.md)

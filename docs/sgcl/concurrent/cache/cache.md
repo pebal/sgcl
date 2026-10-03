@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::cache
 
@@ -41,7 +41,7 @@ The capacity, the time to live and the sample are fixed for the life of the cach
 an exact LRU closer than the default 8, at a longer eviction: a `put` at capacity measured 1000 ns against 740
 ([Benchmarks: The cost of a cache operation](../benchmarks.md#the-cost-of-a-cache-operation)). A capacity whose
 buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed allocation does
-([collector](../../core/collector.md#the-memory-limit)): the map gets its buckets for the capacity up front, as
+([collector](../../core/collector/README.md#the-memory-limit)): the map gets its buckets for the capacity up front, as
 [map](../map/map.md) does.
 
 ## Example
@@ -87,4 +87,4 @@ false
 ## See also
 
 - [put](put.md): inserts a value, and evicts down to the capacity
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

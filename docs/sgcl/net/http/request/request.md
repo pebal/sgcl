@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::request
 
@@ -7,9 +7,9 @@ request(const string& method, const string& url) noexcept;
 ```
 
 Constructs a request to send, Go's `http.NewRequest`: the method as given (`"GET"`, `"POST"`, a method of the
-program's own), the URL parsed now by [net::url](../../url.md). A URL that does not parse is not an error here: the
+program's own), the URL parsed now by [net::url](../../url/README.md). A URL that does not parse is not an error here: the
 send reports it, `net::errc::invalid_url`, and [url](url.md) throws for it; so does a text past 512 MiB ([the
-limit](../../url.md#rules)). A method that is not a token is refused by
+limit](../../url/README.md#rules)). A method that is not a token is refused by
 the send in the same way, before a connection is dialed. The request has no fields and no body until the program sets
 them. The copy constructor is the implicit one: a copy is the same request.
 
@@ -57,4 +57,4 @@ GET no URL at all: invalid URL
 
 - [set_header](set_header.md), [set_body](set_body.md): what goes with it
 - [send](../client/send.md): the request sent
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

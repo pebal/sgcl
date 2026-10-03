@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::fixed
 
@@ -70,4 +70,4 @@ sgcl::time::zone::fixed: an offset of a day or more
 
 - [utc](utc.md): the offset of zero
 - [from_posix](from_posix.md): an offset with the rules of daylight saving time
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

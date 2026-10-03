@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](README.md)
 
 # sgcl::txt::fold_matches::pattern
 
@@ -6,8 +6,8 @@
 const searcher_type& pattern() const noexcept;
 ```
 
-Returns the pattern the range looks for, mapped: a [fold_searcher](../fold_searcher.md) for `fold_matches`, a
-[normalized_searcher](../fold_searcher.md) for `normalized_matches`. Its [pattern](../fold_searcher/pattern.md) is
+Returns the pattern the range looks for, mapped: a [fold_searcher](../fold_searcher/README.md) for `fold_matches`, a
+[normalized_searcher](../fold_searcher/README.md) for `normalized_matches`. Its [pattern](../fold_searcher/pattern.md) is
 the text as it was given.
 
 ## Parameters
@@ -50,4 +50,4 @@ Fuß: 4 code points, 2 matches
 ## See also
 
 - [text](text.md): the text
-- [sgcl::txt::fold_matches, normalized_matches](../fold_matches.md)
+- [sgcl::txt::fold_matches, normalized_matches](README.md)

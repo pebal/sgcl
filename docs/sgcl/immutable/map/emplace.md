@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::emplace
 
@@ -60,4 +60,4 @@ Output:
 
 - [insert](insert.md): the map with an element added when its key is absent
 - [set](set.md): the map with a value added or in place of the one there
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

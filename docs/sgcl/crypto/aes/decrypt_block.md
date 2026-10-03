@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes](../aes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes](README.md)
 
 # sgcl::crypto::aes::decrypt_block
 
@@ -60,4 +60,4 @@ Output:
 ## See also
 
 - [encrypt_block](encrypt_block.md): encrypts one block
-- [sgcl::crypto::aes](../aes.md)
+- [sgcl::crypto::aes](README.md)

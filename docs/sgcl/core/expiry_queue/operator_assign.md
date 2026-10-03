@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](README.md)
 
 # sgcl::expiry_queue\<T\>::operator=
 
@@ -78,4 +78,4 @@ texture 2
 
 - [clear](clear.md): drops every entry without calling its function
 - [(constructor)](expiry_queue.md): takes the entries of another queue over
-- [sgcl::expiry_queue\<T\>](../expiry_queue.md)
+- [sgcl::expiry_queue\<T\>](README.md)

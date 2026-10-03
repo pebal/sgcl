@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::contains
 
@@ -61,4 +61,4 @@ true false
 
 - [find](find.md): the element under a key, as an iterator
 - [count](count.md): the number of elements under a key
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::pool
 
@@ -7,7 +7,7 @@ static intern& pool() noexcept;
 ```
 
 Returns the default pool of the type, one for the program: a managed object under a
-[root_ptr](../../core/root_ptr.md), made on the first call from any thread.
+[root_ptr](../../core/root_ptr/README.md), made on the first call from any thread.
 
 ## Parameters
 
@@ -63,4 +63,4 @@ true
 
 - [make](make.md): `of` on the default pool
 - [intern_string](../intern_string.md): the interned string from the default pool of strings
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

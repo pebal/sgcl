@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [maphash](../maphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [maphash](README.md)
 
 # sgcl::hash::maphash::digest
 
@@ -52,4 +52,4 @@ Sample output:
 ## See also
 
 - [value](value.md): the hash as a number
-- [sgcl::hash::maphash](../maphash.md)
+- [sgcl::hash::maphash](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [words](../words.md) › [iterator](../words-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [words](../words/README.md) › [iterator](README.md)
 
 # sgcl::txt::words::iterator::pos
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [size](size.md): the bytes the element takes
-- [sgcl::txt::words::iterator](../words-iterator.md)
+- [sgcl::txt::words::iterator](README.md)

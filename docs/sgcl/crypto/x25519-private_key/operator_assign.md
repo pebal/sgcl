@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::operator=
 
@@ -57,4 +57,4 @@ Output:
 ## See also
 
 - [(constructor)](x25519-private_key.md): the same for a construction
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [sgcl::crypto::x25519::private_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::try_pop
 
@@ -70,4 +70,4 @@ nullopt
 
 - [pop](pop.md): waits for an element
 - [try_push](try_push.md), [push](push.md): the producer's side
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

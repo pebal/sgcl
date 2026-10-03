@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [io](../README.md) › [req](README.md)
 
 # sgcl::io::req::writer, async_writer
 
@@ -17,7 +17,7 @@ namespace sgcl::io::req {
 
 `writer` is a stream written on the calling thread: `t.write(b)` with a `slice<const byte>` gives something
 convertible to `expected<size_t, io::error>`. A write writes all of `b`, and gives its size, or fails with an
-[error](../error.md) that says how far it got, as Go's `Write`. Where `T` has no such method, the object called,
+[error](../error/README.md) that says how far it got, as Go's `Write`. Where `T` has no such method, the object called,
 `t(b)`, does the same, and a callable may also return nothing: a lambda that takes the bytes is a writer that
 writes all it is given and does not fail. A plain `size_t` is a stream that does not fail either.
 
@@ -29,9 +29,9 @@ The task gives its worker back while it waits, where `write` holds the calling t
 it, looked through; never a raw pointer. A type that has a `read`, `write`, `async_read` or `async_write` of any
 shape is never taken for a callable. It is Go's `io.Writer`, asked of the type by the compiler:
 [write](../write.md) of text or bytes and [copy](../copy.md) take every writer, their `async_` forms every async
-writer, and [io::writer](../writer.md) holds either as a value. The two halves are separate requirements: a stream
+writer, and [io::writer](../writer/README.md) holds either as a value. The two halves are separate requirements: a stream
 that has only `write` is not an async writer, and `async_write` and `async_copy` into it do not compile;
-[io::writer](../writer.md) makes the missing half when it is wanted, its `async_write` of a stream that has only
+[io::writer](../writer/README.md) makes the missing half when it is wanted, its `async_write` of a stream that has only
 `write` running the write on the [blocking pool](../../async/spawn_blocking.md).
 
 ## Satisfied by
@@ -126,6 +126,6 @@ true false
 ## See also
 
 - [reader, async_reader](reader.md): the other direction
-- [io::writer](../writer.md): any writer held as a value, both halves made
-- [mixin::writer](../mixin/writer.md): the rest of a writer over `write`
-- [sgcl::io::req](../req.md)
+- [io::writer](../writer/README.md): any writer held as a value, both halves made
+- [mixin::writer](../mixin/writer/README.md): the rest of a writer over `write`
+- [sgcl::io::req](README.md)

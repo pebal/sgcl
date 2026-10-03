@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::orientation
 
@@ -84,4 +84,4 @@ Output:
 - [oriented](oriented.md): the image as it is meant to be shown
 - [exif](exif.md): the block the orientation is read from
 - [set_orientation](set_orientation.md): sets the orientation
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

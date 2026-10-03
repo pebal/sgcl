@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [logger](../logger.md)
+[sgcl](../../README.md) › [slog](../README.md) › [logger](README.md)
 
 # sgcl::slog::logger::group
 
@@ -10,7 +10,7 @@ Returns a logger that puts every later attribute, of its [with](with.md) and of 
 `name`, slog's `WithGroup`. In text the group's name stands before the keys with a dot (`req.path=/users`); in JSON
 the group is an object (`"req":{"path":"/users"}`). A group that a record would leave empty is not written. A
 handler of the program gets the group as an attribute of kind group holding what came after it
-([record](../record.md)).
+([record](../record/README.md)).
 
 The new logger shares this one's output; this one writes as it did.
 
@@ -63,5 +63,5 @@ time=2026-09-28T14:05:01.123+02:00 level=INFO msg="nothing in the group" service
 ## See also
 
 - [with](with.md)
-- [sgcl::slog::group](../group.md): a group as one argument of a record
-- [sgcl::slog::logger](../logger.md)
+- [sgcl::slog::group](../group/README.md): a group as one argument of a record
+- [sgcl::slog::logger](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::resume
 
@@ -80,4 +80,4 @@ step 3
 - [spawn](spawn.md): runs the task on the scheduler instead
 - [done](done.md), [result](result.md): whether it ended, and its value
 - [frame_ptr::resume](../../core/frame_ptr/resume.md): the managed frame's resume
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

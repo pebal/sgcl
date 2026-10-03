@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::effective_port
 
@@ -54,4 +54,4 @@ sc://x/ 0
 ## See also
 
 - [port](port.md): the port written
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

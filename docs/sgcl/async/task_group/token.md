@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::token
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-A [stop_token](../stop_token.md) of the group's source.
+A [stop_token](../stop_token/README.md) of the group's source.
 
 ## Complexity
 
@@ -56,5 +56,5 @@ stopped
 ## See also
 
 - [request_stop](request_stop.md), [stop_requested](stop_requested.md): the stop of the scope
-- [stop_token](../stop_token.md): what the token offers
-- [sgcl::async::task_group](../task_group.md)
+- [stop_token](../stop_token/README.md): what the token offers
+- [sgcl::async::task_group](README.md)

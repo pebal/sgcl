@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::body
 
@@ -6,9 +6,9 @@
 io::reader body() const noexcept;
 ```
 
-Returns the body of a received request as a [stream](../../../io/reader.md), Go's `r.Body`, for a body read in parts as
+Returns the body of a received request as a [stream](../../../io/reader/README.md), Go's `r.Body`, for a body read in parts as
 it comes: an upload copied to a file, lines read one at a time through a
-[buffered_reader](../../../io/buffered_reader.md). Every read is bounded by the server's `max_body_bytes`, as for
+[buffered_reader](../../../io/buffered_reader/README.md). Every read is bounded by the server's `max_body_bytes`, as for
 [text](text.md), and the end of the stream is the end of the body. The stream has no close of its own
 ([has_close](../../../io/reader/has_close.md) is `false`): what a handler leaves unread is read for it after it
 returns, up to 256 KB, and past that the connection is closed. A request without a body gives an empty stream, one for
@@ -76,4 +76,4 @@ Output:
 ## See also
 
 - [text](text.md), [bytes](bytes.md): the whole body at once
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

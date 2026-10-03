@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](../growing_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](README.md)
 
 # sgcl::txt::growing_sink::text
 
@@ -6,7 +6,7 @@
 string text() const;
 ```
 
-The text, once the walk is over: the characters of [view](view.md), copied into a [string](../../core/string.md). Of
+The text, once the walk is over: the characters of [view](view.md), copied into a [string](../../core/string/README.md). Of
 room that was [lent](../growing_sink-lent_t.md) and never added to there is no whole text to hand back — what did
 not fit was dropped — so that road asks [size](size.md) instead.
 
@@ -61,4 +61,4 @@ Output:
 ## See also
 
 - [view](view.md): the characters where they stand
-- [sgcl::txt::growing_sink](../growing_sink.md)
+- [sgcl::txt::growing_sink](README.md)

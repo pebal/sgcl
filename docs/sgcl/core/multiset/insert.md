@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::insert
 
@@ -50,7 +50,7 @@ goes in front of the elements with that key, which stay adjacent.
 | `value` | the element to insert |
 | `first`, `last` | the range of the elements to insert |
 | `ilist` | the list of the elements to insert |
-| `nh` | a node handle from [extract](extract.md) of a multiset or a [set](../set.md) |
+| `nh` | a node handle from [extract](extract.md) of a multiset or a [set](../set/README.md) |
 
 ## Return value
 
@@ -118,4 +118,4 @@ q 8 true
 - [emplace](emplace.md): constructs the element in place
 - [extract](extract.md): takes a node out of a multiset
 - [merge](merge.md): relinks every node of another multiset
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

@@ -22,7 +22,7 @@ None.
 ## Return value
 
 The two ends, [pipe_ends](pipe_ends.md): `ends.read` and `ends.write`, or `auto [r, w] = io::pipe().value();`. Or the
-[error](error.md), its operation `pipe`, with the `errno` of `pipe(2)` (`EMFILE` when the process has no
+[error](error/README.md), its operation `pipe`, with the `errno` of `pipe(2)` (`EMFILE` when the process has no
 descriptor left).
 
 ## Complexity
@@ -39,7 +39,7 @@ The reader sees the end, a read of 0, once the write end is closed: by [close](f
 when nothing holds it any more, which may be long after. Close the write end when done.
 
 A write to a pipe whose read end is closed fails with `EPIPE`; it raises no `SIGPIPE`, which would end the process,
-as a write to a [net](../net/README.md) connection whose peer is gone does not. The pipes [command](command.md)
+as a write to a [net](../net/README.md) connection whose peer is gone does not. The pipes [command](command/README.md)
 makes give the child's end the signal back, as a program at a shell's pipe expects.
 
 ## Example
@@ -99,5 +99,5 @@ still running
 ## See also
 
 - [pipe_ends](pipe_ends.md): the two ends
-- [command](command.md): a child process's standard streams through pipes
-- [sgcl::io::file](file.md)
+- [command](command/README.md): a child process's standard streams through pipes
+- [sgcl::io::file](file/README.md)

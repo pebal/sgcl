@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [sentences](../sentences.md)
+[sgcl](../../README.md) › [txt](../README.md) › [sentences](README.md)
 
 # sgcl::txt::sentences::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../sentences-iterator.md) to the first of the sentences, found: at byte position 0. For a text
+Returns an [iterator](../sentences-iterator/README.md) to the first of the sentences, found: at byte position 0. For a text
 with no bytes it equals [end](end.md).
 
 ## Parameters
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [end](end.md): the iterator past the last element
-- [sgcl::txt::sentences](../sentences.md)
+- [sgcl::txt::sentences](README.md)

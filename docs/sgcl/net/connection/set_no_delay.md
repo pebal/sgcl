@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::set_no_delay
 
@@ -18,7 +18,7 @@ more. TCP only.
 
 ## Return value
 
-Nothing; or the [io::error](../../io/error.md), its operation `set_no_delay`: `EOPNOTSUPP` for a unix socket or a
+Nothing; or the [io::error](../../io/error/README.md), its operation `set_no_delay`: `EOPNOTSUPP` for a unix socket or a
 pair in memory, `io::errc::closed` on a connection closed, the `errno` of `setsockopt` otherwise.
 
 ## Complexity
@@ -57,4 +57,4 @@ set_no_delay pipe: Operation not supported on socket
 ## See also
 
 - [set_keep_alive](set_keep_alive.md): the other TCP option
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

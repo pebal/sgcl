@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::starts_with
 
@@ -59,4 +59,4 @@ true true
 ## See also
 
 - [ends_with](ends_with.md): the other end
-- [sgcl::txt::collated_text](../collated_text.md)
+- [sgcl::txt::collated_text](README.md)

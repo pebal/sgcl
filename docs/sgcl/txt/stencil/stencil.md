@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil](../stencil.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil](README.md)
 
 # sgcl::txt::stencil::stencil
 
@@ -13,7 +13,7 @@ explicit stencil(const string& source, const stencil_functions& functions);    /
    [parse](parse.md), or `bad_expected_access<stencil_error>` with parse's error and its message. A source read from
    outside the program — a file, a setting — is parsed; one the program itself wrote is constructed, and a slip in
    it is the mistake of the program, found the first time the line runs.
-3. The same with the program's own table of [functions](../stencil_functions.md), whose functions the template keeps.
+3. The same with the program's own table of [functions](../stencil_functions/README.md), whose functions the template keeps.
 
 ## Parameters
 
@@ -63,4 +63,4 @@ Hello, Ada!
 ## See also
 
 - [parse](parse.md): a source that may be wrong
-- [sgcl::txt::stencil](../stencil.md)
+- [sgcl::txt::stencil](README.md)

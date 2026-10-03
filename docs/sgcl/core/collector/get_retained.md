@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_retained
 
@@ -77,4 +77,4 @@ Output:
 
 - [retained](../collector-retained.md): the fields
 - [explain](explain.md): what holds an object and what it retains, as text
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

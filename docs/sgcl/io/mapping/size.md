@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::mapping::size
 
@@ -52,4 +52,4 @@ Output:
 
 - [data](data.md): the bytes
 - [map_options](../map_options.md): `offset` and `length`, the range
-- [sgcl::io::mapping](../mapping.md)
+- [sgcl::io::mapping](README.md)

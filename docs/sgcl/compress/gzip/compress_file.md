@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](README.md)
 
 # sgcl::compress::gzip::compress_file, async_compress_file
 
@@ -29,7 +29,7 @@ once the `.gz` is whole, as gzip without `-k`. A failure removes the half-made `
 
 ## Return value
 
-Nothing, or the [error](../error.md): a failure of the file system (`errc::io`, the `io::error` in
+Nothing, or the [error](../error/README.md): a failure of the file system (`errc::io`, the `io::error` in
 [io_error](../error/io_error.md)): the file missing, the `.gz` not writable, the original not removable. No data is
 read, so the error has no place: its message is `input/output error: ` and the stream's message.
 
@@ -108,4 +108,4 @@ croissant, 4.50
 
 - [decompress_file](decompress_file.md): the other way
 - [file_options](../gzip-file_options.md)
-- [sgcl::compress::gzip](../gzip.md)
+- [sgcl::compress::gzip](README.md)

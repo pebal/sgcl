@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::max_size
 
@@ -49,4 +49,4 @@ true
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

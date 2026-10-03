@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::value_or
 
@@ -12,7 +12,7 @@ T value_or(const K& key, const T& fallback) const         // (2)
 
 Returns a copy of the value under `key`, or `fallback` when the key is not there: the search of [find](find.md),
 then a copy of what it found. It is the `value_or` of the library's other maps
-([mixin::lookup](../../core/mixin/lookup.md)).
+([mixin::lookup](../../core/mixin/lookup/README.md)).
 
 1. The key is of the key type.
 2. The key is of any type the hash and the equality take. Takes part only when `Hash` and `KeyEqual` both declare
@@ -80,4 +80,4 @@ ada true
 
 - [find](find.md): an iterator to the element
 - [contains](contains.md): checks whether a key is there
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

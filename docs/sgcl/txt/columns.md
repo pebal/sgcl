@@ -35,7 +35,7 @@ by the one that draws it.
 
 1. The cells of the code point `c`: 0, 1 or 2.
 2. The sum over the code points of a text slice.
-3. The sum over the code points of a [string](../core/string.md).
+3. The sum over the code points of a [string](../core/string/README.md).
 4. The sum over a literal or another array of `char`, up to its first NUL or its end, whichever comes first: a
    literal does not count its terminating zero.
 5. The sum over a C text, up to its NUL; a null pointer is the empty text, and `nullptr` itself does not compile.

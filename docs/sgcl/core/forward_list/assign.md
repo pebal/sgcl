@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::assign
 
@@ -72,4 +72,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns another list or a list of values
 - [resize](resize.md): changes the number of elements
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

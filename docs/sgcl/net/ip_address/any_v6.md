@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::any_v6
 
@@ -49,4 +49,4 @@ Output:
 
 - [any_v4](any_v4.md): the same of the other family
 - [is_unspecified](is_unspecified.md): the predicate
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md) › [builder](../map-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](../map/README.md) › [builder](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::erase
 
@@ -74,4 +74,4 @@ Output:
 ## See also
 
 - [insert](insert.md), [set](set.md): add an element
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](../map-builder.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](README.md)

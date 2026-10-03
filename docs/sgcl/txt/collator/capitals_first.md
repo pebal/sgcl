@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::capitals_first
 
@@ -52,4 +52,4 @@ pl:false da:true mt:true cu:true
 ## See also
 
 - [case_order](../case_order.md), [options](../collator-options.md)
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

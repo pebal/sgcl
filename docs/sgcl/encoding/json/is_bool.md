@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::is_bool
 
@@ -59,4 +59,4 @@ missing false
 
 - [type](type.md): the kind of the value
 - [as_bool](as_bool.md): the boolean
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

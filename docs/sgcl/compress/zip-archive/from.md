@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](../zip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](README.md)
 
 # sgcl::compress::zip::archive::from
 
@@ -19,7 +19,7 @@ of unmanaged memory is the caller's to keep.
 
 ## Return value
 
-The archive, or the [error](../error.md) as [open](open.md) gives it.
+The archive, or the [error](../error/README.md) as [open](open.md) gives it.
 
 ## Complexity
 
@@ -63,4 +63,4 @@ offset 0: zip: not a zip file
 ## See also
 
 - [open](open.md): an archive of a file
-- [sgcl::compress::zip::archive](../zip-archive.md)
+- [sgcl::compress::zip::archive](README.md)

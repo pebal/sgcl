@@ -70,4 +70,4 @@ Output:
 ## See also
 
 - [format](format.md#a-type-of-ones-own): a type of one's own
-- [format_sink](format_sink.md), [format_spec](format_spec.md): what it is handed
+- [format_sink](format_sink/README.md), [format_spec](format_spec.md): what it is handed

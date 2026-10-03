@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw.md) › [writer](../lzw-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw/README.md) › [writer](README.md)
 
 # sgcl::compress::lzw::writer::close, async_close
 
@@ -63,4 +63,4 @@ true
 ## See also
 
 - [is_closed](is_closed.md)
-- [sgcl::compress::lzw::writer](../lzw-writer.md)
+- [sgcl::compress::lzw::writer](README.md)

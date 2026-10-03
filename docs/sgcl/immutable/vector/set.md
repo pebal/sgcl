@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::set
 
@@ -78,4 +78,4 @@ out of range: sgcl::immutable::vector::set
 - [at](at.md), [operator[]](operator_at.md): the element at a position
 - [push_back](push_back.md): the vector with one more element at the end
 - [update](update.md): the vector with a function of an element in its place
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

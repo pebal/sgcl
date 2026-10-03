@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::ascii_run
 
@@ -60,4 +60,4 @@ Output:
 ## See also
 
 - [all_ascii](all_ascii.md): whether the whole text is ASCII
-- [sgcl::utf8](../utf8.md)
+- [sgcl::utf8](README.md)

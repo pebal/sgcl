@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_task](../blocking_task.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_task](README.md)
 
 # sgcl::async::blocking_task\<T\>::on_done
 
@@ -69,4 +69,4 @@ timed out
 
 - [select](../select.md), [timeout](../timeout.md): the select and its timeout case
 - [wait, operator co_await](wait.md): the plain wait
-- [sgcl::async::blocking_task\<T\>](../blocking_task.md)
+- [sgcl::async::blocking_task\<T\>](README.md)

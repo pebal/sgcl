@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::query_params
 
@@ -9,10 +9,10 @@ net::query_params query_params() const noexcept;
 The pairs of the query, unescaped, as [query_params::parse](../query_params/parse.md) reads them
 (`application/x-www-form-urlencoded`): Go's `URL.Query()`. A name may come many times, in its order.
 
-It never fails. The query is within [the limit](../url.md#rules) of 512 MiB, and its pairs are taken whole, though
+It never fails. The query is within [the limit](README.md#rules) of 512 MiB, and its pairs are taken whole, though
 written by the form's rules they may take up to three times it (a `/` the query keeps and the form escapes), where
 `parse` would refuse them: [add](../query_params/add.md) and [set](../query_params/set.md) refuse to grow such pairs,
-and [with_query](with_query.md) refuses them ([the limit](../query_params.md#rules) of query_params).
+and [with_query](with_query.md) refuses them ([the limit](../query_params/README.md#rules) of query_params).
 
 ## Parameters
 
@@ -61,4 +61,4 @@ tag=go
 
 - [query](query.md): the query as it is written
 - [with_query](with_query.md): a URL with pairs as its query
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::fd
 
@@ -52,4 +52,4 @@ true
 
 - [from_fd](../from_fd.md): a file over a descriptor opened elsewhere
 - [close](close.md): gives the descriptor back
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

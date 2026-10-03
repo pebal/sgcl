@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::push_back
 
@@ -11,7 +11,7 @@ instruction. The node itself never changes. The new node copies the arrays of at
 the children, `child` among them: a subtree is put in many trees without a copy.
 
 Each call copies the array of children, so an element of n children made by n calls costs n²: an element of many
-children is made with [builder](../xml-builder.md).
+children is made with [builder](../xml-builder/README.md).
 
 ## Parameters
 
@@ -61,6 +61,6 @@ sgcl::encoding::xml::push_back: xml() is no node
 
 ## See also
 
-- [builder](../xml-builder.md): an element made a child at a time
+- [builder](../xml-builder/README.md): an element made a child at a time
 - [children](children.md): the nodes inside an element
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

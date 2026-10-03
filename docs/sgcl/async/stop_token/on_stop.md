@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::stop_token::on_stop
 
@@ -72,4 +72,4 @@ stopped
 - [stopped](stopped.md): the wait for the stop alone
 - [timeout](../timeout.md): a deadline as a case beside it
 - [select](../select.md): what the case is given to
-- [sgcl::async::stop_token](../stop_token.md)
+- [sgcl::async::stop_token](README.md)

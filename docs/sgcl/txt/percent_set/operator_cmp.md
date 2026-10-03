@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [percent_set](../percent_set.md)
+[sgcl](../../README.md) › [txt](../README.md) › [percent_set](README.md)
 
 # sgcl::txt::percent_set::operator==
 
@@ -49,4 +49,4 @@ true
 
 ## See also
 
-- [sgcl::txt::percent_set](../percent_set.md)
+- [sgcl::txt::percent_set](README.md)

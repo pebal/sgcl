@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::chmod, async_chmod
 
@@ -20,7 +20,7 @@ Sets the permissions of the open file to `p`: the `fchmod(2)` of the descriptor.
 
 ## Return value
 
-Nothing, or the [error](../error.md), its operation `chmod` and its path the file's: `errc::closed` for a closed
+Nothing, or the [error](../error/README.md), its operation `chmod` and its path the file's: `errc::closed` for a closed
 file, otherwise the `errno` of `fchmod(2)` (`EPERM` for a file of another user).
 
 ## Complexity
@@ -58,4 +58,4 @@ true
 
 - [permissions](../permissions.md): the bits
 - [chmod](../chmod.md): the same of a path
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

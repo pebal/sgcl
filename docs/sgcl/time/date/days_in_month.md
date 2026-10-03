@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::days_in_month
 
@@ -50,4 +50,4 @@ Output:
 
 - [day](day.md): the day of the month
 - [is_leap_year](is_leap_year.md): whether February has 29 days
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

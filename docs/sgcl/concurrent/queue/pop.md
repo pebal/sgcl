@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [queue](README.md)
 
 # sgcl::concurrent::queue\<T\>::pop
 
@@ -68,4 +68,4 @@ hello world
 
 - [try_pop](try_pop.md): returns at once when the queue is empty
 - [push](push.md): appends an element and wakes a waiting `pop`
-- [sgcl::concurrent::queue\<T\>](../queue.md)
+- [sgcl::concurrent::queue\<T\>](README.md)

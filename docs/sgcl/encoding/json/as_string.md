@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::as_string
 
@@ -7,7 +7,7 @@ optional<string> as_string() const noexcept;                // (1)
 string as_string(const string& fallback) const noexcept;    // (2)
 ```
 
-The string of the value, its characters with the escapes of the text decoded. The [string](../../core/string.md)
+The string of the value, its characters with the escapes of the text decoded. The [string](../../core/string/README.md)
 given is the value's own, shared, not copied. Nothing is converted: a number, kept as its text or not, is not a
 string ([number_text](number_text.md) gives its literal, [to_string](to_string.md) its text).
 
@@ -62,4 +62,4 @@ nullopt
 
 - [is_string](is_string.md): whether the value is a string
 - [to_string](to_string.md): the text of any value
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

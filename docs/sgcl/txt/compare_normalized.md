@@ -13,7 +13,7 @@ namespace sgcl::txt {
 Compares two texts by the code points of their canonical decompositions, NFD: an order blind to the way they were
 written, zero exactly where [equal_normalized](equal_normalized.md) is `true`. It is the order of the code points,
 not a language's: `"Z"` comes before `"a"` and `"ą"` after `"z"`; the order a reader expects is a
-[collator](collator.md)'s.
+[collator](collator/README.md)'s.
 
 ## Parameters
 
@@ -58,5 +58,5 @@ Output:
 ## See also
 
 - [equal_normalized](equal_normalized.md): the equality this order agrees with
-- [collator](collator.md): the order of a language
+- [collator](collator/README.md): the order of a language
 - [txt](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::insert_or_assign
 
@@ -96,4 +96,4 @@ a 2 false
 
 - [try_emplace](try_emplace.md): builds the element only when the key is absent, never assigns
 - [operator[]](operator_at.md): the value under a key, inserted when absent
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

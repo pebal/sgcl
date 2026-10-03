@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::go
 
@@ -90,4 +90,4 @@ Output:
 - [token](token.md): the token to give the children
 - [wait, operator co_await](wait.md): waits for every child
 - [go](../go.md): a task started outside a group
-- [sgcl::async::task_group](../task_group.md)
+- [sgcl::async::task_group](README.md)

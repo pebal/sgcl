@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::has_close
 
@@ -60,4 +60,4 @@ true false false
 ## See also
 
 - [close, async_close](close.md)
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

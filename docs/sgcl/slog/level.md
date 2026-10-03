@@ -12,7 +12,7 @@ namespace sgcl::slog {
 
 The importance of a record, slog's `Level`, with Go's numbers, so that the levels between them compare and read as
 Go's do. A logger writes the records at its level and above ([options](options.md)`::level`,
-[level_var](level_var.md)). Any value of `int8_t` is a level: one between the named ones is written from the
+[level_var](level_var/README.md)). Any value of `int8_t` is a level: one between the named ones is written from the
 nearest named level at or below it and the distance from it, `slog::level(2)` as `INFO+2`, `slog::level(10)` as
 `ERROR+2`, and one below `debug` from `debug`, `slog::level(-5)` as `DEBUG-1`.
 
@@ -54,6 +54,6 @@ true
 ## See also
 
 - [logger::log](logger/log.md): a record of any level
-- [level_var](level_var.md): a level changed while the program runs
+- [level_var](level_var/README.md): a level changed while the program runs
 - [options](options.md): the level a logger is made with
 - [sgcl::slog](README.md)

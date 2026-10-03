@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](../aead.md)
+[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](README.md)
 
 # sgcl::crypto::mixin::aead\<Derived\>::open
 
@@ -29,7 +29,7 @@ forgery is never decrypted, and nothing of it reaches the vector.
 
 ## Return value
 
-The plaintext, `sealed.size() - tag_size` bytes, or an [error](../../error.md) of
+The plaintext, `sealed.size() - tag_size` bytes, or an [error](../../error/README.md) of
 [errc::authentication](../../errc.md) ("message authentication failed") when the tag does not match (the data, the
 tag, the nonce, the additional data or the key is not the one sealed), when `sealed` is shorter than a tag and when
 it is longer than `max_plaintext_size + tag_size`. The error says nothing more.
@@ -48,7 +48,7 @@ the decryption.
 
 The plaintext is the user's data, not key material: a managed `vector<byte>`, freed by the collector in its time
 and zeroed by nobody. A plaintext that must not stay in memory, a key unwrapped or a password, is opened with
-[open_to](open_to.md) into a [secret_bytes](../../secret_bytes.md).
+[open_to](open_to.md) into a [secret_bytes](../../secret_bytes/README.md).
 
 The result is `[[nodiscard]]`: a verification whose result is dropped is a hole, and the compiler says so.
 
@@ -98,4 +98,4 @@ false
 - [seal](seal.md): encrypts and authenticates
 - [open_to](open_to.md): into the caller's buffer, in place too
 - [xchacha20_poly1305::open_random](../../xchacha20_poly1305/open_random.md): the nonce read from the front
-- [sgcl::crypto::mixin::aead\<Derived\>](../aead.md)
+- [sgcl::crypto::mixin::aead\<Derived\>](README.md)

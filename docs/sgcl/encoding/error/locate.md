@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::locate
 
@@ -60,4 +60,4 @@ offset 5: unexpected ','
 
 - [set_position](set_position.md): the line and the column given as they are
 - [line](line.md), [column](column.md): what it sets
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

@@ -18,7 +18,7 @@ namespace sgcl::txt {
 
 Returns the text laid into lines no wider than `width` **columns** ([columns](columns.md): terminal cells, not bytes
 and not code points), cut only where [UAX #14](https://www.unicode.org/reports/tr14/) allows a line to be broken
-([line_breaks](line_breaks.md)) and at the hard breaks the text already has. What a monospaced renderer and a table of
+([line_breaks](line_breaks/README.md)) and at the hard breaks the text already has. What a monospaced renderer and a table of
 columns need.
 
 A line is a slice of the text with its trailing spaces dropped, so nothing is copied. A piece wider than the limit on
@@ -81,7 +81,7 @@ Output:
 
 ## See also
 
-- [line_breaks](line_breaks.md): where a line may be broken
+- [line_breaks](line_breaks/README.md): where a line may be broken
 - [truncate](truncate.md): a text cut to a width
 - [columns](columns.md): the cells a text takes
 - [txt](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [tls](../README.md) › [identity](../identity.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [tls](../README.md) › [identity](README.md)
 
 # sgcl::net::tls::identity::from_pem
 
@@ -16,8 +16,8 @@ it and blocks of other labels are passed over, and it has to be a key TLS 1.3 si
 is not the leaf's, checked by a signature verified under the leaf's public key, is refused.
 
 The key's PEM is read where it lies and its DER goes straight into a
-[secret_bytes](../../../crypto/secret_bytes.md), then into the key's unmanaged block: given the bytes of
-[crypto::read_secret](../../../crypto/secret.md), the key never passes through managed memory. A `string` converts
+[secret_bytes](../../../crypto/secret_bytes/README.md), then into the key's unmanaged block: given the bytes of
+[crypto::read_secret](../../../crypto/secret/README.md), the key never passes through managed memory. A `string` converts
 too, but its bytes are managed; that is the caller's choice.
 
 ## Parameters
@@ -29,7 +29,7 @@ too, but its bytes are managed; that is the caller's choice.
 
 ## Return value
 
-The identity. Or the [io::error](../../../io/error.md), its operation `identity`:
+The identity. Or the [io::error](../../../io/error/README.md), its operation `identity`:
 
 - `crypto::errc::malformed` for a chain that is not PEM, a certificate that does not parse, no certificate, no
   private key block, a key of a kind TLS 1.3 does not sign with, a key that is not the leaf's;
@@ -88,4 +88,4 @@ true
 - [(constructor)](identity.md): the same, an error thrown
 - [certificates](certificates.md): the chain read
 - [crypto::x509](../../../crypto/x509.md): the certificates
-- [sgcl::net::tls::identity](../identity.md)
+- [sgcl::net::tls::identity](README.md)

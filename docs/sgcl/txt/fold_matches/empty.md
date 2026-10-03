@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](README.md)
 
 # sgcl::txt::fold_matches::empty
 
@@ -49,4 +49,4 @@ false true true
 ## See also
 
 - [count](count.md): the number of occurrences
-- [sgcl::txt::fold_matches, normalized_matches](../fold_matches.md)
+- [sgcl::txt::fold_matches, normalized_matches](README.md)

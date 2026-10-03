@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::replace_first
 
@@ -39,7 +39,7 @@ Linear in the length of the text times the length of the pattern.
 
 ## Exceptions
 
-`length_error` when the result is longer than 4294967295 bytes, the most a [string](../../core/string.md) holds.
+`length_error` when the result is longer than 4294967295 bytes, the most a [string](../../core/string/README.md) holds.
 
 ## Example
 
@@ -66,4 +66,4 @@ bAnana
 ## See also
 
 - [replace](replace.md): every match replaced
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

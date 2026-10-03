@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [multi_writer](../multi_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [multi_writer](README.md)
 
 # sgcl::io::multi_writer::write, async_write
 
@@ -65,4 +65,4 @@ before: [data], after: []
 
 ## See also
 
-- [sgcl::io::multi_writer](../multi_writer.md)
+- [sgcl::io::multi_writer](README.md)

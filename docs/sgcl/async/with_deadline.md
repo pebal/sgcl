@@ -17,18 +17,18 @@ namespace sgcl::async {
 ```
 
 A deadline on a task: the task's result, or an error when the deadline came first, Go's `context.WithDeadline`.
-The result is an [expected](../core/expected.md), as every failure of the library is; a task of nothing gives
+The result is an [expected](../core/expected/README.md), as every failure of the library is; a task of nothing gives
 `expected<void, …>`. What the task itself threw comes through as it is.
 
-1. The task raced against the point `when` of the module's clock; the error is [timed_out](timed_out.md).
+1. The task raced against the point `when` of the module's clock; the error is [timed_out](timed_out/README.md).
 2. The same, and the stop of `loser` requested when the point came first.
 3. The task raced against the stop of `token`: a source given a [stop_after](stop_source/stop_after.md) or a
    [stop_at](stop_source/stop_at.md), or stopped by hand, Go's context handed down; the error is
-   [stopped](stopped.md). The library cannot tell a deadline on the source from a stop by hand, as Go tells
+   [stopped](stopped/README.md). The library cannot tell a deadline on the source from a stop by hand, as Go tells
    `DeadlineExceeded` from `Canceled`. An empty token (`async::stop_token()`) is no deadline: the result is the
    task's.
 
-A point shared by several races, or a token, is one deadline for all of them. The result is a [task](task.md),
+A point shared by several races, or a token, is one deadline for all of them. The result is a [task](task/README.md),
 waited for as one: awaited, waited for from a thread (`.wait()`), spawned or not (a wait starts it).
 
 A task cannot be stopped from outside, so a deadline does not stop the task that lost: it runs on to its end and
@@ -123,7 +123,7 @@ Output:
 ## See also
 
 - [with_timeout](with_timeout.md): the same by a span
-- [timed_out](timed_out.md), [stopped](stopped.md): the errors
+- [timed_out](timed_out/README.md), [stopped](stopped/README.md): the errors
 - [stop_source::stop_after](stop_source/stop_after.md), [stop_source::stop_at](stop_source/stop_at.md): a deadline
   on a source
 - [timeout](timeout.md): a point as the deadline of a select

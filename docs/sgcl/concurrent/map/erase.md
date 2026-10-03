@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::erase
 
@@ -84,4 +84,4 @@ apple 3
 
 - [clear](clear.md): erases every element
 - [insert](insert.md), [try_emplace](try_emplace.md): insert elements
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

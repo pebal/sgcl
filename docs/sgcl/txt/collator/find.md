@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::find
 
@@ -55,7 +55,7 @@ None.
 
 The whole text is weighed on every call, into scratch the thread lends, so a loop over every occurrence weighs it
 once for each and is quadratic: `from` is there for a caller who wants the next one, not to make that loop cheap.
-A [collated_text](../collated_text.md) kept, or [collated_matches](../collated_matches.md), weighs the text once
+A [collated_text](../collated_text/README.md) kept, or [collated_matches](../collated_matches/README.md), weighs the text once
 ([Benchmarks: collation](../benchmarks.md#collation)).
 
 ## Example
@@ -88,5 +88,5 @@ false
 ## See also
 
 - [contains](contains.md), [starts_with](starts_with.md), [ends_with](ends_with.md)
-- [collated_matches](../collated_matches.md): every occurrence, the text weighed once
-- [sgcl::txt::collator](../collator.md)
+- [collated_matches](../collated_matches/README.md): every occurrence, the text weighed once
+- [sgcl::txt::collator](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::to_string
 
@@ -55,4 +55,4 @@ exit status 0; exit status 2; signal: killed
 ## See also
 
 - [exit_code](exit_code.md), [signal](signal.md): the parts of the text
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::stop_token::stop_possible
 
@@ -17,7 +17,7 @@ None.
 
 ## Return value
 
-`true` when the token came from a [stop_source](../stop_source.md), `false` for a token made by default.
+`true` when the token came from a [stop_source](../stop_source/README.md), `false` for a token made by default.
 
 ## Complexity
 
@@ -58,4 +58,4 @@ true
 
 - [stop_requested](stop_requested.md): whether the stop came
 - [(constructor)](stop_token.md): a token with no source
-- [sgcl::async::stop_token](../stop_token.md)
+- [sgcl::async::stop_token](README.md)

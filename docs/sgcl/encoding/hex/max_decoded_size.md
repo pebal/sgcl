@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::max_decoded_size
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [encoded_size](encoded_size.md): the other way
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

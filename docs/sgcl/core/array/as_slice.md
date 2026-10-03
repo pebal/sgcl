@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::as_slice, operator slice
 
@@ -11,7 +11,7 @@ operator slice<T>() noexcept;                                                 //
 operator slice<const T>() const noexcept;                                     // (6)
 ```
 
-Returns the elements as a [slice](../slice.md) without an owner, as a C array and a `std::array` give one: the
+Returns the elements as a [slice](../slice/README.md) without an owner, as a C array and a `std::array` give one: the
 array lives on a stack or inside an object, and whoever holds that keeps the elements.
 
 - (1–2) All the elements.
@@ -46,7 +46,7 @@ The slice does not keep the array alive: it is valid as long as the array is, as
 [dynamic_array](../dynamic_array/as_slice.md), which holds their managed buffer.
 
 `slice s(a)` deduces `slice<T>` from an array, or `slice<const T>` from a const one
-([Deduction guides](../array.md#deduction-guides)).
+([Deduction guides](README.md#deduction-guides)).
 
 ## Example
 
@@ -92,6 +92,6 @@ Output:
 
 ## See also
 
-- [slice](../slice.md): a view of elements
+- [slice](../slice/README.md): a view of elements
 - [data](data.md): the elements as a plain pointer
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

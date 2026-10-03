@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::max_size
 
@@ -28,7 +28,7 @@ None.
 ## Notes
 
 A bound of the types, not of the memory: a program whose managed heap reaches its limit ends long before
-([collector](../collector.md#the-memory-limit)).
+([collector](../collector/README.md#the-memory-limit)).
 
 ## Example
 
@@ -55,4 +55,4 @@ true
 
 - [size](size.md): the number of elements
 - [max_bucket_count](max_bucket_count.md): the largest number of buckets
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

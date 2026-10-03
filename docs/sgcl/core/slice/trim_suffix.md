@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::trim_suffix
 
@@ -52,4 +52,4 @@ archive.tar archive.tar.gz
 
 - [trim_prefix](trim_prefix.md): the same at the start
 - [remove_suffix](remove_suffix.md): drops a number of characters, in place
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

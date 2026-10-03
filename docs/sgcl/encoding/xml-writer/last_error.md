@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [writer](../xml-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [writer](README.md)
 
 # sgcl::encoding::xml::writer::last_error
 
@@ -55,5 +55,5 @@ an end with no element open
 ## See also
 
 - [flush](flush.md): the mistake as an `io::error`
-- [error](../error.md), [errc](../errc.md)
-- [sgcl::encoding::xml::writer](../xml-writer.md)
+- [error](../error/README.md), [errc](../errc.md)
+- [sgcl::encoding::xml::writer](README.md)

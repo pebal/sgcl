@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::public_key
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The [public key](../x25519-public_key.md).
+The [public key](../x25519-public_key/README.md).
 
 ## Complexity
 
@@ -52,5 +52,5 @@ Output:
 ## See also
 
 - [shared_secret](shared_secret.md): what the peer computes with it
-- [x25519::public_key](../x25519-public_key.md)
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [x25519::public_key](../x25519-public_key/README.md)
+- [sgcl::crypto::x25519::private_key](README.md)

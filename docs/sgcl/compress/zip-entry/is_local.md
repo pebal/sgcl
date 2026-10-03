@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [entry](../zip-entry.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [entry](README.md)
 
 # sgcl::compress::zip::entry::is_local
 
@@ -8,7 +8,7 @@ bool is_local() const noexcept;
 
 Checks whether the name may be joined to a directory without leaving it: not empty, not absolute, no NUL, no `\`
 (APPNOTE's names use `/`), and no `..` that climbs above the start (`a/../b` is local, `a/../..` is not). It is Go's
-`filepath.IsLocal`, the rule of [io::path::is_local](../../io/path.md) and of tar's entries too. An archive from
+`filepath.IsLocal`, the rule of [io::path::is_local](../../io/path/README.md) and of tar's entries too. An archive from
 outside names its entries as it likes (`../../etc/passwd`, the *zip slip*); a program that writes entries to disk
 checks each name with it, as [extract](../zip-extract.md) does.
 
@@ -60,4 +60,4 @@ a\b: false
 ## See also
 
 - [extract](../zip-extract.md): every name checked before anything is written
-- [sgcl::compress::zip::entry](../zip-entry.md)
+- [sgcl::compress::zip::entry](README.md)

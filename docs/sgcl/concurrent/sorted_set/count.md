@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](README.md)
 
 # sgcl::concurrent::sorted_set\<Key, Compare\>::count
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [contains](contains.md): the same question with a `bool` answer
-- [sgcl::concurrent::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::concurrent::sorted_set\<Key, Compare\>](README.md)

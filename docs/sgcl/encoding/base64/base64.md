@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](README.md)
 
 # sgcl::encoding::base64::base64
 
@@ -10,7 +10,7 @@ A codec of an alphabet of one's own: Go's `base64.NewEncoding(alphabet)`, and wi
 `WithPadding(base64.NoPadding)`. The alphabet is 64 different characters, none of them `'\0'`, `'\r'`, `'\n'` or
 the padding, in an array of 65 whose last is the terminator: a literal of 64 characters. The length is the
 array's, never a search for its end, and the characters past it are never read. The codec made is strict, as the
-[constants](../base64.md#member-objects) are; [lenient()](lenient.md) makes the lenient one.
+[constants](README.md#member-objects) are; [lenient()](lenient.md) makes the lenient one.
 
 Anything else is a mistake in the program, not in its input: `invalid_argument`, which in a constant — a
 `constexpr` codec — is an error at compile time.
@@ -66,4 +66,4 @@ sgcl: an alphabet with a repeated, padding or line-ending character
 ## See also
 
 - [without_padding](without_padding.md), [lenient](lenient.md): the same codec with another choice
-- [sgcl::encoding::base64](../base64.md)
+- [sgcl::encoding::base64](README.md)

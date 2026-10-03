@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::deque
 
@@ -102,4 +102,4 @@ Output:
 
 - [operator=](operator_assign.md), [assign](assign.md): replace the contents of a deque
 - [resize](resize.md): changes the number of elements
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

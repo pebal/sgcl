@@ -16,7 +16,7 @@ namespace sgcl::compress::zip {
 Unpacks the archive under the directory, as `unzip` does: `zip::extract("site.zip", "site")`.
 
 **Every name is checked before anything is written**: an entry, or a link's target, that would leave the directory
-(the rule of [io::path::is_local](../io/path.md), [is_local](zip-entry/is_local.md)) is `errc::insecure_path`, and
+(the rule of [io::path::is_local](../io/path/README.md), [is_local](zip-entry/is_local.md)) is `errc::insecure_path`, and
 nothing is written; so is a total size past the options' `max_size` (`errc::too_large`), 1 GiB unless set, as
 `decompress` has it, since an archive comes from outside. Then the directory and what the archive holds:
 directories, files with their mode and time, and symbolic links, made last, their targets kept inside. A file there
@@ -35,8 +35,8 @@ already is written over.
 
 ## Return value
 
-Nothing, or the [error](error.md): a name that would leave the directory (`errc::insecure_path`), the files past
-`max_size` (`errc::too_large`), the archive's own errors as the [archive](zip-archive.md) gives them, a failure of
+Nothing, or the [error](error/README.md): a name that would leave the directory (`errc::insecure_path`), the files past
+`max_size` (`errc::too_large`), the archive's own errors as the [archive](zip-archive/README.md) gives them, a failure of
 the file system (`errc::io`).
 
 ## Complexity
@@ -82,6 +82,6 @@ false
 ## See also
 
 - [create](zip-create.md): the other way
-- [archive](zip-archive.md): entries one by one
+- [archive](zip-archive/README.md): entries one by one
 - `tests/compress/files.cpp`: tested both ways against Info-ZIP's `zip` and `unzip`
 - [sgcl::compress::zip](zip.md)

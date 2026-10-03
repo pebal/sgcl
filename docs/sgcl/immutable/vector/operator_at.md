@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::operator[]
 
@@ -60,4 +60,4 @@ Output:
 
 - [at](at.md): access an element with bounds checking
 - [front](front.md), [back](back.md): the first and the last element
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

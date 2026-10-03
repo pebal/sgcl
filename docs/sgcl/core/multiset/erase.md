@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::erase
 
@@ -87,4 +87,4 @@ true
 - [clear](clear.md): erases every element
 - [extract](extract.md): takes an element out without destroying it
 - [erase_if](erase_if.md): erases the elements satisfying a predicate
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

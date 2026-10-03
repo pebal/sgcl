@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_eof
 
@@ -50,4 +50,4 @@ read: unexpected end of stream: eof? true
 ## See also
 
 - [read_full](../read_full.md)
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

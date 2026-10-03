@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::assign
 
@@ -72,4 +72,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns another list or a list of values
 - [resize](resize.md): changes the number of elements
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

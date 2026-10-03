@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](README.md)
 
 # sgcl::txt::idna::to_unicode
 
@@ -8,7 +8,7 @@ expected<string, failure> to_unicode(const string& name, options o = {});
 
 Returns the name as a reader would write it, by section 4.3 of [UTS #46](https://www.unicode.org/reports/tr46/):
 mapped and normalized as [to_ascii](to_ascii.md) maps it, every label that was punycode read back into the script it
-was written in, every label held to the checks [options](../idna-options.md) ask for. What a program shows somebody
+was written in, every label held to the checks [options](../idna-options/README.md) ask for. What a program shows somebody
 of a name it was given in ASCII. A name that is wrong is not a name: nothing comes back but the rule it broke.
 [unicode_form](unicode_form.md) gives the text as well.
 
@@ -24,7 +24,7 @@ an empty label is still refused unless it is the last one and something came bef
 
 ## Return value
 
-The name in Unicode, or the [failure](../idna-failure.md): the first rule the name broke and the label that broke it.
+The name in Unicode, or the [failure](../idna-failure/README.md): the first rule the name broke and the label that broke it.
 
 ## Complexity
 
@@ -63,4 +63,4 @@ a..c: a label with nothing in it
 
 - [to_ascii](to_ascii.md): the other way
 - [unicode_form](unicode_form.md): the text even when it is wrong
-- [sgcl::txt::idna](../idna.md)
+- [sgcl::txt::idna](README.md)

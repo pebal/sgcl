@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [shake256](../shake256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [shake256](README.md)
 
 # sgcl::crypto::shake256::read
 
@@ -9,7 +9,7 @@ secret_bytes read(size_t n) noexcept;
 The next `n` bytes of the output. The first read pads the input (the domain bits `1111` of SHAKE and the pad of
 FIPS 202) and closes it; every read goes on where the last one stopped, so two reads of 16 bytes give what one read
 of 32 gives. The bytes are taken as a secret, since SHAKE derives keys as often as not: a
-[secret_bytes](../secret_bytes.md), up to 64 bytes in the object itself, past that in plain memory zeroed when it goes,
+[secret_bytes](../secret_bytes/README.md), up to 64 bytes in the object itself, past that in plain memory zeroed when it goes,
 never in managed memory. [read_to](read_to.md) writes into a buffer of the caller's instead.
 
 ## Parameters
@@ -62,4 +62,4 @@ Output:
 
 - [read_to](read_to.md): into a buffer of the caller's
 - [of](of.md): the first bytes in one call
-- [sgcl::crypto::shake256](../shake256.md)
+- [sgcl::crypto::shake256](README.md)

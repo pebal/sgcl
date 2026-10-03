@@ -10,11 +10,11 @@ namespace sgcl::txt {
 }
 ```
 
-A function of the pipeline of a [stencil](stencil.md): `{{ name | upper }}`, `{{ n | default 0 }}`. What comes down
+A function of the pipeline of a [stencil](stencil/README.md): `{{ name | upper }}`, `{{ n | default 0 }}`. What comes down
 the pipe is the first argument, and whatever was written after the name is the second — literals and paths both,
-already worked out, at most eight. A function answers a [value](value.md), so functions compose and one may hand a
-list to the next. It is a [function](../core/function.md) of the library, so a lambda converts to it; it is named in
-a table of [stencil_functions](stencil_functions.md), which [parse](stencil/parse.md) resolves every name against.
+already worked out, at most eight. A function answers a [value](value/README.md), so functions compose and one may hand a
+list to the next. It is a [function](../core/function/README.md) of the library, so a lambda converts to it; it is named in
+a table of [stencil_functions](stencil_functions/README.md), which [parse](stencil/parse.md) resolves every name against.
 
 ## Rules
 
@@ -63,5 +63,5 @@ a page of 2109 characters, three fields: the function ran 5 times
 
 ## See also
 
-- [stencil_functions](stencil_functions.md): the table
-- [stencil](stencil.md#the-pipeline): the pipeline
+- [stencil_functions](stencil_functions/README.md): the table
+- [stencil](stencil/README.md#the-pipeline): the pipeline

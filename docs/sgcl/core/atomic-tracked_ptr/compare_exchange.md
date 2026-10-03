@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](../atomic-tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](README.md)
 
 # sgcl::atomic\<tracked_ptr\<T\>\>::compare_exchange_weak, compare_exchange_strong
 
@@ -101,4 +101,4 @@ false 1
 
 - [exchange](exchange.md): replaces the pointer unconditionally
 - [load, operator tracked_ptr\<T\>](load.md): the read a failure makes
-- [sgcl::atomic\<tracked_ptr\<T\>\>](../atomic-tracked_ptr.md)
+- [sgcl::atomic\<tracked_ptr\<T\>\>](README.md)

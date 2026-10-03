@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::text
 
@@ -49,4 +49,4 @@ RÉSUMÉ
 ## See also
 
 - [bytes](bytes.md): the same text as a string
-- [sgcl::txt::collated_text](../collated_text.md)
+- [sgcl::txt::collated_text](README.md)

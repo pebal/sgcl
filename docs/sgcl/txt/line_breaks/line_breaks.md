@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [line_breaks](../line_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [line_breaks](README.md)
 
 # sgcl::txt::line_breaks::line_breaks
 
@@ -14,7 +14,7 @@ explicit line_breaks(P text);                                      // (5)
 ```
 
 Constructs the range of the pieces of a text that must stay on one line. `txt::line_breaks(s)` looks like a call and
-is a construction, as [runes](../../core/runes.md) is. Nothing is found until the walk.
+is a construction, as [runes](../../core/runes/README.md) is. Nothing is found until the walk.
 
 1. An empty range, over no text.
 2. The pieces of a slice of UTF-8 bytes, a piece of a buffer as much as a piece of a string; the range keeps the
@@ -70,4 +70,4 @@ true
 ## See also
 
 - [text](text.md): the slice the range walks
-- [sgcl::txt::line_breaks](../line_breaks.md)
+- [sgcl::txt::line_breaks](README.md)

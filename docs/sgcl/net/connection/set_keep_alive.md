@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::set_keep_alive
 
@@ -19,7 +19,7 @@ starts with probes after 15 s, as in Go. TCP only.
 
 ## Return value
 
-Nothing; or the [io::error](../../io/error.md), its operation `set_keep_alive`: `EOPNOTSUPP` for a unix socket or a
+Nothing; or the [io::error](../../io/error/README.md), its operation `set_keep_alive`: `EOPNOTSUPP` for a unix socket or a
 pair in memory, `io::errc::closed` on a connection closed, the `errno` of `setsockopt` otherwise.
 
 ## Complexity
@@ -61,4 +61,4 @@ true
 
 - [set_no_delay](set_no_delay.md): the other TCP option
 - [set_deadline](set_deadline.md): a limit on a silence the program waits through
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

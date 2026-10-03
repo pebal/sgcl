@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [sentences](../sentences.md)
+[sgcl](../../README.md) › [txt](../README.md) › [sentences](README.md)
 
 # sgcl::txt::sentences::text
 
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [(constructor)](sentences.md): the range over a text
-- [sgcl::txt::sentences](../sentences.md)
+- [sgcl::txt::sentences](README.md)

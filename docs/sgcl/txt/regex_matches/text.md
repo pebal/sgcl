@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex_matches](../regex_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex_matches](README.md)
 
 # sgcl::txt::regex_matches::text
 
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [match::subject](../match/subject.md): the same text, from a match
-- [sgcl::txt::regex_matches](../regex_matches.md)
+- [sgcl::txt::regex_matches](README.md)

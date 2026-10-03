@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [async](../README.md) › [generator](README.md)
 
 # sgcl::async::generator\<T\>::done
 
@@ -65,4 +65,4 @@ true
 ## See also
 
 - [next](next.md): runs the coroutine to its next value
-- [sgcl::async::generator\<T\>](../generator.md)
+- [sgcl::async::generator\<T\>](README.md)

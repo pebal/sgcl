@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::trim
 
@@ -65,4 +65,4 @@ Output:
 
 - [trim_left](trim_left.md), [trim_right](trim_right.md): one end only
 - [trim_prefix](trim_prefix.md), [trim_suffix](trim_suffix.md): a given prefix or suffix
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

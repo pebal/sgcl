@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::header
 
@@ -64,4 +64,4 @@ text/plain; charset=utf-8 | []
 ## See also
 
 - [headers](headers.md): every field
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

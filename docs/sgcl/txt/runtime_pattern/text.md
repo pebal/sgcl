@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [runtime_pattern](../runtime_pattern.md)
+[sgcl](../../README.md) › [txt](../README.md) › [runtime_pattern](README.md)
 
 # sgcl::txt::runtime_pattern::text
 
@@ -51,4 +51,4 @@ does not fit one value: "{} of {}"
 ## See also
 
 - [view](view.md): the characters as a view
-- [sgcl::txt::runtime_pattern](../runtime_pattern.md)
+- [sgcl::txt::runtime_pattern](README.md)

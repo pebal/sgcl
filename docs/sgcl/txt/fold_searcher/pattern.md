@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](../fold_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](README.md)
 
 # sgcl::txt::fold_searcher::pattern
 
@@ -7,7 +7,7 @@ const string& pattern() const noexcept;
 ```
 
 Returns the pattern as it was given, before it was folded or decomposed: the searcher keeps it so that it can say
-what it looks for, as [searcher](../searcher.md) does.
+what it looks for, as [searcher](../searcher/README.md) does.
 
 ## Parameters
 
@@ -48,4 +48,4 @@ Größe, 6 code points
 ## See also
 
 - [points](points.md): the pattern as it is searched for
-- [sgcl::txt::fold_searcher, normalized_searcher](../fold_searcher.md)
+- [sgcl::txt::fold_searcher, normalized_searcher](README.md)

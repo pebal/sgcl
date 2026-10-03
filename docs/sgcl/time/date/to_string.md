@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::to_string, sgcl::time::operator\<\< (sgcl::time::date)
 
@@ -66,4 +66,4 @@ Output:
 
 - [format](format.md): the date in a pattern
 - [parse](parse.md): reads the text back
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

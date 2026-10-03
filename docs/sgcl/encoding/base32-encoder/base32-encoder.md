@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md) › [encoder](../base32-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base32::encoder::encoder
 
@@ -59,4 +59,4 @@ NBUQ==== true
 
 - [encoder_to](../base32/encoder_to.md): an encoder with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::base32::encoder](../base32-encoder.md)
+- [sgcl::encoding::base32::encoder](README.md)

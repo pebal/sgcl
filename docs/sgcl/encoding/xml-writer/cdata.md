@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [writer](../xml-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [writer](README.md)
 
 # sgcl::encoding::xml::writer::cdata
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [text](text.md): text, escaped
-- [sgcl::encoding::xml::writer](../xml-writer.md)
+- [sgcl::encoding::xml::writer](README.md)

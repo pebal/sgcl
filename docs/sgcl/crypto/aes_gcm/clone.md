@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes_gcm](../aes_gcm.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes_gcm](README.md)
 
 # sgcl::crypto::aes_gcm::clone
 
@@ -65,4 +65,4 @@ sgcl::crypto::aes_gcm: used after being moved from
 ## See also
 
 - [(constructor)](aes_gcm.md): sets up a key, or takes another object's over
-- [sgcl::crypto::aes_gcm](../aes_gcm.md)
+- [sgcl::crypto::aes_gcm](README.md)

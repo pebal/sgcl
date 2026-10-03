@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::at
 
@@ -35,7 +35,7 @@ the last bit.
 ## Notes
 
 The reference is valid while some version holds the node of the element: this map, or any map that shares the
-node. `value_or` and `try_get` of [mixin::lookup](../../core/mixin/lookup.md) read without an exception.
+node. `value_or` and `try_get` of [mixin::lookup](../../core/mixin/lookup/README.md) read without an exception.
 
 ## Example
 
@@ -67,5 +67,5 @@ out of range: sgcl::immutable::map::at
 ## See also
 
 - [find](find.md): the element under a key, as an iterator
-- [mixin::lookup](../../core/mixin/lookup.md): `get`, `try_get`, `value_or`
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [mixin::lookup](../../core/mixin/lookup/README.md): `get`, `try_get`, `value_or`
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

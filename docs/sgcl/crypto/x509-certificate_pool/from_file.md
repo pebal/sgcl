@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](../x509-certificate_pool.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](README.md)
 
 # sgcl::crypto::x509::certificate_pool::from_file, async_from_file
 
@@ -23,7 +23,7 @@ not read is passed over.
 
 ## Return value
 
-The pool, or the file system's error as an [io::error](../../io/error.md) (`is_not_found()` for a file that is not
+The pool, or the file system's error as an [io::error](../../io/error/README.md) (`is_not_found()` for a file that is not
 there).
 
 ## Complexity
@@ -90,4 +90,4 @@ Output:
 
 - [from_pem](from_pem.md): a text the program has
 - [system](system.md): the system's roots
-- [sgcl::crypto::x509::certificate_pool](../x509-certificate_pool.md)
+- [sgcl::crypto::x509::certificate_pool](README.md)

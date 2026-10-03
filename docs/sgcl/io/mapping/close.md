@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::mapping::close
 
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md) of closing the descriptor (operation `close`).
+Nothing, or the [error](../error/README.md) of closing the descriptor (operation `close`).
 
 ## Complexity
 
@@ -63,4 +63,4 @@ true
 
 - [is_closed](is_closed.md): whether the mapping was closed
 - [flush](flush.md): the writes on the disk before the close
-- [sgcl::io::mapping](../mapping.md)
+- [sgcl::io::mapping](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::clone
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [convert](convert.md): a copy in another format
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

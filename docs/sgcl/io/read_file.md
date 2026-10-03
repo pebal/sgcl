@@ -26,7 +26,7 @@ it has. Go's `os.ReadFile`.
 
 ## Return value
 
-The bytes of the file, or the [error](error.md) of the step that failed: of [open](open.md) (`is_not_found()`,
+The bytes of the file, or the [error](error/README.md) of the step that failed: of [open](open.md) (`is_not_found()`,
 `is_permission()`), of `stat` or of `read` (`EISDIR` for a directory).
 
 ## Complexity
@@ -101,4 +101,4 @@ Output:
 - [write_file](write_file.md): the other direction
 - [read_all](mixin/reader/read_all.md): the rest of an open file
 - [map](map.md): a file mapped into memory instead of read
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

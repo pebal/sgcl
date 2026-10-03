@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::operator bool
 
@@ -51,4 +51,4 @@ false true
 
 - [(constructor)](listener.md): a handle that holds none
 - [is_closed](is_closed.md): whether the listener was closed
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

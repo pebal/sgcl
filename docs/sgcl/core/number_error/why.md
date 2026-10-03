@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [number_error](../number_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [number_error](README.md)
 
 # sgcl::number_error::why
 
@@ -60,4 +60,4 @@ too large for 16 bits
 
 - [offset](offset.md): where the reading stopped
 - [code](code.md), [message](message.md): the reason as a `std::errc`, as a text
-- [sgcl::number_error](../number_error.md)
+- [sgcl::number_error](README.md)

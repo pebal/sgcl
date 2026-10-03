@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::all_ascii
 
@@ -50,4 +50,4 @@ true false true
 ## See also
 
 - [ascii_run](ascii_run.md): the length of a run of ASCII
-- [sgcl::utf8](../utf8.md)
+- [sgcl::utf8](README.md)

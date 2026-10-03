@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::host
 
@@ -57,4 +57,4 @@ Output:
 
 - [hostname](hostname.md): the host alone
 - [with_host](with_host.md): another host
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

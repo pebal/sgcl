@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::front
 
@@ -59,4 +59,4 @@ open
 
 - [back](back.md): access the last element
 - [push_front](push_front.md), [pop_front](pop_front.md): insert, remove the first element
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

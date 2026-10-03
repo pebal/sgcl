@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::size
 
@@ -51,4 +51,4 @@ Output:
 
 - [empty](empty.md): checks whether the list is empty
 - [max_size](max_size.md): the largest number of elements
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

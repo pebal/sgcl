@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md) › [writer](../xz-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz/README.md) › [writer](README.md)
 
 # sgcl::compress::xz::writer::write, async_write
 
@@ -16,7 +16,7 @@ options out of range fail it with `errc::invalid_argument`.
    while `out` writes. The bytes are read when the task runs: `data` lives until the task is done.
 
 The text forms (a string, a literal, a `std::string_view`) and one byte come from
-[mixin::writer](../../io/mixin/writer.md).
+[mixin::writer](../../io/mixin/writer/README.md).
 
 ## Parameters
 
@@ -97,4 +97,4 @@ Output:
 ## See also
 
 - [close](close.md): the rest of the output
-- [sgcl::compress::xz::writer](../xz-writer.md)
+- [sgcl::compress::xz::writer](README.md)

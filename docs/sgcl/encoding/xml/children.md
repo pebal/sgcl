@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::children
 
@@ -12,7 +12,7 @@ The nodes inside the element.
 1. Every node inside, in order: elements, texts, and the comments and instructions the tree keeps
    ([options](../xml-options.md)). Empty for a node that is not an element. The slice holds the array of the
    node, so it stays valid as long as it is kept.
-2. The elements of this name inside, in order, one at a time: a [generator](../../core/generator.md). The name is
+2. The elements of this name inside, in order, one at a time: a [generator](../../core/generator/README.md). The name is
    matched as written (`dc:title`) or by namespace and local name (`{http://purl.org/dc/elements/1.1/}title`).
    The node and the name are kept by the generator, so it may be called on a temporary.
 
@@ -72,4 +72,4 @@ Output:
 
 - [child](child.md): the first element of a name
 - [push_back](push_back.md): the element with one more child
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

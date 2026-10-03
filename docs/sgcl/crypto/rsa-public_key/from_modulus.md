@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::from_modulus
 
@@ -19,7 +19,7 @@ to 16384 bits; e odd, 3 to 2³¹ − 1.
 
 ## Return value
 
-The key, or a [crypto::error](../error.md):
+The key, or a [crypto::error](../error/README.md):
 
 - `errc::invalid_key` for an even modulus, or an exponent that is even or below 3;
 - `errc::unsupported` for a modulus of fewer than 1024 bits or more than 16384, or an exponent above 2³¹ − 1.
@@ -66,4 +66,4 @@ sgcl::crypto::rsa: a modulus of fewer than 1024 bits
 
 - [modulus](modulus.md), [exponent](exponent.md): the numbers of a key
 - [from_pkix_der](from_pkix_der.md): a key from its encoding
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

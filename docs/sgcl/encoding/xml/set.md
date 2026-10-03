@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::set
 
@@ -75,5 +75,5 @@ sgcl::encoding::xml::set: not an element
 
 - [erase](erase.md): the element without an attribute
 - [attribute](attribute.md): the value of an attribute
-- [builder](../xml-builder.md): an element made an attribute and a child at a time
-- [sgcl::encoding::xml](../xml.md)
+- [builder](../xml-builder/README.md): an element made an attribute and a child at a time
+- [sgcl::encoding::xml](README.md)

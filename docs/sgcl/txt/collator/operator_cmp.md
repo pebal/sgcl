@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::operator==
 
@@ -56,4 +56,4 @@ true
 ## See also
 
 - [collated_searcher::by](../collated_searcher/by.md): the collator a pattern was weighed by
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

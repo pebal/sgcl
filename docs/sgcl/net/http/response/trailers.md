@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::trailers
 
@@ -70,4 +70,4 @@ buy milk, 0 trailers before, checksum 42
 ## See also
 
 - [request::trailers](../request/trailers.md): the trailers of a request
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

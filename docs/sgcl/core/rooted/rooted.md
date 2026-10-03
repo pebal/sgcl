@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [rooted](../rooted.md)
+[sgcl](../../README.md) › [core](../README.md) › [rooted](README.md)
 
 # sgcl::rooted\<T\>::rooted
 
@@ -85,4 +85,4 @@ true ada
 
 - [operator=](operator_assign.md): shares another `rooted`'s value
 - [make_tracked](../make_tracked.md): creates a managed object
-- [sgcl::rooted\<T\>](../rooted.md)
+- [sgcl::rooted\<T\>](README.md)

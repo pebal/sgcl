@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](../sevenzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](README.md)
 
 # sgcl::compress::sevenzip::writer::add_directory
 
@@ -60,4 +60,4 @@ logs true 755
 ## See also
 
 - [add](add.md)
-- [sgcl::compress::sevenzip::writer](../sevenzip-writer.md)
+- [sgcl::compress::sevenzip::writer](README.md)

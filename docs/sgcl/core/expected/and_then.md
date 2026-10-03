@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::and_then
 
@@ -83,4 +83,4 @@ empty
 
 - [transform](transform.md): a function of the value that cannot fail
 - [or_else](or_else.md): the next step after an error
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

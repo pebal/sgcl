@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md) › [entry](../expiry_queue-entry.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue/README.md) › [entry](README.md)
 
 # sgcl::expiry_queue\<T\>::entry::entry
 
@@ -59,4 +59,4 @@ false
 
 - [watch](../expiry_queue/watch.md): makes an entry and returns its handle
 - [operator bool](operator_bool.md): checks whether the handle has an entry
-- [sgcl::expiry_queue\<T\>::entry](../expiry_queue-entry.md)
+- [sgcl::expiry_queue\<T\>::entry](README.md)

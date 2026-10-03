@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [words](../words.md)
+[sgcl](../../README.md) › [txt](../README.md) › [words](README.md)
 
 # sgcl::txt::words::end
 
@@ -6,7 +6,7 @@
 iterator end() const noexcept;
 ```
 
-Returns the [iterator](../words-iterator.md) past the last element: at the byte position of the end of the text, the
+Returns the [iterator](../words-iterator/README.md) past the last element: at the byte position of the end of the text, the
 size of the slice.
 
 ## Parameters
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first element
-- [sgcl::txt::words](../words.md)
+- [sgcl::txt::words](README.md)

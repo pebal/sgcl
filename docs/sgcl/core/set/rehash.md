@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::rehash
 
@@ -11,7 +11,7 @@ Sets the number of buckets to the smallest power of two that is not below `count
 grow. When that number is 0 (an empty set, `count` 0) or the bucket count already, nothing happens.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)): a count past the largest array an address space
+allocation does ([collector](../collector/README.md#the-memory-limit)): a count past the largest array an address space
 holds is taken as that array, refused in the same way.
 
 ## Parameters
@@ -72,4 +72,4 @@ Output:
 - [reserve](reserve.md): the buckets for a number of elements
 - [bucket_count](bucket_count.md): the number of buckets
 - [max_load_factor](max_load_factor.md): the load factor at which the table grows
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

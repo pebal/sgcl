@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::size
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the list is empty
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

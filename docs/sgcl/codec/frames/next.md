@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [frames](../frames.md)
+[sgcl](../../README.md) › [codec](../README.md) › [frames](README.md)
 
 # sgcl::codec::frames::next
 
@@ -7,7 +7,7 @@ expected<optional<frame>, error> next();
 ```
 
 Decodes the next frame and gives it: the canvas with the frame drawn on what came before, a new
-[image](../image.md), and how long it is shown ([frame](../frame.md)). The frame is read when it is asked for, from
+[image](../image/README.md), and how long it is shown ([frame](../frame.md)). The frame is read when it is asked for, from
 the bytes or the stream the frames hold. Copies of the handle share the reading: a frame read through one copy is not
 read again through another.
 
@@ -25,7 +25,7 @@ None.
 
 ## Return value
 
-The next frame; `nullopt` after the last; or the [error](../error.md) of the data where it is found, at the byte
+The next frame; `nullopt` after the last; or the [error](../error/README.md) of the data where it is found, at the byte
 where it was found: `errc::corrupt`, also for a file of no frame, `errc::unexpected_end` for a file cut short,
 `errc::too_large` for metadata past the limits, and `errc::io` when the stream fails, with io's error inside, and
 after a read of the stream that threw.
@@ -81,4 +81,4 @@ again: offset 18416: gif: the data ends in the middle
 
 - [loop_count](loop_count.md): how many times the animation plays
 - [frame](../frame.md): what it gives
-- [sgcl::codec::frames](../frames.md)
+- [sgcl::codec::frames](README.md)

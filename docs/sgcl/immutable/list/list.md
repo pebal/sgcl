@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::list
 
@@ -17,7 +17,7 @@ Constructs a list from one of the sources below.
 1. An empty list. It holds no cell.
 2. The elements of the range `[first, last)`, in its order. The cells are made from the back, one allocation
    each: a bidirectional range is walked backwards; a range read only forward (a `forward_list`, a stream) is
-   first collected into a [vector](../../core/vector.md), then taken from its back.
+   first collected into a [vector](../../core/vector/README.md), then taken from its back.
 3. The elements of `ilist`, in its order.
 4. The elements of the range `r`, each made from what the range gives: the pieces of a string, a view, another
    container. Takes part only when `T` is constructible from the elements of `r` and `r` is not a list of the
@@ -85,4 +85,4 @@ Output:
 
 - [operator=](operator_assign.md): makes the variable hold another version
 - [push_front](push_front.md): the list with one more element in front
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

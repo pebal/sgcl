@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [strand](../strand.md)
+[sgcl](../../README.md) › [async](../README.md) › [strand](README.md)
 
 # sgcl::async::strand::strand
 
@@ -52,4 +52,4 @@ busy: false
 ## See also
 
 - [spawn](spawn.md): a task started on the strand
-- [sgcl::async::strand](../strand.md)
+- [sgcl::async::strand](README.md)

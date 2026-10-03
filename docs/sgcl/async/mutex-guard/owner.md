@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md) › [guard](../mutex-guard.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex/README.md) › [guard](README.md)
 
 # sgcl::async::mutex::guard::owner
 
@@ -7,7 +7,7 @@ optional<mutex> owner() const noexcept;
 ```
 
 Returns a handle of the mutex the guard holds, which stays locked and held by the guard: what a
-[condition_variable](../condition_variable.md) lets go of and takes back around its wait. A guard moved from or
+[condition_variable](../condition_variable/README.md) lets go of and takes back around its wait. A guard moved from or
 released holds nothing, and gives nothing: there is no mutex without a state.
 
 ## Parameters
@@ -56,4 +56,4 @@ false
 
 - [release](release.md): the mutex given up, still locked
 - [operator==](../mutex/operator_cmp.md): whether two handles are the same mutex
-- [sgcl::async::mutex::guard](../mutex-guard.md)
+- [sgcl::async::mutex::guard](README.md)

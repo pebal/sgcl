@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes.md)
+[sgcl](../../README.md) › [txt](../README.md) › [graphemes](README.md)
 
 # sgcl::txt::graphemes::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../graphemes-iterator.md) to the first of the grapheme clusters, found: at byte position 0. For
+Returns an [iterator](../graphemes-iterator/README.md) to the first of the grapheme clusters, found: at byte position 0. For
 a text with no bytes it equals [end](end.md).
 
 ## Parameters
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [end](end.md): the iterator past the last element
-- [sgcl::txt::graphemes](../graphemes.md)
+- [sgcl::txt::graphemes](README.md)

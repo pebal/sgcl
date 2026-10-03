@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [json](json.md)
+[sgcl](../README.md) › [encoding](README.md) › [json](json/README.md)
 
 # sgcl::encoding::json::kind
 
@@ -20,7 +20,7 @@ namespace sgcl::encoding {
 }
 ```
 
-`sgcl::encoding::json::kind` is the kind of a [json](json.md) value, the six of JSON, as
+`sgcl::encoding::json::kind` is the kind of a [json](json/README.md) value, the six of JSON, as
 [type](json/type.md) gives it: what a type switch over Go's `any` tells apart. A number is one kind however it is
 held — an integer, a double or a literal kept as its text; [is_integer](json/is_integer.md) asks which.
 
@@ -65,4 +65,4 @@ Output:
 ## See also
 
 - [type](json/type.md): the kind of a value
-- [sgcl::encoding::json](json.md)
+- [sgcl::encoding::json](json/README.md)

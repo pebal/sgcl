@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::base32
 
@@ -9,7 +9,7 @@ constexpr base32(const char (&alphabet)[33], optional<char> padding = '=');
 A codec of an alphabet of one's own: Go's `base32.NewEncoding(alphabet)`, and with `nullopt` for the padding its
 `WithPadding(base32.NoPadding)`. The alphabet is 32 different characters, none of them `'\0'`, `'\r'`, `'\n'` or
 the padding, in an array of 33 whose last is the terminator: a literal of 32 characters. The length is the
-array's, never a search for its end. The codec made is strict, as the [constants](../base32.md#member-objects)
+array's, never a search for its end. The codec made is strict, as the [constants](README.md#member-objects)
 are; [lenient()](lenient.md) makes the lenient one. A codec that reads lower-case letters is one of these, with
 the lower-case alphabet.
 
@@ -61,4 +61,4 @@ offset 0: invalid character 'm'
 ## See also
 
 - [without_padding](without_padding.md), [lenient](lenient.md): the same codec with another choice
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

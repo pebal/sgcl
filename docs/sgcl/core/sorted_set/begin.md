@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::begin, cbegin
 
@@ -73,4 +73,4 @@ true
 - [end, cend](end.md): the iterator past the last element
 - [rbegin, crbegin](rbegin.md): the order from the largest element
 - [min](min.md): the smallest element itself
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

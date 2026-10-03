@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::add_months
 
@@ -11,7 +11,7 @@ second. A day the new month does not have is cut to the month's last day, as a d
 [add_months](../date/add_months.md) cuts it: 2026-01-31 plus one month is 2026-02-28. Go's `t.AddDate(0, n, 0)`
 carries instead (31 January plus a month is 3 March there). A time of the clock that the new day does not have, or
 has twice, is read by the compatible rule
-([A time of the clock skipped or shown twice](../datetime.md#a-time-of-the-clock-skipped-or-shown-twice)). A result
+([A time of the clock skipped or shown twice](README.md#a-time-of-the-clock-skipped-or-shown-twice)). A result
 past either end of the range is the end; Go wraps.
 
 ## Parameters
@@ -58,4 +58,4 @@ Output:
 
 - [add_days](add_days.md), [add_years](add_years.md): days and years on
 - [date::add_months](../date/add_months.md): months on of a date
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

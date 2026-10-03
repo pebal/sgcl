@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::write_text
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [to_string](to_string.md): the text as a string
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

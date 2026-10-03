@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::mapping::operator bool
 
@@ -53,4 +53,4 @@ true
 
 - [(constructor)](mapping.md): an empty handle
 - [is_closed](is_closed.md): whether the mapping was closed
-- [sgcl::io::mapping](../mapping.md)
+- [sgcl::io::mapping](README.md)

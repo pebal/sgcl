@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](../hkdf.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](README.md)
 
 # sgcl::crypto::hkdf\<H\>::expand
 
@@ -16,7 +16,7 @@ unrelated keys, so one PRK serves independent uses.
 2. The PRK is given as bytes: a secret a protocol computed otherwise, or one written down from
    [prk::bytes](../hkdf-prk/bytes.md). RFC 5869 asks for at least the digest's size, which is the caller's to keep.
 
-The output is a [secret_bytes](../secret_bytes.md): up to 64 bytes in the object itself, past that in plain memory
+The output is a [secret_bytes](../secret_bytes/README.md): up to 64 bytes in the object itself, past that in plain memory
 zeroed when it goes, never in managed memory. The last block computed is zeroed before the call returns.
 
 ## Parameters
@@ -81,4 +81,4 @@ sgcl::crypto::hkdf: more than 255 blocks asked of expand
 
 - [expand_to](expand_to.md): into a buffer of the caller's
 - [extract](extract.md): the first step
-- [sgcl::crypto::hkdf\<H\>](../hkdf.md)
+- [sgcl::crypto::hkdf\<H\>](README.md)

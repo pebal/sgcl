@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [directory_entry](../directory_entry.md)
+[sgcl](../../README.md) › [io](../README.md) › [directory_entry](README.md)
 
 # sgcl::io::directory_entry::info
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The [file_info](../file_info.md), or the [error](../error.md) of the `lstat`: the entry may have been removed since
+The [file_info](../file_info/README.md), or the [error](../error/README.md) of the `lstat`: the entry may have been removed since
 the listing.
 
 ## Complexity
@@ -62,4 +62,4 @@ Output:
 
 - [is_directory](is_directory.md): the type without a stat
 - [stat](../stat.md), [lstat](../lstat.md): the same of any path
-- [sgcl::io::directory_entry](../directory_entry.md)
+- [sgcl::io::directory_entry](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::is_valid
 
@@ -49,4 +49,4 @@ false
 ## See also
 
 - [bits](bits.md): -1 for the empty network
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

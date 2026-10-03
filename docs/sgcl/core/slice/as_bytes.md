@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::as_bytes, sgcl::as_writable_bytes (sgcl::slice)
 
@@ -65,4 +65,4 @@ Output:
 ## See also
 
 - [size_bytes](size_bytes.md): the size of the elements in bytes
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

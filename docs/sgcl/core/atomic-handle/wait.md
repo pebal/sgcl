@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::wait
 
@@ -64,4 +64,4 @@ done
 ## See also
 
 - [notify_one](notify_one.md), [notify_all](notify_all.md): wake the waiting threads
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

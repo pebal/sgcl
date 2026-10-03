@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_set](README.md)
 
 # sgcl::concurrent::sorted_set\<Key, Compare\>::find
 
@@ -14,7 +14,7 @@ while the keys are less than `key`, stepping over erased nodes without touching 
 where the first node whose key is not less than `key` is the one sought when its key is not greater either.
 
 - (3–4) Take part only when `Compare` declares `is_transparent`: the key is of any type the comparison takes, and
-  no `Key` is built for the search (a `string_view` or a literal for a [string](../../core/string.md) key).
+  no `Key` is built for the search (a `string_view` or a literal for a [string](../../core/string/README.md) key).
 
 ## Parameters
 
@@ -71,4 +71,4 @@ true
 
 - [contains](contains.md): checks whether the set holds a key
 - [lower_bound](lower_bound.md): the first key from a key on
-- [sgcl::concurrent::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::concurrent::sorted_set\<Key, Compare\>](README.md)

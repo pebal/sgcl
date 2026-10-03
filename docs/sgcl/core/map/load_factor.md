@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::load_factor
 
@@ -56,4 +56,4 @@ true
 
 - [max_load_factor](max_load_factor.md): the load factor the table grows at
 - [bucket_count](bucket_count.md): the number of buckets
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

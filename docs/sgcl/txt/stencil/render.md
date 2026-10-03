@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil](../stencil.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil](README.md)
 
 # sgcl::txt::stencil::render
 
@@ -14,7 +14,7 @@ field whose type letter the value does not take is written without it: nothing i
 A page that fits the kilobyte of room kept on the stack is written once, and allocates nothing but the string handed
 back. A longer one **grows the room** rather than being written twice: after each step that writes, the walk asks
 whether that step ran off the end, and when it did it takes twice as much room, carries over what stood before the
-step and writes that one step again ([growing_sink](../growing_sink.md)) — never the page; a page of a hundred
+step and writes that one step again ([growing_sink](../growing_sink/README.md)) — never the page; a page of a hundred
 kilobytes is one walk and seven doublings, not two walks. So a function of the pipeline may be called twice for one
 field, and must be pure ([stencil_function](../stencil_function.md)).
 
@@ -96,5 +96,5 @@ b=2 a=1
 ## See also
 
 - [render_to](render_to.md): into memory the caller lends
-- [value](../value.md): the data
-- [sgcl::txt::stencil](../stencil.md)
+- [value](../value/README.md): the data
+- [sgcl::txt::stencil](README.md)

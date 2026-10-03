@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_set](../weak_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_set](README.md)
 
 # sgcl::concurrent::weak_set\<Key\>::find
 
@@ -76,4 +76,4 @@ true
 
 - [contains](contains.md): checks whether the set holds an object
 - [count](count.md): the number of entries of an object
-- [sgcl::concurrent::weak_set\<Key\>](../weak_set.md)
+- [sgcl::concurrent::weak_set\<Key\>](README.md)

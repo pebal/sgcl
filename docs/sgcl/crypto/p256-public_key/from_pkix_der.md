@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](../p256-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](README.md)
 
 # sgcl::crypto::p256::public_key::from_pkix_der
 
@@ -21,7 +21,7 @@ compressed. The DER is read strictly: lengths and integers in their shortest for
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with the offset of the byte where the reading stopped:
+The key, or a [crypto::error](../error/README.md) with the offset of the byte where the reading stopped:
 
 - `errc::malformed` for DER that is not a SubjectPublicKeyInfo;
 - `errc::unsupported` for a key of another algorithm or of another curve;
@@ -37,7 +37,7 @@ None.
 
 ## Notes
 
-The PEM around the DER is [encoding::pem](../../encoding/pem.md)'s: a public key is no secret, so its text may lie in
+The PEM around the DER is [encoding::pem](../../encoding/pem/README.md)'s: a public key is no secret, so its text may lie in
 managed memory.
 
 ## Example
@@ -78,4 +78,4 @@ true
 
 - [to_pkix_der](to_pkix_der.md): the SubjectPublicKeyInfo of a key
 - [from_bytes](from_bytes.md): a point alone
-- [sgcl::crypto::p256::public_key](../p256-public_key.md)
+- [sgcl::crypto::p256::public_key](README.md)

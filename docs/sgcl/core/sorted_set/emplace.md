@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::emplace
 
@@ -79,4 +79,4 @@ false 2.1
 
 - [emplace_hint](emplace_hint.md): the same with a hint
 - [insert](insert.md): inserts an element built already
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

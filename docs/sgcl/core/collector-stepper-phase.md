@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [collector](collector.md) › [stepper](collector-stepper.md)
+[sgcl](../README.md) › [core](README.md) › [collector](collector/README.md) › [stepper](collector-stepper/README.md)
 
 # sgcl::collector::stepper::phase
 
@@ -17,7 +17,7 @@ namespace sgcl {
 ```
 
 `sgcl::collector::stepper::phase` is a gate of the collector: a boundary between the phases of a cycle, where a
-[stepper](collector-stepper.md) holds the collector until it lets it through. The gates come in this order in
+[stepper](collector-stepper/README.md) holds the collector until it lets it through. The gates come in this order in
 every cycle.
 
 | Value | Description |
@@ -70,5 +70,5 @@ start flipped registered roots marked swept released
 
 ## See also
 
-- [stepper](collector-stepper.md): what stands at the gates
-- [sgcl::collector](collector.md)
+- [stepper](collector-stepper/README.md): what stands at the gates
+- [sgcl::collector](collector/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [tracked_ptr](../atomic_ref-tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [tracked_ptr](README.md)
 
 # sgcl::atomic_ref\<tracked_ptr\<T\>\>::wait
 
@@ -70,4 +70,4 @@ Output:
 ## See also
 
 - [notify_one](notify_one.md), [notify_all](notify_all.md): wake the waiting threads
-- [sgcl::atomic_ref\<tracked_ptr\<T\>\>](../atomic_ref-tracked_ptr.md)
+- [sgcl::atomic_ref\<tracked_ptr\<T\>\>](README.md)

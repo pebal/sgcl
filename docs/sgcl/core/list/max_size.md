@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::max_size
 
@@ -49,4 +49,4 @@ true
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

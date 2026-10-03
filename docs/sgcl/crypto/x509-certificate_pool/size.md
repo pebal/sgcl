@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](../x509-certificate_pool.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate_pool](README.md)
 
 # sgcl::crypto::x509::certificate_pool::size
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [empty](empty.md)
-- [sgcl::crypto::x509::certificate_pool](../x509-certificate_pool.md)
+- [sgcl::crypto::x509::certificate_pool](README.md)

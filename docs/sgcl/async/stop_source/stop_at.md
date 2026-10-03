@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_source](../stop_source.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_source](README.md)
 
 # sgcl::async::stop_source::stop_at
 
@@ -71,4 +71,4 @@ stopped at the deadline
 
 - [stop_after](stop_after.md): after a span
 - [with_deadline](../with_deadline.md): a task raced against a point
-- [sgcl::async::stop_source](../stop_source.md)
+- [sgcl::async::stop_source](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::has_opaque_path
 
@@ -53,4 +53,4 @@ https://x/ false
 ## See also
 
 - [path](path.md): the path
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [set](README.md)
 
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::key_eq
 
@@ -70,4 +70,4 @@ false 1
 
 - [hash_function](hash_function.md): the hash function
 - [find](find.md): the search that compares the keys
-- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](README.md)

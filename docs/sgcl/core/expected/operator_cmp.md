@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::operator== (sgcl::expected)
 
@@ -71,4 +71,4 @@ true false
 ## See also
 
 - [operator bool, has_value](operator_bool.md): checks whether there is a value
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

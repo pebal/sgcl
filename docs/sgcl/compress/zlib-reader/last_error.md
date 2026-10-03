@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [reader](../zlib-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [reader](README.md)
 
 # sgcl::compress::zlib::reader::last_error
 
@@ -6,7 +6,7 @@
 const optional<error>& last_error() const noexcept;
 ```
 
-Returns the error of the data, kept: the [compress::error](../error.md) whose code, offset and detail a read gave as
+Returns the error of the data, kept: the [compress::error](../error/README.md) whose code, offset and detail a read gave as
 an `io::error` of the compress category. The read that reached it and every read after give it; a
 [reset](reset.md) clears it. A failure of `in` itself is not kept here: the read returns `in`'s error as it came.
 
@@ -56,5 +56,5 @@ offset 10: zlib: Adler-32 mismatch
 
 ## See also
 
-- [compress::error](../error.md)
-- [sgcl::compress::zlib::reader](../zlib-reader.md)
+- [compress::error](../error/README.md)
+- [sgcl::compress::zlib::reader](README.md)

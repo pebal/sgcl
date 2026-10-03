@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::merge
 
@@ -14,11 +14,11 @@ is already here stays in `source`. No element is copied, moved or destroyed, and
 one to a relinked element points into this map now. `source` may be ordered by another comparator. Merging a map
 into itself does nothing.
 
-- (1–2) From a [sorted_map](../sorted_map.md) with the same `Key` and `T`.
-- (3–4) From a [sorted_multimap](../sorted_multimap.md) with the same `Key` and `T`: of its equal keys the first
+- (1–2) From a [sorted_map](README.md) with the same `Key` and `T`.
+- (3–4) From a [sorted_multimap](../sorted_multimap/README.md) with the same `Key` and `T`: of its equal keys the first
   comes over, the others stay.
 
-A map of another `Key` or `T`, a hash [map](../map.md) or an [ordered_map](../ordered_map.md) is not taken: the
+A map of another `Key` or `T`, a hash [map](../map/README.md) or an [ordered_map](../ordered_map/README.md) is not taken: the
 call does not compile.
 
 ## Parameters
@@ -72,4 +72,4 @@ Output:
 
 - [extract](extract.md): takes a node out of the map
 - [insert](insert.md): links a node handle's node into a map
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [tls](../README.md) › [identity](../identity.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [tls](../README.md) › [identity](README.md)
 
 # sgcl::net::tls::identity::certificates
 
@@ -60,4 +60,4 @@ true
 
 - [from_pem](from_pem.md): where the chain comes from
 - [state](../state.md): the chain a client was sent
-- [sgcl::net::tls::identity](../identity.md)
+- [sgcl::net::tls::identity](README.md)

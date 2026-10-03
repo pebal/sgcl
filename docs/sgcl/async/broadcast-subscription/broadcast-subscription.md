@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md) › [subscription](../broadcast-subscription.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast/README.md) › [subscription](README.md)
 
 # sgcl::async::broadcast\<T\>::subscription::subscription
 
@@ -61,4 +61,4 @@ false true 1
 
 - [subscribe](../broadcast/subscribe.md): a subscription of a broadcast
 - [operator=](operator_assign.md): takes another subscription over
-- [sgcl::async::broadcast\<T\>::subscription](../broadcast-subscription.md)
+- [sgcl::async::broadcast\<T\>::subscription](README.md)

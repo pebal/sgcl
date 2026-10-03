@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::of
 
@@ -57,4 +57,4 @@ Output:
 
 - [(constructor)](hmac.md): the key alone, for a message in pieces
 - [verify](verify.md): checks a received tag
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [sgcl::crypto::hmac\<H\>](README.md)

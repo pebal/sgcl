@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](../blocking_pool.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](README.md)
 
 # sgcl::async::blocking_pool::set_threads
 
@@ -66,4 +66,4 @@ sum 15, on 2 threads
 
 - [max_threads](max_threads.md): the cap now
 - [set_idle_time](set_idle_time.md): how long an idle thread stays
-- [sgcl::async::blocking_pool](../blocking_pool.md)
+- [sgcl::async::blocking_pool](README.md)

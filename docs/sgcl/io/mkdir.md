@@ -29,7 +29,7 @@ already. The permissions are those the program's umask leaves of `p`.
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call: `is_exists()` when something is at the path, `is_not_found()` when
+Nothing, or the [error](error/README.md) of the call: `is_exists()` when something is at the path, `is_not_found()` when
 the parent is missing; the operation is `mkdir` and the path `path`.
 
 ## Complexity

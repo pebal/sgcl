@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::dynamic_array\<T\>::operator[]
 
@@ -62,4 +62,4 @@ Output:
 
 - [at](at.md): access an element with bounds checking
 - [front](front.md), [back](back.md): the first and the last element
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [sgcl::dynamic_array\<T\>](README.md)

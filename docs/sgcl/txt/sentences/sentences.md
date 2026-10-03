@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [sentences](../sentences.md)
+[sgcl](../../README.md) › [txt](../README.md) › [sentences](README.md)
 
 # sgcl::txt::sentences::sentences
 
@@ -14,7 +14,7 @@ explicit sentences(P text);                                        // (5)
 ```
 
 Constructs the range of the sentences of a text. `txt::sentences(s)` looks like a call and is a construction, as
-[runes](../../core/runes.md) is. Nothing is found until the walk.
+[runes](../../core/runes/README.md) is. Nothing is found until the walk.
 
 1. An empty range, over no text.
 2. The sentences of a slice of UTF-8 bytes, a piece of a buffer as much as a piece of a string; the range keeps the
@@ -68,4 +68,4 @@ true
 ## See also
 
 - [text](text.md): the slice the range walks
-- [sgcl::txt::sentences](../sentences.md)
+- [sgcl::txt::sentences](README.md)

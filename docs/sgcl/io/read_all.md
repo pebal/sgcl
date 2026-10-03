@@ -29,7 +29,7 @@ Reads the stream `r` to its end and returns its bytes, as Go's `io.ReadAll`.
    alive until the task is done.
 
 `r` is any [reader](req/reader.md) (2: async reader). A class that carries
-[mixin::reader](mixin/reader.md) has the same as a member, [r.read_all()](mixin/reader/read_all.md);
+[mixin::reader](mixin/reader/README.md) has the same as a member, [r.read_all()](mixin/reader/read_all.md);
 [read_all_text](read_all_text.md) gives the bytes as a `string`.
 
 ## Parameters

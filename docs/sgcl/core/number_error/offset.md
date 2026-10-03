@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [number_error](../number_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [number_error](README.md)
 
 # sgcl::number_error::offset
 
@@ -51,4 +51,4 @@ the number 1500, the unit ms
 ## See also
 
 - [why](why.md): the reason
-- [sgcl::number_error](../number_error.md)
+- [sgcl::number_error](README.md)

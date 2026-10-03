@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::walk, async_walk
 
@@ -14,9 +14,9 @@ Gives every entry in the archive's order, each with a reader of its data, decodi
 its entry and makes the reader `io::errc::closed`. An entry the walk cannot read (encrypted with no password or a
 wrong one, an unsupported method, a damaged folder) has a reader that fails, and the walk goes on to the next.
 
-1. A [generator](../../core/generator.md) for a thread, with the archive's limits.
+1. A [generator](../../core/generator/README.md) for a thread, with the archive's limits.
 2. With the limits given.
-3. The same for a task, an [async::generator](../../async/generator.md): `while (auto v = co_await g.next())`.
+3. The same for a task, an [async::generator](../../async/generator/README.md): `while (auto v = co_await g.next())`.
 4. With the limits given.
 
 ## Parameters
@@ -76,4 +76,4 @@ readme.md 9 bytes
 ## See also
 
 - [reader](reader.md): one entry
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](README.md)
 
 # sgcl::concurrent::weak_map\<Key, T\>::count
 
@@ -66,4 +66,4 @@ Output:
 
 - [contains](contains.md): the same question as a `bool`
 - [find](find.md): the entry of an object
-- [sgcl::concurrent::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::concurrent::weak_map\<Key, T\>](README.md)

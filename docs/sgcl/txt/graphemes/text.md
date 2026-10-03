@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes.md)
+[sgcl](../../README.md) › [txt](../README.md) › [graphemes](README.md)
 
 # sgcl::txt::graphemes::text
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [(constructor)](graphemes.md): the range over a text
-- [sgcl::txt::graphemes](../graphemes.md)
+- [sgcl::txt::graphemes](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::text
 
@@ -49,4 +49,4 @@ Gruß
 ## See also
 
 - [find](find.md): positions in this text
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

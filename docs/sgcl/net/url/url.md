@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::url
 
@@ -30,7 +30,7 @@ Linear in the length of `text` and of `base`.
 ## Exceptions
 
 `bad_expected_access<io::error>` when `text` is not a URL (1), or not a reference that resolves against `base` (2),
-or is past [the limit](../url.md#rules) of 512 MiB; its `error()` is `parse`'s, of the code `net::errc::invalid_url`.
+or is past [the limit](README.md#rules) of 512 MiB; its `error()` is `parse`'s, of the code `net::errc::invalid_url`.
 
 ## Example
 
@@ -64,4 +64,4 @@ parse URL /docs: invalid URL
 
 - [parse](parse.md): reads a text from outside the program
 - [resolve](resolve.md): a reference against this URL
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

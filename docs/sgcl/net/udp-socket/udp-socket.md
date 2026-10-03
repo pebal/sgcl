@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::socket
 
@@ -59,4 +59,4 @@ true true
 
 - [operator bool](operator_bool.md): whether the handle holds a socket
 - [operator==](operator_cmp.md): whether two handles are the same socket
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

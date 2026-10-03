@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::on_worker
 
@@ -6,9 +6,9 @@
 static bool on_worker() noexcept;
 ```
 
-Checks whether the calling thread is one of the scheduler's workers. The thread of an [executor](../executor.md),
-the threads of the [blocking pool](../blocking_pool.md) and the program's own threads are not; a task on a
-[strand](../strand.md) runs on a worker.
+Checks whether the calling thread is one of the scheduler's workers. The thread of an [executor](../executor/README.md),
+the threads of the [blocking pool](../blocking_pool/README.md) and the program's own threads are not; a task on a
+[strand](../strand/README.md) runs on a worker.
 
 ## Parameters
 
@@ -57,5 +57,5 @@ a task on an executor: false
 
 ## See also
 
-- [executor](../executor.md): a task on a thread of the program's choosing
-- [sgcl::async::scheduler](../scheduler.md)
+- [executor](../executor/README.md): a task on a thread of the program's choosing
+- [sgcl::async::scheduler](README.md)

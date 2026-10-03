@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::from_seed
 
@@ -18,7 +18,7 @@ are a seed. Go's `ed25519.NewKeyFromSeed`, which panics on a wrong length.
 
 ## Return value
 
-The key, or an [error](../error.md) `errc::invalid_key` when `seed` is not 32 bytes long.
+The key, or an [error](../error/README.md) `errc::invalid_key` when `seed` is not 32 bytes long.
 
 ## Complexity
 
@@ -59,4 +59,4 @@ an Ed25519 seed is 32 bytes
 
 - [seed](seed.md): the reverse
 - [generate](generate.md): a new key
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [sgcl::crypto::ed25519::private_key](README.md)

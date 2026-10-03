@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::icc
 
@@ -63,4 +63,4 @@ Output:
 
 - [exif](exif.md): the EXIF block
 - [set_icc](set_icc.md): sets the ICC profile
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

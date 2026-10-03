@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::key_eq
 
@@ -49,4 +49,4 @@ true false
 ## See also
 
 - [hash_function](hash_function.md): the hash of the elements
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](README.md)

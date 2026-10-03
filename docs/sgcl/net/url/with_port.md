@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_port
 
@@ -17,9 +17,9 @@ is dropped, as the parser drops it: `with_port(80)` of an http URL leaves it wit
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL port` and the value asked for, when the standard refuses the value or declines to apply it: a URL
-without a host, or a file URL; and a URL that would pass 512 MiB ([the limit](../url.md#rules)).
+without a host, or a file URL; and a URL that would pass 512 MiB ([the limit](README.md#rules)).
 
 ## Complexity
 
@@ -58,4 +58,4 @@ set URL port 21: invalid URL
 ## See also
 
 - [port](port.md), [effective_port](effective_port.md): the port
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

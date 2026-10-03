@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [codec](../README.md) › [error](README.md)
 
 # sgcl::codec::operator== (sgcl::codec::error)
 
@@ -8,7 +8,7 @@ friend bool operator==(const error& a, const error& b) noexcept;
 
 Compares two errors by what they say: the same code at the same byte, in the same words, and the same stream's error
 when there is one. `!=` is made from it by the compiler. The stream's errors are compared as
-[io::error](../../io/error.md) compares them, by their codes alone: two failed reads of different files with the
+[io::error](../../io/error/README.md) compares them, by their codes alone: two failed reads of different files with the
 same code at the same byte are equal.
 
 ## Parameters
@@ -58,4 +58,4 @@ false
 ## See also
 
 - [code](code.md), [offset](offset.md), [message](message.md): what is compared
-- [sgcl::codec::error](../error.md)
+- [sgcl::codec::error](README.md)

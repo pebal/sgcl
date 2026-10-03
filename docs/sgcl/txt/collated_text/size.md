@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::size
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [at](at.md): where each element came from
-- [sgcl::txt::collated_text](../collated_text.md)
+- [sgcl::txt::collated_text](README.md)

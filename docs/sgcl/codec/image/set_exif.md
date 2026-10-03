@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::set_exif
 
@@ -77,4 +77,4 @@ the tag: 3
 - [exif](exif.md): the EXIF block
 - [set_orientation](set_orientation.md): sets the orientation
 - [set_icc](set_icc.md): sets the ICC profile
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

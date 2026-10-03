@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [searcher](../searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [searcher](README.md)
 
 # sgcl::txt::searcher::count
 
@@ -63,4 +63,4 @@ Output:
 ## See also
 
 - [find](find.md): the first occurrence
-- [sgcl::txt::searcher](../searcher.md)
+- [sgcl::txt::searcher](README.md)

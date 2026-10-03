@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md) › [node_type](../sorted_map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map/README.md) › [node_type](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::node_type::key
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [mapped](mapped.md): the mapped value of the element
-- [sgcl::sorted_map\<Key, T, Compare\>::node_type](../sorted_map-node_type.md)
+- [sgcl::sorted_map\<Key, T, Compare\>::node_type](README.md)

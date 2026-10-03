@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes](../aes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes](README.md)
 
 # sgcl::crypto::aes::aes
 
@@ -81,4 +81,4 @@ sgcl::crypto::aes: a key of 8 bytes
 - [from_key](from_key.md): a key that came with data
 - [clone](clone.md): a copy of the key schedule, made on purpose
 - [operator=](operator_assign.md): takes another object's key over
-- [sgcl::crypto::aes](../aes.md)
+- [sgcl::crypto::aes](README.md)

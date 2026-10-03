@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [stopwatch](../stopwatch.md)
+[sgcl](../../README.md) › [time](../README.md) › [stopwatch](README.md)
 
 # sgcl::time::stopwatch::restart
 
@@ -57,4 +57,4 @@ Output:
 ## See also
 
 - [elapsed](elapsed.md): the time since the start, the stopwatch running on
-- [sgcl::time::stopwatch](../stopwatch.md)
+- [sgcl::time::stopwatch](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::operator== (sgcl::time::zone)
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [name](name.md): the name of a zone
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

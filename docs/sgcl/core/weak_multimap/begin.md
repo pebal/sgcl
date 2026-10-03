@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::begin, cbegin
 
@@ -86,4 +86,4 @@ Output:
 
 - [end, cend](end.md): the iterator past the last entry
 - [equal_range](equal_range.md): the entries of one object
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::size
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [data](data.md): the bytes
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

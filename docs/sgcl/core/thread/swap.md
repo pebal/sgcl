@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::swap, sgcl::swap (sgcl::thread)
 
@@ -61,4 +61,4 @@ true
 ## See also
 
 - [operator=](operator_assign.md): moves a thread object
-- [sgcl::thread](../thread.md)
+- [sgcl::thread](README.md)

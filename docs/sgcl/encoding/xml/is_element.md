@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::is_element
 
@@ -53,4 +53,4 @@ i
 
 - [is_text](is_text.md), [type](type.md)
 - [children](children.md): the nodes inside an element
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

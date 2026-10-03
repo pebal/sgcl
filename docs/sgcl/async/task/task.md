@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::task
 
@@ -69,4 +69,4 @@ true
 
 - [operator=](operator_assign.md): lets go of the task held and takes another's over
 - [spawn](spawn.md): starts the task
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

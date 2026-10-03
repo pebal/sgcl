@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [writer](../xml-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [writer](README.md)
 
 # sgcl::encoding::xml::writer::instruction
 
@@ -62,4 +62,4 @@ Output:
 
 - [declaration](declaration.md): the XML declaration
 - [comment](comment.md)
-- [sgcl::encoding::xml::writer](../xml-writer.md)
+- [sgcl::encoding::xml::writer](README.md)

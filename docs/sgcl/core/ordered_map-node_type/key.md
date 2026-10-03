@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md) › [node_type](../ordered_map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map/README.md) › [node_type](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type::key
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [mapped](mapped.md): the value of the element
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type](../ordered_map-node_type.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

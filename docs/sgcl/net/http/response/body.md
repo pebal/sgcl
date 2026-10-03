@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::body
 
@@ -6,8 +6,8 @@
 io::reader body() const noexcept;
 ```
 
-Returns the body as a [stream](../../../io/reader.md), Go's `resp.Body`, for a body read in parts as it comes: lines
-of a long answer through a [buffered_reader](../../../io/buffered_reader.md), a copy into a writer of the program's.
+Returns the body as a [stream](../../../io/reader/README.md), Go's `resp.Body`, for a body read in parts as it comes: lines
+of a long answer through a [buffered_reader](../../../io/buffered_reader/README.md), a copy into a writer of the program's.
 The end of the stream is the end of the body, and reaching it gives the connection back to the client's pool. The
 stream has no close of its own ([has_close](../../../io/reader/has_close.md) is `false`, and its `close` does
 nothing): a body given up before its end is given up by the response's [close](close.md), not by Go's
@@ -77,4 +77,4 @@ false
 
 - [text](text.md), [bytes](bytes.md): the whole body at once
 - [close](close.md): the body given up
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

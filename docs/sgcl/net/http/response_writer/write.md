@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::write
 
@@ -94,4 +94,4 @@ Output:
 ## See also
 
 - [flush, async_flush](flush.md): sends what is buffered
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

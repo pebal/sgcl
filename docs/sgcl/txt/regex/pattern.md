@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::pattern
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [compile](compile.md): a pattern that arrives while the program runs
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

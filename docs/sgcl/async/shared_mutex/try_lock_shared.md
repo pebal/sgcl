@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](README.md)
 
 # sgcl::async::shared_mutex::try_lock_shared
 
@@ -56,4 +56,4 @@ false
 
 - [lock_shared](lock_shared.md): the reader's lock that waits
 - [try_lock](try_lock.md): the writer's lock without the wait
-- [sgcl::async::shared_mutex](../shared_mutex.md)
+- [sgcl::async::shared_mutex](README.md)

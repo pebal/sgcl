@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_username
 
@@ -16,10 +16,10 @@ The URL with the user name given, escaped with the standard's userinfo set; the 
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL username` and the value asked for, when the standard refuses the value or declines to apply it: a
 URL without a host, or a file URL, which can have no credentials; and a value past 512 MiB, or a URL that would pass
-it ([the limit](../url.md#rules)).
+it ([the limit](README.md#rules)).
 
 ## Complexity
 
@@ -55,4 +55,4 @@ set URL username joe: invalid URL
 
 - [username](username.md): the user name
 - [with_password](with_password.md): the password
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

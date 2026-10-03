@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md) › [guard](../mutex-guard.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex/README.md) › [guard](README.md)
 
 # sgcl::async::mutex::guard::guard
 
@@ -62,4 +62,4 @@ true
 
 - [scoped_lock](../mutex/scoped_lock.md): locks and makes the guard
 - [release](release.md): gives the mutex up without unlocking it
-- [sgcl::async::mutex::guard](../mutex-guard.md)
+- [sgcl::async::mutex::guard](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::dumper_to
 
@@ -9,7 +9,7 @@ static dumper dumper_to(const io::writer& out) noexcept;
 A writer that writes the dump of what it is given to `out`: Go's `hex.Dumper`. A line goes out as soon as its
 sixteen bytes are there, the lines [dump](dump.md) writes, with the offsets counted across the writes;
 [close()](../hex-dumper/close.md) writes the short line at the end and leaves `out` open. A failure of `out` is
-kept for good: every later `write` and `close` reports it. The [dumper](../hex-dumper.md) is a handle of one word,
+kept for good: every later `write` and `close` reports it. The [dumper](../hex-dumper/README.md) is a handle of one word,
 made with its state: a managed object holding an 8 KB block and `out`.
 
 ## Parameters
@@ -55,6 +55,6 @@ Output:
 
 ## See also
 
-- [hex::dumper](../hex-dumper.md): the stream
+- [hex::dumper](../hex-dumper/README.md): the stream
 - [dump](dump.md): the dump at once
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

@@ -15,14 +15,14 @@ its asynchronous side; `net`, `compress`, `codec` and `encoding` are built on it
 The idea it rests on is that a stream is whatever has the primitive. A reader is a `read(slice<byte>)` that returns
 the bytes read, 0 at the end; a writer a `write(slice<const byte>)` that writes all of it or fails; where a stream can
 wait without holding a thread, `async_read` and `async_write` return a task. No base class and nothing virtual: the
-requirements ([req](req.md)) are concepts checked where a stream is passed, a lambda of the same shape is a stream
+requirements ([req](req/README.md)) are concepts checked where a stream is passed, a lambda of the same shape is a stream
 too, the functions of the module ([copy](copy.md), [read_full](read_full.md), [read_all](read_all.md),
 [write](write.md)) take any of them, the classes of the library have the same as methods from the
-[mixins](mixin/README.md), and [reader](reader.md) and [writer](writer.md) hold any stream as a value, Go's interface
+[mixins](mixin/README.md), and [reader](reader/README.md) and [writer](writer/README.md) hold any stream as a value, Go's interface
 value, where one has to be kept. Every operation that waits has two names: `read()` takes the thread until the data
 comes, `co_await async_read()` gives the worker back meanwhile.
 
-Errors are values. An operation that can fail returns [expected\<T, io::error\>](error.md): the value, or an `error`
+Errors are values. An operation that can fail returns [expected\<T, io::error\>](error/README.md): the value, or an `error`
 that carries the code (`errno` in the system category, or one of the module's own, [errc](errc.md)), the operation
 and the path, so that `e.message()` reads `open log.txt: No such file or directory`, and that answers the questions
 a caller asks (`is_not_found()`, `is_exists()`, `is_permission()`, `is_closed()`, `is_eof()`, `is_timeout()`). A
@@ -40,13 +40,13 @@ program. The end of a stream is not an error: a `read` returns 0. `io::open(p).v
    something else. `io::remove("x")` cannot, and reads as Go's `os.Remove`. The four printing functions
    ([print](print.md), [println](println.md), [eprint](eprint.md), [eprintln](eprintln.md)) are also names of
    `sgcl` itself.
-2. The objects of the module — [file](file.md), [buffer](buffer.md), [buffered_reader](buffered_reader.md),
-   [buffered_writer](buffered_writer.md), [process](process.md), [mapping](mapping.md),
-   [shared_memory](shared_memory.md) — are handles of one word, a `tracked_ptr` to the object inside, as a
-   [string](../core/string.md) is: made as values (`io::file f = io::open(p);`, `io::buffer out;`), copied and
-   passed by value, the copies sharing one object. A stream made of one ([reader](reader.md), [writer](writer.md))
+2. The objects of the module — [file](file/README.md), [buffer](buffer/README.md), [buffered_reader](buffered_reader/README.md),
+   [buffered_writer](buffered_writer/README.md), [process](process/README.md), [mapping](mapping/README.md),
+   [shared_memory](shared_memory/README.md) — are handles of one word, a `tracked_ptr` to the object inside, as a
+   [string](../core/string/README.md) is: made as values (`io::file f = io::open(p);`, `io::buffer out;`), copied and
+   passed by value, the copies sharing one object. A stream made of one ([reader](reader/README.md), [writer](writer/README.md))
    holds that object, not the handle. A handle lives on a stack, in a task, in a managed object; in a global or a
-   `std` container it is held by a [rooted](../core/rooted.md) (`rooted<io::file> log(io::open(p));`, then
+   `std` container it is held by a [rooted](../core/rooted/README.md) (`rooted<io::file> log(io::open(p));`, then
    `log->write(...)`), never in a managed object or a task's frame, since a root is never part of a cycle.
 3. The destructor of a stream runs on the collector's thread, after the sweep that finds the object dead, which may
    be long after the last use: a descriptor is held until then. A stream that is done is `close()`d, which releases
@@ -63,32 +63,32 @@ program. The end of a stream is not an error: a `read` returns 0. `io::open(p).v
 ### Buffers
 
 The module owns two kinds of buffer. A block the library keeps in front of a stream and hands slices of (a
-[buffered_reader](buffered_reader.md)'s) is a managed `array<byte, N>` behind a `tracked_ptr`, with `N` a divisor of
+[buffered_reader](buffered_reader/README.md)'s) is a managed `array<byte, N>` behind a `tracked_ptr`, with `N` a divisor of
 the page (`config::io_buffer_size`, 8 KB: eight to a page), one object with no header and no pointer map. A block
 nothing hands a slice of, and that no operation on the blocking pool is given, is unmanaged: the block of
 [copy](copy.md) (`config::io_copy_buffer_size`, 32 KB) lies on the stack of the call, a
-[buffered_writer](buffered_writer.md)'s is its own until its first async operation, and [read_all](read_all.md)
+[buffered_writer](buffered_writer/README.md)'s is its own until its first async operation, and [read_all](read_all.md)
 gathers in plain memory before it makes its result. A block an async read or write is handed is managed (that of
 `async_copy`, the reads of `async_read_all`), since the operation may run on the pool and outlive the frame of a task
 let go of.
 
 Data whose size is the data's (what `read_all` returns, a directory listing, a path) is a `vector<byte>` or a
-[string](../core/string.md); a `string` is one word, so handing one back or taking one costs nothing beyond making
+[string](../core/string/README.md); a `string` is one word, so handing one back or taking one costs nothing beyond making
 it, and every text parameter of the module is a `const string&` (a literal makes one). A range of bytes handed to
-`read` or `write`, or handed back by `peek` and `buffer::data()`, is a [slice](../core/slice.md): `slice<byte>`,
+`read` or `write`, or handed back by `peek` and `buffer::data()`, is a [slice](../core/slice/README.md): `slice<byte>`,
 `slice<const byte>`, the elements and the managed object they lie in, held — a `std::span` when the memory is
 unmanaged — so a stream reading into a vector's buffer keeps the vector alive for as long as the read runs.
 
 ### Paths and text
 
-Paths are strings, in the platform's form (`/` on POSIX); [path](path.md) is the lexical operations on them, a
+Paths are strings, in the platform's form (`/` on POSIX); [path](path/README.md) is the lexical operations on them, a
 `string` in and a `string` out, no path type. Text is UTF-8 in `char`: a `string` is bytes, `size()` counts them,
 and [path::match](path/match.md) compares code points (`?` is one character, `[α-ω]` a range of them). Invalid bytes
 are rejected nowhere; on POSIX a path is bytes the system does not interpret.
 
 ### Mapped memory
 
-[map](map.md) maps a file into memory and [shared_memory](shared_memory.md) is a named region shared between
+[map](map.md) maps a file into memory and [shared_memory](shared_memory/README.md) is a named region shared between
 processes; both hand out the bytes as a slice whose owner is the region (one managed object under both handles,
 unmapped when nothing holds it any more), so a slice kept after the handle still reads them. The region is outside
 the managed heap: only trivial data goes into it, never a `tracked_ptr` or a handle of the library.
@@ -162,30 +162,30 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 
 | Class | Header | Description |
 |---|---|---|
-| [buffer](buffer.md) | `stream.h` | bytes in memory, read from the front and written at the back: Go's `bytes.Buffer` |
-| [buffered_reader](buffered_reader.md) | `buffered.h` | lines, tokens and prefixes of any reader as slices of a block: Go's `bufio.Reader` and `Scanner` |
-| [buffered_writer](buffered_writer.md) | `buffered.h` | a block in front of any writer, written out by `flush`: Go's `bufio.Writer` |
-| [command](command.md) | `exec.h` | a program to run, its arguments and streams: Go's `exec.Cmd` |
-| [directory_entry](directory_entry.md) | `fs.h` | an entry of a directory listing: the name, the path, the type |
-| [discard_writer](discard_writer.md) | `stream.h` | the writer that drops everything, the class of `io::discard` |
-| [error](error.md) | `error.h` | the error of an operation: a code, the operation, the path |
-| [file](file.md) | `file.h` | one class for every descriptor: a stream with a position, a handle of one word |
-| [file_info](file_info.md) | `fs.h` | what a stat says: the name, the size, the type, the permissions, the time |
-| [flags](flags.md) | `flags.h` | the command line as Go's `flag` package reads it |
-| [limit_reader](limit_reader.md) | `stream.h` | the first `n` bytes of a reader |
+| [buffer](buffer/README.md) | `stream.h` | bytes in memory, read from the front and written at the back: Go's `bytes.Buffer` |
+| [buffered_reader](buffered_reader/README.md) | `buffered.h` | lines, tokens and prefixes of any reader as slices of a block: Go's `bufio.Reader` and `Scanner` |
+| [buffered_writer](buffered_writer/README.md) | `buffered.h` | a block in front of any writer, written out by `flush`: Go's `bufio.Writer` |
+| [command](command/README.md) | `exec.h` | a program to run, its arguments and streams: Go's `exec.Cmd` |
+| [directory_entry](directory_entry/README.md) | `fs.h` | an entry of a directory listing: the name, the path, the type |
+| [discard_writer](discard_writer/README.md) | `stream.h` | the writer that drops everything, the class of `io::discard` |
+| [error](error/README.md) | `error.h` | the error of an operation: a code, the operation, the path |
+| [file](file/README.md) | `file.h` | one class for every descriptor: a stream with a position, a handle of one word |
+| [file_info](file_info/README.md) | `fs.h` | what a stat says: the name, the size, the type, the permissions, the time |
+| [flags](flags/README.md) | `flags.h` | the command line as Go's `flag` package reads it |
+| [limit_reader](limit_reader/README.md) | `stream.h` | the first `n` bytes of a reader |
 | [map_options](map_options.md) | `mapping.h` | how a file is mapped: writable, shared, a range |
-| [mapping](mapping.md) | `mapping.h` | a file mapped into memory, its bytes a slice that keeps the mapping |
-| [multi_reader](multi_reader.md) | `stream.h` | readers one after another |
-| [multi_writer](multi_writer.md) | `stream.h` | every write to each of several writers |
+| [mapping](mapping/README.md) | `mapping.h` | a file mapped into memory, its bytes a slice that keeps the mapping |
+| [multi_reader](multi_reader/README.md) | `stream.h` | readers one after another |
+| [multi_writer](multi_writer/README.md) | `stream.h` | every write to each of several writers |
 | [pipe_ends](pipe_ends.md) | `file.h` | the two ends of a pipe |
-| [process](process.md) | `exec.h` | a running child: its id, a signal, the wait |
-| [process_state](process_state.md) | `exec.h` | how a process ended: the exit code, the signal, the times |
-| [reader](reader.md) | `stream.h` | any reader held as a value: Go's `io.Reader` |
-| [shared_memory](shared_memory.md) | `shared_memory.h` | a named region of memory shared between processes |
-| [standard_stream](standard_stream.md) | `os.h` | the class of `io::stdin`, `io::stdout`, `io::stderr` |
-| [tee_reader](tee_reader.md) | `stream.h` | a reader whose bytes are written to a writer as well |
-| [transform_reader\<F\>](transform_reader.md) | `stream.h` | a reader whose bytes a function changes as they are read |
-| [writer](writer.md) | `stream.h` | any writer held as a value: Go's `io.Writer` |
+| [process](process/README.md) | `exec.h` | a running child: its id, a signal, the wait |
+| [process_state](process_state/README.md) | `exec.h` | how a process ended: the exit code, the signal, the times |
+| [reader](reader/README.md) | `stream.h` | any reader held as a value: Go's `io.Reader` |
+| [shared_memory](shared_memory/README.md) | `shared_memory.h` | a named region of memory shared between processes |
+| [standard_stream](standard_stream/README.md) | `os.h` | the class of `io::stdin`, `io::stdout`, `io::stderr` |
+| [tee_reader](tee_reader/README.md) | `stream.h` | a reader whose bytes are written to a writer as well |
+| [transform_reader\<F\>](transform_reader/README.md) | `stream.h` | a reader whose bytes a function changes as they are read |
+| [writer](writer/README.md) | `stream.h` | any writer held as a value: Go's `io.Writer` |
 
 ## Enumerations
 
@@ -202,9 +202,9 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 
 | Name | Header | Description |
 |---|---|---|
-| `discard` | `stream.h` | `inline discard_writer discard;`: the writer that drops everything, Go's `io.Discard` ([discard_writer](discard_writer.md)) |
-| `file_time` | `fs.h` | `std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>`: the time of a file ([file_info](file_info.md)) |
-| `stderr` | `os.h` | `inline standard_stream stderr;`: the standard error, descriptor 2 ([standard_stream](standard_stream.md)) |
+| `discard` | `stream.h` | `inline discard_writer discard;`: the writer that drops everything, Go's `io.Discard` ([discard_writer](discard_writer/README.md)) |
+| `file_time` | `fs.h` | `std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>`: the time of a file ([file_info](file_info/README.md)) |
+| `stderr` | `os.h` | `inline standard_stream stderr;`: the standard error, descriptor 2 ([standard_stream](standard_stream/README.md)) |
 | `stdin` | `os.h` | `inline standard_stream stdin;`: the standard input, descriptor 0 |
 | `stdout` | `os.h` | `inline standard_stream stdout;`: the standard output, descriptor 1 |
 
@@ -212,7 +212,7 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 
 | Namespace | Header | Description |
 |---|---|---|
-| [path](path.md) | `path.h` | the lexical operations on paths: `clean`, `join`, `base`, `dir`, `ext`, `rel`, `match`, `glob`... |
+| [path](path/README.md) | `path.h` | the lexical operations on paths: `clean`, `join`, `base`, `dir`, `ext`, `rel`, `match`, `glob`... |
 
 ## Mixins
 
@@ -221,13 +221,13 @@ The bases a stream of the library declares itself by, and the members each gives
 
 | Mixin | Description |
 |---|---|
-| [reader\<Derived\>](mixin/reader.md) | `read_full`, `read_all`, `read_all_text`, `copy_to` over the class's `read` |
-| [seeker\<Derived\>](mixin/seeker.md) | `tell`, `size`, `rewind` over the class's `seek` |
-| [writer\<Derived\>](mixin/writer.md) | the `write` of text and of a byte, `copy_from`, over the class's `write` |
+| [reader\<Derived\>](mixin/reader/README.md) | `read_full`, `read_all`, `read_all_text`, `copy_to` over the class's `read` |
+| [seeker\<Derived\>](mixin/seeker/README.md) | `tell`, `size`, `rewind` over the class's `seek` |
+| [writer\<Derived\>](mixin/writer/README.md) | the `write` of text and of a byte, `copy_from`, over the class's `write` |
 
 ## Requirements
 
-What a function of the module asks of a stream ([req](req.md), `namespace sgcl::io::req`).
+What a function of the module asks of a stream ([req](req/README.md), `namespace sgcl::io::req`).
 
 | Requirement | Description |
 |---|---|

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [flags](../flags.md)
+[sgcl](../../README.md) › [io](../README.md) › [flags](README.md)
 
 # sgcl::io::flags::positional
 
@@ -67,4 +67,4 @@ unexpected argument: a.txt
 
 - [add](add.md): a flag tied to a variable
 - [parse](parse.md): reads the command line
-- [sgcl::io::flags](../flags.md)
+- [sgcl::io::flags](README.md)

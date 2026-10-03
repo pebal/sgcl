@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [codec](README.md) › [jpeg](jpeg.md)
+[sgcl](../README.md) › [codec](README.md) › [jpeg](jpeg/README.md)
 
 # sgcl::codec::jpeg::options
 
@@ -75,4 +75,4 @@ quality 100: 11284 bytes, optimized 8305
 - [encode](jpeg/encode.md): what takes the options
 - [subsampling](jpeg-subsampling.md): the resolution of the chrominance
 - [save_options](save_options.md): the quality and the subsampling `save` writes a JPEG at
-- [sgcl::codec::jpeg](jpeg.md)
+- [sgcl::codec::jpeg](jpeg/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::sign_digest
 
@@ -72,4 +72,4 @@ sgcl::crypto::rsa: the digest is not of the hash's length
 - [public_key::verify_digest](../rsa-public_key/verify_digest.md): checks the signature
 - [sign_digest_pss](sign_digest_pss.md): the PSS signature
 - [sign](sign.md): a message, hashed inside
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

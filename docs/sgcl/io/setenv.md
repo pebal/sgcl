@@ -12,7 +12,7 @@ namespace sgcl::io {
 
 Sets the environment variable `name` to `value`, replacing what it held: Go's `os.Setenv`, the C library's
 `setenv` with the replacement on. A child process started after the call inherits the variable unless its
-[command](command.md) is given an environment of its own.
+[command](command/README.md) is given an environment of its own.
 
 ## Parameters
 
@@ -23,7 +23,7 @@ Sets the environment variable `name` to `value`, replacing what it held: Go's `o
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call: `std::errc::invalid_argument` for a name that is empty or holds
+Nothing, or the [error](error/README.md) of the call: `std::errc::invalid_argument` for a name that is empty or holds
 `=`. The operation is `setenv` and the path the name.
 
 ## Complexity

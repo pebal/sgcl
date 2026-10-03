@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::set_exception
 
@@ -34,7 +34,7 @@ cannot be started.
 ## Notes
 
 The exception object is kept by the runtime, outside the managed heap: it carries its message as a `std::string`
-and a value with tracked pointers in a [rooted](../../core/rooted.md) member
+and a value with tracked pointers in a [rooted](../../core/rooted/README.md) member
 ([The rules](../../core/README.md#the-rules), 1).
 
 ## Example
@@ -72,4 +72,4 @@ failed: no connection
 ## See also
 
 - [set_value](set_value.md): sets the value
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

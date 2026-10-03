@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::get (sgcl::variant)
 
@@ -87,4 +87,4 @@ not an int
 
 - [get_if](get_if.md): a pointer to the alternative, null on another
 - [visit](visit.md): a function called with whichever alternative is held
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

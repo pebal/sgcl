@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [entry](../tar-entry.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [entry](README.md)
 
 # sgcl::compress::tar::operator== (sgcl::compress::tar::entry)
 
@@ -53,4 +53,4 @@ false
 
 ## See also
 
-- [sgcl::compress::tar::entry](../tar-entry.md)
+- [sgcl::compress::tar::entry](README.md)

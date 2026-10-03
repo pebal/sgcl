@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [percent](../percent.md)
+[sgcl](../../README.md) › [txt](../README.md) › [percent](README.md)
 
 # sgcl::txt::percent::decode
 
@@ -62,4 +62,4 @@ false false
 
 - [encode](encode.md)
 - [txt::decode](../decode.md): bytes of an encoding as text
-- [sgcl::txt::percent](../percent.md)
+- [sgcl::txt::percent](README.md)

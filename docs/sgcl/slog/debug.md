@@ -26,7 +26,7 @@ Writes a record through the [default logger](default_logger.md), slog's `slog.De
 3. A record of `level::warn`.
 4. A record of `level::error`.
 
-- (1–4) The attributes are pairs, a key then a value, and [groups](group.md), checked by the compiler as a
+- (1–4) The attributes are pairs, a key then a value, and [groups](group/README.md), checked by the compiler as a
   logger's verbs check them.
 
 ## Parameters

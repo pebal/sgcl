@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](README.md)
 
 # sgcl::compress::xz::decompress
 
@@ -26,7 +26,7 @@ when it gives one, against `max_size`, so data past them fails before any work; 
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): not xz, or something else after a stream
+The decompressed bytes, or the [error](../error/README.md): not xz, or something else after a stream
 (`errc::invalid_header`), a check or a CRC-32 of a header that does not match (`errc::checksum`), data the format
 does not allow, an index that does not list the blocks read, padding not a multiple of four (`errc::corrupt`), a check
 type the format reserves (`errc::unsupported`), data cut short (`errc::unexpected_end`), a dictionary or an output
@@ -69,6 +69,6 @@ offset 116: xz: the block's check does not match its data
 ## See also
 
 - [compress](compress.md): the other way
-- [xz::reader](../xz-reader.md): a stream
+- [xz::reader](../xz-reader/README.md): a stream
 - [limits](../limits.md)
-- [sgcl::compress::xz](../xz.md)
+- [sgcl::compress::xz](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::done
 
@@ -73,4 +73,4 @@ no value
 
 - [wait, operator co_await](wait.md): waits for the end
 - [result](result.md): the value, or what the coroutine threw
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

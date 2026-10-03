@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [writer](../zlib-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [writer](README.md)
 
 # sgcl::compress::zlib::writer::writer
 
@@ -18,7 +18,7 @@ The encoder's memory (its window and tables) is taken here, and kept across a [r
 
 | Parameter | Description |
 |---|---|
-| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer.md), a file, a buffer, a socket |
+| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer/README.md), a file, a buffer, a socket |
 | `o` | the level and a preset dictionary, named by its Adler-32 in the header ([options](../zlib-options.md)) |
 
 ## Complexity
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [close](close.md): the end of the stream
-- [sgcl::compress::zlib::writer](../zlib-writer.md)
+- [sgcl::compress::zlib::writer](README.md)

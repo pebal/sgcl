@@ -36,7 +36,7 @@ What Go's `os.Open` (the defaults) and `os.OpenFile` (the flags and the permissi
 
 ## Return value
 
-The [file](file.md), or the [error](error.md), its operation `open` and its path `path`, with the `errno` of
+The [file](file/README.md), or the [error](error/README.md), its operation `open` and its path `path`, with the `errno` of
 `open(2)`: it answers `is_not_found()` for a missing file or directory on the way, `is_permission()` for a file the
 process may not open so, `is_exists()` for one that exists under `create | exclusive`.
 
@@ -52,7 +52,7 @@ None.
 ## Notes
 
 `io::file f = io::open(p);` takes the file out of the `expected`, and throws its error when there is none
-([expected](../core/expected.md)); `auto opened = io::open(p); if (!opened) ...` is the form that looks at the
+([expected](../core/expected/README.md)); `auto opened = io::open(p); if (!opened) ...` is the form that looks at the
 failure.
 
 ## Example
@@ -122,4 +122,4 @@ open none.txt: No such file or directory
 - [create](create.md): `open(path, write | create | truncate)`
 - [from_fd](from_fd.md): a file over a descriptor opened elsewhere
 - [read_file](read_file.md), [read_text](read_text.md): a whole file in one call
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

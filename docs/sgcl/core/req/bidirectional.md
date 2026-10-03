@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::bidirectional
 
@@ -68,4 +68,4 @@ false false
 
 - [the mixins](../mixin/README.md): `mixin::bidirectional`, the declaration without methods this requirement asks for
 - [enumerable](enumerable.md), [random_access](random_access.md)
-- [sgcl::req](../req.md)
+- [sgcl::req](README.md)

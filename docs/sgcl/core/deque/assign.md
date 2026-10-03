@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::assign
 
@@ -78,4 +78,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns another deque or a list
 - [(constructor)](deque.md): constructs the deque
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

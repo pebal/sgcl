@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [field_list](../field_list.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [field_list](README.md)
 
 # sgcl::encoding::field_list::size
 
@@ -68,4 +68,4 @@ Output:
 ## See also
 
 - [add](add.md): a field added
-- [sgcl::encoding::field_list](../field_list.md)
+- [sgcl::encoding::field_list](README.md)

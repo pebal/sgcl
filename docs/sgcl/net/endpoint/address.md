@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [endpoint](../endpoint.md)
+[sgcl](../../README.md) › [net](../README.md) › [endpoint](README.md)
 
 # sgcl::net::endpoint::address
 
@@ -47,4 +47,4 @@ fe80::1%en0 true
 ## See also
 
 - [port](port.md): the port
-- [sgcl::net::endpoint](../endpoint.md)
+- [sgcl::net::endpoint](README.md)

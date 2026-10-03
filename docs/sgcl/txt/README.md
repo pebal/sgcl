@@ -9,15 +9,15 @@
 What a human expects of text and a byte does not give: the properties of a code point, the boundaries between
 graphemes, words, sentences and lines, normalization, the full case mappings, the order of a language, text that runs
 both ways, names of hosts and identifiers, the encodings, escaping, patterns, and the writing of values into text with
-[format](format.md) and of a shape the program did not write with [stencil](stencil.md). The module depends on
+[format](format.md) and of a shape the program did not write with [stencil](stencil/README.md). The module depends on
 [core](../core/README.md) (with its containers) and on nothing else — never on [async](../async/README.md) or
 [io](../io/README.md) — and `net`, `time`, `slog` and the user interface are built on it; the index of the whole
 interface is [the modules](../README.md).
 
-Core has text at the level of bytes and code points: [utf8](../core/utf8.md) (decoding, encoding, validation),
-[unicode](../core/unicode.md) (the simple case mappings, one code point to one, and the White_Space property),
-[runes](../core/runes.md) (the code points of a text, decoded as they are walked) and the whole text interface of
-[string](../core/string.md) and [slice](../core/slice.md). That does not move, and this module does not repeat it:
+Core has text at the level of bytes and code points: [utf8](../core/utf8/README.md) (decoding, encoding, validation),
+[unicode](../core/unicode/README.md) (the simple case mappings, one code point to one, and the White_Space property),
+[runes](../core/runes/README.md) (the code points of a text, decoded as they are walked) and the whole text interface of
+[string](../core/string/README.md) and [slice](../core/slice/README.md). That does not move, and this module does not repeat it:
 `txt` adds only what needs the larger tables and the algorithms of the annexes.
 
 Every algorithm here is the library's own, written from the specification — UAX #9, #11, #14, #15, #29, #31, UTS #10,
@@ -30,13 +30,13 @@ tailorings of collation are CLDR 46.
 1. **A code point and nothing else.** Every name that asks about a character takes a `char32_t` and refuses
    everything else: a `char` is a byte of UTF-8, not a character (`is_space(s[0])` on a no-break space asks about
    `0xC2`), and `'ż'` in a UTF-8 source is a multi-character literal of type `int`. The refusal is a deleted
-   overload, and the names are objects rather than functions, the shape core's [unicode](../core/unicode.md) uses, so
+   overload, and the names are objects rather than functions, the shape core's [unicode](../core/unicode/README.md) uses, so
    that each is still passable where a predicate or a projection is asked for: `s.runes().count_of(txt::is_alpha)`.
-2. **The library's types in the interface.** Text comes in as a [string](../core/string.md), a
-   [slice\<const char\>](../core/slice.md) or a C text and goes out as a string or a slice: both hold the object the
+2. **The library's types in the interface.** Text comes in as a [string](../core/string/README.md), a
+   [slice\<const char\>](../core/slice/README.md) or a C text and goes out as a string or a slice: both hold the object the
    characters live in, which a `std::string_view` does not. A range this module hands back — the graphemes of a text, its words, its matches — is a class
-   constructed from the text, as [runes](../core/runes.md) is (`txt::graphemes(s)` looks like a call and is a
-   construction), a range of the library ([mixin::enumerable](../core/mixin/enumerable.md)) whose elements are slices
+   constructed from the text, as [runes](../core/runes/README.md) is (`txt::graphemes(s)` looks like a call and is a
+   construction), a range of the library ([mixin::enumerable](../core/mixin/enumerable/README.md)) whose elements are slices
    of the text, decoded as it is walked and allocating nothing per element: a loop over a temporary is safe.
 3. **Nothing is refused.** An invalid byte is `U+FFFD`, as it is in core (`decode(b, e, txt::strict)` gives the
    error instead, for a program that must not change a text); a code point no encoding can carry is `'?'`. An
@@ -46,24 +46,24 @@ tailorings of collation are CLDR 46.
    outside the program is answered with an `optional` or an `expected`, never an exception. What throws is a mistake
    of the program's own or a limit, each said on its page under `## Exceptions`: a literal pattern or template that
    does not parse (`bad_expected_access`), `{:c}` of a number no `char` holds (`out_of_range`), a text built by the
-   function past the 4 GiB a [string](../core/string.md) holds (`length_error`), and what a function of the program
+   function past the 4 GiB a [string](../core/string/README.md) holds (`length_error`), and what a function of the program
    throws when the library calls it (a formatter, a function of a template's pipeline).
 5. **A pattern in the program is read by the compiler.** A literal pattern of [format](format.md) and of
-   [regex](regex.md) and the literal source of a [stencil](stencil.md) are checked where the program is compiled; a
+   [regex](regex/README.md) and the literal source of a [stencil](stencil/README.md) are checked where the program is compiled; a
    pattern that arrives while the program runs goes through a form that reports why it is not one
    ([runtime](runtime.md), [regex::compile](regex/compile.md), [stencil::parse](stencil/parse.md)).
 6. **Its own implementation, from the specification.** Every algorithm is written from its annex; other
    implementations (ICU, Python, Go, `std`) are used in the tests as an oracle and nowhere else. A boundary is written
-   down rather than discovered: [stencil](stencil.md) has no escaping that knows where a value lands, as Go's
+   down rather than discovered: [stencil](stencil/README.md) has no escaping that knows where a value lands, as Go's
    `html/template` has, and says so; a check of [identifiers](is_identifier.md) reports, and whoever registers the
    name decides, with the limits of every report written on its page.
 
 ### Searching
 
-Three ways for three questions: the bytes as they stand, which is what a parser wants ([searcher](searcher.md),
-[regex](regex.md)); blind to case, which is what a person searching wants ([find_fold](find_fold.md)); and blind to
+Three ways for three questions: the bytes as they stand, which is what a parser wants ([searcher](searcher/README.md),
+[regex](regex/README.md)); blind to case, which is what a person searching wants ([find_fold](find_fold.md)); and blind to
 the way the text was written, which is what a search over names and file paths wants, since `"é"` typed in two code
-points must find `"é"` stored in one ([find_normalized](find_normalized.md)). A [collator](collator.md) adds a fourth:
+points must find `"é"` stored in one ([find_normalized](find_normalized.md)). A [collator](collator/README.md) adds a fourth:
 whatever the collator counts as equal.
 
 - **A match takes whole characters.** In every search blind to case, to spelling or by collation, a match may not cut
@@ -75,9 +75,9 @@ whatever the collator counts as equal.
 - **Ask once, or ask in a loop.** The one-shot searches ([find_fold](find_fold.md),
   [find_normalized](find_normalized.md), [collator::find](collator/find.md)) map or weigh both sides on every call:
   the right shape for one question, and quadratic in a loop over the occurrences. Each has prepared forms — a pattern
-  prepared once ([fold_searcher](fold_searcher.md), [collated_searcher](collated_searcher.md)), a text prepared once
-  ([folded_text](folded_text.md), [collated_text](collated_text.md)) and a range of every occurrence
-  ([fold_matches](fold_matches.md), [collated_matches](collated_matches.md)) — and all of them answer the same.
+  prepared once ([fold_searcher](fold_searcher/README.md), [collated_searcher](collated_searcher/README.md)), a text prepared once
+  ([folded_text](folded_text/README.md), [collated_text](collated_text/README.md)) and a range of every occurrence
+  ([fold_matches](fold_matches/README.md), [collated_matches](collated_matches/README.md)) — and all of them answer the same.
 
 ### The tables
 
@@ -106,7 +106,7 @@ Every algorithm is held to the UCD's own test files, every case of each — 2010
 (`GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`, `LineBreakTest.txt`), 19965 lines of
 `NormalizationTest.txt`, the 2981 code points that have a case and 212 strings built around the conditions of
 `SpecialCasing.txt` (against Python), 91707 bidirectional cases and 206286 lines of the collation conformance file
-— with no rule tailored and none skipped — and 6387 of the 6389 cases of `IdnaTestV2.txt` ([idna](idna.md) says
+— with no rule tailored and none skipped — and 6387 of the 6389 cases of `IdnaTestV2.txt` ([idna](idna/README.md) says
 which two and why); the tailorings of collation, which have no conformance file, are held to ICU, and regex to
 Python's `re`. Each page names its own oracle.
 
@@ -194,50 +194,50 @@ Python's `re`. Each page names its own oracle.
 
 | Class | Header | Description |
 |---|---|---|
-| [bidi_runs](bidi_runs.md) | `bidi.h` | the pieces of a text in the order they are drawn, each with its level |
-| [byte_order_mark](byte_order_mark.md) | `encoding.h` | what a byte order mark says and how many bytes it takes |
-| [collated_matches](collated_matches.md) | `collate.h` | every occurrence of a pattern by a collator's equality, the text weighed once |
-| [collated_searcher](collated_searcher.md) | `collate.h` | a pattern weighed once by a collator |
-| [collated_text](collated_text.md) | `collate.h` | a text weighed once by a collator and asked many questions |
-| [collator](collator.md) | `collate.h` | the order a reader expects (UTS #10): a comparator, a sort key and a search, in the root order of the DUCET or of 88 languages from CLDR |
-| [decode_error](decode_error.md) | `encoding.h` | why bytes are not text in an encoding: the first byte that means nothing |
-| [fold_matches](fold_matches.md) | `search.h` | every occurrence without regard to case, the text folded once |
-| [fold_searcher](fold_searcher.md) | `search.h` | a pattern folded once, asked of many texts |
-| [folded_text](folded_text.md) | `search.h` | a text folded once and asked many questions |
+| [bidi_runs](bidi_runs/README.md) | `bidi.h` | the pieces of a text in the order they are drawn, each with its level |
+| [byte_order_mark](byte_order_mark/README.md) | `encoding.h` | what a byte order mark says and how many bytes it takes |
+| [collated_matches](collated_matches/README.md) | `collate.h` | every occurrence of a pattern by a collator's equality, the text weighed once |
+| [collated_searcher](collated_searcher/README.md) | `collate.h` | a pattern weighed once by a collator |
+| [collated_text](collated_text/README.md) | `collate.h` | a text weighed once by a collator and asked many questions |
+| [collator](collator/README.md) | `collate.h` | the order a reader expects (UTS #10): a comparator, a sort key and a search, in the root order of the DUCET or of 88 languages from CLDR |
+| [decode_error](decode_error/README.md) | `encoding.h` | why bytes are not text in an encoding: the first byte that means nothing |
+| [fold_matches](fold_matches/README.md) | `search.h` | every occurrence without regard to case, the text folded once |
+| [fold_searcher](fold_searcher/README.md) | `search.h` | a pattern folded once, asked of many texts |
+| [folded_text](folded_text/README.md) | `search.h` | a text folded once and asked many questions |
 | [format_part](format_part.md) | `format.h` | one step of a pattern read where the program is compiled: a run of literal text and the field after it |
-| [format_pattern\<A...\>](format_pattern.md) | `format.h` | the pattern of `format`, read and checked where the program is compiled; what a function of one's own takes to have its pattern checked |
-| [format_sink](format_sink.md) | `format.h` | where a value is written: room the caller lends, and a count of what the whole takes |
+| [format_pattern\<A...\>](format_pattern/README.md) | `format.h` | the pattern of `format`, read and checked where the program is compiled; what a function of one's own takes to have its pattern checked |
+| [format_sink](format_sink/README.md) | `format.h` | where a value is written: room the caller lends, and a count of what the whole takes |
 | [format_spec](format_spec.md) | `format.h` | one field's specification as it was read, `[[fill]align][sign][#][0][width][.precision][type]` |
-| [formatter\<T\>](formatter.md) | `format.h` | what a type takes in a field and how it is written; the library's specializations and the program's own |
-| [graphemes](graphemes.md) | `segment.h` | the grapheme clusters of a text: what a reader calls a character |
-| [growing_sink](growing_sink.md) | `format.h` | a sink whose room grows, for a long text written in steps, one step written again when it ran off the end |
-| [line_breaks](line_breaks.md) | `segment.h` | the pieces of a text that must stay on one line, UAX #14 |
-| [list](list.md) | `stencil.h` | a list of values written as data, `txt::list{1, 2, 3}` |
-| [locale](locale.md) | `case.h` | the language a case mapping or a collation may depend on, from a BCP-47 tag: Turkish, Azerbaijani, Lithuanian |
+| [formatter\<T\>](formatter/README.md) | `format.h` | what a type takes in a field and how it is written; the library's specializations and the program's own |
+| [graphemes](graphemes/README.md) | `segment.h` | the grapheme clusters of a text: what a reader calls a character |
+| [growing_sink](growing_sink/README.md) | `format.h` | a sink whose room grows, for a long text written in steps, one step written again when it ran off the end |
+| [line_breaks](line_breaks/README.md) | `segment.h` | the pieces of a text that must stay on one line, UAX #14 |
+| [list](list/README.md) | `stencil.h` | a list of values written as data, `txt::list{1, 2, 3}` |
+| [locale](locale/README.md) | `case.h` | the language a case mapping or a collation may depend on, from a BCP-47 tag: Turkish, Azerbaijani, Lithuanian |
 | [mapped_text](mapped_text.md) | `search.h` | a text as a folded or normalized search sees it: its code points and the byte each came from |
-| [match](match.md) | `regex.h` | one match of a regex: its text, its place and its groups |
+| [match](match/README.md) | `regex.h` | one match of a regex: its text, its place and its groups |
 | [nfc_t, nfd_t, nfkc_t, nfkd_t](nfc_t.md) | `normalize.h` | the tags of the four normalization forms |
-| [normalized_matches](fold_matches.md) | `search.h` | every occurrence without regard to how the text was written, the text decomposed once |
-| [normalized_searcher](fold_searcher.md) | `search.h` | a pattern decomposed once, asked of many texts |
-| [normalized_text](folded_text.md) | `search.h` | a text decomposed once and asked many questions |
-| [object](object.md) | `stencil.h` | a mapping of names to values written as data, in the order written, `txt::object{{"a", 1}}` |
+| [normalized_matches](fold_matches/README.md) | `search.h` | every occurrence without regard to how the text was written, the text decomposed once |
+| [normalized_searcher](fold_searcher/README.md) | `search.h` | a pattern decomposed once, asked of many texts |
+| [normalized_text](folded_text/README.md) | `search.h` | a text decomposed once and asked many questions |
+| [object](object/README.md) | `stencil.h` | a mapping of names to values written as data, in the order written, `txt::object{{"a", 1}}` |
 | [occurrence](occurrence.md) | `search.h` | where a folded or normalized search found its pattern: the position and the bytes it covers |
-| [percent_set](percent_set.md) | `percent.h` | the ASCII characters a percent encoding leaves alone, a mask of 128 bits that composes with `\|` and `-` |
+| [percent_set](percent_set/README.md) | `percent.h` | the ASCII characters a percent encoding leaves alone, a mask of 128 bits that composes with `\|` and `-` |
 | [program_syntax_t](program_syntax_t.md) | `identifier.h` | the tag of the profile of UAX #31 with `_` and `$` |
-| [regex](regex.md) | `regex.h` | a pattern in the style of RE2, matched in time linear in the length of the text: no backreference and no lookaround |
-| [regex_error](regex_error.md) | `regex.h` | why a pattern was refused, and where |
-| [regex_matches](regex_matches.md) | `regex.h` | every match of a regex in a text, as a range |
-| [runtime_pattern](runtime_pattern.md) | `format.h` | a pattern read where the program runs, keeping its string |
-| [searcher](searcher.md) | `search.h` | a pattern of bytes prepared once, Boyer–Moore–Horspool |
-| [sentences](sentences.md) | `segment.h` | the sentences of a text, UAX #29 |
-| [stencil](stencil.md) | `stencil.h` | a template read once into steps and rendered many times: `{{ name }}`, paths, `if`, `range`, `with`, comments, white-space trimming, fields written by `format`'s own writers, a pipeline of functions; Go's `text/template` with a bare name for a field, nothing for a missing name, and no escaping that knows where a value lands |
-| [stencil_error](stencil_error.md) | `stencil.h` | where and why a source is not a template: `offset()`, `line()`, `column()`, `message()` |
+| [regex](regex/README.md) | `regex.h` | a pattern in the style of RE2, matched in time linear in the length of the text: no backreference and no lookaround |
+| [regex_error](regex_error/README.md) | `regex.h` | why a pattern was refused, and where |
+| [regex_matches](regex_matches/README.md) | `regex.h` | every match of a regex in a text, as a range |
+| [runtime_pattern](runtime_pattern/README.md) | `format.h` | a pattern read where the program runs, keeping its string |
+| [searcher](searcher/README.md) | `search.h` | a pattern of bytes prepared once, Boyer–Moore–Horspool |
+| [sentences](sentences/README.md) | `segment.h` | the sentences of a text, UAX #29 |
+| [stencil](stencil/README.md) | `stencil.h` | a template read once into steps and rendered many times: `{{ name }}`, paths, `if`, `range`, `with`, comments, white-space trimming, fields written by `format`'s own writers, a pipeline of functions; Go's `text/template` with a bare name for a field, nothing for a missing name, and no escaping that knows where a value lands |
+| [stencil_error](stencil_error/README.md) | `stencil.h` | where and why a source is not a template: `offset()`, `line()`, `column()`, `message()` |
 | [stencil_function](stencil_function.md) | `stencil.h` | a function of a pipeline, `function<value(const value&, slice<const value>)>`; pure of side effects |
-| [stencil_functions](stencil_functions.md) | `stencil.h` | the functions a pipeline may call: `upper`, `lower`, `title`, `trim`, `escape_html`, `default`, and the program's own |
+| [stencil_functions](stencil_functions/README.md) | `stencil.h` | the functions a pipeline may call: `upper`, `lower`, `title`, `trim`, `escape_html`, `default`, and the program's own |
 | [strict_t](strict_t.md) | `encoding.h` | the tag of the strict `decode` |
-| [value](value.md) | `stencil.h` | one value handed to a template: nothing, a truth, a number, text, a list or a mapping, in thirty-two bytes |
-| [word_breaks](word_breaks.md) | `segment.h` | the words of a text and the runs between them, UAX #29 |
-| [words](words.md) | `segment.h` | the words of a text alone |
+| [value](value/README.md) | `stencil.h` | one value handed to a template: nothing, a truth, a number, text, a list or a mapping, in thirty-two bytes |
+| [word_breaks](word_breaks/README.md) | `segment.h` | the words of a text and the runs between them, UAX #29 |
+| [words](words/README.md) | `segment.h` | the words of a text alone |
 
 ## Enumerations
 
@@ -266,22 +266,22 @@ Python's `re`. Each page names its own oracle.
 | `nfkd` | `normalize.h` | the tag of the compatibility decomposition, NFKD ([nfc_t](nfc_t.md)) |
 | `program_syntax` | `identifier.h` | the tag of the profile with `_` and `$` ([program_syntax_t](program_syntax_t.md)) |
 | `strict` | `encoding.h` | the tag of the strict `decode`: `decode(bytes, from, txt::strict)` ([strict_t](strict_t.md)) |
-| `version` | `properties.h` | the version of Unicode the tables are made from, `"16.0.0"`: [unicode::version](../core/unicode.md) |
+| `version` | `properties.h` | the version of Unicode the tables are made from, `"16.0.0"`: [unicode::version](../core/unicode/README.md) |
 
 ## Namespaces
 
 | Namespace | Header | Description |
 |---|---|---|
-| [idna](idna.md) | `idna.h` | a domain name between Unicode and the ASCII the DNS carries: `to_ascii`, `to_unicode`, UTS #46 |
-| [percent](percent.md) | `percent.h` | the escaping of RFC 3986 — `encode` and `decode` with the sets of the RFC and of the WHATWG URL Standard ready made, and a decoding that refuses a `%` that was cut |
-| [punycode](punycode.md) | `idna.h` | one label between Unicode and ASCII, RFC 3492: `encode`, `decode` |
+| [idna](idna/README.md) | `idna.h` | a domain name between Unicode and the ASCII the DNS carries: `to_ascii`, `to_unicode`, UTS #46 |
+| [percent](percent/README.md) | `percent.h` | the escaping of RFC 3986 — `encode` and `decode` with the sets of the RFC and of the WHATWG URL Standard ready made, and a decoding that refuses a `%` that was cut |
+| [punycode](punycode/README.md) | `idna.h` | one label between Unicode and ASCII, RFC 3492: `encode`, `decode` |
 
 ## See also
 
 - [Benchmarks](benchmarks.md): the tables, format, stencil, regex, the searches, the collation and the identifiers
   against `std`, Go and ICU
-- [utf8](../core/utf8.md), [unicode](../core/unicode.md), [runes](../core/runes.md), [string](../core/string.md):
+- [utf8](../core/utf8/README.md), [unicode](../core/unicode/README.md), [runes](../core/runes/README.md), [string](../core/string/README.md):
   text at the level of bytes and code points, in core
 - [time](../time/README.md#formatting-with-txt): the patterns of time in `format`
-- [net::url](../net/url.md): the escaping of a URL, built on [percent](percent.md) and [idna](idna.md)
+- [net::url](../net/url/README.md): the escaping of a URL, built on [percent](percent/README.md) and [idna](idna/README.md)
 - [The modules](../README.md)

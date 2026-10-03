@@ -11,7 +11,7 @@ namespace sgcl::txt {
 ```
 
 Returns `text` with the first cased letter of every word in title case and the rest of the word in lower case,
-by the full mappings and the language `where`. The words are the ones UAX #29 finds ([word_breaks](word_breaks.md)),
+by the full mappings and the language `where`. The words are the ones UAX #29 finds ([word_breaks](word_breaks/README.md)),
 so `"don't"` is one word and its apostrophe does not start a new one. Title case is not upper case for the letters
 that are two: `ǆ` is `ǅ` at the start of a word.
 
@@ -60,5 +60,5 @@ Don't Stop Me Now
 ## See also
 
 - [to_lower_full](to_lower_full.md), [to_upper_full](to_upper_full.md)
-- [word_breaks](word_breaks.md): the words
+- [word_breaks](word_breaks/README.md): the words
 - [sgcl::txt](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](../copy_on_write.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](README.md)
 
 # sgcl::concurrent::copy_on_write\<T\>::store
 
@@ -67,4 +67,4 @@ hello bonjour
 
 - [operator=](operator_assign.md): the same, as an assignment
 - [update](update.md): changes a copy of the current value
-- [sgcl::concurrent::copy_on_write\<T\>](../copy_on_write.md)
+- [sgcl::concurrent::copy_on_write\<T\>](README.md)

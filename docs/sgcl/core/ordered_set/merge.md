@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::merge
 
@@ -12,8 +12,8 @@ a node whose element is here already stays in `source`, in its place there. No e
 and every iterator follows its node. The nodes taken are appended to this set's order in `source`'s order, the
 order of their insertions. Merging a set into itself does nothing.
 
-`source` is an `ordered_set` with the same `Key` and any hash and equality. A [set](../set.md) or a
-[multiset](../multiset.md) is not: their nodes are of another shape, without the two words of the order, and the
+`source` is an `ordered_set` with the same `Key` and any hash and equality. A [set](../set/README.md) or a
+[multiset](../multiset/README.md) is not: their nodes are of another shape, without the two words of the order, and the
 call does not compile.
 
 ## Parameters
@@ -70,4 +70,4 @@ false
 
 - [extract](extract.md): takes one node out
 - [insert](insert.md): links the node of a handle
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

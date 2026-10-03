@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [sentences](../sentences.md)
+[sgcl](../../README.md) › [txt](../README.md) › [sentences](README.md)
 
 # sgcl::txt::sentences::empty
 
@@ -46,4 +46,4 @@ true false
 ## See also
 
 - [count](count.md): the number of sentences
-- [sgcl::txt::sentences](../sentences.md)
+- [sgcl::txt::sentences](README.md)

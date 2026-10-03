@@ -52,5 +52,5 @@ Output:
 ## See also
 
 - [from_utf32](from_utf32.md): the way back
-- [runes](../core/utf8.md): the code points without a vector
+- [runes](../core/utf8/README.md): the code points without a vector
 - [sgcl::txt](README.md)

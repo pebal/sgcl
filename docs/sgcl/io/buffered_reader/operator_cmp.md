@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::operator== (sgcl::io::buffered_reader)
 
@@ -53,4 +53,4 @@ true false
 ## See also
 
 - [operator bool](operator_bool.md): checks whether the handle holds a reader
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::erase
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [set](set.md): one field of the name left
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

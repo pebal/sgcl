@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [reader](../zlib-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [reader](README.md)
 
 # sgcl::compress::zlib::reader::close, async_close
 
@@ -55,4 +55,4 @@ true
 
 ## See also
 
-- [sgcl::compress::zlib::reader](../zlib-reader.md)
+- [sgcl::compress::zlib::reader](README.md)

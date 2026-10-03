@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::fragment
 
@@ -47,4 +47,4 @@ part%202
 ## See also
 
 - [with_fragment](with_fragment.md), [without_fragment](without_fragment.md): another fragment, none
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

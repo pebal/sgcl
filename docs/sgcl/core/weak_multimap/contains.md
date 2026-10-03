@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::contains
 
@@ -62,4 +62,4 @@ false
 
 - [count](count.md): the number of entries of an object
 - [find](find.md): the first entry of an object
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

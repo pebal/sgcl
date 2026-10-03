@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::stop_token::stopped
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-An [operation](../operation.md), marked nodiscard, carried out by `co_await token.stopped()` in a task or
+An [operation](../operation/README.md), marked nodiscard, carried out by `co_await token.stopped()` in a task or
 `token.stopped().wait()` on a thread; either gives nothing and returns once the stop has been requested.
 
 ## Complexity
@@ -69,4 +69,4 @@ the task saw the stop
 - [on_stop](on_stop.md): the stop as a case of a select
 - [stop_requested](stop_requested.md): a look without a wait
 - [channel](channel.md): the channel the wait receives on
-- [sgcl::async::stop_token](../stop_token.md)
+- [sgcl::async::stop_token](README.md)

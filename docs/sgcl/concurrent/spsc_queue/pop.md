@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::pop
 
@@ -71,4 +71,4 @@ hello world
 
 - [try_pop](try_pop.md): returns at once when the queue is empty
 - [push](push.md): the producer's side, waiting for room
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

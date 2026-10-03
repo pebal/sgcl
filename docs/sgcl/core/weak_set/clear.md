@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_set](../weak_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_set](README.md)
 
 # sgcl::weak_set\<Key\>::clear
 
@@ -63,4 +63,4 @@ true 0 false
 
 - [erase](erase.md): erases one entry
 - [sweep](sweep.md): erases the dead entries alone
-- [sgcl::weak_set\<Key\>](../weak_set.md)
+- [sgcl::weak_set\<Key\>](README.md)

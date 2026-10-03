@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::min
 
@@ -52,4 +52,4 @@ true
 
 - [max](max.md): the largest duration
 - [abs](abs.md): the absolute value
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md) › [node_type](../set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](../set/README.md) › [node_type](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::node_type::node_type
 
@@ -62,4 +62,4 @@ false
 
 - [operator=](operator_assign.md): takes the node of another handle
 - [extract](../set/extract.md): a handle holding a node of a set
-- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](../set-node_type.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](README.md)

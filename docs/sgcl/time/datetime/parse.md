@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::parse
 
@@ -11,7 +11,7 @@ static expected<datetime, error> parse(const string& text, const string& pattern
 Reads a datetime from a text that may not be one (from a person, a file, the network), Go's `time.Parse` and
 `time.ParseInLocation`.
 
-1. A text in a [layout](../layout.md), read by code of its own with no pattern walked: `time::rfc3339` and
+1. A text in a [layout](../layout/README.md), read by code of its own with no pattern walked: `time::rfc3339` and
    `time::rfc3339_nano` (a fraction of any length, `t` and `z` in small letters), `time::http` (the IMF-fixdate and
    the two obsolete forms a recipient must take, RFC 850's and asctime's), `time::email` (RFC 5322 with its obsolete
    forms) and `time::iso8601` (the broad profile: basic and extended forms, week and ordinal dates, a date alone). The
@@ -22,7 +22,7 @@ Reads a datetime from a text that may not be one (from a person, a file, the net
    it —, the time of day is midnight where the pattern has none, and the text must end where the pattern does. An
    offset in the text (`%z`) makes a fixed zone, `+00:00` UTC. With none, the text is a time of the clock of `z`
    (UTC unless another is given), read by the compatible rule
-   ([A time of the clock skipped or shown twice](../datetime.md#a-time-of-the-clock-skipped-or-shown-twice)): a
+   ([A time of the clock skipped or shown twice](README.md#a-time-of-the-clock-skipped-or-shown-twice)): a
    skipped time moves on, a time shown twice is the first of the two; then a `%Z` naming an abbreviation that zone
    has at that time settles a time shown twice (`"25.10.2026 02:30 CET"` in Warsaw is the second 02:30), and `UTC`
    or `GMT` mean UTC.
@@ -42,7 +42,7 @@ years 1677 to 2262, is an error.
 
 ## Return value
 
-The datetime, or an [error](../error.md) with a sentence and the byte of the text where the field that failed starts:
+The datetime, or an [error](../error/README.md) with a sentence and the byte of the text where the field that failed starts:
 `message()` and `offset()`.
 
 ## Complexity
@@ -57,7 +57,7 @@ None.
 
 A text the program itself writes is constructed, `time::datetime t("2026-09-24T12:41:15+02:00", time::rfc3339)`
 ([constructor](datetime.md)), and a wrong one throws. What each layout reads, and where this reads otherwise than
-Go, is on the [layout](../layout.md) page; the reading of every specifier is in
+Go, is on the [layout](../layout/README.md) page; the reading of every specifier is in
 [README: Patterns](../README.md#patterns).
 
 ## Example
@@ -114,6 +114,6 @@ a day that the month has expected (byte 5)
 
 - [format](format.md): writes the text
 - [(constructor)](datetime.md): a datetime from a literal text
-- [error](../error.md): why a text is not a datetime
-- [layout](../layout.md): the formats known by name
-- [sgcl::time::datetime](../datetime.md)
+- [error](../error/README.md): why a text is not a datetime
+- [layout](../layout/README.md): the formats known by name
+- [sgcl::time::datetime](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::next_bool
 
@@ -55,4 +55,4 @@ HTTHHTTHTHHHHHHTTTTH 11
 ## See also
 
 - [next_int](next_int.md): one of more than two values
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

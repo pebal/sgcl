@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::string
 
@@ -149,4 +149,4 @@ hi true hello, world hello, world
 - [as_slice, operator slice_type](as_slice.md): the characters as a slice that holds the object
 - [concat](concat.md), [join](join.md): one string of pieces, made once
 - [to_string](../to_string.md): a number as a string
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::lookup
 
@@ -11,7 +11,7 @@ namespace sgcl::req {
 }
 ```
 
-A map read by its key: [enumerable](enumerable.md), and `R` carries [mixin::lookup](../mixin/lookup.md), which
+A map read by its key: [enumerable](enumerable.md), and `R` carries [mixin::lookup](../mixin/lookup/README.md), which
 gives it `get`, `try_get`, `value_or`, `contains_key`, `keys` and `values`.
 
 ## Satisfied by
@@ -50,5 +50,5 @@ false
 ## See also
 
 - [enumerable](enumerable.md)
-- [mixin::lookup](../mixin/lookup.md): the members it gives
-- [sgcl::req](../req.md)
+- [mixin::lookup](../mixin/lookup/README.md): the members it gives
+- [sgcl::req](README.md)

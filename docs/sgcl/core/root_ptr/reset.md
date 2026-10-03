@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::root_ptr\<T\>::reset
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [operator=](operator_assign.md): stores another pointer in the cell
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

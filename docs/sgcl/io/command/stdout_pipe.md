@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::stdout_pipe
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-The program's end of the pipe, a [file](../file.md), or the error of [pipe](../pipe.md).
+The program's end of the pipe, a [file](../file/README.md), or the error of [pipe](../pipe.md).
 
 ## Complexity
 
@@ -59,5 +59,5 @@ Output:
 
 - [stdin_pipe](stdin_pipe.md), [stderr_pipe](stderr_pipe.md): the other two streams
 - [output](output.md): the output gathered into a string
-- [buffered_reader](../buffered_reader.md): the lines of a stream
-- [sgcl::io::command](../command.md)
+- [buffered_reader](../buffered_reader/README.md): the lines of a stream
+- [sgcl::io::command](README.md)

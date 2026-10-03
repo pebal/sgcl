@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::error
 
@@ -70,4 +70,4 @@ x is not a digit
 
 - [error_or](error_or.md): the error, or another one when there is none
 - [operator bool, has_value](operator_bool.md): checks whether there is a value
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

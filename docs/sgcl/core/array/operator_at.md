@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::operator[]
 
@@ -69,4 +69,4 @@ Output:
 
 - [at](at.md): access an element with bounds checking
 - [front](front.md), [back](back.md): the first and the last element
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

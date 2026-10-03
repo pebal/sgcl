@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::end, cend
 
@@ -82,4 +82,4 @@ true true
 
 - [begin, cbegin](begin.md): the iterator to the first element
 - [erase](erase.md): erases the element at an iterator and returns the next one
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

@@ -11,7 +11,7 @@ namespace sgcl::concurrent {
 ```
 
 Returns the string of the characters of `s`, interned in the default pool of strings: the one string every thread
-holds for them. It is `intern<string>::make(s)` under a name that reads ([intern](intern.md)). A `string_view`, a
+holds for them. It is `intern<string>::make(s)` under a name that reads ([intern](intern/README.md)). A `string_view`, a
 literal or a slice of another string is looked up as it is: no string is made when the value is known, and one is
 made, and entered, when it is new.
 
@@ -72,6 +72,6 @@ true
 
 ## See also
 
-- [intern](intern.md): the pool, for strings and any other type
+- [intern](intern/README.md): the pool, for strings and any other type
 - [make](intern/make.md): the default pool of any type
-- [string](../core/string.md): one word, compared by identity first
+- [string](../core/string/README.md): one word, compared by identity first

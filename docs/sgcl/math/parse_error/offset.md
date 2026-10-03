@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [parse_error](../parse_error.md)
+[sgcl](../../README.md) › [math](../README.md) › [parse_error](README.md)
 
 # sgcl::math::parse_error::offset
 
@@ -11,7 +11,7 @@ The byte of the text where the reading stopped:
 - 0 for an empty text;
 - the end of the text when there was only a sign, or nothing after a slash or an `e`;
 - the first byte that is not a digit of the base, for a letter past ASCII the byte its encoding starts at;
-- for a [rational](../rational.md), the first digit of a denominator of zero, and the first byte after the `e` of
+- for a [rational](../rational/README.md), the first digit of a denominator of zero, and the first byte after the `e` of
   an exponent past a million.
 
 ## Parameters
@@ -61,4 +61,4 @@ Output:
 ## See also
 
 - [message](message.md): the sentence
-- [sgcl::math::parse_error](../parse_error.md)
+- [sgcl::math::parse_error](README.md)

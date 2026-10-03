@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md) › [node_type](../set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](../set/README.md) › [node_type](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::node_type::value
 
@@ -53,4 +53,4 @@ Output:
 
 - [extract](../set/extract.md): takes a node out of a set
 - [insert](../set/insert.md): links the node again
-- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](../set-node_type.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](README.md)

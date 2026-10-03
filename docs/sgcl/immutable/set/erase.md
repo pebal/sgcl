@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::erase
 
@@ -62,4 +62,4 @@ Output:
 ## See also
 
 - [insert](insert.md): the set with one more element
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](README.md)

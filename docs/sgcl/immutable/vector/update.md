@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::update
 
@@ -65,4 +65,4 @@ sgcl::immutable::vector::update
 
 - [set](set.md): the vector with an element replaced
 - [at](at.md): the element at a position
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::try_at
 
@@ -21,7 +21,7 @@ seconds out of their ranges carry, as in `at`.
 
 ## Return value
 
-The [datetime](../datetime.md) of that instant, in the zone `z`, or `nullopt`.
+The [datetime](../datetime/README.md) of that instant, in the zone `z`, or `nullopt`.
 
 ## Complexity
 
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [at](at.md): the instant by a rule for every time
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

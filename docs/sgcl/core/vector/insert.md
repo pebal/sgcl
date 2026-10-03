@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::insert
 
@@ -64,7 +64,7 @@ element is destroyed exactly once, but the values, and after an assignment the s
 
 ## Notes
 
-A reallocation leaves the old buffer to the collector instead of freeing it: a [slice](../slice.md) taken
+A reallocation leaves the old buffer to the collector instead of freeing it: a [slice](../slice/README.md) taken
 before the call still reads the old elements. The capacity of a growth is at least twice the old one.
 
 ## Example
@@ -111,4 +111,4 @@ Output:
 
 - [push_back](push_back.md): appends an element
 - [emplace](emplace.md), [erase](erase.md): construct an element in place, erase elements
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

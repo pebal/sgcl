@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::max
 
@@ -49,4 +49,4 @@ true
 ## See also
 
 - [min](min.md): the smallest value of a draw
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

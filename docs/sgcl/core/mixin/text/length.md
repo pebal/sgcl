@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::length
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [rune_count](rune_count.md): the number of code points
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

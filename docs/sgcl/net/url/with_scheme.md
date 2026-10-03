@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_scheme
 
@@ -17,10 +17,10 @@ the new scheme is dropped. A special scheme is not changed into one that is not,
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL scheme` and the value asked for, when the standard refuses the value or declines to apply it: a
 text that is not a scheme; a special scheme for one that is not, or the other way; and a value past 512 MiB, or a URL
-that would pass it ([the limit](../url.md#rules)).
+that would pass it ([the limit](README.md#rules)).
 
 ## Complexity
 
@@ -64,4 +64,4 @@ set URL scheme 1http: invalid URL
 ## See also
 
 - [scheme](scheme.md): the scheme
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

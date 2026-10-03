@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::end, cend
 
@@ -64,4 +64,4 @@ true
 ## See also
 
 - [begin, cbegin](begin.md): an iterator to the first live entry
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

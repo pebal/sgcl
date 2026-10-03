@@ -24,12 +24,12 @@ enumerator, `2` for `gif`, and a program that prints a name writes its own.
 
 | Value | Description |
 |---|---|
-| `png` | PNG, read and written ([png](png.md)) |
-| `jpeg` | JPEG, read and written ([jpeg](jpeg.md)) |
-| `gif` | GIF87a and GIF89a, read, an animation through [frames](frames.md) ([gif](gif.md)) |
-| `webp` | WebP, read, an animation through [frames](frames.md) ([webp](webp.md)) |
-| `heif` | HEIC and HEIF, read and written through the system's codec where there is one ([heif](heif.md)) |
-| `avif` | AVIF, read through the system's codec as HEIF is ([heif](heif.md)) |
+| `png` | PNG, read and written ([png](png/README.md)) |
+| `jpeg` | JPEG, read and written ([jpeg](jpeg/README.md)) |
+| `gif` | GIF87a and GIF89a, read, an animation through [frames](frames/README.md) ([gif](gif/README.md)) |
+| `webp` | WebP, read, an animation through [frames](frames/README.md) ([webp](webp/README.md)) |
+| `heif` | HEIC and HEIF, read and written through the system's codec where there is one ([heif](heif/README.md)) |
+| `avif` | AVIF, read through the system's codec as HEIF is ([heif](heif/README.md)) |
 
 ## Example
 

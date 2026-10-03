@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](../fold_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](README.md)
 
 # sgcl::txt::fold_searcher::points
 
@@ -58,4 +58,4 @@ U+0064 U+0323 U+0307
 
 - [size](size.md): how many
 - [fold_case](../fold_case.md), [nfd](../nfc_t.md): the two mappings
-- [sgcl::txt::fold_searcher, normalized_searcher](../fold_searcher.md)
+- [sgcl::txt::fold_searcher, normalized_searcher](README.md)

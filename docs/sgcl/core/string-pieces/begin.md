@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md) › [pieces](../string-pieces.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](../string/README.md) › [pieces](README.md)
 
 # sgcl::string::pieces::begin
 
@@ -67,4 +67,4 @@ true
 
 - [end](end.md): the iterator past the last piece
 - [empty](empty.md): checks whether there is no piece
-- [sgcl::string::pieces](../string-pieces.md)
+- [sgcl::string::pieces](README.md)

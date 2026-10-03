@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::offset
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The offset, a [duration](../../core/duration.md), negative west of Greenwich.
+The offset, a [duration](../../core/duration/README.md), negative west of Greenwich.
 
 ## Complexity
 
@@ -55,4 +55,4 @@ Output:
 
 - [abbreviation](abbreviation.md), [is_dst](is_dst.md): the rest of what the zone is at the instant
 - [zone::offset_at](../zone/offset_at.md): the same asked of a zone
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

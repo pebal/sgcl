@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::promise
 
@@ -65,4 +65,4 @@ false
 
 - [operator=](operator_assign.md): makes the handle one of another promise
 - [set_value](set_value.md): sets the promise
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

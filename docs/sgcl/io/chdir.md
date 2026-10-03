@@ -22,7 +22,7 @@ name is qualified in a program, `io::chdir`: under `using namespace sgcl;` a bar
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call: not found, not a directory, permission denied. The operation is
+Nothing, or the [error](error/README.md) of the call: not found, not a directory, permission denied. The operation is
 `chdir` and the path `path`.
 
 ## Complexity
@@ -61,4 +61,4 @@ chdir nowhere: No such file or directory, not found: true
 ## See also
 
 - [working_dir](working_dir.md): the working directory
-- [command](command.md): `dir`, the working directory of a child, which leaves the program's as it is
+- [command](command/README.md): `dir`, the working directory of a child, which leaves the program's as it is

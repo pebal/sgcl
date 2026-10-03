@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::empty
 
@@ -61,4 +61,4 @@ true 8
 
 - [size](size.md): the number of elements
 - [clear](clear.md): destroys every element
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

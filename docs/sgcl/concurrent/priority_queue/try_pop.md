@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](README.md)
 
 # sgcl::concurrent::priority_queue\<T, Compare\>::try_pop
 
@@ -68,4 +68,4 @@ nullopt
 
 - [pop](pop.md): waits for an element
 - [try_top](try_top.md): a copy of the least element, the queue unchanged
-- [sgcl::concurrent::priority_queue\<T, Compare\>](../priority_queue.md)
+- [sgcl::concurrent::priority_queue\<T, Compare\>](README.md)

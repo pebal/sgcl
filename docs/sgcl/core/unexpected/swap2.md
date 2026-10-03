@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unexpected](../unexpected.md)
+[sgcl](../../README.md) › [core](../README.md) › [unexpected](README.md)
 
 # sgcl::swap (sgcl::unexpected)
 
@@ -52,4 +52,4 @@ second first
 ## See also
 
 - [swap](swap.md): the member function
-- [sgcl::unexpected\<E\>](../unexpected.md)
+- [sgcl::unexpected\<E\>](README.md)

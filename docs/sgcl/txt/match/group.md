@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [match](../match.md)
+[sgcl](../../README.md) › [txt](../README.md) › [match](README.md)
 
 # sgcl::txt::match::group
 
@@ -72,4 +72,4 @@ false
 - [operator[]](operator_at.md): a group that took no part reads as empty
 - [group_count](group_count.md): the number of groups
 - [regex::group_index](../regex/group_index.md): the number of a name
-- [sgcl::txt::match](../match.md)
+- [sgcl::txt::match](README.md)

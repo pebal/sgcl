@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::operator== (sgcl::async::stop_token)
 
@@ -57,4 +57,4 @@ true
 ## See also
 
 - [stop_source::token](../stop_source/token.md): the token of a source
-- [sgcl::async::stop_token](../stop_token.md)
+- [sgcl::async::stop_token](README.md)

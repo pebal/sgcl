@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::rend, crend
 
@@ -58,4 +58,4 @@ Output:
 
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the beginning
 - [end, cend](end.md): an iterator to the end
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::end
 
@@ -54,4 +54,4 @@ true
 ## See also
 
 - [begin](begin.md): the first field
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

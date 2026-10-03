@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::set_body
 
@@ -13,7 +13,7 @@ the length it knows as `Content-Length` and chunked framing when it knows none.
 
 1. Text, held in memory and sent with its `Content-Length`. A string is a handle: the request holds the same text.
 2. Bytes, held in memory and sent with their `Content-Length`. Taken by value: a vector moved in is not copied.
-3. A [stream](../../../io/reader.md), read when the request is sent: with its `length` given, `Content-Length` and
+3. A [stream](../../../io/reader/README.md), read when the request is sent: with its `length` given, `Content-Length` and
    that many bytes (a stream that ends sooner fails the send, `io::errc::unexpected_eof`); without, chunked. A stream
    is read once, so a request with one is neither sent again on a new connection nor redirected by a 307 or a 308
    (the 307 is then the response).
@@ -89,4 +89,4 @@ from a stream (Content-Length)
 
 - [post](../client/post.md): a POST of text in one call
 - [text](text.md): the body read on the server
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

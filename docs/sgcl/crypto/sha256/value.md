@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha256](../sha256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha256](README.md)
 
 # sgcl::crypto::sha256::value
 
@@ -63,4 +63,4 @@ false
 
 - [digest](digest.md): the same bytes, under the name every hasher has
 - [update](update.md): hashes bytes in
-- [sgcl::crypto::sha256](../sha256.md)
+- [sgcl::crypto::sha256](README.md)

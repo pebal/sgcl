@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::next, async_next
 
@@ -7,7 +7,7 @@ optional<token> next();                                // (1)
 async::task<optional<token>> async_next() noexcept;    // (2)
 ```
 
-The next [token](../json-token.md) of the input: a bracket that opens or closes an array or an object, a key, a
+The next [token](../json-token/README.md) of the input: a bracket that opens or closes an array or an object, a key, a
 string, a number, a boolean or null. The commas and colons are checked and passed over, never handed out; a key
 is a token of its own kind, so a loader needs no state of its own to tell a key from a string value. A token cut
 by the end of a block is gone on with when the next block comes. Go's `Decoder.Token` and v2's
@@ -101,7 +101,7 @@ Output:
 
 ## See also
 
-- [json::token](../json-token.md): the kind and the text
+- [json::token](../json-token/README.md): the kind and the text
 - [read](read.md): the next value whole
 - [skip](skip.md): the next value passed over
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [sgcl::encoding::json::reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::begin
 
@@ -8,7 +8,7 @@ attrs::iterator begin() const noexcept;
 
 Returns an iterator to the first attribute at the top of the record's tree: the logger's attributes from `with`
 before its first group, then that group, or the call's own attributes when the logger has no group. The
-[iterator](../attrs-iterator.md) is an input iterator whose `*` gives an [attr](../attr.md) by value; it compares
+[iterator](../attrs-iterator.md) is an input iterator whose `*` gives an [attr](../attr/README.md) by value; it compares
 equal to [end](end.md) past the last one. A `for` over the record walks them.
 
 ## Parameters
@@ -55,5 +55,5 @@ b
 ## See also
 
 - [end](end.md), [size](size.md)
-- [attr](../attr.md)
-- [sgcl::slog::record](../record.md)
+- [attr](../attr/README.md)
+- [sgcl::slog::record](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::mapping::data
 
@@ -56,5 +56,5 @@ Output:
 
 - [writable_data](writable_data.md): the same bytes to write into
 - [size](size.md): the length of the range
-- [slice](../../core/slice.md): what it returns
-- [sgcl::io::mapping](../mapping.md)
+- [slice](../../core/slice/README.md): what it returns
+- [sgcl::io::mapping](README.md)

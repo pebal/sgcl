@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [writer](../xml-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [writer](README.md)
 
 # sgcl::encoding::xml::writer::start
 
@@ -60,4 +60,4 @@ Output:
 
 - [end](end.md): the end of the element started last
 - [attribute](attribute.md): an attribute of the element just started
-- [sgcl::encoding::xml::writer](../xml-writer.md)
+- [sgcl::encoding::xml::writer](README.md)

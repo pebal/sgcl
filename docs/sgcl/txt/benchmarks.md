@@ -44,7 +44,7 @@ itself.
 | `words` | 10.3 ns a byte | 7.3 ns a byte |
 
 What is left in the last three is not the rules but the piece of text each boundary hands back: a
-[slice](../core/slice.md) holds the object its characters live in, and making one costs about 3.9 ns.
+[slice](../core/slice/README.md) holds the object its characters live in, and making one costs about 3.9 ns.
 
 ## Percent encoding
 
@@ -141,11 +141,11 @@ The times are nanoseconds per call.
   checked over its bytes and comes back as the object it went in as, nothing allocated. That is most of the traffic
   there is. A name that does need the work is settled by the quick check properties of [normalize](normalize.md)
   without a decomposition in the usual case.
-- **The mapping is computed, not tabled** ([idna](idna.md)), which saved 58.6 KB and is not slower for it. A name
+- **The mapping is computed, not tabled** ([idna](idna/README.md)), which saved 58.6 KB and is not slower for it. A name
   typed in capitals got **faster**, because the only ASCII the standard maps is `A`–`Z`, each to the letter 32 above
   it, which is a line rather than a search. A name of capitals with accents in it costs 6 per cent more, and every
   other path (a lowercase name, an encoded one, the fast path, punycode) is unchanged.
-- **The bytes of the failing label** ([failure](idna-failure.md)) are found by a second pass over the name, made only
+- **The bytes of the failing label** ([failure](idna-failure/README.md)) are found by a second pass over the name, made only
   once the name has already failed. Writing the positions down on the way through every name cost 150 ns on every
   name that was fine, which is the wrong trade for an answer wanted once in some thousands; done this way it costs
   about 5 ns on the fast path and nothing measurable on the slow one.
@@ -153,7 +153,7 @@ The times are nanoseconds per call.
 ## Regex
 
 `benchmarks/txt/regex.cpp` is the program these came out of — `bench_regex sgcl <op>` and `bench_regex std <op>` —
-so the next change to [regex.h](regex.md) has something to measure against.
+so the next change to [regex.h](regex/README.md) has something to measure against.
 
 A pattern that is **not** in a text of four thousand bytes, so the whole of it is walked, against `std::regex`
 (libc++, ECMAScript, `optimize`) on the same data:
@@ -171,7 +171,7 @@ A pattern that is **not** in a text of four thousand bytes, so the whole of it i
 
 The spread in the first column is **what the search may skip**. A run of bytes every match must contain is read off
 the pattern where it is compiled, and where there is one the text is scanned for it — by the same
-Boyer–Moore–Horspool table [searcher](searcher.md) uses, or by a `memchr` when the run is a single byte — instead of
+Boyer–Moore–Horspool table [searcher](searcher/README.md) uses, or by a `memchr` when the run is a single byte — instead of
 stepping the machine at every position. `(\w+)@(\w+)\.(com|pl)` begins with `\w`, which nearly every byte is, so
 every position used to be a candidate and it cost 24.6 ns a byte; it must contain an `@`, and looking for that costs
 0.039. Where the run is also the *beginning* of every match, as in `zyzykot`, the search jumps straight to the next
@@ -212,7 +212,7 @@ all, and here it is linear.
 
 [find_fold](find_fold.md) and [find_normalized](find_normalized.md) map both sides on every call, so a loop over
 the occurrences maps the text again for each of them and is quadratic; the ranges
-([fold_matches, normalized_matches](fold_matches.md)) map it once:
+([fold_matches, normalized_matches](fold_matches/README.md)) map it once:
 
 | A text of 64 KB, every occurrence found | A call at a time | A range |
 |---|---|---|
@@ -222,7 +222,7 @@ the occurrences maps the text again for each of them and is quadratic; the range
 At 256 KB, where the shape shows itself properly, it is 4.65 s against 1.51 ms and 9.46 s against 1.54 ms. Four
 times the text costs sixteen times as much one way and four times the other. Over sixty-four kilobytes the mapping
 of a text is some three hundred microseconds and a search through the mapped text some twenty
-([folded_text](folded_text.md)).
+([folded_text](folded_text/README.md)).
 
 ## Collation
 
@@ -250,7 +250,7 @@ written.
 
 Weighing the text is the whole cost of a search by collation, so [collator::find](collator/find.md) in a loop
 weighs the text once for every occurrence and is quadratic. Over 64 KB of text with 1902 occurrences in it, one pass
-costs **1.19 s** that way and **1.10 ms** through [collated_matches](collated_matches.md), of which 0.63 ms is the
+costs **1.19 s** that way and **1.10 ms** through [collated_matches](collated_matches/README.md), of which 0.63 ms is the
 weighing — a thousandfold, and the same lesson the folded search learned.
 
 [collated_text::ends_with](collated_text/ends_with.md) finds the one element a match at the end can begin at by a
@@ -412,7 +412,7 @@ Measured on this machine at `-O2`, over a stream of different values
 | the same ten rows into a buffer one lends | 524.4 | — |
 
 Reading a source is two to four times writing from it, which is the argument for the compiled form. Of a single
-field's 52.1 ns, about 26 is the [string](../core/string.md) handed back and most of the rest is hashing the name in
+field's 52.1 ns, about 26 is the [string](../core/string/README.md) handed back and most of the rest is hashing the name in
 the mapping; `render_to` into a buffer one lends allocates nothing at all.
 
 A render allocates for its own bookkeeping **not at all** while the blocks are shallower than four, which is nearly
@@ -433,7 +433,7 @@ do that, and both were arrived at by reading the disassembly rather than by gues
 makes, and the test is marked `[[unlikely]]`, because a test whose other side calls is otherwise laid out with the
 common case **jumping over** the call. The second was the larger by far — the compare itself is two instructions,
 while the branch at every literal run of every row came to fourteen per cent of a page of ten rows
-([growing_sink](growing_sink.md)).
+([growing_sink](growing_sink/README.md)).
 
 This is where a page parts company with a [format](format.md) pattern, which is written twice and stays that way: a
 pattern's second pass is `to_chars` and a copy over a handful of fields and costs less than the copying a doubling
@@ -495,8 +495,8 @@ And reading a source, which each side does once and then keeps:
 **Where the difference comes from, and where it does not.** Not from allocation: keeping one buffer instead of
 building a string helps Go nothing (2654.6 against 2644.5) and helps this nothing either (502.9 against 517.4), so
 neither side is bound by the writing. It comes from how a name is looked up. Go walks the data with reflection —
-`map[string]any` at every step, an `interface{}` unwrapped, a `reflect.Value` made — where a [value](value.md) here is
-a variant of thirty-two bytes and a mapping is an [ordered_map](../core/ordered_map.md) of them. That is also why the
+`map[string]any` at every step, an `interface{}` unwrapped, a `reflect.Value` made — where a [value](value/README.md) here is
+a variant of thirty-two bytes and a mapping is an [ordered_map](../core/ordered_map/README.md) of them. That is also why the
 widest gap is the specification: `{{ printf "%8.2f" .d }}` is a function called through reflection over there, and
 `{{ d:>8.2f }}` is [format](format.md)'s own writer here, which is the reason this module has a template at all.
 

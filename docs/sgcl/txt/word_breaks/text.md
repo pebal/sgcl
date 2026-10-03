@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](README.md)
 
 # sgcl::txt::word_breaks::text
 
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [(constructor)](word_breaks.md): the range over a text
-- [sgcl::txt::word_breaks](../word_breaks.md)
+- [sgcl::txt::word_breaks](README.md)

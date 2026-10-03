@@ -69,10 +69,10 @@ Linear in the length of the text: it is made once and written in one write.
 Printing is not checked. A text on a terminal that could not be written has nobody to tell, and a result every call
 would have to drop is noise, so the functions return nothing (the runtime form says only whether the pattern
 fitted). A program that must know, a pipe closed under it, writes with `io::stdout.write(...)`, which answers an
-[expected](../core/expected.md).
+[expected](../core/expected/README.md).
 
 The streams stay what they are: `io::stdout` is a stream, given to `io::copy`, a
-[buffered_writer](buffered_writer.md) over it, or `co_await io::stdout.async_write(...)` in a task. `print` is only
+[buffered_writer](buffered_writer/README.md) over it, or `co_await io::stdout.async_write(...)` in a task. `print` is only
 the short way to put text on it, or on any other writer. In a task, `print` writes as `io::stdout.write` does, on
 the calling worker; a program that prints much from tasks writes through a buffered writer.
 
@@ -112,5 +112,5 @@ Output:
 - [println](println.md): the same and a new line
 - [eprint](eprint.md), [eprintln](eprintln.md): on the standard error
 - [txt::format](../txt/format.md): the patterns
-- [standard_stream](standard_stream.md): `io::stdout`, `io::stderr`
-- [writer](writer.md): any stream to print on
+- [standard_stream](standard_stream/README.md): `io::stdout`, `io::stderr`
+- [writer](writer/README.md): any stream to print on

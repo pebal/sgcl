@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::fields
 
@@ -7,15 +7,15 @@ pieces fields() const noexcept;
 ```
 
 Splits the string at runs of white space: the words between them, in order, as a range of slices into the string,
-[pieces](../string-pieces.md), as Go's `strings.Fields`.
+[pieces](../string-pieces/README.md), as Go's `strings.Fields`.
 
-The white space is Unicode's, [unicode::is_space](../unicode.md): the space, the tab, the newline and the rest of the
+The white space is Unicode's, [unicode::is_space](../unicode/README.md): the space, the tab, the newline and the rest of the
 C locale's six, and the no-break, the ideographic and the other spaces. No word is empty: white space at the ends
 gives no piece, a run of it is one gap, and a string of white space alone, or the empty string, has no word. In a
 `wstring`, a `u16string` and a `u32string` each unit is tested as a code point.
 
 Nothing is searched by the call: each word is found as the walk reaches it, one search per word, and nothing is
-allocated. Each word is a [slice](../slice.md) that holds the string's object, valid on its own wherever it is kept.
+allocated. Each word is a [slice](../slice/README.md) that holds the string's object, valid on its own wherever it is kept.
 
 ## Parameters
 
@@ -23,7 +23,7 @@ None.
 
 ## Return value
 
-The range of the words, a [pieces](../string-pieces.md) holding this string; its elements are `string_slice`s,
+The range of the words, a [pieces](../string-pieces/README.md) holding this string; its elements are `string_slice`s,
 `slice<const CharT>`.
 
 ## Complexity
@@ -67,6 +67,6 @@ true
 
 - [split](split.md): the pieces between the occurrences of a separator
 - [trim](trim.md): without white space at both ends
-- [pieces](../string-pieces.md): the range `fields` returns
-- [unicode](../unicode.md): what white space is
-- [sgcl::string](../string.md)
+- [pieces](../string-pieces/README.md): the range `fields` returns
+- [unicode](../unicode/README.md): what white space is
+- [sgcl::string](README.md)

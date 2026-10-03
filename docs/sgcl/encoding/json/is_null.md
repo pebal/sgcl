@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::is_null
 
@@ -61,4 +61,4 @@ missing true
 
 - [type](type.md): the kind of the value
 - [operator[]](operator_at.md): a member or an element, null when there is none
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

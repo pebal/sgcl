@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::reserve
 
@@ -10,7 +10,7 @@ Sets the number of buckets for `count` elements, [rehash](rehash.md)`(count / ma
 the map then takes `count` elements without growing. As `rehash`, it may shrink a table larger than it needs.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
+allocation does ([collector](../collector/README.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
 
 ## Parameters
 
@@ -64,4 +64,4 @@ Output:
 
 - [rehash](rehash.md): sets the number of buckets
 - [max_load_factor](max_load_factor.md): the load factor the table grows at
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

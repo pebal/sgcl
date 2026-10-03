@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::content_length
 
@@ -73,4 +73,4 @@ Output:
 ## See also
 
 - [text](text.md): the body read
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::raw
 
@@ -54,4 +54,4 @@ SHA-256 c5b24bc679408204477ffbf17a0e938f0635a31de427da87709b827dcbd345dd
 
 - [raw_tbs](raw_tbs.md): the part the signature covers
 - [operator==](operator_cmp.md): certificates of the same bytes
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

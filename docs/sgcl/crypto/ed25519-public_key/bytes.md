@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [public_key](../ed25519-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [public_key](README.md)
 
 # sgcl::crypto::ed25519::public_key::bytes
 
@@ -52,4 +52,4 @@ Output:
 
 - [from_bytes](from_bytes.md): the reverse
 - [to_pkix_der](to_pkix_der.md): the key in a SubjectPublicKeyInfo
-- [sgcl::crypto::ed25519::public_key](../ed25519-public_key.md)
+- [sgcl::crypto::ed25519::public_key](README.md)

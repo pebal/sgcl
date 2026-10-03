@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [error](README.md)
 
 # sgcl::crypto::error::offset
 
@@ -63,4 +63,4 @@ offset 9: the public key is not a BIT STRING of 32 bytes
 ## See also
 
 - [message](message.md): the error as a text, with the offset
-- [sgcl::crypto::error](../error.md)
+- [sgcl::crypto::error](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [png](../png.md)
+[sgcl](../../README.md) › [codec](../README.md) › [png](README.md)
 
 # sgcl::codec::png::encode
 
@@ -22,7 +22,7 @@ Nothing is interlaced and nothing gets a palette.
   unfiltered.
 - **Compression.** The rows go through one zlib stream with DEFLATE's filtered strategy at `o.level`, 7 unless
   asked: the first of DEFLATE's chain levels, which the filtered strategy is for; levels 1 to 6 are a faster
-  encoder that gains nothing from it ([level](../../compress/level.md)). The stream is cut into IDAT
+  encoder that gains nothing from it ([level](../../compress/level/README.md)). The stream is cut into IDAT
   chunks of 64 KB.
 - **Metadata.** The image's EXIF and ICC profile become eXIf and iCCP. A chunk holds at most 2^31 − 1 bytes: an EXIF
   block, or a compressed profile with its name, past that is left out and the image written without it, as
@@ -38,7 +38,7 @@ Nothing is interlaced and nothing gets a palette.
 
 ## Return value
 
-1. The bytes of the file, or the [error](../error.md) `errc::invalid_argument` for an image with a side past
+1. The bytes of the file, or the [error](../error/README.md) `errc::invalid_argument` for an image with a side past
    2^31 − 1 pixels, which PNG's IHDR cannot hold; any other image encodes.
 2. Nothing, or the error: `errc::invalid_argument` for a side past 2^31 − 1 pixels, before anything is written;
    `errc::io` when the stream fails, at the offset of the bytes written before, the stream's own error in
@@ -96,4 +96,4 @@ cmyk8 as rgb8: true
 - [decode](decode.md): the image of a PNG file
 - [options](../png-options.md): the DEFLATE level
 - [save](../save.md): an image into a file, in the format its extension names
-- [sgcl::codec::png](../png.md)
+- [sgcl::codec::png](README.md)

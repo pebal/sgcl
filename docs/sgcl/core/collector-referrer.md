@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [collector](collector.md)
+[sgcl](../README.md) › [core](README.md) › [collector](collector/README.md)
 
 # sgcl::collector::referrer
 
@@ -83,4 +83,4 @@ a buffer of tracked_ptr<Node>: true
 ## See also
 
 - [get_referrers](collector/get_referrers.md), [get_path_to_root](collector/get_path_to_root.md): what return it
-- [sgcl::collector](collector.md)
+- [sgcl::collector](collector/README.md)

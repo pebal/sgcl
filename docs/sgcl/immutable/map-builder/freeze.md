@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md) › [builder](../map-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](../map/README.md) › [builder](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::freeze
 
@@ -62,4 +62,4 @@ Output:
 ## See also
 
 - [map::thaw](../map/thaw.md): a builder over a map
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](../map-builder.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder](README.md)

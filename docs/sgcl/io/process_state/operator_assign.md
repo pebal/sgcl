@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::operator=
 
@@ -51,4 +51,4 @@ exit status 1
 ## See also
 
 - [(constructor)](process_state.md): an empty state, or a copy
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

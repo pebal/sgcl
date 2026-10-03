@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::format
 
@@ -9,7 +9,7 @@ string format(const string& pattern) const noexcept;    // (2)
 
 The text of the datetime, Go's `t.Format`.
 
-1. In a [layout](../layout.md), a format known by name, written by code of its own with no pattern walked:
+1. In a [layout](../layout/README.md), a format known by name, written by code of its own with no pattern walked:
    `time::rfc3339` (`2026-09-24T12:41:15+02:00`, `Z` for an offset of zero, Go's `RFC3339`), `time::rfc3339_nano`
    (the same with the fraction of a second, its trailing zeros left out, Go's `RFC3339Nano`), `time::http` (RFC 9110's
    IMF-fixdate, always in GMT: `Thu, 24 Sep 2026 10:41:15 GMT`), `time::email` (RFC 5322, in the datetime's zone:
@@ -101,6 +101,6 @@ Thursday, 24 September 2026, 12:41 CEST
 
 - [parse](parse.md): reads the text back
 - [to_string](to_string.md): RFC 3339 with the fraction where there is one
-- [layout](../layout.md): the formats known by name, what each writes and reads
+- [layout](../layout/README.md): the formats known by name, what each writes and reads
 - [README: Patterns](../README.md#patterns): every specifier
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

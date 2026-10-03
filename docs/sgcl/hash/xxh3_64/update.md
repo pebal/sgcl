@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](../xxh3_64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](README.md)
 
 # sgcl::hash::xxh3_64::update
 
@@ -66,4 +66,4 @@ d33dd80b46f60e50
 
 - [mixin::hasher::update](../mixin/hasher/update.md): a text, a digest, a std::span of bytes
 - [of](../mixin/hasher/of.md): the same in one call
-- [sgcl::hash::xxh3_64](../xxh3_64.md)
+- [sgcl::hash::xxh3_64](README.md)

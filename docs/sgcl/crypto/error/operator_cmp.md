@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [error](README.md)
 
 # sgcl::crypto::operator== (sgcl::crypto::error)
 
@@ -55,4 +55,4 @@ true
 ## See also
 
 - [code](code.md): the kind of the error
-- [sgcl::crypto::error](../error.md)
+- [sgcl::crypto::error](README.md)

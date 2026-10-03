@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md) › [encoder](../base32-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base32::encoder::operator bool
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](base32-encoder.md): an encoder that holds none
-- [sgcl::encoding::base32::encoder](../base32-encoder.md)
+- [sgcl::encoding::base32::encoder](README.md)

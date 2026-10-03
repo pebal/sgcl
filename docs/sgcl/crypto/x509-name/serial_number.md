@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](../x509-name.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](README.md)
 
 # sgcl::crypto::x509::name::serial_number
 
@@ -68,4 +68,4 @@ Output:
 ## See also
 
 - [certificate::serial_number](../x509-certificate/serial_number.md): the serial number of the certificate itself
-- [sgcl::crypto::x509::name](../x509-name.md)
+- [sgcl::crypto::x509::name](README.md)

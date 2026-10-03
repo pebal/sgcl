@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::time
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The time, a [datetime](../../time/datetime.md) to the nanosecond the clock gives.
+The time, a [datetime](../../time/datetime/README.md) to the nanosecond the clock gives.
 
 ## Complexity
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [options](../options.md): `utc`
-- [sgcl::slog::record](../record.md)
+- [sgcl::slog::record](README.md)

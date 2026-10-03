@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](../secret_bytes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](README.md)
 
 # sgcl::crypto::secret_bytes::clone
 
@@ -50,4 +50,4 @@ true true
 ## See also
 
 - [(constructor)](secret_bytes.md): the move
-- [sgcl::crypto::secret_bytes](../secret_bytes.md)
+- [sgcl::crypto::secret_bytes](README.md)

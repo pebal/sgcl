@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::bytes
 
@@ -7,7 +7,7 @@ const vector<byte>& bytes() const noexcept;
 ```
 
 The bytes the block's base64 holds, decoded: the DER of a certificate or a key, as the program gives it to the
-reader of that format. Go's `Block.Bytes`. They are in a managed [vector](../../core/vector.md), which is no place
+reader of that format. Go's `Block.Bytes`. They are in a managed [vector](../../core/vector/README.md), which is no place
 for a secret: a private key's PEM is read by the `from_pem` of the crypto module's keys.
 
 ## Parameters
@@ -52,5 +52,5 @@ Output:
 ## See also
 
 - [type](type.md): what the bytes are
-- [base64](../base64.md): the encoding of the bytes in the text
-- [sgcl::encoding::pem](../pem.md)
+- [base64](../base64/README.md): the encoding of the bytes in the text
+- [sgcl::encoding::pem](README.md)

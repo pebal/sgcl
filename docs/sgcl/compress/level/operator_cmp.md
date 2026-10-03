@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [level](../level.md)
+[sgcl](../../README.md) › [compress](../README.md) › [level](README.md)
 
 # sgcl::compress::operator== (sgcl::compress::level)
 
@@ -52,4 +52,4 @@ false
 ## See also
 
 - [value](value.md): the level as an `int`
-- [sgcl::compress::level](../level.md)
+- [sgcl::compress::level](README.md)

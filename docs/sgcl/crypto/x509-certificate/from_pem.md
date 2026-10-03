@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::from_pem
 
@@ -19,7 +19,7 @@ by [parse](parse.md).
 
 ## Return value
 
-The certificate, or a [crypto::error](../error.md): the error of [parse](parse.md) for the block, or
+The certificate, or a [crypto::error](../error/README.md): the error of [parse](parse.md) for the block, or
 `errc::malformed` for a text with no `CERTIFICATE` block that reads, whose message names the first PEM error when there
 was one.
 
@@ -77,4 +77,4 @@ sgcl::crypto::x509: no CERTIFICATE block in the PEM text
 
 - [parse](parse.md): a certificate from its DER
 - [certificate_pool::from_pem](../x509-certificate_pool/from_pem.md): every certificate of a text
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

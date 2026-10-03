@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::splice_after
 
@@ -87,4 +87,4 @@ Output:
 
 - [merge](merge.md): moves the nodes of a sorted list into their order
 - [insert_after](insert_after.md): inserts copies of elements
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

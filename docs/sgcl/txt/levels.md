@@ -14,7 +14,7 @@ Returns the resolved embedding level of every code point of the text, by the bid
 [UAX #9](https://www.unicode.org/reports/tr9/): even runs left to right, odd right to left, 0 a left to right
 paragraph, 1 a right to left one or a right to left piece in it, 2 a left to right piece inside that, and so on, up
 to the depth of 125 the standard allows. It is the raw answer, for a renderer that lays the text out itself;
-[bidi_runs](bidi_runs.md) is the same thing already cut into pieces, [visual_order](visual_order.md) the same thing
+[bidi_runs](bidi_runs/README.md) is the same thing already cut into pieces, [visual_order](visual_order.md) the same thing
 as the order the code points are drawn in.
 
 The algorithm works out everything but the paragraph's direction on its own: the embedding and override characters,
@@ -106,7 +106,7 @@ Output:
 
 ## See also
 
-- [bidi_runs](bidi_runs.md): the pieces, each at its level, in the order they are drawn
+- [bidi_runs](bidi_runs/README.md): the pieces, each at its level, in the order they are drawn
 - [visual_order](visual_order.md): the order the code points are drawn in
 - [mirrored](mirrored.md): rule L4 with the levels in hand
 - [txt](README.md)

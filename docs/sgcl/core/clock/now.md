@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [clock](../clock.md)
+[sgcl](../../README.md) › [core](../README.md) › [clock](README.md)
 
 # sgcl::clock::now
 
@@ -7,7 +7,7 @@ static time_point now() noexcept;
 ```
 
 The library's time: the steady clock's, or the manual clock's while one is installed. The difference of two
-points is a `std::chrono` duration, which a [duration](../duration.md) takes as it is.
+points is a `std::chrono` duration, which a [duration](../duration/README.md) takes as it is.
 
 ## Parameters
 
@@ -29,7 +29,7 @@ None.
 ## Notes
 
 Every wait of the library reads its deadline here, so a test that installs a
-[manual_clock](../../async/manual_clock.md) stops the time the library sees, and `advance` moves it.
+[manual_clock](../../async/manual_clock/README.md) stops the time the library sees, and `advance` moves it.
 
 ## Example
 
@@ -64,6 +64,6 @@ true
 
 ## See also
 
-- [manual_clock](../../async/manual_clock.md): the clock of a test
-- [duration](../duration.md): what the difference of two points converts to
-- [sgcl::clock](../clock.md)
+- [manual_clock](../../async/manual_clock/README.md): the clock of a test
+- [duration](../duration/README.md): what the difference of two points converts to
+- [sgcl::clock](README.md)

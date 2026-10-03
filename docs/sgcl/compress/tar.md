@@ -26,10 +26,10 @@ namespace sgcl::compress::tar {
 
 `sgcl::compress::tar` is tar as POSIX and GNU have it: ustar, pax (a record per field, for names, sizes and times
 ustar cannot hold) and GNU's long names and links, read from any of them — v7, ustar, pax, GNU, star — and written as
-ustar, or as pax where ustar cannot say what an entry holds. `.tar`, and with [gzip](gzip.md) `.tar.gz`, with
-[xz](xz.md) `.tar.xz`, with [bzip2](bzip2.md) `.tar.bz2` (read). It is Go's `archive/tar`: a [reader](tar-reader.md)
-that goes from entry to entry and reads each one's data, a [writer](tar-writer.md) that writes a header and then the
-entry's data, the [entry](tar-entry.md) both of them take, and what `tar -x` and `tar -c` do to a directory
+ustar, or as pax where ustar cannot say what an entry holds. `.tar`, and with [gzip](gzip/README.md) `.tar.gz`, with
+[xz](xz/README.md) `.tar.xz`, with [bzip2](bzip2/README.md) `.tar.bz2` (read). It is Go's `archive/tar`: a [reader](tar-reader/README.md)
+that goes from entry to entry and reads each one's data, a [writer](tar-writer/README.md) that writes a header and then the
+entry's data, the [entry](tar-entry/README.md) both of them take, and what `tar -x` and `tar -c` do to a directory
 ([extract](tar-extract.md), [create](tar-create.md)).
 
 A tar archive is a stream, read and written from its start to its end: the reader and the writer take any
@@ -57,11 +57,11 @@ written into a network connection never touches the disk.
 
 | Type | Definition |
 |---|---|
-| `error` | [compress::error](error.md) |
+| `error` | [compress::error](error/README.md) |
 | [kind](tar-kind.md) | what an entry is: a file, a directory, a link, a device, a fifo |
-| [entry](tar-entry.md) | one entry: its name, type, size, mode, times, owners, pax records |
-| [reader](tar-reader.md) | an archive read entry by entry, each entry's data an io stream |
-| [writer](tar-writer.md) | an archive written entry by entry |
+| [entry](tar-entry/README.md) | one entry: its name, type, size, mode, times, owners, pax records |
+| [reader](tar-reader/README.md) | an archive read entry by entry, each entry's data an io stream |
+| [writer](tar-writer/README.md) | an archive written entry by entry |
 | [options](tar-options.md) | what `extract` and `create` take besides the paths |
 
 ## Member functions
@@ -102,7 +102,7 @@ Output:
 ## See also
 
 - [zip](zip.md), [sevenzip](sevenzip.md): the other archives
-- [io::path::is_local](../io/path.md): the rule of a name that stays inside
+- [io::path::is_local](../io/path/README.md): the rule of a name that stays inside
 - `tests/compress/tar.cpp`: Go's test archives read as Go reads them, its golden archives written byte for byte;
   `tests/compress/files.cpp`: `extract` and `create` both ways against bsdtar
 - [sgcl::compress](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::bit
 
@@ -57,4 +57,4 @@ true true false
 
 - [operator&, operator|, operator^, operator~](operator_arith.md): the bitwise operators
 - [bit_length](bit_length.md), [trailing_zeros](trailing_zeros.md): counts of bits
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

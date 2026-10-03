@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::is_lock_free
 
@@ -48,4 +48,4 @@ true true
 
 ## See also
 
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

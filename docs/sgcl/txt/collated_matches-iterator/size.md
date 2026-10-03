@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](../collated_matches.md) › [iterator](../collated_matches-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](../collated_matches/README.md) › [iterator](README.md)
 
 # sgcl::txt::collated_matches::iterator::size
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [pos](pos.md): where it begins
-- [sgcl::txt::collated_matches::iterator](../collated_matches-iterator.md)
+- [sgcl::txt::collated_matches::iterator](README.md)

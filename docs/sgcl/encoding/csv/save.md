@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](README.md)
 
 # sgcl::encoding::csv::save, async_save
 
@@ -29,7 +29,7 @@ record of those texts, with no header. When the writing or the closing of the fi
 
 ## Return value
 
-Nothing, or the [error](../error.md): `errc::io` with the stream's error in `io_error()` when the file cannot be
+Nothing, or the [error](../error/README.md): `errc::io` with the stream's error in `io_error()` when the file cannot be
 made, the writing or the closing fails, or a field has no text in CSV (its `unsupported_value` is the code of the
 stream's error). The error has no place: its message is `input/output error: ` and the stream's message.
 
@@ -91,4 +91,4 @@ x,y
 - [load](load.md): the records of a file as values
 - [stringify](stringify.md): the records as a text
 - [writer::write](../csv-writer/write.md): a record into a stream
-- [sgcl::encoding::csv](../csv.md)
+- [sgcl::encoding::csv](README.md)

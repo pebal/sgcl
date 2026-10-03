@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::close, async_close
 
@@ -81,4 +81,4 @@ stdout: true
 
 - [has_close](has_close.md): whether the stream has a close
 - [file::close](../file/close.md): the close of a file
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

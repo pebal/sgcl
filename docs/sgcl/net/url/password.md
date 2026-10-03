@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::password
 
@@ -48,4 +48,4 @@ joe s3cret
 
 - [username](username.md): the user name
 - [with_password](with_password.md): another password
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

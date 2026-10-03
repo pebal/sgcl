@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::connection
 
@@ -62,4 +62,4 @@ true true
 
 - [operator bool](operator_bool.md): whether the handle holds a connection
 - [operator==](operator_cmp.md): whether two handles are the same connection
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

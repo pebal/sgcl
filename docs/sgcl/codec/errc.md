@@ -22,7 +22,7 @@ struct std::is_error_code_enum<sgcl::codec::errc> : std::true_type {};
 ```
 
 What went wrong in an image file, one list for every format of the module: a format uses the codes that mean
-something for it. An [error](error.md) carries one as its [code](error/code.md), beside the byte it was found at,
+something for it. An [error](error/README.md) carries one as its [code](error/code.md), beside the byte it was found at,
 and a program tells one failure from another by it.
 
 The values start at 1, so that an `error_code` of 0 is success: `std::is_error_code_enum` is specialized, and an
@@ -70,6 +70,6 @@ codec: 2 checksum mismatch
 
 ## See also
 
-- [error](error.md): the code, the byte and the words
+- [error](error/README.md): the code, the byte and the words
 - [codec_category](codec_category.md), [make_error_code](make_error_code.md): an `errc` as a `std::error_code`
 - [sgcl::codec](README.md)

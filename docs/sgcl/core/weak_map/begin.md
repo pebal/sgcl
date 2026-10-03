@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_map](README.md)
 
 # sgcl::weak_map\<Key, T\>::begin, cbegin
 
@@ -85,4 +85,4 @@ Output:
 
 - [end, cend](end.md): the iterator past the last entry
 - [find](find.md): an iterator to the entry of an object
-- [sgcl::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::weak_map\<Key, T\>](README.md)

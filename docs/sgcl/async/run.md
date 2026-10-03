@@ -20,7 +20,7 @@ the name a program starts with, as Go's `main` is where the goroutines start.
 
 1. Starts `t` if nobody started it, waits for it, and returns its value, moved out of the frame; for a `task<void>`,
    nothing.
-2. Calls `f` with a [stop_token](stop_token.md) that the first SIGINT (Ctrl-C) or SIGTERM stops, the way Go's
+2. Calls `f` with a [stop_token](stop_token/README.md) that the first SIGINT (Ctrl-C) or SIGTERM stops, the way Go's
    `signal.NotifyContext` does, and runs the task `f` returns as (1). The program sees the stop where it looks at its
    token (a case of its [select](select.md), `co_await stop.stopped()`, `stop.stop_requested()`) and winds down on
    its own terms: it closes its listeners, finishes the requests in flight, flushes what it wrote. The first signal
@@ -118,7 +118,7 @@ stopped: true
 
 ## See also
 
-- [stop_token](stop_token.md): what the program looks at
+- [stop_token](stop_token/README.md): what the program looks at
 - [signals](signals.md): the channel of the signals under (2)
 - [wait, operator co_await](task/wait.md): the wait that `run` is
-- [executor](executor.md): a program run as one task on the main thread
+- [executor](executor/README.md): a program run as one task on the main thread

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::insert
 
@@ -114,4 +114,4 @@ Grace false Linus
 - [emplace](emplace.md): constructs the element in place
 - [try_emplace](try_emplace.md): builds the element only when the key is absent
 - [erase](erase.md): erases an element
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

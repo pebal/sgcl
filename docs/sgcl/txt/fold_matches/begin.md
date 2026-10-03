@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](README.md)
 
 # sgcl::txt::fold_matches::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../fold_matches-iterator.md) to the first occurrence of the pattern in the text, searched for
+Returns an [iterator](../fold_matches-iterator/README.md) to the first occurrence of the pattern in the text, searched for
 when this is called; for a text without one, an empty pattern and an empty range it equals [end](end.md).
 
 ## Parameters
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [end](end.md): the iterator past the last occurrence
-- [sgcl::txt::fold_matches, normalized_matches](../fold_matches.md)
+- [sgcl::txt::fold_matches, normalized_matches](README.md)

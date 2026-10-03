@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::push_back
 
@@ -41,7 +41,7 @@ If an exception is thrown, the deque is as it was before the call.
 ## Notes
 
 The references to the other elements stay valid, the iterators do not
-([Iterator invalidation](../deque.md#iterator-invalidation)). An outgrown map is left to the collector, never
+([Iterator invalidation](README.md#iterator-invalidation)). An outgrown map is left to the collector, never
 freed at once ([Benchmarks: Containers](../benchmarks.md#containers): 2.0 ns per push against 1.5 ns for
 `std::deque`).
 
@@ -80,4 +80,4 @@ Output:
 - [emplace_back](emplace_back.md): constructs an element in place at the end
 - [pop_back](pop_back.md): removes the last element
 - [push_front](push_front.md): inserts an element at the beginning
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

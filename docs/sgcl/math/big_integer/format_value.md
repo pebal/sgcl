@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::format_value (sgcl::math::big_integer)
 
@@ -71,4 +71,4 @@ false
 
 - [to_string](to_string.md): the digits in a base, and the stream
 - [txt::format](../../txt/format.md): the patterns and their specifications
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [tcp](../tcp.md)
+[sgcl](../../README.md) › [net](../README.md) › [tcp](README.md)
 
 # sgcl::net::tcp::connect, async_connect
 
@@ -51,7 +51,7 @@ The connection has Nagle's algorithm off and keep-alive probes after 15 s of sil
 
 ## Return value
 
-The [connection](../connection.md); or the [io::error](../../io/error.md), its operation `dial tcp` (`lookup` for a
+The [connection](../connection/README.md); or the [io::error](../../io/error/README.md), its operation `dial tcp` (`lookup` for a
 failure of the lookup) and its path the address given:
 
 - `net::errc::invalid_address` for an address that is not `"host:port"`: no port, a port past 65535 or not a number,
@@ -159,5 +159,5 @@ hello
 
 - [listen, async_listen](listen.md): the other side
 - [dns::lookup](../dns/lookup.md): the lookup of the name, with the same stop and limit
-- [stop_source](../../async/stop_source.md): what makes a stop token
-- [sgcl::net::tcp](../tcp.md)
+- [stop_source](../../async/stop_source/README.md): what makes a stop token
+- [sgcl::net::tcp](README.md)

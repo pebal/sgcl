@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::merge
 
@@ -83,4 +83,4 @@ Output:
 
 - [sort](sort.md): sorts the list, by the same order
 - [splice](splice.md): moves nodes without comparing them
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

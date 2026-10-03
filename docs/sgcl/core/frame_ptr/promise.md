@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](../frame_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](README.md)
 
 # sgcl::frame_ptr\<Promise\>::promise
 
@@ -76,4 +76,4 @@ Output:
 ## See also
 
 - [handle](handle.md): the coroutine handle
-- [sgcl::frame_ptr\<Promise\>](../frame_ptr.md)
+- [sgcl::frame_ptr\<Promise\>](README.md)

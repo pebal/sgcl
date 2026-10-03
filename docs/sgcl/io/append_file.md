@@ -34,14 +34,14 @@ too. A file it creates gets the permissions `p`, masked by the umask. What a log
 - (1–3) On the calling thread.
 - (4–6) The same for a task, on the [blocking pool](../async/spawn_blocking.md): a disk has no readiness to wait for.
 
-1. The characters of a [string](../core/string.md).
-2. Bytes: a `vector<byte>`, an [array](../core/array.md), a [buffer](buffer.md)'s data, any slice of them.
+1. The characters of a [string](../core/string/README.md).
+2. Bytes: a `vector<byte>`, an [array](../core/array/README.md), a [buffer](buffer/README.md)'s data, any slice of them.
 3. A literal or a character array (to its first NUL), or a `std::string_view`: the overload takes part only for
    these, an exact match where the conversions to a `string` and to bytes would tie.
 4. As (1); the task holds the string.
 5. As (2). Bytes without an owner (a plain array, a `std::span`) are copied into a managed block before the write
    starts, since the pool's thread may outlive the frame of a task let go of; a slice with an owner (a `vector`, a
-   [buffer](buffer.md)'s data) is written as it is.
+   [buffer](buffer/README.md)'s data) is written as it is.
 6. As (3); the text is copied into a string at the call, which the task then holds.
 
 ## Parameters
@@ -55,7 +55,7 @@ too. A file it creates gets the permissions `p`, masked by the umask. What a log
 
 ## Return value
 
-Nothing, or the [error](error.md) of the step that failed: of [open](open.md) (`is_not_found()` for a directory on
+Nothing, or the [error](error/README.md) of the step that failed: of [open](open.md) (`is_not_found()` for a directory on
 the way that is not there, `is_permission()`, `EISDIR` for a directory), of the write (`ENOSPC` for a full disk) or
 of the close.
 
@@ -131,4 +131,4 @@ second
 
 - [write_file](write_file.md): the whole file written over
 - [open_flags](open_flags.md): `append`
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil](../stencil.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil](README.md)
 
 # sgcl::txt::stencil::parses
 
@@ -56,4 +56,4 @@ report.txt: broken
 ## See also
 
 - [parse](parse.md): the template, or where and why it is not one
-- [sgcl::txt::stencil](../stencil.md)
+- [sgcl::txt::stencil](README.md)

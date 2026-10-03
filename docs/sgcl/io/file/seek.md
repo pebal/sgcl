@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::seek
 
@@ -11,7 +11,7 @@ says: the `lseek(2)` of the descriptor. A position past the end is allowed; a wr
 before it. A pipe has no position: its seek is an error.
 
 The position is shared by every handle of the file. [tell](../mixin/seeker/tell.md), [size](../mixin/seeker/size.md)
-and [rewind](../mixin/seeker/rewind.md) are made of this seek ([mixin::seeker](../mixin/seeker.md)).
+and [rewind](../mixin/seeker/rewind.md) are made of this seek ([mixin::seeker](../mixin/seeker/README.md)).
 
 ## Parameters
 
@@ -22,7 +22,7 @@ and [rewind](../mixin/seeker/rewind.md) are made of this seek ([mixin::seeker](.
 
 ## Return value
 
-The new position, from the beginning of the file. Or the [error](../error.md), its operation `seek` and its path
+The new position, from the beginning of the file. Or the [error](../error/README.md), its operation `seek` and its path
 the file's: `errc::closed` for a closed file, otherwise the `errno` of `lseek(2)` (`EINVAL` for a position before
 the beginning, `ESPIPE` for a pipe).
 
@@ -72,4 +72,4 @@ seek pipe: Illegal seek
   position, the size, the beginning
 - [read_at](read_at.md), [write_at](write_at.md): an offset of their own, the position untouched
 - [seek_from](../seek_from.md)
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

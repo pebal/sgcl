@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [jpeg](../jpeg.md)
+[sgcl](../../README.md) › [codec](../README.md) › [jpeg](README.md)
 
 # sgcl::codec::jpeg::encode
 
@@ -37,7 +37,7 @@ with the same quality, sampling and `-optimize`.
 
 ## Return value
 
-- (1–2) The bytes of the file, or the [error](../error.md) `errc::invalid_argument` for an image with a side past
+- (1–2) The bytes of the file, or the [error](../error/README.md) `errc::invalid_argument` for an image with a side past
   65 535 pixels, which JPEG's SOF cannot hold; any other image encodes.
 - (3–4) Nothing, or the error: `errc::invalid_argument` for a side past 65 535 pixels, before anything is written;
   `errc::io` when the stream fails, at the offset of the bytes written before, the stream's own error in
@@ -105,4 +105,4 @@ sgcl::codec::jpeg::encode: quality outside 1..100
 - [decode](decode.md): the image of a JPEG file
 - [options](../jpeg-options.md), [subsampling](../jpeg-subsampling.md): the quality and the chroma
 - [save](../save.md): an image into a file, in the format its extension names
-- [sgcl::codec::jpeg](../jpeg.md)
+- [sgcl::codec::jpeg](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md) › [encoded](../utf8-encoded.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8/README.md) › [encoded](README.md)
 
 # sgcl::utf8::encoded::view, operator std::string_view
 
@@ -57,4 +57,4 @@ x·y
 ## See also
 
 - [(constructor)](utf8-encoded.md): encodes a code point
-- [sgcl::utf8::encoded](../utf8-encoded.md)
+- [sgcl::utf8::encoded](README.md)

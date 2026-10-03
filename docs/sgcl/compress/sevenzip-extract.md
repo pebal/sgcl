@@ -45,7 +45,7 @@ over.
 
 ## Return value
 
-Nothing, or the [error](error.md): a name or a link's target that would leave the directory
+Nothing, or the [error](error/README.md): a name or a link's target that would leave the directory
 (`errc::insecure_path`), the files past `max_size` (`errc::too_large`), the archive's own errors as
 [open](sevenzip-archive/open.md) and the reads give them, a failure of the file system (`errc::io`).
 
@@ -91,5 +91,5 @@ false
 ## See also
 
 - [create](sevenzip-create.md): the other way
-- [archive](sevenzip-archive.md): entries one by one
+- [archive](sevenzip-archive/README.md): entries one by one
 - [sgcl::compress::sevenzip](sevenzip.md)

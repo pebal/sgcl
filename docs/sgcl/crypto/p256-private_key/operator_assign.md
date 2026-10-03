@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::operator=
 
@@ -62,4 +62,4 @@ true
 
 - [(constructor)](p256-private_key.md): the move
 - [clone](clone.md): a second key of the same scalar
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

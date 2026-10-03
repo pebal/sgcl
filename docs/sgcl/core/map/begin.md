@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::begin, cbegin
 
@@ -89,4 +89,4 @@ true true
 - [end, cend](end.md): the iterator past the last element
 - [find](find.md): an iterator to the element under a key
 - [bucket](bucket.md): the bucket of a key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

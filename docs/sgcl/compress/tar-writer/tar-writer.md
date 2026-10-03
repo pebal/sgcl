@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](../tar-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](README.md)
 
 # sgcl::compress::tar::writer::writer
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [write_header](write_header.md)
-- [sgcl::compress::tar::writer](../tar-writer.md)
+- [sgcl::compress::tar::writer](README.md)

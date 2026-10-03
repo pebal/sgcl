@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::encode_to
 
@@ -65,4 +65,4 @@ sgcl: the buffer is smaller than the encoding
 - [encoded_size](encoded_size.md): the size the buffer needs
 - [encode](encode.md): into a string of its own
 - [decode_to](decode_to.md): the other way
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md) › [node_type](../sorted_set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set/README.md) › [node_type](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::node_type::value
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [extract](../sorted_set/extract.md): takes a node out of a set
-- [sgcl::sorted_set\<Key, Compare\>::node_type](../sorted_set-node_type.md)
+- [sgcl::sorted_set\<Key, Compare\>::node_type](README.md)

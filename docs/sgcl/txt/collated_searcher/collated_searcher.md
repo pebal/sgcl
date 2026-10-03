@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_searcher](../collated_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_searcher](README.md)
 
 # sgcl::txt::collated_searcher::collated_searcher
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [collated_text::searcher](../collated_text/searcher.md): a searcher of the text's own collator
-- [sgcl::txt::collated_searcher](../collated_searcher.md)
+- [sgcl::txt::collated_searcher](README.md)

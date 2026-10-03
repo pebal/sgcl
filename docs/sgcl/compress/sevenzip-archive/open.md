@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::open, async_open
 
@@ -44,7 +44,7 @@ decrypting it when it is encrypted — and nothing else. The entries' data is re
 
 ## Return value
 
-The archive, or the [error](../error.md): not 7z (`errc::invalid_header`), a CRC-32 of a header that does not match
+The archive, or the [error](../error/README.md): not 7z (`errc::invalid_header`), a CRC-32 of a header that does not match
 (`errc::checksum`), a header the format does not allow or a name that is not UTF-16 (`errc::corrupt`), a count, a
 header or a key's rounds past the limits (`errc::too_large`), an encrypted header without a password
 (`errc::password_required`) or with a wrong one (`errc::wrong_password`), a failure of the file (`errc::io`).
@@ -95,4 +95,4 @@ meet at noon
 ## See also
 
 - [from](from.md): an archive in memory
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

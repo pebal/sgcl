@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [writer](../writer.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [writer](README.md)
 
 # sgcl::io::mixin::writer\<Derived\>::write, async_write
 
@@ -16,8 +16,8 @@ async::task<expected<size_t, error>> async_write(byte b) noexcept;           // 
 Writes text or one byte to this stream, through `Derived`'s `write` of bytes: [io::write](../../write.md) over this
 stream.
 
-- (1, 3) `text` is a [string](../../../core/string.md), a text slice (`slice<const char>`, a line of a
-  [buffered_reader](../../buffered_reader.md), a piece of a string), a literal or a character array up to its first
+- (1, 3) `text` is a [string](../../../core/string/README.md), a text slice (`slice<const char>`, a line of a
+  [buffered_reader](../../buffered_reader/README.md), a piece of a string), a literal or a character array up to its first
   NUL and never past its end, a C string (`const char*` or `char*`, to its NUL), or a `std::string_view`, written from
   where it lies with no string made. They take part only for text; bytes are written by `Derived`'s own
   `write(slice<const byte>)`, beside these.
@@ -83,4 +83,4 @@ and from a task
 
 - [io::write](../../write.md): the same over any stream, bytes too
 - [copy_from](copy_from.md): everything a reader gives
-- [sgcl::io::mixin::writer\<Derived\>](../writer.md)
+- [sgcl::io::mixin::writer\<Derived\>](README.md)

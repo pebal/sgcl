@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::clone
 
@@ -51,4 +51,4 @@ true true
 
 - [(constructor)](x25519-private_key.md): the move
 - [operator==](operator_cmp.md): the comparison in constant time
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [sgcl::crypto::x25519::private_key](README.md)

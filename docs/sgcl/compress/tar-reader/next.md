@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](../tar-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](README.md)
 
 # sgcl::compress::tar::reader::next, async_next
 
@@ -8,7 +8,7 @@ async::task<expected<optional<entry>, error>> async_next() noexcept;    // (2)
 ```
 
 Goes to the next entry: skips what is left of the current entry's data, reads the headers before the next one —
-global and per-entry pax records, GNU's long names, the ustar header — and gives the [entry](../tar-entry.md) they
+global and per-entry pax records, GNU's long names, the ustar header — and gives the [entry](../tar-entry/README.md) they
 make together. The reads give its data from then on. At the end of the archive it gives `nullopt`, and so on every
 call after.
 
@@ -24,7 +24,7 @@ None.
 
 ## Return value
 
-The next entry, `nullopt` at the end of the archive, or the [error](../error.md): a header that cannot be read or a
+The next entry, `nullopt` at the end of the archive, or the [error](../error/README.md): a header that cannot be read or a
 block of zeros followed by more (`errc::invalid_header`), a header checksum that does not match (`errc::checksum`), a
 pax header or a long name past 1 MiB (`errc::too_large`), a sparse file or a multi-volume part
 (`errc::unsupported`), data cut short (`errc::unexpected_end`), a failure of `in` (`errc::io`).
@@ -76,4 +76,4 @@ three.txt (9 bytes)
 ## See also
 
 - [read](read.md): the entry's data
-- [sgcl::compress::tar::reader](../tar-reader.md)
+- [sgcl::compress::tar::reader](README.md)

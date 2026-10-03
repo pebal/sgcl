@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::dynamic_array\<T\>::at
 
@@ -31,7 +31,7 @@ Constant.
 
 [operator[]](operator_at.md) is the same access without the check. The buffer never moves, so the reference is
 valid until the array is assigned over, moved from or destroyed. It does not keep the buffer alive; a
-[slice](../slice.md) from [as_slice](as_slice.md) does.
+[slice](../slice/README.md) from [as_slice](as_slice.md) does.
 
 ## Example
 
@@ -65,4 +65,4 @@ out of range: sgcl::dynamic_array::at
 
 - [operator[]](operator_at.md): access an element without the check
 - [as_slice, operator slice](as_slice.md): the elements as a slice that holds the buffer
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [sgcl::dynamic_array\<T\>](README.md)

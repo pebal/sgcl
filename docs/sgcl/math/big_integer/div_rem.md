@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::div_rem
 
@@ -59,4 +59,4 @@ true
 
 - [mod](mod.md): the remainder that is never negative
 - [operator/, operator%](operator_arith.md): the quotient or the remainder alone
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

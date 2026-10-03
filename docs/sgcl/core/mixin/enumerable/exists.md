@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](../enumerable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](README.md)
 
 # sgcl::mixin::enumerable\<Derived\>::exists
 
@@ -67,4 +67,4 @@ false
 - [all](all.md): checks whether a predicate accepts every element
 - [count_of](count_of.md): the number of elements a predicate accepts
 - [contains](contains.md): checks whether an element is equal to a value
-- [sgcl::mixin::enumerable\<Derived\>](../enumerable.md)
+- [sgcl::mixin::enumerable\<Derived\>](README.md)

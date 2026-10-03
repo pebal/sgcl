@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::operator bool
 
@@ -52,4 +52,4 @@ false true
 ## See also
 
 - [get](get.md): the raw pointer
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

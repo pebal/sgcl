@@ -85,5 +85,5 @@ time=2026-09-29T11:02:15.209+02:00 level=INFO msg=collector verbosity=1 line="st
 ## See also
 
 - [config](../core/config.md#sgcl_log_print_level): `SGCL_LOG_PRINT_LEVEL`
-- [collector](../core/collector.md): what the lines report
+- [collector](../core/collector/README.md): what the lines report
 - [sgcl::slog](README.md)

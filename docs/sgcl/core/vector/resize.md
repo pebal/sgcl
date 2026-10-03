@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::resize
 
@@ -44,7 +44,7 @@ have grown.
 ## Notes
 
 A shrinking resize keeps the buffer; [shrink_to_fit](shrink_to_fit.md) releases it. The buffer a growth leaves is
-collected, not freed at once: a [slice](../slice.md) taken before still reads the old elements.
+collected, not freed at once: a [slice](../slice/README.md) taken before still reads the old elements.
 
 ## Example
 
@@ -79,4 +79,4 @@ Output:
 
 - [size](size.md): the number of elements
 - [reserve](reserve.md): reserves storage without adding elements
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::group_index
 
@@ -52,4 +52,4 @@ Output:
 
 - [group_count](group_count.md): the number of groups
 - [match::group](../match/group.md): a group by number or by name
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

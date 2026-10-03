@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::to_shared
 
@@ -77,6 +77,6 @@ true
 
 ## See also
 
-- [root_ptr](../root_ptr.md): a root of its own, anywhere
-- [unique_ptr](../unique_ptr.md): one deterministic owner
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [root_ptr](../root_ptr/README.md): a root of its own, anywhere
+- [unique_ptr](../unique_ptr/README.md): one deterministic owner
+- [sgcl::tracked_ptr\<T\>](README.md)

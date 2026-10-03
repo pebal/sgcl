@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::method
 
@@ -64,4 +64,4 @@ PURGE: asked with PURGE
 ## See also
 
 - [route](../server/route.md): a pattern with a method
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

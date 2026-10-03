@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [time](../README.md) › [error](README.md)
 
 # sgcl::time::operator== (sgcl::time::error)
 
@@ -55,4 +55,4 @@ false
 ## See also
 
 - [message](message.md), [offset](offset.md): what is compared
-- [sgcl::time::error](../error.md)
+- [sgcl::time::error](README.md)

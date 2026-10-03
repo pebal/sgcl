@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::next_uint64
 
@@ -51,4 +51,4 @@ Output:
 
 - [operator()](operator_call.md): the same word, for the distributions of `<random>`
 - [next_bytes](next_bytes.md): the words as bytes
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

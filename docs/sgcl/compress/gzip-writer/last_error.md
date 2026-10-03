@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [writer](../gzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [writer](README.md)
 
 # sgcl::compress::gzip::writer::last_error
 
@@ -55,4 +55,4 @@ write gzip: stream closed
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::gzip::writer](../gzip-writer.md)
+- [sgcl::compress::gzip::writer](README.md)

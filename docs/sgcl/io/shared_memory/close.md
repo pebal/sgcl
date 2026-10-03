@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::close
 
@@ -20,7 +20,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md) of closing the descriptor (operation `close`).
+Nothing, or the [error](../error/README.md) of closing the descriptor (operation `close`).
 
 ## Complexity
 
@@ -62,4 +62,4 @@ true 0 0
 
 - [is_closed](is_closed.md): whether the region was closed
 - [remove](remove.md): the name taken away
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

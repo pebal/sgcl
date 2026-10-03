@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::header
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The names, as a [slice](../../core/slice.md) that keeps them alive; empty when no header was read.
+The names, as a [slice](../../core/slice/README.md) that keeps them alive; empty when no header was read.
 
 ## Complexity
 
@@ -55,4 +55,4 @@ e-mail
 ## See also
 
 - [read_header](read_header.md): the header read
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

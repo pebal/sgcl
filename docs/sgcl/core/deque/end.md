@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::end, cend
 
@@ -33,7 +33,7 @@ None.
 ## Notes
 
 `end()` is invalidated by every insertion and by an erasure at the end, `pop_back` included
-([Iterator invalidation](../deque.md#iterator-invalidation)): a loop that erases takes the iterator
+([Iterator invalidation](README.md#iterator-invalidation)): a loop that erases takes the iterator
 [erase](erase.md) returns and reads `end()` again.
 
 ## Example
@@ -67,4 +67,4 @@ Output:
 
 - [begin, cbegin](begin.md): an iterator to the beginning
 - [rend, crend](rend.md): a reverse iterator to the end
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

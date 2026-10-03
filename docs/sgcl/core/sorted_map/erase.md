@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::erase
 
@@ -19,7 +19,7 @@ later.
 3. Erases the elements of the range `[first, last)`. Erasing `[begin(), end())` is a [clear](clear.md).
 4. Erases the element under `key`, if there is one.
 5. As (4), with a key of another type, compared without building a `key_type`. Takes part only when `Compare`
-   declares `is_transparent`, as `std::less` of a [string](../string.md) does, and `K` converts to neither
+   declares `is_transparent`, as `std::less` of a [string](../string/README.md) does, and `K` converts to neither
    `iterator` nor `const_iterator`.
 
 Erasing during an iteration is done as with `std::map`: `it = m.erase(it)`.
@@ -85,4 +85,4 @@ true
 - [take](take.md): moves the value under a key out and erases the element
 - [extract](extract.md): takes a node out without destroying the element
 - [erase_if](erase_if.md): erases the elements a predicate accepts
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

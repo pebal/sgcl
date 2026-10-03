@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_error](../stencil_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_error](README.md)
 
 # sgcl::txt::stencil_error::stencil_error
 
@@ -50,4 +50,4 @@ Output:
 
 ## See also
 
-- [sgcl::txt::stencil_error](../stencil_error.md)
+- [sgcl::txt::stencil_error](README.md)

@@ -22,14 +22,14 @@ namespace sgcl {
 program names one `atomic_ref` for its counters and its pointers alike (deduced: `atomic_ref a(counter)`). The two
 that differ are the views of the library's own over one word:
 
-- a [tracked_ptr](tracked_ptr.md) that lives somewhere already, a member of a node, an element of a vector, the
-  word a [root_ptr](root_ptr.md) holds its object by: [atomic_ref\<tracked_ptr\<T\>\>](atomic_ref-tracked_ptr.md),
-  with the operations of [atomic\<tracked_ptr\<T\>\>](atomic-tracked_ptr.md);
-- a handle ([req::handle](req/handle.md): a [string](string.md), `io::file`, `net::connection`, `async::channel`):
-  [atomic_ref\<H\>](atomic_ref-handle.md), with the operations of [atomic\<H\>](atomic-handle.md).
+- a [tracked_ptr](tracked_ptr/README.md) that lives somewhere already, a member of a node, an element of a vector, the
+  word a [root_ptr](root_ptr/README.md) holds its object by: [atomic_ref\<tracked_ptr\<T\>\>](atomic_ref-tracked_ptr/README.md),
+  with the operations of [atomic\<tracked_ptr\<T\>\>](atomic-tracked_ptr/README.md);
+- a handle ([req::handle](req/handle.md): a [string](string/README.md), `io::file`, `net::connection`, `async::channel`):
+  [atomic_ref\<H\>](atomic_ref-handle/README.md), with the operations of [atomic\<H\>](atomic-handle/README.md).
 
 A global holding an object that other threads share and that is replaced at run time is a `root_ptr` under an
-`atomic_ref`, or a [rooted](rooted.md) handle under one: `atomic_ref a(root)`, `atomic_ref a(*rooted_handle)`.
+`atomic_ref`, or a [rooted](rooted/README.md) handle under one: `atomic_ref a(root)`, `atomic_ref a(*rooted_handle)`.
 
 ## Rules
 
@@ -48,8 +48,8 @@ A global holding an object that other threads share and that is replaced at run 
 
 Those of [std::atomic_ref\<T\>](https://en.cppreference.com/w/cpp/atomic/atomic_ref), with its constructors and
 its assignments. The specializations have their own:
-[atomic_ref\<tracked_ptr\<T\>\>](atomic_ref-tracked_ptr.md#member-functions),
-[atomic_ref\<H\>](atomic_ref-handle.md#member-functions).
+[atomic_ref\<tracked_ptr\<T\>\>](atomic_ref-tracked_ptr/README.md#member-functions),
+[atomic_ref\<H\>](atomic_ref-handle/README.md#member-functions).
 
 ## Deduction guides
 
@@ -70,8 +70,8 @@ word; for an `int` an `atomic_ref<int>`.
 
 | Specialization | Description |
 |---|---|
-| [atomic_ref\<tracked_ptr\<T\>\>](atomic_ref-tracked_ptr.md) | the atomic view of a `tracked_ptr`: lock-free, the loaded object held, no ABA |
-| [atomic_ref\<H\>](atomic_ref-handle.md) | the atomic view of a handle (`req::handle`): the handle's word, compared by identity |
+| [atomic_ref\<tracked_ptr\<T\>\>](atomic_ref-tracked_ptr/README.md) | the atomic view of a `tracked_ptr`: lock-free, the loaded object held, no ABA |
+| [atomic_ref\<H\>](atomic_ref-handle/README.md) | the atomic view of a handle (`req::handle`): the handle's word, compared by identity |
 
 ## Example
 
@@ -113,6 +113,6 @@ Output:
 ## See also
 
 - [atomic](atomic.md): the same operations on a value declared atomic
-- [tracked_ptr](tracked_ptr.md), [root_ptr](root_ptr.md), [rooted](rooted.md), [req::handle](req/handle.md)
+- [tracked_ptr](tracked_ptr/README.md), [root_ptr](root_ptr/README.md), [rooted](rooted/README.md), [req::handle](req/handle.md)
 - [README: Pointers](README.md#pointers), [README: The rules](README.md#the-rules),
   [Threads](../async/README.md#threads)

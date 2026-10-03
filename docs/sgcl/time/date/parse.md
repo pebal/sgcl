@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::parse
 
@@ -30,7 +30,7 @@ Reads a date from a text.
 
 ## Return value
 
-The date, or an [error](../error.md) with a sentence and the byte of the text where the field that failed starts.
+The date, or an [error](../error/README.md) with a sentence and the byte of the text where the field that failed starts.
 Of (1):
 
 - `"a year of four digits expected"`, `"a year of four or five digits expected"`,
@@ -109,6 +109,6 @@ a specifier of a time of day or of a zone in the pattern of a date (byte 11)
 
 - [to_string](to_string.md), [format](format.md): write the text
 - [(constructor)](date.md): a date from a literal text
-- [error](../error.md): why a text is not a date
+- [error](../error/README.md): why a text is not a date
 - [Patterns](../README.md#patterns): the specifiers of `%` and how they are read
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

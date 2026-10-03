@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read_from, async_read_from
 
@@ -26,7 +26,7 @@ reader.
 ## Return value
 
 The number of bytes sent, fewer than the rest of the file when it ended first; or the
-[io::error](../../io/error.md) of the [write](write.md), or of the read of the file.
+[io::error](../../io/error/README.md) of the [write](write.md), or of the read of the file.
 
 ## Complexity
 
@@ -79,4 +79,4 @@ position 15
 - [write, async_write](write.md): bytes and text
 - [copy_to](copy_to.md): another connection to its end
 - [io::copy](../../io/copy.md): any reader into any writer
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

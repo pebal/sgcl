@@ -57,5 +57,5 @@ original
 ## See also
 
 - [map](map.md): the function that takes the options
-- [mapping](mapping.md): what it makes
+- [mapping](mapping/README.md): what it makes
 - [file::truncate](file/truncate.md): a file sized before a writable mapping

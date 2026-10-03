@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::binomial
 
@@ -64,4 +64,4 @@ sgcl::math::big_integer::binomial: a negative argument
 ## See also
 
 - [factorial](factorial.md): `n!`
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

@@ -58,4 +58,4 @@ false
 ## See also
 
 - [errc](errc.md), [make_error_code](make_error_code.md)
-- [error](error.md)
+- [error](error/README.md)

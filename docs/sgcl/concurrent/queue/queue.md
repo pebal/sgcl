@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [queue](README.md)
 
 # sgcl::concurrent::queue\<T\>::queue
 
@@ -61,4 +61,4 @@ false
 ## See also
 
 - [push](push.md), [emplace](emplace.md): append an element
-- [sgcl::concurrent::queue\<T\>](../queue.md)
+- [sgcl::concurrent::queue\<T\>](README.md)

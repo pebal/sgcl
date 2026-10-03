@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [runtime_pattern](../runtime_pattern.md)
+[sgcl](../../README.md) › [txt](../README.md) › [runtime_pattern](README.md)
 
 # sgcl::txt::runtime_pattern::runtime_pattern
 
@@ -49,4 +49,4 @@ usr/lib
 ## See also
 
 - [runtime](../runtime.md): the same as a function
-- [sgcl::txt::runtime_pattern](../runtime_pattern.md)
+- [sgcl::txt::runtime_pattern](README.md)

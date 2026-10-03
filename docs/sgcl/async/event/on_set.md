@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [event](../event.md)
+[sgcl](../../README.md) › [async](../README.md) › [event](README.md)
 
 # sgcl::async::event::on_set
 
@@ -68,4 +68,4 @@ cancelled
 - [select](../select.md): the cases and how one is chosen
 - [wait, operator co_await](wait.md): the wait outside a select
 - [set](set.md): what serves the case
-- [sgcl::async::event](../event.md)
+- [sgcl::async::event](README.md)

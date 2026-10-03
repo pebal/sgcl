@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](../buffered_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](README.md)
 
 # sgcl::io::buffered_writer::buffered_writer
 
@@ -11,8 +11,8 @@ Makes a buffered writer handle.
 
 1. An empty handle, which holds no writer: `!w`, and an operation on it is a contract violation.
 2. A writer over the stream `w`: its state is made at once, with a block of `config::io_buffer_size` (8 KB) of
-   unmanaged memory it owns, empty. `w` is an [io::writer](../writer.md), which any stream converts to — a
-   [file](../file.md), a [buffer](../buffer.md), a connection, `io::stdout`, a `tracked_ptr` to a writer of the
+   unmanaged memory it owns, empty. `w` is an [io::writer](../writer/README.md), which any stream converts to — a
+   [file](../file/README.md), a [buffer](../buffer/README.md), a connection, `io::stdout`, a `tracked_ptr` to a writer of the
    program's — so `io::buffered_writer out(io::stdout);` is written with the stream itself. The constructor is
    explicit: a stream is not taken for a buffered writer where one is expected.
 
@@ -59,5 +59,5 @@ through the block
 ## See also
 
 - [operator bool](operator_bool.md): checks whether the handle holds a writer
-- [io::writer](../writer.md): what any stream converts to
-- [sgcl::io::buffered_writer](../buffered_writer.md)
+- [io::writer](../writer/README.md): what any stream converts to
+- [sgcl::io::buffered_writer](README.md)

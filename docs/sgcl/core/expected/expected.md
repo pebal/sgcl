@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::expected
 
@@ -127,5 +127,5 @@ Output:
 ## See also
 
 - [operator=](operator_assign.md): assigns another `expected`, a value or an error
-- [unexpected](../unexpected.md): the error, wrapped
-- [sgcl::expected\<T, E\>](../expected.md)
+- [unexpected](../unexpected/README.md): the error, wrapped
+- [sgcl::expected\<T, E\>](README.md)

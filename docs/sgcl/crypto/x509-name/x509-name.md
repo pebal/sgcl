@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](../x509-name.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](README.md)
 
 # sgcl::crypto::x509::name::name
 
@@ -44,4 +44,4 @@ true []
 ## See also
 
 - [empty](empty.md)
-- [sgcl::crypto::x509::name](../x509-name.md)
+- [sgcl::crypto::x509::name](README.md)

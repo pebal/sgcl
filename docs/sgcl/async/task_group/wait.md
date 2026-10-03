@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::wait, operator co_await
 
@@ -26,7 +26,7 @@ None.
 ## Return value
 
 1. None.
-2. An [operation](../operation.md) that `co_await` carries out; the `co_await` gives nothing.
+2. An [operation](../operation/README.md) that `co_await` carries out; the `co_await` gives nothing.
 
 ## Complexity
 
@@ -99,4 +99,4 @@ valid
 - [on_done](on_done.md): the wait as a case of a select
 - [go](go.md): starts the children
 - [count](count.md): the children not yet finished
-- [sgcl::async::task_group](../task_group.md)
+- [sgcl::async::task_group](README.md)

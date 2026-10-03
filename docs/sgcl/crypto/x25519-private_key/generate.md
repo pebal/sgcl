@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::generate
 
@@ -6,7 +6,7 @@
 static private_key generate() noexcept;
 ```
 
-Makes a new key of 32 bytes from [random](../random.md), written straight into the key, and computes its public key.
+Makes a new key of 32 bytes from [random](../random/README.md), written straight into the key, and computes its public key.
 Go's `ecdh.X25519().GenerateKey(rand.Reader)`.
 
 ## Parameters
@@ -49,5 +49,5 @@ cc7ff068689003e9b32baf0a3c5d173a31f0cc3811ce8263478e93ced304fc2b
 ## See also
 
 - [from_bytes](from_bytes.md): the key of 32 bytes
-- [random](../random.md): where the bytes come from
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [random](../random/README.md): where the bytes come from
+- [sgcl::crypto::x25519::private_key](README.md)

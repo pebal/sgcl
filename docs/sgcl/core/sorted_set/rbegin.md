@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::rbegin, crbegin
 
@@ -56,4 +56,4 @@ Output:
 
 - [rend, crend](rend.md): the end of the order read backwards
 - [begin, cbegin](begin.md): the order from the smallest element
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

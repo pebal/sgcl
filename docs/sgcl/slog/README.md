@@ -15,15 +15,15 @@ time of a record, in the local zone) and [encoding](../encoding/README.md) (a ty
 index of the whole interface is [the modules](../README.md).
 
 [debug, info, warn and error](debug.md) write through the [default logger](default_logger.md): text on
-`io::stderr`, from `info` up. A [logger](logger.md) of one's own is a handle of one word, made by its constructor
+`io::stderr`, from `info` up. A [logger](logger/README.md) of one's own is a handle of one word, made by its constructor
 from [options](options.md) — the output, text or JSON, the level, `source`, `utc`, `buffered`, sampling — or from a
-writer and a level for text lines, or from a [handler](handler.md) of the program; its verbs write.
+writer and a level for text lines, or from a [handler](handler/README.md) of the program; its verbs write.
 [with](logger/with.md) gives a logger that writes its attributes in every record, rendered once when it is made,
 and [group](logger/group.md) puts what comes after it in a group. Copies, and the loggers made from one by `with`
 and `group`, share its output.
 
 The attributes are pairs, a key and a value: the key a literal (or a `const char*`), the value one of the kinds
-below, or a [group](group.md) standing where a key would. An odd count, a key that is not a string, a value of a
+below, or a [group](group/README.md) standing where a key would. An odd count, a key that is not a string, a value of a
 kind the module does not take, a character given as a value (a string is given, or an integer for its code): each is
 an error of the build, where Go writes `!BADKEY` or `%v` at run time.
 
@@ -48,13 +48,13 @@ an error of the build, where Go writes `!BADKEY` or `%v` at run time.
   worker; every line has its time. A thread that is no worker shares one batch with the others, written when it is
   full, at a `warn`, at `flush()` and at exit.
 - **Handlers of the program.** `slog::logger(h)` (or `options::handler`) gives the records to a handler of the
-  program ([handler](handler.md)): any type with `handle(const record&)`, called from every thread that logs. The
-  [record](record.md) is a view of the call's stack; [clone](record/clone.md) is a copy to keep.
-  [memory](memory.md) keeps them, for tests.
+  program ([handler](handler/README.md)): any type with `handle(const record&)`, called from every thread that logs. The
+  [record](record/README.md) is a view of the call's stack; [clone](record/clone.md) is a copy to keep.
+  [memory](memory/README.md) keeps them, for tests.
 - **Rotation and sending logs elsewhere** are not in the module; a handler of the program does either.
 - **What throws.** A record whose write fails throws nothing. What a verb may throw is the program's own: what a
   value's `to_text` or `to_string` throws, what a handler of the program throws, what a writer of the program
-  throws. [value](value.md)'s `as_` accessors throw `logic_error` for a value of another kind.
+  throws. [value](value/README.md)'s `as_` accessors throw `logic_error` for a value of another kind.
 
 ### The kinds of values
 
@@ -69,8 +69,8 @@ an error of the build, where Go writes `!BADKEY` or `%v` at run time.
 | `optional<T>`, `nullptr` | the value, or `<nil>` | the value, or `null` |
 | a type with `write_text(char*)` and `MaxText` (`net::ip_address`, `net::endpoint`, `net::ip_network`) or a `format_value` | its text, written into the line | a string |
 | a type with `to_text()` or `to_string()` | its text (the string it makes is its cost) | a string |
-| a type with `describe` ([field_list](../encoding/field_list.md)) | a group of its fields: `req.id=5 req.path=/a` | an object: `"req":{"id":5,"path":"/a"}` |
-| [group](group.md)`("req", "id", id, ...)` | `req.id=5` | `"req":{"id":5}` |
+| a type with `describe` ([field_list](../encoding/field_list/README.md)) | a group of its fields: `req.id=5 req.path=/a` | an object: `"req":{"id":5,"path":"/a"}` |
+| [group](group/README.md)`("req", "id", id, ...)` | `req.id=5` | `"req":{"id":5}` |
 
 The first kind that matches is taken, in the order of the table. A field of a described type that is a container, a
 map, a variant or a `json` is written as Go writes a value of `KindAny`: in text as `%+v` does (`[a b]`,
@@ -133,17 +133,17 @@ logger, `flush()`, the exit. Until the call the lines stay on `std::cout`, byte 
 
 | Class | Header | Description |
 |---|---|---|
-| [attr](attr.md) | `record.h` | an attribute of a record as a handler reads it: its key and value, slog's `Attr` |
-| [attrs](attrs.md) | `record.h` | the attributes of a group in order, a range of `attr`: what `value::as_group` returns |
-| [group\<A...\>](group.md) | `logger.h` | attributes in a group of their own, slog's `Group` |
-| [handler](handler.md) | `handler.h` | any handler of the program held as a value, slog's `Handler` |
-| [level_var](level_var.md) | `level.h` | a level changed while the program runs, shared by loggers, slog's `LevelVar` |
-| [logger](logger.md) | `logger.h` | what a record is written as, from which level, with which attributes, slog's `Logger` |
-| [memory](memory.md) | `memory.h` | a handler that keeps the records, for tests |
-| [message](message.md) | `record.h` | the text of a record and where the call is |
+| [attr](attr/README.md) | `record.h` | an attribute of a record as a handler reads it: its key and value, slog's `Attr` |
+| [attrs](attrs/README.md) | `record.h` | the attributes of a group in order, a range of `attr`: what `value::as_group` returns |
+| [group\<A...\>](group/README.md) | `logger.h` | attributes in a group of their own, slog's `Group` |
+| [handler](handler/README.md) | `handler.h` | any handler of the program held as a value, slog's `Handler` |
+| [level_var](level_var/README.md) | `level.h` | a level changed while the program runs, shared by loggers, slog's `LevelVar` |
+| [logger](logger/README.md) | `logger.h` | what a record is written as, from which level, with which attributes, slog's `Logger` |
+| [memory](memory/README.md) | `memory.h` | a handler that keeps the records, for tests |
+| [message](message/README.md) | `record.h` | the text of a record and where the call is |
 | [options](options.md) | `logger.h` | what a logger is made with, slog's `HandlerOptions` and the choice of handler |
-| [record](record.md) | `record.h` | a record as a handler reads it, slog's `Record` |
-| [value](value.md) | `record.h` | the value of an attribute as a handler reads it, slog's `Value` |
+| [record](record/README.md) | `record.h` | a record as a handler reads it, slog's `Record` |
+| [value](value/README.md) | `record.h` | the value of an attribute as a handler reads it, slog's `Value` |
 
 ## Enumerations
 
@@ -154,7 +154,7 @@ logger, `flush()`, the exit. Until the call the lines stay on `std::cout`, byte 
 
 ## Requirements
 
-What a handler of the program is ([req](req.md), `namespace sgcl::slog::req`).
+What a handler of the program is ([req](req/README.md), `namespace sgcl::slog::req`).
 
 | Requirement | Description |
 |---|---|
@@ -162,8 +162,8 @@ What a handler of the program is ([req](req.md), `namespace sgcl::slog::req`).
 
 ## See also
 
-- [net::http::server](../net/http/server.md): the access log, records of the default logger
-- [io::writer](../io/writer.md): where the lines go
+- [net::http::server](../net/http/server/README.md): the access log, records of the default logger
+- [io::writer](../io/writer/README.md): where the lines go
 - `tests/slog/logger.cpp`, `tests/slog/oracle.cpp`, `tests/slog/heap.cpp`, `tests/slog/threads.cpp`: the behaviour of
   the module, checked against Go; `tests/slog/boundary.cpp`: its boundaries
 - [The modules](../README.md)

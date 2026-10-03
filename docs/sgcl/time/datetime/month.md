@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::month
 
@@ -49,4 +49,4 @@ September 9 true
 
 - [year](year.md), [day](day.md): the rest of the date
 - [month](../month.md): the enumeration
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

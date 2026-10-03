@@ -12,7 +12,7 @@ namespace sgcl::txt {
 
 How a value is to be written: one field's [specification](format.md#the-specification) as it was read,
 `[[fill]align][sign][#][0][width][.precision][type]`, each part in the member of its name. It is what a
-`format_value` of a type of one's own and the `write` of a [formatter](formatter.md) are handed, already checked
+`format_value` of a type of one's own and the `write` of a [formatter](formatter/README.md) are handed, already checked
 against what the type takes, and what [write_padded](write_padded.md) reads the fill, the alignment, the width and
 the precision from. `std::format` keeps the same parts inside its `std::formatter`, where a program reaches them by
 parsing the specification itself.
@@ -73,5 +73,5 @@ fill '*' align '^' sign '+' # true 0 true width 12 precision 3 type 'x'
 ## See also
 
 - [format](format.md#the-specification): what a specification may say
-- [format_sink](format_sink.md), [write_padded](write_padded.md): where a value is written, and how a text is padded
-- [formatter](formatter.md): what decides which specifications a type takes
+- [format_sink](format_sink/README.md), [write_padded](write_padded.md): where a value is written, and how a text is padded
+- [formatter](formatter/README.md): what decides which specifications a type takes

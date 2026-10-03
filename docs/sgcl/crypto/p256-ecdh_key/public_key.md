@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](../p256-ecdh_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](README.md)
 
 # sgcl::crypto::p256::ecdh_key::public_key
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The [public_key](../p256-public_key.md).
+The [public_key](../p256-public_key/README.md).
 
 ## Complexity
 
@@ -49,6 +49,6 @@ Output:
 
 ## See also
 
-- [p256::public_key](../p256-public_key.md): what it gives
+- [p256::public_key](../p256-public_key/README.md): what it gives
 - [shared_secret](shared_secret.md): the secret of the peer's public key
-- [sgcl::crypto::p256::ecdh_key](../p256-ecdh_key.md)
+- [sgcl::crypto::p256::ecdh_key](README.md)

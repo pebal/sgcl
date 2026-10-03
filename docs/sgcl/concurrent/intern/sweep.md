@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::sweep
 
@@ -71,4 +71,4 @@ Output:
 - [size](size.md): the number of entries, the dead ones included
 - [clear](clear.md): forgets every entry, the live ones too
 - [README: Weak containers](../README.md#weak-containers)
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

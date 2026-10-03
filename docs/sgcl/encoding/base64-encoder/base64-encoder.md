@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [encoder](../base64-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base64::encoder::encoder
 
@@ -59,4 +59,4 @@ aGk= true
 
 - [encoder_to](../base64/encoder_to.md): an encoder with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::base64::encoder](../base64-encoder.md)
+- [sgcl::encoding::base64::encoder](README.md)

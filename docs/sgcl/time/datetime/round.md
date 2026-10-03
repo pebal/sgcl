@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::round
 
@@ -59,4 +59,4 @@ Output:
 
 - [truncate](truncate.md): down to a step
 - [duration::round](../../core/duration/round.md): a duration to the nearest step
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

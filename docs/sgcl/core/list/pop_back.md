@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::pop_back
 
@@ -59,4 +59,4 @@ Output:
 
 - [push_back](push_back.md): appends an element
 - [pop_front](pop_front.md): removes the first element
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

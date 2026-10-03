@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::sign_digest_pss
 
@@ -8,7 +8,7 @@ vector<byte> sign_digest_pss(hash_id id, const slice<const byte>& digest) const;
 
 Returns a PSS signature (RFC 8017 §8.1.1) of the digest, JWS's PS256 with SHA-256 and what TLS 1.3 signs with: MGF1
 over the digest's own hash, and a random salt as long as the digest (Go's `PSSSaltLengthEqualsHash`, what FIPS 186-5
-allows at most), drawn from [crypto::random](../random.md): a new signature every time.
+allows at most), drawn from [crypto::random](../random/README.md): a new signature every time.
 
 ## Parameters
 
@@ -67,4 +67,4 @@ true
 - [public_key::verify_digest_pss](../rsa-public_key/verify_digest_pss.md): checks the signature
 - [sign_digest](sign_digest.md): the deterministic signature of PKCS #1 v1.5
 - [sign_pss](sign_pss.md): a message, hashed inside
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

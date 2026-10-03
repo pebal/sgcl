@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::from_posix
 
@@ -23,7 +23,7 @@ client sends keeps only the ones still in use.
 
 ## Return value
 
-The zone, or an [error](../error.md) with a sentence and the byte where the part that failed starts:
+The zone, or an [error](../error/README.md) with a sentence and the byte where the part that failed starts:
 
 - `"a POSIX TZ string expected"`: an empty string;
 - `"a name of three or more letters, or one in <>, expected"`: the name of the standard time;
@@ -79,4 +79,4 @@ a comma and the date it ends expected (byte 16)
 
 - [from_tzif](from_tzif.md): a zone with its history, from a TZif file
 - [fixed](fixed.md): an offset alone
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

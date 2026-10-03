@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [chacha20_poly1305](../chacha20_poly1305.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [chacha20_poly1305](README.md)
 
 # sgcl::crypto::chacha20_poly1305::from_key
 
@@ -17,7 +17,7 @@ wrong length is an error, where the [constructor](chacha20_poly1305.md) throws.
 
 ## Return value
 
-The object, or an [error](../error.md) of [errc::invalid_key](../errc.md) whose message names the length when
+The object, or an [error](../error/README.md) of [errc::invalid_key](../errc.md) whose message names the length when
 `key` is not 32 bytes.
 
 ## Complexity
@@ -60,5 +60,5 @@ true
 ## See also
 
 - [(constructor)](chacha20_poly1305.md): a key whose length the program fixes
-- [error](../error.md): the error of the module
-- [sgcl::crypto::chacha20_poly1305](../chacha20_poly1305.md)
+- [error](../error/README.md): the error of the module
+- [sgcl::crypto::chacha20_poly1305](README.md)

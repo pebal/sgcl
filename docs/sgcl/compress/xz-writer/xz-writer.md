@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md) › [writer](../xz-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz/README.md) › [writer](README.md)
 
 # sgcl::compress::xz::writer::writer
 
@@ -18,7 +18,7 @@ of range are not refused here: the first write reports them as `errc::invalid_ar
 
 | Parameter | Description |
 |---|---|
-| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer.md) |
+| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer/README.md) |
 | `o` | the level, the dictionary, the check, the filters ([options](../xz-options.md)) |
 
 ## Complexity
@@ -54,4 +54,4 @@ write xz: invalid argument
 ## See also
 
 - [xz::options](../xz-options.md)
-- [sgcl::compress::xz::writer](../xz-writer.md)
+- [sgcl::compress::xz::writer](README.md)

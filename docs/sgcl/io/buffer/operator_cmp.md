@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::operator== (sgcl::io::buffer)
 
@@ -51,4 +51,4 @@ false true true
 ## See also
 
 - [operator=](operator_assign.md)
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

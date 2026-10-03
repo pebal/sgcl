@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::at_path
 
@@ -71,4 +71,4 @@ users            nullopt
 
 - [set_path](set_path.md): the value with the one at a pointer replaced
 - [operator[]](operator_at.md): a member or an element, one step
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

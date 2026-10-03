@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md) › [iterator](../runes-iterator.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](../runes/README.md) › [iterator](README.md)
 
 # sgcl::runes::iterator::pos
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [width](width.md): the bytes the code point takes
-- [sgcl::runes::iterator](../runes-iterator.md)
+- [sgcl::runes::iterator](README.md)

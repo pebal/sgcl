@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [adler32](../adler32.md)
+[sgcl](../../README.md) › [hash](../README.md) › [adler32](README.md)
 
 # sgcl::hash::adler32::resume
 
@@ -63,4 +63,4 @@ true
 
 - [combine](combine.md): the checksum of two pieces from their checksums
 - [(constructor)](adler32.md): a hasher of no bytes yet
-- [sgcl::hash::adler32](../adler32.md)
+- [sgcl::hash::adler32](README.md)

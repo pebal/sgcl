@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [fnv64a](../fnv64a.md)
+[sgcl](../../README.md) › [hash](../README.md) › [fnv64a](README.md)
 
 # sgcl::hash::fnv64a::value
 
@@ -54,4 +54,4 @@ dcb27518fed9d577
 
 - [digest](digest.md): the same as bytes
 - [of](../mixin/hasher/of.md): the hash of data in one call
-- [sgcl::hash::fnv64a](../fnv64a.md)
+- [sgcl::hash::fnv64a](README.md)

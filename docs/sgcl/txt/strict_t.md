@@ -14,7 +14,7 @@ namespace sgcl::txt {
 ```
 
 The tag that chooses the strict form of [decode](decode.md): `decode(bytes, from, txt::strict)` gives the text or the
-first byte that means nothing in the encoding, as a [decode_error](decode_error.md), where the form without it
+first byte that means nothing in the encoding, as a [decode_error](decode_error/README.md), where the form without it
 writes a `U+FFFD` for that byte and goes on.
 
 ## Rules
@@ -65,5 +65,5 @@ true
 
 ## See also
 
-- [decode](decode.md), [decode_error](decode_error.md)
+- [decode](decode.md), [decode_error](decode_error/README.md)
 - [sgcl::txt](README.md)

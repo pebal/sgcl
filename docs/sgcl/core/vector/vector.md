@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::vector
 
@@ -104,4 +104,4 @@ Output:
 
 - [operator=](operator_assign.md), [assign](assign.md): replace the contents of a vector
 - [reserve](reserve.md): a buffer for the elements to come
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

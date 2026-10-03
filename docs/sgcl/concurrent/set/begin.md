@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [set](README.md)
 
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::begin, cbegin
 
@@ -67,4 +67,4 @@ Sample output:
 
 - [end, cend](end.md): the iterator past the last element
 - [find](find.md): an iterator to the element equal to a key
-- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](README.md)

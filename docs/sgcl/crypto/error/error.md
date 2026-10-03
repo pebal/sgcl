@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [error](README.md)
 
 # sgcl::crypto::error::error
 
@@ -76,4 +76,4 @@ offset 4: DER: length past the end
 
 - [message](message.md): the error as a text
 - [errc](../errc.md): the codes
-- [sgcl::crypto::error](../error.md)
+- [sgcl::crypto::error](README.md)

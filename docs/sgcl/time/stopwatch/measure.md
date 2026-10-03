@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [stopwatch](../stopwatch.md)
+[sgcl](../../README.md) › [time](../README.md) › [stopwatch](README.md)
 
 # sgcl::time::stopwatch::measure
 
@@ -8,7 +8,7 @@ template<class F>
 static duration measure(F&& f) noexcept(std::is_nothrow_invocable_v<F&>);
 ```
 
-How long `f()` takes, on the stopwatch's [clock](../../core/clock.md): a stopwatch started, `f` called and the time
+How long `f()` takes, on the stopwatch's [clock](../../core/clock/README.md): a stopwatch started, `f` called and the time
 read, in one line — `duration d = time::stopwatch::measure([&] { build_index(); });`. What `f` returns is dropped.
 
 ## Parameters
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [(constructor)](stopwatch.md), [elapsed](elapsed.md): the same by hand
-- [sgcl::time::stopwatch](../stopwatch.md)
+- [sgcl::time::stopwatch](README.md)

@@ -88,7 +88,7 @@ namespace sgcl {
         static constexpr const char* phase_names[8] = {"registration", "states", "roots", "marking", "updated", "sweep", "release", "trim"};
 
         // The collector's counters as they are: a few atomic reads, never a
-        // wait (docs/sgcl/collector.md: statistics)
+        // wait (docs/sgcl/core/collector-statistics.md)
         inline static statistics get_statistics() noexcept {
             auto& c = detail::collector_instance();
             auto s = c.statistics<statistics>();

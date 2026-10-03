@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::from_pkcs8_der
 
@@ -19,7 +19,7 @@ from `der` straight into the object; nothing of it is left in managed memory.
 
 ## Return value
 
-The key, or an [error](../error.md): `errc::unsupported` for another algorithm's key, `errc::malformed` for DER that
+The key, or an [error](../error/README.md): `errc::unsupported` for another algorithm's key, `errc::malformed` for DER that
 cannot be read, with the [offset](../error/offset.md) where it was found, and `errc::invalid_key` for a public key
 that is not the private key's.
 
@@ -33,7 +33,7 @@ None.
 
 ## Notes
 
-The DER holds the secret: a program keeps it in a [secret_bytes](../secret_bytes.md), as
+The DER holds the secret: a program keeps it in a [secret_bytes](../secret_bytes/README.md), as
 [to_pkcs8_der](to_pkcs8_der.md) gives it, and reads a file of it with [read_secret](../read_secret.md).
 
 ## Example
@@ -74,4 +74,4 @@ the public key is not the private key's
 
 - [to_pkcs8_der](to_pkcs8_der.md): the reverse
 - [from_pem](from_pem.md): the key of PEM text
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [sgcl::crypto::x25519::private_key](README.md)

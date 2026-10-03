@@ -16,9 +16,9 @@ namespace sgcl::txt {
 The bidirectional class of a code point, the `Bidi_Class` property of
 [UAX #9](https://www.unicode.org/reports/tr9/): what the bidirectional algorithm knows about a character before it
 looks at anything around it. [bidi_class_of](bidi_class_of.md) answers it for one code point; the algorithm that
-reads it runs in [bidi_runs](bidi_runs.md), [levels](levels.md), [visual_order](visual_order.md),
+reads it runs in [bidi_runs](bidi_runs/README.md), [levels](levels.md), [visual_order](visual_order.md),
 [paragraph_direction](paragraph_direction.md) and [mirrored](mirrored.md), and the bidirectional rule of
-[IDNA](idna.md) reads it too.
+[IDNA](idna/README.md) reads it too.
 
 | Value | Description |
 |---|---|
@@ -82,5 +82,5 @@ Output:
 ## See also
 
 - [bidi_class_of](bidi_class_of.md): the class of a code point
-- [bidi_runs](bidi_runs.md): the algorithm run over a text
+- [bidi_runs](bidi_runs/README.md): the algorithm run over a text
 - [txt](README.md)

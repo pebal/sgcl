@@ -72,5 +72,5 @@ world-writable: true
 ## See also
 
 - [chmod](chmod.md): sets the bits of a file
-- [file_info](file_info.md): `mode`, the bits read
+- [file_info](file_info/README.md): `mode`, the bits read
 - [mkdir](mkdir.md), [open](open.md): the bits of what they make

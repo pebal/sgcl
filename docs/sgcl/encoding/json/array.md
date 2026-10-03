@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::array
 
@@ -13,7 +13,7 @@ static json array(const R& elements);                                           
 An array of the given elements, in their order.
 
 1. The elements of a list, each made by a [constructor](json.md) of its own: `json::array({1, "two", 3.0})`.
-2. The elements of any range whose elements convert to a json: a [vector](../../core/vector.md) of numbers, of
+2. The elements of any range whose elements convert to a json: a [vector](../../core/vector/README.md) of numbers, of
    strings, of json values.
 
 `array({})` is the empty array, `[]`.
@@ -67,6 +67,6 @@ Output:
 ## See also
 
 - [object](object.md): an object of members
-- [builder](../json-builder.md): an array made in a loop
+- [builder](../json-builder/README.md): an array made in a loop
 - [push_back](push_back.md): the array with one more element
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

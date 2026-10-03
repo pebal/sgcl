@@ -14,7 +14,7 @@ Returns the `std::error_category` of the module's codes, one object for the whol
 `"crypto"`, and its `message(c)` the words of the code [errc](errc.md) `c` — `"message authentication failed"`,
 `"invalid key"`, `"invalid signature"`, `"malformed data"`, `"unsupported algorithm or parameter"`,
 `"verification failed"`, and `"unknown crypto error"` for a value outside the list. It is what
-[make_error_code](make_error_code.md) puts in a `std::error_code`, and what an [error](error.md)'s
+[make_error_code](make_error_code.md) puts in a `std::error_code`, and what an [error](error/README.md)'s
 [message](error/message.md) says when the error has no text of its own.
 
 ## Parameters
@@ -68,4 +68,4 @@ crypto
 
 - [make_error_code](make_error_code.md): a code in this category
 - [errc](errc.md): the codes
-- [error](error.md): the error of the module
+- [error](error/README.md): the error of the module

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](../weak_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](README.md)
 
 # sgcl::weak_ptr\<T\>::operator=
 
@@ -74,4 +74,4 @@ true 1
 
 - [(constructor)](weak_ptr.md): constructs the pointer
 - [reset](reset.md): drops the cell
-- [sgcl::weak_ptr\<T\>](../weak_ptr.md)
+- [sgcl::weak_ptr\<T\>](README.md)

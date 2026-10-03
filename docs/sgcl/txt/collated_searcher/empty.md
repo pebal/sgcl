@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_searcher](../collated_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_searcher](README.md)
 
 # sgcl::txt::collated_searcher::empty
 
@@ -54,4 +54,4 @@ true false
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::txt::collated_searcher](../collated_searcher.md)
+- [sgcl::txt::collated_searcher](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [writer](../gzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [writer](README.md)
 
 # sgcl::compress::gzip::writer::flush, async_flush
 
@@ -67,4 +67,4 @@ first message
 ## See also
 
 - [close](close.md): the end of the stream
-- [sgcl::compress::gzip::writer](../gzip-writer.md)
+- [sgcl::compress::gzip::writer](README.md)

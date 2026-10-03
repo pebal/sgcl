@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::username
 
@@ -49,4 +49,4 @@ Output:
 
 - [password](password.md): the password
 - [with_username](with_username.md): another user name
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

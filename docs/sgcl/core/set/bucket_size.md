@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::bucket_size
 
@@ -59,4 +59,4 @@ Output:
 
 - [bucket](bucket.md): the bucket of a key
 - [begin, cbegin](begin.md): a local iterator to the first element of a bucket
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

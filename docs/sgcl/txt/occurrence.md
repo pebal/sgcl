@@ -17,7 +17,7 @@ namespace sgcl::txt {
 
 `sgcl::txt::occurrence` is where a search blind to case, or to the way a text was written, found its pattern: the
 bytes of the original text the match covers, as [find_fold](find_fold.md), [find_normalized](find_normalized.md) and
-the [find](fold_searcher/find.md) of a [fold_searcher](fold_searcher.md) return them. The size is the text's own
+the [find](fold_searcher/find.md) of a [fold_searcher](fold_searcher/README.md) return them. The size is the text's own
 and need not be the pattern's: folding and decomposing make the two different lengths, so `"STRASSE"` covers the
 seven bytes of `"straße"`, not the seven of the pattern, and a position alone would not say where the match ends.
 
@@ -60,4 +60,4 @@ true
 ## See also
 
 - [find_fold](find_fold.md), [find_normalized](find_normalized.md)
-- [fold_searcher, normalized_searcher](fold_searcher.md)
+- [fold_searcher, normalized_searcher](fold_searcher/README.md)

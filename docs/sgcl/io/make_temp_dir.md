@@ -31,7 +31,7 @@ the permissions `0700` (before the umask), the names tried again when one exists
 
 ## Return value
 
-The path of the directory, `dir` joined with the name, or the [error](error.md) of [mkdir](mkdir.md)
+The path of the directory, `dir` joined with the name, or the [error](error/README.md) of [mkdir](mkdir.md)
 (`is_not_found()` for a `dir` that is not there, `is_permission()`); after 10000 names that all exist, an error
 with the code `std::errc::file_exists`, its operation `make_temp_dir` and its path `pattern`.
 
@@ -76,4 +76,4 @@ false
 - [temp_file](temp_file.md): a new file the same way
 - [temp_dir](temp_dir.md): the system's temporary directory
 - [remove_all](remove_all.md): what the caller does after
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

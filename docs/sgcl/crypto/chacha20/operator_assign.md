@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](../chacha20.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](README.md)
 
 # sgcl::crypto::chacha20::operator=
 
@@ -71,4 +71,4 @@ sgcl::crypto::chacha20: used after being moved from
 
 - [(constructor)](chacha20.md): sets up a key and a nonce, or takes another object's over
 - [clone](clone.md): a copy that goes on from the same place
-- [sgcl::crypto::chacha20](../chacha20.md)
+- [sgcl::crypto::chacha20](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::from_pem
 
@@ -8,7 +8,7 @@ static expected<private_key, error> from_pem(const slice<const byte>& text) noex
 
 Reads the key from PEM text: the first private key block, `PRIVATE KEY` (PKCS #8, read by
 [from_pkcs8_der](from_pkcs8_der.md)) or `RSA PRIVATE KEY` (PKCS #1, read by [from_pkcs1_der](from_pkcs1_der.md)), its
-base64 decoded straight into a [secret_bytes](../secret_bytes.md): [encoding::pem](../../encoding/pem.md) would put
+base64 decoded straight into a [secret_bytes](../secret_bytes/README.md): [encoding::pem](../../encoding/pem/README.md) would put
 the DER in managed memory. Text around the block is passed over. A key file is read with
 [read_secret](../read_secret.md), `from_pem(crypto::read_secret(path))`, so that its bytes never pass through managed
 memory either.
@@ -21,7 +21,7 @@ memory either.
 
 ## Return value
 
-The key, or a [crypto::error](../error.md): `errc::malformed` for a text with no private key block or a block of
+The key, or a [crypto::error](../error/README.md): `errc::malformed` for a text with no private key block or a block of
 another key's type, `errc::unsupported` for an encrypted key, and the errors of the reader of the block.
 
 ## Complexity
@@ -59,4 +59,4 @@ sgcl::crypto::rsa: PEM: no private key block
 
 - [to_pem](to_pem.md): writes the PEM
 - [read_secret](../read_secret.md): a key file into a `secret_bytes`
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

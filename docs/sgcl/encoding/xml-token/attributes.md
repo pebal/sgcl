@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [token](../xml-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [token](README.md)
 
 # sgcl::encoding::xml::token::attributes
 
@@ -54,4 +54,4 @@ alt=A & B
 
 - [attribute](attribute.md): the value of one attribute
 - [xml::attr](../xml-attr.md)
-- [sgcl::encoding::xml::token](../xml-token.md)
+- [sgcl::encoding::xml::token](README.md)

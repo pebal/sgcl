@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](../stencil_functions.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](README.md)
 
 # sgcl::txt::stencil_functions::builtin
 
@@ -51,4 +51,4 @@ Ada Lovelace true
 ## See also
 
 - [stencil_functions](stencil_functions.md): a table of one's own
-- [sgcl::txt::stencil_functions](../stencil_functions.md)
+- [sgcl::txt::stencil_functions](README.md)

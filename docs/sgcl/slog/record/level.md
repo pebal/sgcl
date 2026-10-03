@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::level
 
@@ -53,4 +53,4 @@ b 6
 ## See also
 
 - [time](time.md), [message](message.md)
-- [sgcl::slog::record](../record.md)
+- [sgcl::slog::record](README.md)

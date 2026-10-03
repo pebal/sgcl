@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [wait_group](../wait_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [wait_group](README.md)
 
 # sgcl::async::wait_group::operator=
 
@@ -61,4 +61,4 @@ Output:
 
 - [(constructor)](wait_group.md): a new group, or a handle of the same one
 - [operator==](operator_cmp.md): whether two handles are the same group
-- [sgcl::async::wait_group](../wait_group.md)
+- [sgcl::async::wait_group](README.md)

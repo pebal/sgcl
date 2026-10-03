@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [standard_stream](../standard_stream.md)
+[sgcl](../../README.md) › [io](../README.md) › [standard_stream](README.md)
 
 # sgcl::io::standard_stream::fd
 
@@ -47,4 +47,4 @@ Output:
 
 - [file](file.md): the file over the descriptor
 - [is_terminal](is_terminal.md): whether the descriptor is a terminal
-- [sgcl::io::standard_stream](../standard_stream.md)
+- [sgcl::io::standard_stream](README.md)

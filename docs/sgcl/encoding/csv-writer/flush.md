@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [writer](../csv-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [writer](README.md)
 
 # sgcl::encoding::csv::writer::flush, async_flush
 
@@ -23,7 +23,7 @@ None.
 
 ## Return value
 
-Nothing, or the [io::error](../../io/error.md).
+Nothing, or the [io::error](../../io/error/README.md).
 
 ## Complexity
 
@@ -84,5 +84,5 @@ true
 ## See also
 
 - [write](write.md): a record gathered
-- [io::error](../../io/error.md): the stream's error
-- [sgcl::encoding::csv::writer](../csv-writer.md)
+- [io::error](../../io/error/README.md): the stream's error
+- [sgcl::encoding::csv::writer](README.md)

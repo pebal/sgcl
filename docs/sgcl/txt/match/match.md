@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [match](../match.md)
+[sgcl](../../README.md) › [txt](../README.md) › [match](README.md)
 
 # sgcl::txt::match::match
 
@@ -49,4 +49,4 @@ true 0 0
 ## See also
 
 - [regex::find](../regex/find.md): the first match of a text
-- [sgcl::txt::match](../match.md)
+- [sgcl::txt::match](README.md)

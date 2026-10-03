@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::reader::has_async_read
 
@@ -62,4 +62,4 @@ false
 
 - [has_read](has_read.md): whether `read` is the stream's own
 - [read, async_read](read.md)
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

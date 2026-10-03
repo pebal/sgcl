@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha3_256](../sha3_256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha3_256](README.md)
 
 # sgcl::crypto::sha3_256::reset
 
@@ -51,4 +51,4 @@ a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c
 ## See also
 
 - [(constructor)](sha3_256.md): a hasher of nothing yet
-- [sgcl::crypto::sha3_256](../sha3_256.md)
+- [sgcl::crypto::sha3_256](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::unique_ptr
 
@@ -75,4 +75,4 @@ false true false false
 
 - [operator=](operator_assign.md): takes another object over
 - [make_tracked](../make_tracked.md): creates a managed object
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [row](../csv-row.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [row](README.md)
 
 # sgcl::encoding::csv::row::begin
 
@@ -55,4 +55,4 @@ one
 ## See also
 
 - [end](end.md): the iterator past the last field
-- [sgcl::encoding::csv::row](../csv-row.md)
+- [sgcl::encoding::csv::row](README.md)

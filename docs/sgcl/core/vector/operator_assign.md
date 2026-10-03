@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::operator=
 
@@ -81,4 +81,4 @@ Output:
 
 - [assign](assign.md): assigns copies of a value or a range
 - [swap](swap.md): swaps the contents of two vectors
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

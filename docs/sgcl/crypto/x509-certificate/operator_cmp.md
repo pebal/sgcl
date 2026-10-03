@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::operator==, operator!= (sgcl::crypto::x509::certificate)
 
@@ -57,4 +57,4 @@ true true
 
 - [raw](raw.md): the bytes compared
 - [certificate_pool::contains](../x509-certificate_pool/contains.md): a certificate in a pool
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

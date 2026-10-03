@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [encoder](../hex-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [encoder](README.md)
 
 # sgcl::encoding::hex::encoder::write, async_write
 
@@ -17,7 +17,7 @@ byte is a whole group: every digit of `data` is written before the call returns,
 
 A failure of the writer under it is kept for good: this write and every later `write` and `close` report it. A
 write after `close()` is `io::errc::closed`. The text and the byte of the writers of the library,
-`digits.write("text")`, are [io::mixin::writer](../../io/mixin/writer.md)'s, through this one.
+`digits.write("text")`, are [io::mixin::writer](../../io/mixin/writer/README.md)'s, through this one.
 
 ## Parameters
 
@@ -69,4 +69,4 @@ write hex: stream closed
 
 - [close, async_close](close.md): the end of the encoder
 - [encode](../hex/encode.md): the digits at once
-- [sgcl::encoding::hex::encoder](../hex-encoder.md)
+- [sgcl::encoding::hex::encoder](README.md)

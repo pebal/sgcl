@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::date
 
@@ -54,7 +54,7 @@ program itself writes is constructed. The conversions back to `year_month_day` a
 ## Exceptions
 
 - (1–5) None.
-- (6–7) `bad_expected_access<time::error>` when `text` is not a date; its `error()` is the [error](../error.md) of
+- (6–7) `bad_expected_access<time::error>` when `text` is not a date; its `error()` is the [error](../error/README.md) of
   `parse`.
 
 ## Example
@@ -102,4 +102,4 @@ a day that the month has expected (byte 8)
 - [parse](parse.md): reads a text from outside the program
 - [is_valid](is_valid.md): whether numbers need no carrying
 - [operator std::chrono::year_month_day](operator_conv.md): the conversions back
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::from_unix
 
@@ -57,4 +57,4 @@ Output:
 - [from_unix_milli](from_unix_milli.md), [from_unix_micro](from_unix_micro.md), [from_unix_nano](from_unix_nano.md):
   the finer units
 - [unix](unix.md): the seconds back
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::operator bool
 
@@ -7,7 +7,7 @@ explicit operator bool() const noexcept;
 ```
 
 Checks whether the writer holds a stream. A default-constructed writer holds none, and so does one made of an empty
-handle (a default-constructed [buffered_writer](../buffered_writer.md)) or of a null pointer to a handle or to a
+handle (a default-constructed [buffered_writer](../buffered_writer/README.md)) or of a null pointer to a handle or to a
 stream of the program's. A field that may have no destination is tested so before it is written to.
 
 ## Parameters
@@ -60,4 +60,4 @@ false
 ## See also
 
 - [(constructor)](writer.md)
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

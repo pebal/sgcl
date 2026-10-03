@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](../tar-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](README.md)
 
 # sgcl::compress::tar::writer::last_error
 
@@ -7,7 +7,7 @@ const optional<error>& last_error() const noexcept;
 ```
 
 Returns the first error the writer gave, kept — a failure of `out`, a header or a write it could not take, a call
-after the close — as the archive's [error](../error.md), with the entry it was in and no place, as it did not come
+after the close — as the archive's [error](../error/README.md), with the entry it was in and no place, as it did not come
 from data read (its message is the words alone). Every
 `write_header`, `write` and `close` after it gave that error at once and wrote nothing. A program that wants to react
 before the close looks here, or at the result of `write_header` or of a single `write`.
@@ -57,4 +57,4 @@ false
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::tar::writer](../tar-writer.md)
+- [sgcl::compress::tar::writer](README.md)

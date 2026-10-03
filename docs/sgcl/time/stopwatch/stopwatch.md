@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [stopwatch](../stopwatch.md)
+[sgcl](../../README.md) › [time](../README.md) › [stopwatch](README.md)
 
 # sgcl::time::stopwatch::stopwatch
 
@@ -6,8 +6,8 @@
 stopwatch() noexcept;
 ```
 
-A stopwatch started at once: its start is [clock::now()](../../core/clock.md), the steady clock's time, or a test's
-[manual clock's](../../async/manual_clock.md) while one is installed.
+A stopwatch started at once: its start is [clock::now()](../../core/clock/README.md), the steady clock's time, or a test's
+[manual clock's](../../async/manual_clock/README.md) while one is installed.
 
 ## Parameters
 
@@ -53,4 +53,4 @@ Output:
 
 - [elapsed](elapsed.md): the time since the start
 - [restart](restart.md): a new start
-- [sgcl::time::stopwatch](../stopwatch.md)
+- [sgcl::time::stopwatch](README.md)

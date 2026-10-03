@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::date
 
@@ -6,7 +6,7 @@
 time::date date() const noexcept;
 ```
 
-The date the zone's clock shows at the instant, a [date](../date.md) with no time of day and no zone: Go's
+The date the zone's clock shows at the instant, a [date](../date/README.md) with no time of day and no zone: Go's
 `t.Date()` as one value. The same instant may be on two dates in two zones.
 
 ## Parameters
@@ -51,4 +51,4 @@ Output:
 
 - [year](year.md), [month](month.md), [day](day.md): the date's fields one by one
 - [start_of_day](start_of_day.md): the first instant of the date
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

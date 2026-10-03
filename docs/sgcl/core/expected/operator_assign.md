@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::operator=
 
@@ -121,4 +121,4 @@ false other
 
 - [emplace](emplace.md): constructs a value in place
 - [(constructor)](expected.md): constructs the `expected`
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

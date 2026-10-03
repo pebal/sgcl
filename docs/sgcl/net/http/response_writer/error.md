@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::error
 
@@ -80,4 +80,4 @@ Output:
 
 - [reason](../reason.md): the reason of a status
 - [set_status](set_status.md): the status alone
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

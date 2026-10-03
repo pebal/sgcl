@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::collated_text
 
@@ -35,7 +35,7 @@ Weighs a text once by a collator, keeping a copy of the collator and the text.
 ## Exceptions
 
 - (1–2) None.
-- (3–5) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (3–5) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Example
@@ -63,4 +63,4 @@ Output:
 ## See also
 
 - [searcher](searcher.md): a pattern weighed the same way
-- [sgcl::txt::collated_text](../collated_text.md)
+- [sgcl::txt::collated_text](README.md)

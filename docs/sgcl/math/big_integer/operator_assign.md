@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::operator=
 
@@ -79,4 +79,4 @@ Output:
 
 - [(constructor)](big_integer.md): constructs a value
 - [operator+=](operator_arith.md): the compound assignments
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

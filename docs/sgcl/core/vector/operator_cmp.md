@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::vector)
 
@@ -15,8 +15,8 @@ Compares two vectors by their elements.
    by their `<=>`, or, without one, by their `<` (a weak ordering, as `std` builds it). `<`, `<=`, `>` and `>=`
    follow from it.
 
-The operators are friends of [mixin::equatable](../mixin/equatable.md) (1) and
-[mixin::comparable](../mixin/comparable.md) (2), found through the vector's type. (1) takes part only when `T`
+The operators are friends of [mixin::equatable](../mixin/equatable/README.md) (1) and
+[mixin::comparable](../mixin/comparable/README.md) (2), found through the vector's type. (1) takes part only when `T`
 is [req::equatable](../req/equatable.md), (2) only when `T` is [req::comparable](../req/comparable.md): a vector
 of elements without `==` has no `==` either.
 
@@ -79,6 +79,6 @@ false
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md): the operators of every
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md): the operators of every
   sequence of the library
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

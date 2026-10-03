@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::rehash
 
@@ -12,7 +12,7 @@ new bucket array, in the chain's order; it hashes nothing, the hash being cached
 the elements is not touched. When both `count` and the size are 0, nothing happens.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)): a count past the largest array an address space
+allocation does ([collector](../collector/README.md#the-memory-limit)): a count past the largest array an address space
 holds is taken as that array, refused in the same way.
 
 ## Parameters
@@ -71,4 +71,4 @@ Output:
 
 - [reserve](reserve.md): the buckets for a number of elements
 - [max_load_factor](max_load_factor.md): the load factor at which the table grows
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

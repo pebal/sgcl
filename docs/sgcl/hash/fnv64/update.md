@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [fnv64](../fnv64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [fnv64](README.md)
 
 # sgcl::hash::fnv64::update
 
@@ -66,4 +66,4 @@ a2ed10da2ff3a0d5
 
 - [mixin::hasher::update](../mixin/hasher/update.md): a text, a digest, a std::span of bytes
 - [of](../mixin/hasher/of.md): the same in one call
-- [sgcl::hash::fnv64](../fnv64.md)
+- [sgcl::hash::fnv64](README.md)

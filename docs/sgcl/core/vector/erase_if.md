@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::erase, sgcl::erase_if (sgcl::vector)
 
@@ -78,4 +78,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases the elements at a position or in a range
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

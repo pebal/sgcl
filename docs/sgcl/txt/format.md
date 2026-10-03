@@ -17,9 +17,9 @@ namespace sgcl::txt {
 Text built from a pattern and the values that go in it, `txt::format("{} left", n)`. The pattern is the one of
 [std::format](https://en.cppreference.com/w/cpp/utility/format/spec) — a pair of braces for a value, a colon and a
 [specification](#the-specification) after it for how to write it — and the result is a
-[string](../core/string.md).
+[string](../core/string/README.md).
 
-1. A pattern written in the program, a literal: it is turned into a [format_pattern](format_pattern.md) on its way in
+1. A pattern written in the program, a literal: it is turned into a [format_pattern](format_pattern/README.md) on its way in
    and **read where the program is compiled**, not where it runs. A brace left open, a number with no value behind
    it, a precision asked of a whole number, `{:d}` over a name — a pattern that does not fit the values it is given
    is an error of the compiler and not a surprise at the customer's.
@@ -37,7 +37,7 @@ pattern whether it fits, with nothing written.
 | Parameter | Description |
 |---|---|
 | `pattern` | the pattern: a literal (1), or a [runtime](runtime.md) of a text (2) |
-| `args` | the values of the fields, of any type with a [formatter](formatter.md) or a `format_value` beside it |
+| `args` | the values of the fields, of any type with a [formatter](formatter/README.md) or a `format_value` beside it |
 
 ## Return value
 
@@ -56,7 +56,7 @@ linear in the length of the pattern as well.
 - `out_of_range` when a `{:c}` field is given an integer no `char` holds, on both roads: that is a fault of the
   value, not of the pattern, and (2) does not turn it into `nullopt`.
 - `length_error` when the text passes 4 GiB, the most a string holds.
-- What a `format_value` or a [formatter](formatter.md) of the program throws.
+- What a `format_value` or a [formatter](formatter/README.md) of the program throws.
 
 Nothing is returned when a value throws.
 
@@ -64,7 +64,7 @@ Nothing is returned when a value throws.
 
 ### Why txt::format and not format
 
-`format(...)` written bare next to a [string](../core/string.md) of the library **is not this one**:
+`format(...)` written bare next to a [string](../core/string/README.md) of the library **is not this one**:
 `basic_string` names `std::char_traits` among its arguments, so `std` is an associated namespace of it and the call
 finds `std::format` — it does not announce a clash, it wins, and fails later on a `std::string` that will not
 convert. Written as `txt::format`, nothing is ambiguous, and a bare `format` still means the standard's.
@@ -86,7 +86,7 @@ combinations of specification and value, and agrees on all of them.
 | pointers | `p`, the address in hexadecimal after `0x` |
 | ranges, tables, pairs, tuples | `n` (no brackets), `m` over a pair (`k: v`), a width; and a second colon for the elements |
 | `optional` | whatever the value it holds takes |
-| [duration](../core/duration.md) | `s` (the default: `1h30m0.5s`, as `to_string` writes it), a width |
+| [duration](../core/duration/README.md) | `s` (the default: `1h30m0.5s`, as `to_string` writes it), a width |
 | the times of [time](../time/README.md#formatting-with-txt) and `<chrono>` | `[[fill]align][width]` and a [pattern of time](#a-pattern-of-time) |
 
 `{{` and `}}` stand for a brace. A field may name its value by number — `{1} {0}` — or leave it out, and then the
@@ -167,14 +167,14 @@ A list goes in brackets, a table in braces, a pair in parentheses, and a value t
 itself or the word `nullopt`. The shapes are the ones C++23 settled on, because they are the ones people already
 read.
 
-**Anything with a `begin` and an `end`** is a list: [vector](../core/vector.md), [slice](../core/slice.md),
-[array](../core/array.md), [deque](../core/deque.md), the [immutable](../immutable/README.md) containers,
+**Anything with a `begin` and an `end`** is a list: [vector](../core/vector/README.md), [slice](../core/slice/README.md),
+[array](../core/array/README.md), [deque](../core/deque/README.md), the [immutable](../immutable/README.md) containers,
 `std::vector`, an `initializer_list`, a range of one's own. **Anything with a `key_type`** is a table and goes in
 braces; with a `mapped_type` beside it, its elements are written `k: v`. **Anything structured bindings see** is a
 pair or a tuple. Nothing is listed anywhere and nothing is included for it: the questions are asked of the type, so a
 container written after this header still answers.
 
-Text is a range of characters and is not taken for one — a [string](../core/string.md), a `slice<const char>`, a
+Text is a range of characters and is not taken for one — a [string](../core/string/README.md), a `slice<const char>`, a
 `std::string`, a `const char*` all keep their own road.
 
 `n` drops the brackets (or the parentheses), and `m` writes a pair as `a: b`, which is what one element of a table
@@ -207,7 +207,7 @@ The module [time](../time/README.md#formatting-with-txt) brings the formatters �
 written as `std::format` writes them — and the pattern is checked where the program is compiled like any other
 specification (`{:%Q}` of a datetime is an error). A list hands the pattern on to its elements (`{::%d.%m}`). A
 formatter of one's own reads such a field with [takes_layout](formatter/takes_layout.md); a sign, `#`, `0` and a type
-are not read for it. A [stencil](stencil.md)'s values are its own kinds (text, numbers, lists, mappings), so a time
+are not read for it. A [stencil](stencil/README.md)'s values are its own kinds (text, numbers, lists, mappings), so a time
 goes into one as the text it was written to.
 
 ### An enumeration
@@ -221,7 +221,7 @@ program in any case. `s` is deliberately left free: it is the shape one reaches 
 
 **The names are the program's to give**, the same way any other type of its own gives them — a `format_value` beside
 the enumeration, which wins over the formatter of the number. Nothing here has to be opened or specialized for that,
-and [write_padded](write_padded.md) still pads the name in columns. A [formatter](formatter.md) of the program's own
+and [write_padded](write_padded.md) still pads the name in columns. A [formatter](formatter/README.md) of the program's own
 for the enumeration works too and wins over both, where it wants to say which specifications the names accept.
 
 ### A type of one's own
@@ -230,10 +230,10 @@ Give it a `format_value` beside it, in its own namespace, and it is found there:
 
 `void format_value(txt::format_sink& out, const T& value, const txt::format_spec& spec);`
 
-It writes into the [format_sink](format_sink.md), usually through [write_padded](write_padded.md), which gives its
+It writes into the [format_sink](format_sink/README.md), usually through [write_padded](write_padded.md), which gives its
 text the fill, the alignment and the width of the field. Nothing here has to be opened for that, and a type that says
 nothing at all is a message from the compiler — "this type says nothing about how it is written" — rather than a link
-error. A `format_value` accepts any specification; a [formatter](formatter.md) is what says which ones a type takes,
+error. A `format_value` accepts any specification; a [formatter](formatter/README.md) is what says which ones a type takes,
 so that the compiler can refuse the others. A writing that may throw makes [format_to](format_to.md) potentially
 throwing; one declared `noexcept` keeps it `noexcept`.
 
@@ -602,10 +602,10 @@ pozostało: 3
 
 - [format_to](format_to.md): the same into memory the caller lends
 - [runtime](runtime.md), [fits](fits.md): a pattern read where the program runs, and whether it fits
-- [format_pattern](format_pattern.md), [runtime_pattern](runtime_pattern.md): the two kinds of pattern
-- [formatter](formatter.md), [format_spec](format_spec.md), [format_sink](format_sink.md),
+- [format_pattern](format_pattern/README.md), [runtime_pattern](runtime_pattern/README.md): the two kinds of pattern
+- [formatter](formatter/README.md), [format_spec](format_spec.md), [format_sink](format_sink/README.md),
   [write_padded](write_padded.md): what a type of one's own is written with
-- [stencil](stencil.md): a template whose fields are written by this header
+- [stencil](stencil/README.md): a template whose fields are written by this header
 - [columns](columns.md): the cells of a terminal
 - [print](../io/print.md): writes through `format`
 - [time](../time/README.md#formatting-with-txt): the formatters of time

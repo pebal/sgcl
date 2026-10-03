@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::where
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The [locale](../locale.md).
+The [locale](../locale/README.md).
 
 ## Complexity
 
@@ -49,4 +49,4 @@ true true
 ## See also
 
 - [tailored](tailored.md): whether the language has an order of its own
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

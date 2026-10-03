@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [little_endian](../little_endian.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [little_endian](README.md)
 
 # sgcl::encoding::little_endian::append_u32
 
@@ -54,4 +54,4 @@ Output:
 
 - [write_u32](write_u32.md): into bytes that are there
 - [varint::append](../varint/append.md): a number in as few bytes as it needs
-- [sgcl::encoding::little_endian](../little_endian.md)
+- [sgcl::encoding::little_endian](README.md)

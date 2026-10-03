@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzw](README.md)
 
 # sgcl::compress::lzw::compress
 
@@ -62,5 +62,5 @@ compress::lzw: a byte past the literal width
 ## See also
 
 - [decompress](decompress.md): the other way
-- [lzw::writer](../lzw-writer.md): a stream
-- [sgcl::compress::lzw](../lzw.md)
+- [lzw::writer](../lzw-writer/README.md): a stream
+- [sgcl::compress::lzw](README.md)

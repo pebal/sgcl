@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::set_position
 
@@ -54,4 +54,4 @@ offset 4096: the file ends inside a record
 ## See also
 
 - [locate](locate.md): the line and the column counted in a text
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

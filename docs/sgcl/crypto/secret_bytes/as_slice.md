@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](../secret_bytes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](README.md)
 
 # sgcl::crypto::secret_bytes::as_slice, operator slice\<const byte\>, operator slice\<byte\>
 
@@ -15,7 +15,7 @@ until the secret is resized, moved from or destroyed. Nothing is copied.
 1. The bytes to read.
 2. The bytes to write: what [random::fill](../random/fill.md), a key derivation's `derive_to` or an AEAD's `open_to`
    writes into.
-3. Implicit, so that a secret goes wherever the module takes bytes, as a [secret\<N\>](../secret.md) does.
+3. Implicit, so that a secret goes wherever the module takes bytes, as a [secret\<N\>](../secret/README.md) does.
 4. Implicit too, for a secret the program may change, so that it goes wherever the module writes bytes:
    [random::fill](../random/fill.md), an AEAD's `open_to`, rsa's `decrypt_oaep_to`. Not for a `const` secret, nor
    for a temporary one, whose bytes, once written, no one would read.
@@ -71,4 +71,4 @@ true 32
 ## See also
 
 - [size](size.md): the number of bytes
-- [sgcl::crypto::secret_bytes](../secret_bytes.md)
+- [sgcl::crypto::secret_bytes](README.md)

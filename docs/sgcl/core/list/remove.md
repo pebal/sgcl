@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::remove, remove_if
 
@@ -73,4 +73,4 @@ Output:
 - [erase, erase_if](erase_if.md): the same under the names of `std`, as non-member functions
 - [unique](unique.md): erases consecutive equal elements
 - [erase](erase.md): erases the elements at a position or in a range
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

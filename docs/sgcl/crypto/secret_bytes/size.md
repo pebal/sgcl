@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](../secret_bytes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](README.md)
 
 # sgcl::crypto::secret_bytes::size
 
@@ -51,4 +51,4 @@ Output:
 
 - [empty](empty.md): whether there are no bytes
 - [resize](resize.md): changes the number of bytes
-- [sgcl::crypto::secret_bytes](../secret_bytes.md)
+- [sgcl::crypto::secret_bytes](README.md)

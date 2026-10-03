@@ -10,7 +10,7 @@ async::task<expected<void, io::error>> async_serve(string address, string direct
 ```
 
 Serves the files of a directory over HTTP, Go's `http.ListenAndServe(address,
-http.FileServer(http.Dir(directory)))`: a [server](server.md) of one route, `GET /{path...}`, listening on
+http.FileServer(http.Dir(directory)))`: a [server](server/README.md) of one route, `GET /{path...}`, listening on
 `address`.
 
 GET and HEAD of `/a/b.txt` send `directory/a/b.txt`. The name, the path value unescaped, goes through
@@ -27,7 +27,7 @@ goes by `sendfile` ([response_writer::write](response_writer/write.md)).
 2. The same for a task.
 
 There is no handle to the server: it runs until the program ends. A server that is stopped, or serves more than
-files, is a [server](server.md) of the program's whose handler does what this one does — the name through
+files, is a [server](server/README.md) of the program's whose handler does what this one does — the name through
 `io::path::under` and a 404 for one that leaves the directory.
 
 ## Parameters
@@ -81,5 +81,5 @@ Not Found
 ## See also
 
 - [serve_tls](serve_tls.md): one handler over https in one call
-- [server](server.md): routes of the program's
+- [server](server/README.md): routes of the program's
 - [io::path::under](../../io/path/under.md): a name kept inside a directory

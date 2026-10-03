@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](../zip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](README.md)
 
 # sgcl::compress::zip::archive::comment
 
@@ -52,4 +52,4 @@ built on monday
 ## See also
 
 - [set_comment](../zip-writer/set_comment.md)
-- [sgcl::compress::zip::archive](../zip-archive.md)
+- [sgcl::compress::zip::archive](README.md)

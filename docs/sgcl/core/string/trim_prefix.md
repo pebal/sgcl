@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::trim_prefix
 
@@ -61,5 +61,5 @@ aab
 
 - [trim_suffix](trim_suffix.md): without a suffix
 - [trim_left](trim_left.md): without white space, or the characters given, at the start
-- [mixin::text](../mixin/text.md): `starts_with`
-- [sgcl::string](../string.md)
+- [mixin::text](../mixin/text/README.md): `starts_with`
+- [sgcl::string](README.md)

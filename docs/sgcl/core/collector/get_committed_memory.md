@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_committed_memory
 
@@ -28,7 +28,7 @@ None.
 
 ## Notes
 
-The committed memory is what the [memory limit](../collector.md#the-memory-limit) bounds. The free chunks kept
+The committed memory is what the [memory limit](README.md#the-memory-limit) bounds. The free chunks kept
 committed are `config::heap_free_chunk_reserve` at most ([config](../config.md)).
 
 ## Example
@@ -57,4 +57,4 @@ Sample output:
 
 - [get_memory_limit](get_memory_limit.md): the ceiling on it
 - [get_statistics](get_statistics.md): `committed_bytes` among the other counters
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

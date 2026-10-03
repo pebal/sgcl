@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::resize
 
@@ -39,7 +39,7 @@ If an element's constructor throws, the elements pushed before it are popped aga
 ## Notes
 
 A growth invalidates the iterators and keeps the references valid; a shrink invalidates the erased elements and
-`end()` ([Iterator invalidation](../deque.md#iterator-invalidation)).
+`end()` ([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -74,4 +74,4 @@ Output:
 
 - [size](size.md): the number of elements
 - [push_back](push_back.md), [pop_back](pop_back.md): append, remove the last element
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

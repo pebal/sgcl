@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [directory_entry](../directory_entry.md)
+[sgcl](../../README.md) › [io](../README.md) › [directory_entry](README.md)
 
 # sgcl::io::directory_entry::is_directory
 
@@ -55,4 +55,4 @@ static false
 ## See also
 
 - [info](info.md): what a stat of the entry says
-- [sgcl::io::directory_entry](../directory_entry.md)
+- [sgcl::io::directory_entry](README.md)

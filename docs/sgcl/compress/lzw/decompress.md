@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzw](README.md)
 
 # sgcl::compress::lzw::decompress
 
@@ -28,7 +28,7 @@ reads GIF's deferred clear. The output stops at the limits' `max_size` with `err
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): a code that is not one yet (`errc::corrupt`), data that ends
+The decompressed bytes, or the [error](../error/README.md): a code that is not one yet (`errc::corrupt`), data that ends
 before the end code (`errc::unexpected_end`), output past `max_size` (`errc::too_large`).
 
 ## Complexity
@@ -71,5 +71,5 @@ offset 52: lzw: unexpected end of the data (no end code)
 ## See also
 
 - [compress](compress.md): the other way
-- [lzw::reader](../lzw-reader.md): a stream
-- [sgcl::compress::lzw](../lzw.md)
+- [lzw::reader](../lzw-reader/README.md): a stream
+- [sgcl::compress::lzw](README.md)

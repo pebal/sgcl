@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md) › [pieces](../string-pieces.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](../string/README.md) › [pieces](README.md)
 
 # sgcl::string::pieces::empty
 
@@ -50,4 +50,4 @@ true false
 ## See also
 
 - [begin](begin.md), [end](end.md): the iterators of the range
-- [sgcl::string::pieces](../string-pieces.md)
+- [sgcl::string::pieces](README.md)

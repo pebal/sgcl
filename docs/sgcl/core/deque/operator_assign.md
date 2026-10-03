@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::operator=
 
@@ -81,4 +81,4 @@ Output:
 
 - [assign](assign.md): assigns copies of a value or a range
 - [swap](swap.md): swaps the contents of two deques
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

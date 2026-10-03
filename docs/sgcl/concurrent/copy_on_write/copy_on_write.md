@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](../copy_on_write.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](README.md)
 
 # sgcl::concurrent::copy_on_write\<T\>::copy_on_write
 
@@ -79,4 +79,4 @@ localhost:8080
 
 - [load](load.md): a snapshot of the value
 - [store](store.md), [update](update.md): replace the value
-- [sgcl::concurrent::copy_on_write\<T\>](../copy_on_write.md)
+- [sgcl::concurrent::copy_on_write\<T\>](README.md)

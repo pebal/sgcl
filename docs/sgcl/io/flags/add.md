@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [flags](../flags.md)
+[sgcl](../../README.md) › [io](../README.md) › [flags](README.md)
 
 # sgcl::io::flags::add
 
@@ -10,7 +10,7 @@ void add(const string& name, T& target, const string& help);
 Adds the flag `-name`, tied to the variable `target`, with a line of help for the usage: Go's `flag.IntVar`,
 `flag.StringVar` and the rest in one name. The value of `target` now is the flag's default, which the usage shows
 unless it is the type's zero value. Takes part only when `T` is `bool`, an integer, a floating-point number,
-`string`, [duration](../../core/duration.md), or a type with `T::parse(const string&)` returning an `expected` of a
+`string`, [duration](../../core/duration/README.md), or a type with `T::parse(const string&)` returning an `expected` of a
 value `T` is made from (Go's `flag.Var`); the usage writes the default of such a type by its `to_string()`.
 
 The type's name in the usage is `int`, `uint`, `float`, `string`, `duration` or `value`, none for a bool, unless a
@@ -82,4 +82,4 @@ sgcl::io::flags: flag redefined: count
 
 - [positional](positional.md): the arguments after the flags
 - [parse](parse.md): reads the command line into the variables
-- [sgcl::io::flags](../flags.md)
+- [sgcl::io::flags](README.md)

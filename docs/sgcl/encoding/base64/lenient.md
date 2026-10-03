@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](README.md)
 
 # sgcl::encoding::base64::lenient
 
@@ -61,4 +61,4 @@ A
 
 - [is_lenient](is_lenient.md): whether a codec's decoding is lenient
 - [decode](decode.md): the bytes of a text
-- [sgcl::encoding::base64](../base64.md)
+- [sgcl::encoding::base64](README.md)

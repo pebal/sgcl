@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::resize
 
@@ -68,4 +68,4 @@ Output:
 
 - [assign](assign.md): replaces the contents
 - [erase](erase.md): erases elements at a position or in a range
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

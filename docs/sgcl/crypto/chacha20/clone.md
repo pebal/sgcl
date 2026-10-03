@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](../chacha20.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [chacha20](README.md)
 
 # sgcl::crypto::chacha20::clone
 
@@ -64,4 +64,4 @@ Output:
 
 - [(constructor)](chacha20.md): sets up a key and a nonce, or takes another object's over
 - [seek](seek.md): moves to the start of a block
-- [sgcl::crypto::chacha20](../chacha20.md)
+- [sgcl::crypto::chacha20](README.md)

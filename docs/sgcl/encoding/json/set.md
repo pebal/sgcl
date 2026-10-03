@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::set
 
@@ -69,5 +69,5 @@ Output:
 
 - [erase](erase.md): the object without a member
 - [set_path](set_path.md): a value deeper down replaced
-- [builder](../json-builder.md): many members or elements without a copy per step
-- [sgcl::encoding::json](../json.md)
+- [builder](../json-builder/README.md): many members or elements without a copy per step
+- [sgcl::encoding::json](README.md)

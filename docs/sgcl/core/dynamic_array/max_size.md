@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::dynamic_array\<T\>::max_size
 
@@ -56,4 +56,4 @@ length error: sgcl::dynamic_array
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [sgcl::dynamic_array\<T\>](README.md)

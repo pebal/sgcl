@@ -7,11 +7,11 @@
 ```
 
 Images: what Go has in `image/png`, `image/jpeg` and `image/gif`, and what libpng, libjpeg-turbo, giflib and libwebp
-decode and encode in C. An [image](image.md) is a handle of one word to its size, its pixels in one of nine
+decode and encode in C. An [image](image/README.md) is a handle of one word to its size, its pixels in one of nine
 [pixel formats](pixel_format.md) and the metadata of its file (EXIF and the ICC profile, as bytes);
 [load](load.md) reads a file of any of the module's formats and [save](save.md) writes one in the format its
 extension names, [decode](decode.md) does what `load` does for a file already in memory, and each format has a type
-of its own: [png](png.md), [jpeg](jpeg.md), [gif](gif.md), [webp](webp.md) and [heif](heif.md). The module depends
+of its own: [png](png/README.md), [jpeg](jpeg/README.md), [gif](gif/README.md), [webp](webp/README.md) and [heif](heif/README.md). The module depends
 on [core](../core/README.md), [io](../io/README.md) (the files and the streams read and written),
 [async](../async/README.md) (`async_load` and `async_save` on the blocking pool), [compress](../compress/README.md)
 (zlib's DEFLATE for PNG, LZW for GIF) and [hash](../hash/README.md) (CRC-32 and Adler-32 for PNG). The index of the
@@ -27,7 +27,7 @@ libwebp's demuxer takes and refuses it. HEIF and AVIF are not decoded by the mod
 system (ImageIO on macOS), and the module's wrapping is held against ImageIO's own reading of each file.
 
 A file is data from outside, and what is wrong in it is a value, never an exception: every decoder returns an
-[expected](../core/expected.md) of the image and a [codec::error](error.md), the code and the byte of the file where
+[expected](../core/expected/README.md) of the image and a [codec::error](error/README.md), the code and the byte of the file where
 it was found. A small file can claim a huge image, so every decoder checks the size it declares against the
 [limits](limits.md) before it allocates anything. The decoders are fuzzed (libFuzzer with ASan and UBSan, a harness
 for each); their code has not been audited on its own, so a program takes files from outside with the limits set
@@ -35,10 +35,10 @@ to what it expects.
 
 ## The rules
 
-1. An [image](image.md) and [frames](frames.md) are handles of one tracked word: they live where a `tracked_ptr`
+1. An [image](image/README.md) and [frames](frames/README.md) are handles of one tracked word: they live where a `tracked_ptr`
    may ([the rules of core](../core/README.md#the-rules), 1), copies share the pixels or the reading, and `clone()`
    makes new pixels. A slice of an image's pixels, from `pixels()` or `row()`, keeps them alive after the image is
-   gone. An [error](error.md) holds a `string` and lives where a string may.
+   gone. An [error](error/README.md) holds a `string` and lives where a string may.
 2. The data of a file never throws: a decoder, `load`, `decode` and `decode_frames` return
    `expected<T, codec::error>`, an encoder of bytes `expected<vector<byte>, codec::error>`, an encoder into a stream
    and `save` `expected<void, codec::error>`.
@@ -53,27 +53,27 @@ to what it expects.
    `rgb8` as it says it has alpha or not. `want` asks for one format whatever the file holds, each row converted
    as it is decoded. Alpha is always straight, and no decoder turns an image by its EXIF orientation:
    [oriented](image/oriented.md) does.
-4. Every `decode` also takes an [io::reader](../io/reader.md) and reads the file as it comes, so that memory is
+4. Every `decode` also takes an [io::reader](../io/reader/README.md) and reads the file as it comes, so that memory is
    the image and a constant, not the file; the exceptions are a progressive JPEG, whose coefficients are kept
    whole until its last scan, a lossy WebP's VP8 chunk, read whole, and HEIF, read to the end of the stream before
-   the system's codec sees it. Every `encode` also writes into an [io::writer](../io/writer.md) and returns
+   the system's codec sees it. Every `encode` also writes into an [io::writer](../io/writer/README.md) and returns
    `expected<void, codec::error>`, `errc::io` when the stream fails.
 5. Decoding and encoding run on the calling thread, as long as the image takes. A task that loads or saves a file
    calls [async_load](load.md) and [async_save](save.md), which run on the blocking pool; other work of the module
    in a task goes there through [spawn_blocking](../async/spawn_blocking.md), so that it does not hold a worker.
 6. HEIC, HEIF and AVIF are read, and HEIC written, through the system's codec: ImageIO on macOS. Elsewhere every
-   call of [heif](heif.md) is `errc::unsupported`, and so is `load` or `decode` of such a file.
+   call of [heif](heif/README.md) is `errc::unsupported`, and so is `load` or `decode` of such a file.
 
 ### The formats
 
 | Format | Read | Write | Description |
 |---|---|---|---|
-| [AVIF](heif.md) | macOS | no | through the platform's ImageIO |
-| [GIF](gif.md) | yes | no | GIF87a and GIF89a; animations through `frames` |
-| [HEIC](heif.md) | macOS | macOS | through the platform's ImageIO |
-| [JPEG](jpeg.md) | yes | yes | baseline, extended and progressive read; baseline written |
-| [PNG](png.md) | yes | yes | every type and depth, Adam7 |
-| [WebP](webp.md) | yes | no | lossless, lossy, alpha, animations |
+| [AVIF](heif/README.md) | macOS | no | through the platform's ImageIO |
+| [GIF](gif/README.md) | yes | no | GIF87a and GIF89a; animations through `frames` |
+| [HEIC](heif/README.md) | macOS | macOS | through the platform's ImageIO |
+| [JPEG](jpeg/README.md) | yes | yes | baseline, extended and progressive read; baseline written |
+| [PNG](png/README.md) | yes | yes | every type and depth, Adam7 |
+| [WebP](webp/README.md) | yes | no | lossless, lossy, alpha, animations |
 
 `save` and `image::save` of a format without an encoder give `errc::unsupported`; `load` and `decode` read every
 format of the table.
@@ -95,17 +95,17 @@ format of the table.
 | Class | Header | Description |
 |---|---|---|
 | [decode_options](decode_options.md) | `options.h` | what a decoding asks for: the pixel format, the limits, the metadata or not |
-| [error](error.md) | `error.h` | what went wrong in a file, and at which byte |
+| [error](error/README.md) | `error.h` | what went wrong in a file, and at which byte |
 | [frame](frame.md) | `frames.h` | a frame of an animation: the whole canvas and how long it is shown |
-| [frames](frames.md) | `frames.h` | the frames of an animation, each the whole canvas, read one by one |
-| [gif](gif.md) | `gif.h` | GIF87a and GIF89a: the first frame, or all of them |
-| [heif](heif.md) | `heif.h` | HEIC, HEIF and AVIF through the system's codec: the first image read, HEIC written |
-| [image](image.md) | `image.h` | an image in memory: its size, its pixel format, its rows, EXIF and ICC |
-| [jpeg](jpeg.md) | `jpeg.h` | JPEG: baseline, extended and progressive read, every sampling, CMYK and YCCK; baseline written |
+| [frames](frames/README.md) | `frames.h` | the frames of an animation, each the whole canvas, read one by one |
+| [gif](gif/README.md) | `gif.h` | GIF87a and GIF89a: the first frame, or all of them |
+| [heif](heif/README.md) | `heif.h` | HEIC, HEIF and AVIF through the system's codec: the first image read, HEIC written |
+| [image](image/README.md) | `image.h` | an image in memory: its size, its pixel format, its rows, EXIF and ICC |
+| [jpeg](jpeg/README.md) | `jpeg.h` | JPEG: baseline, extended and progressive read, every sampling, CMYK and YCCK; baseline written |
 | [limits](limits.md) | `options.h` | how many pixels a file may claim and how much metadata it may carry |
-| [png](png.md) | `png.h` | PNG: every type and depth, Adam7, tRNS, eXIf, iCCP; written with adaptive filters |
+| [png](png/README.md) | `png.h` | PNG: every type and depth, Adam7, tRNS, eXIf, iCCP; written with adaptive filters |
 | [save_options](save_options.md) | `files.h` | what `save` writes: the PNG level, the JPEG and HEIC quality, the JPEG subsampling |
-| [webp](webp.md) | `webp.h` | WebP: the container, lossless and lossy images, alpha, animations |
+| [webp](webp/README.md) | `webp.h` | WebP: the container, lossless and lossy images, alpha, animations |
 
 ## Enumerations
 

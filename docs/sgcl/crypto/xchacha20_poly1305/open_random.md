@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [xchacha20_poly1305](../xchacha20_poly1305.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [xchacha20_poly1305](README.md)
 
 # sgcl::crypto::xchacha20_poly1305::open_random
 
@@ -24,7 +24,7 @@ last 16, checked before the first byte is decrypted, as [open](../mixin/aead/ope
 
 ## Return value
 
-The plaintext, `sealed.size() - nonce_size - tag_size` bytes, or an [error](../error.md) of
+The plaintext, `sealed.size() - nonce_size - tag_size` bytes, or an [error](../error/README.md) of
 [errc::authentication](../errc.md) when the tag does not match and when `sealed` is shorter than a nonce and a
 tag.
 
@@ -75,4 +75,4 @@ false
 
 - [seal_random](seal_random.md): seals under a random nonce
 - [open](../mixin/aead/open.md): under a nonce the program gives
-- [sgcl::crypto::xchacha20_poly1305](../xchacha20_poly1305.md)
+- [sgcl::crypto::xchacha20_poly1305](README.md)

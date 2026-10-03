@@ -27,7 +27,7 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
-Why a certificate chain does not verify: the `reason()` of a [crypto::error](error.md) whose code is
+Why a certificate chain does not verify: the `reason()` of a [crypto::error](error/README.md) whose code is
 `errc::verification`, and `none` for every other error. Go's `x509` has these as the types and the `InvalidReason` of
 its errors; here they are one list, read by a `switch`, and the certificate at fault is named in the error's message.
 Each value is given with what Go and OpenSSL answer in its place.
@@ -166,6 +166,6 @@ sgcl::crypto::x509: the certificate "CN=odd.example.com" has a critical extensio
 
 ## See also
 
-- [error](error.md): `reason()`, and `errc::verification`
+- [error](error/README.md): `reason()`, and `errc::verification`
 - [certificate::verify](x509-certificate/verify.md): how the reason of a failed search is chosen
 - [sgcl::crypto::x509](x509.md)

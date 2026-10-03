@@ -56,4 +56,4 @@ true
 ## See also
 
 - [errc](errc.md), [category](category.md)
-- [error](error.md)
+- [error](error/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::nanoseconds
 
@@ -51,4 +51,4 @@ Output:
 
 - [microseconds](microseconds.md), [milliseconds](milliseconds.md): the whole larger units
 - [operator std::chrono::nanoseconds](operator_conv.md): the same count as the standard's type
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

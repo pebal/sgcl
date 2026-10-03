@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [set](README.md)
 
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::clear
 
@@ -60,4 +60,4 @@ true 0 128
 ## See also
 
 - [erase](erase.md): erases one element
-- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](README.md)

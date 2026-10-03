@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::operator==, operator\<=\> (sgcl::time::date)
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [operator+, operator-](operator_arith.md): the arithmetic
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

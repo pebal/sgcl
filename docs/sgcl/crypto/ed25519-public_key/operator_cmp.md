@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [public_key](../ed25519-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [public_key](README.md)
 
 # sgcl::crypto::ed25519::operator== (sgcl::crypto::ed25519::public_key)
 
@@ -55,4 +55,4 @@ true
 ## See also
 
 - [bytes](bytes.md): the bytes compared
-- [sgcl::crypto::ed25519::public_key](../ed25519-public_key.md)
+- [sgcl::crypto::ed25519::public_key](README.md)

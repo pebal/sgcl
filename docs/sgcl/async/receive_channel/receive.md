@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [receive_channel](../receive_channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [receive_channel](README.md)
 
 # sgcl::async::receive_channel\<T\>::receive
 
@@ -8,7 +8,7 @@ auto receive() const noexcept;    // (2), receive_channel<void>
 ```
 
 Receives the next element of the channel, waiting for one: the channel's [receive](../channel/receive.md), the same
-operation. The call makes an [operation](../operation.md) that does nothing yet; a task writes
+operation. The call makes an [operation](../operation/README.md) that does nothing yet; a task writes
 `co_await in.receive()`, suspended with no thread held until a send serves it, and a thread writes
 `in.receive().wait()` and blocks. A closed channel gives what was sent before the close, then nothing at once.
 
@@ -21,7 +21,7 @@ None.
 
 ## Return value
 
-An [operation](../operation.md) that gives, both by `co_await` in a task and by `.wait()` on a thread:
+An [operation](../operation/README.md) that gives, both by `co_await` in a task and by `.wait()` on a thread:
 
 - (1) an `optional<T>` with the element, or `nullopt` once the channel is closed and drained;
 - (2) `true` for a signal, `false` once the channel is closed and drained.
@@ -78,4 +78,4 @@ Output:
 - [try_receive](try_receive.md): receives only what is there
 - [on_receive](on_receive.md): a receive as a case of a select
 - [channel::receive](../channel/receive.md): the same receive
-- [sgcl::async::receive_channel\<T\>](../receive_channel.md)
+- [sgcl::async::receive_channel\<T\>](README.md)

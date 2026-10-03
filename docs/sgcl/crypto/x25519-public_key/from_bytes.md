@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [public_key](../x25519-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [public_key](README.md)
 
 # sgcl::crypto::x25519::public_key::from_bytes
 
@@ -18,7 +18,7 @@ and refused by [shared_secret](../x25519-private_key/shared_secret.md), whose re
 
 ## Return value
 
-The key, or an [error](../error.md) `errc::invalid_key` when `bytes` is not 32 bytes long.
+The key, or an [error](../error/README.md) `errc::invalid_key` when `bytes` is not 32 bytes long.
 
 ## Complexity
 
@@ -64,4 +64,4 @@ an X25519 public key is 32 bytes
 
 - [from_pkix_der](from_pkix_der.md): the key of a SubjectPublicKeyInfo
 - [bytes](bytes.md): the reverse
-- [sgcl::crypto::x25519::public_key](../x25519-public_key.md)
+- [sgcl::crypto::x25519::public_key](README.md)

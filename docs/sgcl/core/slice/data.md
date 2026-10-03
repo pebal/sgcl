@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::data
 
@@ -56,4 +56,4 @@ value
 
 - [size](size.md): the number of elements
 - [operator std::span](operator_conv.md): the elements as a `std::span`
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

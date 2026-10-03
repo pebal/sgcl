@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::dynamic_array\<T\>::rend, crend
 
@@ -55,4 +55,4 @@ Output:
 
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the beginning
 - [end, cend](end.md): an iterator to the end
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [sgcl::dynamic_array\<T\>](README.md)

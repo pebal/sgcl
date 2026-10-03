@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::update
 
@@ -11,7 +11,7 @@ has the tag of the whole. The slice takes what bytes come in: a `vector<byte>`, 
 `secret_bytes`, a slice of them. The bytes go into the inner digest, which started from the key's inner pad.
 
 The text forms — a `string`, a text slice, a literal, a C string, a `std::string_view` — and a `std::span` of bytes
-are the mixin's ([hash::mixin::hasher](../../hash/mixin/hasher.md)), each hashing the UTF-8 bytes where they lie.
+are the mixin's ([hash::mixin::hasher](../../hash/mixin/hasher/README.md)), each hashing the UTF-8 bytes where they lie.
 
 ## Parameters
 
@@ -59,5 +59,5 @@ b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7
 ## See also
 
 - [value](value.md): the tag of what was hashed in
-- [hash::mixin::hasher](../../hash/mixin/hasher.md): the text forms, `copy_from` for a stream
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [hash::mixin::hasher](../../hash/mixin/hasher/README.md): the text forms, `copy_from` for a stream
+- [sgcl::crypto::hmac\<H\>](README.md)

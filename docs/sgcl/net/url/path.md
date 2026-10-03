@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::path
 
@@ -54,4 +54,4 @@ sc://h -> []
 
 - [with_path](with_path.md): another path
 - [request_target](request_target.md): the path and the query
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

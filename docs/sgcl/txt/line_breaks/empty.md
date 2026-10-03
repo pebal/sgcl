@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [line_breaks](../line_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [line_breaks](README.md)
 
 # sgcl::txt::line_breaks::empty
 
@@ -46,4 +46,4 @@ true false
 ## See also
 
 - [count](count.md): the number of pieces
-- [sgcl::txt::line_breaks](../line_breaks.md)
+- [sgcl::txt::line_breaks](README.md)

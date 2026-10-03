@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](README.md)
 
 # sgcl::compress::zlib::compress
 
@@ -14,7 +14,7 @@ static vector<byte> compress(const T& text, const options& o) noexcept;         
 ```
 
 Compresses the whole of the data at once into a zlib stream: the two-byte header, the DEFLATE data and the Adler-32 of
-the data, at the [level](../level.md) of the options (6 unless told otherwise). With a dictionary in the options, the
+the data, at the [level](../level/README.md) of the options (6 unless told otherwise). With a dictionary in the options, the
 header names it by its Adler-32 (FDICT), and the reader must be given the same bytes. It never fails: any bytes
 compress.
 
@@ -73,5 +73,5 @@ Output:
 ## See also
 
 - [decompress](decompress.md): the other way
-- [zlib::writer](../zlib-writer.md): a stream
-- [sgcl::compress::zlib](../zlib.md)
+- [zlib::writer](../zlib-writer/README.md): a stream
+- [sgcl::compress::zlib](README.md)

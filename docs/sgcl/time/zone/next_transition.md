@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::next_transition
 
@@ -64,4 +64,4 @@ false
 ## See also
 
 - [previous_transition](previous_transition.md): the last change before an instant
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

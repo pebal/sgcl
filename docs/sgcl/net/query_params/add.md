@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [query_params](../query_params.md)
+[sgcl](../../README.md) › [net](../README.md) › [query_params](README.md)
 
 # sgcl::net::query_params::add
 
@@ -7,7 +7,7 @@ expected<void, io::error> add(const string& name, const string& value) noexcept;
 ```
 
 Adds the pair at the end, after any pair of the same name; Go's `Values.Add`. The pair is refused, and the pairs stay
-as they were, when they would be written past [the limit](../query_params.md#rules) of 512 MiB.
+as they were, when they would be written past [the limit](README.md#rules) of 512 MiB.
 
 ## Parameters
 
@@ -18,7 +18,7 @@ as they were, when they would be written past [the limit](../query_params.md#rul
 
 ## Return value
 
-Nothing, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the operation
+Nothing, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the operation
 `add query pair` and the name, when the pairs would be written past 512 MiB (a byte the form escapes is three).
 
 ## Complexity
@@ -55,4 +55,4 @@ tag=go&tag=c%2B%2B&q=a+b
 ## See also
 
 - [set](set.md): one value for a name
-- [sgcl::net::query_params](../query_params.md)
+- [sgcl::net::query_params](README.md)

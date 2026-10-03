@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](../zip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](README.md)
 
 # sgcl::compress::zip::writer::add, async_add
 
@@ -23,7 +23,7 @@ its data, and its end. A text is its bytes, a `vector<byte>` likewise.
 
 ## Return value
 
-Nothing, or the writer's [error](../error.md), kept as its first: what `create` refuses, a failure of `out`, or the
+Nothing, or the writer's [error](../error/README.md), kept as its first: what `create` refuses, a failure of `out`, or the
 error kept from before.
 
 ## Complexity
@@ -74,4 +74,4 @@ b.txt: second
 
 - [create](create.md): an entry written as a stream
 - [add_file](add_file.md): a file as an entry
-- [sgcl::compress::zip::writer](../zip-writer.md)
+- [sgcl::compress::zip::writer](README.md)

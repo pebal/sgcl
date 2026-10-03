@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_source](../stop_source.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_source](README.md)
 
 # sgcl::async::stop_source::token
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-A [stop_token](../stop_token.md) of this source.
+A [stop_token](../stop_token/README.md) of this source.
 
 ## Complexity
 
@@ -57,6 +57,6 @@ stopped
 
 ## See also
 
-- [stop_token](../stop_token.md): what is returned
+- [stop_token](../stop_token/README.md): what is returned
 - [(constructor)](stop_source.md): a child made from a token
-- [sgcl::async::stop_source](../stop_source.md)
+- [sgcl::async::stop_source](README.md)

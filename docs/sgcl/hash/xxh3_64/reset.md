@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](../xxh3_64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](README.md)
 
 # sgcl::hash::xxh3_64::reset
 
@@ -50,4 +50,4 @@ true
 ## See also
 
 - [(constructor)](xxh3_64.md): a hasher with a seed
-- [sgcl::hash::xxh3_64](../xxh3_64.md)
+- [sgcl::hash::xxh3_64](README.md)

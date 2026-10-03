@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_source](../stop_source.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_source](README.md)
 
 # sgcl::async::stop_source::stop_source
 
@@ -75,4 +75,4 @@ true
 
 - [token](token.md): the token a child is made from
 - [request_stop](request_stop.md): the stop
-- [sgcl::async::stop_source](../stop_source.md)
+- [sgcl::async::stop_source](README.md)

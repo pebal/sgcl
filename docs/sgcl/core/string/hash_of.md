@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::hash_of
 
@@ -63,5 +63,5 @@ true true
 ## See also
 
 - [hash](hash.md): the hash of a string, computed once and kept in the object
-- [map](../map.md), [set](../set.md): the containers a string keys
-- [sgcl::string](../string.md)
+- [map](../map/README.md), [set](../set/README.md): the containers a string keys
+- [sgcl::string](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [xz](xz.md)
+[sgcl](../README.md) › [compress](README.md) › [xz](xz/README.md)
 
 # sgcl::compress::xz::options
 
@@ -23,7 +23,7 @@ namespace sgcl::compress {
 `sgcl::compress::xz::options` is how an `.xz` stream is made: the level and dictionary of [lzma](lzma-options.md)
 (xz's `-0` to `-9` and `-e`), the [check](xz-check.md) of each block, CRC-64 unless told, and the filters before
 LZMA2: a branch converter for the named processor ([filter](xz-filter.md)), Delta over bytes `delta` apart, or both,
-the converter first. [compress](xz/compress.md) and the [writer](xz-writer.md) take it; the decoders read all of it
+the converter first. [compress](xz/compress.md) and the [writer](xz-writer/README.md) take it; the decoders read all of it
 from the headers.
 
 ## Rules
@@ -79,4 +79,4 @@ delta 2: 212
 
 - [check](xz-check.md), [filter](xz-filter.md)
 - [lzma::options](lzma-options.md): the levels
-- [sgcl::compress::xz](xz.md)
+- [sgcl::compress::xz](xz/README.md)

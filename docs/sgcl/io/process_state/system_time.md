@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::system_time
 
@@ -48,4 +48,4 @@ Sample output:
 ## See also
 
 - [user_time](user_time.md): the time in user mode
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

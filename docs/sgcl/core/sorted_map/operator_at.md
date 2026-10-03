@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::operator[]
 
@@ -78,4 +78,4 @@ true
 - [at](at.md): the value under a key, with bounds checking
 - [try_emplace](try_emplace.md): inserts an element with a value of its own when the key is absent
 - [insert_or_assign](insert_or_assign.md): inserts an element or assigns to its value
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

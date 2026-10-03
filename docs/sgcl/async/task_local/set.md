@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_local](../task_local.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_local](README.md)
 
 # sgcl::async::task_local\<T\>::set
 
@@ -74,4 +74,4 @@ parent now parent, again
 
 - [with](with.md): a task run with a value, the caller's left as it was
 - [get](get.md), [get_or](get_or.md): the value read
-- [sgcl::async::task_local\<T\>](../task_local.md)
+- [sgcl::async::task_local\<T\>](README.md)

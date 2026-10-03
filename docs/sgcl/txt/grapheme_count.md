@@ -17,7 +17,7 @@ namespace sgcl::txt {
 ```
 
 Returns the number of graphemes of the text by [UAX #29](https://www.unicode.org/reports/tr29/): the characters a
-reader would count ([graphemes](graphemes.md)), where `size()` is bytes and `rune_count()` code points. What to count
+reader would count ([graphemes](graphemes/README.md)), where `size()` is bytes and `rune_count()` code points. What to count
 when a limit is a number of characters.
 
 1. Of a slice of UTF-8 bytes.
@@ -73,6 +73,6 @@ Output:
 
 ## See also
 
-- [graphemes](graphemes.md): the graphemes themselves
+- [graphemes](graphemes/README.md): the graphemes themselves
 - [columns](columns.md): the cells a text takes on a terminal
 - [txt](README.md)

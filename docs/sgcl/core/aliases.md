@@ -28,18 +28,18 @@ keeps every value at a fixed offset of its own, one value per place, so a pointe
 data, and the collector's pointer map, built by elimination, finds a pointer or null at that offset in every object
 and keeps following it ([Pointer maps](../../garbage_collector/overview.md#pointer-maps)). `std::variant`,
 `std::any`, `std::function` and `std::expected` do not lay their contents out that way, and the library has types
-of its own for them: [variant](variant.md), [any](any.md), [function](function.md), [expected](expected.md).
+of its own for them: [variant](variant/README.md), [any](any/README.md), [function](function/README.md), [expected](expected/README.md).
 Nothing here for `std::shared_ptr` and `std::weak_ptr`: a managed object is held by a `tracked_ptr`, and shared from
 unmanaged memory through `tracked_ptr::to_shared()`.
 
-Where the library hands one back: `optional<T>` from [channel](../async/channel.md)'s `receive` and `try_receive`
-(empty once the channel is closed and drained), from `try_pop` of [concurrent::queue](../concurrent/queue.md) and
-[concurrent::stack](../concurrent/stack.md), and from `co_await g.next()` of an `async::generator`
-([task](../async/task.md); empty at the end); `pair` is what the maps hold; `tuple` is what
+Where the library hands one back: `optional<T>` from [channel](../async/channel/README.md)'s `receive` and `try_receive`
+(empty once the channel is closed and drained), from `try_pop` of [concurrent::queue](../concurrent/queue/README.md) and
+[concurrent::stack](../concurrent/stack/README.md), and from `co_await g.next()` of an `async::generator`
+([task](../async/task/README.md); empty at the end); `pair` is what the maps hold; `tuple` is what
 [when_all](../async/when_all.md) returns.
 
 `error_code` (with `error_category` and `error_condition`) is the standard's error code under the library's name, so
-that the public interface of a module names no `std` type: what an [io::error](../io/error.md) carries — a value of
+that the public interface of a module names no `std` type: what an [io::error](../io/error/README.md) carries — a value of
 `errno` in the system category, or a code of a category of the module's own — compared with `std::errc` conditions
 as `std::error_code` is.
 
@@ -47,14 +47,14 @@ as `std::error_code` is.
 takes, `slice<byte>` to read into and `slice<const byte>` to write from.
 
 `this_thread` is `std::this_thread` under the library's name (`yield`, `sleep_for`, `sleep_until`, `get_id`); the
-thread itself is the library's own, [thread](thread.md), whose callable lives in a managed node.
+thread itself is the library's own, [thread](thread/README.md), whose callable lives in a managed node.
 
 The exceptions the library throws have the library's names as well: `out_of_range` (an index outside a container,
 `at`), `length_error` (a size past a container's or a string's maximum), `invalid_argument` and `domain_error` (an
 argument outside what a function takes), `logic_error`, `runtime_error`. They are the standard's classes, so
 `catch (const std::out_of_range&)` catches what `sgcl::out_of_range` names. `bad_alloc` has the library's name too,
 but running out of memory is not something the library reports: out of managed memory, the program ends with a
-diagnostic ([collector](collector.md#the-memory-limit)).
+diagnostic ([collector](collector/README.md#the-memory-limit)).
 
 ## Rules
 
@@ -64,7 +64,7 @@ diagnostic ([collector](collector.md#the-memory-limit)).
 - A `tracked_ptr` in an `optional` that is empty is not there: the word holds nothing the collector follows, and the
   object it held is released with `reset()` or the assignment of `nullopt`, as it would be by a `tracked_ptr` reset.
 - Thread safety is `std`'s: none. A value shared between threads is held by an [atomic](atomic.md) or handed over
-  through a [channel](../async/channel.md).
+  through a [channel](../async/channel/README.md).
 
 ## Example
 
@@ -120,8 +120,8 @@ true
 
 ## See also
 
-- [variant](variant.md), [any](any.md), [function](function.md), [expected](expected.md): the `std` types that
+- [variant](variant/README.md), [any](any/README.md), [function](function/README.md), [expected](expected/README.md): the `std` types that
   needed a version of their own
-- [tracked_ptr](tracked_ptr.md): the pointer these types hold
-- [channel](../async/channel.md), [concurrent::queue](../concurrent/queue.md): where an `optional` comes from
+- [tracked_ptr](tracked_ptr/README.md): the pointer these types hold
+- [channel](../async/channel/README.md), [concurrent::queue](../concurrent/queue/README.md): where an `optional` comes from
 - [Pointer maps](../../garbage_collector/overview.md#pointer-maps), [README: The rules](README.md#the-rules)

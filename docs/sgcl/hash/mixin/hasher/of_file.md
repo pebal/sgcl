@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [hash](../../README.md) › mixin › [hasher](../hasher.md)
+[sgcl](../../../README.md) › [hash](../../README.md) › mixin › [hasher](README.md)
 
 # sgcl::hash::mixin::hasher\<Derived\>::of_file, async_of_file
 
@@ -16,9 +16,9 @@ The hash of the whole file at `path`: the one-shot form of a file, what [of](of.
    blocking pool. The task keeps its own copy of `path`, so the caller's string may go before the task runs.
 
 - (1–2) Only for a class made without arguments, as `of(data)` is: a hasher with a key
-  ([siphash](../../siphash.md)) has neither, and opens the file and calls `copy_from` itself. A class with a seed
-  hashes as one made without it: [xxh3_64](../../xxh3_64.md) and [xxh3_128](../../xxh3_128.md) with the seed 0,
-  [maphash](../../maphash.md) with the process's seed.
+  ([siphash](../../siphash/README.md)) has neither, and opens the file and calls `copy_from` itself. A class with a seed
+  hashes as one made without it: [xxh3_64](../../xxh3_64/README.md) and [xxh3_128](../../xxh3_128/README.md) with the seed 0,
+  [maphash](../../maphash/README.md) with the process's seed.
 
 ## Parameters
 
@@ -80,5 +80,5 @@ false true
 
 - [copy_from](copy_from.md): a stream already open, or a file with a keyed hasher
 - [of](of.md): bytes already in memory
-- [io::read_file](../../../io/file.md): the whole file in memory
-- [sgcl::hash::mixin::hasher\<Derived\>](../hasher.md)
+- [io::read_file](../../../io/file/README.md): the whole file in memory
+- [sgcl::hash::mixin::hasher\<Derived\>](README.md)

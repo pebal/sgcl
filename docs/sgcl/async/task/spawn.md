@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::spawn
 
@@ -64,4 +64,4 @@ false
 - [spawn](../spawn.md): the free function, which returns the task
 - [go](../go.md): a spawn whose handle nobody keeps
 - [resume](resume.md): runs the coroutine by hand instead
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::code
 
@@ -64,4 +64,4 @@ malformed
 
 - [errc](../errc.md): the codes and the formats that raise them
 - [message](message.md): the code's words, or the format's
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

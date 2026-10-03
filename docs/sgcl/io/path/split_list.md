@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::split_list
 
@@ -51,4 +51,4 @@ Output:
 
 - [getenv](../getenv.md): the text of `PATH`
 - [look_path](../look_path.md): the executable a name stands for, searched in `PATH`
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

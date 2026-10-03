@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [queue](README.md)
 
 # sgcl::queue\<T, Container\>::size
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the queue is empty
-- [sgcl::queue\<T, Container\>](../queue.md)
+- [sgcl::queue\<T, Container\>](README.md)

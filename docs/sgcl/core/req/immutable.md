@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::immutable
 
@@ -60,4 +60,4 @@ false
 - [enumerable](enumerable.md)
 - [mixin::immutable](../mixin/immutable.md)
 - [immutable](../../immutable/README.md): the module of the immutable containers
-- [sgcl::req](../req.md)
+- [sgcl::req](README.md)

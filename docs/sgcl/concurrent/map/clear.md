@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::clear
 
@@ -60,4 +60,4 @@ true 0 128
 ## See also
 
 - [erase](erase.md): erases one element
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

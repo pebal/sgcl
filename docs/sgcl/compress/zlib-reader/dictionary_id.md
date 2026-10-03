@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [reader](../zlib-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [reader](README.md)
 
 # sgcl::compress::zlib::reader::dictionary_id
 
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [zlib::dictionary_id](../zlib/dictionary_id.md): the same, of data in memory
-- [sgcl::compress::zlib::reader](../zlib-reader.md)
+- [sgcl::compress::zlib::reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](../tar-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](README.md)
 
 # sgcl::compress::tar::writer::add_file
 
@@ -31,7 +31,7 @@ it names.
 
 ## Return value
 
-Nothing, or the [error](../error.md): `errc::io` with the file's error in `io_error()` when the path does not open
+Nothing, or the [error](../error/README.md): `errc::io` with the file's error in `io_error()` when the path does not open
 (`is_not_found()`), `errc::invalid_argument` for a path that is not a regular file or a name that ends in `/`; or the
 writer's error, kept as its first: what [write_header](write_header.md) refuses, a failure of `out` or of the file's
 read, a file that changed size, the error kept from before.
@@ -87,4 +87,4 @@ docs/notes.txt 5: 5
 
 - [write_header](write_header.md), [write](write.md): an entry written by parts
 - [tar::create](../tar-create.md): a whole directory
-- [sgcl::compress::tar::writer](../tar-writer.md)
+- [sgcl::compress::tar::writer](README.md)

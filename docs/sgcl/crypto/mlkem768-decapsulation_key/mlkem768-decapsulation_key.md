@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::decapsulation_key::decapsulation_key
 
@@ -62,4 +62,4 @@ sgcl::crypto::mlkem768: used after being moved from
 
 - [operator=](operator_assign.md): the move assignment
 - [clone](clone.md): a second key of the same seed
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

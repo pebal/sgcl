@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::of
 
@@ -94,4 +94,4 @@ true
 
 - [find](find.md): the canonical object when one is alive, never made
 - [make](make.md): `of` on the default pool
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

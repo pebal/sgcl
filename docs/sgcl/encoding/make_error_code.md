@@ -63,5 +63,5 @@ true
 ## See also
 
 - [encoding_category](encoding_category.md): the category
-- [io::error](../io/error.md): a stream's error, which carries the code
+- [io::error](../io/error/README.md): a stream's error, which carries the code
 - [sgcl::encoding](README.md)

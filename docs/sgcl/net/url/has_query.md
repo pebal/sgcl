@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::has_query
 
@@ -50,4 +50,4 @@ http://x/ false
 ## See also
 
 - [query](query.md): the query
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

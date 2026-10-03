@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](../aes_ctr.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](README.md)
 
 # sgcl::crypto::aes_ctr::seek
 
@@ -64,4 +64,4 @@ ec8cdf7398607cb0f2d21675ea9ea1e4
 ## See also
 
 - [xor_key_stream](xor_key_stream.md): XORs the keystream into the data
-- [sgcl::crypto::aes_ctr](../aes_ctr.md)
+- [sgcl::crypto::aes_ctr](README.md)

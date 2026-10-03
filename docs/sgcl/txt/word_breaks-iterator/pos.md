@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks.md) › [iterator](../word_breaks-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks/README.md) › [iterator](README.md)
 
 # sgcl::txt::word_breaks::iterator::pos
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [size](size.md): the bytes the element takes
-- [sgcl::txt::word_breaks::iterator](../word_breaks-iterator.md)
+- [sgcl::txt::word_breaks::iterator](README.md)

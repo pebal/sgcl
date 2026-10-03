@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::save, async_save
 
@@ -78,4 +78,4 @@ missing.txt: 404, 10 bytes saved, 10 on disk
 
 - [download](../client/download.md): a GET whose 2xx body goes to a file
 - [body](body.md): the body as a stream
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

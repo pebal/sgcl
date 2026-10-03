@@ -14,7 +14,7 @@ namespace sgcl::io {
 ```
 
 Copies the stream `r` from its position to its end into the stream `w`, as Go's `io.Copy`; Go's `io.CopyN` is
-`copy(w, limit_reader(r, n))` ([limit_reader](limit_reader.md)). The destination comes first, as in Go and as
+`copy(w, limit_reader(r, n))` ([limit_reader](limit_reader/README.md)). The destination comes first, as in Go and as
 `memcpy` has it.
 
 1. Copies on the calling thread, `config::io_copy_buffer_size` (32 KB) at a time through one block on the stack of
@@ -25,16 +25,16 @@ Copies the stream `r` from its position to its end into the stream `w`, as Go's 
    `co_await io::async_copy(w, r)` in one statement does by itself.
 
 Where one of the two has a way of its own, the copy is that, in one call, and no block is used: a reader's
-`write_to(w)` (`async_write_to` for (2)), as Go's `WriterTo` — an [io::buffer](buffer.md) hands over what it holds in
+`write_to(w)` (`async_write_to` for (2)), as Go's `WriterTo` — an [io::buffer](buffer/README.md) hands over what it holds in
 one write — or else a writer's `read_from(r)` (`async_read_from`), as Go's `ReaderFrom`: a
-[net::connection](../net/connection.md) given an `io::file` sends a regular file from its position to its end by
+[net::connection](../net/connection/README.md) given an `io::file` sends a regular file from its position to its end by
 `sendfile` over TCP, with no copy through the process (over TLS the file is read in blocks and sealed where they
 lie), and the file's position moves past the bytes sent; a pipe goes through the block as any reader does.
 
 `r` is any [reader](req/reader.md) and `w` any [writer](req/writer.md) (2: an async reader and an async writer):
 an `async_copy` of a stream that has only the blocking half does not compile. A class that carries
-[mixin::reader](mixin/reader.md) has the same as [r.copy_to(w)](mixin/reader/copy_to.md), one that carries
-[mixin::writer](mixin/writer.md) as [w.copy_from(r)](mixin/writer/copy_from.md).
+[mixin::reader](mixin/reader/README.md) has the same as [r.copy_to(w)](mixin/reader/copy_to.md), one that carries
+[mixin::writer](mixin/writer/README.md) as [w.copy_from(r)](mixin/writer/copy_from.md).
 
 ## Parameters
 
@@ -95,7 +95,7 @@ first
 
 - [mixin::reader::copy_to](mixin/reader/copy_to.md), [mixin::writer::copy_from](mixin/writer/copy_from.md): the same
   as a member of a stream
-- [limit_reader](limit_reader.md), [tee_reader](tee_reader.md), [multi_writer](multi_writer.md): streams over
+- [limit_reader](limit_reader/README.md), [tee_reader](tee_reader/README.md), [multi_writer](multi_writer/README.md): streams over
   other streams
 - [discard](README.md): the writer that keeps nothing, `io::copy(io::discard, r)`
 - [read_all](read_all.md): everything to the end, kept

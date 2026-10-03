@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::convert
 
@@ -83,4 +83,4 @@ a copy: true
 - [pixel_format](../pixel_format.md): the formats
 - [decode_options](../decode_options.md): the format a decoder makes
 - [clone](clone.md): a copy in the same format
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

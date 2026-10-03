@@ -62,7 +62,7 @@ in tools/run_blocks.pages, one line per page — its path from the root,
 then the options — so that the check of any page needs no arguments and
 no network, and the page itself carries nothing:
 
-  docs/sgcl/net/http/client.md --tmp --serve https://example.com/a.txt=LICENSE --echo https://httpbin.org/post
+  docs/sgcl/net/http/client/README.md --tmp --serve https://example.com/a.txt=LICENSE --echo https://httpbin.org/post
 
   tools/run_blocks.py docs/sgcl/slog/README.md ...  [--root DIR] [--tmp]
                       [--fill] [--serve URL=FILE ...] [--echo URL ...]
@@ -98,6 +98,12 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'run_blocks.pages')
+
+
+def page_name(path):
+    """The name of a page's programs: the file's, or for a class's page, vector/README.md, its directory's"""
+    name = os.path.basename(path)[:-3]
+    return os.path.basename(os.path.dirname(path)) if name == 'README' else name
 
 
 def page_options(root, path):
@@ -320,14 +326,14 @@ def main():
                     hm = head_answered.get(hp.start())
                     as_in_head.add((hp.group(1), hm.group(2) if hm else None, hm.group(3) if hm else None))
         for k, p in enumerate(PROGRAM.finditer(text)):
-            name = os.path.basename(path)[:-3] + '_%d' % k
+            name = page_name(path) + '_%d' % k
             if k in o['skip']:
                 print(name, 'skipped')
                 continue
             m = answered.get(p.start())
             if m is None and p.start() in labelled:
                 line = text.count('\n', 0, p.start()) + 1
-                print('%s:%d UNCHECKED: the answer of a program under "%s:", which the checker does not read (it reads "Output:" with a ```text block)' % (os.path.basename(path), line, labelled[p.start()].group(1)))
+                print('%s:%d UNCHECKED: the answer of a program under "%s:", which the checker does not read (it reads "Output:" with a ```text block)' % (os.path.relpath(path, root), line, labelled[p.start()].group(1)))
                 unchecked += 1
                 continue
             if m is None:

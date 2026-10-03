@@ -24,7 +24,7 @@ namespace sgcl::time {
 ```
 
 A month of the year, January 1 to December 12, as Go's `time.Month`: a name for the number, and `int(m)` the
-number itself. A [date](date.md) answers with one ([month](date/month.md)) and is made with either a number or a
+number itself. A [date](date/README.md) answers with one ([month](date/month.md)) and is made with either a number or a
 name, `date(2026, 9, 25)` or `date(2026, time::month::september, 25)`.
 
 Its text is the English name, as Go's `Month.String()` writes it: [to_string](to_string.md) and `operator<<` write

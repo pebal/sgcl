@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [message](../message.md)
+[sgcl](../../README.md) › [slog](../README.md) › [message](README.md)
 
 # sgcl::slog::message::message
 
@@ -22,7 +22,7 @@ Constructs a message that refers to `text`, at the place `where`. Not explicit: 
 
 1. A C string, to its first NUL; a null pointer is the empty text.
 2. A literal or a character array, to its first NUL and never past its end.
-3. A [string](../../core/string.md).
+3. A [string](../../core/string/README.md).
 4. A `std::string`.
 5. A text slice.
 
@@ -79,4 +79,4 @@ made apart 15
 ## See also
 
 - [text](text.md), [where](where.md)
-- [sgcl::slog::message](../message.md)
+- [sgcl::slog::message](README.md)

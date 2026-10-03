@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](../bounded_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](README.md)
 
 # sgcl::concurrent::bounded_queue\<T\>::full
 
@@ -61,4 +61,4 @@ true
 
 - [empty](empty.md): checks whether the queue holds an element
 - [try_push](try_push.md): appends an element, or returns `false` when the queue is full
-- [sgcl::concurrent::bounded_queue\<T\>](../bounded_queue.md)
+- [sgcl::concurrent::bounded_queue\<T\>](README.md)

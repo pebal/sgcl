@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::weak_multimap
 
@@ -79,4 +79,4 @@ false
 
 - [operator=](operator_assign.md): takes the entries of another map over
 - [emplace](emplace.md), [insert](insert.md): add an entry
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

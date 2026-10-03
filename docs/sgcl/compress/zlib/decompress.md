@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](README.md)
 
 # sgcl::compress::zlib::decompress
 
@@ -35,7 +35,7 @@ times over.
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): a header that is not zlib's (`errc::invalid_header`), the data as
+The decompressed bytes, or the [error](../error/README.md): a header that is not zlib's (`errc::invalid_header`), the data as
 for flate (`errc::corrupt`, `errc::unexpected_end`), an Adler-32 that does not match (`errc::checksum`), a dictionary
 missing or another (`errc::dictionary_required`), output past `max_size` (`errc::too_large`).
 
@@ -79,6 +79,6 @@ offset 12: unexpected end of data
 ## See also
 
 - [compress](compress.md): the other way
-- [zlib::reader](../zlib-reader.md): a stream
+- [zlib::reader](../zlib-reader/README.md): a stream
 - [limits](../limits.md)
-- [sgcl::compress::zlib](../zlib.md)
+- [sgcl::compress::zlib](README.md)

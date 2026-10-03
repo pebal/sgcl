@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::first
 
@@ -54,4 +54,4 @@ Output:
 
 - [last](last.md): the last `n` elements
 - [subslice](subslice.md): the elements `[pos, pos + n)`
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

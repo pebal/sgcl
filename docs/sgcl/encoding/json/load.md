@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::load, async_load
 
@@ -16,7 +16,7 @@ The value of a file in one call: [parse](parse.md) of the file, read as it comes
 3. (1) in a task, on the [blocking pool](../../async/spawn_blocking.md).
 4. (2) in a task, on the blocking pool.
 
-With other [options](../json-options.md), [parse](parse.md) of a file opened by [io::open](../../io/file.md).
+With other [options](../json-options.md), [parse](parse.md) of a file opened by [io::open](../../io/file/README.md).
 
 ## Parameters
 
@@ -26,8 +26,8 @@ With other [options](../json-options.md), [parse](parse.md) of a file opened by 
 
 ## Return value
 
-The value, or an [error](../error.md): a file that cannot be opened or read is `errc::io`, the
-[io error](../../io/error.md) inside saying why (`io_error()`), with no place in the text (its message is
+The value, or an [error](../error/README.md): a file that cannot be opened or read is `errc::io`, the
+[io error](../../io/error/README.md) inside saying why (`io_error()`), with no place in the text (its message is
 `input/output error: ` and the stream's message); a text that does not parse is `parse`'s error, with its line and
 its column.
 
@@ -86,4 +86,4 @@ input/output error: open missing.json: No such file or directory
 
 - [save](save.md): a value into a file
 - [parse](parse.md): the value of a text or a stream, with options
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

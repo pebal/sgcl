@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::max_load_factor
 
@@ -15,7 +15,7 @@ the table; 1.0 by default.
    `bucket_count() * z`. A `z` that is not positive, or not a number, is ignored.
 
 A factor so small that the elements need more buckets than the managed heap gives ends the program at the growth it
-refuses, as any refused managed allocation does ([collector](../collector.md#the-memory-limit)).
+refuses, as any refused managed allocation does ([collector](../collector/README.md#the-memory-limit)).
 
 ## Parameters
 
@@ -80,4 +80,4 @@ Output:
 
 - [load_factor](load_factor.md): the elements per bucket
 - [rehash](rehash.md): sets the number of buckets
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

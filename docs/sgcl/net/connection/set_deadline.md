@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::set_deadline
 
@@ -6,7 +6,7 @@
 void set_deadline(time_point t) const noexcept;
 ```
 
-Sets the deadline of both directions to `t`, an absolute time on the module's [clock](../../core/clock.md): Go's
+Sets the deadline of both directions to `t`, an absolute time on the module's [clock](../../core/clock/README.md): Go's
 `Conn.SetDeadline`. It is [set_read_deadline](set_read_deadline.md) and [set_write_deadline](set_write_deadline.md)
 together. A read or a write that starts after the deadline of its direction, or would wait past it, fails with
 `ETIMEDOUT` (`is_timeout()`) and takes nothing, even when data is there. `time_point()` removes the deadline.
@@ -37,7 +37,7 @@ None.
 
 `async::timeout(c.async_read(b), 5s)` is not the same as a deadline: the read that lost the race to the timer runs
 on, and takes the data when it comes. A deadline ends the read itself. The deadlines are on the module's clock, so a
-test moves them with a [manual_clock](../../async/manual_clock.md).
+test moves them with a [manual_clock](../../async/manual_clock/README.md).
 
 ## Example
 
@@ -76,4 +76,4 @@ true
 - [set_read_deadline](set_read_deadline.md), [set_write_deadline](set_write_deadline.md): one direction
 - [read_deadline](read_deadline.md), [write_deadline](write_deadline.md): the deadlines now
 - [close](close.md): an end to the waits now
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

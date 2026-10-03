@@ -16,8 +16,8 @@ it, the blocking pool under a file and the reactor under a pipe or a socket. The
 
 The idea the module rests on is that everything that waits is a channel under another name, and so is waited for
 the same three ways: a thread blocks, a task `co_await`s, a [select](select.md) takes it as a case. A
-[task](task.md) is a C++20 coroutine whose frame is on the managed heap; [spawn](spawn.md) puts it on the queue of
-the ready, a worker of the [scheduler](scheduler.md) runs it to its next `co_await`, and whatever it waited for
+[task](task/README.md) is a C++20 coroutine whose frame is on the managed heap; [spawn](spawn.md) puts it on the queue of
+the ready, a worker of the [scheduler](scheduler/README.md) runs it to its next `co_await`, and whatever it waited for
 makes it ready again. A task that waits is nowhere: a frame on the managed heap and a word on a list, no thread
 held, so a hundred thousand tasks waiting on a channel cost their frames and nothing else. This is the model of
 Go with the two differences of C++: tasks are stackless, only the body of a coroutine can suspend and not a
@@ -25,20 +25,20 @@ function it calls, and cooperative, a task that computes for a second holds its 
 
 Around the tasks stand the time ([sleep](sleep.md), [after](after.md), [tick](tick.md), [every](every.md),
 [timeout](timeout.md): one timer thread under them), the signals of the process as a channel
-([signals](signals.md)), cancellation ([stop_source](stop_source.md) and [stop_token](stop_token.md), a token being
+([signals](signals.md)), cancellation ([stop_source](stop_source/README.md) and [stop_token](stop_token/README.md), a token being
 a channel closed by the stop), the
-composition of tasks ([when_all](when_all.md), [when_any](when_any.md), [task_group](task_group.md),
-[with_timeout](with_timeout.md)), their synchronization with each other and with threads ([mutex](mutex.md) and
+composition of tasks ([when_all](when_all.md), [when_any](when_any.md), [task_group](task_group/README.md),
+[with_timeout](with_timeout.md)), their synchronization with each other and with threads ([mutex](mutex/README.md) and
 its family, none of which parks a worker), and the world outside them: a completion set by a callback
-([promise](promise.md)), a call that blocks run on threads apart from the workers
-([spawn_blocking](spawn_blocking.md)), a thread of the program's choosing ([executor](executor.md),
-[strand](strand.md)), a value a task passes to everything under it ([task_local](task_local.md)), and the
+([promise](promise/README.md)), a call that blocks run on threads apart from the workers
+([spawn_blocking](spawn_blocking.md)), a thread of the program's choosing ([executor](executor/README.md),
+[strand](strand/README.md)), a value a task passes to everything under it ([task_local](task_local/README.md)), and the
 readiness of a descriptor ([readable](readable.md), [writable](writable.md), one thread on the kernel's queue
 under them). A loop over a range is spread over the workers and the caller by [parallel_for](parallel_for.md),
 [parallel_for_each](parallel_for_each.md) and [parallel_reduce](parallel_reduce.md): no waiting operations but
 computations, they run the loop inside the call and return when it is done, on a thread and in a task alike, the
 caller computing as one of the lanes. The module reads the time in one place, the core's
-[clock::now()](../core/clock.md), so a test owns it with a [manual_clock](manual_clock.md) and a thirty-second
+[clock::now()](../core/clock/README.md), so a test owns it with a [manual_clock](manual_clock/README.md) and a thirty-second
 timeout takes microseconds.
 
 ## The rules
@@ -47,21 +47,21 @@ timeout takes microseconds.
    every other task. A call that has to block goes through [spawn_blocking](spawn_blocking.md).
 2. The handles of the module (below) are tracked words and live where a `tracked_ptr` may; a task takes them by
    value. A `task` and a `generator` live anywhere.
-3. Cancellation is only ever through a [stop_token](stop_token.md), which the task looks at itself: a started task
-   whose object is dropped runs to its end ([task](task.md)).
+3. Cancellation is only ever through a [stop_token](stop_token/README.md), which the task looks at itself: a started task
+   whose object is dropped runs to its end ([task](task/README.md)).
 4. What a task nobody waits for throws goes to the handler of [on_unhandled](on_unhandled.md), which by default
    prints it and ends the program, as a goroutine's panic ends a Go program.
 5. What may wake a task (a send, a close, a set, a release, an unlock, a notify, a spawn) may start the
    scheduler's workers, and so stays potentially throwing: a thread that cannot be started is
    `std::system_error`. The operation is done all the same, and the task it woke or started is queued before the
    start, so it runs when the workers next start; a start that fails part-way leaves no worker running. A
-   destructor that wakes (a guard's, a [task_group](task_group.md)'s) and the end of a task throw nothing and lose
-   no task the same way. Out of memory is never thrown ([collector](../core/collector.md#the-memory-limit)).
+   destructor that wakes (a guard's, a [task_group](task_group/README.md)'s) and the end of a task throw nothing and lose
+   no task the same way. Out of memory is never thrown ([collector](../core/collector/README.md#the-memory-limit)).
 
 ### Waiting operations
 
 Every operation of the module that may wait (a channel's `send` and `receive`, a semaphore's `acquire`, a condition
-variable's `wait(guard)`, a mutex's `scoped_lock`) has one name and returns an [operation](operation.md): a
+variable's `wait(guard)`, a mutex's `scoped_lock`) has one name and returns an [operation](operation/README.md): a
 description of the operation, marked nodiscard, which does nothing until it is carried out in one of two ways. In
 a task, `co_await` carries it out and gives the worker back while it waits; on a thread that is no coroutine
 (`main`, a `thread`), `.wait()` carries it out and blocks the thread, going straight to the operation's own
@@ -82,23 +82,23 @@ for a task to `co_await`.
 
 ### Handles
 
-A [channel](channel.md), an [event](event.md), a [mutex](mutex.md), a [wait_group](wait_group.md) and a
-[promise](promise.md) are handles: one word, a tracked word to a state on the managed heap, made by the
+A [channel](channel/README.md), an [event](event/README.md), a [mutex](mutex/README.md), a [wait_group](wait_group/README.md) and a
+[promise](promise/README.md) are handles: one word, a tracked word to a state on the managed heap, made by the
 constructor and shared by the copies, `==` when they are the same. A task takes them by value, and its copy keeps
 the state for as long as it runs, so a function may start a task with its channels and return; a reference
 parameter would leave the task a reference into a frame that is gone. What the reactor and the timers give is one
 of them too: [readable](readable.md), [after](after.md) and [at](at.md) an event, [tick](tick.md) and
 [signals](signals.md) a channel, and [stop_token::channel](stop_token/channel.md) a
-[receive_channel](receive_channel.md), a channel's receiving end alone. A move of a handle copies its word: the
-handle moved from stands for the same object still. A [stop_token](stop_token.md) and a
-[stop_source](stop_source.md) are tracked words too, under the same rule of where they live; a default-constructed
+[receive_channel](receive_channel/README.md), a channel's receiving end alone. A move of a handle copies its word: the
+handle moved from stands for the same object still. A [stop_token](stop_token/README.md) and a
+[stop_source](stop_source/README.md) are tracked words too, under the same rule of where they live; a default-constructed
 `stop_token` is empty.
 
 A handle is a tracked word: it lives on a stack, in a task, in a managed object; in a global or a `std` container
-it is held by a [rooted](../core/rooted.md), the same object reached with `->`. A root is never in a managed
+it is held by a [rooted](../core/rooted/README.md), the same object reached with `->`. A root is never in a managed
 object or a task's frame, since a root is never part of a cycle. The objects of a scope stay objects:
-[task_group](task_group.md) (its end stops its children), [semaphore](semaphore.md), [once](once.md),
-[shared_mutex](shared_mutex.md), [condition_variable](condition_variable.md), [broadcast](broadcast.md), and the
+[task_group](task_group/README.md) (its end stops its children), [semaphore](semaphore/README.md), [once](once/README.md),
+[shared_mutex](shared_mutex/README.md), [condition_variable](condition_variable/README.md), [broadcast](broadcast/README.md), and the
 guards of the mutexes.
 
 ### Threads
@@ -131,10 +131,10 @@ The frame of a C++20 coroutine is allocated with `operator new`: memory the coll
 `tracked_ptr` breaks rule 1 of the core ([The rules](../core/README.md#the-rules)). A promise type that derives
 from the core's [managed_frame](../core/managed_frame.md) gets its frames from the managed heap instead, traced
 conservatively, so whatever the coroutine holds is a root while its frame is held; the frame is held through a
-[frame_ptr](../core/frame_ptr.md), which the promise's `get_return_object` makes from the handle. The core's
-[generator](../core/generator.md) runs where it is called; this module's [task](task.md) runs on the scheduler,
+[frame_ptr](../core/frame_ptr/README.md), which the promise's `get_return_object` makes from the handle. The core's
+[generator](../core/generator/README.md) runs where it is called; this module's [task](task/README.md) runs on the scheduler,
 and keeps its executor, its task-locals and the link of an executor's queue in the four words the core leaves in
-front of every managed frame; its [generator](generator.md) may wait between the values it yields.
+front of every managed frame; its [generator](generator/README.md) may wait between the values it yields.
 
 - A `task` or a `generator` (a `frame_ptr`) lives anywhere, a `std::vector<async::task<>>` included, at the cost
   of a cell per handle. The coroutine is destroyed when its `frame_ptr` is, which runs the destructors of its
@@ -164,11 +164,11 @@ front of every managed frame; its [generator](generator.md) may wait between the
 
 ### Time
 
-The module reads the time through the core's [clock::now()](../core/clock.md), which a test owns with a
-[manual_clock](manual_clock.md): installed, it serves every timer of the module, the deadline of
+The module reads the time through the core's [clock::now()](../core/clock/README.md), which a test owns with a
+[manual_clock](manual_clock/README.md): installed, it serves every timer of the module, the deadline of
 [with_timeout](with_timeout.md) and a thread's `sleep(d).wait()` included, but not `this_thread::sleep_for`, which
 is the operating system's. The timers ([sleep](sleep.md), [sleep_until](sleep_until.md), [after](after.md),
-[at](at.md), [tick](tick.md), [timeout](timeout.md), a [stop_source](stop_source.md)'s deadline) are served by one
+[at](at.md), [tick](tick.md), [timeout](timeout.md), a [stop_source](stop_source/README.md)'s deadline) are served by one
 thread, started with the first timer and stopped with the scheduler; a timer fires at its time or a little after,
 never before, and holds the frame it will resume or the channel it will signal ([sleep](sleep.md#notes)).
 
@@ -213,40 +213,40 @@ never before, and holds the frame it will resume or the channel it will signal (
 
 | Class | Header | Description |
 |---|---|---|
-| [blocking_pool](blocking_pool.md) | `blocking.h` | the pool of threads apart from the workers: its statistics, its size and its stop |
-| [blocking_task\<T\>](blocking_task.md) | `blocking.h` | a job of the blocking pool, waited for as a task is |
-| [broadcast\<T\>](broadcast.md) | `broadcast.h` | a channel every subscription receives every value from |
-| [channel\<T\>](channel.md) | `channel.h` | the channel of Go: buffered or rendezvous, closed to end the stream |
-| [condition_variable](condition_variable.md) | `condition_variable.h` | Go's `sync.Cond` over the module's mutex |
-| [event](event.md) | `event.h` | set once, waited for by any number |
-| [executor](executor.md) | `executor.h` | a queue of tasks one thread of the program's choosing runs |
-| [generator\<T\>](generator.md) | `generator.h` | a generator that may wait between the values it yields |
-| [manual_clock](manual_clock.md) | `timer.h` | the clock of a test: the time moves only by `advance` |
-| [mutex](mutex.md) | `mutex.h` | one holder at a time; a task waiting holds no thread |
-| [once](once.md) | `once.h` | the first caller runs it, the others wait for it |
-| [operation\<F\>](operation.md) | `operation.h` | a waiting operation, carried out by `co_await` or `wait()` |
+| [blocking_pool](blocking_pool/README.md) | `blocking.h` | the pool of threads apart from the workers: its statistics, its size and its stop |
+| [blocking_task\<T\>](blocking_task/README.md) | `blocking.h` | a job of the blocking pool, waited for as a task is |
+| [broadcast\<T\>](broadcast/README.md) | `broadcast.h` | a channel every subscription receives every value from |
+| [channel\<T\>](channel/README.md) | `channel.h` | the channel of Go: buffered or rendezvous, closed to end the stream |
+| [condition_variable](condition_variable/README.md) | `condition_variable.h` | Go's `sync.Cond` over the module's mutex |
+| [event](event/README.md) | `event.h` | set once, waited for by any number |
+| [executor](executor/README.md) | `executor.h` | a queue of tasks one thread of the program's choosing runs |
+| [generator\<T\>](generator/README.md) | `generator.h` | a generator that may wait between the values it yields |
+| [manual_clock](manual_clock/README.md) | `timer.h` | the clock of a test: the time moves only by `advance` |
+| [mutex](mutex/README.md) | `mutex.h` | one holder at a time; a task waiting holds no thread |
+| [once](once/README.md) | `once.h` | the first caller runs it, the others wait for it |
+| [operation\<F\>](operation/README.md) | `operation.h` | a waiting operation, carried out by `co_await` or `wait()` |
 | [parallel_options](parallel_options.md) | `parallel.h` | how a parallel loop is spread: its lanes and its grain |
-| [promise\<T\>](promise.md) | `promise.h` | a completion set once by any thread or callback, awaited by a task |
-| [receive_channel\<T\>](receive_channel.md) | `channel.h` | a channel seen from its receiving end: receives, no send, no close |
-| [scheduler](scheduler.md) | `scheduler.h` | the pool of workers that runs the tasks: its size, its statistics, its stop |
-| [semaphore](semaphore.md) | `semaphore.h` | a number of permits |
-| [shared_mutex](shared_mutex.md) | `shared_mutex.h` | any number of readers or one writer |
-| [stop_source](stop_source.md) | `stop_token.h` | requests the stop: at once, after a while, at a point, with a parent |
-| [stop_token](stop_token.md) | `stop_token.h` | the stop seen by a task: a channel closed by the stop |
-| [stopped](stopped.md) | `timeout.h` | the error of a task stopped through its token before it ended |
-| [strand](strand.md) | `executor.h` | tasks on the workers one at a time, in order |
-| [task\<T\>](task.md) | `coroutine.h` | a coroutine run on the scheduler, waited for by a task or a thread |
-| [task_group](task_group.md) | `task_group.h` | a scope that owns the tasks it spawns, waited for and stopped as one |
-| [task_local\<T\>](task_local.md) | `task_local.h` | a value a task sets and every function and task under it reads |
-| [timed_out](timed_out.md) | `timeout.h` | the error of a task that did not end in time |
-| [wait_group](wait_group.md) | `wait_group.h` | counts work down to zero, Go's `WaitGroup` |
+| [promise\<T\>](promise/README.md) | `promise.h` | a completion set once by any thread or callback, awaited by a task |
+| [receive_channel\<T\>](receive_channel/README.md) | `channel.h` | a channel seen from its receiving end: receives, no send, no close |
+| [scheduler](scheduler/README.md) | `scheduler.h` | the pool of workers that runs the tasks: its size, its statistics, its stop |
+| [semaphore](semaphore/README.md) | `semaphore.h` | a number of permits |
+| [shared_mutex](shared_mutex/README.md) | `shared_mutex.h` | any number of readers or one writer |
+| [stop_source](stop_source/README.md) | `stop_token.h` | requests the stop: at once, after a while, at a point, with a parent |
+| [stop_token](stop_token/README.md) | `stop_token.h` | the stop seen by a task: a channel closed by the stop |
+| [stopped](stopped/README.md) | `timeout.h` | the error of a task stopped through its token before it ended |
+| [strand](strand/README.md) | `executor.h` | tasks on the workers one at a time, in order |
+| [task\<T\>](task/README.md) | `coroutine.h` | a coroutine run on the scheduler, waited for by a task or a thread |
+| [task_group](task_group/README.md) | `task_group.h` | a scope that owns the tasks it spawns, waited for and stopped as one |
+| [task_local\<T\>](task_local/README.md) | `task_local.h` | a value a task sets and every function and task under it reads |
+| [timed_out](timed_out/README.md) | `timeout.h` | the error of a task that did not end in time |
+| [wait_group](wait_group/README.md) | `wait_group.h` | counts work down to zero, Go's `WaitGroup` |
 
 ## See also
 
 - [Benchmarks](benchmarks.md): a hop, a wait and a race on the scheduler against Go and Java
-- [managed_frame](../core/managed_frame.md), [frame_ptr](../core/frame_ptr.md), [generator](../core/generator.md):
+- [managed_frame](../core/managed_frame.md), [frame_ptr](../core/frame_ptr/README.md), [generator](../core/generator/README.md):
   the coroutine frames of the core
-- [clock](../core/clock.md): the time the module reads
+- [clock](../core/clock/README.md): the time the module reads
 - [concurrent](../concurrent/README.md): the structures under the channel
 - [io](../io/README.md), [net](../net/README.md): the modules built on this one
 - [The modules](../README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::find
 
@@ -12,8 +12,8 @@ was given, not of the mapped copy — and answers as the searcher's own [find](.
 the occurrence begins and the bytes of the text it covers. Only the search is paid: the text was mapped when the
 object was built.
 
-1. A pattern mapped once, a [fold_searcher](../fold_searcher.md) for a `folded_text` and a
-   [normalized_searcher](../fold_searcher.md) for a `normalized_text`.
+1. A pattern mapped once, a [fold_searcher](../fold_searcher/README.md) for a `folded_text` and a
+   [normalized_searcher](../fold_searcher/README.md) for a `normalized_text`.
 2. A pattern as text, mapped on the call.
 
 A match takes whole characters and whole combining sequences, as [find_fold](../find_fold.md) says. An empty
@@ -73,4 +73,4 @@ Output:
 - [contains](contains.md): whether there is an occurrence
 - [occurrence](../occurrence.md): what it answers
 - [count](count.md): the number of occurrences
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::save, async_save
 
@@ -18,7 +18,7 @@ It is [codec::save](../save.md) of this image.
 
 1. Writes with the default [save_options](../save_options.md).
 2. Writes with the options `o`: each field is for the formats it names, the others leave it alone.
-3. (1) as a [task](../../async/task.md), run on the blocking pool ([spawn_blocking](../../async/spawn_blocking.md)).
+3. (1) as a [task](../../async/task/README.md), run on the blocking pool ([spawn_blocking](../../async/spawn_blocking.md)).
 4. (2) as a task, run on the blocking pool.
 
 - (3–4) The task holds a copy of the image's handle, of the path and of the options, so the arguments may be gone
@@ -33,7 +33,7 @@ It is [codec::save](../save.md) of this image.
 
 ## Return value
 
-- (1–2) An empty `expected` when the file is written, or the [error](../error.md):
+- (1–2) An empty `expected` when the file is written, or the [error](../error/README.md):
   [errc](../errc.md)`::unsupported` for an extension the module does not write, or none, and for HEIC on a system
   without the encoder; `errc::io`, with the [io_error](../error/io_error.md) inside, when the file cannot be
   created, written or renamed; `errc::invalid_argument` for a HEIC quality outside 1 to 100 and for an image the
@@ -94,4 +94,4 @@ offset 0: codec: .gif is read, not written (no encoder)
 - [codec::save](../save.md), [codec::load](../load.md): images on files
 - [png::encode](../png/encode.md), [jpeg::encode](../jpeg/encode.md), [heif::encode](../heif/encode.md): the
   encoders
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

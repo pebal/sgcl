@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::operator std::chrono::year_month_day, operator std::chrono::sys_days
 
@@ -60,4 +60,4 @@ true
 ## See also
 
 - [(constructor)](date.md): a date from the calendar of `<chrono>`
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

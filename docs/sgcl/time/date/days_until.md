@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::days_until
 
@@ -53,4 +53,4 @@ Output:
 
 - [add_days](add_days.md): the step the other way
 - [operator-](operator_arith.md): the same in an operator
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

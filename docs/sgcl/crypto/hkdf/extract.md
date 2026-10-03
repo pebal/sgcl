@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](../hkdf.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](README.md)
 
 # sgcl::crypto::hkdf\<H\>::extract
 
@@ -20,7 +20,7 @@ the call returns.
 
 ## Return value
 
-The PRK, an [hkdf\<H\>::prk](../hkdf-prk.md) that zeroes itself when it dies.
+The PRK, an [hkdf\<H\>::prk](../hkdf-prk/README.md) that zeroes itself when it dies.
 
 ## Complexity
 
@@ -60,4 +60,4 @@ Output:
 
 - [expand](expand.md): the second step
 - [derive](derive.md): both steps in one
-- [sgcl::crypto::hkdf\<H\>](../hkdf.md)
+- [sgcl::crypto::hkdf\<H\>](README.md)

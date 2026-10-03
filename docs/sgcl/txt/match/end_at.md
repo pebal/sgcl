@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [match](../match.md)
+[sgcl](../../README.md) › [txt](../README.md) › [match](README.md)
 
 # sgcl::txt::match::end_at
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [begin_at](begin_at.md): the position of the start
-- [sgcl::txt::match](../match.md)
+- [sgcl::txt::match](README.md)

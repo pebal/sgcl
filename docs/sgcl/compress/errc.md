@@ -24,7 +24,7 @@ namespace sgcl::compress {
 ```
 
 What went wrong in compressed data or in an archive: one list for every format of the module, as encoding has one
-for its formats; a format uses the codes that mean something for it. The code of an [error](error.md) is one of
+for its formats; a format uses the codes that mean something for it. The code of an [error](error/README.md) is one of
 these ([code](error/code.md)). The values start at 1, since an `error_code` of 0 is success: `errc` is an error
 code enumeration (`std::is_error_code_enum`), so a value converts to an `error_code` of the
 [compress category](compress_category.md) ([make_error_code](make_error_code.md)), and that is what an `io::error`
@@ -43,7 +43,7 @@ carries when a reader of the module, read as an [io stream](../io/README.md), fa
 | `io` | the source or the sink failed: the error's [io_error](error/io_error.md) says how |
 | `password_required` | a 7z entry or header encrypted (7zAES), read without a password |
 | `wrong_password` | 7z data encrypted under another password — or damaged, which decrypts alike |
-| `insecure_path` | an entry extracted whose name, or a link's target, would leave the directory, as Go's `ErrInsecurePath`: compress's code of `io::errc::insecure_path`, by the rule of [io::path::is_local](../io/path.md) |
+| `insecure_path` | an entry extracted whose name, or a link's target, would leave the directory, as Go's `ErrInsecurePath`: compress's code of `io::errc::insecure_path`, by the rule of [io::path::is_local](../io/path/README.md) |
 
 ## Example
 
@@ -74,6 +74,6 @@ true
 
 ## See also
 
-- [error](error.md): the code, the offset and the message
+- [error](error/README.md): the code, the offset and the message
 - [make_error_code](make_error_code.md), [compress_category](compress_category.md): the code as an `error_code`
 - [sgcl::compress](README.md)

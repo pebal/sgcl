@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::object
 
@@ -69,4 +69,4 @@ true true
 
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons by the characters
 - [hash](hash.md): the hash of the characters, kept in the object
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

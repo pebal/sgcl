@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](README.md)
 
 # sgcl::txt::word_breaks::word_breaks
 
@@ -14,7 +14,7 @@ explicit word_breaks(P text);                                      // (5)
 ```
 
 Constructs the range of the text cut at every word boundary. `txt::word_breaks(s)` looks like a call and is a
-construction, as [runes](../../core/runes.md) is. Nothing is found until the walk.
+construction, as [runes](../../core/runes/README.md) is. Nothing is found until the walk.
 
 1. An empty range, over no text.
 2. The segments of a slice of UTF-8 bytes, a piece of a buffer as much as a piece of a string; the range keeps the
@@ -70,4 +70,4 @@ true
 ## See also
 
 - [text](text.md): the slice the range walks
-- [sgcl::txt::word_breaks](../word_breaks.md)
+- [sgcl::txt::word_breaks](README.md)

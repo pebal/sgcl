@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md) › [encoder](../ascii85-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85/README.md) › [encoder](README.md)
 
 # sgcl::encoding::ascii85::encoder::write, async_write
 
@@ -18,7 +18,7 @@ write the text of `"hello, world"`.
 
 A failure of the writer under it is kept for good: this write and every later `write` and `close` report it. A
 write after `close()` is `io::errc::closed`. The text and the byte of the writers of the library,
-`a85.write("text")`, are [io::mixin::writer](../../io/mixin/writer.md)'s, through this one.
+`a85.write("text")`, are [io::mixin::writer](../../io/mixin/writer/README.md)'s, through this one.
 
 ## Parameters
 
@@ -71,4 +71,4 @@ write ascii85: stream closed
 
 - [close, async_close](close.md): the last group
 - [encode](../ascii85/encode.md): the text at once
-- [sgcl::encoding::ascii85::encoder](../ascii85-encoder.md)
+- [sgcl::encoding::ascii85::encoder](README.md)

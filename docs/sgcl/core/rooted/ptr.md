@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [rooted](../rooted.md)
+[sgcl](../../README.md) › [core](../README.md) › [rooted](README.md)
 
 # sgcl::rooted\<T\>::ptr
 
@@ -61,5 +61,5 @@ job 1
 ## See also
 
 - [get](get.md): the address of the value
-- [root_ptr](../root_ptr.md): the root under it
-- [sgcl::rooted\<T\>](../rooted.md)
+- [root_ptr](../root_ptr/README.md): the root under it
+- [sgcl::rooted\<T\>](README.md)

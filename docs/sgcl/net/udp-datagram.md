@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [net](README.md) › [udp](udp.md) › datagram
+[sgcl](../README.md) › [net](README.md) › [udp](udp/README.md) › datagram
 
 # sgcl::net::udp::datagram
 
@@ -26,7 +26,7 @@ datagram cut only through the flags of `ReadMsgUDP`; here it is a field. A plain
 | Member | Description |
 |---|---|
 | `size` | the bytes of the datagram in the buffer, at most its size; `0` by default |
-| `from` | the sender, an [endpoint](endpoint.md); an IPv4 peer of a socket of both families is reported as IPv4 |
+| `from` | the sender, an [endpoint](endpoint/README.md); an IPv4 peer of a socket of both families is reported as IPv4 |
 | `truncated` | the datagram was longer than the buffer, and the rest of it is lost (`MSG_TRUNC`); `false` by default |
 
 ## Example
@@ -62,5 +62,5 @@ Output:
 
 ## See also
 
-- [udp::socket](udp-socket.md): what receives it
+- [udp::socket](udp-socket/README.md): what receives it
 - [receive_from, async_receive_from](udp-socket/receive_from.md): what gives it

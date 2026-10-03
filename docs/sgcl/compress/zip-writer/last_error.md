@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](../zip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](README.md)
 
 # sgcl::compress::zip::writer::last_error
 
@@ -55,4 +55,4 @@ false
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::zip::writer](../zip-writer.md)
+- [sgcl::compress::zip::writer](README.md)

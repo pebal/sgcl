@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [logger](../logger.md)
+[sgcl](../../README.md) › [slog](../README.md) › [logger](README.md)
 
 # sgcl::slog::logger::flush
 
@@ -61,4 +61,4 @@ time=2026-09-28T14:05:01.123+02:00 level=INFO msg=two
 
 - [dropped](dropped.md)
 - [options](../options.md): `buffered`
-- [sgcl::slog::logger](../logger.md)
+- [sgcl::slog::logger](README.md)

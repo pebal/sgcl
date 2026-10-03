@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [handle](../atomic_ref-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [handle](README.md)
 
 # sgcl::atomic_ref\<H\>::notify_all
 
@@ -68,4 +68,4 @@ Output:
 
 - [notify_one](notify_one.md): wakes one waiting thread
 - [wait](wait.md): blocks while the handle holds the object given
-- [sgcl::atomic_ref\<H\>](../atomic_ref-handle.md)
+- [sgcl::atomic_ref\<H\>](README.md)

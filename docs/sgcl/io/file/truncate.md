@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::truncate, async_truncate
 
@@ -21,7 +21,7 @@ past it; a shorter one grows by zeros. The position does not move, and may be le
 
 ## Return value
 
-Nothing, or the [error](../error.md), its operation `truncate` and its path the file's: `errc::closed` for a closed
+Nothing, or the [error](../error/README.md), its operation `truncate` and its path the file's: `errc::closed` for a closed
 file, otherwise the `errno` of `ftruncate(2)` (`EINVAL`, or `EBADF` on some systems, for a file not opened for
 writing; `EINVAL` for a pipe).
 
@@ -70,4 +70,4 @@ false
 
 - [stat](stat.md): the size of the file
 - [map](../map.md): a file mapped into memory
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

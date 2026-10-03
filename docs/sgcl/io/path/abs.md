@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::abs
 
@@ -18,7 +18,7 @@ Returns the absolute form of the path, Go's `filepath.Abs`: a relative path join
 
 ## Return value
 
-The absolute path, cleaned, or the [error](../error.md) of `getcwd` (the operation `getcwd`): the working directory
+The absolute path, cleaned, or the [error](../error/README.md) of `getcwd` (the operation `getcwd`): the working directory
 removed, or one longer than 4095 bytes.
 
 ## Complexity
@@ -55,4 +55,4 @@ true true
 
 - [rel](rel.md): the path from one path to another
 - [working_dir](../working_dir.md): the directory a relative path starts from
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

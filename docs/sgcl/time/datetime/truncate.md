@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::truncate
 
@@ -60,4 +60,4 @@ Output:
 - [round](round.md): to the nearest step
 - [start_of_day](start_of_day.md): the first instant of the zone's day
 - [duration::truncate](../../core/duration/truncate.md): a duration toward zero
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::skip, async_skip
 
@@ -71,4 +71,4 @@ true false false
 
 - [read](read.md): the next value whole
 - [more](more.md): whether another element follows
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [sgcl::encoding::json::reader](README.md)

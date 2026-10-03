@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::is_number
 
@@ -61,4 +61,4 @@ missing false
 - [type](type.md): the kind of the value
 - [is_integer](is_integer.md): a number that is an integer
 - [as_double](as_double.md): the number
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](../sevenzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](README.md)
 
 # sgcl::compress::sevenzip::writer::add_file
 
@@ -30,7 +30,7 @@ it comes and never held whole. A symbolic link is followed: the entry holds the 
 
 ## Return value
 
-Nothing, or the [error](../error.md): `errc::io` with the file's error in `io_error()` when the path does not open
+Nothing, or the [error](../error/README.md): `errc::io` with the file's error in `io_error()` when the path does not open
 (`is_not_found()`), `errc::invalid_argument` for a path that is not a regular file or a name that ends in `/`; or the
 writer's error, kept as its first ([last_error](last_error.md)): a name the archive cannot hold, a failure of the
 output or of the file's read, an entry after the close, the error kept from before.
@@ -84,4 +84,4 @@ docs/notes.txt: 5 bytes
 - [add](add.md): an entry of bytes in memory
 - [create](create.md): an entry written as a stream
 - [sevenzip::create](../sevenzip-create.md): a whole directory
-- [sgcl::compress::sevenzip::writer](../sevenzip-writer.md)
+- [sgcl::compress::sevenzip::writer](README.md)

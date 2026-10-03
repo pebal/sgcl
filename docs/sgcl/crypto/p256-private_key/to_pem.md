@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::to_pem
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The text, in a [secret_bytes](../secret_bytes.md): it holds the secret scalar, so it is zeroed when it goes and never
+The text, in a [secret_bytes](../secret_bytes/README.md): it holds the secret scalar, so it is zeroed when it goes and never
 lies in managed memory. It is written to a file as bytes, without passing through a `string`.
 
 ## Complexity
@@ -58,4 +58,4 @@ Z7HWk05Qw9s26JsSe4piKxIPZyGhRANCAARg/tS6JVqdMclh63TGNW1owEm4kjth
 
 - [from_pem](from_pem.md): the key of PEM text
 - [to_pkcs8_der](to_pkcs8_der.md): the DER inside
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

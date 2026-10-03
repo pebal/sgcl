@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [wait_group](../wait_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [wait_group](README.md)
 
 # sgcl::async::wait_group::count
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [add](add.md), [done](done.md): change the count
-- [sgcl::async::wait_group](../wait_group.md)
+- [sgcl::async::wait_group](README.md)

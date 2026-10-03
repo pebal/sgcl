@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::operator==, operator!= (sgcl::net::connection)
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [(constructor)](connection.md): a copy that is the same connection
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

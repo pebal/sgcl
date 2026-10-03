@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::join
 
@@ -16,10 +16,10 @@ Joins the elements with the separator and [cleans](clean.md) the result, Go's `f
 skipped, and when every element is empty the result is empty (not `.`). An element may hold separators of its own:
 `join("a", "b/../c")` is `a/c`.
 
-1. The elements of a range of strings: a [vector](../../core/vector.md)`<string>`, a `std::vector<string>`, a list.
+1. The elements of a range of strings: a [vector](../../core/vector/README.md)`<string>`, a `std::vector<string>`, a list.
    `noexcept` when the range is contiguous and its elements are `string`s.
 2. The elements of a braced list.
-3. The elements as arguments, each after the first anything a [string](../../core/string.md) is made from: a
+3. The elements as arguments, each after the first anything a [string](../../core/string/README.md) is made from: a
    string, a literal, a `std::string_view`. `noexcept` when every argument after the first is text that makes a
    string without a throw: a string, a literal or another character array, a `std::string_view`, a C string.
 
@@ -76,4 +76,4 @@ x/y/z
 
 - [split](split.md), [dir](dir.md), [base](base.md): a path taken apart
 - [under](under.md): a name from outside joined to a directory only when it stays inside
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

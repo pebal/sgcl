@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::pixels
 
@@ -13,7 +13,7 @@ Every row of the image, from the top, [stride](stride.md) bytes each with no gap
 1. The pixels to read and write.
 2. The pixels to read.
 
-The [slice](../../core/slice.md) holds the block of the pixels: it keeps them alive after the image and every copy
+The [slice](../../core/slice/README.md) holds the block of the pixels: it keeps them alive after the image and every copy
 of it are gone, as a Go slice keeps its array. A write through it is seen through every copy of the image, since
 copies share the pixels.
 
@@ -71,4 +71,4 @@ Output:
 
 - [row](row.md): one row
 - [stride](stride.md): the bytes of a row
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](../p256-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](README.md)
 
 # sgcl::crypto::p256::public_key::verify_digest_raw
 
@@ -78,4 +78,4 @@ false
 - [verify_digest](verify_digest.md): a signature in DER
 - [p256::private_key::sign_digest_raw](../p256-private_key/sign_digest_raw.md): the signature it checks
 - [ECDSA](../ecdsa.md): the digest, the encodings
-- [sgcl::crypto::p256::public_key](../p256-public_key.md)
+- [sgcl::crypto::p256::public_key](README.md)

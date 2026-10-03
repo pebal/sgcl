@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::equal_range
 
@@ -16,7 +16,7 @@ Returns the run of the elements equivalent to `key`, in the order of their inser
 and [upper_bound](upper_bound.md) of the key, found in one descent that splits where the key is found.
 
 - (3–4) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Take part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -70,4 +70,4 @@ true true
 
 - [lower_bound](lower_bound.md), [upper_bound](upper_bound.md): the two ends of the range
 - [count](count.md): the length of the range
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

@@ -19,8 +19,8 @@ namespace sgcl::time {
 ```
 
 A day of the week, numbered as ISO 8601 numbers it: Monday 1 to Sunday 7, not C's and Go's Sunday 0 (it is
-`std::chrono::weekday`'s `iso_encoding()`, not its `c_encoding()`). `int(d)` is the number. A [date](date.md) and a
-[datetime](datetime.md) answer with one ([weekday](date/weekday.md)).
+`std::chrono::weekday`'s `iso_encoding()`, not its `c_encoding()`). `int(d)` is the number. A [date](date/README.md) and a
+[datetime](datetime/README.md) answer with one ([weekday](date/weekday.md)).
 
 Its text is the English name, as Go's `Weekday.String()` writes it: [to_string](to_string.md) and `operator<<`
 write `"Monday"`. In [txt::format](README.md#formatting-with-txt) `{}` writes the name too, and a pattern takes `%a`
@@ -65,6 +65,6 @@ Sunday 7 true
 
 - [to_string, operator\<\<](to_string.md): the name
 - [date::weekday](date/weekday.md): the day of the week of a date
-- [iso_week](iso_week.md): the week of ISO 8601
+- [iso_week](iso_week/README.md): the week of ISO 8601
 - [month](month.md): the month
 - [time](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md) › [writer](../flate-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate/README.md) › [writer](README.md)
 
 # sgcl::compress::flate::writer::close, async_close
 
@@ -67,4 +67,4 @@ write flate: stream closed
 
 - [flush](flush.md): everything so far decodable, the stream going on
 - [last_error](last_error.md): the error the close gives
-- [sgcl::compress::flate::writer](../flate-writer.md)
+- [sgcl::compress::flate::writer](README.md)

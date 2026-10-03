@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::insert
 
@@ -127,4 +127,4 @@ review 6 true
 - [emplace](emplace.md): constructs the element in place
 - [extract](extract.md): takes a node out of a multiset
 - [merge](merge.md): relinks the nodes of another multiset
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

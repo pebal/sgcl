@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [manual_clock](../manual_clock.md)
+[sgcl](../../README.md) › [async](../README.md) › [manual_clock](README.md)
 
 # sgcl::async::manual_clock::now
 
@@ -55,5 +55,5 @@ true
 ## See also
 
 - [advance](advance.md), [advance_to](advance_to.md): the time moved
-- [clock](../../core/clock.md): `sgcl::clock::now()`, which returns it while the clock is installed
-- [sgcl::async::manual_clock](../manual_clock.md)
+- [clock](../../core/clock/README.md): `sgcl::clock::now()`, which returns it while the clock is installed
+- [sgcl::async::manual_clock](README.md)

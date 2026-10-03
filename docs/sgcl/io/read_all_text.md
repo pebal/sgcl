@@ -14,7 +14,7 @@ namespace sgcl::io {
 }
 ```
 
-Reads the stream `r` to its end and returns its bytes as a [string](../core/string.md), taken as they are: the text
+Reads the stream `r` to its end and returns its bytes as a [string](../core/string/README.md), taken as they are: the text
 is UTF-8 by convention and nothing is checked or converted.
 
 1. Reads on the calling thread, with the stream's `read`. The bytes are gathered in unmanaged memory, as
@@ -25,7 +25,7 @@ is UTF-8 by convention and nothing is checked or converted.
    is the caller's to keep alive until the task is done.
 
 `r` is any [reader](req/reader.md) (2: async reader). A class that carries
-[mixin::reader](mixin/reader.md) has the same as a member, [r.read_all_text()](mixin/reader/read_all_text.md).
+[mixin::reader](mixin/reader/README.md) has the same as a member, [r.read_all_text()](mixin/reader/read_all_text.md).
 
 ## Parameters
 
@@ -81,4 +81,4 @@ from a task
 - [read_all](read_all.md): the same as bytes
 - [mixin::reader::read_all_text](mixin/reader/read_all_text.md): the same as a member of a stream
 - [read_text](read_text.md): a whole file by its path
-- [string](../core/string.md)
+- [string](../core/string/README.md)

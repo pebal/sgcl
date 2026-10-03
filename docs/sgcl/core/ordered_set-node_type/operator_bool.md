@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md) › [node_type](../ordered_set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set/README.md) › [node_type](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::node_type::operator bool
 
@@ -55,4 +55,4 @@ b absent
 ## See also
 
 - [empty](empty.md): checks whether the handle holds no node
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>::node_type](../ordered_set-node_type.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>::node_type](README.md)

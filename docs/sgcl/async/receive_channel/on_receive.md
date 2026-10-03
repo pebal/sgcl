@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [receive_channel](../receive_channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [receive_channel](README.md)
 
 # sgcl::async::receive_channel\<T\>::on_receive
 
@@ -74,4 +74,4 @@ stopped
 
 - [receive](receive.md): the receive as an operation
 - [select](../select.md): the wait on several cases
-- [sgcl::async::receive_channel\<T\>](../receive_channel.md)
+- [sgcl::async::receive_channel\<T\>](README.md)

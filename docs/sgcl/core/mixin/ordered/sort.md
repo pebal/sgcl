@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::sort
 
@@ -81,4 +81,4 @@ Output:
 - [stable_sort](stable_sort.md): sorts the elements, keeping the order of equivalent ones
 - [sort_by](sort_by.md): sorts the elements by a key taken from each
 - [is_sorted](is_sorted.md): checks whether the elements are sorted
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

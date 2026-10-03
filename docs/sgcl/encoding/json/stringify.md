@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::stringify
 
@@ -8,8 +8,8 @@ template<class T> static expected<string, error> stringify(const T& value, const
 ```
 
 The text of a program's value, Go's `json.Marshal` of a struct: `T` is a type described by its fields
-([field_list](../field_list.md)) or any kind a field may have — a number, a string, a container, a
-[json](../json.md) — and the text is the one Go writes, the fields in their order. The maps and the sets of hash
+([field_list](../field_list/README.md)) or any kind a field may have — a number, a string, a container, a
+[json](README.md) — and the text is the one Go writes, the fields in their order. The maps and the sets of hash
 keep their keys sorted by their text, as Go sorts the keys of a map, unless `style::sort_keys` is false; a sorted
 or ordered container is written in its order. A float is written with its own shortest digits, `0.1` for `0.1f`.
 
@@ -25,7 +25,7 @@ or ordered container is written in its order. A float is written with its own sh
 
 ## Return value
 
-The text, or an [error](../error.md) where a value has no text: `unsupported_value` with the path of the value,
+The text, or an [error](../error/README.md) where a value has no text: `unsupported_value` with the path of the value,
 for NaN or an infinity, an enum's value past its names, nesting past 512 (a cycle of pointers), or a variant
 field without `tagged()`. The error has no place, there being no text it was read from: no line, no column and
 an offset of 0, and its `message()` is the path and the words, `/x: NaN is not a JSON number`.
@@ -36,7 +36,7 @@ Linear in the size of the text.
 
 ## Exceptions
 
-- `length_error` when the text would pass the 4 GiB a [string](../../core/string.md) holds; the text is
+- `length_error` when the text would pass the 4 GiB a [string](../../core/string/README.md) holds; the text is
   measured where its block grows, and the writing stops as soon as it would pass.
 - What the program's code that the writing calls throws: `describe`, a field's `to_text` or `to_json`.
 
@@ -92,4 +92,4 @@ Output:
 - [save](save.md): the text into a file
 - [from](from.md): the value of a program's type as a json
 - [to_string](to_string.md): the text of a json
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

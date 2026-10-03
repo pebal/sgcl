@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::contains
 
@@ -60,4 +60,4 @@ false true
 
 - [find](find.md): the element equal to a key, as an iterator
 - [count](count.md): the number of elements equal to a key
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>](README.md)

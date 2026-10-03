@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [queue](README.md)
 
 # sgcl::concurrent::queue\<T\>::size
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the queue holds an element, without the count
-- [sgcl::concurrent::queue\<T\>](../queue.md)
+- [sgcl::concurrent::queue\<T\>](README.md)

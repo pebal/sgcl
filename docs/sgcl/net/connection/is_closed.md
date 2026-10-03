@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::is_closed
 
@@ -52,4 +52,4 @@ true false
 ## See also
 
 - [close, async_close](close.md): ends the connection
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::signal
 
@@ -18,7 +18,7 @@ the call is refused: its id may be another process's by then.
 
 ## Return value
 
-Nothing, or the [error](../error.md): `errc::process_done` after the wait or the release, else the `errno` of
+Nothing, or the [error](../error/README.md): `errc::process_done` after the wait or the release, else the `errno` of
 `kill` in the system category; the operation is `signal`.
 
 ## Complexity
@@ -57,5 +57,5 @@ signal: process already finished
 ## See also
 
 - [kill](kill.md): `SIGKILL`
-- [command](../command.md): `stop`, a kill on a stop token; `set_pgid`, a group to signal as one
-- [sgcl::io::process](../process.md)
+- [command](../command/README.md): `stop`, a kill on a stop token; `set_pgid`, a group to signal as one
+- [sgcl::io::process](README.md)

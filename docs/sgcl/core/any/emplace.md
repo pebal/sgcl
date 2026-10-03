@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::emplace
 
@@ -75,4 +75,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns a value made beforehand
 - [make_any](../make_any.md): a new `any` with a value constructed in place
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

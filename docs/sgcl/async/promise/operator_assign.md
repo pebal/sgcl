@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::operator=
 
@@ -62,4 +62,4 @@ Output:
 
 - [(constructor)](promise.md): makes a promise, or another handle of one
 - [operator==, operator!=](operator_cmp.md): whether two handles are of the same promise
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::push_back
 
@@ -73,4 +73,4 @@ Output:
 
 - [emplace_back](emplace_back.md): the element constructed from arguments
 - [pop_back](pop_back.md): the vector without its last element
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

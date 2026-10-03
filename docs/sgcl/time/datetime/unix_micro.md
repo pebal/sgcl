@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::unix_micro
 
@@ -51,4 +51,4 @@ Output:
 
 - [from_unix_micro](from_unix_micro.md): the datetime of the microseconds
 - [unix](unix.md), [unix_milli](unix_milli.md), [unix_nano](unix_nano.md): the other units
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

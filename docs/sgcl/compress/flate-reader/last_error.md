@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md) › [reader](../flate-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate/README.md) › [reader](README.md)
 
 # sgcl::compress::flate::reader::last_error
 
@@ -6,7 +6,7 @@
 const optional<error>& last_error() const noexcept;
 ```
 
-Returns the error of the data, kept: the [compress::error](../error.md) whose code, offset and detail a read gave as
+Returns the error of the data, kept: the [compress::error](../error/README.md) whose code, offset and detail a read gave as
 an `io::error` of the compress category. The read that reached it and every read after give it; a
 [reset](reset.md) clears it. A failure of `in` itself is not kept here: the read returns `in`'s error as it came.
 
@@ -56,5 +56,5 @@ offset 7: distance before the start of the output
 
 ## See also
 
-- [compress::error](../error.md)
-- [sgcl::compress::flate::reader](../flate-reader.md)
+- [compress::error](../error/README.md)
+- [sgcl::compress::flate::reader](README.md)

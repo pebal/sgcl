@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [slog](../README.md) › [req](README.md)
 
 # sgcl::slog::req::handler
 
@@ -17,11 +17,11 @@ without one it is given every level. `T` is the type as passed, references and `
 
 ## Satisfied by
 
-- [memory](../memory.md);
+- [memory](../memory/README.md);
 - a class of the program with `void handle(const slog::record&) const`.
 
 Not by a class whose `handle` is not `const`, a lambda (it has no `handle`), or a `tracked_ptr` to a handler: a
-[handler](../handler.md) is constructed from such a pointer, but the concept asks of the type itself.
+[handler](../handler/README.md) is constructed from such a pointer, but the concept asks of the type itself.
 
 ## Example
 
@@ -58,5 +58,5 @@ printed by the handler
 
 ## See also
 
-- [handler](../handler.md): any handler, as a value
-- [sgcl::slog::req](../req.md)
+- [handler](../handler/README.md): any handler, as a value
+- [sgcl::slog::req](README.md)

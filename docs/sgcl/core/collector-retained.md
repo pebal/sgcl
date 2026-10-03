@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [collector](collector.md)
+[sgcl](../README.md) › [core](README.md) › [collector](collector/README.md)
 
 # sgcl::collector::retained
 
@@ -55,4 +55,4 @@ Output:
 ## See also
 
 - [get_retained](collector/get_retained.md): what returns it
-- [sgcl::collector](collector.md)
+- [sgcl::collector](collector/README.md)

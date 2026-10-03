@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::end, cend
 
@@ -67,4 +67,4 @@ false
 
 - [begin](begin.md): an iterator to the beginning
 - [rend](rend.md): a reverse iterator to the end
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

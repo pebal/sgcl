@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::as_slice, operator slice_type
 
@@ -8,7 +8,7 @@ slice_type as_slice(size_type pos, size_type n = npos) const;    // (2)
 operator slice_type() const noexcept;                            // (3)
 ```
 
-Returns the characters as a [slice](../slice.md), `slice<const CharT>` (a `string_slice` of a `string`), whose owner
+Returns the characters as a [slice](../slice/README.md), `slice<const CharT>` (a `string_slice` of a `string`), whose owner
 is the string's object: a piece of the string with no copy and no lifetime to watch.
 
 1. All the characters.
@@ -44,7 +44,7 @@ Constant.
 A string made of a slice that is the whole of a string is that string's object again, with no copy; a string made of
 a part is a new string of the part's characters ([constructor](string.md), 12). The pieces of
 [split](split.md) and [fields](fields.md) are such slices. A text slice shares the read interface of a string,
-[mixin::text](../mixin/text.md): `find`, `starts_with`, `trim`, the comparisons.
+[mixin::text](../mixin/text/README.md): `find`, `starts_with`, `trim`, the comparisons.
 
 ## Example
 
@@ -87,7 +87,7 @@ true false
 
 ## See also
 
-- [slice](../slice.md): a view of elements that holds their buffer
+- [slice](../slice/README.md): a view of elements that holds their buffer
 - [substr](substr.md): a part of the characters as a new string
 - [data](data.md): the characters as a plain pointer
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

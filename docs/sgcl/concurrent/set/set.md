@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [set](README.md)
 
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::set
 
@@ -63,7 +63,7 @@ If an exception is thrown, no set is constructed; the nodes made so far are left
 The default of `buckets`, 16, is a constant of the class. The array grows by itself once the keys outnumber the
 buckets; (2) with the number of keys expected spares the doublings on the way, as [reserve](reserve.md) does later.
 A count of buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../../core/collector.md#the-memory-limit)): a count past the largest array an address
+allocation does ([collector](../../core/collector/README.md#the-memory-limit)): a count past the largest array an address
 space holds is taken as that array, refused in the same way.
 
 ## Example
@@ -114,4 +114,4 @@ false
 
 - [insert](insert.md): inserts keys into a set that threads share
 - [reserve](reserve.md): the buckets for the keys to come
-- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](README.md)

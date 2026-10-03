@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::erase_if (sgcl::multiset)
 
@@ -67,4 +67,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases the elements at an iterator, in a range or with a key
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

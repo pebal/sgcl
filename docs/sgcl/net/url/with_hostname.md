@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_hostname
 
@@ -18,10 +18,10 @@ from one URL to another by [host](host.md) and [with_host](with_host.md).
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL hostname` and the value asked for, when the standard refuses the value or declines to apply it: a
 host that does not parse (one that goes through IDNA is at most 1 MiB once decoded), a host given with a port, or a
-URL with an opaque path; and a value past 512 MiB, or a URL that would pass it ([the limit](../url.md#rules)).
+URL with an opaque path; and a value past 512 MiB, or a URL that would pass it ([the limit](README.md#rules)).
 
 ## Complexity
 
@@ -60,4 +60,4 @@ set URL hostname b.com:99: invalid URL
 
 - [hostname](hostname.md): the host alone
 - [with_host](with_host.md): the host and a port
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::erase_after
 
@@ -70,4 +70,4 @@ true
 - [clear](clear.md): destroys every element
 - [remove, remove_if](remove.md): erase the elements equal to a value, or satisfying a predicate
 - [pop_front](pop_front.md): removes the first element
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

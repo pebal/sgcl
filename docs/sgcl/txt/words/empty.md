@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [words](../words.md)
+[sgcl](../../README.md) › [txt](../README.md) › [words](README.md)
 
 # sgcl::txt::words::empty
 
@@ -48,4 +48,4 @@ true true false
 ## See also
 
 - [count](count.md): the number of words
-- [sgcl::txt::words](../words.md)
+- [sgcl::txt::words](README.md)

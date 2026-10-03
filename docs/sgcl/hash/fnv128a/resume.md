@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [fnv128a](../fnv128a.md)
+[sgcl](../../README.md) › [hash](../README.md) › [fnv128a](README.md)
 
 # sgcl::hash::fnv128a::resume
 
@@ -55,4 +55,4 @@ true
 ## See also
 
 - [(constructor)](fnv128a.md): a hasher of no bytes yet
-- [sgcl::hash::fnv128a](../fnv128a.md)
+- [sgcl::hash::fnv128a](README.md)

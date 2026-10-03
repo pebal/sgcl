@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [hash](../../README.md) › mixin › [hasher](../hasher.md)
+[sgcl](../../../README.md) › [hash](../../README.md) › mixin › [hasher](README.md)
 
 # sgcl::hash::mixin::hasher\<Derived\>::update
 
@@ -23,7 +23,7 @@ Hashes a text, the digest of another hasher or a `std::span` of bytes after what
 its bytes to the class's own `update(const slice<const byte>&)` ([crc32::update](../../crc32/update.md) and the
 others) where they lie, with no string made and no owner copied.
 
-1. The bytes of a [string](../../../core/string.md).
+1. The bytes of a [string](../../../core/string/README.md).
 2. The bytes of a slice of characters: a part of a string, a line of a reader.
 3. The same for a slice of characters that are not `const`.
 4. A literal or an array of `char`, up to its first NUL or its end, whichever comes first: a buffer with no NUL in
@@ -111,4 +111,4 @@ ef1cb5ed640b61b9
 
 - [of](of.md): the hash of the same forms in one call
 - [copy_from](copy_from.md): a stream read into the hasher
-- [sgcl::hash::mixin::hasher\<Derived\>](../hasher.md)
+- [sgcl::hash::mixin::hasher\<Derived\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::begin, cbegin
 
@@ -35,7 +35,7 @@ None.
 ## Notes
 
 The iterator keeps nothing alive: like a pointer to an element, it is valid as long as with `std::vector`
-([Iterator invalidation](../vector.md#iterator-invalidation)).
+([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -69,4 +69,4 @@ Output:
 
 - [end, cend](end.md): an iterator to the end
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the beginning
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

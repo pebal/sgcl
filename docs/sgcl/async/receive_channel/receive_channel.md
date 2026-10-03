@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [receive_channel](../receive_channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [receive_channel](README.md)
 
 # sgcl::async::receive_channel\<T\>::receive_channel
 
@@ -63,4 +63,4 @@ true true
 
 - [operator=](operator_assign.md): makes the handle one of another channel's receiving end
 - [channel](../channel/channel.md): makes a channel
-- [sgcl::async::receive_channel\<T\>](../receive_channel.md)
+- [sgcl::async::receive_channel\<T\>](README.md)

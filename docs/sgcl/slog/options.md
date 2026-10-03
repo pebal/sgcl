@@ -22,7 +22,7 @@ namespace sgcl::slog {
 }
 ```
 
-`sgcl::slog::options` is what a [logger](logger.md) is made with: Go's `HandlerOptions` with the choice of handler.
+`sgcl::slog::options` is what a [logger](logger/README.md) is made with: Go's `HandlerOptions` with the choice of handler.
 By default text lines on `io::stderr` from `info` up, in the local time. A plain struct, filled by designated
 initializers in the order of its fields, naming what differs from the defaults:
 `slog::logger log(slog::options{.out = file, .level = slog::level::debug, .json = true});`.
@@ -31,10 +31,10 @@ initializers in the order of its fields, naming what differs from the defaults:
 
 | Member | Description |
 |---|---|
-| `out` | the [writer](../io/writer.md) the text or JSON lines go to; `io::stderr` by default. Without `buffered`, every record is one `write` to it from the thread that logs, so it takes writes from many threads at once (a file opened for appending, `io::stderr`, a connection). An empty writer is no output: every record is lost, counted by [dropped](logger/dropped.md) and said once on `io::stderr` |
-| `handler` | when set, the records go to this [handler](handler.md) of the program instead of `out`, and `json` is not read; empty by default |
+| `out` | the [writer](../io/writer/README.md) the text or JSON lines go to; `io::stderr` by default. Without `buffered`, every record is one `write` to it from the thread that logs, so it takes writes from many threads at once (a file opened for appending, `io::stderr`, a connection). An empty writer is no output: every record is lost, counted by [dropped](logger/dropped.md) and said once on `io::stderr` |
+| `handler` | when set, the records go to this [handler](handler/README.md) of the program instead of `out`, and `json` is not read; empty by default |
 | `level` | the least level written; `info` by default |
-| `level_var` | when set, the least level is read from this [level_var](level_var.md) at every record, in place of `level`; empty by default |
+| `level_var` | when set, the least level is read from this [level_var](level_var/README.md) at every record, in place of `level`; empty by default |
 | `json` | JSON lines, slog's `JSONHandler`; text lines, slog's `TextHandler`, otherwise; `false` by default |
 | `source` | where the call is, written as `source` (slog's `AddSource`): `source=src/main.cpp:42` in text, `"source":{"function":"int main()","file":"src/main.cpp","line":42}` in JSON; `false` by default |
 | `utc` | the time in UTC (`Z`), not the local zone (`+02:00`); `false` by default |
@@ -77,6 +77,6 @@ time=2026-09-28T14:05:01.123+02:00 level=INFO msg=tick i=7
 
 ## See also
 
-- [logger](logger.md): what is made of the options
-- [level_var](level_var.md), [handler](handler.md): what the options may name
+- [logger](logger/README.md): what is made of the options
+- [level_var](level_var/README.md), [handler](handler/README.md): what the options may name
 - [sgcl::slog](README.md)

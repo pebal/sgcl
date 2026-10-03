@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::trim_prefix
 
@@ -52,4 +52,4 @@ abc123 Bearer abc123
 
 - [trim_suffix](trim_suffix.md): the same at the end
 - [remove_prefix](remove_prefix.md): drops a number of characters, in place
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

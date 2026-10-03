@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::try_emplace
 
@@ -108,4 +108,4 @@ Output:
 - [emplace](emplace.md): builds the element before the search
 - [insert](insert.md): inserts an element or a range
 - [value_or](value_or.md): reads a value without inserting
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::write, async_write
 
@@ -25,11 +25,11 @@ these: `f.write("text")`, `f.write(s)` for a `string` or a slice of one, `f.writ
 
 | Parameter | Description |
 |---|---|
-| `data` | the bytes to write; a `vector<byte>`, an [array](../../core/array.md), a [buffer](../buffer.md)'s data converts to it |
+| `data` | the bytes to write; a `vector<byte>`, an [array](../../core/array/README.md), a [buffer](../buffer/README.md)'s data converts to it |
 
 ## Return value
 
-The size of `data`: everything was written. Or the [error](../error.md), its operation `write` and its path the
+The size of `data`: everything was written. Or the [error](../error/README.md), its operation `write` and its path the
 file's:
 
 - `errc::closed` when the file was closed before the call, or while it waited ([close](close.md));
@@ -54,7 +54,7 @@ per wait for room.
 The data of (2) stays alive while the task awaits, as a task's local does: a `tracked_ptr` to a buffer captured in
 the awaiting frame is enough. Given to a regular file without an owner (a plain array, a `std::span`), it is copied
 into a managed block before the write starts, since the pool's thread may outlive the frame of a task let go of; a
-slice with an owner (a `string`, a `vector`, a [buffer](../buffer.md)) is written as it is.
+slice with an owner (a `string`, a `vector`, a [buffer](../buffer/README.md)) is written as it is.
 
 ## Example
 
@@ -122,5 +122,5 @@ from a task, from a task
 - [write_at, async_write_at](write_at.md): a write at an offset, the position untouched
 - [write](../mixin/writer/write.md): a text or a byte
 - [write_file](../write_file.md): a whole file in one call
-- [buffered_writer](../buffered_writer.md): small writes gathered into one
-- [sgcl::io::file](../file.md)
+- [buffered_writer](../buffered_writer/README.md): small writes gathered into one
+- [sgcl::io::file](README.md)

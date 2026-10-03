@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [xchacha20_poly1305](../xchacha20_poly1305.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [xchacha20_poly1305](README.md)
 
 # sgcl::crypto::xchacha20_poly1305::xchacha20_poly1305
 
@@ -73,4 +73,4 @@ sgcl::crypto::xchacha20_poly1305: a key of 24 bytes
 - [from_key](from_key.md): a key that came with data
 - [clone](clone.md): a copy of the key, made on purpose
 - [operator=](operator_assign.md): takes another object's key over
-- [sgcl::crypto::xchacha20_poly1305](../xchacha20_poly1305.md)
+- [sgcl::crypto::xchacha20_poly1305](README.md)

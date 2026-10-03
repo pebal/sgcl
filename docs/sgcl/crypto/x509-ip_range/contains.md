@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [ip_range](../x509-ip_range.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [ip_range](README.md)
 
 # sgcl::crypto::x509::ip_range::contains
 
@@ -93,4 +93,4 @@ true false
 
 ## See also
 
-- [sgcl::crypto::x509::ip_range](../x509-ip_range.md)
+- [sgcl::crypto::x509::ip_range](README.md)

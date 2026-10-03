@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md) › [node_type](../map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](../map/README.md) › [node_type](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::node_type::key
 
@@ -57,4 +57,4 @@ Output:
 
 - [mapped](mapped.md): the value of the element
 - [insert](../map/insert.md): inserts a node handle's node
-- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](../map-node_type.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

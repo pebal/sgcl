@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::front
 
@@ -60,4 +60,4 @@ Output:
 
 - [begin](begin.md): an iterator to the first element
 - [push_front](push_front.md), [pop_front](pop_front.md): add, remove the first element
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

@@ -8,7 +8,7 @@
 // destructors; the collector then deletes the thread's Data and its
 // PageAllocator, while current_thread_ptr stays set. A static destructor
 // that allocates (a global unique_ptr's object, as in
-// docs/sgcl/core/unique_ptr.md: the registry) then runs on freed memory.
+// docs/sgcl/core/unique_ptr/README.md: the registry) then runs on freed memory.
 //
 // teardown_test: a global unique_ptr<Node> whose ~Node calls make_tracked.
 // teardown_thread_local_test (TEARDOWN_THREAD_LOCAL): a thread_local
@@ -58,7 +58,7 @@ int main() {
     return 0;
 }
 #else
-// The global root of docs/sgcl/core/unique_ptr.md, destroyed after main
+// The global root of docs/sgcl/core/unique_ptr/README.md, destroyed after main
 // with the other statics
 static unique_ptr<Node> registry = make_tracked<Node>();
 

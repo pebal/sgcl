@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](../p256-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](README.md)
 
 # sgcl::crypto::p256::public_key::to_pkix_der
 
@@ -8,7 +8,7 @@ vector<byte> to_pkix_der() const noexcept;
 
 The key as a SubjectPublicKeyInfo (RFC 5280 §4.1.2.7, RFC 5480): `id-ecPublicKey` with the named curve and the
 uncompressed point, byte for byte as Go's `x509.MarshalPKIXPublicKey` and OpenSSL write it. It is the DER of a
-`PUBLIC KEY` block in PEM, which [encoding::pem](../../encoding/pem.md) writes, and what
+`PUBLIC KEY` block in PEM, which [encoding::pem](../../encoding/pem/README.md) writes, and what
 [from_pkix_der](from_pkix_der.md) reads: 91 bytes on P-256, 120 on P-384.
 
 ## Parameters
@@ -58,4 +58,4 @@ true
 
 - [from_pkix_der](from_pkix_der.md): the key of a SubjectPublicKeyInfo
 - [bytes](bytes.md): the point alone
-- [sgcl::crypto::p256::public_key](../p256-public_key.md)
+- [sgcl::crypto::p256::public_key](README.md)

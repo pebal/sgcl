@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::parse
 
@@ -10,7 +10,7 @@ Reads Go's text of a duration: whatever Go's `time.ParseDuration` reads, and not
 numbers, each with a unit and a fraction or none (`"1.5h"`, `".5s"`, `"1.s"`), in any order and repeated
 (`"1h30m"`, `"-1.5h"`, `"2h45m0.5s"`); `"0"` alone is zero. The units are `ns`, `us` or `µs` (the micro sign or the
 Greek mu), `ms`, `s`, `m` and `h`. No spaces and no days: a day of the calendar is 23, 24 or 25 hours, and that is a
-[date's](../../time/date.md) `add_days`.
+[date's](../../time/date/README.md) `add_days`.
 
 A fraction is taken exactly, however many digits it has, and cut to the nanosecond; Go multiplies it in `double`
 and may land a nanosecond off. A text whose value does not fit in the range is an error, not a saturated
@@ -24,7 +24,7 @@ duration.
 
 ## Return value
 
-The duration, or a [duration_error](../duration_error.md) with a sentence and the byte the reading stopped on:
+The duration, or a [duration_error](../duration_error/README.md) with a sentence and the byte the reading stopped on:
 
 - `"a number expected"`: an empty text, a sign alone, or a unit with no number before it;
 - `"a unit expected: ns, us, ms, s, m or h"`: a number with no unit after it;
@@ -83,5 +83,5 @@ Output:
 
 - [to_string](to_string.md): writes the text
 - [(constructor)](duration.md): a duration from a literal text
-- [duration_error](../duration_error.md): why a text is not a duration
-- [sgcl::duration](../duration.md)
+- [duration_error](../duration_error/README.md): why a text is not a duration
+- [sgcl::duration](README.md)

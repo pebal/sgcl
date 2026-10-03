@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::operator bool
 
@@ -51,4 +51,4 @@ false true
 
 - [(constructor)](connection.md): a handle that holds none
 - [is_closed](is_closed.md): whether the connection was closed
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

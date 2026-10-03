@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](README.md)
 
 # sgcl::encoding::csv::stringify
 
@@ -9,10 +9,10 @@ template<class R>
 static expected<string, error> stringify(const R& records, const options& o);    // (2)
 ```
 
-The text of the records in one call, what a [writer](../csv-writer.md) writes of them; the form of a text that
+The text of the records in one call, what a [writer](../csv-writer/README.md) writes of them; the form of a text that
 [save](save.md) is of a file, as [json::stringify](../json/stringify.md) is of JSON. `records` is a range of what
 [writer::write](../csv-writer/write.md) takes: values of a type with `describe(field_list&)`
-([field_list](../field_list.md)), written with a header of their fields' names first; or [rows](../csv-row.md) and
+([field_list](../field_list/README.md)), written with a header of their fields' names first; or [rows](../csv-row/README.md) and
 ranges of texts, a record each and no header. Each record ends with `'\n'`.
 
 1. The text with Go's settings: fields separated by `','`.
@@ -28,7 +28,7 @@ ranges of texts, a record each and no header. Each record ends with `'\n'`.
 
 ## Return value
 
-The text, empty for no records, or an [error](../error.md) where a field has no text: `unsupported_value` with the
+The text, empty for no records, or an [error](../error/README.md) where a field has no text: `unsupported_value` with the
 path of the field (a container, a record), `/list: a value CSV has no text for`. The error has no place, there
 being no text it was read from.
 
@@ -38,7 +38,7 @@ Linear in the size of the text.
 
 ## Exceptions
 
-- `length_error` when the text passes the 4 GiB a [string](../../core/string.md) holds, measured after each record.
+- `length_error` when the text passes the 4 GiB a [string](../../core/string/README.md) holds, measured after each record.
 - (2) `invalid_argument` when `o` names a separator or a comment character the format cannot have
   ([options](../csv-options.md)).
 - What the program's code that the writing calls throws: `describe`, a field's `to_text`.
@@ -86,5 +86,5 @@ b;
 
 - [parse](parse.md): the other direction
 - [save](save.md): the records into a file
-- [writer](../csv-writer.md): records written into a stream
-- [sgcl::encoding::csv](../csv.md)
+- [writer](../csv-writer/README.md): records written into a stream
+- [sgcl::encoding::csv](README.md)

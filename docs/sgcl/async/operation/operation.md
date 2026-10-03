@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [operation](../operation.md)
+[sgcl](../../README.md) › [async](../README.md) › [operation](README.md)
 
 # sgcl::async::operation\<F\>::operation
 
@@ -64,4 +64,4 @@ true
 ## See also
 
 - [wait, await_ready, await_suspend, await_resume](wait.md): carry the operation out
-- [sgcl::async::operation\<F\>](../operation.md)
+- [sgcl::async::operation\<F\>](README.md)

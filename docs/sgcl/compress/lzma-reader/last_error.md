@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md) › [reader](../lzma-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma/README.md) › [reader](README.md)
 
 # sgcl::compress::lzma::reader::last_error
 
@@ -6,7 +6,7 @@
 const optional<error>& last_error() const noexcept;
 ```
 
-Returns the error of the data, kept: the [compress::error](../error.md) whose code, offset and detail a read gave as an
+Returns the error of the data, kept: the [compress::error](../error/README.md) whose code, offset and detail a read gave as an
 `io::error` of the compress category. The read that reached it and every read after give it; a [reset](reset.md) clears
 it. A failure of `in` itself is not kept here: the read returns `in`'s error as it came.
 
@@ -56,5 +56,5 @@ offset 25: lzma: unexpected end of the compressed data
 
 ## See also
 
-- [compress::error](../error.md)
-- [sgcl::compress::lzma::reader](../lzma-reader.md)
+- [compress::error](../error/README.md)
+- [sgcl::compress::lzma::reader](README.md)

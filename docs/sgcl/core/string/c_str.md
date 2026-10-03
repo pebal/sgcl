@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::c_str
 
@@ -63,4 +63,4 @@ Output:
 
 - [data](data.md): the characters, terminated
 - [parse](../parse.md): a number from its text, without a C string
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

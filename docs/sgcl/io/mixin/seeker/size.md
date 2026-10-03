@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [seeker](../seeker.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [seeker](README.md)
 
 # sgcl::io::mixin::seeker\<Derived\>::size
 
@@ -54,4 +54,4 @@ Output:
 
 - [tell](tell.md): the position
 - [file::stat](../../file/stat.md): the size and the rest of what the system knows of a file
-- [sgcl::io::mixin::seeker\<Derived\>](../seeker.md)
+- [sgcl::io::mixin::seeker\<Derived\>](README.md)

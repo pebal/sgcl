@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::all
 
@@ -11,8 +11,8 @@ regex_matches all(P text) const;                                                
 ```
 
 Returns every match of the pattern in the text, one after another and never overlapping, as a range of the library
-([regex_matches](../regex_matches.md)): decided as it is walked rather than gathered into a container first, like
-[words](../words.md) and [graphemes](../graphemes.md). Python's `re.finditer`, Go's `FindAllStringSubmatchIndex`.
+([regex_matches](../regex_matches/README.md)): decided as it is walked rather than gathered into a container first, like
+[words](../words/README.md) and [graphemes](../graphemes/README.md). Python's `re.finditer`, Go's `FindAllStringSubmatchIndex`.
 
 1. The text as a slice; the range holds it.
 2. The text as a string; the range holds it.
@@ -40,7 +40,7 @@ length of the pattern.
 ## Exceptions
 
 - (1–2) None.
-- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Example
@@ -73,7 +73,7 @@ zima@0 Zakopanem@8 góry@20
 
 ## See also
 
-- [regex_matches](../regex_matches.md): the range
+- [regex_matches](../regex_matches/README.md): the range
 - [find](find.md): the first match
 - [count](count.md): the number of matches
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md) › [decoder](../base32-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32/README.md) › [decoder](README.md)
 
 # sgcl::encoding::base32::decoder::decoder
 
@@ -58,4 +58,4 @@ lo
 
 - [decoder_from](../base32/decoder_from.md): a decoder with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::base32::decoder](../base32-decoder.md)
+- [sgcl::encoding::base32::decoder](README.md)

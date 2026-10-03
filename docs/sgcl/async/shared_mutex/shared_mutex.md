@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](README.md)
 
 # sgcl::async::shared_mutex::shared_mutex
 
@@ -59,4 +59,4 @@ false
 ## See also
 
 - [lock](lock.md), [lock_shared](lock_shared.md): take the lock
-- [sgcl::async::shared_mutex](../shared_mutex.md)
+- [sgcl::async::shared_mutex](README.md)

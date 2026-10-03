@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::try_push
 
@@ -82,4 +82,4 @@ true
 - [try_emplace](try_emplace.md): constructs the element in place
 - [push](push.md): waits for room
 - [try_pop](try_pop.md), [pop](pop.md): the consumer's side
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

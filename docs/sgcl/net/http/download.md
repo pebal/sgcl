@@ -16,7 +16,7 @@ Saves the file at `url` to `path` in one line, curl's `-fo path url`: [client::d
 a client the process makes at the first download, with the default settings (Go's `http.DefaultClient`), kept for the
 rest of the program with its pool. The body is streamed into `path + ".part"`, renamed over `path` at its end, so that
 a download cut in the middle leaves no file and the one there before untouched; a status other than 2xx is an error
-and writes nothing. A program that needs timeouts, roots of its own or a `dial` makes a [client](client.md) and calls
+and writes nothing. A program that needs timeouts, roots of its own or a `dial` makes a [client](client/README.md) and calls
 its `download`.
 
 1. Blocks the calling thread: the exchange runs on the scheduler and the thread waits for it. For a thread of the

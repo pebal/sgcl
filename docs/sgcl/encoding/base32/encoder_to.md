@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::encoder_to
 
@@ -9,7 +9,7 @@ encoder encoder_to(const io::writer& out) const noexcept;
 A writer that writes the encoding of what it is given to `out`: Go's `NewEncoder`. Whole groups of five bytes go
 out at once, the bytes short of a group wait for the next write, and
 [close()](../base32-encoder/close.md) writes the last group with its padding and leaves `out` open, as Go's does.
-The [encoder](../base32-encoder.md) is a handle of one word, made with its state: a managed object holding an
+The [encoder](../base32-encoder/README.md) is a handle of one word, made with its state: a managed object holding an
 8 KB block and `out`.
 
 ## Parameters
@@ -56,7 +56,7 @@ CPNMUOJ1E8======
 
 ## See also
 
-- [base32::encoder](../base32-encoder.md): the stream
+- [base32::encoder](../base32-encoder/README.md): the stream
 - [decoder_from](decoder_from.md): the other way
 - [encode](encode.md): the text at once
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

@@ -35,7 +35,7 @@ None.
 ## Notes
 
 **Nothing here looks at the bidirectional algorithm.** A name with a right to left override in it can be drawn in an
-order its bytes do not have; [bidi_runs](bidi_runs.md) is where that is asked about, and `is_allowed_identifier`
+order its bytes do not have; [bidi_runs](bidi_runs/README.md) is where that is asked about, and `is_allowed_identifier`
 refuses the overrides because UTS #39 does, not because it reasons about them.
 
 ## Example

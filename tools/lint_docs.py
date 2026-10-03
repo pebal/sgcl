@@ -97,6 +97,30 @@ def strip_code_spans(line):
     return re.sub(r'`[^`]*`', '``', line)
 
 
+_module_readme_cache = {}
+
+
+def is_module_readme(path):
+    """The README of a module (or of a group of a module, mixin/): its names block names the namespace,
+    `#include "sgcl/core.h"   // namespace sgcl`. The README of a class's directory (vector/README.md) does not."""
+    if path not in _module_readme_cache:
+        found = False
+        try:
+            with open(path, encoding='utf-8') as f:
+                m = re.search(r'^```cpp\n(.*?)^```', f.read(), re.S | re.M)
+            found = bool(m) and '// namespace' in m.group(1)
+        except OSError:
+            pass
+        _module_readme_cache[path] = found
+    return _module_readme_cache[path]
+
+
+def is_class_dir(directory):
+    """A class's directory: its page is the README.md in it (vector/README.md), beside the pages of its methods."""
+    readme = os.path.join(directory, 'README.md')
+    return os.path.exists(readme) and not is_module_readme(readme)
+
+
 def kind_of(path):
     """method, class, req, readme, modules, benchmarks or other."""
     rel = os.path.relpath(path, DOCS)
@@ -105,12 +129,12 @@ def kind_of(path):
     if rel == 'README.md':
         return 'modules'
     if name == 'README.md':
-        return 'readme'
+        return 'readme' if is_module_readme(path) else 'class'
     if name == 'benchmarks.md':
         return 'benchmarks'
     if os.path.basename(directory) == 'req':
         return 'req'
-    if os.path.exists(directory + '.md'):   # vector/insert.md next to vector.md
+    if is_class_dir(directory):   # vector/insert.md beside vector/README.md
         return 'method'
     return 'class'
 
@@ -395,7 +419,8 @@ def pages(args):
 def changed():
     out = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all', '--', 'docs/sgcl'],
                          cwd=ROOT, capture_output=True, text=True, check=True).stdout
-    return [os.path.join(ROOT, l[3:]) for l in out.splitlines() if l[3:].endswith('.md') and l[:2] != ' D']
+    paths = [l[3:].split(' -> ')[-1] for l in out.splitlines() if l[:2] != ' D']   # a rename: its new path
+    return [os.path.join(ROOT, p) for p in paths if p.endswith('.md')]
 
 
 def main(argv):

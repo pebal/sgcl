@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::from_slash
 
@@ -50,4 +50,4 @@ unpacked/docs/sgcl/README.md
 ## See also
 
 - [to_slash](to_slash.md): the other way
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

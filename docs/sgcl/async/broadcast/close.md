@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](README.md)
 
 # sgcl::async::broadcast\<T\>::close
 
@@ -65,4 +65,4 @@ true
 
 - [closed](closed.md): checks whether the broadcast is closed
 - [receive](../broadcast-subscription/receive.md): what a subscription gives after the close
-- [sgcl::async::broadcast\<T\>](../broadcast.md)
+- [sgcl::async::broadcast\<T\>](README.md)

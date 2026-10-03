@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [logger](../logger.md)
+[sgcl](../../README.md) › [slog](../README.md) › [logger](README.md)
 
 # sgcl::slog::logger::dropped
 
@@ -55,4 +55,4 @@ sgcl::slog: a write failed: write /dev/null: Bad file descriptor
 ## See also
 
 - [flush](flush.md)
-- [sgcl::slog::logger](../logger.md)
+- [sgcl::slog::logger](README.md)

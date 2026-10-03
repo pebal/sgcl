@@ -11,7 +11,7 @@ namespace sgcl {
 }
 ```
 
-`sgcl::counting_iterator<T>` is the iterator of the counting forms of [range](range.md): an integer as an iterator,
+`sgcl::counting_iterator<T>` is the iterator of the counting forms of [range](range/README.md): an integer as an iterator,
 whose `*` is the number and whose `++` is the next one. The deduction guides of `range(n)` and `range(first, last)`
 give `range<counting_iterator<T>>`, so the type is named where a counting range is stored or passed by its type:
 `range<counting_iterator<int>> r(2, 10)`. It is `std::ranges::iota_view<T>`'s iterator under a name of its own; Go
@@ -93,4 +93,4 @@ true
 
 ## See also
 
-- [range](range.md): the range of two counting iterators, `range(n)` and `range(first, last)`
+- [range](range/README.md): the range of two counting iterators, `range(n)` and `range(first, last)`

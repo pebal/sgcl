@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md) › [iterator](../fold_matches-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches/README.md) › [iterator](README.md)
 
 # sgcl::txt::fold_matches::iterator::pos
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [size](size.md): the bytes it covers
-- [sgcl::txt::fold_matches::iterator](../fold_matches-iterator.md)
+- [sgcl::txt::fold_matches::iterator](README.md)

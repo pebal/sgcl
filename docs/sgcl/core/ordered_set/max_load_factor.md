@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::max_load_factor
 
@@ -14,7 +14,7 @@ void max_load_factor(float z) noexcept;    // (2)
    is rehashed at the call. A `z` that is not positive, or not a number, is ignored.
 
 A factor so small that the elements need more buckets than the managed heap gives ends the program at the growth it
-refuses, as any refused managed allocation does ([collector](../collector.md#the-memory-limit)).
+refuses, as any refused managed allocation does ([collector](../collector/README.md#the-memory-limit)).
 
 ## Parameters
 
@@ -71,4 +71,4 @@ Output:
 
 - [load_factor](load_factor.md): the elements per bucket
 - [rehash](rehash.md), [reserve](reserve.md): set the number of buckets
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [limit_reader](../limit_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [limit_reader](README.md)
 
 # sgcl::io::limit_reader::limit_reader
 
@@ -6,7 +6,7 @@
 limit_reader(const io::reader& r, uint64_t n) noexcept;
 ```
 
-Constructs a reader of the first `n` bytes of `r`. The source is held as an [io::reader](../reader.md): any stream
+Constructs a reader of the first `n` bytes of `r`. The source is held as an [io::reader](../reader/README.md): any stream
 converts to one, a handle by its object, a stream of the program's by reference. Nothing is read until the first
 read.
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [read, async_read](read.md)
-- [sgcl::io::limit_reader](../limit_reader.md)
+- [sgcl::io::limit_reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::round
 
@@ -56,4 +56,4 @@ true
 ## See also
 
 - [truncate](truncate.md): toward zero to a multiple
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

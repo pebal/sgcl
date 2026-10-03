@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha256](../sha256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha256](README.md)
 
 # sgcl::crypto::sha256::update
 
@@ -11,7 +11,7 @@ the whole. The slice takes what bytes come in: a `vector<byte>`, an `array<byte,
 them. A whole block is compressed at once, the rest waits in the hasher's buffer for the next call or for `value()`.
 
 The text forms — a `string`, a text slice, a literal, a C string, a `std::string_view` — and a `std::span` of bytes
-are the mixin's ([hash::mixin::hasher](../../hash/mixin/hasher.md)), each hashing the UTF-8 bytes where they lie.
+are the mixin's ([hash::mixin::hasher](../../hash/mixin/hasher/README.md)), each hashing the UTF-8 bytes where they lie.
 
 ## Parameters
 
@@ -68,5 +68,5 @@ ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 ## See also
 
 - [value](value.md): the digest of what was hashed in
-- [hash::mixin::hasher](../../hash/mixin/hasher.md): the text forms, `copy_from` for a stream
-- [sgcl::crypto::sha256](../sha256.md)
+- [hash::mixin::hasher](../../hash/mixin/hasher/README.md): the text forms, `copy_from` for a stream
+- [sgcl::crypto::sha256](README.md)

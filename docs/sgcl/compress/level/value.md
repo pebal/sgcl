@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [level](../level.md)
+[sgcl](../../README.md) › [compress](../README.md) › [level](README.md)
 
 # sgcl::compress::level::value
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [(constructor)](level.md)
-- [sgcl::compress::level](../level.md)
+- [sgcl::compress::level](README.md)

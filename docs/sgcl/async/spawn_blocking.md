@@ -11,10 +11,10 @@ namespace sgcl::async {
 }
 ```
 
-Runs a blocking call off the workers. A worker of the [scheduler](scheduler.md) runs every task that is ready, and a
+Runs a blocking call off the workers. A worker of the [scheduler](scheduler/README.md) runs every task that is ready, and a
 call that blocks it (a file read without the reactor, `getaddrinfo`, a C library, a database driver) takes it from all
 of them for as long as the call lasts. `co_await async::spawn_blocking(f)` runs `f` on the
-[blocking pool](blocking_pool.md) instead, threads apart from the workers and meant to sit in the kernel, and hands
+[blocking pool](blocking_pool/README.md) instead, threads apart from the workers and meant to sit in the kernel, and hands
 back what `f` returned, or rethrows what it threw: the task holds no thread while the call runs, and the workers go
 on with the other tasks. A thread waits for it with `spawn_blocking(f).wait()`.
 
@@ -22,7 +22,7 @@ This is tokio's `spawn_blocking` and Java's `Executors.newCachedThreadPool` unde
 goroutine whose thread the runtime replaces while it is in the call, which C++ coroutines cannot do, so the call goes
 to a thread that is nobody's worker.
 
-`f` is moved into a job, a managed object that holds the closure and the [promise](promise.md) the result comes back
+`f` is moved into a job, a managed object that holds the closure and the [promise](promise/README.md) the result comes back
 through, so the closure may capture `tracked_ptr`s by value: they are traced through the job's pointer map. What it
 captures by reference must outlive the job, which a task's locals do while the task awaits it; a task that drops the
 handle and goes on must not have lent it a reference. The job runs whether or not the handle is kept: a handle
@@ -38,7 +38,7 @@ call nobody waits for goes through [go_blocking](go_blocking.md), which keeps no
 
 ## Return value
 
-A [blocking_task](blocking_task.md)`<T>`, the handle of the job, `T` what `f` returns (`void` for nothing):
+A [blocking_task](blocking_task/README.md)`<T>`, the handle of the job, `T` what `f` returns (`void` for nothing):
 `co_await` it in a task, `wait()` for it on a thread, or give its `on_done` to a [select](select.md).
 
 ## Complexity
@@ -102,10 +102,10 @@ Output:
 
 ## See also
 
-- [blocking_task](blocking_task.md): the handle
+- [blocking_task](blocking_task/README.md): the handle
 - [go_blocking](go_blocking.md): a blocking call with no handle, what it throws to on_unhandled
-- [blocking_pool](blocking_pool.md): the threads, their cap and their idle time
+- [blocking_pool](blocking_pool/README.md): the threads, their cap and their idle time
 - [readable](readable.md), [writable](writable.md): a wait for a descriptor that needs no thread at all, the better
   tool for a socket
-- [promise](promise.md): what carries the result back
-- [thread](../core/thread.md): a thread of the program's own
+- [promise](promise/README.md): what carries the result back
+- [thread](../core/thread/README.md): a thread of the program's own

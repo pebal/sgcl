@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](../p256-ecdh_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](README.md)
 
 # sgcl::crypto::p256::ecdh_key::ecdh_key
 
@@ -62,4 +62,4 @@ sgcl::crypto::p256::ecdh_key: used after being moved from
 
 - [operator=](operator_assign.md): the move assignment
 - [clone](clone.md): a second key of the same scalar
-- [sgcl::crypto::p256::ecdh_key](../p256-ecdh_key.md)
+- [sgcl::crypto::p256::ecdh_key](README.md)

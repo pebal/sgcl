@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md) › [encoder](../base32-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32/README.md) › [encoder](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::base32::encoder)
 
@@ -54,4 +54,4 @@ true false true
 ## See also
 
 - [(constructor)](base32-encoder.md): a copy that shares the stream
-- [sgcl::encoding::base32::encoder](../base32-encoder.md)
+- [sgcl::encoding::base32::encoder](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::in_memory
 
@@ -69,4 +69,4 @@ you said: hello
 ## See also
 
 - [tcp::listen](../tcp/listen.md), [tcp::connect](../tcp/connect.md): the same over a socket
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

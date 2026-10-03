@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::reader::read, async_read
 
@@ -89,4 +89,4 @@ Output:
 - [read_full](../mixin/reader/read_full.md): fills the whole buffer
 - [read_all](../mixin/reader/read_all.md): everything to the end
 - [has_read](has_read.md), [has_async_read](has_async_read.md): which half is the stream's own
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

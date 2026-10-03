@@ -27,7 +27,7 @@ Sets the permissions of the file at `path` to `p`, following a symbolic link: Go
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call; the operation is `chmod` and the path `path`.
+Nothing, or the [error](error/README.md) of the call; the operation is `chmod` and the path `path`.
 
 ## Complexity
 

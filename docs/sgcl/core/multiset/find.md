@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::find
 
@@ -14,7 +14,7 @@ of each node compared before its key. The walk reads raw pointers only and pays 
 
 - (3–4) The key is of any type the hash and the equality take, and no `Key` is built for the search. Take part
   only when `Hash` and `KeyEqual` both declare `is_transparent`, as `std::hash` and `std::equal_to` of a
-  [string](../string.md) do: a literal, a `std::string_view` or a slice of another string finds a `string` key.
+  [string](../string/README.md) do: a literal, a `std::string_view` or a slice of another string finds a `string` key.
 
 ## Parameters
 
@@ -68,4 +68,4 @@ true
 
 - [equal_range](equal_range.md): the run of the elements with a key
 - [contains](contains.md): checks whether the multiset holds a key
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

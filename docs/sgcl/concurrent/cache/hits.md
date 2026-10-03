@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::hits
 
@@ -62,4 +62,4 @@ Output:
 ## See also
 
 - [misses](misses.md): the number of gets that found none
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

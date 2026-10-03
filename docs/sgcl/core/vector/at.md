@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::at
 
@@ -31,7 +31,7 @@ Constant.
 
 [operator[]](operator_at.md) is the same access without the check. The reference is valid as long as the element: until it is
 removed, the vector reallocates or the vector is destroyed. It does not keep the buffer alive; a
-[slice](../slice.md) from [as_slice](as_slice.md) does.
+[slice](../slice/README.md) from [as_slice](as_slice.md) does.
 
 ## Example
 
@@ -65,4 +65,4 @@ out of range: sgcl::vector::at
 
 - [operator[]](operator_at.md), [front](front.md), [back](back.md): access an element without the check
 - [as_slice](as_slice.md): the elements as a slice that holds the buffer
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

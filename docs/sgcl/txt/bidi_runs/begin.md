@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs.md)
+[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](README.md)
 
 # sgcl::txt::bidi_runs::begin
 
@@ -7,7 +7,7 @@ auto begin() const noexcept;
 ```
 
 Returns an iterator to the leftmost piece, the first to be drawn. The iterator is a random access iterator over the
-pieces the range holds; its `*` is a [run](../bidi_runs-run.md).
+pieces the range holds; its `*` is a [run](../bidi_runs-run/README.md).
 
 ## Parameters
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [end](end.md): the iterator past the last piece
-- [sgcl::txt::bidi_runs](../bidi_runs.md)
+- [sgcl::txt::bidi_runs](README.md)

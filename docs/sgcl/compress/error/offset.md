@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [compress](../README.md) › [error](README.md)
 
 # sgcl::compress::error::offset
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [message](message.md): the offset and the rest in one sentence
-- [sgcl::compress::error](../error.md)
+- [sgcl::compress::error](README.md)

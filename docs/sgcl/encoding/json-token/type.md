@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [token](../json-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [token](README.md)
 
 # sgcl::encoding::json::token::type
 
@@ -58,4 +58,4 @@ Output:
 
 - [json::token::kind](../json-token-kind.md): the kinds
 - [text](text.md): the text of the token
-- [sgcl::encoding::json::token](../json-token.md)
+- [sgcl::encoding::json::token](README.md)

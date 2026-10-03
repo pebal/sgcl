@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [group](../group.md)
+[sgcl](../../README.md) › [slog](../README.md) › [group](README.md)
 
 # sgcl::slog::group\<A...\>::group
 
@@ -50,4 +50,4 @@ time=2026-09-28T14:05:01.123+02:00 level=INFO msg=unnamed a=1
 
 ## See also
 
-- [sgcl::slog::group](../group.md)
+- [sgcl::slog::group](README.md)

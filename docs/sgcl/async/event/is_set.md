@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [event](../event.md)
+[sgcl](../../README.md) › [async](../README.md) › [event](README.md)
 
 # sgcl::async::event::is_set
 
@@ -53,4 +53,4 @@ true
 
 - [set](set.md): sets the event
 - [wait, operator co_await](wait.md): waits for the set
-- [sgcl::async::event](../event.md)
+- [sgcl::async::event](README.md)

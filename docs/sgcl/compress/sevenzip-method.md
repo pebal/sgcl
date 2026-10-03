@@ -18,17 +18,17 @@ namespace sgcl::compress::sevenzip {
 
 The coder of a written archive's folders, the [options](sevenzip-options.md)' `method`. BZip2 and Deflate64 are read,
 not written: the module has no compressor of BZip2, and the enumeration has no value for either. The
-[level](level.md) is read by the method: LZMA and LZMA2 take xz's levels (the dictionary 256 KiB at 0 to 64 MiB at
+[level](level/README.md) is read by the method: LZMA and LZMA2 take xz's levels (the dictionary 256 KiB at 0 to 64 MiB at
 9, the optimal parser from 4), with the dictionary written in the header no larger than the folder; PPMd takes
-7-Zip's order and memory for the level (order 3 to 32, 512 KiB to 192 MiB); Deflate the level as [flate](flate.md)
+7-Zip's order and memory for the level (order 3 to 32, 512 KiB to 192 MiB); Deflate the level as [flate](flate/README.md)
 takes it.
 
 | Value | Description |
 |---|---|
-| `lzma2` | LZMA2, 7-Zip's default ([xz](xz.md)'s coder) |
-| `lzma` | LZMA ([lzma](lzma.md)) |
+| `lzma2` | LZMA2, 7-Zip's default ([xz](xz/README.md)'s coder) |
+| `lzma` | LZMA ([lzma](lzma/README.md)) |
 | `ppmd` | PPMd var. H, for text |
-| `deflate` | DEFLATE ([flate](flate.md)) |
+| `deflate` | DEFLATE ([flate](flate/README.md)) |
 | `copy` | the data as it is; no filter goes before it |
 
 ## Example

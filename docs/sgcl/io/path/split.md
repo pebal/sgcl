@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::split
 
@@ -56,4 +56,4 @@ Output:
 
 - [dir](dir.md), [base](base.md): the two halves, the directory cleaned
 - [split_list](split_list.md): a list of paths taken apart
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

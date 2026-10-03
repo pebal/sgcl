@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::query
 
@@ -65,4 +65,4 @@ fresh milk | a&b | []
 
 - [path_value](path_value.md): a wildcard of the route
 - [url](url.md): the whole URL
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

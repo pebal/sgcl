@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::thread
 
@@ -99,5 +99,5 @@ false true
 
 - [join](join.md): waits for the thread to finish
 - [operator=](operator_assign.md): moves a thread object
-- [function](../function.md): the same closure in a managed node, called many times
-- [sgcl::thread](../thread.md)
+- [function](../function/README.md): the same closure in a managed node, called many times
+- [sgcl::thread](README.md)

@@ -31,7 +31,7 @@ as a link; a socket, a device or a fifo is left out. A failure removes the half-
 
 ## Return value
 
-Nothing, or the [error](error.md): `method::deflate64` (`errc::unsupported`), what the [writer](zip-writer.md)
+Nothing, or the [error](error/README.md): `method::deflate64` (`errc::unsupported`), what the [writer](zip-writer/README.md)
 refuses, a failure of the file system (`errc::io`).
 
 ## Complexity
@@ -85,5 +85,5 @@ index.html
 ## See also
 
 - [extract](zip-extract.md): the other way
-- [writer](zip-writer.md): an archive entry by entry
+- [writer](zip-writer/README.md): an archive entry by entry
 - [sgcl::compress::zip](zip.md)

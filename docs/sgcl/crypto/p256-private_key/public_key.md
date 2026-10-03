@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::public_key
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The [public_key](../p256-public_key.md).
+The [public_key](../p256-public_key/README.md).
 
 ## Complexity
 
@@ -54,5 +54,5 @@ Uy 7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299
 
 ## See also
 
-- [p256::public_key](../p256-public_key.md): what it gives
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [p256::public_key](../p256-public_key/README.md): what it gives
+- [sgcl::crypto::p256::private_key](README.md)

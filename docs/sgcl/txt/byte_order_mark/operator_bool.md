@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [byte_order_mark](../byte_order_mark.md)
+[sgcl](../../README.md) › [txt](../README.md) › [byte_order_mark](README.md)
 
 # sgcl::txt::byte_order_mark::operator bool
 
@@ -48,4 +48,4 @@ true false
 ## See also
 
 - [detect_bom](../detect_bom.md)
-- [sgcl::txt::byte_order_mark](../byte_order_mark.md)
+- [sgcl::txt::byte_order_mark](README.md)

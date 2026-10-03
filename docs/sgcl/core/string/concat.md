@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::concat
 
@@ -70,4 +70,4 @@ true
 - [join](join.md): one string of a range of parts with a separator between each two
 - [repeat](repeat.md): the string a number of times over
 - [operator+](operator_arith.md): a new string of two texts
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

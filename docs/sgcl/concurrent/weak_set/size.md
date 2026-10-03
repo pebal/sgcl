@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_set](../weak_set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_set](README.md)
 
 # sgcl::concurrent::weak_set\<Key\>::size
 
@@ -72,4 +72,4 @@ Output:
 
 - [empty](empty.md): checks whether the set holds an entry
 - [sweep](sweep.md): erases the dead entries
-- [sgcl::concurrent::weak_set\<Key\>](../weak_set.md)
+- [sgcl::concurrent::weak_set\<Key\>](README.md)

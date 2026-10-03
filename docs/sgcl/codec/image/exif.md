@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::exif
 
@@ -79,4 +79,4 @@ orientation 6
 - [orientation](orientation.md): the one field the module reads
 - [set_exif](set_exif.md): sets the EXIF block
 - [icc](icc.md): the color profile
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

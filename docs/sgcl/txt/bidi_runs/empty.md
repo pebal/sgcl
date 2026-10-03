@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs.md)
+[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](README.md)
 
 # sgcl::txt::bidi_runs::empty
 
@@ -47,4 +47,4 @@ true true false
 ## See also
 
 - [count](count.md): the number of pieces
-- [sgcl::txt::bidi_runs](../bidi_runs.md)
+- [sgcl::txt::bidi_runs](README.md)

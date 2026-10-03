@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::process_state
 
@@ -9,7 +9,7 @@ process_state(const process_state& o) noexcept;    // (2)
 
 1. The state of no process: id 0, exited with 0, no processor time.
 2. A copy of `o`, field by field: the class is not trivially copyable on purpose
-   ([process_state](../process_state.md)).
+   ([process_state](README.md)).
 
 A state of a process that ended is made by a wait alone.
 
@@ -56,4 +56,4 @@ false
 ## See also
 
 - [operator=](operator_assign.md): copies a state
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

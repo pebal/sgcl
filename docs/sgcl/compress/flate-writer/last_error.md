@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md) › [writer](../flate-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate/README.md) › [writer](README.md)
 
 # sgcl::compress::flate::writer::last_error
 
@@ -55,4 +55,4 @@ write flate: stream closed
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::flate::writer](../flate-writer.md)
+- [sgcl::compress::flate::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::seed
 
@@ -7,7 +7,7 @@ secret<32> seed() const;
 ```
 
 Returns the seed, RFC 8032's private key and what [from_seed](from_seed.md) takes back, Go's `PrivateKey.Seed()`. It
-comes as a [secret\<32\>](../secret.md), move-only and zeroed when it goes.
+comes as a [secret\<32\>](../secret/README.md), move-only and zeroed when it goes.
 
 ## Parameters
 
@@ -52,4 +52,4 @@ Output:
 
 - [from_seed](from_seed.md): the reverse
 - [bytes](bytes.md): the seed and the public key
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [sgcl::crypto::ed25519::private_key](README.md)

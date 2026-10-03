@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::root_ptr\<T\>::get
 
@@ -63,4 +63,4 @@ Output:
 
 - [operator\*, operator->](operator_deref.md): the object
 - [ptr, operator tracked_ptr\<T\>&](ptr.md): the cell's word
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read_all, async_read_all
 
@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-The bytes, empty when the stream was at its end; or the [io::error](../../io/error.md) of the [read](read.md) that
+The bytes, empty when the stream was at its end; or the [io::error](../../io/error/README.md) of the [read](read.md) that
 failed, the bytes read before it lost.
 
 ## Complexity
@@ -35,7 +35,7 @@ Linear in the bytes read.
 ## Notes
 
 The input is the network's and nothing bounds it: a peer that never stops writing fills the memory. A deadline
-([set_read_deadline](set_read_deadline.md)) bounds the time; a [limit_reader](../../io/limit_reader.md) over the
+([set_read_deadline](set_read_deadline.md)) bounds the time; a [limit_reader](../../io/limit_reader/README.md) over the
 connection bounds the bytes.
 
 ## Example
@@ -70,4 +70,4 @@ Output:
 
 - [read_all_text](read_all_text.md): the same into a `string`
 - [read_full](read_full.md): a buffer of a known size
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

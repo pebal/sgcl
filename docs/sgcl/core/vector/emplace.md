@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::emplace
 
@@ -43,7 +43,7 @@ element is destroyed exactly once, but the values have changed, as with `std::ve
 
 ## Notes
 
-A reallocation leaves the old buffer to the collector instead of freeing it: a [slice](../slice.md) taken
+A reallocation leaves the old buffer to the collector instead of freeing it: a [slice](../slice/README.md) taken
 before the call still reads the old elements. The capacity of a growth is at least twice the old one.
 
 ## Example
@@ -81,4 +81,4 @@ Output:
 
 - [insert](insert.md): inserts copies or moved values
 - [emplace_back](emplace_back.md): constructs an element in place at the end
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

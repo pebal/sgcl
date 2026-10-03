@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::get
 
@@ -63,4 +63,4 @@ Output:
 ## See also
 
 - [operator\*, operator->](operator_deref.md): the object
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

@@ -48,7 +48,7 @@ timers of that heap), and pushed again at every tick.
 ## Notes
 
 A tick is a send that does not wait, made by the timer thread: when the receiver is a task, a push on the
-scheduler. Under a [manual_clock](manual_clock.md), an advance that covers several periods fires the timer once
+scheduler. Under a [manual_clock](manual_clock/README.md), an advance that covers several periods fires the timer once
 per period, and the channel holds one signal of them, as for a slow receiver in real time. The timer thread and
 what the timers share are on [sleep](sleep.md#notes).
 
@@ -125,5 +125,5 @@ true
 - [every](every.md): a function called every period, the loop over the ticks written
 - [after](after.md): one moment, as an event
 - [select](select.md): a tick as a case beside others
-- [channel](channel.md): what `tick` returns
-- [manual_clock](manual_clock.md): the ticks of a test
+- [channel](channel/README.md): what `tick` returns
+- [manual_clock](manual_clock/README.md): the ticks of a test

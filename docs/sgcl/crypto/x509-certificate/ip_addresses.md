@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::ip_addresses
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The [ip_address](../x509-ip_address.md) values, empty when there are none.
+The [ip_address](../x509-ip_address/README.md) values, empty when there are none.
 
 ## Complexity
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [verify_ip](verify_ip.md): checks an address against them
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

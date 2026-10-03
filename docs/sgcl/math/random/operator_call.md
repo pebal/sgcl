@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::operator()
 
@@ -68,4 +68,4 @@ true
 
 - [next_uint64](next_uint64.md): the same word under its own name
 - [min](min.md), [max](max.md): the range of a draw
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

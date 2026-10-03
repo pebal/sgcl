@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::to_string, sgcl::math::operator\<\< (sgcl::math::rational)
 
@@ -62,4 +62,4 @@ Output:
 
 - [to_decimal](to_decimal.md): the decimal with a number of places
 - [parse](parse.md): reads the text back
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

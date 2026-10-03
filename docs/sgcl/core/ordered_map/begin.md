@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::begin, cbegin
 
@@ -43,7 +43,7 @@ An iterator is one raw node pointer, bidirectional: copying it, advancing it and
 load, never a write barrier, and it may be kept in memory of any kind, a `std::vector` included, while its
 element is in the map. A local iterator holds the bucket's number and the mask besides, and only goes forward.
 
-The members of [mixin::enumerable](../mixin/enumerable.md) walk from `begin()`: a position they give, as
+The members of [mixin::enumerable](../mixin/enumerable/README.md) walk from `begin()`: a position they give, as
 `index_of`'s, is a position in the order of insertion.
 
 ## Example
@@ -90,4 +90,4 @@ true
 - [end, cend](end.md): the iterator past the newest element
 - [rbegin, crbegin](rbegin.md): the order from the newest element back
 - [bucket](bucket.md), [bucket_size](bucket_size.md): the bucket of a key, the elements in a bucket
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

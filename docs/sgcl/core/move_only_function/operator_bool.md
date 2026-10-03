@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [move_only_function](../move_only_function.md)
+[sgcl](../../README.md) › [core](../README.md) › [move_only_function](README.md)
 
 # sgcl::move_only_function\<R(Args...)\>::operator bool
 
@@ -54,4 +54,4 @@ false true
 ## See also
 
 - [operator()](operator_call.md): calls the callable
-- [sgcl::move_only_function\<R(Args...)\>](../move_only_function.md)
+- [sgcl::move_only_function\<R(Args...)\>](README.md)

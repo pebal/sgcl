@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](../p256-ecdh_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](README.md)
 
 # sgcl::crypto::p256::ecdh_key::clone
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](p256-ecdh_key.md): the move
-- [sgcl::crypto::p256::ecdh_key](../p256-ecdh_key.md)
+- [sgcl::crypto::p256::ecdh_key](README.md)

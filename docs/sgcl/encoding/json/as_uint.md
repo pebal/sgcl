@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::as_uint
 
@@ -66,4 +66,4 @@ Output:
 - [as_int](as_int.md): the number as an `int64_t`
 - [as_double](as_double.md): any number, rounded
 - [is_integer](is_integer.md): whether there is an integer
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

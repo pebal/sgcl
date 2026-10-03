@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::reader::close, async_close
 
@@ -85,4 +85,4 @@ buffer: true
 
 - [has_close](has_close.md): whether the stream has a close
 - [file::close](../file/close.md): the close of a file
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

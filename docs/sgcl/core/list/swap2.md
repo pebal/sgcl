@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::swap (sgcl::list)
 
@@ -61,4 +61,4 @@ Output:
 ## See also
 
 - [swap](swap.md): the member function
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

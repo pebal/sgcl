@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_token](../stop_token.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_token](README.md)
 
 # sgcl::async::stop_token::stop_requested
 
@@ -64,4 +64,4 @@ false
 
 - [stop_source::request_stop](../stop_source/request_stop.md): the stop requested
 - [on_stop](on_stop.md), [stopped](stopped.md): waits that the stop ends
-- [sgcl::async::stop_token](../stop_token.md)
+- [sgcl::async::stop_token](README.md)

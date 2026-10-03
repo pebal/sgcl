@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::pick
 
@@ -73,4 +73,4 @@ sgcl::math::random::pick: an empty range
 
 - [next_int](next_int.md): a position drawn the same way
 - [shuffle](shuffle.md): every element, in a random order
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

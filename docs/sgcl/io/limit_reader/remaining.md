@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [limit_reader](../limit_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [limit_reader](README.md)
 
 # sgcl::io::limit_reader::remaining
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [read, async_read](read.md)
-- [sgcl::io::limit_reader](../limit_reader.md)
+- [sgcl::io::limit_reader](README.md)

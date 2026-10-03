@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::private_key
 
@@ -65,4 +65,4 @@ sgcl::crypto::ed25519::private_key: used after being moved from
 
 - [operator=](operator_assign.md): the same for an assignment
 - [clone](clone.md): a second key by name
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [sgcl::crypto::ed25519::private_key](README.md)

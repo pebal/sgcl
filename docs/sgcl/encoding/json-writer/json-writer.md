@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::writer
 
@@ -9,11 +9,11 @@ writer(const writer&) = delete;                            // (3)
 ```
 
 Constructs a writer into a stream. Nothing is written until [flush](flush.md). Anything with a `write` is a
-stream: a file, a connection, an [io::buffer](../../io/buffer.md), `io::stdout`, an encoder of the module, a
+stream: a file, a connection, an [io::buffer](../../io/buffer/README.md), `io::stdout`, an encoder of the module, a
 callable.
 
-1. The text compact, with no space at all, as [json::compact](../json.md#member-objects) lays it out.
-2. The text laid out by `s`: [json::pretty](../json.md#member-objects) indents by two spaces, as Go's
+1. The text compact, with no space at all, as [json::compact](../json/README.md#member-objects) lays it out.
+2. The text laid out by `s`: [json::pretty](../json/README.md#member-objects) indents by two spaces, as Go's
    `SetIndent("", "  ")`; a [style](../json-style.md) of one's own sets the indent, the escape of `<`, `>` and `&`,
    and whether the keys of a hash map of a typed value are sorted.
 3. A writer is neither copied nor moved: two writers would interleave their text in one stream.
@@ -73,4 +73,4 @@ Output:
 - [json::style](../json-style.md): how the text is laid out
 - [flush](flush.md): the text to the stream
 - [io streams](../../io/README.md)
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [sgcl::encoding::json::writer](README.md)

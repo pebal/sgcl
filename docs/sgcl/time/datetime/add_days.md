@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::add_days
 
@@ -10,7 +10,7 @@ The same time of the clock `n` days on (back for a negative `n`), in the same zo
 the calendar's arithmetic, the days of Go's `t.AddDate(0, 0, n)`. Across a change of the clock a day is 23 or 25
 hours; `t + 24 * hour` is the exact arithmetic. A time of the clock that the new day does not have, or has twice, is
 read by the compatible rule, as a date's [at](../date/at.md) reads it
-([A time of the clock skipped or shown twice](../datetime.md#a-time-of-the-clock-skipped-or-shown-twice)): 02:30 a
+([A time of the clock skipped or shown twice](README.md#a-time-of-the-clock-skipped-or-shown-twice)): 02:30 a
 day before the night the clock skips 02:00 to 03:00 is 03:30 a day later. A result past either end of the range is
 the end.
 
@@ -62,4 +62,4 @@ Output:
 - [add_months](add_months.md), [add_years](add_years.md): months and years on
 - [operator+](operator_arith.md): the exact arithmetic
 - [date::add_days](../date/add_days.md): days on of a date
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

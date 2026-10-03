@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::swap
 
@@ -57,4 +57,4 @@ Output:
 
 - [swap](swap2.md): the non-member function
 - [splice](splice.md): moves nodes between lists
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

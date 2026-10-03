@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [xml](xml.md) › [token](xml-token.md)
+[sgcl](../README.md) › [encoding](README.md) › [xml](xml/README.md) › [token](xml-token/README.md)
 
 # sgcl::encoding::xml::token::kind
 
@@ -18,7 +18,7 @@ namespace sgcl::encoding {
 }
 ```
 
-`sgcl::encoding::xml::token::kind` is what a [token](xml-token.md) is, as its [type](xml-token/type.md) tells it:
+`sgcl::encoding::xml::token::kind` is what a [token](xml-token/README.md) is, as its [type](xml-token/type.md) tells it:
 Go's `StartElement`, `EndElement`, `CharData`, `Comment`, `ProcInst` and `Directive`.
 
 | Value | Description |
@@ -74,4 +74,4 @@ end_element [a]
 
 - [token::type](xml-token/type.md)
 - [xml::kind](xml-kind.md): the kinds of the nodes of a tree
-- [sgcl::encoding::xml::token](xml-token.md)
+- [sgcl::encoding::xml::token](xml-token/README.md)

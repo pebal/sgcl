@@ -10,8 +10,8 @@ namespace sgcl::crypto {
 }
 ```
 
-Reads a whole file into a [secret_bytes](secret_bytes.md): a private key's PEM, a password, a key file. The bytes go
-straight from the file into the secret, never through managed memory, where [io::read_file](../io/file.md) would
+Reads a whole file into a [secret_bytes](secret_bytes/README.md): a private key's PEM, a password, a key file. The bytes go
+straight from the file into the secret, never through managed memory, where [io::read_file](../io/file/README.md) would
 give a managed `vector<byte>` that the collector frees without zeroing; every block the secret leaves as it grows is
 zeroed. A private key's PEM read this way goes on to `from_pem`, which decodes it into a `secret_bytes` in turn:
 `ed25519::private_key::from_pem(crypto::read_secret(path))`, where an error of the read is a
@@ -26,7 +26,7 @@ the call returns, after a read that failed too; what was read before the failure
 
 ## Return value
 
-The bytes of the file, or the [io::error](../io/error.md) of the open or of a read that failed.
+The bytes of the file, or the [io::error](../io/error/README.md) of the open or of a read that failed.
 
 ## Complexity
 
@@ -69,6 +69,6 @@ open tests/net/tls_testdata/no.key: No such file or directory
 
 ## See also
 
-- [secret_bytes](secret_bytes.md): the secret it reads into
-- [ed25519::private_key](ed25519-private_key.md), [x25519::private_key](x25519-private_key.md): `from_pem`
-- [encoding::pem](../encoding/pem.md): PEM that is not a secret, certificates
+- [secret_bytes](secret_bytes/README.md): the secret it reads into
+- [ed25519::private_key](ed25519-private_key/README.md), [x25519::private_key](x25519-private_key/README.md): `from_pem`
+- [encoding::pem](../encoding/pem/README.md): PEM that is not a secret, certificates

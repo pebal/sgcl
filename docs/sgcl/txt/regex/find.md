@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::find
 
@@ -28,7 +28,7 @@ lazy one what it must.
 
 ## Return value
 
-The [match](../match.md), or an empty `optional` when there is none at or after `from`.
+The [match](../match/README.md), or an empty `optional` when there is none at or after `from`.
 
 ## Complexity
 
@@ -37,7 +37,7 @@ Linear in the length of the text after `from` times the length of the pattern.
 ## Exceptions
 
 - (1–2) None.
-- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Notes
@@ -77,5 +77,5 @@ false
 
 - [all](all.md): every match, as a range
 - [contains](contains.md): whether there is a match
-- [match](../match.md): what a match holds
-- [sgcl::txt::regex](../regex.md)
+- [match](../match/README.md): what a match holds
+- [sgcl::txt::regex](README.md)

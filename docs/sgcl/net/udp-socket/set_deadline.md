@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::set_deadline
 
@@ -6,7 +6,7 @@
 void set_deadline(time_point t) const noexcept;
 ```
 
-Sets the deadline of both directions to `t`, an absolute time on the module's [clock](../../core/clock.md): Go's
+Sets the deadline of both directions to `t`, an absolute time on the module's [clock](../../core/clock/README.md): Go's
 `SetDeadline`. It is [set_read_deadline](set_read_deadline.md) and [set_write_deadline](set_write_deadline.md)
 together. A receive or a send that starts after the deadline of its direction, or would wait past it, fails with
 `ETIMEDOUT` (`is_timeout()`), even when a datagram is there. `time_point()` removes the deadline. A change applies
@@ -63,4 +63,4 @@ true
 
 - [set_read_deadline](set_read_deadline.md), [set_write_deadline](set_write_deadline.md): one direction
 - [connection::set_deadline](../connection/set_deadline.md): the deadlines of a stream, the same rules
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

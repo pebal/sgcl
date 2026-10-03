@@ -79,4 +79,4 @@ warning: 2 of 5 files skipped
 
 - [eprintln](eprintln.md): the same and a new line
 - [print](print.md): on the standard output, or any writer
-- [standard_stream](standard_stream.md): `io::stderr`
+- [standard_stream](standard_stream/README.md): `io::stderr`

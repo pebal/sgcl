@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [frames](../frames.md)
+[sgcl](../../README.md) › [codec](../README.md) › [frames](README.md)
 
 # sgcl::codec::frames::width
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [height](height.md): the height of the canvas
-- [sgcl::codec::frames](../frames.md)
+- [sgcl::codec::frames](README.md)

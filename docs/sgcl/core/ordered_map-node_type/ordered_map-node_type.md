@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md) › [node_type](../ordered_map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map/README.md) › [node_type](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type::node_type
 
@@ -64,4 +64,4 @@ false
 
 - [operator=](operator_assign.md): takes the node of another handle
 - [extract](../ordered_map/extract.md): takes a node out of a map
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type](../ordered_map-node_type.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [stopwatch](../stopwatch.md)
+[sgcl](../../README.md) › [time](../README.md) › [stopwatch](README.md)
 
 # sgcl::time::stopwatch::elapsed
 
@@ -6,7 +6,7 @@
 duration elapsed() const noexcept;
 ```
 
-The time since the start, on the [clock](../../core/clock.md) the stopwatch reads; the stopwatch runs on.
+The time since the start, on the [clock](../../core/clock/README.md) the stopwatch reads; the stopwatch runs on.
 
 ## Parameters
 
@@ -57,4 +57,4 @@ Output:
 
 - [restart](restart.md): the time elapsed, and a new start
 - [measure](measure.md): how long a call takes
-- [sgcl::time::stopwatch](../stopwatch.md)
+- [sgcl::time::stopwatch](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::multiset
 
@@ -33,7 +33,7 @@ Constructs a multiset from one of the sources below.
    empty, without buckets.
 
 - (2–4) A `bucket_count` the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-  allocation does ([collector](../collector.md#the-memory-limit)): a count past the largest array an address space
+  allocation does ([collector](../collector/README.md#the-memory-limit)): a count past the largest array an address space
   holds is taken as that array, refused in the same way.
 
 ## Parameters
@@ -110,4 +110,4 @@ Output:
 
 - [operator=](operator_assign.md): replaces the elements of a multiset
 - [reserve](reserve.md): the buckets for the elements to come
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md) › [node_type](../map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](../map/README.md) › [node_type](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::node_type::swap
 
@@ -62,4 +62,4 @@ true one
 ## See also
 
 - [operator=](operator_assign.md): takes another handle's node over
-- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](../map-node_type.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

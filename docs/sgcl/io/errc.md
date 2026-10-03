@@ -39,15 +39,15 @@ operation and the path.
 | `closed` | "stream closed": a stream closed by the program, an operation after `close()` or one waiting when the close came |
 | `invalid_path` | "invalid path": a path [rel](path/rel.md) cannot express |
 | `invalid_pattern` | "invalid pattern": a pattern [match](path/match.md) or [glob](path/glob.md) cannot parse |
-| `line_too_long` | "line too long": a line past the bound a [buffered_reader](buffered_reader.md) was given |
+| `line_too_long` | "line too long": a line past the bound a [buffered_reader](buffered_reader/README.md) was given |
 | `not_found` | "executable file not found in PATH": no executable of the name in `PATH`, from [look_path](look_path.md) |
-| `exit_status` | "the process ended with a failure status": the wait of a child process; the status in the [command](command.md)'s state |
-| `process_done` | "process already finished": a second wait, or a signal after the wait or the release of a [process](process.md) |
+| `exit_status` | "the process ended with a failure status": the wait of a child process; the status in the [command](command/README.md)'s state |
+| `process_done` | "process already finished": a second wait, or a signal after the wait or the release of a [process](process/README.md) |
 | `wait_delay` | "wait delay expired": the copying tasks of a command outlasted its `wait_delay` after the child ended, and the pipes were closed |
 | `unsupported` | "descriptor number past the reactor's table": a wait on a descriptor whose number is past the reactor's table, four million numbers; an operation that would wait fails rather than try again forever |
 | `insecure_path` | "insecure path": a name that would leave its directory once joined to it, from [path::under](path/under.md) (Go's `ErrInsecurePath`) |
-| `invalid_argument` | "invalid command line": a command line the [flags](flags.md) do not take, Go's message about it in the error's path |
-| `help_requested` | "help requested": `-h` or `-help` on the command line of the [flags](flags.md) (Go's `flag.ErrHelp`); its message is `flag: help requested` |
+| `invalid_argument` | "invalid command line": a command line the [flags](flags/README.md) do not take, Go's message about it in the error's path |
+| `help_requested` | "help requested": `-h` or `-help` on the command line of the [flags](flags/README.md) (Go's `flag.ErrHelp`); its message is `flag: help requested` |
 
 ## Example
 
@@ -74,5 +74,5 @@ io: line too long
 
 ## See also
 
-- [error](error.md): the code, the operation, the path
+- [error](error/README.md): the code, the operation, the path
 - [category](category.md), [make_error_code](make_error_code.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [punycode](../punycode.md)
+[sgcl](../../README.md) › [txt](../README.md) › [punycode](README.md)
 
 # sgcl::txt::punycode::decode
 
@@ -9,7 +9,7 @@ optional<string> decode(const string& label);
 Returns one label read back from punycode, by [RFC 3492](https://www.rfc-editor.org/rfc/rfc3492), the `xn--` prefix
 not part of it: the ASCII before the last `-` as it stands, the deltas after it decoded into the code points they
 place. Every addition and multiplication is bounded before it is made, so a counter never wraps
-([punycode](../punycode.md)).
+([punycode](README.md)).
 
 ## Parameters
 
@@ -62,4 +62,4 @@ bcher-k!a -> nothing
 
 - [encode](encode.md): the other way
 - [to_unicode](../idna/to_unicode.md): a whole name, with the prefix
-- [sgcl::txt::punycode](../punycode.md)
+- [sgcl::txt::punycode](README.md)

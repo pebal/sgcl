@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](../growing_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](README.md)
 
 # sgcl::txt::growing_sink::view
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [text](text.md): the same as a string
-- [sgcl::txt::growing_sink](../growing_sink.md)
+- [sgcl::txt::growing_sink](README.md)

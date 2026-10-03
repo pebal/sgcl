@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::holds_alternative (sgcl::variant)
 
@@ -64,4 +64,4 @@ false true
 
 - [index](index.md): the index of the alternative held
 - [get_if](get_if.md): a pointer to the alternative, null on another
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

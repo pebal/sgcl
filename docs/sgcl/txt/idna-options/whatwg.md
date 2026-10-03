@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md) › [options](../idna-options.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna/README.md) › [options](README.md)
 
 # sgcl::txt::idna::options::whatwg
 
@@ -9,7 +9,7 @@ static constexpr options whatwg() noexcept;
 Returns the profile the [WHATWG URL Standard](https://url.spec.whatwg.org/) asks for, what a browser's URL parser
 wants: the deviations kept, the hyphens and the lengths not checked (`check_hyphens` and `verify_dns_length` off),
 the bidirectional and joiner rules still checked. A looser profile on purpose, so that names already in the wild keep
-working; [url](../../net/url.md) reads its hosts with it.
+working; [url](../../net/url/README.md) reads its hosts with it.
 
 ## Parameters
 
@@ -56,4 +56,4 @@ example.com.
 ## See also
 
 - [standard](standard.md): the strict profile
-- [sgcl::txt::idna::options](../idna-options.md)
+- [sgcl::txt::idna::options](README.md)

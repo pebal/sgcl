@@ -24,7 +24,7 @@ they finished.
 1. The results of tasks of values, none of them `task<void>`, as a [tuple](../core/aliases.md):
    `auto [a, b] = co_await when_all(...)`.
 2. Tasks of nothing, all of them `task<void>`: nothing.
-3. A [vector](../core/vector.md) of tasks of one type: a vector of their results.
+3. A [vector](../core/vector/README.md) of tasks of one type: a vector of their results.
 4. A vector of `task<void>`: nothing.
 
 `when_all` is a task itself, a coroutine with a managed frame that holds the tasks given (moved in: a task is awaited
@@ -172,7 +172,7 @@ second
 ## See also
 
 - [when_any](when_any.md): the first task to finish
-- [task_group](task_group.md): a scope of tasks stopped as one by the first exception
+- [task_group](task_group/README.md): a scope of tasks stopped as one by the first exception
 - [select](select.md): a race of channels rather than tasks
 - [spawn](spawn.md): starts the tasks to wait for
-- [task](task.md): what is composed
+- [task](task/README.md): what is composed

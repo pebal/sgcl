@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::decode_to
 
@@ -30,7 +30,7 @@ Digits found wrong have had the bytes before the error written into `out`. `out`
 
 ## Return value
 
-The number of bytes written, or the [error](../error.md) with its offset, as [decode](decode.md)'s.
+The number of bytes written, or the [error](../error/README.md) with its offset, as [decode](decode.md)'s.
 
 ## Complexity
 
@@ -68,4 +68,4 @@ offset 5: invalid character 'G'
 - [max_decoded_size](max_decoded_size.md): the size the buffer needs
 - [decode](decode.md): into a vector of its own
 - [encode_to](encode_to.md): the other way
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [txt](README.md) › [idna](idna.md)
+[sgcl](../README.md) › [txt](README.md) › [idna](idna/README.md)
 
 # sgcl::txt::idna::error
 
@@ -25,7 +25,7 @@ namespace sgcl::txt::idna {
 }
 ```
 
-Which rule a name broke, the `rule` of a [failure](idna-failure.md). One name can break several at once and a failure
+Which rule a name broke, the `rule` of a [failure](idna-failure/README.md). One name can break several at once and a failure
 holds the first of them. The codes in the table are the steps of [UTS #46](https://www.unicode.org/reports/tr46/)
 and the codes `IdnaTestV2.txt` writes, so that a failure can be read against the standard;
 [message_of](idna/message_of.md) says each in words.
@@ -77,6 +77,6 @@ false false false true
 
 ## See also
 
-- [failure](idna-failure.md): the rule and the label
+- [failure](idna-failure/README.md): the rule and the label
 - [message_of](idna/message_of.md): the rule in words
-- [sgcl::txt::idna](idna.md)
+- [sgcl::txt::idna](idna/README.md)

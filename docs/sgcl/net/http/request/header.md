@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::header
 
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [headers](headers.md): every field
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

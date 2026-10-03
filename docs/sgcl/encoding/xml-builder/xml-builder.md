@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [builder](../xml-builder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [builder](README.md)
 
 # sgcl::encoding::xml::builder::builder
 
@@ -52,4 +52,4 @@ sgcl::encoding::xml: '<table>' is not a qualified name
 ## See also
 
 - [build](build.md): the element made
-- [sgcl::encoding::xml::builder](../xml-builder.md)
+- [sgcl::encoding::xml::builder](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::erase
 
@@ -96,4 +96,4 @@ true true
 - [erase_if](erase_if.md): erases every element satisfying a predicate
 - [take](take.md): moves the value under a key out and erases the element
 - [extract](extract.md): unlinks an element into a node handle, without destroying it
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

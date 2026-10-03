@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::message
 
@@ -54,4 +54,4 @@ line too long
 ## See also
 
 - [code](code.md), [op](op.md), [path](path.md): the parts of the text
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

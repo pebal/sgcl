@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [queue](README.md)
 
 # sgcl::queue\<T, Container\>::queue
 
@@ -90,4 +90,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns the contents
 - [push](push.md): appends an element
-- [sgcl::queue\<T, Container\>](../queue.md)
+- [sgcl::queue\<T, Container\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::encode
 
@@ -67,4 +67,4 @@ MZXW6YTB
 - [decode](decode.md): the bytes of a text
 - [encode_to](encode_to.md): into the caller's buffer
 - [encoder_to](encoder_to.md): as a stream
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

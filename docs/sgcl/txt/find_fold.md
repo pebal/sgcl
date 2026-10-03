@@ -52,8 +52,8 @@ None.
 ## Notes
 
 Both sides are folded **on every call**. That is the right shape for one question and the wrong one for a loop:
-a loop over the occurrences folds the text again for each of them and is quadratic. [fold_matches](fold_matches.md),
-or a [folded_text](folded_text.md) kept, folds the text once ([Benchmarks: search](benchmarks.md#search)).
+a loop over the occurrences folds the text again for each of them and is quadratic. [fold_matches](fold_matches/README.md),
+or a [folded_text](folded_text/README.md) kept, folds the text once ([Benchmarks: search](benchmarks.md#search)).
 
 The folded and the normalized searches are held to one another and to what they are defined to do. The prepared
 forms are checked against the one-shot ones over **2000 random texts** built of Polish, German and Greek pieces, at
@@ -93,7 +93,7 @@ STRASSE w 'Die straße': 4, bajtów 7
 ## See also
 
 - [contains_fold](contains_fold.md): whether there is an occurrence
-- [fold_matches](fold_matches.md): every occurrence, the text folded once
-- [folded_text](folded_text.md), [fold_searcher](fold_searcher.md): a text, a pattern folded once
+- [fold_matches](fold_matches/README.md): every occurrence, the text folded once
+- [folded_text](folded_text/README.md), [fold_searcher](fold_searcher/README.md): a text, a pattern folded once
 - [find_normalized](find_normalized.md): blind to the way a text was written
 - [fold_case](fold_case.md): the folding

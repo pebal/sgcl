@@ -14,7 +14,7 @@ namespace sgcl::txt {
 }
 ```
 
-Which case comes first to a [collator](collator.md) where the letters and the accents are the same. The root puts
+Which case comes first to a [collator](collator/README.md) where the letters and the accents are the same. The root puts
 the small letter first; Danish, Maltese and Church Slavonic ask for the capital, and so do the lists a lawyer
 reads. CLDR calls the setting `caseFirst` (`kf`); it is the `case_order` of
 [collator::options](collator-options.md), and [collator::capitals_first](collator/capitals_first.md) says what a
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [collator::options](collator-options.md): the settings of a collator
-- [collator](collator.md)
+- [collator](collator/README.md)

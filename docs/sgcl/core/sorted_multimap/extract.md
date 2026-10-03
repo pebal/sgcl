@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::extract
 
@@ -10,9 +10,9 @@ node_type extract(const key_type& key) noexcept;                           // (3
 template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (4)
 ```
 
-Unlinks a node and hands it over in a [node handle](../sorted_map-node_type.md), the element untouched: the handle
+Unlinks a node and hands it over in a [node handle](../sorted_map-node_type/README.md), the element untouched: the handle
 owns it now, its key may be changed there, and it destroys the element if it dies without having been inserted.
-The node goes back into a multimap, or a [sorted_map](../sorted_map.md), with the same `Key` and `T`, through
+The node goes back into a multimap, or a [sorted_map](../sorted_map/README.md), with the same `Key` and `T`, through
 [insert](insert.md) with no copy.
 
 1. Extracts the element `pos` addresses, which must be an element of this multimap, not `end()`. The clause keeps
@@ -20,7 +20,7 @@ The node goes back into a multimap, or a [sorted_map](../sorted_map.md), with th
 2. The same with a `const_iterator`.
 3. Extracts the first element under `key`; returns an empty handle when there is none.
 4. As (3), with a key of another type, compared without building a `key_type`. Takes part only when `Compare`
-   declares `is_transparent`, as `std::less` of a [string](../string.md) does, and `K` converts to neither
+   declares `is_transparent`, as `std::less` of a [string](../string/README.md) does, and `K` converts to neither
    `iterator` nor `const_iterator`.
 
 ## Parameters
@@ -75,4 +75,4 @@ a {1: "b"}
 
 - [insert](insert.md): links a node handle's node back into a multimap
 - [merge](merge.md): relinks the nodes of another map into this one
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

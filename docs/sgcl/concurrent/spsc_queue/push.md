@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::push
 
@@ -80,4 +80,4 @@ Output:
 
 - [try_push](try_push.md), [try_emplace](try_emplace.md): return at once when the queue is full
 - [pop](pop.md): the consumer's side, waiting for an element
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

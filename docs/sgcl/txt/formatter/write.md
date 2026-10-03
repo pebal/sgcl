@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [formatter](../formatter.md)
+[sgcl](../../README.md) › [txt](../README.md) › [formatter](README.md)
 
 # sgcl::txt::formatter\<T\>::write
 
@@ -88,4 +88,4 @@ Output:
 ## See also
 
 - [write_padded](../write_padded.md): a text in its field
-- [sgcl::txt::formatter](../formatter.md)
+- [sgcl::txt::formatter](README.md)

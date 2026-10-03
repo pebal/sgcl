@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md) › [pieces](../string-pieces.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](../string/README.md) › [pieces](README.md)
 
 # sgcl::string::pieces::text
 
@@ -49,4 +49,4 @@ x=1;y=2 true
 ## See also
 
 - [begin](begin.md): an iterator to the first piece
-- [sgcl::string::pieces](../string-pieces.md)
+- [sgcl::string::pieces](README.md)

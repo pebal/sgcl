@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::public_key
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-A copy of the [public key](../rsa-public_key.md).
+A copy of the [public key](../rsa-public_key/README.md).
 
 ## Complexity
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [public_key::to_pkix_der](../rsa-public_key/to_pkix_der.md): the public key as it is published
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

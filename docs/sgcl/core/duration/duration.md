@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::duration
 
@@ -44,7 +44,7 @@ A duration never comes from a bare number: `duration(5)` does not compile, `5 * 
 
 - (1–3) None.
 - (4) `bad_expected_access<duration_error>` when `text` is not a duration; its `error()` is the
-  [duration_error](../duration_error.md) of `parse`.
+  [duration_error](../duration_error/README.md) of `parse`.
 
 ## Example
 
@@ -83,4 +83,4 @@ an unknown unit: ns, us, ms, s, m or h expected (byte 1)
 
 - [parse](parse.md): reads a text from outside the program
 - [operator std::chrono::nanoseconds](operator_conv.md): the conversion the other way
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

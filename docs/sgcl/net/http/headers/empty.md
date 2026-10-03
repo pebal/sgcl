@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::empty
 
@@ -50,4 +50,4 @@ true
 ## See also
 
 - [size](size.md): the number of fields
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

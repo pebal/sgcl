@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::if_alive
 
@@ -81,6 +81,6 @@ peer 1 still here
 
 ## See also
 
-- [weak_ptr](../weak_ptr.md): a pointer that keeps nothing alive
-- [collector](../collector.md): `force_collect`
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [weak_ptr](../weak_ptr/README.md): a pointer that keeps nothing alive
+- [collector](../collector/README.md): `force_collect`
+- [sgcl::tracked_ptr\<T\>](README.md)

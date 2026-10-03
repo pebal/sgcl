@@ -25,7 +25,7 @@ promise are roots for as long as the frame is held ([coroutine](coroutine.md)). 
 the compiler calls them for every coroutine of the promise, with the size of the whole frame.
 
 A promise of your own derives from `managed_frame` and returns, from `get_return_object`, an object that holds a
-[frame_ptr](frame_ptr.md) made from the handle. Everything else about the promise is ordinary C++20:
+[frame_ptr](frame_ptr/README.md) made from the handle. Everything else about the promise is ordinary C++20:
 `initial_suspend`, `final_suspend`, `return_value` or `return_void`, `yield_value`, `unhandled_exception`, and any
 members it needs, `tracked_ptr` members included, since the promise lives in the frame. Neither `std` nor Go has a
 counterpart: a C++ frame is the program's to allocate, a Go goroutine's stack is the collector's from the start.
@@ -35,7 +35,7 @@ counterpart: a C++ frame is the program's to allocate, a Go goroutine's stack is
 - The frame is allocated as a managed buffer: the size rounded up to whole words, four words of header in front of
   it, all zeroed, in the state of an object a `unique_ptr` owns until a `frame_ptr` takes it over. Out of managed
   memory, the program ends with a diagnostic, as every managed allocation does
-  ([collector](collector.md#the-memory-limit)).
+  ([collector](collector/README.md#the-memory-limit)).
 - `operator delete` runs when the coroutine is destroyed, after the destructors of its locals and promise. It frees
   a frame that no `frame_ptr` took over (an exception thrown before `get_return_object`) and does nothing for a frame
   taken over, which the collector reclaims once nothing refers to it.
@@ -117,5 +117,5 @@ Output:
 ## See also
 
 - [coroutine](coroutine.md): how a frame becomes managed, a coroutine type of your own
-- [frame_ptr](frame_ptr.md): the owner of the frame
-- [generator](generator.md): the coroutine type of the core built on it
+- [frame_ptr](frame_ptr/README.md): the owner of the frame
+- [generator](generator/README.md): the coroutine type of the core built on it

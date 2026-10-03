@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::to_pkcs1_der
 
@@ -55,4 +55,4 @@ Output:
 
 - [from_pkcs1_der](from_pkcs1_der.md): reads it back
 - [to_pkix_der](to_pkix_der.md): the encoding with the algorithm's identifier
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

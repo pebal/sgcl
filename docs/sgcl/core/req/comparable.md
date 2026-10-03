@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::comparable
 
@@ -13,7 +13,7 @@ namespace sgcl::req {
 
 A value with an order: `T` is `std::three_way_comparable`, or `a < b` is valid for two `const T&` and gives
 something convertible to `bool`. A container of the library has `<=>` from
-[mixin::comparable](../mixin/comparable.md) only when its elements are comparable.
+[mixin::comparable](../mixin/comparable/README.md) only when its elements are comparable.
 The last is what the standard containers ask of their elements for their `<=>`, synthesized from `<` when `T` has
 no `<=>`.
 
@@ -76,5 +76,5 @@ true true false
 
 - [equatable](equatable.md): a value with `==`
 - [ordered](ordered.md): a range of comparable elements
-- [mixin::comparable](../mixin/comparable.md): `<=>` of a container, by its elements
-- [sgcl::req](../req.md)
+- [mixin::comparable](../mixin/comparable/README.md): `<=>` of a container, by its elements
+- [sgcl::req](README.md)

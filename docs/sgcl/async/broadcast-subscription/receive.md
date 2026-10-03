@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md) › [subscription](../broadcast-subscription.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast/README.md) › [subscription](README.md)
 
 # sgcl::async::broadcast\<T\>::subscription::receive
 
@@ -6,7 +6,7 @@
 auto receive() noexcept;
 ```
 
-Receives the next value, waiting for one. The call makes an [operation](../operation.md) that does nothing yet;
+Receives the next value, waiting for one. The call makes an [operation](../operation/README.md) that does nothing yet;
 carried out, the receive copies the value at the cursor out of the ring and moves the cursor on, or waits until a
 sender commits the position or the broadcast is closed. A cursor the ring has lapped moves to the oldest value still
 there, and [lagged](lagged.md) counts the ones it passed over.
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-An [operation](../operation.md) that gives an `optional<T>`, both by `co_await` in a task and by `.wait()` on a
+An [operation](../operation/README.md) that gives an `optional<T>`, both by `co_await` in a task and by `.wait()` on a
 thread: a copy of the next value, or `nullopt` once the broadcast is closed and every value sent before the close
 was received.
 
@@ -88,4 +88,4 @@ Output:
 - [try_receive](try_receive.md): receives only what is there
 - [on_receive](on_receive.md): a receive as a case of a select
 - [lagged](lagged.md): the values lost before the one received
-- [sgcl::async::broadcast\<T\>::subscription](../broadcast-subscription.md)
+- [sgcl::async::broadcast\<T\>::subscription](README.md)

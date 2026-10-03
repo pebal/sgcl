@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::contains
 
@@ -11,7 +11,7 @@ bool contains(const auto& value) const;                           // (5)
 ```
 
 Checks whether the slice holds a piece of text or an element. The name is in two bases of a slice,
-[mixin::text](../mixin/text.md) (a substring or a character) and [mixin::enumerable](../mixin/enumerable.md) (an
+[mixin::text](../mixin/text/README.md) (a substring or a character) and [mixin::enumerable](../mixin/enumerable/README.md) (an
 element), where it would be ambiguous, so the slice says which: the text's for text, the element's otherwise.
 
 1. Whether the text holds the substring `s`.
@@ -73,6 +73,6 @@ true false
 
 ## See also
 
-- [mixin::text](../mixin/text.md): `find` and the other searches of a text
+- [mixin::text](../mixin/text/README.md): `find` and the other searches of a text
 - [contains](../mixin/enumerable/contains.md): the question of `mixin::enumerable`
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

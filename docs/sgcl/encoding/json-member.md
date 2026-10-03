@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [json](json.md)
+[sgcl](../README.md) › [encoding](README.md) › [json](json/README.md)
 
 # sgcl::encoding::json::member
 
@@ -24,7 +24,7 @@ is what [members](json/members.md) gives a slice of, taken apart as `[key, value
 
 ## Rules
 
-- A member holds a [string](../core/string.md) and a [json](json.md), so it lives where they may: on a stack or
+- A member holds a [string](../core/string/README.md) and a [json](json/README.md), so it lives where they may: on a stack or
   inside a managed object.
 - The members of a value never change: a member of [members](json/members.md) is `const`.
 
@@ -63,4 +63,4 @@ port = 443
 
 - [members](json/members.md): the members of an object
 - [object](json/object.md): an object of members
-- [sgcl::encoding::json](json.md)
+- [sgcl::encoding::json](json/README.md)

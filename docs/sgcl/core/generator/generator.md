@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [core](../README.md) › [generator](README.md)
 
 # sgcl::generator\<T\>::generator
 
@@ -64,4 +64,4 @@ false
 
 - [next](next.md): runs the coroutine to its next value
 - [destroy](destroy.md): destroys the coroutine and leaves the generator empty
-- [sgcl::generator\<T\>](../generator.md)
+- [sgcl::generator\<T\>](README.md)

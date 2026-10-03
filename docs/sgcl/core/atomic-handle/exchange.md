@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::exchange
 
@@ -55,4 +55,4 @@ v1 -> v2
 
 - [compare_exchange_weak, compare_exchange_strong](compare_exchange.md): replaces the handle when it holds the
   object expected
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

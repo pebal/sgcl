@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::end, cend
 
@@ -51,4 +51,4 @@ true false
 ## See also
 
 - [begin, cbegin](begin.md): an iterator to the beginning
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

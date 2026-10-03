@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [random](README.md)
 
 # sgcl::crypto::random::bytes
 
@@ -55,4 +55,4 @@ AuJ6OzDeDXgVqj-T4Y7bzG2itUszKCMY
 
 - [secret](secret.md): random bytes for a key
 - [fill](fill.md): random bytes into a buffer of the program's
-- [sgcl::crypto::random](../random.md)
+- [sgcl::crypto::random](README.md)

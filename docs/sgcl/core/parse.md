@@ -21,7 +21,7 @@ namespace sgcl {
 Reads a number of type `T` from its text, the reverse of [to_string](to_string.md): `parse<int>("42")`,
 `parse<double>("2.5")`, `parse<bool>("true")`. The text must be exactly one number of the type: no white space, no
 `+`, no sign for an unsigned type, nothing after the digits, and a value the type holds. Otherwise the result is a
-[number_error](number_error.md) that says why and the byte where the reading stopped. What C#'s `TryParse`, Go's
+[number_error](number_error/README.md) that says why and the byte where the reading stopped. What C#'s `TryParse`, Go's
 `strconv` and Java's `parseInt` do, without the exception: `std::from_chars` reads the number, so no locale applies
 and nothing is allocated.
 
@@ -35,12 +35,12 @@ and nothing is allocated.
 
 | Parameter | Description |
 |---|---|
-| `text` | the text of the number; a [string](string.md), a slice of one or a literal converts to it |
+| `text` | the text of the number; a [string](string/README.md), a slice of one or a literal converts to it |
 | `base` | the base of the integer, from 2 to 36 |
 
 ## Return value
 
-The number, or the [number_error](number_error.md) with its reason and its offset in `text`:
+The number, or the [number_error](number_error/README.md) with its reason and its offset in `text`:
 
 - `empty` at 0 when `text` is empty;
 - `not_a_number` at 0 when `text` does not begin as a number of the type (and for every text in a base outside 2 to
@@ -95,7 +95,7 @@ a number out of the type's range
 
 ## See also
 
-- [number_error](number_error.md): why a text is not a number
+- [number_error](number_error/README.md): why a text is not a number
 - [to_string](to_string.md): a number as a string
-- [expected](expected.md): the result
-- [sgcl::string](string.md)
+- [expected](expected/README.md): the result
+- [sgcl::string](string/README.md)

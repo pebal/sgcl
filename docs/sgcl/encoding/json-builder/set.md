@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [builder](../json-builder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [builder](README.md)
 
 # sgcl::encoding::json::builder::set
 
@@ -60,4 +60,4 @@ Output:
 
 - [push_back](push_back.md): an element of an array
 - [build](build.md): the value
-- [sgcl::encoding::json::builder](../json-builder.md)
+- [sgcl::encoding::json::builder](README.md)

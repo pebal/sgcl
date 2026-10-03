@@ -32,8 +32,8 @@ data, to OpenSSL 3 and Go; OpenSSL, Go and Python are the tests' oracles and not
 
 ## The rules
 
-**Errors.** What comes with data and may be wrong is an [expected](../core/expected.md) whose error is a
-[crypto::error](error.md): a tag that does not match (`errc::authentication`, and nothing more said), a key read
+**Errors.** What comes with data and may be wrong is an [expected](../core/expected/README.md) whose error is a
+[crypto::error](error/README.md): a tag that does not match (`errc::authentication`, and nothing more said), a key read
 from bytes that cannot be one (`invalid_key`), a signature that is not one in form (`invalid_signature`), DER that
 cannot be read (`malformed`, with the offset), another algorithm's key (`unsupported`), a chain that does not
 verify (`verification`, with its [x509::reason](x509-reason.md)). A broken contract of the program — a key of the
@@ -49,8 +49,8 @@ and zeroes what it would have written when the tag does not match.
 frees keeps its bytes until it is given out again. So nothing the module holds or gives that is a secret goes
 there. Three forms carry secrets:
 
-- [secret\<N\>](secret.md), a length known when the program is compiled: a shared secret, a private scalar, a key.
-- [secret_bytes](secret_bytes.md), a length known only when it runs, in 64 bytes of its own and past them in a
+- [secret\<N\>](secret/README.md), a length known when the program is compiled: a shared secret, a private scalar, a key.
+- [secret_bytes](secret_bytes/README.md), a length known only when it runs, in 64 bytes of its own and past them in a
   block that is zeroed before it is freed (and when it grows): what `hkdf` and `pbkdf2` derive, SHAKE's output,
   `random::secret(n)`, every private key's `to_pkcs8_der`, `to_sec1_der`, `to_pkcs1_der` and `to_pem`, and a key
   file read by [read_secret](read_secret.md). It is move-only; `clone()` is the copy by name.
@@ -75,11 +75,11 @@ managed page over thousands of calls, and every block a `secret_bytes` frees is 
 
 **Nonces.** An AEAD's nonce must never repeat under one key: a repeated nonce under AES-GCM gives away the
 authentication key, and under both AEADs the XOR of the two plaintexts. Where the two sides count their messages,
-a [nonce_counter](nonce_counter.md) makes the nonces and refuses to wrap. Random nonces are safe only with 24 bytes:
-[xchacha20_poly1305](xchacha20_poly1305.md)'s `seal_random` draws one and writes it in front. Twelve random bytes
+a [nonce_counter](nonce_counter/README.md) makes the nonces and refuses to wrap. Random nonces are safe only with 24 bytes:
+[xchacha20_poly1305](xchacha20_poly1305/README.md)'s `seal_random` draws one and writes it in front. Twelve random bytes
 (AES-GCM, ChaCha20-Poly1305) are safe for about 2^32 messages under one key, as SP 800-38D says, and not beyond.
 
-**Passwords.** [pbkdf2](pbkdf2.md) derives a key from a password (a file's encryption key, a protocol that names
+**Passwords.** [pbkdf2](pbkdf2/README.md) derives a key from a password (a file's encryption key, a protocol that names
 it). It is not the way to store passwords: it costs an attacker's graphics card as little as it costs the server,
 and a password hash for storage wants one that costs memory, Argon2id or scrypt, which come after version 1.
 
@@ -143,13 +143,13 @@ ECDSA, which the private keys of both NIST curves sign by:
 
 | Namespace | Header | Description |
 |---|---|---|
-| [constant_time](constant_time.md) | `constant_time.h` | comparison that does not tell how much of a tag was right |
+| [constant_time](constant_time/README.md) | `constant_time.h` | comparison that does not tell how much of a tag was right |
 | [ecdsa](ecdsa.md) | `ecdsa.h` | how the NIST curves sign and verify: hedged RFC 6979 nonces, DER and raw signatures |
 | [ed25519](ed25519.md) | `ed25519.h` | signatures (RFC 8032): SSH keys, certificates, packages, JWTs (EdDSA); Go's `crypto/ed25519` |
 | [mlkem512, mlkem768, mlkem1024](mlkem.md) | `mlkem.h` | ML-KEM (FIPS 203), post-quantum key encapsulation: TLS 1.3's X25519MLKEM768; Go's `crypto/mlkem` |
 | [p256](p256.md) | `p256.h` | NIST P-256: ECDH and ECDSA of TLS, X.509, WebAuthn, JWTs (ES256); Go's `crypto/ecdh` and `crypto/ecdsa` |
 | [p384](p384.md) | `p384.h` | NIST P-384: the same on the curve of CNSA (ES384) |
-| [random](random.md) | `random.h` | random bytes from a generator in the process, seeded from the system |
+| [random](random/README.md) | `random.h` | random bytes from a generator in the process, seeded from the system |
 | [rsa](rsa.md) | `rsa.h` | signatures of certificates and JWTs (PKCS #1 v1.5, PSS: RS256, PS256), OAEP key transport; Go's `crypto/rsa` |
 | [x25519](x25519.md) | `x25519.h` | key agreement (RFC 7748): TLS 1.3, SSH, WireGuard, Signal; Go's `crypto/ecdh.X25519()` |
 | [x509](x509.md) | `x509.h` | certificates (RFC 5280): read, pooled and verified as a chain with the host name; Go's `crypto/x509` |
@@ -158,65 +158,65 @@ ECDSA, which the private keys of both NIST curves sign by:
 
 | Class | Header | Description |
 |---|---|---|
-| [hkdf\<H\>](hkdf.md) | `hkdf.h` | keys from a secret (RFC 5869): TLS 1.3's key schedule, after ECDH; `hkdf_sha256`; Go's `crypto/hkdf` |
-| [hmac\<H\>](hmac.md) | `hmac.h` | a tag under a key (RFC 2104): API signatures, cookies, JWTs (HS256); `hmac_sha256`, `hmac_sha512`; Go's `crypto/hmac` |
-| [pbkdf2\<H\>](pbkdf2.md) | `pbkdf2.h` | a key from a password (RFC 8018), not for storing passwords; Go's `crypto/pbkdf2` |
-| [sha1](sha1.md) | `sha1.h` | SHA-1: Git's object names, old protocols; broken for signatures |
-| [sha256, sha224](sha256.md) | `sha256.h` | SHA-256: the digest of TLS, certificates, JWTs, Bitcoin; Go's `crypto/sha256` |
-| [sha3_256, sha3_224, sha3_384, sha3_512](sha3_256.md) | `sha3.h` | SHA-3 (FIPS 202): Keccak, the other family; Go's `crypto/sha3` |
-| [sha512, sha384, sha512_256](sha512.md) | `sha512.h` | the larger digests of SHA-2; Ed25519's; Go's `crypto/sha512` |
-| [shake256, shake128](shake256.md) | `sha3.h` | SHAKE (FIPS 202): output of any length, read as a secret |
+| [hkdf\<H\>](hkdf/README.md) | `hkdf.h` | keys from a secret (RFC 5869): TLS 1.3's key schedule, after ECDH; `hkdf_sha256`; Go's `crypto/hkdf` |
+| [hmac\<H\>](hmac/README.md) | `hmac.h` | a tag under a key (RFC 2104): API signatures, cookies, JWTs (HS256); `hmac_sha256`, `hmac_sha512`; Go's `crypto/hmac` |
+| [pbkdf2\<H\>](pbkdf2/README.md) | `pbkdf2.h` | a key from a password (RFC 8018), not for storing passwords; Go's `crypto/pbkdf2` |
+| [sha1](sha1/README.md) | `sha1.h` | SHA-1: Git's object names, old protocols; broken for signatures |
+| [sha256, sha224](sha256/README.md) | `sha256.h` | SHA-256: the digest of TLS, certificates, JWTs, Bitcoin; Go's `crypto/sha256` |
+| [sha3_256, sha3_224, sha3_384, sha3_512](sha3_256/README.md) | `sha3.h` | SHA-3 (FIPS 202): Keccak, the other family; Go's `crypto/sha3` |
+| [sha512, sha384, sha512_256](sha512/README.md) | `sha512.h` | the larger digests of SHA-2; Ed25519's; Go's `crypto/sha512` |
+| [shake256, shake128](shake256/README.md) | `sha3.h` | SHAKE (FIPS 202): output of any length, read as a secret |
 
 ### Ciphers
 
 | Class | Header | Description |
 |---|---|---|
-| [aes](aes.md) | `aes.h` | the AES block cipher alone, a block at a time: for modes that authenticate otherwise; Go's `crypto/aes` |
-| [aes_ctr](aes_ctr.md) | `ctr.h` | AES in counter mode, unauthenticated; Go's `cipher.NewCTR` |
-| [aes_gcm](aes_gcm.md) | `gcm.h` | the AEAD of TLS, on the processor's AES instructions; Go's `cipher.NewGCM` |
-| [chacha20](chacha20.md) | `chacha20.h` | the ChaCha20 stream cipher, unauthenticated |
-| [chacha20_poly1305](chacha20_poly1305.md) | `chacha20_poly1305.h` | the other AEAD of TLS (RFC 8439); Go's `chacha20poly1305` |
-| [nonce_counter](nonce_counter.md) | `nonce_counter.h` | nonces that never repeat under one key |
-| [xchacha20_poly1305](xchacha20_poly1305.md) | `chacha20_poly1305.h` | the AEAD whose 24-byte nonce may be random, `seal_random` |
+| [aes](aes/README.md) | `aes.h` | the AES block cipher alone, a block at a time: for modes that authenticate otherwise; Go's `crypto/aes` |
+| [aes_ctr](aes_ctr/README.md) | `ctr.h` | AES in counter mode, unauthenticated; Go's `cipher.NewCTR` |
+| [aes_gcm](aes_gcm/README.md) | `gcm.h` | the AEAD of TLS, on the processor's AES instructions; Go's `cipher.NewGCM` |
+| [chacha20](chacha20/README.md) | `chacha20.h` | the ChaCha20 stream cipher, unauthenticated |
+| [chacha20_poly1305](chacha20_poly1305/README.md) | `chacha20_poly1305.h` | the other AEAD of TLS (RFC 8439); Go's `chacha20poly1305` |
+| [nonce_counter](nonce_counter/README.md) | `nonce_counter.h` | nonces that never repeat under one key |
+| [xchacha20_poly1305](xchacha20_poly1305/README.md) | `chacha20_poly1305.h` | the AEAD whose 24-byte nonce may be random, `seal_random` |
 
 ### Keys
 
 | Class | Header | Description |
 |---|---|---|
-| [ed25519::private_key](ed25519-private_key.md) | `ed25519.h` | signs; a seed of 32 bytes, zeroed when it goes |
-| [ed25519::public_key](ed25519-public_key.md) | `ed25519.h` | verifies a signature |
-| [mlkem768::decapsulation_key](mlkem768-decapsulation_key.md) | `mlkem.h` | the owner's key, its seed of 64 bytes; decapsulates a ciphertext to the shared key |
+| [ed25519::private_key](ed25519-private_key/README.md) | `ed25519.h` | signs; a seed of 32 bytes, zeroed when it goes |
+| [ed25519::public_key](ed25519-public_key/README.md) | `ed25519.h` | verifies a signature |
+| [mlkem768::decapsulation_key](mlkem768-decapsulation_key/README.md) | `mlkem.h` | the owner's key, its seed of 64 bytes; decapsulates a ciphertext to the shared key |
 | [mlkem768::encapsulation](mlkem768-encapsulation.md) | `mlkem.h` | what an encapsulation gives: the shared key and the ciphertext |
-| [mlkem768::encapsulation_key](mlkem768-encapsulation_key.md) | `mlkem.h` | the published key; encapsulates to it |
-| [p256::ecdh_key](p256-ecdh_key.md) | `p256.h` | the private key of ECDH on P-256 (and P-384) |
-| [p256::private_key](p256-private_key.md) | `p256.h` | the private key of ECDSA on P-256 (and P-384) |
-| [p256::public_key](p256-public_key.md) | `p256.h` | a point: verifies a signature, the peer of an ECDH key |
-| [rsa::private_key](rsa-private_key.md) | `rsa.h` | signs (PKCS #1 v1.5, PSS) and decrypts (OAEP); blinded, CRT |
-| [rsa::public_key](rsa-public_key.md) | `rsa.h` | verifies and encrypts |
-| [x25519::private_key](x25519-private_key.md) | `x25519.h` | a scalar of 32 bytes; the shared secret with a peer |
-| [x25519::public_key](x25519-public_key.md) | `x25519.h` | a point of 32 bytes, the peer of a private key |
+| [mlkem768::encapsulation_key](mlkem768-encapsulation_key/README.md) | `mlkem.h` | the published key; encapsulates to it |
+| [p256::ecdh_key](p256-ecdh_key/README.md) | `p256.h` | the private key of ECDH on P-256 (and P-384) |
+| [p256::private_key](p256-private_key/README.md) | `p256.h` | the private key of ECDSA on P-256 (and P-384) |
+| [p256::public_key](p256-public_key/README.md) | `p256.h` | a point: verifies a signature, the peer of an ECDH key |
+| [rsa::private_key](rsa-private_key/README.md) | `rsa.h` | signs (PKCS #1 v1.5, PSS) and decrypts (OAEP); blinded, CRT |
+| [rsa::public_key](rsa-public_key/README.md) | `rsa.h` | verifies and encrypts |
+| [x25519::private_key](x25519-private_key/README.md) | `x25519.h` | a scalar of 32 bytes; the shared secret with a peer |
+| [x25519::public_key](x25519-public_key/README.md) | `x25519.h` | a point of 32 bytes, the peer of a private key |
 
 ### Certificates
 
 | Class | Header | Description |
 |---|---|---|
-| [x509::certificate](x509-certificate.md) | `x509.h` | a certificate from DER or PEM, its names, key and extensions; `verify` of its chain |
-| [x509::certificate_pool](x509-certificate_pool.md) | `x509.h` | a set of certificates: the roots of a verification, the system's own |
+| [x509::certificate](x509-certificate/README.md) | `x509.h` | a certificate from DER or PEM, its names, key and extensions; `verify` of its chain |
+| [x509::certificate_pool](x509-certificate_pool/README.md) | `x509.h` | a set of certificates: the roots of a verification, the system's own |
 | [x509::extension](x509-extension.md) | `x509.h` | an extension as the certificate has it: its OID, whether it is critical, its value |
-| [x509::ip_address](x509-ip_address.md) | `x509.h` | an IP address of a certificate's subject alternative names |
-| [x509::ip_range](x509-ip_range.md) | `x509.h` | an IP range of a CA's name constraints: an address and a mask |
-| [x509::name](x509-name.md) | `x509.h` | a distinguished name, the issuer or the subject, and its text |
+| [x509::ip_address](x509-ip_address/README.md) | `x509.h` | an IP address of a certificate's subject alternative names |
+| [x509::ip_range](x509-ip_range/README.md) | `x509.h` | an IP range of a CA's name constraints: an address and a mask |
+| [x509::name](x509-name/README.md) | `x509.h` | a distinguished name, the issuer or the subject, and its text |
 | [x509::name::attribute](x509-name-attribute.md) | `x509.h` | one attribute of a name: its type and its value |
-| [x509::public_key](x509-public_key.md) | `x509.h` | a certificate's public key as one of the module's keys |
+| [x509::public_key](x509-public_key/README.md) | `x509.h` | a certificate's public key as one of the module's keys |
 | [x509::verify_options](x509-verify_options.md) | `x509.h` | what a verification asks: the roots, the intermediates, the name, the time, the key usages |
 
 ### Secrets and errors
 
 | Class | Header | Description |
 |---|---|---|
-| [error](error.md) | `error.h` | the one error of the module: `code()`, `offset()`, `reason()`, `message()` |
-| [secret\<N\>](secret.md) | `secret.h` | N secret bytes held in the object: a shared secret, a scalar; move-only, zeroed when it goes |
-| [secret_bytes](secret_bytes.md) | `secret.h` | secret bytes of a length known when the program runs, never in managed memory |
+| [error](error/README.md) | `error.h` | the one error of the module: `code()`, `offset()`, `reason()`, `message()` |
+| [secret\<N\>](secret/README.md) | `secret.h` | N secret bytes held in the object: a shared secret, a scalar; move-only, zeroed when it goes |
+| [secret_bytes](secret_bytes/README.md) | `secret.h` | secret bytes of a length known when the program runs, never in managed memory |
 
 ### Enumerations
 
@@ -234,12 +234,12 @@ ECDSA, which the private keys of both NIST curves sign by:
 
 | Mixin | Header | Description |
 |---|---|---|
-| [aead](mixin/aead.md) | `mixin/aead.h` | the interface the AEADs share, Go's `cipher.AEAD`: `seal`, `open`, `seal_to`, `open_to` |
+| [aead](mixin/aead/README.md) | `mixin/aead.h` | the interface the AEADs share, Go's `cipher.AEAD`: `seal`, `open`, `seal_to`, `open_to` |
 
 ## See also
 
 - [Benchmarks](benchmarks.md): the module against OpenSSL and Go
 - [hash](../hash/README.md): the hashers that are not cryptographic, and the shape the digests take
 - [net::tls](../net/tls/README.md): TLS 1.3 on this module
-- [math::big_integer](../math/big_integer.md): numbers that are public
+- [math::big_integer](../math/big_integer/README.md): numbers that are public
 - [The modules](../README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [nonce_counter](../nonce_counter.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [nonce_counter](README.md)
 
 # sgcl::crypto::nonce_counter::next
 
@@ -70,5 +70,5 @@ sgcl::crypto::nonce_counter: every nonce has been used (or the counter was moved
 ## See also
 
 - [(constructor)](nonce_counter.md): a counter from zero or from a given nonce on
-- [aes_gcm](../aes_gcm.md), [chacha20_poly1305](../chacha20_poly1305.md): the AEADs that take its nonces
-- [sgcl::crypto::nonce_counter](../nonce_counter.md)
+- [aes_gcm](../aes_gcm/README.md), [chacha20_poly1305](../chacha20_poly1305/README.md): the AEADs that take its nonces
+- [sgcl::crypto::nonce_counter](README.md)

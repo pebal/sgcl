@@ -77,7 +77,7 @@ version each, found, and built at once:
 
 ## The builder
 
-The map's builder ([map::builder](map-builder.md)) against immer's transient, `bench_immutable map
+The map's builder ([map::builder](map-builder/README.md)) against immer's transient, `bench_immutable map
 builder|immer-builder` (`CASES="im"`, 24 September): the 200,000 keys built one at a time through it and frozen, a
 lookup of each in the map that comes out, and an edit of that map through one builder, a tenth of the keys given
 new values and a tenth erased, ns per element or per change; the last row is the same edit made a version a

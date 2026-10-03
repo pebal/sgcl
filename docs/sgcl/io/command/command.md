@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::command
 
@@ -14,7 +14,7 @@ Makes a command of the program `name` and its arguments, Go's `exec.Command`. No
 `path` is `name` as given until [start](start.md) finds the executable. `argv[0]` of the child is `name` as given,
 unless `argv0` says otherwise; the arguments are the rest of its `argv`.
 
-1. The arguments one by one, each anything a [string](../../core/string.md) is made from: a string, a literal, a
+1. The arguments one by one, each anything a [string](../../core/string/README.md) is made from: a string, a literal, a
    slice of text. The constructor is `noexcept` when every argument is text that makes a string without a throw (a
    string, a literal, a C string, a `std::string_view`).
 2. The arguments as a vector, taken over: a command line built by the program.
@@ -65,4 +65,4 @@ echo ["-n", "hello"] false
 
 - [start](start.md), [run](run.md): the child started
 - [look_path](../look_path.md): what `path` becomes
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

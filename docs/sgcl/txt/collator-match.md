@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [txt](README.md) › [collator](collator.md)
+[sgcl](../README.md) › [txt](README.md) › [collator](collator/README.md)
 
 # sgcl::txt::collator::match
 
@@ -54,4 +54,4 @@ at 3, size 8: résumé
 ## See also
 
 - [collator::find](collator/find.md)
-- [collator](collator.md)
+- [collator](collator/README.md)

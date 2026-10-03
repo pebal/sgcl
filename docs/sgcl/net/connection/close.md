@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::close, async_close
 
@@ -28,7 +28,7 @@ None.
 
 ## Return value
 
-Nothing, or the [io::error](../../io/error.md) of the close, its operation `close` and its path the connection.
+Nothing, or the [io::error](../../io/error/README.md) of the close, its operation `close` and its path the connection.
 
 ## Complexity
 
@@ -76,4 +76,4 @@ true true
 - [close_write](close_write.md): the writing half alone
 - [is_closed](is_closed.md): whether the connection was closed
 - [set_deadline](set_deadline.md): an end to the waits without a close
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

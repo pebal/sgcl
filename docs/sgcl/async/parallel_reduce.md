@@ -15,7 +15,7 @@ namespace sgcl::async {
 ```
 
 Maps every index of `begin .. end - 1` to a value and combines the values with `init`, the work spread over the
-workers of the [scheduler](scheduler.md) and the caller as [parallel_for](parallel_for.md) spreads it:
+workers of the [scheduler](scheduler/README.md) and the caller as [parallel_for](parallel_for.md) spreads it:
 `std::transform_reduce(std::execution::par, ...)` over a range of integers, with the map before the combine. The
 work runs inside the call, which returns the result, on a thread and in a task alike.
 
@@ -53,7 +53,7 @@ The `R` of the fold.
 ## Complexity
 
 `map` is called once per index and `combine` once per index and once per chunk. A loop of more than one chunk and
-lane keeps a partial result per chunk until the end (a [dynamic_array](../core/dynamic_array.md) on the managed
+lane keeps a partial result per chunk until the end (a [dynamic_array](../core/dynamic_array/README.md) on the managed
 heap: the number of chunks, the range's length divided by the grain), besides what [parallel_for](parallel_for.md)
 makes; a loop of one chunk, or with one lane, folds on the caller alone.
 
@@ -63,7 +63,7 @@ makes; a loop of one chunk, or with one lane, folds on the caller alone.
   rethrown from the call once every call under way has returned; the chunks nobody has claimed yet are not started,
   and the other exceptions are dropped.
 - `length_error`, before `map` is called, when a loop on more than one lane has more chunks than a
-  [dynamic_array](../core/dynamic_array.md) of their partial results holds: a grain of a few indices over a range of
+  [dynamic_array](../core/dynamic_array/README.md) of their partial results holds: a grain of a few indices over a range of
   more than 2^59 of them.
 
 No result is given then.

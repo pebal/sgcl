@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::count
 
@@ -58,4 +58,4 @@ Output:
 ## See also
 
 - [all](all.md): every match, as a range
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

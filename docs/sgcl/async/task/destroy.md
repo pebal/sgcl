@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::destroy
 
@@ -71,4 +71,4 @@ true
 
 - [detach](detach.md): lets go of a task that runs or waits
 - [frame_ptr::destroy](../../core/frame_ptr/destroy.md): what it calls
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

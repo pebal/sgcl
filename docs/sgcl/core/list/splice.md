@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::splice
 
@@ -84,4 +84,4 @@ Output:
 
 - [merge](merge.md): moves the nodes of a sorted list into their order
 - [insert](insert.md): inserts copies of elements
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [writer](../zlib-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [writer](README.md)
 
 # sgcl::compress::zlib::writer::last_error
 
@@ -55,4 +55,4 @@ write zlib: stream closed
 ## See also
 
 - [close](close.md): gives the same error
-- [sgcl::compress::zlib::writer](../zlib-writer.md)
+- [sgcl::compress::zlib::writer](README.md)

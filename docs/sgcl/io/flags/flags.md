@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [flags](../flags.md)
+[sgcl](../../README.md) › [io](../README.md) › [flags](README.md)
 
 # sgcl::io::flags::flags
 
@@ -61,4 +61,4 @@ serves the files named
 
 - [add](add.md): a flag tied to a variable
 - [usage](usage.md): the text of the description
-- [sgcl::io::flags](../flags.md)
+- [sgcl::io::flags](README.md)

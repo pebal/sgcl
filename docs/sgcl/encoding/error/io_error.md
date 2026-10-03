@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::io_error
 
@@ -16,7 +16,7 @@ None.
 
 ## Return value
 
-The stream's [io::error](../../io/error.md), or an empty optional when the error is the input's.
+The stream's [io::error](../../io/error/README.md), or an empty optional when the error is the input's.
 
 ## Complexity
 
@@ -63,6 +63,6 @@ input/output error: open no-such-file.csv: No such file or directory
 
 ## See also
 
-- [io::error](../../io/error.md): the stream's error
+- [io::error](../../io/error/README.md): the stream's error
 - [(constructor)](error.md): an error of a stream's error
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

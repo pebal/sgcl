@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::erase
 
@@ -87,4 +87,4 @@ true
 - [clear](clear.md): destroys every element
 - [erase_if](erase_if.md): erases every element satisfying a predicate
 - [extract](extract.md): unlinks an element into a node handle, without destroying it
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

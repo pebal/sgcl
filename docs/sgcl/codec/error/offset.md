@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [codec](../README.md) › [error](README.md)
 
 # sgcl::codec::error::offset
 
@@ -55,4 +55,4 @@ Output:
 
 - [code](code.md): what failed
 - [message](message.md): the offset and the words, as one sentence
-- [sgcl::codec::error](../error.md)
+- [sgcl::codec::error](README.md)

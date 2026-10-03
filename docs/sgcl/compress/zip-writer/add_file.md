@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](../zip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](README.md)
 
 # sgcl::compress::zip::writer::add_file
 
@@ -29,7 +29,7 @@ A symbolic link is followed: the entry holds the bytes of the file it names.
 
 ## Return value
 
-Nothing, or the [error](../error.md): `errc::io` with the file's error in `io_error()` when the path does not open
+Nothing, or the [error](../error/README.md): `errc::io` with the file's error in `io_error()` when the path does not open
 (`is_not_found()`), `errc::invalid_argument` for a path that is not a regular file or a name that ends in `/`; or the
 writer's error, kept as its first: what [create](create.md) refuses, a failure of `out` or of the file's read, the
 error kept from before.
@@ -85,4 +85,4 @@ docs/notes.txt: keep
 - [add](add.md): an entry of bytes in memory
 - [create](create.md): an entry written as a stream
 - [zip::create](../zip-create.md): a whole directory
-- [sgcl::compress::zip::writer](../zip-writer.md)
+- [sgcl::compress::zip::writer](README.md)

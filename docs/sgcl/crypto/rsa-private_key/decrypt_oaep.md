@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::decrypt_oaep
 
@@ -23,7 +23,7 @@ made with.
 
 Every failure — a ciphertext of another length than [size](size.md) (exactly the modulus's bytes, as RFC 8017 §7.1.2
 has it, where Go and OpenSSL take a shorter one), one not below n, an encoding that is not OAEP's, another label,
-another hash — is the same [crypto::error](../error.md): `errc::authentication`, "sgcl::crypto::rsa: decryption
+another hash — is the same [crypto::error](../error/README.md): `errc::authentication`, "sgcl::crypto::rsa: decryption
 error", offset 0, in the same time: every check is done on every byte and folded into one mask before the one branch.
 An attacker who can tell a bad leading byte from a bad label hash decrypts any message (Manger, CRYPTO 2001). A fault
 the check with the public exponent finds is that error too.
@@ -86,4 +86,4 @@ sgcl::crypto::rsa: decryption error
 
 - [decrypt_oaep_to](decrypt_oaep_to.md): the message into the program's buffer
 - [public_key::encrypt_oaep](../rsa-public_key/encrypt_oaep.md): the encryption
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

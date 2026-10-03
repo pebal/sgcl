@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::xml
 
@@ -78,6 +78,6 @@ sgcl::encoding::xml: '1st' is not a qualified name
 ## See also
 
 - [text_node](text_node.md), [comment](comment.md), [instruction](instruction.md): the other kinds of node
-- [builder](../xml-builder.md): an element made a child at a time
+- [builder](../xml-builder/README.md): an element made a child at a time
 - [parse](parse.md): the tree of a document
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

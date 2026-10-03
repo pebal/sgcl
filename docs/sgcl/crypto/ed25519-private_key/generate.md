@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::generate
 
@@ -6,7 +6,7 @@
 static private_key generate() noexcept;
 ```
 
-Makes a new key of a seed of 32 bytes from [random](../random.md), and computes its scalar, its prefix and its
+Makes a new key of a seed of 32 bytes from [random](../random/README.md), and computes its scalar, its prefix and its
 public key. The seed's copy on the stack is zeroed before the call returns. Go's `ed25519.GenerateKey(nil)`.
 
 ## Parameters
@@ -49,5 +49,5 @@ Sample output:
 ## See also
 
 - [from_seed](from_seed.md): the key of a seed
-- [random](../random.md): where the seed comes from
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [random](../random/README.md): where the seed comes from
+- [sgcl::crypto::ed25519::private_key](README.md)

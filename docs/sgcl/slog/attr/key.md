@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [attr](../attr.md)
+[sgcl](../../README.md) › [slog](../README.md) › [attr](README.md)
 
 # sgcl::slog::attr::key
 
@@ -50,4 +50,4 @@ req user
 ## See also
 
 - [value](value.md)
-- [sgcl::slog::attr](../attr.md)
+- [sgcl::slog::attr](README.md)

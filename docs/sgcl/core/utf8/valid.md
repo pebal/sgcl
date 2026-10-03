@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::valid
 
@@ -34,7 +34,7 @@ None.
 
 ## Notes
 
-A string's `is_valid_utf8()` ([mixin::text](../mixin/text.md)) is (2) over its bytes. A string made of bytes that
+A string's `is_valid_utf8()` ([mixin::text](../mixin/text/README.md)) is (2) over its bytes. A string made of bytes that
 came from outside is not checked when it is made; the strict decoding of [txt](../../txt/encoding.md) checks it.
 
 ## Example
@@ -61,4 +61,4 @@ true false true
 ## See also
 
 - [decode](decode.md): what an invalid sequence decodes as
-- [sgcl::utf8](../utf8.md)
+- [sgcl::utf8](README.md)

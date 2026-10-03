@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::header_sent
 
@@ -66,4 +66,4 @@ after: true
 ## See also
 
 - [flush, async_flush](flush.md): what sends the head
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md) › [writer](../flate-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate/README.md) › [writer](README.md)
 
 # sgcl::compress::flate::writer::writer
 
@@ -18,7 +18,7 @@ The encoder's memory (its window and tables) is taken here, and kept across a [r
 
 | Parameter | Description |
 |---|---|
-| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer.md), a file, a buffer, a socket |
+| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer/README.md), a file, a buffer, a socket |
 | `o` | the level and a preset dictionary ([options](../flate-options.md)) |
 
 ## Complexity
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [close](close.md): the end of the stream
-- [sgcl::compress::flate::writer](../flate-writer.md)
+- [sgcl::compress::flate::writer](README.md)

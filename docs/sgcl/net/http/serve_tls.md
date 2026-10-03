@@ -12,12 +12,12 @@ expected<void, io::error> serve_tls(const string& address, const string& certifi
 
 Serves one handler for every path over https, Go's `http.ListenAndServeTLS(address, certFile, keyFile, handler)`: the
 certificate chain and its private key are read from their PEM files, the key with
-[crypto::read_secret](../../crypto/secret.md) so that it never passes through managed memory, made into a
-[tls::identity](../tls/identity.md), and a [server](server.md) of the one route `"/"` serves them by
+[crypto::read_secret](../../crypto/secret/README.md) so that it never passes through managed memory, made into a
+[tls::identity](../tls/identity/README.md), and a [server](server/README.md) of the one route `"/"` serves them by
 [serve_tls](server/serve_tls.md), with `h2` and `http/1.1` by ALPN.
 
 It blocks the calling thread, a thread of the program's (main's). There is no handle to the server: it runs until
-the program ends. A server that is stopped, or has routes, is a [server](server.md) of the program's.
+the program ends. A server that is stopped, or has routes, is a [server](server/README.md) of the program's.
 
 ## Parameters
 
@@ -75,4 +75,4 @@ hello over HTTP/1.1
 
 - [server::serve_tls](server/serve_tls.md): a server of the program's over TLS
 - [serve](serve.md): the files of a directory in one call
-- [tls::identity](../tls/identity.md): the certificate and the key
+- [tls::identity](../tls/identity/README.md): the certificate and the key

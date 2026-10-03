@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::contains
 
@@ -8,10 +8,10 @@ template<class K> bool contains(const K& key) const noexcept(/* see below */);  
 ```
 
 Checks whether the set holds an element equivalent to `key`, by a search of the tree. It is the set's own and
-takes the place of [mixin::enumerable](../mixin/enumerable.md)'s `contains`, which would walk every element.
+takes the place of [mixin::enumerable](../mixin/enumerable/README.md)'s `contains`, which would walk every element.
 
 - (2) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Takes part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -66,4 +66,4 @@ true false
 
 - [find](find.md): the element with a key
 - [count](count.md): the number of elements with a key
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_task](../blocking_task.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_task](README.md)
 
 # sgcl::async::blocking_task\<T\>::done
 
@@ -55,4 +55,4 @@ after: true
 ## See also
 
 - [wait, operator co_await](wait.md): waits for the job
-- [sgcl::async::blocking_task\<T\>](../blocking_task.md)
+- [sgcl::async::blocking_task\<T\>](README.md)

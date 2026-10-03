@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::start_of_day
 
@@ -55,4 +55,4 @@ Output:
 - [date](date.md): the date of the zone's clock
 - [truncate](truncate.md): down to a whole number of steps, counted in UTC
 - [date::start_of_day](../date/start_of_day.md): the start of a date in a zone
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

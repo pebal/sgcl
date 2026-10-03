@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::get_if (sgcl::variant)
 
@@ -81,4 +81,4 @@ a string, text
 
 - [get](get.md): a reference, `bad_variant_access` on another
 - [holds_alternative](holds_alternative.md): checks for an alternative by its type
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

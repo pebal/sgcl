@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::copy_to, async_copy_to
 
@@ -21,7 +21,7 @@ is `c.copy_to(c)`, a proxy two of them, one each way. It is [io::copy](../../io/
 
 ## Return value
 
-The number of bytes copied; or the [io::error](../../io/error.md) of the [read](read.md) or the [write](write.md)
+The number of bytes copied; or the [io::error](../../io/error/README.md) of the [read](read.md) or the [write](write.md)
 that failed, the bytes copied before it lost.
 
 ## Complexity
@@ -73,4 +73,4 @@ echo me
 
 - [read_from](read_from.md): a file into the connection
 - [read_all](read_all.md): to the end, into memory
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

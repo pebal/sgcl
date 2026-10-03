@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [time](../README.md) › [error](README.md)
 
 # sgcl::time::error::message
 
@@ -54,4 +54,4 @@ a day that the month has expected
 ## See also
 
 - [offset](offset.md): where the reading stopped
-- [sgcl::time::error](../error.md)
+- [sgcl::time::error](README.md)

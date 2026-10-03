@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md) › [node_type](../map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](../map/README.md) › [node_type](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::node_type::node_type
 
@@ -62,4 +62,4 @@ false
 
 - [operator=](operator_assign.md): takes another handle's node over
 - [extract](../map/extract.md): unlinks an element into a node handle
-- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](../map-node_type.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

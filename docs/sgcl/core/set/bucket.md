@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::bucket
 
@@ -12,7 +12,7 @@ with a product of its bits above `bucket_count() - 1`, masked by `bucket_count()
 buckets.
 
 - (2) The key is of any type the hash and the equality take. Takes part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string.md) do.
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string/README.md) do.
 
 ## Parameters
 
@@ -75,4 +75,4 @@ true true
 - [bucket_size](bucket_size.md): the number of elements in a bucket
 - [begin, cbegin](begin.md): a local iterator to the first element of a bucket
 - [hash_function](hash_function.md): the hash function
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

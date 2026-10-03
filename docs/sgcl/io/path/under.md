@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::under
 
@@ -21,7 +21,7 @@ is Go's `ErrInsecurePath` of `archive/tar` and `archive/zip`.
 
 ## Return value
 
-The directory and the name joined and cleaned, or an [error](../error.md) with `errc::insecure_path`, the operation
+The directory and the name joined and cleaned, or an [error](../error/README.md) with `errc::insecure_path`, the operation
 `under` and the name as its path.
 
 ## Complexity
@@ -61,4 +61,4 @@ a/../b.txt -> public/b.txt
 - [is_local](is_local.md): the check alone
 - [join](join.md): the join alone
 - [errc](../errc.md): `insecure_path`
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

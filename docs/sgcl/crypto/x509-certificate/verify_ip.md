@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::verify_ip
 
@@ -25,7 +25,7 @@ Checks that the certificate is for an IP address.
 
 ## Return value
 
-Nothing, or a [crypto::error](../error.md) `errc::verification`, `reason::hostname_mismatch`.
+Nothing, or a [crypto::error](../error/README.md) `errc::verification`, `reason::hostname_mismatch`.
 
 ## Complexity
 
@@ -66,4 +66,4 @@ sgcl::crypto::x509: the certificate is not valid for the IP address asked
 
 - [verify_options](../x509-verify_options.md): `ip`, the same check in a verification
 - [verify_hostname](verify_hostname.md): a DNS name
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

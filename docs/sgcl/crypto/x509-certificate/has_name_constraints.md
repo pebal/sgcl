@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::has_name_constraints
 
@@ -76,4 +76,4 @@ true false
 - [permitted_dns_domains](permitted_dns_domains.md), [permitted_ip_ranges](permitted_ip_ranges.md),
   [permitted_email_addresses](permitted_email_addresses.md), [permitted_uri_domains](permitted_uri_domains.md): the
   subtrees
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](README.md)
 
 # sgcl::txt::word_breaks::empty
 
@@ -46,4 +46,4 @@ true false
 ## See also
 
 - [count](count.md): the number of segments
-- [sgcl::txt::word_breaks](../word_breaks.md)
+- [sgcl::txt::word_breaks](README.md)

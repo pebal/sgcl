@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md) › [entry](../expiry_queue-entry.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue/README.md) › [entry](README.md)
 
 # sgcl::expiry_queue\<T\>::entry::weak
 
@@ -6,7 +6,7 @@
 weak_type weak() const noexcept;
 ```
 
-Returns a weak pointer to the object, sharing the entry's cell: an ordinary [weak_ptr](../weak_ptr.md) (`lock()`,
+Returns a weak pointer to the object, sharing the entry's cell: an ordinary [weak_ptr](../weak_ptr/README.md) (`lock()`,
 `expired()`), holding nothing. Until the drain, an object found unreachable is kept for the queue, and the weak
 pointer locks it; after the drain it expires with the next cycle that finds the object unreachable. Dropping the
 weak pointer, or the handle, cancels nothing.
@@ -73,5 +73,5 @@ true
 ## See also
 
 - [expired](expired.md): checks whether a cycle has found the object unreachable
-- [weak_ptr](../weak_ptr.md): the weak pointer
-- [sgcl::expiry_queue\<T\>::entry](../expiry_queue-entry.md)
+- [weak_ptr](../weak_ptr/README.md): the weak pointer
+- [sgcl::expiry_queue\<T\>::entry](README.md)

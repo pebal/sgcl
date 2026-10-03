@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::merge
 
@@ -13,8 +13,8 @@ Moves the nodes of `source` whose keys are not in this map yet into it, rehashin
 node whose key is here already stays in `source`. No element is copied, moved or destroyed: the nodes are
 relinked, and every iterator follows its node into this map.
 
-`source` may be a [map](../map.md) or a [multimap](../multimap.md) with the same `Key` and `T`, and any hasher and
-equality. Not an [ordered_map](../ordered_map.md), whose nodes are of another shape: that call does not compile.
+`source` may be a [map](README.md) or a [multimap](../multimap/README.md) with the same `Key` and `T`, and any hasher and
+equality. Not an [ordered_map](../ordered_map/README.md), whose nodes are of another shape: that call does not compile.
 Merging a map into itself does nothing.
 
 ## Parameters
@@ -69,4 +69,4 @@ true 2
 
 - [extract](extract.md): unlinks one element into a node handle
 - [insert](insert.md): inserts a node handle's node
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

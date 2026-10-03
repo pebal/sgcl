@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [locale](../locale.md)
+[sgcl](../../README.md) › [txt](../README.md) › [locale](README.md)
 
 # sgcl::txt::locale::keeps_dot
 
@@ -46,4 +46,4 @@ true false
 ## See also
 
 - [dotted_i](dotted_i.md)
-- [sgcl::txt::locale](../locale.md)
+- [sgcl::txt::locale](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::equal
 
@@ -51,4 +51,4 @@ resume == résumé == RESUME: true
 ## See also
 
 - [compare](compare.md): the order of two texts
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [xxh3_128](../xxh3_128.md)
+[sgcl](../../README.md) › [hash](../README.md) › [xxh3_128](README.md)
 
 # sgcl::hash::xxh3_128::digest
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [value](value.md): the hash
-- [sgcl::hash::xxh3_128](../xxh3_128.md)
+- [sgcl::hash::xxh3_128](README.md)

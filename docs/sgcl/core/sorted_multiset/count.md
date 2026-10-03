@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::count
 
@@ -10,7 +10,7 @@ template<class K> size_type count(const K& key) const noexcept(/* see below */);
 Returns the number of elements equivalent to `key`: the range of [equal_range](equal_range.md), walked.
 
 - (2) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Takes part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -60,4 +60,4 @@ Output:
 
 - [contains](contains.md): checks whether a key is there
 - [equal_range](equal_range.md): the elements with a key
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

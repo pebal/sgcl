@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs.md) › [run](../bidi_runs-run.md)
+[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs/README.md) › [run](README.md)
 
 # sgcl::txt::bidi_runs::run::right_to_left
 
@@ -51,4 +51,4 @@ Output:
 
 ## See also
 
-- [sgcl::txt::bidi_runs::run](../bidi_runs-run.md)
+- [sgcl::txt::bidi_runs::run](README.md)

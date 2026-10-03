@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::format
 
@@ -55,4 +55,4 @@ true
 
 - [pixel_format](../pixel_format.md): the formats
 - [convert](convert.md): the pixels in another format
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [adler32](../adler32.md)
+[sgcl](../../README.md) › [hash](../README.md) › [adler32](README.md)
 
 # sgcl::hash::adler32::value
 
@@ -56,4 +56,4 @@ Output:
 
 - [digest](digest.md): the same as bytes
 - [of](../mixin/hasher/of.md): the checksum of data in one call
-- [sgcl::hash::adler32](../adler32.md)
+- [sgcl::hash::adler32](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::find
 
@@ -67,5 +67,5 @@ Output:
 ## See also
 
 - [contains](contains.md), [count](count.md)
-- [collated_matches](../collated_matches.md): every occurrence, as a range
-- [sgcl::txt::collated_text](../collated_text.md)
+- [collated_matches](../collated_matches/README.md): every occurrence, as a range
+- [sgcl::txt::collated_text](README.md)

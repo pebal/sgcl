@@ -54,5 +54,5 @@ Output:
 ## See also
 
 - [req::seeker](req/seeker.md): a stream with a position
-- [mixin::seeker](mixin/seeker.md): `tell`, `size`, `rewind` over a seek
+- [mixin::seeker](mixin/seeker/README.md): `tell`, `size`, `rewind` over a seek
 - [file::seek](file/seek.md), [buffer::seek](buffer/seek.md)

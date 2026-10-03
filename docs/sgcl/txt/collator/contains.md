@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::contains
 
@@ -32,7 +32,7 @@ None.
 
 ## Notes
 
-The text is weighed on every call: a text asked many questions is a [collated_text](../collated_text.md).
+The text is weighed on every call: a text asked many questions is a [collated_text](../collated_text/README.md).
 
 ## Example
 
@@ -61,4 +61,4 @@ true true false
 ## See also
 
 - [find](find.md): where it is found
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

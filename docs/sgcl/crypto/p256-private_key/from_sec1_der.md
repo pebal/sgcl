@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::from_sec1_der
 
@@ -21,7 +21,7 @@ a scalar with a zero byte too many or too few is read as Go and OpenSSL read it.
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with the offset of the byte where the reading stopped:
+The key, or a [crypto::error](../error/README.md) with the offset of the byte where the reading stopped:
 
 - `errc::malformed` for DER that is not an ECPrivateKey;
 - `errc::unsupported` for parameters that name another curve;
@@ -37,7 +37,7 @@ None.
 
 ## Notes
 
-The DER holds the secret scalar: it belongs in a [secret_bytes](../secret_bytes.md), as
+The DER holds the secret scalar: it belongs in a [secret_bytes](../secret_bytes/README.md), as
 [to_sec1_der](to_sec1_der.md) gives it, never in managed memory.
 
 ## Example
@@ -76,4 +76,4 @@ true
 - [to_sec1_der](to_sec1_der.md): the ECPrivateKey of a key
 - [from_pkcs8_der](from_pkcs8_der.md): the form `PRIVATE KEY`
 - [from_pem](from_pem.md): either form in PEM
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

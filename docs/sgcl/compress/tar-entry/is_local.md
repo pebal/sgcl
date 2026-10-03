@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [entry](../tar-entry.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [entry](README.md)
 
 # sgcl::compress::tar::entry::is_local
 
@@ -7,7 +7,7 @@ bool is_local() const noexcept;
 ```
 
 Checks whether the name, and the link's target where there is one, stay inside the directory the archive is unpacked
-to: Go's `filepath.IsLocal`, the rule of [io::path::is_local](../../io/path.md). Not empty, not absolute, no `..` that
+to: Go's `filepath.IsLocal`, the rule of [io::path::is_local](../../io/path/README.md). Not empty, not absolute, no `..` that
 climbs out of the directory, no backslash (a separator on Windows). A symlink's target is taken from the directory
 of the link, a hard link's from the archive's root. An archive from outside names its entries as it likes: a program
 writing them to disk checks each with this first, as [extract](../tar-extract.md) does.
@@ -64,4 +64,4 @@ docs/latest -> ../../etc: false
 ## See also
 
 - [extract](../tar-extract.md): every name checked before anything is written
-- [sgcl::compress::tar::entry](../tar-entry.md)
+- [sgcl::compress::tar::entry](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::swap, sgcl::swap (sgcl::string)
 
@@ -64,4 +64,4 @@ alice bob true
 ## See also
 
 - [operator=](operator_assign.md): assigns another string
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

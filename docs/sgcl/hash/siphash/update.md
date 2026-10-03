@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [siphash](../siphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [siphash](README.md)
 
 # sgcl::hash::siphash::update
 
@@ -67,4 +67,4 @@ b8ca2496e93aa513
 
 - [mixin::hasher::update](../mixin/hasher/update.md): a text, a digest, a std::span of bytes
 - [of](../mixin/hasher/of.md): the same in one call
-- [sgcl::hash::siphash](../siphash.md)
+- [sgcl::hash::siphash](README.md)

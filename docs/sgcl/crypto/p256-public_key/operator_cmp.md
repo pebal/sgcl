@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](../p256-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](README.md)
 
 # sgcl::crypto::p256::operator== (sgcl::crypto::p256::public_key)
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [bytes](bytes.md): the point compared
-- [sgcl::crypto::p256::public_key](../p256-public_key.md)
+- [sgcl::crypto::p256::public_key](README.md)

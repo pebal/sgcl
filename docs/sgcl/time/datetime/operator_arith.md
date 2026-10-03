@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::operator+=, operator-=, sgcl::time::operator+, operator- (sgcl::time::datetime)
 
@@ -15,7 +15,7 @@ The exact arithmetic of instants, Go's `t.Add(d)` and `t.Sub(u)`: an hour later 
 zone's clock does meanwhile (the calendar's arithmetic, which keeps the time of the clock, is
 [add_days](add_days.md) and the others). The operators other than the compound assignments are hidden friends,
 found through a `datetime` argument; a `std::chrono` duration of whole nanoseconds converts to a
-[duration](../../core/duration.md), so `t + 90min` is a datetime. A result past either end of the range is the end:
+[duration](../../core/duration/README.md), so `t + 90min` is a datetime. A result past either end of the range is the end:
 the arithmetic saturates, where Go's wraps.
 
 1. The instant `d` later, in the zone of `t`.
@@ -85,5 +85,5 @@ Output:
 
 - [add_days](add_days.md), [add_months](add_months.md), [add_years](add_years.md): the calendar's arithmetic
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons
-- [duration](../../core/duration.md): what `t2 - t1` is
-- [sgcl::time::datetime](../datetime.md)
+- [duration](../../core/duration/README.md): what `t2 - t1` is
+- [sgcl::time::datetime](README.md)

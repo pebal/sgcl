@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](README.md)
 
 # sgcl::encoding::base64::decode
 
@@ -34,7 +34,7 @@ rest ([errc](../errc.md)).
 
 ## Return value
 
-The bytes, or the [error](../error.md): its code, its offset and a message, `offset 4: invalid character 0x0A`.
+The bytes, or the [error](../error/README.md): its code, its offset and a message, `offset 4: invalid character 0x0A`.
 
 ## Complexity
 
@@ -80,4 +80,4 @@ QQ=: offset 3: the padding is cut short
 - [decode_to](decode_to.md): into the caller's buffer
 - [decoder_from](decoder_from.md): as a stream
 - [lenient](lenient.md): a decoding that takes line endings
-- [sgcl::encoding::base64](../base64.md)
+- [sgcl::encoding::base64](README.md)

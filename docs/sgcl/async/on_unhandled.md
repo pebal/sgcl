@@ -104,5 +104,5 @@ true
 
 - [go](go.md), [detach](task/detach.md): the tasks let go of
 - [go_blocking](go_blocking.md): a blocking call let go of
-- [task](task.md): what a task does with what it throws
-- [task_group](task_group.md): children whose first exception the wait for the group rethrows
+- [task](task/README.md): what a task does with what it throws
+- [task_group](task_group/README.md): children whose first exception the wait for the group rethrows

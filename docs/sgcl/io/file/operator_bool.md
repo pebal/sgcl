@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::operator bool
 
@@ -53,4 +53,4 @@ true
 
 - [(constructor)](file.md): a handle with no file
 - [is_closed](is_closed.md): whether the file was closed
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

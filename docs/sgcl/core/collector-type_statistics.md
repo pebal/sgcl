@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [collector](collector.md)
+[sgcl](../README.md) › [core](README.md) › [collector](collector/README.md)
 
 # sgcl::collector::type_statistics
 
@@ -71,4 +71,4 @@ i: 1000 x 4 B = 4000 B, 1 pages
 
 - [get_type_statistics](collector/get_type_statistics.md): what returns it
 - [statistics](collector-statistics.md): the counters of the collector's work
-- [sgcl::collector](collector.md)
+- [sgcl::collector](collector/README.md)

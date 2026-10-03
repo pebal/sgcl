@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](README.md)
 
 # sgcl::encoding::ascii85::max_decoded_size
 
@@ -53,4 +53,4 @@ Output:
 
 - [max_encoded_size](max_encoded_size.md): the other way
 - [decode_to](decode_to.md): into the caller's buffer
-- [sgcl::encoding::ascii85](../ascii85.md)
+- [sgcl::encoding::ascii85](README.md)

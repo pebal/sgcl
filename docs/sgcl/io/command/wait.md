@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::wait, async_wait
 
@@ -23,7 +23,7 @@ None.
 
 ## Return value
 
-Nothing when the child exited with 0, or the [error](../error.md):
+Nothing when the child exited with 0, or the [error](../error/README.md):
 
 - `errc::exit_status` when it exited with another status or was ended by a signal (Go's `ExitError`): the operation
   `wait`, the path the program, the code and the signal in `state`;
@@ -86,6 +86,6 @@ true, exit status 3
 ## See also
 
 - [start](start.md): starts the child
-- [process_state](../process_state.md): how the child ended
+- [process_state](../process_state/README.md): how the child ended
 - [process::wait](../process/wait.md): the wait of a process alone
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

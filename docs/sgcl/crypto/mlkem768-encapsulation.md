@@ -77,5 +77,5 @@ false
 - [mlkem768::encapsulation_key::encapsulate](mlkem768-encapsulation_key/encapsulate.md): what makes it
 - [mlkem768::decapsulation_key::decapsulate](mlkem768-decapsulation_key/decapsulate.md): the shared key of the
   ciphertext
-- [secret](secret.md): the form of the shared key
+- [secret](secret/README.md): the form of the shared key
 - [ML-KEM](mlkem.md)

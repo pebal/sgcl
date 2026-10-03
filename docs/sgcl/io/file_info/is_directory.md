@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file_info](../file_info.md)
+[sgcl](../../README.md) › [io](../README.md) › [file_info](README.md)
 
 # sgcl::io::file_info::is_directory
 
@@ -55,4 +55,4 @@ link: false
 
 - [is_regular](is_regular.md), [is_symlink](is_symlink.md): the other two types asked for
 - [file_type](../file_type.md): every type
-- [sgcl::io::file_info](../file_info.md)
+- [sgcl::io::file_info](README.md)

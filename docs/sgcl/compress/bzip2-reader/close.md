@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [bzip2](../bzip2.md) › [reader](../bzip2-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [bzip2](../bzip2/README.md) › [reader](README.md)
 
 # sgcl::compress::bzip2::reader::close, async_close
 
@@ -57,4 +57,4 @@ true
 
 ## See also
 
-- [sgcl::compress::bzip2::reader](../bzip2-reader.md)
+- [sgcl::compress::bzip2::reader](README.md)

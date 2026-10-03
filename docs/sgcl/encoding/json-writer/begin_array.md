@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::begin_array
 
@@ -62,4 +62,4 @@ Output:
 
 - [end_array](end_array.md): closes it
 - [begin_object](begin_object.md): opens an object
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [sgcl::encoding::json::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::value
 
@@ -15,12 +15,12 @@ a json.
 
 1. `null`.
 2. A C string, to its first NUL, as a JSON string with the escapes it needs.
-3. A value of one of the types a json is made of — a [json](../json.md) as it is, a `bool`, an integer of any type
+3. A value of one of the types a json is made of — a [json](../json/README.md) as it is, a `bool`, an integer of any type
    but `bool` and the characters (exactly, `uint64_t` and `int64_t` whole), a `float`, a `double` or a
    `long double` (a `float` with its own shortest digits, a `long double` as a `double`), a
-   [string](../../core/string.md), a `slice<const char>`, a `std::string` or a `std::string_view` — or a value of
+   [string](../../core/string/README.md), a `slice<const char>`, a `std::string` or a `std::string_view` — or a value of
    any other type a field may have, written by its fields as [json::stringify](../json/stringify.md) writes it
-   ([field_list](../field_list.md)): a type with `describe`, a container, a map (a hash map with its keys sorted
+   ([field_list](../field_list/README.md)): a type with `describe`, a container, a map (a hash map with its keys sorted
    unless [style](../json-style.md)`::sort_keys` is `false`), an optional. NaN or an infinity is a mistake, and
    so is a value of a type of the program that has no text — an enum's value past its names, a cycle of pointers
    past 512 levels — reported with its path inside the value. noexcept when `T` is one of the types a json is
@@ -94,5 +94,5 @@ json: /1/x: NaN is not a JSON number: unsupported value
 
 - [key](key.md): the key of a member
 - [json::stringify](../json/stringify.md): a value whole, into a string
-- [field_list](../field_list.md): how a type of the program is written
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [field_list](../field_list/README.md): how a type of the program is written
+- [sgcl::encoding::json::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::join
 
@@ -105,4 +105,4 @@ true
 
 - [concat](concat.md): one string of a few known pieces
 - [split](split.md): the pieces between the occurrences of a separator
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

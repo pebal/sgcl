@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::operator=
 
@@ -65,4 +65,4 @@ true
 
 - [(constructor)](channel.md): makes a channel, or another handle of one
 - [operator==, operator!=](operator_cmp.md): whether two handles are of the same channel
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

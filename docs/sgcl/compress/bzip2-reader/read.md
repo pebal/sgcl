@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [bzip2](../bzip2.md) › [reader](../bzip2-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [bzip2](../bzip2/README.md) › [reader](README.md)
 
 # sgcl::compress::bzip2::reader::read, async_read
 
@@ -26,7 +26,7 @@ allow is the error of the read that reaches it, after every byte before it was h
 ## Return value
 
 The number of bytes put into `out`, 0 at the end of the stream (or for an empty `out`), or an error: an `io::error`
-of the [compress category](../compress_category.md) for the data (the whole [error](../error.md) is in
+of the [compress category](../compress_category.md) for the data (the whole [error](../error/README.md) is in
 [last_error](last_error.md)), or the error of `in` as it came.
 
 ## Complexity
@@ -102,4 +102,4 @@ hello, hello, hello
 ## See also
 
 - [last_error](last_error.md): the whole error of the data
-- [sgcl::compress::bzip2::reader](../bzip2-reader.md)
+- [sgcl::compress::bzip2::reader](README.md)

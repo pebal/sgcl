@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](README.md)
 
 # sgcl::async::broadcast\<T\>::closed
 
@@ -53,4 +53,4 @@ true 1
 
 - [close](close.md): closes the broadcast
 - [closed](../broadcast-subscription/closed.md): the same question asked of a subscription
-- [sgcl::async::broadcast\<T\>](../broadcast.md)
+- [sgcl::async::broadcast\<T\>](README.md)

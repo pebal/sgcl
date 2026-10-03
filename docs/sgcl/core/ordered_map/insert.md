@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::insert
 
@@ -135,4 +135,4 @@ false 3 a
 - [emplace](emplace.md): constructs the element in place
 - [try_emplace](try_emplace.md): builds the element only when the key is absent
 - [insert_or_assign](insert_or_assign.md): inserts, or assigns to the element under the key
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

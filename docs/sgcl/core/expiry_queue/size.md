@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](README.md)
 
 # sgcl::expiry_queue\<T\>::size
 
@@ -65,4 +65,4 @@ Output:
 
 - [empty](empty.md): checks whether the queue holds no entry
 - [drain](drain.md): drops the entries whose objects were found unreachable, and the cancelled ones
-- [sgcl::expiry_queue\<T\>](../expiry_queue.md)
+- [sgcl::expiry_queue\<T\>](README.md)

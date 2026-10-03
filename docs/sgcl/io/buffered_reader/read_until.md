@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::read_until, async_read_until
 
@@ -79,4 +79,4 @@ Output:
 
 - [read_line](read_line.md): a line, its end left out
 - [set_max_line](set_max_line.md): the bound of a token
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

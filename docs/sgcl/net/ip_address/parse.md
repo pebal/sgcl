@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::parse
 
@@ -12,12 +12,12 @@ Reads an IPv4 or an IPv6 address, as Go's `netip.ParseAddr` reads one: `"10.0.0.
 IPv4 is the dotted decimal form alone: four fields of 0 to 255, none with a leading zero. `"010.0.0.1"` is not an
 address, since the C library reads a leading zero as octal and a program that checked the text would disagree with the
 socket about where it connects (Go refuses it since 1.17); neither is `"127.1"` nor a hex field. The lenient forms a
-browser takes belong to the URL parser ([url](../url.md)).
+browser takes belong to the URL parser ([url](../url/README.md)).
 
 IPv6 is read by RFC 4291 §2.2: groups of one to four hex digits in either case, one `::` standing for one or more zero
 groups (never for none: `1:2:3:4:5:6:7:8::` is refused), an embedded IPv4 address in the last 32 bits, a zone after
 `%`. The zone is at most fifteen bytes, any of them but a NUL, a bracket included; a longer zone, or one with a NUL,
-is refused, where Go keeps it. No brackets (those belong to an [endpoint](../endpoint.md)), no spaces around the
+is refused, where Go keeps it. No brackets (those belong to an [endpoint](../endpoint/README.md)), no spaces around the
 address.
 
 Nothing is allocated for an address: only a text that is not one makes an error, which holds the text.
@@ -30,7 +30,7 @@ Nothing is allocated for an address: only a text that is not one makes an error,
 
 ## Return value
 
-The address, or an [io::error](../../io/error.md) of the code `net::errc::invalid_address` ([errc](../errc.md)), the
+The address, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_address` ([errc](../errc.md)), the
 operation `parse IP address` and the text: its message reads `parse IP address 010.0.0.1: invalid address`.
 
 ## Complexity
@@ -83,4 +83,4 @@ fe80::1%en0 -> fe80::1%en0
 - [to_string](to_string.md): the text back
 - [endpoint::parse](../endpoint/parse.md), [ip_network::parse](../ip_network/parse.md): an address with a port, with a
   prefix length
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

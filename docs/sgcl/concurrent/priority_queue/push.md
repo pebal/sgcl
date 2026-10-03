@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](README.md)
 
 # sgcl::concurrent::priority_queue\<T, Compare\>::push
 
@@ -92,4 +92,4 @@ Output:
 
 - [emplace](emplace.md): constructs the element in place
 - [try_pop](try_pop.md), [pop](pop.md): take the least element
-- [sgcl::concurrent::priority_queue\<T, Compare\>](../priority_queue.md)
+- [sgcl::concurrent::priority_queue\<T, Compare\>](README.md)

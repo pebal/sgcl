@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::subslice
 
@@ -59,4 +59,4 @@ past the end
 
 - [first](first.md), [last](last.md): the first, the last `n` elements
 - [subspan](subspan.md), [substr](substr.md): the same under `std`'s names
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

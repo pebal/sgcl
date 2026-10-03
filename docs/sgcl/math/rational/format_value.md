@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::format_value (sgcl::math::rational)
 
@@ -69,4 +69,4 @@ false
 
 - [to_string](to_string.md), [to_decimal](to_decimal.md): the texts written
 - [txt::format](../../txt/format.md): the patterns and the fields
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [async](../README.md) › [generator](README.md)
 
 # sgcl::async::generator\<T\>::operator=
 
@@ -8,7 +8,7 @@ generator& operator=(generator&&) noexcept = default;
 
 Destroys the coroutine held, if any, running the destructors of its locals and promise wherever it was suspended,
 then takes the coroutine of the other generator over; the other generator is empty after. A self-assignment does nothing. Unlike the
-assignment of a [task](../task.md), it lets nothing run on: a generator runs only when its consumer asks for a value,
+assignment of a [task](../task/README.md), it lets nothing run on: a generator runs only when its consumer asks for a value,
 and the coroutine held is destroyed.
 
 ## Parameters
@@ -83,4 +83,4 @@ b
 
 - [(constructor)](generator.md): the move constructor
 - [frame_ptr::operator=](../../core/frame_ptr/operator_assign.md): what it calls
-- [sgcl::async::generator\<T\>](../generator.md)
+- [sgcl::async::generator\<T\>](README.md)

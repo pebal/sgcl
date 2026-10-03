@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [core](../README.md) › [generator](README.md)
 
 # sgcl::generator\<T\>::next
 
@@ -67,4 +67,4 @@ false
 
 - [value](value.md): the value of the last `co_yield`
 - [begin](begin.md): the same first step, as an iterator
-- [sgcl::generator\<T\>](../generator.md)
+- [sgcl::generator\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::date
 
@@ -64,4 +64,4 @@ false false
 ## See also
 
 - [set_date](set_date.md): a date written
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [words](../words.md)
+[sgcl](../../README.md) › [txt](../README.md) › [words](README.md)
 
 # sgcl::txt::words::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../words-iterator.md) to the first word, the runs before it passed over. For a text with no word
+Returns an [iterator](../words-iterator/README.md) to the first word, the runs before it passed over. For a text with no word
 it equals [end](end.md).
 
 ## Parameters
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [end](end.md): the iterator past the last element
-- [sgcl::txt::words](../words.md)
+- [sgcl::txt::words](README.md)

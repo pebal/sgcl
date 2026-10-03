@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::emplace
 
@@ -42,7 +42,7 @@ size have changed.
 ## Notes
 
 An insertion at either end keeps the references to the other elements valid and invalidates the iterators; an
-insertion in the middle invalidates both ([Iterator invalidation](../deque.md#iterator-invalidation)).
+insertion in the middle invalidates both ([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -82,4 +82,4 @@ Output:
 
 - [insert](insert.md): inserts copies of values or a range
 - [emplace_back](emplace_back.md), [emplace_front](emplace_front.md): construct an element in place at either end
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::list)
 
@@ -14,7 +14,7 @@ Compares two lists by their elements.
 2. `!(a == b)`.
 
 Both take part only when `T` is [req::equatable](../../core/req/equatable.md). `<`, `<=`, `>`, `>=` and `<=>`
-compare the elements lexicographically, from [mixin::comparable](../../core/mixin/comparable.md), when `T` is
+compare the elements lexicographically, from [mixin::comparable](../../core/mixin/comparable/README.md), when `T` is
 [req::comparable](../../core/req/comparable.md).
 
 ## Parameters
@@ -62,5 +62,5 @@ true
 
 ## See also
 
-- [mixin::comparable](../../core/mixin/comparable.md): `<=>` by the elements
-- [sgcl::immutable::list\<T\>](../list.md)
+- [mixin::comparable](../../core/mixin/comparable/README.md): `<=>` by the elements
+- [sgcl::immutable::list\<T\>](README.md)

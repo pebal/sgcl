@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [token](../xml-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [token](README.md)
 
 # sgcl::encoding::xml::token::type
 
@@ -55,4 +55,4 @@ Output:
 
 - [is_start](is_start.md), [is_end](is_end.md): the start or the end of an element of a name
 - [token::kind](../xml-token-kind.md)
-- [sgcl::encoding::xml::token](../xml-token.md)
+- [sgcl::encoding::xml::token](README.md)

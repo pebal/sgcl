@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::get
 
@@ -53,4 +53,4 @@ Output:
 
 - [get_all](get_all.md): every value of a name
 - [contains](contains.md): whether the name is there at all
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md) › [reader](../lzma-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma/README.md) › [reader](README.md)
 
 # sgcl::compress::lzma::reader::reader
 
@@ -62,4 +62,4 @@ hello
 ## See also
 
 - [read](read.md)
-- [sgcl::compress::lzma::reader](../lzma-reader.md)
+- [sgcl::compress::lzma::reader](README.md)

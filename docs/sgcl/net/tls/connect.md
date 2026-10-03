@@ -23,7 +23,7 @@ TCP connect and the handshake share one bound, `c.handshake_timeout`.
 1. On the calling thread: it runs on the scheduler and waits for it, so it is for a thread.
 2. The same for a task, which holds no worker while it waits.
 
-The connection is a [net::connection](../connection.md) like a TCP one, and its errors name it `tls` and the TCP
+The connection is a [net::connection](../connection/README.md) like a TCP one, and its errors name it `tls` and the TCP
 connection (`read tls tcp 127.0.0.1:50000->127.0.0.1:8443: ...`); [state_of](state_of.md) gives what the handshake
 settled.
 
@@ -36,7 +36,7 @@ settled.
 
 ## Return value
 
-The connection, its handshake done and the server's chain verified. Or the [io::error](../../io/error.md):
+The connection, its handshake done and the server's chain verified. Or the [io::error](../../io/error/README.md):
 
 - [net::errc::invalid_address](../errc.md) for an address that is not `"host:port"`; what
   [tcp::connect](../tcp/connect.md) returns for a name not found, a refused connection;

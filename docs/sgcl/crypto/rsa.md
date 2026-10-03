@@ -12,8 +12,8 @@ namespace sgcl::crypto::rsa {
 ```
 
 `sgcl::crypto::rsa` is RSA (RFC 8017, PKCS #1 v2.2), Go's `crypto/rsa`: the signatures of most certificates and of
-JWS's RS256 and PS256, the key transport of CMS and of JWE's RSA-OAEP. A [private_key](rsa-private_key.md) signs
-digests in PKCS #1 v1.5 and in PSS and decrypts OAEP; its [public_key](rsa-public_key.md) verifies and encrypts. Keys
+JWS's RS256 and PS256, the key transport of CMS and of JWE's RSA-OAEP. A [private_key](rsa-private_key/README.md) signs
+digests in PKCS #1 v1.5 and in PSS and decrypts OAEP; its [public_key](rsa-public_key/README.md) verifies and encrypts. Keys
 of 2048 to 16384 bits are made here, keys of 1024 bits and more are read from PKCS #1, PKCS #8 and
 SubjectPublicKeyInfo.
 
@@ -55,7 +55,7 @@ fuzzed. **The implementation has not been through an independent cryptographic a
 - **The private key is a secret**: d, p, q, dP, dQ and qInv live in one block of words the key allocates, zeroed
   with stores the compiler cannot drop when the key goes; so is every word of scratch an operation uses. The key is
   move-only (`clone()` makes a second one by name), a move leaves the source empty, and a call on an empty key is
-  `logic_error`. Its encodings are a [secret_bytes](secret_bytes.md), never managed memory. A public key, a
+  `logic_error`. Its encodings are a [secret_bytes](secret_bytes/README.md), never managed memory. A public key, a
   signature, a digest, a ciphertext and the parse of any encoding are not secret.
 - **Constant time** where a secret is: the private operation is Montgomery arithmetic of a width fixed by the
   modulus (never by a value), exponentiation four bits at a time with each window's power read by scanning the
@@ -71,14 +71,14 @@ fuzzed. **The implementation has not been through an independent cryptographic a
 - **Formats**: PKCS #1 (`RSA PUBLIC KEY`, `RSA PRIVATE KEY` in PEM), PKCS #8 (`PRIVATE KEY`) and SubjectPublicKeyInfo
   (`PUBLIC KEY`) are read and written as Go's `x509.MarshalPKCS1PrivateKey`, `MarshalPKCS8PrivateKey` and
   `MarshalPKIXPublicKey` write them, and as OpenSSL does, byte for byte. A private key's PEM is read and written by
-  the key; a public key's PEM is [encoding::pem](../encoding/pem.md)'s.
+  the key; a public key's PEM is [encoding::pem](../encoding/pem/README.md)'s.
 
 ## Member types
 
 | Type | Definition |
 |---|---|
-| [public_key](rsa-public_key.md) | the modulus and the public exponent: verifies signatures, encrypts; a plain value |
-| [private_key](rsa-private_key.md) | the key with its secret numbers: signs digests, decrypts; move-only |
+| [public_key](rsa-public_key/README.md) | the modulus and the public exponent: verifies signatures, encrypts; a plain value |
+| [private_key](rsa-private_key/README.md) | the key with its secret numbers: signs digests, decrypts; move-only |
 
 ## Example
 
@@ -133,10 +133,10 @@ sgcl::crypto::rsa: decryption error
 
 ## See also
 
-- [hash_id](hash_id.md): the hash named when the program runs; [sha256](sha256.md), [sha512](sha512.md)
-- [random](random.md): the salts, the seeds, the blinding and the primes
-- [secure_zero](secure_zero.md), [secret_bytes](secret_bytes.md): the secrets
-- [error](error.md): what reading a key and decrypting return
-- [x509::public_key](x509-public_key.md): the key of a certificate
+- [hash_id](hash_id.md): the hash named when the program runs; [sha256](sha256/README.md), [sha512](sha512/README.md)
+- [random](random/README.md): the salts, the seeds, the blinding and the primes
+- [secure_zero](secure_zero.md), [secret_bytes](secret_bytes/README.md): the secrets
+- [error](error/README.md): what reading a key and decrypting return
+- [x509::public_key](x509-public_key/README.md): the key of a certificate
 - [p256](p256.md), [ecdsa](ecdsa.md): the signatures of the curves, of smaller keys
 - [The module](README.md)

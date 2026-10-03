@@ -36,7 +36,7 @@ system's roots for the host it dials. A designated initializer names what differ
   without a host, or [client](client.md), which has no address); a server's without an identity; one with an ALPN
   protocol of 0 or more than 255 bytes.
 - It holds tracked pointers (the strings, the vectors, the pool, the identities): it lives on a stack, in a task, in
-  a managed object, and in a global under a [rooted](../../core/rooted.md). Copies of it share the identities and
+  a managed object, and in a global under a [rooted](../../core/rooted/README.md). Copies of it share the identities and
   their keys, which are never copied.
 
 ## Member objects
@@ -45,7 +45,7 @@ system's roots for the host it dials. A designated initializer names what differ
 |---|---|
 | `server_name` | the client's: the name sent as SNI (never an IP address) and checked against the leaf's names, or its IP addresses for an address (Go's `ServerName`); empty, the default, is the host of the address [connect](connect.md) was given |
 | `roots` | the client's: the certificates the server's chain must lead to, a [crypto::x509::certificate_pool](../../crypto/x509.md) (Go's `RootCAs`); `nullopt`, the default, is the system's |
-| `identities` | the server's: its certificate chains with their keys ([identity](identity.md), Go's `Certificates`), at least one; the first whose leaf is for the name the client sent is chosen, else the first; empty by default |
+| `identities` | the server's: its certificate chains with their keys ([identity](identity/README.md), Go's `Certificates`), at least one; the first whose leaf is for the name the client sent is chosen, else the first; empty by default |
 | `groups` | the key exchange groups, in order of preference ([group](group.md), Go's `CurvePreferences`); a client sends a key share of the first, and of X25519 beside the hybrid when the list has it; by default X25519MLKEM768, X25519, P-256, P-384 |
 | `ciphers` | the cipher suites, in order of preference ([cipher](cipher.md)); Go's TLS 1.3 suites are not configurable; by default AES-128-GCM, ChaCha20-Poly1305, AES-256-GCM |
 | `alpn` | the application protocols (RFC 7301), in order of preference (Go's `NextProtos`): a client offers them, a server takes the first of its list the client offers and refuses a client that offers some and none of them; empty by default, none offered and none answered |
@@ -100,6 +100,6 @@ tls a config without cipher suites or groups: Invalid argument
 ## See also
 
 - [connect](connect.md), [client](client.md), [listen](listen.md), [server](server.md): the functions that take it
-- [identity](identity.md): a server's certificate and key
+- [identity](identity/README.md): a server's certificate and key
 - [state](state.md): what the handshake settled of it
 - [net::tls](README.md)

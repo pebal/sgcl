@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::send, async_send
 
@@ -7,11 +7,11 @@ expected<response, io::error> send(const request& req) const;                   
 async::task<expected<response, io::error>> async_send(const request& req) const noexcept;    // (2)
 ```
 
-Sends the [request](../request.md) and follows the redirects, Go's `Client.Do`: a connection is taken from the pool
+Sends the [request](../request/README.md) and follows the redirects, Go's `Client.Do`: a connection is taken from the pool
 or dialed, the head and the body written, and the head of the response read; the body stays on the connection, to be
-read from the [response](../response.md). Every other method of the client that sends is this one with a request it
+read from the [response](../response/README.md). Every other method of the client that sends is this one with a request it
 builds. What is sent, what is refused before a byte goes out, the redirects, the retries and the timeouts are the
-[client's rules](../client.md#rules), read from the settings when the send starts.
+[client's rules](README.md#rules), read from the settings when the send starts.
 
 1. Blocks the calling thread: the exchange runs on the scheduler and the thread waits for it. For a thread of the
    program, never a worker.
@@ -25,7 +25,7 @@ builds. What is sent, what is refused before a byte goes out, the redirects, the
 
 ## Return value
 
-The response, its body not read yet; a 4xx or a 5xx is a response. Or the [error](../../../io/error.md), naming the
+The response, its body not read yet; a 4xx or a 5xx is a response. Or the [error](../../../io/error/README.md), naming the
 method and the URL: the connection's (`ECONNREFUSED`, a TLS error), `ETIMEDOUT` past a timeout,
 `std::errc::invalid_argument` for a request that cannot be sent (a method, a field or a target that is not valid on
 the wire), the error of a body's stream that fails to be read (`io::errc::unexpected_eof` for one that ends before its
@@ -119,5 +119,5 @@ true
 ## See also
 
 - [get](get.md), [head](head.md), [post](post.md): the requests the client builds
-- [request](../request.md): what is sent; [response](../response.md): what comes back
-- [sgcl::net::http::client](../client.md)
+- [request](../request/README.md): what is sent; [response](../response/README.md): what comes back
+- [sgcl::net::http::client](README.md)

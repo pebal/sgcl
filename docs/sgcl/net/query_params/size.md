@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [query_params](../query_params.md)
+[sgcl](../../README.md) › [net](../README.md) › [query_params](README.md)
 
 # sgcl::net::query_params::size
 
@@ -46,4 +46,4 @@ Output:
 ## See also
 
 - [empty](empty.md): whether there are none
-- [sgcl::net::query_params](../query_params.md)
+- [sgcl::net::query_params](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [memory](../memory.md)
+[sgcl](../../README.md) › [slog](../README.md) › [memory](README.md)
 
 # sgcl::slog::memory::handle
 
@@ -7,7 +7,7 @@ void handle(const record& r) const;
 ```
 
 Keeps `r.clone()`, a copy of the record that owns all it holds ([clone](../record/clone.md)), after the records
-kept so far: what makes `memory` a [handler](../handler.md). A logger calls it; a test may too.
+kept so far: what makes `memory` a [handler](../handler/README.md). A logger calls it; a test may too.
 
 ## Parameters
 
@@ -52,4 +52,4 @@ Output:
 
 - [enabled](enabled.md)
 - [handler::handle](../handler/handle.md)
-- [sgcl::slog::memory](../memory.md)
+- [sgcl::slog::memory](README.md)

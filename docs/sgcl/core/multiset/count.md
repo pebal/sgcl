@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::count
 
@@ -12,7 +12,7 @@ its end.
 
 - (2) The key is of any type the hash and the equality take, and no `Key` is built for the search. Takes part
   only when `Hash` and `KeyEqual` both declare `is_transparent`, as `std::hash` and `std::equal_to` of a
-  [string](../string.md) do.
+  [string](../string/README.md) do.
 
 ## Parameters
 
@@ -63,4 +63,4 @@ Output:
 
 - [equal_range](equal_range.md): the run of the elements with a key
 - [contains](contains.md): checks whether the multiset holds a key
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

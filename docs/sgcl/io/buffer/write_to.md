@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::write_to, async_write_to
 
@@ -66,4 +66,4 @@ line two
 
 - [copy](../copy.md): what calls it
 - [copy_to](../mixin/reader/copy_to.md): the same for any reader
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

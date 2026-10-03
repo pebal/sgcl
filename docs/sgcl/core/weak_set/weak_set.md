@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_set](../weak_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_set](README.md)
 
 # sgcl::weak_set\<Key\>::weak_set
 
@@ -77,4 +77,4 @@ false
 
 - [operator=](operator_assign.md): takes the entries of another set over
 - [insert](insert.md): adds an object
-- [sgcl::weak_set\<Key\>](../weak_set.md)
+- [sgcl::weak_set\<Key\>](README.md)

@@ -22,7 +22,7 @@ directory.
 
 ## Return value
 
-The target, or the [error](error.md) (`std::errc::invalid_argument` when `link` is not a symbolic link,
+The target, or the [error](error/README.md) (`std::errc::invalid_argument` when `link` is not a symbolic link,
 `is_not_found()` when nothing is there); the operation is `read_link` and the path `link`.
 
 ## Complexity

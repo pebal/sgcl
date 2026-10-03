@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::to_bytes
 
@@ -66,4 +66,4 @@ sgcl::math::big_integer::to_bytes: the value takes more bytes than given
 
 - [from_bytes](from_bytes.md): the number of the bytes
 - [bit_length](bit_length.md): the number of bits
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

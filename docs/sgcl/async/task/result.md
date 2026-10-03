@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::result
 
@@ -87,4 +87,4 @@ no name
 
 - [wait, operator co_await](wait.md): waits for the task and gives the value
 - [done](done.md): checks whether the task has ended
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

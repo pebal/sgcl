@@ -17,12 +17,12 @@ swap file, a bug that reads past a buffer. `secure_zero` writes the zeros and th
 that clobbers memory, so the compiler must assume they are read, which is what BoringSSL's `OPENSSL_cleanse` and
 glibc's `explicit_bzero` do; a compiler with no GNU asm gets a loop of stores through a volatile pointer.
 
-The module's types that hold a secret do it themselves: [hmac](hmac.md), [hkdf-prk](hkdf-prk.md), the ciphers
-([aes](aes.md), [aes_gcm](aes_gcm.md), [aes_ctr](aes_ctr.md), [chacha20](chacha20.md),
-[chacha20_poly1305](chacha20_poly1305.md)) and the private keys ([x25519](x25519-private_key.md),
-[ed25519](ed25519-private_key.md)) zero their memory in their destructors and when moved from, and
-[pbkdf2](pbkdf2.md) and [hkdf](hkdf.md) zero their intermediate blocks. What the module derives, decrypts or draws
-for a key is a [secret_bytes](secret_bytes.md) or a [secret\<N\>](secret.md), which zero themselves. `secure_zero`
+The module's types that hold a secret do it themselves: [hmac](hmac/README.md), [hkdf-prk](hkdf-prk/README.md), the ciphers
+([aes](aes/README.md), [aes_gcm](aes_gcm/README.md), [aes_ctr](aes_ctr/README.md), [chacha20](chacha20/README.md),
+[chacha20_poly1305](chacha20_poly1305/README.md)) and the private keys ([x25519](x25519-private_key/README.md),
+[ed25519](ed25519-private_key/README.md)) zero their memory in their destructors and when moved from, and
+[pbkdf2](pbkdf2/README.md) and [hkdf](hkdf/README.md) zero their intermediate blocks. What the module derives, decrypts or draws
+for a key is a [secret_bytes](secret_bytes/README.md) or a [secret\<N\>](secret/README.md), which zero themselves. `secure_zero`
 is for the program's own buffers: a stack array, a `std::array`, a buffer given to a `_to` form.
 
 **The implementation has not been through an independent cryptographic audit.**
@@ -81,6 +81,6 @@ true
 
 ## See also
 
-- [secret_bytes](secret_bytes.md): a secret that zeroes itself
-- [random](random.md): random bytes into a buffer
-- [constant_time](constant_time.md): the comparison of secrets
+- [secret_bytes](secret_bytes/README.md): a secret that zeroes itself
+- [random](random/README.md): random bytes into a buffer
+- [constant_time](constant_time/README.md): the comparison of secrets

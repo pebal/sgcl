@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [attrs](../attrs.md)
+[sgcl](../../README.md) › [slog](../README.md) › [attrs](README.md)
 
 # sgcl::slog::attrs::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../attrs-iterator.md) to the first attribute: its `*` gives an [attr](../attr.md) by value, and
+Returns an [iterator](../attrs-iterator.md) to the first attribute: its `*` gives an [attr](../attr/README.md) by value, and
 it compares equal to [end](end.md) past the last one. A `for` over the range walks them.
 
 ## Parameters
@@ -53,4 +53,4 @@ y
 ## See also
 
 - [end](end.md), [size](size.md)
-- [sgcl::slog::attrs](../attrs.md)
+- [sgcl::slog::attrs](README.md)

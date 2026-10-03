@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_set](../weak_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_set](README.md)
 
 # sgcl::weak_set\<Key\>::insert
 
@@ -90,4 +90,4 @@ Output:
 
 - [sweep](sweep.md): erases the dead entries on demand
 - [find](find.md): the entry of an object
-- [sgcl::weak_set\<Key\>](../weak_set.md)
+- [sgcl::weak_set\<Key\>](README.md)

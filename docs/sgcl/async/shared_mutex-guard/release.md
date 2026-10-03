@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex.md) › [guard](../shared_mutex-guard.md)
+[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex/README.md) › [guard](README.md)
 
 # sgcl::async::shared_mutex::guard::release
 
@@ -59,4 +59,4 @@ true
 - [owner](owner.md): the shared mutex, kept by the guard
 - [(constructor)](shared_mutex-guard.md): a guard that takes over the writer's lock
 - [unlock](../shared_mutex/unlock.md): gives the lock back
-- [sgcl::async::shared_mutex::guard](../shared_mutex-guard.md)
+- [sgcl::async::shared_mutex::guard](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [xz](xz.md)
+[sgcl](../README.md) › [compress](README.md) › [xz](xz/README.md)
 
 # sgcl::compress::xz::filter
 
@@ -71,4 +71,4 @@ true
 
 - [xz::options](xz-options.md)
 - [benchmarks](benchmarks.md): the speed of each converter
-- [sgcl::compress::xz](xz.md)
+- [sgcl::compress::xz](xz/README.md)

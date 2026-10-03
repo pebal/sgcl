@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::zone
 
@@ -62,4 +62,4 @@ unknown time zone "Mars/Olympus_Mons"
 
 - [load](load.md): a name from outside, its error a value
 - [utc](utc.md): UTC
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

@@ -6,14 +6,14 @@
 #include "sgcl/net/tls.h"   // namespace sgcl::net::tls
 ```
 
-TLS 1.3 ([RFC 8446](https://www.rfc-editor.org/rfc/rfc8446)) over the module's [connections](../connection.md), both
+TLS 1.3 ([RFC 8446](https://www.rfc-editor.org/rfc/rfc8446)) over the module's [connections](../connection/README.md), both
 sides, as Go's `crypto/tls` gives it. [connect](connect.md) dials TCP, completes the handshake and only then gives the
-connection out: a [net::connection](../connection.md) like any other, with `read`, `read_line`, `write`, deadlines,
+connection out: a [net::connection](../connection/README.md) like any other, with `read`, `read_line`, `write`, deadlines,
 `close` and the `async_` forms, so that [http](../http/README.md) and every stream of [io](../../io/README.md)
 take it as they take a TCP one. The server's chain is verified by [crypto::x509](../../crypto/x509.md) against the
 system's roots or a pool of the program's, for the name dialed. [listen](listen.md) is a
-[net::listener](../listener.md) whose `accept` gives connections whose handshake is done, with the certificate and
-the key of an [identity](identity.md); [http::server](../http/server.md) serves it as it serves a TCP one
+[net::listener](../listener/README.md) whose `accept` gives connections whose handshake is done, with the certificate and
+the key of an [identity](identity/README.md); [http::server](../http/server/README.md) serves it as it serves a TCP one
 (https). [client](client.md) and [server](server.md) are the two handshakes over a connection the program already
 has.
 
@@ -26,7 +26,7 @@ implementation has not been through an independent cryptographic audit.**
 
 The settings of a connection are one value, a [config](config.md), Go's `tls.Config`; what the handshake settled
 is another, a [state](state.md), read back by [state_of](state_of.md). A failure is an
-[io::error](../../io/error.md) like every other of the module, in a category of its own, `"tls"`
+[io::error](../../io/error/README.md) like every other of the module, in a category of its own, `"tls"`
 ([category](category.md)), which [alert_of](alert_of.md), [is_remote](is_remote.md) and
 [certificate_reason](certificate_reason.md) take apart.
 
@@ -76,14 +76,14 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
    sent as SNI (never for an IP address) and checked against the leaf's names, or its IP addresses for an address.
    `insecure_skip_verify` takes the chain unchecked. It is for tests: with it, any machine in the path can read and
    change the traffic.
-10. A private key never lies in managed memory. An [identity](identity.md) keeps its key in an unmanaged block of
+10. A private key never lies in managed memory. An [identity](identity/README.md) keeps its key in an unmanaged block of
     its own, never copied, and zeroed when the identity is collected; its PEM is read where it lies, from a
-    [secret_bytes](../../crypto/secret_bytes.md) of [crypto::read_secret](../../crypto/secret.md). It is the
+    [secret_bytes](../../crypto/secret_bytes/README.md) of [crypto::read_secret](../../crypto/secret/README.md). It is the
     server's: the client of v1 sends no certificate.
-11. The values of the namespace hold tracked pointers: an [identity](identity.md) is a handle of one word, and a
+11. The values of the namespace hold tracked pointers: an [identity](identity/README.md) is a handle of one word, and a
     [config](config.md) and a [state](state.md) hold vectors, strings and certificates. They live where a
     `tracked_ptr` may: on a stack, in a task, in a managed object; in a global, under a
-    [rooted](../../core/rooted.md).
+    [rooted](../../core/rooted/README.md).
 12. Not in v1: client certificates (mTLS, Go's `ClientAuth` and `GetClientCertificate`: a server's
     `CertificateRequest` is answered with an empty `Certificate`, and the server decides; the server of v1 asks for
     none), session resumption and PSK (Go's `ClientSessionCache` and session tickets: a client reads a
@@ -123,7 +123,7 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
 | Class | Header | Description |
 |---|---|---|
 | [config](config.md) | `tls.h` | the settings of a connection, a value: Go's `tls.Config` |
-| [identity](identity.md) | `tls.h` | a server's certificate chain with its private key, a handle of one word |
+| [identity](identity/README.md) | `tls.h` | a server's certificate chain with its private key, a handle of one word |
 | [state](state.md) | `tls.h` | what the handshake settled: the suite, the group, the name, the protocol, the chain |
 
 ## Enumerations
@@ -136,10 +136,10 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
 
 ## See also
 
-- [net](../README.md): the [connection](../connection.md) a handshake gives and the [listener](../listener.md)
+- [net](../README.md): the [connection](../connection/README.md) a handshake gives and the [listener](../listener/README.md)
   `listen` makes; [tcp::connect](../tcp/connect.md) and [tcp::listen](../tcp/listen.md) under them
-- [http](../http/README.md): https over this namespace, [client](../http/client.md) and
-  [server](../http/server.md)
+- [http](../http/README.md): https over this namespace, [client](../http/client/README.md) and
+  [server](../http/server/README.md)
 - [crypto::x509](../../crypto/x509.md): the verification of the chain; [mlkem](../../crypto/mlkem.md),
   [x25519](../../crypto/x25519.md): the key shares
 - RFC 8446 (TLS 1.3), RFC 8448 (the traces the handshake is tested against byte for byte), RFC 7301 (ALPN),

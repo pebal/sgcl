@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](README.md)
 
 # sgcl::txt::fold_matches::end
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first occurrence
-- [sgcl::txt::fold_matches, normalized_matches](../fold_matches.md)
+- [sgcl::txt::fold_matches, normalized_matches](README.md)

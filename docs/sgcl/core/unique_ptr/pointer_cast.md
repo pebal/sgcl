@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::static_pointer_cast, const_pointer_cast, dynamic_pointer_cast (sgcl::unique_ptr)
 
@@ -74,4 +74,4 @@ false false false true
 ## See also
 
 - [as](as.md): moves the object into an owner of a given type, keeping it when the type does not match
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

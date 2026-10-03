@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::begin, cbegin
 
@@ -66,4 +66,4 @@ a 0
 
 - [end, cend](end.md): the iterator past the last element
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the last element
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes.md)
+[sgcl](../../README.md) › [txt](../README.md) › [graphemes](README.md)
 
 # sgcl::txt::graphemes::empty
 
@@ -46,4 +46,4 @@ true false
 ## See also
 
 - [count](count.md): the number of grapheme clusters
-- [sgcl::txt::graphemes](../graphemes.md)
+- [sgcl::txt::graphemes](README.md)

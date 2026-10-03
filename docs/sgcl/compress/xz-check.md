@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [xz](xz.md)
+[sgcl](../README.md) › [compress](README.md) › [xz](xz/README.md)
 
 # sgcl::compress::xz::check
 
@@ -62,4 +62,4 @@ Output:
 ## See also
 
 - [xz::options](xz-options.md)
-- [sgcl::compress::xz](xz.md)
+- [sgcl::compress::xz](xz/README.md)

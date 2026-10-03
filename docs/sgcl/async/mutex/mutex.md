@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](README.md)
 
 # sgcl::async::mutex::mutex
 
@@ -61,4 +61,4 @@ true
 
 - [operator=](operator_assign.md): makes the handle one of another mutex
 - [operator==](operator_cmp.md): whether two handles are the same mutex
-- [sgcl::async::mutex](../mutex.md)
+- [sgcl::async::mutex](README.md)

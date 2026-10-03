@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::as
 
@@ -7,7 +7,7 @@ template<class T> expected<T, error> as() const;
 ```
 
 This element as a value of a program's type `T`, described by `describe(field_list&)` and mapped as
-[A program's types](../xml.md#a-programs-types) says, or of a type that is text (a number, a string, an enum, a
+[A program's types](README.md#a-programs-types) says, or of a type that is text (a number, a string, an enum, a
 type with `to_text`/`from_text`), read from the element's text. `T` needs a default constructor.
 
 The error has the path inside the element (`/point/@y`) and no place, as a tree holds no places in a document: no
@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-The value; otherwise the [error](../error.md): `errc::type_mismatch`, `errc::out_of_range` or
+The value; otherwise the [error](../error/README.md): `errc::type_mismatch`, `errc::out_of_range` or
 `errc::missing_field`.
 
 ## Complexity
@@ -76,5 +76,5 @@ true
 
 - [parse](parse.md): `parse<T>`, a document read into a value
 - [from](from.md): the way back
-- [field_list](../field_list.md)
-- [sgcl::encoding::xml](../xml.md)
+- [field_list](../field_list/README.md)
+- [sgcl::encoding::xml](README.md)

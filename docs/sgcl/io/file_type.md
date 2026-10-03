@@ -10,8 +10,8 @@ namespace sgcl::io {
 }
 ```
 
-The type of a file, as [stat](stat.md) reports it in [file_info](file_info.md) and [read_dir](read_dir.md) in a
-[directory_entry](directory_entry.md): the type bits of Go's `fs.FileMode`.
+The type of a file, as [stat](stat.md) reports it in [file_info](file_info/README.md) and [read_dir](read_dir.md) in a
+[directory_entry](directory_entry/README.md): the type bits of Go's `fs.FileMode`.
 
 | Value | Description |
 |---|---|
@@ -62,5 +62,5 @@ true
 
 ## See also
 
-- [file_info](file_info.md): `type`, `is_regular`, `is_directory`, `is_symlink`
-- [directory_entry](directory_entry.md): the type of an entry
+- [file_info](file_info/README.md): `type`, `is_regular`, `is_directory`, `is_symlink`
+- [directory_entry](directory_entry/README.md): the type of an entry

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [writer](../gzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [writer](README.md)
 
 # sgcl::compress::gzip::writer::is_closed
 
@@ -55,4 +55,4 @@ false
 ## See also
 
 - [close](close.md)
-- [sgcl::compress::gzip::writer](../gzip-writer.md)
+- [sgcl::compress::gzip::writer](README.md)

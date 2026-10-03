@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [memory](../memory.md)
+[sgcl](../../README.md) › [slog](../README.md) › [memory](README.md)
 
 # sgcl::slog::memory::clear
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [records](records.md), [size](size.md)
-- [sgcl::slog::memory](../memory.md)
+- [sgcl::slog::memory](README.md)

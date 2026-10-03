@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes.md) › [iterator](../graphemes-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes/README.md) › [iterator](README.md)
 
 # sgcl::txt::graphemes::iterator::pos
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [size](size.md): the bytes the element takes
-- [sgcl::txt::graphemes::iterator](../graphemes-iterator.md)
+- [sgcl::txt::graphemes::iterator](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](../buffered_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](README.md)
 
 # sgcl::io::buffered_writer::underlying
 
@@ -6,7 +6,7 @@
 io::writer underlying() const noexcept;
 ```
 
-Returns the stream the writer writes through its block, as the [io::writer](../writer.md) it was made of: a copy of
+Returns the stream the writer writes through its block, as the [io::writer](../writer/README.md) it was made of: a copy of
 that handle, the same stream. A write to it goes past the block, ahead of the bytes the block still holds.
 
 ## Parameters
@@ -50,6 +50,6 @@ first, second
 
 ## See also
 
-- [io::writer](../writer.md): what it is
+- [io::writer](../writer/README.md): what it is
 - [flush](flush.md): writes the block to it
-- [sgcl::io::buffered_writer](../buffered_writer.md)
+- [sgcl::io::buffered_writer](README.md)

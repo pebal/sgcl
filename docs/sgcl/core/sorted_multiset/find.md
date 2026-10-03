@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::find
 
@@ -14,7 +14,7 @@ order, the one inserted first. The search walks down the tree from its root, rea
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Take part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does: a
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does: a
   `string_view`, a literal or a slice of another string finds a `string` key.
 
 ## Parameters
@@ -75,4 +75,4 @@ true
 
 - [contains](contains.md): checks whether a key is there
 - [equal_range](equal_range.md): every element with a key
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

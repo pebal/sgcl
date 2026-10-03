@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::start
 
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md):
+Nothing, or the [error](../error/README.md):
 
 - `errc::not_found` when no executable of the name is found (operation `look_path`);
 - `errc::process_done` when the command was started already (operation `start`);
@@ -75,4 +75,4 @@ look_path no-such-program: executable file not found in PATH
 
 - [wait](wait.md): waits for the child to end
 - [run](run.md): the start and the wait in one call
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

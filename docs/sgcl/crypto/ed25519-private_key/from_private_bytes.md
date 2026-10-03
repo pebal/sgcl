@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::from_private_bytes
 
@@ -19,7 +19,7 @@ and signatures under a mismatched pair give the secret scalar away.
 
 ## Return value
 
-The key, or an [error](../error.md) `errc::invalid_key` when `bytes` is not 64 bytes long or its public half is not
+The key, or an [error](../error/README.md) `errc::invalid_key` when `bytes` is not 64 bytes long or its public half is not
 the seed's.
 
 ## Complexity
@@ -64,4 +64,4 @@ the public half is not the seed's
 
 - [bytes](bytes.md): the reverse
 - [from_seed](from_seed.md): the key of the seed alone
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [sgcl::crypto::ed25519::private_key](README.md)

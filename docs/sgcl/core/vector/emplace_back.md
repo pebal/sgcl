@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::emplace_back
 
@@ -84,4 +84,4 @@ b -> c: 6
 
 - [push_back](push_back.md): appends a copy or a moved value
 - [emplace](emplace.md): constructs an element in place at any position
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

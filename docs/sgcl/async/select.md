@@ -133,7 +133,7 @@ case 1
 ## See also
 
 - [otherwise](otherwise.md): the case taken when no other can be served at once
-- [channel](channel.md): the channels a select waits on, and what a close does
+- [channel](channel/README.md): the channels a select waits on, and what a close does
 - [timeout](timeout.md): a case served after a while
-- [task](task.md), [scheduler](scheduler.md): the tasks that await a select and where they run
+- [task](task/README.md), [scheduler](scheduler/README.md): the tasks that await a select and where they run
 - [README: Waiting operations](README.md#waiting-operations)

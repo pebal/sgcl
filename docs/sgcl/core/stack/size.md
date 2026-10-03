@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [core](../README.md) › [stack](README.md)
 
 # sgcl::stack\<T, Container\>::size
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the stack is empty
-- [sgcl::stack\<T, Container\>](../stack.md)
+- [sgcl::stack\<T, Container\>](README.md)

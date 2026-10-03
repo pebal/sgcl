@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::operator-, operator~, operator+=, operator-=, operator\*=, operator/=, operator%=, operator&=, operator|=, operator^=, operator\<\<=, operator\>\>=, sgcl::math::operator+, operator-, operator\*, operator/, operator%, operator&, operator|, operator^, operator\<\<, operator\>\> (sgcl::math::big_integer)
 
@@ -190,4 +190,4 @@ sgcl::math::big_integer: division by zero
 - [mod](mod.md): the remainder that is never negative
 - [div_rem](div_rem.md): the quotient and the remainder of one division
 - [pow](pow.md): a power
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

@@ -91,5 +91,5 @@ Output:
 
 ## See also
 
-- [format_pattern](format_pattern.md): the pattern the steps are read from
+- [format_pattern](format_pattern/README.md): the pattern the steps are read from
 - [format_spec](format_spec.md): the specification of one field, as a value writes itself by it

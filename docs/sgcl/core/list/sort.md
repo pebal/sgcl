@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::sort
 
@@ -15,7 +15,7 @@ Sorts the elements, stable: equal elements keep their order.
 
 A merge sort in place: the nodes are relinked within the list, never detached, and no element is moved or copied,
 so iterators and references stay valid, naming the same elements at their new places. It hides the sorts of
-[mixin::ordered](../mixin/ordered.md), which need random access; `sort_by` and `stable_sort` are not a list's.
+[mixin::ordered](../mixin/ordered/README.md), which need random access; `sort_by` and `stable_sort` are not a list's.
 
 ## Parameters
 
@@ -83,4 +83,4 @@ Output:
 - [merge](merge.md): merges two sorted lists
 - [unique](unique.md): erases consecutive equal elements
 - [reverse](reverse.md): reverses the order of the nodes
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

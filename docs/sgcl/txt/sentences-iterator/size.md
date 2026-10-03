@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [sentences](../sentences.md) › [iterator](../sentences-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [sentences](../sentences/README.md) › [iterator](README.md)
 
 # sgcl::txt::sentences::iterator::size
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [pos](pos.md): where the element begins
-- [sgcl::txt::sentences::iterator](../sentences-iterator.md)
+- [sgcl::txt::sentences::iterator](README.md)

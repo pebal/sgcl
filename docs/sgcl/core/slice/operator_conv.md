@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::operator std::span
 
@@ -57,4 +57,4 @@ Output:
 
 - [data](data.md): the elements as a plain pointer
 - [(constructor)](slice.md): a slice of a `std::span`
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

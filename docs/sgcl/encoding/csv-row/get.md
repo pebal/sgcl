@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [row](../csv-row.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [row](README.md)
 
 # sgcl::encoding::csv::row::get
 
@@ -6,7 +6,7 @@
 string get(const string& column, const string& fallback) const noexcept;
 ```
 
-The field of the header's column named `column` as a [string](../../core/string.md) of its own, or `fallback` when
+The field of the header's column named `column` as a [string](../../core/string/README.md) of its own, or `fallback` when
 there is none: the reader read no header, the header has no such column, or the row is shorter than the header.
 `row.get("city", "?")` is the one-line form of `row["city"]` with a default.
 
@@ -57,4 +57,4 @@ Bob lives in an unknown place
 
 - [operator\[\]](operator_at.md): the field as a slice, or `nullopt`
 - [reader::read_header](../csv-reader/read_header.md): the names of the columns
-- [sgcl::encoding::csv::row](../csv-row.md)
+- [sgcl::encoding::csv::row](README.md)

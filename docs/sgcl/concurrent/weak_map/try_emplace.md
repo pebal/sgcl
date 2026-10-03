@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [weak_map](README.md)
 
 # sgcl::concurrent::weak_map\<Key, T\>::try_emplace
 
@@ -102,4 +102,4 @@ false aaa
 
 - [emplace](emplace.md), [insert](insert.md): the same insertion under the names of `std`
 - [find](find.md): the entry of an object
-- [sgcl::concurrent::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::concurrent::weak_map\<Key, T\>](README.md)

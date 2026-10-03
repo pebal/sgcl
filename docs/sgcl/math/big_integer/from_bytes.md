@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::from_bytes
 
@@ -59,4 +59,4 @@ true
 
 - [to_bytes](to_bytes.md): the bytes of a number
 - [parse](parse.md): a number from text
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

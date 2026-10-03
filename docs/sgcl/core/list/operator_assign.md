@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::operator=
 
@@ -77,4 +77,4 @@ Output:
 
 - [assign](assign.md): replaces the contents with copies of a value or a range
 - [(constructor)](list.md): constructs a list
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

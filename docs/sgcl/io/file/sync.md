@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::sync, async_sync
 
@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md), its operation `sync` and its path the file's: `errc::closed` for a closed file,
+Nothing, or the [error](../error/README.md), its operation `sync` and its path the file's: `errc::closed` for a closed file,
 otherwise the `errno` of `fsync(2)` (`EIO`, `EINVAL` for a descriptor that cannot be synced, such as a pipe).
 
 ## Complexity
@@ -69,4 +69,4 @@ saved
 
 - [write, async_write](write.md): what a sync stores
 - [open_flags](../open_flags.md): `sync`, a sync after every write
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

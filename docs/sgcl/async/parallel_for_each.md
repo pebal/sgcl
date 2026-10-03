@@ -12,15 +12,15 @@ namespace sgcl::async {
 }
 ```
 
-Calls `f` for every element of a range, the calls spread over the workers of the [scheduler](scheduler.md) and the
+Calls `f` for every element of a range, the calls spread over the workers of the [scheduler](scheduler/README.md) and the
 caller as [parallel_for](parallel_for.md) spreads them over indices: `std::for_each(std::execution::par, ...)`. The
 loop runs inside the call, which returns once `f` has been called for every element, on a thread and in a task
 alike.
 
 `f(x)` is called with a reference to the element, so a function that takes `int&` writes the element in place, or
 `f(x, lane)` when it takes two arguments, the lane as [parallel_for](parallel_for.md) gives it. The range is any
-random-access range that knows its size: a [vector](../core/vector.md), a [slice](../core/slice.md), an
-[array](../core/array.md), a `std::vector`, a plain array. The range is referred to, not copied, whether it is
+random-access range that knows its size: a [vector](../core/vector/README.md), a [slice](../core/slice/README.md), an
+[array](../core/array/README.md), a `std::vector`, a plain array. The range is referred to, not copied, whether it is
 given as an lvalue or as an rvalue: a temporary lives until the call returns.
 
 ## Parameters

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md) › [subscription](../broadcast-subscription.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast/README.md) › [subscription](README.md)
 
 # sgcl::async::broadcast\<T\>::subscription::closed
 
@@ -59,4 +59,4 @@ Output:
 
 - [close](../broadcast/close.md): closes the broadcast
 - [try_receive](try_receive.md): `nullopt` alone does not tell the close
-- [sgcl::async::broadcast\<T\>::subscription](../broadcast-subscription.md)
+- [sgcl::async::broadcast\<T\>::subscription](README.md)

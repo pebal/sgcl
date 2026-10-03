@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::go
 
@@ -83,4 +83,4 @@ hello, Grace
 
 - [spawn](spawn.md): a task started and kept
 - [go](../go.md): the same on the pool of workers, and `go(t, ex)`
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [logger](../logger.md)
+[sgcl](../../README.md) › [slog](../README.md) › [logger](README.md)
 
 # sgcl::slog::logger::with
 
@@ -64,5 +64,5 @@ time=2026-09-28T14:05:01.123+02:00 level=INFO msg="the base as it was"
 ## See also
 
 - [group](group.md): the later attributes in a group
-- [sgcl::slog::group](../group.md): attributes in a group of their own
-- [sgcl::slog::logger](../logger.md)
+- [sgcl::slog::group](../group/README.md): attributes in a group of their own
+- [sgcl::slog::logger](README.md)

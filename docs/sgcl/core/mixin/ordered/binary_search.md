@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::binary_search
 
@@ -80,4 +80,4 @@ true
 - [lower_bound](lower_bound.md), [upper_bound](upper_bound.md): the first element not less than, greater than a
   value
 - [contains](../enumerable/contains.md): the same question by `==`, on any range
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

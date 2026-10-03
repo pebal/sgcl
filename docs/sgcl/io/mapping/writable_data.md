@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::mapping::writable_data
 
@@ -62,4 +62,4 @@ Hello World
 - [data](data.md): the bytes, read only
 - [flush](flush.md): the writes waited for on the disk
 - [map_options](../map_options.md): `writable`, `shared`
-- [sgcl::io::mapping](../mapping.md)
+- [sgcl::io::mapping](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::public_key
 
@@ -6,9 +6,9 @@
 const x509::public_key& public_key() const noexcept;
 ```
 
-Returns the subject's key as one of the module's key types: [rsa::public_key](../rsa-public_key.md),
-[p256::public_key](../p256-public_key.md), [p384::public_key](../p256-public_key.md) or
-[ed25519::public_key](../ed25519-public_key.md), by its `kind()`; `key_kind::none` for an algorithm the module has no
+Returns the subject's key as one of the module's key types: [rsa::public_key](../rsa-public_key/README.md),
+[p256::public_key](../p256-public_key/README.md), [p384::public_key](../p256-public_key/README.md) or
+[ed25519::public_key](../ed25519-public_key/README.md), by its `kind()`; `key_kind::none` for an algorithm the module has no
 type for, or a key its type refuses. Its `algorithm()` names the SubjectPublicKeyInfo's algorithm whatever the kind.
 
 ## Parameters
@@ -17,7 +17,7 @@ None.
 
 ## Return value
 
-The [public_key](../x509-public_key.md).
+The [public_key](../x509-public_key/README.md).
 
 ## Complexity
 
@@ -55,4 +55,4 @@ true 1.2.840.113549.1.1.1
 ## See also
 
 - [raw_subject_public_key_info](raw_subject_public_key_info.md): the key as encoded
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

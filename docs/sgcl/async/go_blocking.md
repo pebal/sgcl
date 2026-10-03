@@ -11,7 +11,7 @@ namespace sgcl::async {
 }
 ```
 
-Runs a blocking call on the [blocking pool](blocking_pool.md) and lets go of it: [go](go.md)'s counterpart for a call
+Runs a blocking call on the [blocking pool](blocking_pool/README.md) and lets go of it: [go](go.md)'s counterpart for a call
 that is not a coroutine, for a call whose result nobody waits for. `f` runs on a thread of the pool, apart from the
 workers, as under [spawn_blocking](spawn_blocking.md), and no handle is kept: what `f` returns is dropped, and what it
 throws goes to [on_unhandled](on_unhandled.md)'s handler, as what a task started by `go` throws does. A
@@ -51,7 +51,7 @@ task started by [go](go.md).
 
 `f` runs on a thread of the pool, not a worker: it may block, and it is not a coroutine, so it does not `co_await`;
 it must not `wait()` for something only the jobs behind it in the queue would give. A job that is to stop early is
-given a [stop_token](stop_token.md) and looks at it.
+given a [stop_token](stop_token/README.md) and looks at it.
 
 [blocking_pool::wait_idle](blocking_pool/wait_idle.md) waits for every job queued so far, these included;
 [blocking_pool::stop](blocking_pool/stop.md), [scheduler::stop](scheduler/stop.md) and the end of the program run
@@ -109,4 +109,4 @@ saved 4
 - [go](go.md): a task started and let go of
 - [spawn_blocking](spawn_blocking.md): a blocking call whose handle is kept, for the result
 - [on_unhandled](on_unhandled.md): what becomes of what `f` throws
-- [blocking_pool](blocking_pool.md): the threads, their cap and their idle time
+- [blocking_pool](blocking_pool/README.md): the threads, their cap and their idle time

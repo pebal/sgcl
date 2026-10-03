@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [rooted](../rooted.md)
+[sgcl](../../README.md) › [core](../README.md) › [rooted](README.md)
 
 # sgcl::rooted\<T\>::operator=
 
@@ -66,4 +66,4 @@ hi hello
 
 - [(constructor)](rooted.md): makes the value, or shares another `rooted`'s
 - [swap](swap.md): exchanges the values of two `rooted`s
-- [sgcl::rooted\<T\>](../rooted.md)
+- [sgcl::rooted\<T\>](README.md)

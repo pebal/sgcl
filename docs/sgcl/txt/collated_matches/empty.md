@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](../collated_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](README.md)
 
 # sgcl::txt::collated_matches::empty
 
@@ -51,4 +51,4 @@ false true
 ## See also
 
 - [count](count.md): the number of occurrences
-- [sgcl::txt::collated_matches](../collated_matches.md)
+- [sgcl::txt::collated_matches](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::reserve
 
@@ -12,7 +12,7 @@ Sets the number of buckets for `count` elements, equal ones counted each: [rehas
 elements need.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
+allocation does ([collector](../collector/README.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
 
 ## Parameters
 
@@ -63,4 +63,4 @@ Output:
 
 - [rehash](rehash.md): sets the number of buckets
 - [(constructor)](multiset.md): a multiset with its buckets from the start
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

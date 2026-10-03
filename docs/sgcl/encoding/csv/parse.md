@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](README.md)
 
 # sgcl::encoding::csv::parse
 
@@ -11,16 +11,16 @@ template<class T>
 static expected<vector<T>, error> parse(const string& text, const options& o);      // (4)
 ```
 
-The records of a text in one call, what a [reader](../csv-reader.md) over it reads to its end; the form of a text
+The records of a text in one call, what a [reader](../csv-reader/README.md) over it reads to its end; the form of a text
 that [load](load.md) is of a file, as [json::parse](../json/parse.md) is of JSON.
 
-1. Every record as a [row](../csv-row.md), the first among them: no header is taken, as Go's `ReadAll` takes none.
+1. Every record as a [row](../csv-row/README.md), the first among them: no header is taken, as Go's `ReadAll` takes none.
    Each row keeps its fields, their places and nothing of the others.
 2. The same with the [options](../csv-options.md) `o`: a separator of `';'`, a comment character.
 3. The records as values of `T`, the text's first line the header whose names the fields of `T` are found by, as
    [reader::read\<T\>](../csv-reader/read.md) finds them: a column no field has is skipped, a field whose column is
    not there keeps its value, or is `missing_field` when it is `required()`. `T` has a default constructor and
-   `describe(field_list&)` ([field_list](../field_list.md)).
+   `describe(field_list&)` ([field_list](../field_list/README.md)).
 4. The same with the options `o`.
 
 ## Parameters
@@ -33,7 +33,7 @@ that [load](load.md) is of a file, as [json::parse](../json/parse.md) is of JSON
 ## Return value
 
 The records in the order of the text, none for a text of nothing or of empty lines alone, or the
-[error](../error.md) of the first record that does not read, with its line and its column: a mistake of the text
+[error](../error/README.md) of the first record that does not read, with its line and its column: a mistake of the text
 (a quote, a record of another number of fields), or a field that is not a value of its type (3–4). The records
 before it are dropped.
 
@@ -101,5 +101,5 @@ Kraków
 
 - [stringify](stringify.md): the other direction
 - [load](load.md): the records of a file
-- [reader](../csv-reader.md): the records one at a time, of a text or a stream
-- [sgcl::encoding::csv](../csv.md)
+- [reader](../csv-reader/README.md): the records one at a time, of a text or a stream
+- [sgcl::encoding::csv](README.md)

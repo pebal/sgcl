@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration_error](../duration_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration_error](README.md)
 
 # sgcl::duration_error::offset
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [message](message.md): the sentence
-- [sgcl::duration_error](../duration_error.md)
+- [sgcl::duration_error](README.md)

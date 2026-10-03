@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::find
 
@@ -13,7 +13,7 @@ Finds the first element under `key`, the one inserted first; `++` from it walks 
 order they were inserted. The search descends the tree reading raw pointers only: no write barrier, no
 allocation.
 
-- (3–4) Take part only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does:
+- (3–4) Take part only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does:
   a literal, a `std::string_view` or a `string_slice` (a piece of another string) looks up a `string` key
   without building one.
 
@@ -63,4 +63,4 @@ Output:
 
 - [equal_range](equal_range.md): the range of the elements under a key
 - [contains](contains.md): checks whether the multimap holds a key
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

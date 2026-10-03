@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::pid
 
@@ -49,4 +49,4 @@ child 51870, ended as 51870
 
 - [process_state::pid](../process_state/pid.md): the id in the state of an ended process
 - [io::pid](../pid.md): the id of the program's own process
-- [sgcl::io::process](../process.md)
+- [sgcl::io::process](README.md)

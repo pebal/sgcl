@@ -26,7 +26,7 @@ two.
 
 ## Rules
 
-- A plain struct of two [vectors](../core/vector.md): it lives where those may, on a stack or inside a managed
+- A plain struct of two [vectors](../core/vector/README.md): it lives where those may, on a stack or inside a managed
   object. The ones the classes keep do not change after they are built.
 - `at` holds one entry more than `points`: the size of the text, so that the end of a match is a position too.
 
@@ -64,6 +64,6 @@ m@0 a@1 s@2 s@2 e@4 end@5
 
 ## See also
 
-- [folded_text, normalized_text](folded_text.md): a text mapped once
-- [fold_matches, normalized_matches](fold_matches.md): every occurrence, the text mapped once
+- [folded_text, normalized_text](folded_text/README.md): a text mapped once
+- [fold_matches, normalized_matches](fold_matches/README.md): every occurrence, the text mapped once
 - [occurrence](occurrence.md): where a search found its pattern

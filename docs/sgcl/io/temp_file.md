@@ -31,7 +31,7 @@ opened for reading and writing, with the permissions `0600` (before the umask). 
 
 ## Return value
 
-The file, its [path](file/path.md) `dir` joined with the name, or the [error](error.md) of [open](open.md)
+The file, its [path](file/path.md) `dir` joined with the name, or the [error](error/README.md) of [open](open.md)
 (`is_not_found()` for a `dir` that is not there, `is_permission()`); after 10000 names that all exist, an error
 with the code `std::errc::file_exists`, its operation `temp_file` and its path `pattern`.
 
@@ -75,4 +75,4 @@ received
 - [make_temp_dir](make_temp_dir.md): a new directory the same way
 - [temp_dir](temp_dir.md): the system's temporary directory
 - [remove](remove.md): what the caller does after
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

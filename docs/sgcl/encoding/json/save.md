@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::save, async_save
 
@@ -20,7 +20,7 @@ A value into a file in one call: the file made or written over, the text compact
 4. (3) in a task, on the blocking pool; the value is copied into the task.
 
 For another style, [stringify](stringify.md)`(value, json::pretty)` or [to_string](to_string.md) with
-[io::write_file](../../io/file.md).
+[io::write_file](../../io/file/README.md).
 
 ## Parameters
 
@@ -31,8 +31,8 @@ For another style, [stringify](stringify.md)`(value, json::pretty)` or [to_strin
 
 ## Return value
 
-Nothing, or an [error](../error.md): a file that cannot be made or written is `errc::io`, the
-[io error](../../io/error.md) inside saying why (`io_error()`), with no place (its message is
+Nothing, or an [error](../error/README.md): a file that cannot be made or written is `errc::io`, the
+[io error](../../io/error/README.md) inside saying why (`io_error()`), with no place (its message is
 `input/output error: ` and the stream's message); (1–2) a value with no text is the error of
 [stringify](stringify.md), and nothing is written.
 
@@ -42,7 +42,7 @@ Linear in the size of the text.
 
 ## Exceptions
 
-- (1) `length_error` when the text would pass the 4 GiB a [string](../../core/string.md) holds, what the program's
+- (1) `length_error` when the text would pass the 4 GiB a [string](../../core/string/README.md) holds, what the program's
   code that the writing calls throws (`describe`, a field's `to_text` or `to_json`), and what a write of the file
   throws.
 - (2) What the move of `T` throws; none when it is noexcept. Awaiting the task throws what (1) throws.
@@ -96,4 +96,4 @@ input/output error: open no/such/dir/server.json: No such file or directory
 
 - [load](load.md): a value from a file
 - [stringify](stringify.md), [to_string](to_string.md): the text, for a file of another style
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

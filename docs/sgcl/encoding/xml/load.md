@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::load, async_load
 
@@ -27,7 +27,7 @@ The file is opened, read and closed; one that does not open is `errc::io`, the e
 
 ## Return value
 
-The root element (1, 3), or the value of `T` (2, 4); otherwise the [error](../error.md), as [parse](parse.md)
+The root element (1, 3), or the value of `T` (2, 4); otherwise the [error](../error/README.md), as [parse](parse.md)
 gives it, or `errc::io` when the file does not open or its read fails, with no place in the text (its message is
 `input/output error: ` and the stream's message).
 
@@ -85,4 +85,4 @@ true
 
 - [save](save.md): the way back
 - [parse](parse.md): a document from a string or a stream
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

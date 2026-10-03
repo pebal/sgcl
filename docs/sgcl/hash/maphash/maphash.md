@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [maphash](../maphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [maphash](README.md)
 
 # sgcl::hash::maphash::maphash
 
@@ -58,4 +58,4 @@ bafa072f07db7937
 ## See also
 
 - [of](../mixin/hasher/of.md): the hash in one call, with the process's seed or a seed
-- [sgcl::hash::maphash](../maphash.md)
+- [sgcl::hash::maphash](README.md)

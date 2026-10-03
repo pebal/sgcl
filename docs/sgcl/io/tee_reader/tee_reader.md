@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [tee_reader](../tee_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [tee_reader](README.md)
 
 # sgcl::io::tee_reader::tee_reader
 
@@ -6,8 +6,8 @@
 tee_reader(const io::reader& r, const io::writer& w) noexcept;
 ```
 
-Constructs a reader of `r` that writes what it reads to `w`. Both are held as an [io::reader](../reader.md) and an
-[io::writer](../writer.md): any stream converts to one, a handle by its object, a stream of the program's by
+Constructs a reader of `r` that writes what it reads to `w`. Both are held as an [io::reader](../reader/README.md) and an
+[io::writer](../writer/README.md): any stream converts to one, a handle by its object, a stream of the program's by
 reference. Nothing is read until the first read.
 
 ## Parameters
@@ -49,4 +49,4 @@ seen twice
 ## See also
 
 - [read, async_read](read.md)
-- [sgcl::io::tee_reader](../tee_reader.md)
+- [sgcl::io::tee_reader](README.md)

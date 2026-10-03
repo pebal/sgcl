@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::remove_suffix
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [remove_prefix](remove_prefix.md): narrows the slice from the start
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

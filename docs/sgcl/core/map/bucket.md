@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::bucket
 
@@ -77,4 +77,4 @@ true
 
 - [bucket_size](bucket_size.md): the number of elements in a bucket
 - [begin, cbegin](begin.md): the local iterators of a bucket
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

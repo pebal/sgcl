@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::to_double
 
@@ -59,4 +59,4 @@ true
 
 - [to_int64](to_int64.md): exact, when it fits
 - [big_integer](big_integer.md): the whole part of a `double`, the other way
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

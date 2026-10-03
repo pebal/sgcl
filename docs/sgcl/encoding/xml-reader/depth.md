@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [reader](../xml-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [reader](README.md)
 
 # sgcl::encoding::xml::reader::depth
 
@@ -57,4 +57,4 @@ a
 ## See also
 
 - [offset](offset.md): the byte where the next token starts
-- [sgcl::encoding::xml::reader](../xml-reader.md)
+- [sgcl::encoding::xml::reader](README.md)

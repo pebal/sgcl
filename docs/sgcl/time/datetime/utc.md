@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::utc
 
@@ -48,4 +48,4 @@ Output:
 
 - [in](in.md): in any zone
 - [local](local.md): in the local zone
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [codec](../README.md) › [error](README.md)
 
 # sgcl::codec::error::error
 
@@ -78,4 +78,4 @@ no error
 
 - [message](message.md): what the error says
 - [errc](../errc.md): the codes
-- [sgcl::codec::error](../error.md)
+- [sgcl::codec::error](README.md)

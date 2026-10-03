@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::begin, cbegin
 
@@ -30,7 +30,7 @@ None.
 ## Notes
 
 The iterator is valid while some string holds the object, as the pointer of [data](data.md) is. In a `string` it walks
-the bytes; `runes()` walks the code points ([runes](../runes.md)).
+the bytes; `runes()` walks the code points ([runes](../runes/README.md)).
 
 ## Example
 
@@ -61,4 +61,4 @@ true
 
 - [end, cend](end.md): an iterator past the last character
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the last character
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

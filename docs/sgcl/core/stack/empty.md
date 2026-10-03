@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [core](../README.md) › [stack](README.md)
 
 # sgcl::stack\<T, Container\>::empty
 
@@ -55,4 +55,4 @@ true
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::stack\<T, Container\>](../stack.md)
+- [sgcl::stack\<T, Container\>](README.md)

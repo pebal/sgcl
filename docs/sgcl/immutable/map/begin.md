@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::begin, cbegin
 
@@ -68,4 +68,4 @@ true
 
 - [end, cend](end.md): an iterator to the end
 - [find](find.md): an iterator to the element under a key
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::run, async_run
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-Nothing when the child exited with 0, or the first [error](../error.md): the error of `start`, or that of `wait`
+Nothing when the child exited with 0, or the first [error](../error/README.md): the error of `start`, or that of `wait`
 (`errc::exit_status` for a failure status, the code in `state`).
 
 ## Complexity
@@ -64,4 +64,4 @@ true
 
 - [output](output.md): the run with the standard output captured
 - [start](start.md), [wait](wait.md): the two halves
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

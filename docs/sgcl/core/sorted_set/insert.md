@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::insert
 
@@ -122,4 +122,4 @@ dan true true
 - [emplace](emplace.md): constructs the element in place
 - [extract](extract.md): takes a node out of a set
 - [merge](merge.md): relinks the nodes of another set
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

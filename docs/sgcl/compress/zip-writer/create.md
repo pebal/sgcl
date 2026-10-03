@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](../zip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](README.md)
 
 # sgcl::compress::zip::writer::create, async_create
 
@@ -8,7 +8,7 @@ expected<io::writer, error> create(const entry& e);                         // (
 async::task<expected<io::writer, error>> async_create(entry e) noexcept;    // (3)
 ```
 
-Ends the current entry and starts a new one: writes its local header and gives an [io writer](../../io/writer.md) of
+Ends the current entry and starts a new one: writes its local header and gives an [io writer](../../io/writer/README.md) of
 its data, compressed by the entry's method, its sizes and CRC-32 written after it in a data descriptor. The next
 `create`, `add` or `close` ends it; the entry writer's own `close()` does too, and may be left out. A write to an
 entry that was ended is `io::errc::closed`, an error of that write alone: the writer keeps nothing of it.
@@ -31,7 +31,7 @@ program that writes freely and checks at the close finds it there.
 
 ## Return value
 
-The writer of the entry's data, or the [error](../error.md): `method::deflate64` (`errc::unsupported`, "only store
+The writer of the entry's data, or the [error](../error/README.md): `method::deflate64` (`errc::unsupported`, "only store
 and deflate are written"), a name or a comment past 65 535 bytes (`errc::invalid_argument`), a create after
 the close (`errc::invalid_argument`), a failure of `out`.
 
@@ -78,5 +78,5 @@ photo.jpg: 100 bytes, method 0
 ## See also
 
 - [add](add.md): a whole entry at once
-- [tar::entry](../tar-entry.md), [zip::entry](../zip-entry.md)
-- [sgcl::compress::zip::writer](../zip-writer.md)
+- [tar::entry](../tar-entry/README.md), [zip::entry](../zip-entry/README.md)
+- [sgcl::compress::zip::writer](README.md)

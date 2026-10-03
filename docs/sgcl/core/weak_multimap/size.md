@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::size
 
@@ -77,4 +77,4 @@ Output:
 - [empty](empty.md): checks whether the map holds an entry
 - [count](count.md): the number of entries of one object
 - [sweep](sweep.md): erases the dead entries
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

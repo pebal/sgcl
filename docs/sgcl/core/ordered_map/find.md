@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::find
 
@@ -14,8 +14,8 @@ node compared before its key. The order plays no part in it.
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the hash and the equality take. Take part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string.md) do: a `string_view`,
-  a literal or a [string_slice](../string.md) finds a `string` key with no string made for the search.
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string/README.md) do: a `string_view`,
+  a literal or a [string_slice](../string/README.md) finds a `string` key with no string made for the search.
 
 ## Parameters
 
@@ -73,4 +73,4 @@ true
 
 - [contains](contains.md): checks whether a key is there
 - [at](at.md): the value under a key, which must be there
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

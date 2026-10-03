@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [crypto](README.md) › [x509](x509.md) › [name](x509-name.md)
+[sgcl](../README.md) › [crypto](README.md) › [x509](x509.md) › [name](x509-name/README.md)
 
 # sgcl::crypto::x509::name::attribute
 
@@ -17,13 +17,13 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
-`sgcl::crypto::x509::name::attribute` is one attribute of a distinguished [name](x509-name.md): its type as a dotted
+`sgcl::crypto::x509::name::attribute` is one attribute of a distinguished [name](x509-name/README.md): its type as a dotted
 OID (`"2.5.4.3"` for CN) and its value, as text when it is one of the six string types of RFC 5280, else `#` and the
 hex of its DER (RFC 4514 §2.4).
 
 ## Rules
 
-- A struct of two [strings](../core/string.md) and a flag: it lives where a `tracked_ptr` may.
+- A struct of two [strings](../core/string/README.md) and a flag: it lives where a `tracked_ptr` may.
 
 ## Member objects
 
@@ -77,4 +77,4 @@ Output:
 ## See also
 
 - [name::attributes](x509-name/attributes.md)
-- [sgcl::crypto::x509::name](x509-name.md)
+- [sgcl::crypto::x509::name](x509-name/README.md)

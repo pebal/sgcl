@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::parse, async_parse
 
@@ -24,7 +24,7 @@ Reads a document whole.
 - (1–6) The root element of the document. What stands before and after it — the XML declaration, the DOCTYPE,
   comments, instructions, white space — is read and checked, and left out.
 - (7–12) The root element as a value of a program's type `T`, described by `describe(field_list&)` and mapped as
-  [A program's types](../xml.md#a-programs-types) says. The document is read into a tree and the tree mapped; `T`
+  [A program's types](README.md#a-programs-types) says. The document is read into a tree and the tree mapped; `T`
   needs a default constructor.
 
 1. and 7. The document in `text`, with the default [options](../xml-options.md).
@@ -36,7 +36,7 @@ Reads a document whole.
    call that made it, when the caller's temporaries are gone.
 
 A document is well formed or refused: the error has the byte of the input, the line, the column in characters and
-the path of the elements open ([error](../error.md)). An error of the mapping (7–12) has the path inside the root
+the path of the elements open ([error](../error/README.md)). An error of the mapping (7–12) has the path inside the root
 (`/catalog/book[2]/@id`) and the place where the root began: its line and column for a text in memory (7–8), its
 offset alone for a stream (9–12). Go's `xml.Unmarshal` reads into a structure only; (1–6) give a tree, which Go has
 not.
@@ -51,7 +51,7 @@ not.
 
 ## Return value
 
-The root element (1–6), or the value of `T` (7–12); otherwise the [error](../error.md): `errc::syntax` and the
+The root element (1–6), or the value of `T` (7–12); otherwise the [error](../error/README.md): `errc::syntax` and the
 other codes of a document not well formed, `errc::undefined_entity` for an entity no DTD can define,
 `errc::unsupported_encoding`, `errc::depth_limit` and `errc::out_of_range` past the limits of `o`, `errc::io` when
 the stream fails, its error in `io_error()`; and for (7–12) `errc::type_mismatch`, `errc::out_of_range` and
@@ -172,7 +172,7 @@ a1
 ## See also
 
 - [load](load.md): the root element of a file
-- [reader](../xml-reader.md): a document a token at a time
+- [reader](../xml-reader/README.md): a document a token at a time
 - [to_string](to_string.md), [stringify](stringify.md): the way back
-- [options](../xml-options.md), [error](../error.md)
-- [sgcl::encoding::xml](../xml.md)
+- [options](../xml-options.md), [error](../error/README.md)
+- [sgcl::encoding::xml](README.md)

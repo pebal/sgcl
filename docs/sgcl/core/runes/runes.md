@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](README.md)
 
 # sgcl::runes::runes
 
@@ -13,7 +13,7 @@ Constructs the range of the code points of a text.
 2. The code points of `text`, a slice of UTF-8 bytes; the range keeps the slice, and with it the object the bytes lie
    in.
 
-A string's or a text slice's `runes()` ([mixin::text](../mixin/text.md)) makes (2) over its own bytes; the
+A string's or a text slice's `runes()` ([mixin::text](../mixin/text/README.md)) makes (2) over its own bytes; the
 constructor is for a slice at hand, a piece of a buffer as much as a piece of a string.
 
 ## Parameters
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [text](text.md): the slice the range walks
-- [sgcl::runes](../runes.md)
+- [sgcl::runes](README.md)

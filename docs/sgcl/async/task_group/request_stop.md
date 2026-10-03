@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::request_stop
 
@@ -64,4 +64,4 @@ Output:
 
 - [token](token.md): what the children look at
 - [stop_requested](stop_requested.md): whether the stop has been requested
-- [sgcl::async::task_group](../task_group.md)
+- [sgcl::async::task_group](README.md)

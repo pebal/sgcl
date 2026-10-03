@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::rational
 
@@ -22,7 +22,7 @@ Constructs a fraction.
 
 1. Zero, `0/1`.
 2. `value/1`, implicitly, from any whole number of the language but `bool`: `r * 2` and `r < 1` take the number as
-   a fraction. Nothing is allocated for a value `int64_t` holds, as for a [big_integer](../big_integer.md).
+   a fraction. Nothing is allocated for a value `int64_t` holds, as for a [big_integer](../big_integer/README.md).
 3. `value/1`, implicitly: `r == big_integer(5)` takes the `big_integer` as a fraction.
 4. `numerator/denominator` in lowest terms, the sign on the numerator: `rational(6, -4)` is `-3/2`. A denominator
    of zero is `domain_error`.
@@ -67,7 +67,7 @@ The copy (9) takes the fraction copied, unnamed in the declaration.
 - (4) `domain_error` when `denominator` is zero.
 - (5) `domain_error` when `value` is NaN or an infinity.
 - (8) `bad_expected_access<parse_error>` when `text` is not a fraction; its `error()` is the
-  [parse_error](../parse_error.md) of `parse`.
+  [parse_error](../parse_error/README.md) of `parse`.
 
 ## Example
 
@@ -115,4 +115,4 @@ sgcl::math::rational: a denominator of zero
 - [parse](parse.md): reads a text from outside the program
 - [operator=](operator_assign.md): assigns another fraction
 - [numerator](numerator.md), [denominator](denominator.md): the parts in lowest terms
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

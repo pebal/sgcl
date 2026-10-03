@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](../growing_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](README.md)
 
 # sgcl::txt::growing_sink::capacity
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [take_room](take_room.md): more room, and the new capacity
-- [sgcl::txt::growing_sink](../growing_sink.md)
+- [sgcl::txt::growing_sink](README.md)

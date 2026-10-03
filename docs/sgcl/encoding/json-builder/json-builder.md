@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [builder](../json-builder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [builder](README.md)
 
 # sgcl::encoding::json::builder::builder
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [push_back](push_back.md), [set](set.md): the first element or member
-- [sgcl::encoding::json::builder](../json-builder.md)
+- [sgcl::encoding::json::builder](README.md)

@@ -65,5 +65,5 @@ Output:
 
 - [to_upper_full](to_upper_full.md), [to_title](to_title.md), [fold_case](fold_case.md)
 - [string::to_lower](../core/string/to_lower.md): one code point to one
-- [locale](locale.md)
+- [locale](locale/README.md)
 - [sgcl::txt](README.md)

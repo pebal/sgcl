@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [codec](README.md) › [heif](heif.md)
+[sgcl](../README.md) › [codec](README.md) › [heif](heif/README.md)
 
 # sgcl::codec::heif::options
 
@@ -64,4 +64,4 @@ offset 0: heif: quality outside 1..100
 
 - [encode](heif/encode.md): what takes it
 - [jpeg::options](jpeg-options.md): the quality of a JPEG
-- [sgcl::codec::heif](heif.md)
+- [sgcl::codec::heif](heif/README.md)

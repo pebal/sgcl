@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::set_write_deadline
 
@@ -6,7 +6,7 @@
 void set_write_deadline(time_point t) const noexcept;
 ```
 
-Sets the deadline of the sends to `t`, an absolute time on the module's [clock](../../core/clock.md): Go's
+Sets the deadline of the sends to `t`, an absolute time on the module's [clock](../../core/clock/README.md): Go's
 `SetWriteDeadline`. A send that starts after it, or would wait past it for room, fails with `ETIMEDOUT`
 (`is_timeout()`); the receives are not touched. `time_point()` removes it.
 
@@ -56,4 +56,4 @@ true write
 
 - [set_deadline](set_deadline.md): both directions
 - [write_deadline](write_deadline.md): the deadline now
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

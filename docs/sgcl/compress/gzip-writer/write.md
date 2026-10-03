@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md) › [writer](../gzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip/README.md) › [writer](README.md)
 
 # sgcl::compress::gzip::writer::write, async_write
 
@@ -17,7 +17,7 @@ format cannot write it; the error's message says what is wrong with it.
    writes. The bytes are read when the task runs: `data` lives until the task is done.
 
 The text forms (a string, a literal, a `std::string_view`) and one byte come from
-[mixin::writer](../../io/mixin/writer.md).
+[mixin::writer](../../io/mixin/writer/README.md).
 
 ## Parameters
 
@@ -121,4 +121,4 @@ Output:
 ## See also
 
 - [flush](flush.md), [close](close.md): what comes out after the writes
-- [sgcl::compress::gzip::writer](../gzip-writer.md)
+- [sgcl::compress::gzip::writer](README.md)

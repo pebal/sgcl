@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::start_of_day
 
@@ -18,7 +18,7 @@ September, Asia/Beirut in some years) the change that skipped it, `at(0, 0, 0, z
 
 ## Return value
 
-The [datetime](../datetime.md) of the day's first instant, in the zone `z`.
+The [datetime](../datetime/README.md) of the day's first instant, in the zone `z`.
 
 ## Complexity
 
@@ -57,4 +57,4 @@ Output:
 
 - [at](at.md): an instant of a time of the clock
 - [datetime::start_of_day](../datetime/start_of_day.md): the start of a datetime's day in its zone
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

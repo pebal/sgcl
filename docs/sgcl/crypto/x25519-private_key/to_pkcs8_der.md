@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::to_pkcs8_der
 
@@ -8,7 +8,7 @@ secret_bytes to_pkcs8_der() const;
 
 Returns the key as a PKCS #8 PrivateKeyInfo (RFC 8410, OID 1.3.101.110), 48 bytes, version 0, byte for byte as Go's
 `x509.MarshalPKCS8PrivateKey` and OpenSSL write it. It holds the secret, so it comes as a
-[secret_bytes](../secret_bytes.md), 48 bytes in the object itself, never in managed memory.
+[secret_bytes](../secret_bytes/README.md), 48 bytes in the object itself, never in managed memory.
 
 ## Parameters
 
@@ -61,4 +61,4 @@ true
 
 - [from_pkcs8_der](from_pkcs8_der.md): the reverse
 - [to_pem](to_pem.md): the same in PEM
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [sgcl::crypto::x25519::private_key](README.md)

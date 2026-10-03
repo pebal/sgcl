@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [xml](xml.md)
+[sgcl](../README.md) › [encoding](README.md) › [xml](xml/README.md)
 
 # sgcl::encoding::xml::kind
 
@@ -65,4 +65,4 @@ text comment element instruction none
 
 - [type](xml/type.md): the kind of a node
 - [token::kind](xml-token-kind.md): the kinds of the tokens a reader gives
-- [sgcl::encoding::xml](xml.md)
+- [sgcl::encoding::xml](xml/README.md)

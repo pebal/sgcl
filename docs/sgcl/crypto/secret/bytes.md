@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret](../secret.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret](README.md)
 
 # sgcl::crypto::secret\<N\>::bytes, operator slice\<const byte\>
 
@@ -67,4 +67,4 @@ Output:
 ## See also
 
 - [operator==](operator_cmp.md): the comparison in constant time
-- [sgcl::crypto::secret\<N\>](../secret.md)
+- [sgcl::crypto::secret\<N\>](README.md)

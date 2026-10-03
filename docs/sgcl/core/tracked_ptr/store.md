@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::store
 
@@ -84,4 +84,4 @@ Output:
 
 - [shade](shade.md): the write barrier for the target, on demand
 - [operator=](operator_assign.md): a store with the barrier
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

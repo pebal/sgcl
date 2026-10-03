@@ -75,8 +75,8 @@ write.
 
 Printing is not checked, as with [print](print.md): a line on a terminal that could not be written has nobody to
 tell. A program that must know writes with `io::stdout.write(...)`, which answers an
-[expected](../core/expected.md). A program that prints many lines from tasks writes through a
-[buffered_writer](buffered_writer.md).
+[expected](../core/expected/README.md). A program that prints many lines from tasks writes through a
+[buffered_writer](buffered_writer/README.md).
 
 ## Example
 
@@ -122,4 +122,4 @@ noch 3 übrig
 - [print](print.md): the same without the new line
 - [eprintln](eprintln.md): on the standard error
 - [txt::format](../txt/format.md): the patterns
-- [standard_stream](standard_stream.md): `io::stdout`, `io::stderr`
+- [standard_stream](standard_stream/README.md): `io::stdout`, `io::stderr`

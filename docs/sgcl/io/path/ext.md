@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::ext
 
@@ -56,4 +56,4 @@ Output:
 
 - [stem](stem.md): the last element without the extension
 - [base](base.md): the last element
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [formatter](../formatter.md)
+[sgcl](../../README.md) › [txt](../README.md) › [formatter](README.md)
 
 # sgcl::txt::formatter\<T\>::takes_layout
 
@@ -83,4 +83,4 @@ false
 ## See also
 
 - [format](../format.md#a-pattern-of-time): a pattern of time
-- [sgcl::txt::formatter](../formatter.md)
+- [sgcl::txt::formatter](README.md)

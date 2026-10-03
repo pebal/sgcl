@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::rehash
 
@@ -14,7 +14,7 @@ The nodes are relinked into a new bucket array in the order of the chain, so the
 and in their order, hashing nothing (the hash of each key is cached in its node).
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)): a count past the largest array an address space
+allocation does ([collector](../collector/README.md#the-memory-limit)): a count past the largest array an address space
 holds is taken as that array, refused in the same way.
 
 ## Parameters
@@ -76,4 +76,4 @@ Output:
 
 - [reserve](reserve.md): the buckets for a number of elements
 - [max_load_factor](max_load_factor.md): the load factor the table grows at
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::signaled
 
@@ -48,4 +48,4 @@ true 9
 
 - [signal](signal.md): which signal
 - [exited](exited.md): ended by exiting
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

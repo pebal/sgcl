@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [object](../object.md)
+[sgcl](../../README.md) › [txt](../README.md) › [object](README.md)
 
 # sgcl::txt::object::object
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [set](set.md): a field at a time
-- [sgcl::txt::object](../object.md)
+- [sgcl::txt::object](README.md)

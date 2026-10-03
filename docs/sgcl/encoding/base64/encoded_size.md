@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](README.md)
 
 # sgcl::encoding::base64::encoded_size
 
@@ -57,4 +57,4 @@ true
 
 - [max_decoded_size](max_decoded_size.md): the other way
 - [encode_to](encode_to.md): into the caller's buffer
-- [sgcl::encoding::base64](../base64.md)
+- [sgcl::encoding::base64](README.md)

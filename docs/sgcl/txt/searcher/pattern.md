@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [searcher](../searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [searcher](README.md)
 
 # sgcl::txt::searcher::pattern
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [(constructor)](searcher.md): prepares the pattern
-- [sgcl::txt::searcher](../searcher.md)
+- [sgcl::txt::searcher](README.md)

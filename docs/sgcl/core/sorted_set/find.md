@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::find
 
@@ -14,7 +14,7 @@ tree from its root, reading raw pointers only.
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Take part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does: a
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does: a
   `string_view`, a literal or a slice of another string finds a `string` key.
 
 ## Parameters
@@ -70,4 +70,4 @@ true
 
 - [contains](contains.md): checks whether a key is there
 - [lower_bound](lower_bound.md): the first element not less than a key
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

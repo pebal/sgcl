@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_path_to_root
 
@@ -8,7 +8,7 @@ static std::tuple<pause_guard, std::vector<referrer>> get_path_to_root(const voi
 
 A chain from the object `p` points into up to a root, as [referrer](../collector-referrer.md)s: `[0]` holds the
 object, `[1]` holds that holder, and so on to a root: an object a `unique_ptr` owns (`unique`: `holder` is the
-object itself), a block of cells of [root_ptr](../root_ptr.md)s in unmanaged memory (`cell`: the block, `offset` the
+object itself), a block of cells of [root_ptr](../root_ptr/README.md)s in unmanaged memory (`cell`: the block, `offset` the
 cell; the block itself follows as a `unique` link, a root by its state), a word on a stack.
 
 The search goes from the roots down, breadth first: the roots by state first, then the other threads' stacks, and
@@ -93,4 +93,4 @@ a unique_ptr's object, the word at byte 0
 
 - [explain](explain.md): the chain as text
 - [get_referrers](get_referrers.md): every word that points at the object
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

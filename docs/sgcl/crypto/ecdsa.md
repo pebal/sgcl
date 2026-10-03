@@ -24,7 +24,7 @@ namespace sgcl::crypto {
 ```
 
 ECDSA (FIPS 186-5 §6), Go's `crypto/ecdsa`, over the NIST curves [P-256](p256.md) and [P-384](p384.md): a
-[private_key](p256-private_key.md) signs a digest, its [public_key](p256-public_key.md) verifies. This page is how
+[private_key](p256-private_key/README.md) signs a digest, its [public_key](p256-public_key/README.md) verifies. This page is how
 signing and verifying work, on both curves; the keys, their formats and their members are on the pages of the
 classes. The header `ecdsa.h` brings both curves; the tag `deterministic` comes with either
 curve's header.
@@ -125,9 +125,9 @@ sgcl::crypto::p384: the point is not on the curve
 
 ## See also
 
-- [p256::private_key](p256-private_key.md): signing, the key's formats
-- [p256::public_key](p256-public_key.md): verifying
+- [p256::private_key](p256-private_key/README.md): signing, the key's formats
+- [p256::public_key](p256-public_key/README.md): verifying
 - [p256](p256.md), [p384](p384.md): the curves
 - [hash_id](hash_id.md): a digest named when the program runs
-- [sha256](sha256.md), [sha512](sha512.md) (SHA-384), [error](error.md)
+- [sha256](sha256/README.md), [sha512](sha512/README.md) (SHA-384), [error](error/README.md)
 - [ed25519](ed25519.md), [rsa](rsa.md): the other signatures of the module

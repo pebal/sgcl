@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::empty
 
@@ -55,4 +55,4 @@ true, capacity 4
 
 - [size](size.md): the number of elements
 - [clear](clear.md): destroys every element, keeps the buffer
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

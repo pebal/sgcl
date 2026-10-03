@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::seek
 
@@ -69,4 +69,4 @@ seek buffer: Invalid argument
 
 - [tell](../mixin/seeker/tell.md), [rewind](../mixin/seeker/rewind.md): the position, the position at the start
 - [write, async_write](write.md)
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

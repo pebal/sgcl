@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](../collated_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](README.md)
 
 # sgcl::txt::collated_matches::collated_matches
 
@@ -41,7 +41,7 @@ with the pattern in one tracked object.
 ## Exceptions
 
 - (1–3) None.
-- (4–6) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (4–6) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Example
@@ -71,4 +71,4 @@ Output:
 ## See also
 
 - [begin](begin.md): the first occurrence
-- [sgcl::txt::collated_matches](../collated_matches.md)
+- [sgcl::txt::collated_matches](README.md)

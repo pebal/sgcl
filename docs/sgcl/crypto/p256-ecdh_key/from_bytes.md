@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](../p256-ecdh_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](README.md)
 
 # sgcl::crypto::p256::ecdh_key::from_bytes
 
@@ -17,7 +17,7 @@ number is in [1, n − 1]. The public point d·G is computed here, once.
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with `errc::invalid_key` for a scalar of another length, or of zero, or
+The key, or a [crypto::error](../error/README.md) with `errc::invalid_key` for a scalar of another length, or of zero, or
 not below the order n.
 
 ## Complexity
@@ -30,8 +30,8 @@ None.
 
 ## Notes
 
-The scalar is a secret: a scalar a program keeps belongs in a [secret](../secret.md) or a
-[secret_bytes](../secret_bytes.md), never in a managed `vector` or `string`, which the collector frees without
+The scalar is a secret: a scalar a program keeps belongs in a [secret](../secret/README.md) or a
+[secret_bytes](../secret_bytes/README.md), never in a managed `vector` or `string`, which the collector frees without
 zeroing.
 
 ## Example
@@ -68,4 +68,4 @@ sgcl::crypto::p256: the private scalar is not in [1, n - 1]
 
 - [bytes](bytes.md): the scalar of a key
 - [generate](generate.md): a key of a fresh scalar
-- [sgcl::crypto::p256::ecdh_key](../p256-ecdh_key.md)
+- [sgcl::crypto::p256::ecdh_key](README.md)

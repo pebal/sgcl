@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [number_error](../number_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [number_error](README.md)
 
 # sgcl::number_error::code
 
@@ -52,4 +52,4 @@ true
 
 - [why](why.md): the reason, with `trailing` apart
 - [message](message.md): the reason as a text
-- [sgcl::number_error](../number_error.md)
+- [sgcl::number_error](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [adler32](../adler32.md)
+[sgcl](../../README.md) › [hash](../README.md) › [adler32](README.md)
 
 # sgcl::hash::adler32::adler32
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [resume](resume.md): a hasher going on from a saved checksum
-- [sgcl::hash::adler32](../adler32.md)
+- [sgcl::hash::adler32](README.md)

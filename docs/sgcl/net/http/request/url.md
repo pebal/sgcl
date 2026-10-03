@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::url
 
@@ -6,7 +6,7 @@
 net::url url() const;
 ```
 
-Returns the URL of the request, Go's `r.URL`, as a [net::url](../../url.md). Of a request the program built, the URL
+Returns the URL of the request, Go's `r.URL`, as a [net::url](../../url/README.md). Of a request the program built, the URL
 it gave, as parsed. Of a request a server received, the URL it was for: `http://`, the `Host` field and the target,
 or the target when it came in absolute form; a request without `Host` is taken as for `localhost`.
 
@@ -71,4 +71,4 @@ http::request: the URL does not parse
 
 - [query](query.md): a value of the query
 - [response::url](../response/url.md): where the redirects of a response ended
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

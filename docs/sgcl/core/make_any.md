@@ -14,7 +14,7 @@ namespace sgcl {
 }
 ```
 
-An [any](any.md) holding a `std::decay_t<T>` constructed in place, placed as the [constructor](any/any.md) places
+An [any](any/README.md) holding a `std::decay_t<T>` constructed in place, placed as the [constructor](any/any.md) places
 it: a pointer word in the word, a small value without pointers in the buffer, anything else in a managed node of its
 own.
 
@@ -73,5 +73,5 @@ Output:
 
 ## See also
 
-- [any](any.md): the class
+- [any](any/README.md): the class
 - [emplace](any/emplace.md): a value constructed in place in an existing `any`

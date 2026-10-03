@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::unix_nano
 
@@ -52,4 +52,4 @@ Output:
 - [from_unix_nano](from_unix_nano.md): the datetime of the nanoseconds
 - [to_sys](to_sys.md): the same count as a `std::chrono::sys_time`
 - [unix](unix.md), [unix_milli](unix_milli.md), [unix_micro](unix_micro.md): the coarser units
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

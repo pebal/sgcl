@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::swap
 
@@ -52,4 +52,4 @@ two 1
 ## See also
 
 - [swap](swap2.md): the same as a free function
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

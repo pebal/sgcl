@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::begin, cbegin
 
@@ -89,4 +89,4 @@ true true
 - [end, cend](end.md): the iterator past the last element
 - [equal_range](equal_range.md): the run of the elements under a key
 - [bucket](bucket.md): the bucket of a key
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

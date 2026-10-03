@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [decoder](../hex-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [decoder](README.md)
 
 # sgcl::encoding::hex::decoder::operator bool
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](hex-decoder.md): a decoder that holds none
-- [sgcl::encoding::hex::decoder](../hex-decoder.md)
+- [sgcl::encoding::hex::decoder](README.md)

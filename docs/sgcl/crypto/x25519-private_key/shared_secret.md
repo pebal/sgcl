@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::shared_secret
 
@@ -12,7 +12,7 @@ by a branch. A peer's key of small order makes the result all zeros whatever the
 (RFC 7748 §6.1), as OpenSSL and Go refuse it, found with no branch on the secret bytes. Go's
 `PrivateKey.ECDH(remote)`.
 
-The secret is not a key: it goes through a key derivation, [hkdf](../hkdf.md) with a label of the protocol, and what
+The secret is not a key: it goes through a key derivation, [hkdf](../hkdf/README.md) with a label of the protocol, and what
 comes out is the key of a cipher or a MAC, as TLS 1.3 and Noise do.
 
 ## Parameters
@@ -23,7 +23,7 @@ comes out is the key of a cipher or a MAC, as TLS 1.3 and Noise do.
 
 ## Return value
 
-The secret, a [secret\<32\>](../secret.md), or an [error](../error.md) `errc::invalid_key` when it would be all
+The secret, a [secret\<32\>](../secret/README.md), or an [error](../error/README.md) `errc::invalid_key` when it would be all
 zeros.
 
 ## Complexity
@@ -71,5 +71,5 @@ the shared secret is zero: the peer's key is of small order
 ## See also
 
 - [public_key](public_key.md): what the peer is sent
-- [hkdf](../hkdf.md): what the secret goes through
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [hkdf](../hkdf/README.md): what the secret goes through
+- [sgcl::crypto::x25519::private_key](README.md)

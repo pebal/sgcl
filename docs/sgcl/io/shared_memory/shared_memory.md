@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::shared_memory
 
@@ -49,4 +49,4 @@ false true true
 
 - [create](create.md), [open](open.md): make the region
 - [operator bool](operator_bool.md): whether the handle holds a region
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

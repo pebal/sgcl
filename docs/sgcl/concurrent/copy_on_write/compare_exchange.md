@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](../copy_on_write.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](README.md)
 
 # sgcl::concurrent::copy_on_write\<T\>::compare_exchange
 
@@ -75,4 +75,4 @@ false 2
 
 - [update](update.md): the copy, the change and the retry in one call
 - [load](load.md): the snapshot to compare with
-- [sgcl::concurrent::copy_on_write\<T\>](../copy_on_write.md)
+- [sgcl::concurrent::copy_on_write\<T\>](README.md)

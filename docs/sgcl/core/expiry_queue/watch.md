@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](README.md)
 
 # sgcl::expiry_queue\<T\>::watch
 
@@ -29,7 +29,7 @@ Once every so many calls (as many as the queue had entries after its last drain,
 
 ## Return value
 
-The [entry](../expiry_queue-entry.md) of the object, a handle that shares the entry's cell; an empty handle for a
+The [entry](../expiry_queue-entry/README.md) of the object, a handle that shares the entry's cell; an empty handle for a
 null `object` or an empty `on_expire`.
 
 ## Complexity
@@ -46,7 +46,7 @@ many calls as the queue had entries.
 
 ## Notes
 
-`on_expire` is an [sgcl::function](../function.md): its closure may capture tracked pointers, followed by the
+`on_expire` is an [sgcl::function](../function/README.md): its closure may capture tracked pointers, followed by the
 collector. A closure that holds a strong pointer to the watched object itself keeps the object alive, and the entry
 never expires: the object comes as the argument instead.
 
@@ -103,5 +103,5 @@ false 1
 ## See also
 
 - [drain](drain.md): calls the functions of the entries whose objects were found unreachable
-- [entry](../expiry_queue-entry.md): the handle `watch` returns
-- [sgcl::expiry_queue\<T\>](../expiry_queue.md)
+- [entry](../expiry_queue-entry/README.md): the handle `watch` returns
+- [sgcl::expiry_queue\<T\>](README.md)

@@ -16,7 +16,7 @@ namespace sgcl {
 }
 ```
 
-Builds an [array](array.md) from a built-in array, with the count and the type of the elements deduced from it,
+Builds an [array](array/README.md) from a built-in array, with the count and the type of the elements deduced from it,
 as `std::to_array` does.
 
 1. Copies the elements of `a`: an array from a named built-in array, or from a string literal, whose
@@ -98,5 +98,5 @@ true
 
 ## See also
 
-- [array](array.md): the elements inline, with the braces of an aggregate
-- [sgcl::array\<T, N\>](array.md)
+- [array](array/README.md): the elements inline, with the braces of an aggregate
+- [sgcl::array\<T, N\>](array/README.md)

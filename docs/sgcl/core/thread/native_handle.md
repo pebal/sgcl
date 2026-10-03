@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::native_handle
 
@@ -52,4 +52,4 @@ false
 ## See also
 
 - [get_id](get_id.md): the id of the thread
-- [sgcl::thread](../thread.md)
+- [sgcl::thread](README.md)

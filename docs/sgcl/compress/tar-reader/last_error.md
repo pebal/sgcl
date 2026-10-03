@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](../tar-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](README.md)
 
 # sgcl::compress::tar::reader::last_error
 
@@ -8,7 +8,7 @@ const optional<error>& last_error() const noexcept;
 
 Returns the whole of the last failure: its code, the byte of the archive where it was found, the entry it was in. A
 read of the entry's data gives a failure as an `io::error` of the compress category; this keeps the
-[compress::error](../error.md) behind it.
+[compress::error](../error/README.md) behind it.
 
 ## Parameters
 
@@ -59,5 +59,5 @@ offset 2048: tar: entry big.bin: unexpected end of data
 
 ## See also
 
-- [compress::error](../error.md)
-- [sgcl::compress::tar::reader](../tar-reader.md)
+- [compress::error](../error/README.md)
+- [sgcl::compress::tar::reader](README.md)

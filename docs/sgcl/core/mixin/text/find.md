@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::find
 
@@ -86,4 +86,4 @@ Output:
 - [rfind](rfind.md): the last occurrence
 - [find_first_of](find_first_of.md): the first character that is in a set
 - [contains](contains.md): whether there is an occurrence
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

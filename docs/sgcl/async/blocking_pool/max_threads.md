@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](../blocking_pool.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_pool](README.md)
 
 # sgcl::async::blocking_pool::max_threads
 
@@ -52,4 +52,4 @@ the default is at least 64: true
 
 - [set_threads](set_threads.md): sets the cap
 - [get_statistics](get_statistics.md): the threads there are
-- [sgcl::async::blocking_pool](../blocking_pool.md)
+- [sgcl::async::blocking_pool](README.md)

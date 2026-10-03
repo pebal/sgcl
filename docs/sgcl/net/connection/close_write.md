@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::close_write
 
@@ -17,7 +17,7 @@ None.
 
 ## Return value
 
-Nothing; or the [io::error](../../io/error.md), its operation `close_write`: `io::errc::closed` on a connection
+Nothing; or the [io::error](../../io/error/README.md), its operation `close_write`: `io::errc::closed` on a connection
 already closed, the `errno` of `shutdown` otherwise.
 
 ## Complexity
@@ -69,4 +69,4 @@ Output:
 
 - [close, async_close](close.md): both ways
 - [read_all](read_all.md): what reads to the end the peer marks
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

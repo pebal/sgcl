@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md) › [subscription](../broadcast-subscription.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast/README.md) › [subscription](README.md)
 
 # sgcl::async::broadcast\<T\>::subscription::try_receive
 
@@ -61,4 +61,4 @@ nullopt
 ## See also
 
 - [receive](receive.md): waits for a value
-- [sgcl::async::broadcast\<T\>::subscription](../broadcast-subscription.md)
+- [sgcl::async::broadcast\<T\>::subscription](README.md)

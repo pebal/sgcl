@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [searcher](../searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [searcher](README.md)
 
 # sgcl::txt::searcher::find
 
@@ -67,4 +67,4 @@ Output:
 
 - [contains](contains.md): whether there is an occurrence
 - [count](count.md): the number of occurrences
-- [sgcl::txt::searcher](../searcher.md)
+- [sgcl::txt::searcher](README.md)

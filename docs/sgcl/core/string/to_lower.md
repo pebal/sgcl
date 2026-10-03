@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::to_lower
 
@@ -7,7 +7,7 @@ basic_string to_lower() const;
 ```
 
 Returns the string with every letter in lower case, by Unicode's simple case mapping, one code point to one
-([unicode::to_lower](../unicode.md)): `"ŁÓDŹ"` to `"łódź"`. The other characters stay as they are. No language's
+([unicode::to_lower](../unicode/README.md)): `"ŁÓDŹ"` to `"łódź"`. The other characters stay as they are. No language's
 rules apply: `İ` lowers to `i`, as Unicode maps it; the full mapping and the rules of a language are
 [txt::to_lower_full](../../txt/to_lower_full.md).
 
@@ -82,7 +82,7 @@ true
 ## See also
 
 - [to_upper](to_upper.md): every letter in upper case
-- [unicode](../unicode.md): the case of a code point
-- [mixin::text](../mixin/text.md): `equal_fold`, the same letters in either case
+- [unicode](../unicode/README.md): the case of a code point
+- [mixin::text](../mixin/text/README.md): `equal_fold`, the same letters in either case
 - [txt::to_lower_full](../../txt/to_lower_full.md): the full case mapping and the rules of a language
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

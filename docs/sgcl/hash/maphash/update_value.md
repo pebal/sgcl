@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [maphash](../maphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [maphash](README.md)
 
 # sgcl::hash::maphash::update_value
 
@@ -78,4 +78,4 @@ true false false
 
 - [update](update.md): bytes
 - [mixin::hasher::update](../mixin/hasher/update.md): a text
-- [sgcl::hash::maphash](../maphash.md)
+- [sgcl::hash::maphash](README.md)

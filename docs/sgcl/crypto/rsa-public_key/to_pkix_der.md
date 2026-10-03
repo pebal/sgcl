@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::to_pkix_der
 
@@ -57,5 +57,5 @@ true
 ## See also
 
 - [from_pkix_der](from_pkix_der.md): reads it back
-- [encoding::pem](../../encoding/pem.md): the PEM of the encoding
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [encoding::pem](../../encoding/pem/README.md): the PEM of the encoding
+- [sgcl::crypto::rsa::public_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [vector](README.md)
 
 # sgcl::immutable::vector\<T\>::begin, cbegin
 
@@ -71,4 +71,4 @@ Output:
 
 - [end, cend](end.md): an iterator to the end
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the beginning
-- [sgcl::immutable::vector\<T\>](../vector.md)
+- [sgcl::immutable::vector\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::type
 
@@ -64,4 +64,4 @@ true
 
 - [exists](exists.md), [is_element](is_element.md), [is_text](is_text.md): the questions asked most
 - [kind](../xml-kind.md)
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

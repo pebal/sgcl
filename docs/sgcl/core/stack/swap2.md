@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [core](../README.md) › [stack](README.md)
 
 # sgcl::swap (sgcl::stack)
 
@@ -62,4 +62,4 @@ true 2 delete
 ## See also
 
 - [swap](swap.md): the member form
-- [sgcl::stack\<T, Container\>](../stack.md)
+- [sgcl::stack\<T, Container\>](README.md)

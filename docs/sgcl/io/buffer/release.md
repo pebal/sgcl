@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::release
 
@@ -55,4 +55,4 @@ Output:
 
 - [data](data.md): the bytes held, as a view
 - [read_all](../mixin/reader/read_all.md): the bytes read out as a stream's
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

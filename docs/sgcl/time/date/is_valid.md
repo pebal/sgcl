@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::is_valid
 
@@ -58,4 +58,4 @@ true
 
 - [(constructor)](date.md): a date from numbers, carried
 - [parse](parse.md): refuses a text of a date that does not exist
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

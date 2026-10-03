@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::last_error
 
@@ -54,5 +54,5 @@ read_line: line too long
 ## See also
 
 - [lines](lines.md): the lines as a range
-- [error](../error.md): what it holds
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [error](../error/README.md): what it holds
+- [sgcl::io::buffered_reader](README.md)

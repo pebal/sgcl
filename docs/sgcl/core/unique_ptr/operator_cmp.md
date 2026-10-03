@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::unique_ptr)
 
@@ -92,4 +92,4 @@ true true true true
 ## See also
 
 - [get](get.md): the raw pointer
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

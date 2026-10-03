@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [operation](../operation.md)
+[sgcl](../../README.md) › [async](../README.md) › [operation](README.md)
 
 # sgcl::async::operation\<F\>::wait, await_ready, await_suspend, await_resume
 
@@ -93,4 +93,4 @@ false
 
 - [(constructor)](operation.md): how an operation is made and moved
 - [spawn](../spawn.md): an operation run as a task of its own
-- [sgcl::async::operation\<F\>](../operation.md)
+- [sgcl::async::operation\<F\>](README.md)

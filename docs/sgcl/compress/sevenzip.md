@@ -36,8 +36,8 @@ encrypted; Deflate64 is read, not written.
 Every archive 7-Zip 26 writes with these methods reads here, and 7-Zip reads every archive written here; libarchive
 3.7 (bsdtar) reads only some of 7-Zip's — large PPMd, BZip2 and Deflate archives it calls truncated or damaged, and
 none with a password — so the reference for what an archive holds is 7-Zip. The namespace has an
-[archive](sevenzip-archive.md) to read, its entries in any order or all of them in order, a
-[writer](sevenzip-writer.md) that writes entry after entry, and what `7zz x` and `7zz a` do to a directory
+[archive](sevenzip-archive/README.md) to read, its entries in any order or all of them in order, a
+[writer](sevenzip-writer/README.md) that writes entry after entry, and what `7zz x` and `7zz a` do to a directory
 ([extract](sevenzip-extract.md), [create](sevenzip-create.md)). With a password,
 `compress::sevenzip::archive::open("backup.7z", {.password = secret})` reads an archive and
 `compress::sevenzip::extract("backup.7z", "restored", {.password = secret})` unpacks one.
@@ -63,7 +63,7 @@ none with a password — so the reference for what an archive holds is 7-Zip. Th
   UTF-16LE as 7-Zip hashes it — by 2^k rounds of SHA-256 over a salt, the password and the round's number. Without a
   password an encrypted entry is listed, with `encrypted`, and reading it is `errc::password_required`; when the
   header is encrypted too (7-Zip's `-mhe=on`), opening the archive is. A wrong password is `errc::wrong_password`,
-  from `open` (an encrypted header), `read`, `reader` and `walk` alike ([sevenzip::archive](sevenzip-archive.md)).
+  from `open` (an encrypted header), `read`, `reader` and `walk` alike ([sevenzip::archive](sevenzip-archive/README.md)).
 - Methods the library does not know (Rar, ARJ, 7-Zip's own external codecs) are `errc::unsupported`, named in the
   error with their ID.
 - The writer keeps its first error, as every stream of the module does: an archive is written freely and checked
@@ -73,13 +73,13 @@ none with a password — so the reference for what an archive holds is 7-Zip. Th
 
 | Type | Definition |
 |---|---|
-| `error` | [compress::error](error.md) |
-| [entry](sevenzip-entry.md) | one entry: its name, size, times, attributes, CRC-32, where its data lies |
+| `error` | [compress::error](error/README.md) |
+| [entry](sevenzip-entry/README.md) | one entry: its name, size, times, attributes, CRC-32, where its data lies |
 | [method](sevenzip-method.md) | the coder of a written archive's folders |
 | [options](sevenzip-options.md) | how an archive is written; the password and the limits of reading |
 | [entry_info](sevenzip-entry_info.md) | what a written entry is besides its name and data |
-| [archive](sevenzip-archive.md) | an archive to read: its entries in any order, or all of them in order |
-| [writer](sevenzip-writer.md) | an archive written entry after entry |
+| [archive](sevenzip-archive/README.md) | an archive to read: its entries in any order, or all of them in order |
+| [writer](sevenzip-writer/README.md) | an archive written entry after entry |
 
 ## Member functions
 
@@ -120,9 +120,9 @@ meet at noon
 
 ## See also
 
-- [xz](xz.md), [lzma](lzma.md): the methods; [bzip2](bzip2.md), [flate](flate.md): the others read
+- [xz](xz/README.md), [lzma](lzma/README.md): the methods; [bzip2](bzip2/README.md), [flate](flate/README.md): the others read
 - [zip](zip.md), [tar](tar.md): the other archives
-- [crypto::secret](../crypto/secret.md): a password kept in memory the collector does not copy
+- [crypto::secret](../crypto/secret/README.md): a password kept in memory the collector does not copy
 - `tests/compress/sevenzip.cpp`: archives of every method made by 7-Zip and libarchive, read and compared with the
   files; passwords both ways, AES-256-CBC on NIST SP 800-38A, the key against one computed apart;
   `tests/compress/files.cpp`: `extract` and `create` both ways against 7-Zip's `7zz`;

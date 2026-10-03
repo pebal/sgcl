@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::set_worker_spin
 
@@ -9,7 +9,7 @@ static void set_worker_spin(duration d) noexcept;
 Sets how long a worker with nothing to run looks for work before it sleeps in the kernel, over
 `SGCL_WORKER_SPIN_US` and `config::worker_spin_microseconds` (20 µs). A task made ready within that window costs no
 wake through the kernel; a longer spin buys that for a busy program with cores it does not need for anything else.
-The setting applies at once, with the workers running or not, and to the thread of an [executor](../executor.md),
+The setting applies at once, with the workers running or not, and to the thread of an [executor](../executor/README.md),
 which spins as long before it parks.
 
 ## Parameters
@@ -60,4 +60,4 @@ Output:
 
 - [worker_spin](worker_spin.md): the time now
 - [set_workers](set_workers.md): the number of workers
-- [sgcl::async::scheduler](../scheduler.md)
+- [sgcl::async::scheduler](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](../bounded_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](README.md)
 
 # sgcl::concurrent::bounded_queue\<T\>::size
 
@@ -61,4 +61,4 @@ Output:
 
 - [empty](empty.md), [full](full.md): the size against zero and the capacity
 - [capacity](capacity.md): the number of cells
-- [sgcl::concurrent::bounded_queue\<T\>](../bounded_queue.md)
+- [sgcl::concurrent::bounded_queue\<T\>](README.md)

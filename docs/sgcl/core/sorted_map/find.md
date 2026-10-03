@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::find
 
@@ -12,7 +12,7 @@ template<class K> const_iterator find(const K& key) const noexcept(/* see below 
 Finds the element under `key`. The search descends the tree reading raw pointers only: no write barrier, no
 allocation.
 
-- (3–4) Take part only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does:
+- (3–4) Take part only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does:
   a literal, a `std::string_view` or a `string_slice` (a piece of another string) looks up a `string` key
   without building one.
 
@@ -69,4 +69,4 @@ Output:
 - [contains](contains.md): checks whether the map holds a key
 - [at](at.md): the value under a key, with bounds checking
 - [lower_bound](lower_bound.md): the first element whose key is not less than a key
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::hostname
 
@@ -51,4 +51,4 @@ example.com
 
 - [host](host.md): the host with the port
 - [host_address](host_address.md): the host as an address
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

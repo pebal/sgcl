@@ -67,4 +67,4 @@ broken: this translation is broken
 ## See also
 
 - [format](format.md): the rules of the pattern
-- [runtime](runtime.md), [runtime_pattern](runtime_pattern.md): a pattern read where the program runs
+- [runtime](runtime.md), [runtime_pattern](runtime_pattern/README.md): a pattern read where the program runs

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::sorted_multimap
 
@@ -56,7 +56,7 @@ no multimap is constructed.
 
 ## Notes
 
-The deduction guides of the class ([sorted_multimap](../sorted_multimap.md#deduction-guides)) give the key and
+The deduction guides of the class ([sorted_multimap](README.md#deduction-guides)) give the key and
 the mapped type from a range of pairs or from an initializer list whose pairs are spelled out
 (`std::pair{1, 2.0}`): a braced pair alone names no type.
 
@@ -121,4 +121,4 @@ true
 
 - [operator=](operator_assign.md): replaces the contents of a multimap
 - [insert](insert.md): inserts elements into a multimap
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

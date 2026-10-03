@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::sorted_index_of
 
@@ -77,4 +77,4 @@ true
 - [binary_search](binary_search.md): checks whether a sorted range holds a value
 - [lower_bound](lower_bound.md): the first element not less than a value
 - [index_of](../enumerable/index_of.md): the position of the first element equal to a value, on any range
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

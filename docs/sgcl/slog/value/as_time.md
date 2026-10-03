@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::as_time
 
@@ -14,7 +14,7 @@ None.
 
 ## Return value
 
-The time, a [datetime](../../time/datetime.md).
+The time, a [datetime](../../time/datetime/README.md).
 
 ## Complexity
 
@@ -54,4 +54,4 @@ true
 
 - [type](type.md)
 - [kind](../value-kind.md): `time`
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

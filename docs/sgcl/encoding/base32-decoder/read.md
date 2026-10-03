@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md) › [decoder](../base32-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32/README.md) › [decoder](README.md)
 
 # sgcl::encoding::base32::decoder::read, async_read
 
@@ -19,7 +19,7 @@ text, the end of the decoding: `0`, after the short group of a codec without pad
 
 A text the codec refuses fails the read that reaches the error, after the bytes before it were handed out, and
 every read after. The `io::error` has the [errc](../errc.md) code in the `encoding` category, and
-[last_error](last_error.md) holds the [error](../error.md) with its offset in the text. A failure of the reader
+[last_error](last_error.md) holds the [error](../error/README.md) with its offset in the text. A failure of the reader
 under it is the read's failure too, kept for good.
 
 ## Parameters
@@ -78,4 +78,4 @@ offset 10: invalid character '*'
 
 - [last_error](last_error.md): where the text went wrong
 - [decode](../base32/decode.md): the bytes at once
-- [sgcl::encoding::base32::decoder](../base32-decoder.md)
+- [sgcl::encoding::base32::decoder](README.md)

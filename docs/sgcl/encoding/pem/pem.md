@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::pem
 
@@ -87,4 +87,4 @@ sgcl::pem: a type that is not a label of RFC 7468
 
 - [parse](parse.md): a block from a text from outside
 - [to_string](to_string.md): the block as text
-- [sgcl::encoding::pem](../pem.md)
+- [sgcl::encoding::pem](README.md)

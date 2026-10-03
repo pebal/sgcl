@@ -13,7 +13,7 @@ namespace sgcl::async {
 }
 ```
 
-Calls `f` every `d` until the [stop_source](stop_source.md) it returns is stopped: the loop over [tick](tick.md)
+Calls `f` every `d` until the [stop_source](stop_source/README.md) it returns is stopped: the loop over [tick](tick.md)
 with a [select](select.md) on the stop that a program would otherwise write itself, in a task of its own started by
 [go](go.md). `f` is called with no arguments: a function, called on a worker, or a coroutine function, whose task is
 awaited before the next tick, so that two calls never overlap.
@@ -61,7 +61,7 @@ handler, which by default prints it and ends the program.
 
 A function `f` runs on a worker, which it holds while it runs: one that blocks (a disk, a lock held long) is a
 coroutine function that awaits, or a call through [spawn_blocking](spawn_blocking.md). Under a
-[manual_clock](manual_clock.md), an advance of a period calls `f` once and returns after the call.
+[manual_clock](manual_clock/README.md), an advance of a period calls `f` once and returns after the call.
 
 ## Example
 
@@ -132,6 +132,6 @@ true
 ## See also
 
 - [tick](tick.md): the channel of the ticks, for a loop of its own
-- [stop_source](stop_source.md): what stops the calls
+- [stop_source](stop_source/README.md): what stops the calls
 - [go](go.md): the task the calls run in
-- [manual_clock](manual_clock.md): the calls of a test
+- [manual_clock](manual_clock/README.md): the calls of a test

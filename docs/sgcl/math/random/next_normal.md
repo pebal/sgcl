@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::next_normal
 
@@ -74,4 +74,4 @@ mean 99.94, deviation 14.99
 
 - [next_exponential](next_exponential.md): the other ziggurat
 - [operator()](operator_call.md): `std::normal_distribution` and the rest of `<random>`
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

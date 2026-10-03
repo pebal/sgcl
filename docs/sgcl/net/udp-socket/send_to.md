@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::send_to, async_send_to
 
@@ -27,7 +27,7 @@ literal is taken as its bytes.
 
 ## Return value
 
-The number of bytes sent, all of `data`. Or the [io::error](../../io/error.md), its operation `write`:
+The number of bytes sent, all of `data`. Or the [io::error](../../io/error/README.md), its operation `write`:
 `EAFNOSUPPORT` for an address of the other family and `net::errc::invalid_address` for a zone that names no
 interface, their path the address; `io::errc::closed` after
 [close](close.md), `ETIMEDOUT` (`is_timeout()`) when the write deadline passed, `EMSGSIZE` for a datagram too long,
@@ -78,4 +78,4 @@ write [::1]:9: Address family not supported by protocol family
 
 - [receive_from, async_receive_from](receive_from.md): the other direction
 - [send, async_send](send.md): to a connected socket's peer
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

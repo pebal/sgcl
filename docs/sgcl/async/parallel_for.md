@@ -17,7 +17,7 @@ namespace sgcl::async {
 }
 ```
 
-Calls `f` for every index of a range, the calls spread over the workers of the [scheduler](scheduler.md) and the
+Calls `f` for every index of a range, the calls spread over the workers of the [scheduler](scheduler/README.md) and the
 caller: OpenMP's `parallel for`, `std::for_each(std::execution::par, ...)` over a range of integers, a loop Go
 writes by hand with goroutines and a `WaitGroup`. The loop runs inside the call, which returns once `f` has been
 called for every index: `async::parallel_for(n, f);` on a thread and in a task
@@ -25,7 +25,7 @@ alike, with nothing to wait for or `co_await` afterwards.
 
 1. The indices `0 .. count - 1`; none for a `count` of zero or less.
 2. The indices `begin .. end - 1`; none when `begin` is not below `end`. A `begin` past `end` is an empty range,
-   not a walk downwards, as in [range](../core/range.md).
+   not a walk downwards, as in [range](../core/range/README.md).
 3. The indices `begin`, `begin + step`, `begin + 2 * step`, ... while they are below `end` for a positive `step`,
    above `end` for a negative one; none when `begin` is past `end` in the direction of the step.
 
@@ -229,5 +229,5 @@ index 42
 - [parallel_for_each](parallel_for_each.md): every element of a range
 - [parallel_reduce](parallel_reduce.md): a value of every index, combined in order
 - [parallel_options](parallel_options.md): the lanes and the grain
-- [task_group](task_group.md), [when_all](when_all.md): tasks of different work, started and waited for together
-- [scheduler](scheduler.md): the workers the lanes run on
+- [task_group](task_group/README.md), [when_all](when_all.md): tasks of different work, started and waited for together
+- [scheduler](scheduler/README.md): the workers the lanes run on

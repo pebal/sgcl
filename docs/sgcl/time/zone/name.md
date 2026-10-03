@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::name
 
@@ -55,4 +55,4 @@ EST5EDT,M3.2.0,M11.1.0
 ## See also
 
 - [abbreviation_at](abbreviation_at.md): what the zone's clock shows
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

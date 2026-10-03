@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](README.md)
 
 # sgcl::compress::lzma::decompress
 
@@ -25,7 +25,7 @@ work; an output that grows past `max_size` stops there. Nothing after the LZMA d
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): a properties byte past 224 (`errc::invalid_header`), data cut
+The decompressed bytes, or the [error](../error/README.md): a properties byte past 224 (`errc::invalid_header`), data cut
 short (`errc::unexpected_end`), data the format does not allow (`errc::corrupt`), a dictionary or an output past the
 limits (`errc::too_large`).
 
@@ -65,6 +65,6 @@ offset 10: lzma: unexpected end in the header
 ## See also
 
 - [compress](compress.md): the other way
-- [lzma::reader](../lzma-reader.md): a stream
+- [lzma::reader](../lzma-reader/README.md): a stream
 - [limits](../limits.md)
-- [sgcl::compress::lzma](../lzma.md)
+- [sgcl::compress::lzma](README.md)

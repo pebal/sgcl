@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_map](../weak_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_map](README.md)
 
 # sgcl::weak_map\<Key, T\>::operator[]
 
@@ -76,4 +76,4 @@ Output:
 - [emplace](emplace.md): constructs a value from arguments, unless the object has one
 - [insert_or_assign](insert_or_assign.md): inserts or assigns a value
 - [find](find.md): the entry of an object, without adding one
-- [sgcl::weak_map\<Key, T\>](../weak_map.md)
+- [sgcl::weak_map\<Key, T\>](README.md)

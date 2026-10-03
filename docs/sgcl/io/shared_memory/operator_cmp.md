@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::operator==, operator!= (sgcl::io::shared_memory)
 
@@ -54,4 +54,4 @@ true true
 ## See also
 
 - [operator bool](operator_bool.md): whether a handle holds a region
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

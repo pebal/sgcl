@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_statistics
 
@@ -30,7 +30,7 @@ None.
 ## Notes
 
 It never waits for the collector, so it may be called anywhere: from a destructor, between the gates of a
-[stepper](../collector-stepper.md), in a loop that watches the collector.
+[stepper](../collector-stepper/README.md), in a loop that watches the collector.
 
 ## Example
 
@@ -77,4 +77,4 @@ last cycle 1.108875 ms with 0 helpers
 
 - [statistics](../collector-statistics.md): the counters
 - [get_type_statistics](get_type_statistics.md): the live objects by type
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

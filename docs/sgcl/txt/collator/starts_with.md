@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::starts_with
 
@@ -61,4 +61,4 @@ true
 
 - [ends_with](ends_with.md): the other end
 - [find](find.md): anywhere in the text
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

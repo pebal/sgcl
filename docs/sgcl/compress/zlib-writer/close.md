@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [writer](../zlib-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [writer](README.md)
 
 # sgcl::compress::zlib::writer::close, async_close
 
@@ -67,4 +67,4 @@ write zlib: stream closed
 
 - [flush](flush.md): everything so far decodable, the stream going on
 - [last_error](last_error.md): the error the close gives
-- [sgcl::compress::zlib::writer](../zlib-writer.md)
+- [sgcl::compress::zlib::writer](README.md)

@@ -33,8 +33,8 @@ while it is archived is `errc::invalid_argument`. A failure removes the half-mad
 
 ## Return value
 
-Nothing, or the [error](error.md): `.tar.bz2` (`errc::unsupported`), a file that changed size
-(`errc::invalid_argument`), what the [writer](tar-writer.md) refuses, a failure of the file system (`errc::io`).
+Nothing, or the [error](error/README.md): `.tar.bz2` (`errc::unsupported`), a file that changed size
+(`errc::invalid_argument`), what the [writer](tar-writer/README.md) refuses, a failure of the file system (`errc::io`).
 
 ## Complexity
 
@@ -92,5 +92,5 @@ index.html
 ## See also
 
 - [extract](tar-extract.md): the other way
-- [writer](tar-writer.md): an archive entry by entry
+- [writer](tar-writer/README.md): an archive entry by entry
 - [sgcl::compress::tar](tar.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [io](../README.md) › [req](README.md)
 
 # sgcl::io::req::reader, async_reader
 
@@ -17,7 +17,7 @@ namespace sgcl::io::req {
 
 `reader` is a stream read on the calling thread: `t.read(b)` with a `slice<byte>` gives something convertible to
 `expected<size_t, io::error>`, the number of bytes put at the front of `b`, 0 at the end of the stream, or the
-[error](../error.md) of the read. Where `T` has no such method, the object called, `t(b)`, does the same: a lambda
+[error](../error/README.md) of the read. Where `T` has no such method, the object called, `t(b)`, does the same: a lambda
 that fills the buffer and says how much is a reader. A plain `size_t` is a stream that does not fail.
 
 `async_reader` is the same for a task: `t.async_read(b)`, or `t(b)`, gives an
@@ -30,11 +30,11 @@ it, looked through. A raw pointer is not a reader. A type that has a `read`, `wr
 of any shape is never taken for a callable, so its `operator()`, if any, is not asked. It is Go's `io.Reader`,
 asked of the type by the compiler instead of implemented: [read_full](../read_full.md), [read_all](../read_all.md),
 [copy](../copy.md) and the other functions of io take every reader, their `async_` forms every async reader, and
-[io::reader](../reader.md) holds either as a value.
+[io::reader](../reader/README.md) holds either as a value.
 
 The two halves are separate requirements: a stream that has only `read` is not an async reader, so
 `async_read_full`, `async_read_all` and `async_copy` of it do not compile, rather than hold a thread of the blocking
-pool for every wait. [io::reader](../reader.md) is where the missing half is made, when it is wanted: its
+pool for every wait. [io::reader](../reader/README.md) is where the missing half is made, when it is wanted: its
 `async_read` of a stream that has only `read` runs the read on the [blocking pool](../../async/spawn_blocking.md), and its
 `read` of a stream that has only `async_read` waits for the task.
 
@@ -158,6 +158,6 @@ true false
 ## See also
 
 - [writer, async_writer](writer.md): the other direction
-- [io::reader](../reader.md): any reader held as a value, both halves made
-- [mixin::reader](../mixin/reader.md): the rest of a reader over `read`
-- [sgcl::io::req](../req.md)
+- [io::reader](../reader/README.md): any reader held as a value, both halves made
+- [mixin::reader](../mixin/reader/README.md): the rest of a reader over `read`
+- [sgcl::io::req](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::spawn
 
@@ -11,7 +11,7 @@ template<class F>
 
 Starts a task on this executor: it is queued here, and runs when the thread that runs the executor comes to it. The
 task stays on the executor: whatever wakes it later, it is resumed on the executor's thread. It inherits the
-[task-locals](../task_local.md) of the task that spawns it.
+[task-locals](../task_local/README.md) of the task that spawns it.
 
 1. Starts `t`. A task is started once: debug builds assert on a task started already.
 2. The same for a coroutine function with captures, passed without the call:
@@ -82,4 +82,4 @@ Output:
 - [go](go.md): a task started and let go of
 - [spawn](../spawn.md): the same on the pool of workers, and `spawn(t, ex)`
 - [strand::spawn](../strand/spawn.md): a task started on a strand
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

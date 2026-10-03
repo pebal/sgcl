@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](../aead.md)
+[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](README.md)
 
 # sgcl::crypto::mixin::aead\<Derived\>::seal_to
 
@@ -92,4 +92,4 @@ sgcl::crypto::aes_gcm::seal_to: the output holds fewer bytes than the plaintext 
 
 - [seal](seal.md): into a new vector
 - [open_to](open_to.md): opens into the caller's buffer
-- [sgcl::crypto::mixin::aead\<Derived\>](../aead.md)
+- [sgcl::crypto::mixin::aead\<Derived\>](README.md)

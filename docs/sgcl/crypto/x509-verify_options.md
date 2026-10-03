@@ -24,7 +24,7 @@ order: `cert.verify({.roots = pool, .dns_name = "example.com"})`.
 
 ## Rules
 
-- The options hold [certificate_pool](x509-certificate_pool.md)s, so they live where a `tracked_ptr` may: on a stack,
+- The options hold [certificate_pool](x509-certificate_pool/README.md)s, so they live where a `tracked_ptr` may: on a stack,
   in a managed object, in a container of the library.
 - `ip` is a view of the program's bytes, read during the call.
 
@@ -125,5 +125,5 @@ true
 
 - [certificate::verify](x509-certificate/verify.md)
 - [ext_key_usage](x509-ext_key_usage.md): the usages
-- [time::datetime](../time/datetime.md): the time
+- [time::datetime](../time/datetime/README.md): the time
 - [sgcl::crypto::x509](x509.md)

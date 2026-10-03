@@ -14,14 +14,14 @@ Compression and archives: what Go has in `compress/flate`, `compress/gzip`, `com
 passwords) and [time](../time/README.md) (the times in headers and archives); [net](../net/README.md) is to take gzip
 from it for HTTP's `Content-Encoding`. The index of the whole interface is [the modules](../README.md).
 
-A format of one stream ([flate](flate.md), [zlib](zlib.md), [gzip](gzip.md), [bzip2](bzip2.md), [lzw](lzw.md),
-[lzma](lzma.md), [xz](xz.md)) is one class with one shape: the whole of the data in memory either way, `compress`
+A format of one stream ([flate](flate/README.md), [zlib](zlib/README.md), [gzip](gzip/README.md), [bzip2](bzip2/README.md), [lzw](lzw/README.md),
+[lzma](lzma/README.md), [xz](xz/README.md)) is one class with one shape: the whole of the data in memory either way, `compress`
 and `decompress`, and a stream each way, a `writer` that compresses what is written to it into another
-[io writer](../io/writer.md) and a `reader` of what the data read from another io reader decompresses to. The
+[io writer](../io/writer/README.md) and a `reader` of what the data read from another io reader decompresses to. The
 archives ([zip](zip.md), [tar](tar.md), [sevenzip](sevenzip.md)) are namespaces with an archive to read, a writer,
 and `extract` and `create`, what `unzip`, `tar -x` and `7zz x` do to a directory, with every name checked before
 anything is written. Data from outside is bounded by [limits](limits.md), and every failure is a
-[compress::error](error.md) that says what and at which byte.
+[compress::error](error/README.md) that says what and at which byte.
 
 Every algorithm is written from its specification (RFC 1950, 1951 and 1952, PKWARE's APPNOTE 6.3.10, POSIX pax, the
 LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, where there is none (PPMd var. H, BCJ2,
@@ -31,15 +31,15 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
 ## The rules
 
 1. **compress never fails, decompress says why.** `compress(data)` takes bytes (a
-   [slice](../core/slice.md)`<const byte>`) or text (a [string](../core/string.md), a literal) and returns the
+   [slice](../core/slice/README.md)`<const byte>`) or text (a [string](../core/string/README.md), a literal) and returns the
    compressed bytes; an option the format cannot hold is the program's mistake, `std::invalid_argument`.
-   `decompress(data)` returns an [expected](../core/expected.md)`<vector<byte>, compress::error>`: corrupt data, a
+   `decompress(data)` returns an [expected](../core/expected/README.md)`<vector<byte>, compress::error>`: corrupt data, a
    checksum that does not match, data cut short, output past the [limits](limits.md).
 2. **A writer and a reader are io streams.** Both have the blocking forms and the task's forms (`async_write`,
    `async_read`...) and every form of an io stream (`read_all_text`, `copy_to`, an `io::buffered_reader` over a
    reader for lines). A writer's `close()` ends the data and leaves its output open (a zip archive or an HTTP body
    goes on after it); a reader's `close()` closes its source. A writer keeps its first error, so a stream is written
-   freely and checked once, at the close; a reader's `last_error()` holds the whole [error](error.md) of the data.
+   freely and checked once, at the close; a reader's `last_error()` holds the whole [error](error/README.md) of the data.
    The writers and readers of flate, zlib, gzip, lzma and xz have `reset(stream)`, a new stream with the memory
    they have.
 3. **Work and waiting.** Compressing is work for the processor, not a wait: the task's forms do it on the worker
@@ -56,7 +56,7 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
    and Go do; `gzip`, `bzip2` and `xz` take what follows as the next member or stream, as gunzip, bunzip2 and xz
    do (gzip's unless told `gzip::single_member`). A reader reads its input a block at a time, so it may take bytes
    past the end from its source: a format that keeps other data after the stream gives the reader only its part
-   ([io::limit_reader](../io/limit_reader.md)).
+   ([io::limit_reader](../io/limit_reader/README.md)).
 6. **Data from outside is bounded.** Every `decompress` of data in memory, and `zip::archive::read` and
    `sevenzip::archive::read`, stops at the [limits](limits.md)' `max_size` (1 GiB unless told otherwise) with
    `errc::too_large`; `max_memory` bounds what a header makes a decoder allocate, in memory and in a stream alike.
@@ -64,11 +64,11 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
    before anything is written: an entry, or a link's target, that would leave the directory is
    `errc::insecure_path`, and nothing is written (a 7z link's target is checked when the link is reached); so is
    a total past the `max_size` of its options.
-7. **Errors.** [compress::error](error.md) is the error of every format, one type under each format's name
+7. **Errors.** [compress::error](error/README.md) is the error of every format, one type under each format's name
    (`gzip::error`, `zip::error`): the code, the byte of the compressed input where it was found, the stream's own
    error when one failed underneath, and `message()`. Read through an `io::reader`, a format's failure is an
    `io::error` of the [compress category](compress_category.md). Out of memory is never an error of the module
-   ([collector](../core/collector.md#the-memory-limit)).
+   ([collector](../core/collector/README.md#the-memory-limit)).
 8. **Files.** What works on files by name (`gzip::compress_file`, `extract`, `create`) has an `async_` form that
    runs the work on the [blocking pool](../async/spawn_blocking.md), and leaves nothing half made behind a failure.
 
@@ -89,17 +89,17 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
 
 | Class | Header | Description |
 |---|---|---|
-| [bzip2](bzip2.md) | `bzip2.h` | bzip2 1.0, read: `.bz2`, `.tar.bz2`; inside 7z |
-| [error](error.md) | `error.h` | what went wrong in compressed data or an archive, and at which byte |
-| [flate](flate.md) | `flate.h` | DEFLATE, RFC 1951, both ways: inside zip, PNG and gzip; HTTP's `deflate` as browsers read it |
-| [gzip](gzip.md) | `gzip.h` | RFC 1952, both ways: DEFLATE, CRC-32, a name, a time, several members; `.gz`, HTTP's `Content-Encoding: gzip` |
+| [bzip2](bzip2/README.md) | `bzip2.h` | bzip2 1.0, read: `.bz2`, `.tar.bz2`; inside 7z |
+| [error](error/README.md) | `error.h` | what went wrong in compressed data or an archive, and at which byte |
+| [flate](flate/README.md) | `flate.h` | DEFLATE, RFC 1951, both ways: inside zip, PNG and gzip; HTTP's `deflate` as browsers read it |
+| [gzip](gzip/README.md) | `gzip.h` | RFC 1952, both ways: DEFLATE, CRC-32, a name, a time, several members; `.gz`, HTTP's `Content-Encoding: gzip` |
 | [gzip_header](gzip_header.md) | `gzip.h` | the header of a gzip member: a name, a comment, a time, an extra field |
-| [level](level.md) | `level.h` | how hard a compressor works: 0 to 9, `huffman_only` |
+| [level](level/README.md) | `level.h` | how hard a compressor works: 0 to 9, `huffman_only` |
 | [limits](limits.md) | `limits.h` | the bounds on what data from outside makes: the output, a decoder's memory, a 7z header's entries |
-| [lzma](lzma.md) | `lzma.h` | LZMA alone, both ways: the range coder, an optimal parser, xz's levels 0 to 9 and `-e`; `.lzma` |
-| [lzw](lzw.md) | `lzw.h` | LZW, both ways, bits least or most significant first: GIF, TIFF, PDF |
-| [xz](xz.md) | `xz.h` | xz-file-format 1.2, both ways: LZMA2, the branch converters and Delta, CRC-32, CRC-64 or SHA-256; `.xz`, `.tar.xz` |
-| [zlib](zlib.md) | `zlib.h` | RFC 1950, both ways: DEFLATE, Adler-32, a preset dictionary; PNG's image data, PDF |
+| [lzma](lzma/README.md) | `lzma.h` | LZMA alone, both ways: the range coder, an optimal parser, xz's levels 0 to 9 and `-e`; `.lzma` |
+| [lzw](lzw/README.md) | `lzw.h` | LZW, both ways, bits least or most significant first: GIF, TIFF, PDF |
+| [xz](xz/README.md) | `xz.h` | xz-file-format 1.2, both ways: LZMA2, the branch converters and Delta, CRC-32, CRC-64 or SHA-256; `.xz`, `.tar.xz` |
+| [zlib](zlib/README.md) | `zlib.h` | RFC 1950, both ways: DEFLATE, Adler-32, a preset dictionary; PNG's image data, PDF |
 
 ## Namespaces
 

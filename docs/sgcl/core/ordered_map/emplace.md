@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::emplace
 
@@ -70,4 +70,4 @@ v false {"k": "v", "p": "xxx"}
 - [emplace_hint](emplace_hint.md): the same with a hint
 - [try_emplace](try_emplace.md): builds the value only when the key is absent
 - [insert](insert.md): inserts a built element
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

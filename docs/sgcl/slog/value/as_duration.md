@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::as_duration
 
@@ -6,7 +6,7 @@
 sgcl::duration as_duration() const;
 ```
 
-Returns the value of a value of kind `duration`: the `duration` or `std::chrono` duration given, as a [duration](../../core/duration.md). A value of another kind is a mistake of the program: a `logic_error`, where Go panics.
+Returns the value of a value of kind `duration`: the `duration` or `std::chrono` duration given, as a [duration](../../core/duration/README.md). A value of another kind is a mistake of the program: a `logic_error`, where Go panics.
 
 ## Parameters
 
@@ -14,7 +14,7 @@ None.
 
 ## Return value
 
-The `duration` or `std::chrono` duration given, as a [duration](../../core/duration.md).
+The `duration` or `std::chrono` duration given, as a [duration](../../core/duration/README.md).
 
 ## Complexity
 
@@ -49,4 +49,4 @@ Output:
 
 - [type](type.md)
 - [kind](../value-kind.md): `duration`
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::operator bool
 
@@ -6,7 +6,7 @@
 explicit operator bool() const noexcept;
 ```
 
-Checks whether the handle holds a process: a [command](../command.md)'s `process` does after its start.
+Checks whether the handle holds a process: a [command](../command/README.md)'s `process` does after its start.
 
 ## Parameters
 
@@ -50,4 +50,4 @@ true
 ## See also
 
 - [(constructor)](process.md): an empty handle
-- [sgcl::io::process](../process.md)
+- [sgcl::io::process](README.md)

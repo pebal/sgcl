@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::access_log
 
@@ -15,8 +15,8 @@ views of the request, the remote address is written into the line. A request ref
 417, 431 over HTTP/1.1) and a hijacked connection are not logged.
 
 1. Through `log`, as it is given: `slog::options{.out = file, .json = true, .buffered = true}` for JSON lines in
-   batches ([slog::logger](../../../slog/logger.md)).
-2. Through the [default logger](../../../slog/logger.md), buffered: a batch per worker.
+   batches ([slog::logger](../../../slog/logger/README.md)).
+2. Through the [default logger](../../../slog/logger/README.md), buffered: a batch per worker.
 
 Like the settings, the logger is the handle's own, not shared with its copies, and read when [serve](serve.md) is
 called.
@@ -79,4 +79,4 @@ time=2026-10-02T12:00:00.000+02:00 level=INFO msg=request method=GET path=/nothi
 ## See also
 
 - [slog](../../../slog/README.md): the loggers, text and JSON
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

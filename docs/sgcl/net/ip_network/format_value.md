@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::format_value (sgcl::net::ip_network)
 
@@ -8,7 +8,7 @@ void format_value(txt::format_sink& out, const ip_network& network, const txt::f
 
 Writes a network for [txt::format](../../txt/format.md) and the functions built on it (`println`, `print`), which
 find it beside the class: `{}` writes [to_string](to_string.md), `"10.0.0.0/8"`, `"2001:db8::/32"`, in the width, the fill and the
-alignment of the field as a [string](../../core/string.md) is written, to the left by default (`{:>20}`,
+alignment of the field as a [string](../../core/string/README.md) is written, to the left by default (`{:>20}`,
 `{:*<20}`). Nothing is allocated for it.
 
 Any type or precision, `{:x}` or `{:.3}`, is an error: of the compiler in a literal pattern, and `nullopt` from a
@@ -64,4 +64,4 @@ false
 
 - [to_string](to_string.md): the text written
 - [txt::format](../../txt/format.md): the patterns and the fields
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

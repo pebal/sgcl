@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::decode
 
@@ -33,8 +33,8 @@ None.
 
 ## Notes
 
-A walk over every code point is [runes](../runes.md), which calls this at each step; a string's `decode(pos)`
-([mixin::text](../mixin/text.md)) is this over the string's bytes.
+A walk over every code point is [runes](../runes/README.md), which calls this at each step; a string's `decode(pos)`
+([mixin::text](../mixin/text/README.md)) is this over the string's bytes.
 
 ## Example
 
@@ -68,5 +68,5 @@ Output:
 
 - [decode_last](decode_last.md): the code point before a position
 - [encode](encode.md): the reverse
-- [runes](../runes.md): the code points of a text as a range
-- [sgcl::utf8](../utf8.md)
+- [runes](../runes/README.md): the code points of a text as a range
+- [sgcl::utf8](README.md)

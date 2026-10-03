@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::to_uint64
 
@@ -51,4 +51,4 @@ false
 
 - [to_int64](to_int64.md): as an `int64_t`
 - [to_bytes](to_bytes.md): the magnitude as bytes
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

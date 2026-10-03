@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [codec](../README.md) › [error](README.md)
 
 # sgcl::codec::error::io_error
 
@@ -6,7 +6,7 @@
 const optional<io::error>& io_error() const noexcept;
 ```
 
-The error of the stream or the file, when the code is `errc::io`: the [io::error](../../io/error.md) the source or the
+The error of the stream or the file, when the code is `errc::io`: the [io::error](../../io/error/README.md) the source or the
 sink failed with, its operation, its path and its code as io gave them. [load](../load.md) of a file that does not
 read, [save](../save.md) of a file that cannot be created or renamed, a decoder whose stream fails and an encoder
 whose stream does not take the bytes report it here. Every other code has none.
@@ -58,6 +58,6 @@ false
 
 ## See also
 
-- [io::error](../../io/error.md): the error of a stream
+- [io::error](../../io/error/README.md): the error of a stream
 - [code](code.md): `errc::io`
-- [sgcl::codec::error](../error.md)
+- [sgcl::codec::error](README.md)

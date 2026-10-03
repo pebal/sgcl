@@ -30,7 +30,7 @@ is no error. Each directory made gets `p`, less the umask.
 
 ## Return value
 
-Nothing, or the [error](error.md): the error of the `mkdir` of the first element that could not be made, or
+Nothing, or the [error](error/README.md): the error of the `mkdir` of the first element that could not be made, or
 `std::errc::not_a_directory` when something other than a directory is at the path; the operation is `mkdir`.
 
 ## Complexity

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md) › [stepper](../collector-stepper.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](../collector/README.md) › [stepper](README.md)
 
 # sgcl::collector::stepper::step
 
@@ -52,4 +52,4 @@ true
 
 - [advance_to](advance_to.md): the gates up to one of a name
 - [current](current.md): the gate the collector stands at
-- [sgcl::collector::stepper](../collector-stepper.md)
+- [sgcl::collector::stepper](README.md)

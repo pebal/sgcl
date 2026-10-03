@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [public_key](../ed25519-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [public_key](README.md)
 
 # sgcl::crypto::ed25519::public_key::from_bytes
 
@@ -20,7 +20,7 @@ the RFC and Go take it.
 
 ## Return value
 
-The key, or an [error](../error.md) `errc::invalid_key` when `bytes` is not 32 bytes long or not the encoding of a
+The key, or an [error](../error/README.md) `errc::invalid_key` when `bytes` is not 32 bytes long or not the encoding of a
 point of the curve.
 
 ## Complexity
@@ -68,4 +68,4 @@ an Ed25519 public key is 32 bytes
 
 - [from_pkix_der](from_pkix_der.md): the key of a SubjectPublicKeyInfo
 - [bytes](bytes.md): the reverse
-- [sgcl::crypto::ed25519::public_key](../ed25519-public_key.md)
+- [sgcl::crypto::ed25519::public_key](README.md)

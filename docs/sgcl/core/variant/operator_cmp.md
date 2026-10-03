@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::operator==, operator!=, operator\<, operator\<=, operator\>, operator\>=, operator\<=\> (sgcl::variant)
 
@@ -92,4 +92,4 @@ true true
 ## See also
 
 - [index](index.md): the index the comparisons start with
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

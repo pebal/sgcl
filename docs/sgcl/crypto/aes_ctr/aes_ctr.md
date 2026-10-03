@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](../aes_ctr.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](README.md)
 
 # sgcl::crypto::aes_ctr::aes_ctr
 
@@ -76,4 +76,4 @@ sgcl::crypto::aes_ctr: an initial counter of 12 bytes, not 16
 - [from_key](from_key.md): a key that came with data
 - [clone](clone.md): a copy that goes on from the same place
 - [operator=](operator_assign.md): takes another object's state over
-- [sgcl::crypto::aes_ctr](../aes_ctr.md)
+- [sgcl::crypto::aes_ctr](README.md)

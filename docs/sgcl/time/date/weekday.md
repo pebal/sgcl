@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::weekday
 
@@ -51,4 +51,4 @@ true
 
 - [iso_week](iso_week.md): the week of ISO 8601
 - [weekday](../weekday.md): the enumeration
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](../x25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [private_key](README.md)
 
 # sgcl::crypto::x25519::private_key::from_bytes
 
@@ -19,7 +19,7 @@ same secrets, and are not equal by [==](operator_cmp.md).
 
 ## Return value
 
-The key, or an [error](../error.md) `errc::invalid_key` when `bytes` is not 32 bytes long.
+The key, or an [error](../error/README.md) `errc::invalid_key` when `bytes` is not 32 bytes long.
 
 ## Complexity
 
@@ -66,4 +66,4 @@ an X25519 private key is 32 bytes
 
 - [generate](generate.md): a new key
 - [bytes](bytes.md): the reverse
-- [sgcl::crypto::x25519::private_key](../x25519-private_key.md)
+- [sgcl::crypto::x25519::private_key](README.md)

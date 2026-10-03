@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](README.md)
 
 # sgcl::async::shared_mutex::unlock
 
@@ -63,4 +63,4 @@ Output:
 
 - [lock](lock.md), [try_lock](try_lock.md): take the writer's lock
 - [unlock_shared](unlock_shared.md): gives a reader's lock back
-- [sgcl::async::shared_mutex](../shared_mutex.md)
+- [sgcl::async::shared_mutex](README.md)

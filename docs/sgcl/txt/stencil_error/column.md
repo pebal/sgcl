@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_error](../stencil_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_error](README.md)
 
 # sgcl::txt::stencil_error::column
 
@@ -51,4 +51,4 @@ byte 20, line 2, column 4: a block was left open
 ## See also
 
 - [line](line.md)
-- [sgcl::txt::stencil_error](../stencil_error.md)
+- [sgcl::txt::stencil_error](README.md)

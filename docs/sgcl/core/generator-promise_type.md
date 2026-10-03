@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [generator](generator.md)
+[sgcl](../README.md) › [core](README.md) › [generator](generator/README.md)
 
 # sgcl::generator\<T\>::promise_type
 
@@ -85,5 +85,5 @@ true
 
 ## See also
 
-- [generator](generator.md): the coroutine type
+- [generator](generator/README.md): the coroutine type
 - [managed_frame](managed_frame.md): where the frame comes from

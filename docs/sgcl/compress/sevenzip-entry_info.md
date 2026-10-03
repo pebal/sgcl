@@ -17,7 +17,7 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
-`sgcl::compress::sevenzip::entry_info` is what an entry the [writer](sevenzip-writer.md) writes is besides its name
+`sgcl::compress::sevenzip::entry_info` is what an entry the [writer](sevenzip-writer/README.md) writes is besides its name
 and data: its times, its mode, whether it is a link. [create](sevenzip-writer/create.md),
 [add](sevenzip-writer/add.md) and [add_directory](sevenzip-writer/add_directory.md) take it. Entries are written as
 7-Zip writes them on Unix: the modification time (now, unless given), the attributes with the POSIX mode in the high
@@ -63,5 +63,5 @@ private.txt 2026-09-21T14:13:20Z 600
 
 ## See also
 
-- [writer](sevenzip-writer.md), [entry](sevenzip-entry.md)
+- [writer](sevenzip-writer/README.md), [entry](sevenzip-entry/README.md)
 - [sgcl::compress::sevenzip](sevenzip.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::merge
 
@@ -14,10 +14,10 @@ takes them all, and `source` is empty after. No element is copied, moved or dest
 its node: one to a relinked element points into this multimap now. `source` may be ordered by another comparator.
 Merging a multimap into itself does nothing.
 
-- (1–2) From a [sorted_map](../sorted_map.md) with the same `Key` and `T`.
+- (1–2) From a [sorted_map](../sorted_map/README.md) with the same `Key` and `T`.
 - (3–4) From a sorted_multimap with the same `Key` and `T`.
 
-A map of another `Key` or `T`, a hash [multimap](../multimap.md) or an [ordered_map](../ordered_map.md) is not
+A map of another `Key` or `T`, a hash [multimap](../multimap/README.md) or an [ordered_map](../ordered_map/README.md) is not
 taken: the call does not compile.
 
 ## Parameters
@@ -64,4 +64,4 @@ Output:
 
 - [extract](extract.md): takes a node out of the multimap
 - [insert](insert.md): links a node handle's node into a multimap
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

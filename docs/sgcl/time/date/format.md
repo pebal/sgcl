@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::format
 
@@ -66,4 +66,4 @@ Thursday, 24 September 2026
 - [to_string](to_string.md): ISO 8601's text
 - [parse](parse.md): reads a date in a pattern
 - [Patterns](../README.md#patterns): every specifier
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

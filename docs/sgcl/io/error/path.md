@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::path
 
@@ -7,7 +7,7 @@ const string& path() const noexcept;
 ```
 
 Returns what the operation was on: the path of a file, as the program gave it, or the name of a stream
-(`"buffer"`); for a child process, its program. An error of [flags](../flags.md) carries Go's message about the
+(`"buffer"`); for a child process, its program. An error of [flags](../flags/README.md) carries Go's message about the
 command line here.
 
 ## Parameters
@@ -50,4 +50,4 @@ buffer
 
 - [op](op.md): the operation
 - [message](message.md): the text of the error
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

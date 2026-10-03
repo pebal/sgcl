@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [shake256](../shake256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [shake256](README.md)
 
 # sgcl::crypto::shake256::reset
 
@@ -55,4 +55,4 @@ Output:
 
 - [update](update.md): what a read closes
 - [(constructor)](shake256.md): a sponge with its input open
-- [sgcl::crypto::shake256](../shake256.md)
+- [sgcl::crypto::shake256](README.md)

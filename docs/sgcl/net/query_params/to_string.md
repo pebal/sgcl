@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [query_params](../query_params.md)
+[sgcl](../../README.md) › [net](../README.md) › [query_params](README.md)
 
 # sgcl::net::query_params::to_string
 
@@ -9,7 +9,7 @@ string to_string() const noexcept;
 The pairs written as `application/x-www-form-urlencoded`, in their order, Go's `Values.Encode` without its sort:
 `name=value` joined by `&`, a space written as `+`, everything but the letters, the digits and `* - . _` escaped as
 `%XX`. A pair whose value is empty is written with its `=`. The length of the text is tracked by the changes, so it is
-written once into a string of that length; it is at most 512 MiB ([the limit](../query_params.md#rules)), but for
+written once into a string of that length; it is at most 512 MiB ([the limit](README.md#rules)), but for
 the pairs of a long query of a URL, which [url::query_params](../url/query_params.md) takes whole.
 
 ## Parameters
@@ -55,4 +55,4 @@ q=c%2B%2B+%26+go&path=%2Fa%7Eb&empty=
 
 - [parse](parse.md): the text read
 - [url::with_query](../url/with_query.md): a URL with these pairs as its query
-- [sgcl::net::query_params](../query_params.md)
+- [sgcl::net::query_params](README.md)

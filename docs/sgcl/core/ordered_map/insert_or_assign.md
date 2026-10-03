@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::insert_or_assign
 
@@ -61,7 +61,7 @@ value is what the assignment of `T` leaves.
 ## Notes
 
 An assignment does not move the element to the back of the order: a cache that wants it there calls
-[to_back](to_back.md) with the iterator returned, as the [example of the class](../ordered_map.md#example) does.
+[to_back](to_back.md) with the iterator returned, as the [example of the class](README.md#example) does.
 
 ## Example
 
@@ -97,4 +97,4 @@ Output:
 - [try_emplace](try_emplace.md): inserts only when the key is absent, leaves the value otherwise
 - [operator[]](operator_at.md): the value under a key, inserted when absent
 - [to_back](to_back.md): moves an element to the end of the order
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

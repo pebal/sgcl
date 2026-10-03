@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::operator=
 
@@ -73,4 +73,4 @@ false text
 
 - [emplace](emplace.md): constructs the new value in place
 - [reset](reset.md): destroys the value without a new one
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

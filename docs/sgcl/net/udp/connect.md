@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](README.md)
 
 # sgcl::net::udp::connect, async_connect
 
@@ -24,8 +24,8 @@ datagram to tell which address is alive.
 
 ## Return value
 
-The [udp::socket](../udp-socket.md), its [remote_endpoint](../udp-socket/remote_endpoint.md) the peer; or the
-[io::error](../../io/error.md), its operation `dial udp` (`lookup` for a failure of the lookup) and its path the
+The [udp::socket](../udp-socket/README.md), its [remote_endpoint](../udp-socket/remote_endpoint.md) the peer; or the
+[io::error](../../io/error/README.md), its operation `dial udp` (`lookup` for a failure of the lookup) and its path the
 address given: `net::errc::invalid_address` for an address that is not `"host:port"`, `net::errc::host_not_found`
 for a name nobody knows, the `errno` of the socket otherwise.
 
@@ -66,4 +66,4 @@ true
 
 - [bind, async_bind](bind.md): a socket that receives from anyone
 - [send](../udp-socket/send.md), [receive](../udp-socket/receive.md): what a connected socket does
-- [sgcl::net::udp](../udp.md)
+- [sgcl::net::udp](README.md)

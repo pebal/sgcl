@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::front
 
@@ -28,7 +28,7 @@ None.
 ## Notes
 
 In a `string` the first character is the first byte: the first byte of the first code point, which outside ASCII is
-not the letter itself. `starts_with` takes the letter as a `char32_t` ([mixin::text](../mixin/text.md)).
+not the letter itself. `starts_with` takes the letter as a `char32_t` ([mixin::text](../mixin/text/README.md)).
 
 ## Example
 
@@ -58,4 +58,4 @@ false true
 
 - [back](back.md): the last character
 - [operator[]](operator_at.md): the character at a position
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

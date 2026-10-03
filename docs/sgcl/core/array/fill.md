@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::fill
 
@@ -6,7 +6,7 @@
 constexpr void fill(const T& value) noexcept(std::is_nothrow_copy_assignable_v<T>);
 ```
 
-Assigns `value` to every element. It hides the `fill` of [mixin::sequence](../mixin/sequence.md), which takes a
+Assigns `value` to every element. It hides the `fill` of [mixin::sequence](../mixin/sequence/README.md), which takes a
 value of any type the elements are assignable from: the array's takes a `T`. For `array<T, 0>` it does nothing.
 
 ## Parameters
@@ -61,4 +61,4 @@ true
 ## See also
 
 - [swap](swap.md): swaps the elements with another array's
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

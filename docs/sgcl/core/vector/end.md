@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::end, cend
 
@@ -33,7 +33,7 @@ None.
 ## Notes
 
 `end()` changes with the size: an append, an insertion or a removal invalidates it
-([Iterator invalidation](../vector.md#iterator-invalidation)).
+([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -65,4 +65,4 @@ three
 
 - [begin, cbegin](begin.md): an iterator to the beginning
 - [rend, crend](rend.md): a reverse iterator to the end
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

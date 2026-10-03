@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-The path, or an [error](error.md) of `std::errc::no_such_file_or_directory` when neither names one; the operation
+The path, or an [error](error/README.md) of `std::errc::no_such_file_or_directory` when neither names one; the operation
 is `home_dir`.
 
 ## Complexity

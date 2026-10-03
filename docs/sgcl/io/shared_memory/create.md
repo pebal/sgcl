@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::create
 
@@ -21,7 +21,7 @@ after the object was made removes it again.
 
 ## Return value
 
-The handle of the mapped region, or an [error](../error.md) with the operation `create` and the name as its path:
+The handle of the mapped region, or an [error](../error/README.md) with the operation `create` and the name as its path:
 
 - `is_exists()` when the name is taken;
 - `std::errc::invalid_argument` for a size of 0;
@@ -68,4 +68,4 @@ create a/b: invalid path
 
 - [open](open.md): the object mapped by another process
 - [remove](remove.md): the name taken away
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

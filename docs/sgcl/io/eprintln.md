@@ -86,5 +86,5 @@ using the defaults
 
 - [eprint](eprint.md): the same without the new line
 - [println](println.md): on the standard output, or any writer
-- [error](error.md): what an operation reports
-- [standard_stream](standard_stream.md): `io::stderr`
+- [error](error/README.md): what an operation reports
+- [standard_stream](standard_stream/README.md): `io::stderr`

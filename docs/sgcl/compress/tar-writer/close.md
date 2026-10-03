@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](../tar-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [writer](README.md)
 
 # sgcl::compress::tar::writer::close, async_close
 
@@ -59,4 +59,4 @@ close tar entry a.txt: invalid argument
 ## See also
 
 - [last_error](last_error.md)
-- [sgcl::compress::tar::writer](../tar-writer.md)
+- [sgcl::compress::tar::writer](README.md)

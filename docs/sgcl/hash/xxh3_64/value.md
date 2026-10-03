@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](../xxh3_64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](README.md)
 
 # sgcl::hash::xxh3_64::value
 
@@ -55,4 +55,4 @@ true
 
 - [digest](digest.md): the same as bytes
 - [of](../mixin/hasher/of.md): the hash of data in one call
-- [sgcl::hash::xxh3_64](../xxh3_64.md)
+- [sgcl::hash::xxh3_64](README.md)

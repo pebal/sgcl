@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [stack](README.md)
 
 # sgcl::concurrent::stack\<T\>::push
 
@@ -91,4 +91,4 @@ Ada
 
 - [emplace](emplace.md): constructs the element in place
 - [try_pop](try_pop.md), [pop](pop.md): take the top element
-- [sgcl::concurrent::stack\<T\>](../stack.md)
+- [sgcl::concurrent::stack\<T\>](README.md)

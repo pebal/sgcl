@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [standard_stream](../standard_stream.md)
+[sgcl](../../README.md) › [io](../README.md) › [standard_stream](README.md)
 
 # sgcl::io::standard_stream::standard_stream
 
@@ -30,7 +30,7 @@ None.
 ## Notes
 
 The three objects of the module are what a program uses; a stream of its own over another descriptor the process
-inherited (3, given by a shell's `3>`) is a [file](../file.md) made by [from_fd](../from_fd.md), which may be
+inherited (3, given by a shell's `3>`) is a [file](../file/README.md) made by [from_fd](../from_fd.md), which may be
 closed.
 
 ## Example
@@ -55,4 +55,4 @@ Output:
 
 - [fd](fd.md): the descriptor
 - [from_fd](../from_fd.md): a file over a descriptor the process has
-- [sgcl::io::standard_stream](../standard_stream.md)
+- [sgcl::io::standard_stream](README.md)

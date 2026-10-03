@@ -63,4 +63,4 @@ true
 
 - [crypto_category](crypto_category.md): the category
 - [errc](errc.md): the codes
-- [error](error.md): the error of the module
+- [error](error/README.md): the error of the module

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](README.md)
 
 # sgcl::async::mutex::lock
 
@@ -76,4 +76,4 @@ Output:
 - [try_lock](try_lock.md): the lock without the wait
 - [unlock](unlock.md): gives the mutex back
 - [scoped_lock](scoped_lock.md): the lock of a task
-- [sgcl::async::mutex](../mutex.md)
+- [sgcl::async::mutex](README.md)

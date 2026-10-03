@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::size
 
@@ -55,4 +55,4 @@ Output:
 - [empty](empty.md): checks whether the vector is empty
 - [capacity](capacity.md): the number of elements the buffer holds
 - [resize](resize.md): changes the number of elements
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

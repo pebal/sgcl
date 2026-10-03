@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::operator+=, operator-=, operator\*=, operator/=, operator%=, sgcl::operator+, operator-, operator\*, operator/, operator% (sgcl::duration)
 
@@ -139,4 +139,4 @@ true true
 
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons
 - [max](max.md), [min](min.md): where the arithmetic saturates
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

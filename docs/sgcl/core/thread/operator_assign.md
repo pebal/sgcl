@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::operator=
 
@@ -62,4 +62,4 @@ Output:
 
 - [(constructor)](thread.md): constructs a thread object
 - [joinable](joinable.md): checks whether the object stands for a thread
-- [sgcl::thread](../thread.md)
+- [sgcl::thread](README.md)

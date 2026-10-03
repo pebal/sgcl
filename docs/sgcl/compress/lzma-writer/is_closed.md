@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md) › [writer](../lzma-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma/README.md) › [writer](README.md)
 
 # sgcl::compress::lzma::writer::is_closed
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [close](close.md)
-- [sgcl::compress::lzma::writer](../lzma-writer.md)
+- [sgcl::compress::lzma::writer](README.md)

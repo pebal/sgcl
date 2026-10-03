@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::reset
 
@@ -61,4 +61,4 @@ after, false
 
 - [has_value](has_value.md): checks whether the `any` holds a value
 - [emplace](emplace.md): a new value in place of the old one
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

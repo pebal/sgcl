@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [codec](README.md) › [jpeg](jpeg.md)
+[sgcl](../README.md) › [codec](README.md) › [jpeg](jpeg/README.md)
 
 # sgcl::codec::jpeg::subsampling
 
@@ -69,4 +69,4 @@ red across: 74 150, blue down: 74 103
 
 - [options](jpeg-options.md): where it is set
 - [encode](jpeg/encode.md): what writes it
-- [sgcl::codec::jpeg](jpeg.md)
+- [sgcl::codec::jpeg](jpeg/README.md)

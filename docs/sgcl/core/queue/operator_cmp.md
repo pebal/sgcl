@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [queue](../queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [queue](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::queue)
 
@@ -74,6 +74,6 @@ true
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md): the comparisons of
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md): the comparisons of
   the containers
-- [sgcl::queue\<T, Container\>](../queue.md)
+- [sgcl::queue\<T, Container\>](README.md)

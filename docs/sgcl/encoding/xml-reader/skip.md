@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [reader](../xml-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [reader](README.md)
 
 # sgcl::encoding::xml::reader::skip, async_skip
 
@@ -66,4 +66,4 @@ text
 ## See also
 
 - [read](read.md): the next node whole
-- [sgcl::encoding::xml::reader](../xml-reader.md)
+- [sgcl::encoding::xml::reader](README.md)

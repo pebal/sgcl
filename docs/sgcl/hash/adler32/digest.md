@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [adler32](../adler32.md)
+[sgcl](../../README.md) › [hash](../README.md) › [adler32](README.md)
 
 # sgcl::hash::adler32::digest
 
@@ -8,7 +8,7 @@ array<byte, 4> digest() const noexcept;
 
 `value()` as four bytes, the most significant first: what zlib writes at the end of a stream, Go's `h.Sum(nil)`,
 and the form a function written over any hasher ([req::hasher](../req/hasher.md)) takes,
-[crypto::sha256](../../crypto/sha256.md) among them.
+[crypto::sha256](../../crypto/sha256/README.md) among them.
 
 ## Parameters
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [value](value.md): the checksum as a number
-- [sgcl::hash::adler32](../adler32.md)
+- [sgcl::hash::adler32](README.md)

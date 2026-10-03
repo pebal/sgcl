@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [semaphore](../semaphore.md)
+[sgcl](../../README.md) › [async](../README.md) › [semaphore](README.md)
 
 # sgcl::async::semaphore::try_acquire
 
@@ -57,4 +57,4 @@ true
 
 - [acquire](acquire.md): the permit that waits
 - [available](available.md): the permits free now
-- [sgcl::async::semaphore](../semaphore.md)
+- [sgcl::async::semaphore](README.md)

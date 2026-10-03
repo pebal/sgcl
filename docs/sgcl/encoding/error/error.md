@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::error
 
@@ -71,4 +71,4 @@ offset 0: syntax error
 
 - [errc](../errc.md): the codes
 - [locate](locate.md), [set_position](set_position.md), [set_path](set_path.md): the place, set after
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

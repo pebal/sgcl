@@ -14,7 +14,7 @@ namespace sgcl::io {
 
 Sets the time of the last modification of the file at `path` to `t`, to the nanosecond the file system keeps,
 leaving its access time as it is: the second half of Go's `os.Chtimes`, the system's `utimensat`. `file_time` is the
-time of the system clock in nanoseconds, the type of [file_info](file_info.md)'s `modified`. A time before 1970 is set
+time of the system clock in nanoseconds, the type of [file_info](file_info/README.md)'s `modified`. A time before 1970 is set
 as it is, its fraction of a second included.
 
 ## Parameters
@@ -26,7 +26,7 @@ as it is, its fraction of a second included.
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call; the operation is `set_modified` and the path `path`.
+Nothing, or the [error](error/README.md) of the call; the operation is `set_modified` and the path `path`.
 
 ## Complexity
 
@@ -62,4 +62,4 @@ set_modified none: No such file or directory
 ## See also
 
 - [stat](stat.md): the time read
-- [file_info](file_info.md): `modified`
+- [file_info](file_info/README.md): `modified`

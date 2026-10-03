@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::receive_from, async_receive_from
 
@@ -24,7 +24,7 @@ empty buffer with a datagram of nothing and leave the real one queued).
 ## Return value
 
 The [udp::datagram](../udp-datagram.md): the bytes in `buffer`, the sender (an IPv4 peer of a socket of both
-families reported as IPv4), whether it was cut. Or the [io::error](../../io/error.md), its operation `read` and its
+families reported as IPv4), whether it was cut. Or the [io::error](../../io/error/README.md), its operation `read` and its
 path the socket: `io::errc::closed` after [close](close.md), `ETIMEDOUT` (`is_timeout()`) when the read deadline
 passed, the `errno` of `recvmsg` otherwise.
 
@@ -70,4 +70,4 @@ hello
 - [send_to, async_send_to](send_to.md): the answer, to `from`
 - [receive, async_receive](receive.md): from a connected socket's peer
 - [udp::datagram](../udp-datagram.md): what it gives
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

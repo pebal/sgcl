@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [hash](../../README.md) › mixin › [hasher](../hasher.md)
+[sgcl](../../../README.md) › [hash](../../README.md) › mixin › [hasher](README.md)
 
 # sgcl::hash::mixin::hasher\<Derived\>::copy_from, async_copy_from
 
@@ -8,7 +8,7 @@ async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) no
 ```
 
 Reads `r` to its end and hashes every byte it gives after what the hasher took before: Go's `io.Copy(h, r)`. `r` is
-any stream an [io::reader](../../../io/reader.md) holds: a file, a connection, a pipe, an `io::buffer`, a lambda
+any stream an [io::reader](../../../io/reader/README.md) holds: a file, a connection, a pipe, an `io::buffer`, a lambda
 that fills a slice.
 
 1. On the calling thread, through one block of io's copy size on its stack, as `io::copy` reads; each read goes to
@@ -81,4 +81,4 @@ true
 - [of_file](of_file.md): the hash of a whole file, through `copy_from`
 - [update](update.md): bytes already in memory
 - [io::copy](../../../io/copy.md): the same reading into a writer
-- [sgcl::hash::mixin::hasher\<Derived\>](../hasher.md)
+- [sgcl::hash::mixin::hasher\<Derived\>](README.md)

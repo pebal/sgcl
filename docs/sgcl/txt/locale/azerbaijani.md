@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [locale](../locale.md)
+[sgcl](../../README.md) › [txt](../README.md) › [locale](README.md)
 
 # sgcl::txt::locale::azerbaijani
 
@@ -50,4 +50,4 @@ BAKI ŞƏHƏRİ true
 - [root](root.md)
 - [turkish](turkish.md)
 - [lithuanian](lithuanian.md)
-- [sgcl::txt::locale](../locale.md)
+- [sgcl::txt::locale](README.md)

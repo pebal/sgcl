@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::not_found
 
@@ -84,4 +84,4 @@ Output:
 ## See also
 
 - [route](route.md): the patterns
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

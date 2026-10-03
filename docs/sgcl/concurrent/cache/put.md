@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::put
 
@@ -95,4 +95,4 @@ one 2
 - [get](get.md): a copy of the value
 - [get_or_compute](get_or_compute.md): puts the value computed when a `get` finds none
 - [erase](erase.md): erases the entry of a key
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

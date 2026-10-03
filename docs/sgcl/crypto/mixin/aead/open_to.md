@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](../aead.md)
+[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](README.md)
 
 # sgcl::crypto::mixin::aead\<Derived\>::open_to
 
@@ -34,7 +34,7 @@ ciphertext is zeroed too.
 
 ## Return value
 
-The length of the plaintext, `sealed.size() - tag_size`, or an [error](../../error.md) of
+The length of the plaintext, `sealed.size() - tag_size`, or an [error](../../error/README.md) of
 [errc::authentication](../../errc.md) when the tag does not match, when `sealed` is shorter than a tag and when it
 is longer than `max_plaintext_size + tag_size`.
 
@@ -55,7 +55,7 @@ exception, whatever the size of `out`.
 ## Notes
 
 The way to open a plaintext that must not stay in memory, a key unwrapped or a password: into a
-[secret_bytes](../../secret_bytes.md) of its length, which zeroes its bytes when it goes, or into a buffer the
+[secret_bytes](../../secret_bytes/README.md) of its length, which zeroes its bytes when it goes, or into a buffer the
 program clears with [secure_zero](../../secure_zero.md) when done.
 
 ## Example
@@ -102,5 +102,5 @@ message authentication failed
 
 - [open](open.md): into a new vector
 - [seal_to](seal_to.md): seals into the caller's buffer
-- [secret_bytes](../../secret_bytes.md): a buffer for a plaintext that is a secret
-- [sgcl::crypto::mixin::aead\<Derived\>](../aead.md)
+- [secret_bytes](../../secret_bytes/README.md): a buffer for a plaintext that is a secret
+- [sgcl::crypto::mixin::aead\<Derived\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [lzma](lzma.md)
+[sgcl](../README.md) › [compress](README.md) › [lzma](lzma/README.md)
 
 # sgcl::compress::lzma::options
 
@@ -22,7 +22,7 @@ namespace sgcl::compress {
 
 `sgcl::compress::lzma::options` is how LZMA data is made: the level and its mode, as xz's `-0` to `-9` and `-e`, a
 dictionary of another size, and the literal and position bits of the header. [compress](lzma/compress.md) and the
-[writer](lzma-writer.md) take it; the decoders read all of it from the header.
+[writer](lzma-writer/README.md) take it; the decoders read all of it from the header.
 
 ## Rules
 
@@ -54,7 +54,7 @@ dictionary of another size, and the literal and position bits of the header. [co
 
 | Member | Description |
 |---|---|
-| `level` | 0 to 9 as xz `-0` to `-9`; 6 by default ([level](level.md)) |
+| `level` | 0 to 9 as xz `-0` to `-9`; 6 by default ([level](level/README.md)) |
 | `extreme` | the deeper search of xz's `-e`; `false` by default |
 | `dictionary` | the dictionary in bytes, 4 KiB to 1.5 GiB; 0, by default, is the level's |
 | `lc` | the literal context bits, 0 to 8; 3 by default |
@@ -102,5 +102,5 @@ level 6: 71284
 ## See also
 
 - [xz::options](xz-options.md): the same levels
-- [level](level.md)
-- [sgcl::compress::lzma](lzma.md)
+- [level](level/README.md)
+- [sgcl::compress::lzma](lzma/README.md)

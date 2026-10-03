@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](README.md)
 
 # sgcl::txt::word_breaks::begin
 
@@ -6,7 +6,7 @@
 iterator begin() const noexcept;
 ```
 
-Returns an [iterator](../word_breaks-iterator.md) to the first of the segments, found: at byte position 0. For a text
+Returns an [iterator](../word_breaks-iterator/README.md) to the first of the segments, found: at byte position 0. For a text
 with no bytes it equals [end](end.md).
 
 ## Parameters
@@ -48,4 +48,4 @@ Output:
 ## See also
 
 - [end](end.md): the iterator past the last element
-- [sgcl::txt::word_breaks](../word_breaks.md)
+- [sgcl::txt::word_breaks](README.md)

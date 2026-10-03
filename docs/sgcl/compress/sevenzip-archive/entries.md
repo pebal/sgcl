@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::entries
 
@@ -6,7 +6,7 @@
 slice<const entry> entries() const noexcept;
 ```
 
-Returns every [entry](../sevenzip-entry.md) of the archive, in the archive's order: what its header says of each.
+Returns every [entry](../sevenzip-entry/README.md) of the archive, in the archive's order: what its header says of each.
 The slice keeps the entries alive, shared with the archive and its copies. With the header encrypted, the entries
 are there only when the archive was opened with the password.
 
@@ -59,4 +59,4 @@ docs/b.txt     1 file
 ## See also
 
 - [find](find.md), [walk](walk.md)
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

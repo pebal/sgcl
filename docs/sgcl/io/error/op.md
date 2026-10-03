@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::op
 
@@ -51,4 +51,4 @@ mkdir
 
 - [path](path.md): what the operation was on
 - [message](message.md): the text of the error
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

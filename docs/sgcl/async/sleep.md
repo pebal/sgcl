@@ -23,13 +23,13 @@ namespace sgcl::async {
 Waits for `d`, the way Go's `time.Sleep` does. `co_await async::sleep(d)` suspends the task and holds no thread
 meanwhile: the task is a frame on the managed heap and a timer, and a worker runs it again when the time comes.
 `async::sleep(d).wait()` blocks the calling thread instead, through a timer as well, so that a
-[manual_clock](manual_clock.md) serves a thread's sleep as it serves a task's. A `d` of zero or less neither
+[manual_clock](manual_clock/README.md) serves a thread's sleep as it serves a task's. A `d` of zero or less neither
 suspends nor blocks.
 
 `sleep` is a class called like a function: the object is the awaitable, made by the call and carried out by
 `co_await` or `wait()`, and nothing is armed until then. Marked nodiscard, it does nothing when dropped.
 
-The span is a [duration](../core/duration.md): the literals of `<chrono>` (`500ms`, `2s`) and any integral
+The span is a [duration](../core/duration/README.md): the literals of `<chrono>` (`500ms`, `2s`) and any integral
 `std::chrono` duration convert into it. A span too long for the clock saturates: `clock::now() + d` stops at
 `time_point::max()`, a point that never fires, so `async::sleep(duration::max())` waits forever, where the point
 would otherwise wrap into the past and fire at once.
@@ -54,23 +54,23 @@ heap. `wait()` makes a channel for the thread to block on as well.
 ## Exceptions
 
 The call: none. Carried out: `std::system_error` when the timer thread cannot be started (the first timer of the
-program starts it, and the first after a [scheduler::stop](scheduler.md)).
+program starts it, and the first after a [scheduler::stop](scheduler/README.md)).
 
 ## Notes
 
-`co_await` is for a coroutine with a managed frame: a [task](task.md) or a [generator](generator.md) of the
+`co_await` is for a coroutine with a managed frame: a [task](task/README.md) or a [generator](generator/README.md) of the
 module. A thread sleeps with `wait()`, or with `sgcl::this_thread::sleep_for`, the operating system's, which a
 manual clock does not serve.
 
 A task that sleeps lives until its sleep ends, even when nobody waits for it any more: its timer holds its frame,
 as a goroutine asleep is not collected either. A task that may be abandoned (the loser of a
 [with_timeout](with_timeout.md), a task nobody awaits) waits in a [select](select.md) with its
-[stop_token](stop_token.md)'s `on_stop` beside a [timeout](timeout.md) instead.
+[stop_token](stop_token/README.md)'s `on_stop` beside a [timeout](timeout.md) instead.
 
 The timers of the module (`sleep`, [sleep_until](sleep_until.md), [after](after.md), [at](at.md),
-[tick](tick.md), [timeout](timeout.md), a [stop_source](stop_source.md)'s deadline) are served by one thread,
+[tick](tick.md), [timeout](timeout.md), a [stop_source](stop_source/README.md)'s deadline) are served by one thread,
 asleep until the earliest timer is due and woken by a new timer only when it is the earliest. The thread starts
-with the first timer and stops with the scheduler ([scheduler::stop](scheduler.md), or the end of the program);
+with the first timer and stops with the scheduler ([scheduler::stop](scheduler/README.md), or the end of the program);
 a timer armed while the stop is joining the thread stays in its heap, as one not yet due does, and fires once the
 next timer starts the thread again. A timer is a managed object held by a root in the heap: the frame it will
 resume, or the channel it will signal, lives while the timer does, and nothing else holds them for it. Firing a
@@ -154,5 +154,5 @@ true
 - [sleep_until](sleep_until.md): until a point of the clock
 - [after](after.md): an event set after a while, for a select or several waiters
 - [timeout](timeout.md): a wait bounded in a select
-- [manual_clock](manual_clock.md): the time of a test
-- [clock](../core/clock.md), [duration](../core/duration.md): the time and the span
+- [manual_clock](manual_clock/README.md): the time of a test
+- [clock](../core/clock/README.md), [duration](../core/duration/README.md): the time and the span

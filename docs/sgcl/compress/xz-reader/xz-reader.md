@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md) › [reader](../xz-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz/README.md) › [reader](README.md)
 
 # sgcl::compress::xz::reader::reader
 
@@ -54,4 +54,4 @@ offset 12: xz: the dictionary needs more memory than the limit allows
 ## See also
 
 - [read](read.md)
-- [sgcl::compress::xz::reader](../xz-reader.md)
+- [sgcl::compress::xz::reader](README.md)

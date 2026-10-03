@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::write_at, async_write_at
 
@@ -26,7 +26,7 @@ leaves a hole of zeros before it.
 
 ## Return value
 
-The size of `data`: everything was written. Or the [error](../error.md), its operation `write_at` and its path the
+The size of `data`: everything was written. Or the [error](../error/README.md), its operation `write_at` and its path the
 file's: `errc::closed` for a closed file, otherwise the `errno` of `pwrite(2)` (`EBADF` for a file opened only for
 reading, `ESPIPE` for a pipe).
 
@@ -76,4 +76,4 @@ HEADER..body..........footer..
 
 - [read_at, async_read_at](read_at.md): the other direction
 - [write, async_write](write.md): a write at the position
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

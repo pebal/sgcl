@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::push_back
 
@@ -74,4 +74,4 @@ Output:
 - [emplace_back](emplace_back.md): constructs an element in place at the end
 - [pop_back](pop_back.md): removes the last element
 - [push_front](push_front.md): inserts an element at the beginning
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

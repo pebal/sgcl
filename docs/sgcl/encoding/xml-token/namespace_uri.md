@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [token](../xml-token.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [token](README.md)
 
 # sgcl::encoding::xml::token::namespace_uri
 
@@ -54,4 +54,4 @@ entry []
 
 - [name](name.md), [local_name](local_name.md)
 - [is_start](is_start.md): a start matched by `{namespace}local`
-- [sgcl::encoding::xml::token](../xml-token.md)
+- [sgcl::encoding::xml::token](README.md)

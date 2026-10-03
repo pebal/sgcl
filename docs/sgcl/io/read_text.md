@@ -11,7 +11,7 @@ namespace sgcl::io {
 }
 ```
 
-The whole file at `path` as a [string](../core/string.md), in one call: opened, read, closed. The size comes from
+The whole file at `path` as a [string](../core/string/README.md), in one call: opened, read, closed. The size comes from
 `fstat` and the text is read straight into the string's object of that size, with no vector between; a file that
 shrank since gives what it has, and one that grew is read on to its end. A file whose size is 0 (a FIFO, a file of
 `/proc`) is read to the end its writer makes. Everything is read through the file opened, never by its path again,
@@ -29,7 +29,7 @@ nothing checks that they are UTF-8.
 
 ## Return value
 
-The text of the file, empty for an empty file, or the [error](error.md) of the step that failed: of
+The text of the file, empty for an empty file, or the [error](error/README.md) of the step that failed: of
 [open](open.md) (`is_not_found()`, `is_permission()`), of `stat` or of `read` (`EISDIR` for a directory).
 
 ## Complexity
@@ -103,4 +103,4 @@ Output:
 - [read_lines](read_lines.md): the file's lines
 - [write_file](write_file.md): the other direction
 - [read_all_text](mixin/reader/read_all_text.md): the rest of an open file as a `string`
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

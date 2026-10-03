@@ -21,7 +21,7 @@ files to.
 
 | Member | Description |
 |---|---|
-| `level` | `create`: the level of gzip or xz around the archive; 6 by default ([level](level.md)) |
+| `level` | `create`: the level of gzip or xz around the archive; 6 by default ([level](level/README.md)) |
 | `max_size` | `extract`: the files' bytes together past which nothing is written (`errc::too_large`); 1 GiB by default, 0: no bound |
 
 ## Example

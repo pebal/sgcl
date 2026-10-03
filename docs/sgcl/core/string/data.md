@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::data
 
@@ -71,4 +71,4 @@ true true
 - [c_str](c_str.md): the same pointer, for an interface that takes a C string
 - [as_slice, operator slice_type](as_slice.md): the characters as a slice that holds the object
 - [size](size.md): the number of characters
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

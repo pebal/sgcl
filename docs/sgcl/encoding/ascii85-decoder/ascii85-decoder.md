@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md) › [decoder](../ascii85-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85/README.md) › [decoder](README.md)
 
 # sgcl::encoding::ascii85::decoder::decoder
 
@@ -58,4 +58,4 @@ lo
 
 - [decoder_from](../ascii85/decoder_from.md): a decoder with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::ascii85::decoder](../ascii85-decoder.md)
+- [sgcl::encoding::ascii85::decoder](README.md)

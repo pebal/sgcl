@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](../sevenzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](README.md)
 
 # sgcl::compress::sevenzip::writer::create
 
@@ -7,7 +7,7 @@ io::writer create(const string& name) noexcept;                            // (1
 io::writer create(const string& name, const entry_info& info) noexcept;    // (2)
 ```
 
-Ends the entry before and starts a new one: gives an [io writer](../../io/writer.md) of its data, which goes into the
+Ends the entry before and starts a new one: gives an [io writer](../../io/writer/README.md) of its data, which goes into the
 current folder through its coders as it is written (a new folder when the entry calls for another filter or the
 folder is full). The next `create`, `add` or `add_directory` ends it; the entry writer's own `close()` does too, and
 may be left out. A write to an entry that was ended is `io::errc::closed`, an error of that write alone, which the
@@ -68,4 +68,4 @@ true
 ## See also
 
 - [add](add.md): a whole entry
-- [sgcl::compress::sevenzip::writer](../sevenzip-writer.md)
+- [sgcl::compress::sevenzip::writer](README.md)

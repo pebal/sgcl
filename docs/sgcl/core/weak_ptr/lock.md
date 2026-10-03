@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](../weak_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](README.md)
 
 # sgcl::weak_ptr\<T\>::lock
 
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [expired](expired.md): checks whether the cell has been cleared
-- [sgcl::weak_ptr\<T\>](../weak_ptr.md)
+- [sgcl::weak_ptr\<T\>](README.md)

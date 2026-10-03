@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::find
 
@@ -14,8 +14,8 @@ of each node compared before its key, reading raw pointers only. The first of th
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the hash and the equality take. Take part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string.md) do: a `string_view`,
-  a [string_slice](../string.md) or a literal finds a `string` key with no string made for the search.
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../string/README.md) do: a `string_view`,
+  a [string_slice](../string/README.md) or a literal finds a `string` key with no string made for the search.
 
 ## Parameters
 
@@ -68,4 +68,4 @@ true true
 
 - [equal_range](equal_range.md): the run of the elements under a key
 - [count](count.md): the number of elements under a key
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

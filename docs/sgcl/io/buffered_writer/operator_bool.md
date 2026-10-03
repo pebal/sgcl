@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](../buffered_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](README.md)
 
 # sgcl::io::buffered_writer::operator bool
 
@@ -52,4 +52,4 @@ true
 
 - [(constructor)](buffered_writer.md): makes a writer, or an empty handle
 - [is_closed](is_closed.md): checks whether the writer was closed
-- [sgcl::io::buffered_writer](../buffered_writer.md)
+- [sgcl::io::buffered_writer](README.md)

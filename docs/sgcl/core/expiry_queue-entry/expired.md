@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md) › [entry](../expiry_queue-entry.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue/README.md) › [entry](README.md)
 
 # sgcl::expiry_queue\<T\>::entry::expired
 
@@ -75,4 +75,4 @@ true
 
 - [weak](weak.md): a weak pointer to the object
 - [cancel](cancel.md): withdraws the entry
-- [sgcl::expiry_queue\<T\>::entry](../expiry_queue-entry.md)
+- [sgcl::expiry_queue\<T\>::entry](README.md)

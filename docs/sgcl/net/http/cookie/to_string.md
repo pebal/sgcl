@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [cookie](../cookie.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [cookie](README.md)
 
 # sgcl::net::http::cookie::to_string
 
@@ -73,4 +73,4 @@ http::cookie: a name must be a token of RFC 6265
 ## See also
 
 - [parse](parse.md): the other direction
-- [sgcl::net::http::cookie](../cookie.md)
+- [sgcl::net::http::cookie](README.md)

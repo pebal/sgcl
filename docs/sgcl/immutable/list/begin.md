@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::begin, cbegin
 
@@ -68,4 +68,4 @@ sum 14, after 4: 1
 
 - [end, cend](end.md): an iterator to the end
 - [front](front.md): the first element
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

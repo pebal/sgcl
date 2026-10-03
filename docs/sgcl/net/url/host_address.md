@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::host_address
 
@@ -6,7 +6,7 @@
 optional<ip_address> host_address() const noexcept;
 ```
 
-The host as an [ip_address](../ip_address.md) when it is one, IPv4 or IPv6. The host of a scheme that is not special
+The host as an [ip_address](../ip_address/README.md) when it is one, IPv4 or IPv6. The host of a scheme that is not special
 is opaque, and never an address: `sc://1.2.3.4/` has the host `1.2.3.4`, a text.
 
 ## Parameters
@@ -55,4 +55,4 @@ sc://1.2.3.4/ none
 ## See also
 
 - [hostname](hostname.md): the host as a text
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

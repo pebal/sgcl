@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_local](../task_local.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_local](README.md)
 
 # sgcl::async::task_local\<T\>::get
 
@@ -70,4 +70,4 @@ no request
 - [get_or](get_or.md): the value, or a fallback
 - [is_set](is_set.md): whether there is a value
 - [set](set.md): sets it
-- [sgcl::async::task_local\<T\>](../task_local.md)
+- [sgcl::async::task_local\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::name
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [local_name](local_name.md), [namespace_uri](namespace_uri.md): the parts of a name
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::contiguous
 
@@ -61,5 +61,5 @@ false
 
 - [the mixins](../mixin/README.md): `mixin::contiguous`, the declaration without methods this requirement asks for
 - [random_access](random_access.md)
-- [slice](../slice.md): a view of contiguous elements
-- [sgcl::req](../req.md)
+- [slice](../slice/README.md): a view of contiguous elements
+- [sgcl::req](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](../word_breaks.md)
+[sgcl](../../README.md) › [txt](../README.md) › [word_breaks](README.md)
 
 # sgcl::txt::word_breaks::end
 
@@ -6,7 +6,7 @@
 iterator end() const noexcept;
 ```
 
-Returns the [iterator](../word_breaks-iterator.md) past the last element: at the byte position of the end of the text,
+Returns the [iterator](../word_breaks-iterator/README.md) past the last element: at the byte position of the end of the text,
 the size of the slice.
 
 ## Parameters
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first element
-- [sgcl::txt::word_breaks](../word_breaks.md)
+- [sgcl::txt::word_breaks](README.md)

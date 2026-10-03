@@ -48,5 +48,5 @@ process 48213
 
 ## See also
 
-- [process](process.md): a child process, its id among the rest
+- [process](process/README.md): a child process, its id among the rest
 - [hostname](hostname.md): the name of the host

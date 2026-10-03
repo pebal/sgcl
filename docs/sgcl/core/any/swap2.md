@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::swap (sgcl::any)
 
@@ -60,4 +60,4 @@ false 1.5
 ## See also
 
 - [swap](swap.md): the member function
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

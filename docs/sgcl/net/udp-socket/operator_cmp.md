@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::operator==, operator!= (sgcl::net::udp::socket)
 
@@ -52,4 +52,4 @@ true false true
 ## See also
 
 - [(constructor)](udp-socket.md): a copy that is the same socket
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

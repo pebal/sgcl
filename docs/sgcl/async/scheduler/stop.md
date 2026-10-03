@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::stop
 
@@ -7,7 +7,7 @@ static void stop();
 ```
 
 Joins the workers, for a program that wants its threads gone at a point of its own; the end of the program does
-the same. The timer thread, the [reactor](../readable.md) and the [blocking pool](../blocking_pool.md) are stopped
+the same. The timer thread, the [reactor](../readable.md) and the [blocking pool](../blocking_pool/README.md) are stopped
 first, in that order, those of them that were started: the waits still registered with the reactor end with
 nothing (their events set), and the jobs queued on the pool run to their end. The workers then run what is ready
 and leave; a task that never suspends holds the stop, as it would hold the end of the program.
@@ -74,4 +74,4 @@ after the spawn: 2 workers
 
 - [set_workers](set_workers.md): stops and starts the workers with another number
 - [blocking_pool::stop](../blocking_pool/stop.md): the blocking pool alone
-- [sgcl::async::scheduler](../scheduler.md)
+- [sgcl::async::scheduler](README.md)

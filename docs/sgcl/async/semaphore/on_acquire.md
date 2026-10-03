@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [semaphore](../semaphore.md)
+[sgcl](../../README.md) › [async](../README.md) › [semaphore](README.md)
 
 # sgcl::async::semaphore::on_acquire
 
@@ -69,4 +69,4 @@ none free
 - [select](../select.md): the cases and how one is chosen
 - [acquire](acquire.md): the permit outside a select
 - [release](release.md): gives the permit back
-- [sgcl::async::semaphore](../semaphore.md)
+- [sgcl::async::semaphore](README.md)

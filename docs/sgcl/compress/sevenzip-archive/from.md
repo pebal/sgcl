@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::from
 
@@ -28,7 +28,7 @@ caller's to keep. An archive in memory is decoded on the thread or the worker th
 
 ## Return value
 
-The archive, or the [error](../error.md) as [open](open.md) gives it.
+The archive, or the [error](../error/README.md) as [open](open.md) gives it.
 
 ## Complexity
 
@@ -73,4 +73,4 @@ offset 154: 7z: more entries than the limit allows
 ## See also
 
 - [open](open.md)
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

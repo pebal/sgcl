@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::receive
 
@@ -7,7 +7,7 @@ auto receive() const noexcept;    // (1)
 auto receive() const noexcept;    // (2), channel<void>
 ```
 
-Receives the next element, waiting for one. The call makes an [operation](../operation.md) that does nothing yet;
+Receives the next element, waiting for one. The call makes an [operation](../operation/README.md) that does nothing yet;
 carried out, the receive takes the first element of the buffer, moving the first waiting sender's element in behind
 it so that the order of the sends holds; with the buffer empty it takes a waiting sender's element through the
 buffer, or on a rendezvous through its small ring, or waits until a send comes or the channel is closed.
@@ -26,7 +26,7 @@ None.
 
 ## Return value
 
-An [operation](../operation.md) that gives, both by `co_await` in a task and by `.wait()` on a thread:
+An [operation](../operation/README.md) that gives, both by `co_await` in a task and by `.wait()` on a thread:
 
 - (1) an `optional<T>` with the element, or `nullopt` once the channel is closed and drained;
 - (2) `true` for a signal, `false` once the channel is closed and drained.
@@ -106,4 +106,4 @@ true
 - [on_receive](on_receive.md): a receive as a case of a select
 - [begin](begin.md): the range-for of a thread
 - [send](send.md), [close](close.md)
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

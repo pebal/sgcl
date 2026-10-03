@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::lines, async_lines
 
@@ -12,8 +12,8 @@ slice of the block, without its end, valid as text until the next one. It is the
 with the error read after the loop: the lines end at the end of the stream or on the first error, which
 [last_error](last_error.md) holds afterwards, as `Scanner.Err()` does.
 
-1. A [generator](../../core/generator.md) for the calling thread: `for (auto line : in.lines())`.
-2. An [async::generator](../../async/task.md) for a task, which may wait between its lines:
+1. A [generator](../../core/generator/README.md) for the calling thread: `for (auto line : in.lines())`.
+2. An [async::generator](../../async/task/README.md) for a task, which may wait between its lines:
    `while (auto line = co_await lines.next())`.
 
 The generator holds the reader, and the reader's position moves as it is iterated; the error of an earlier run is
@@ -99,5 +99,5 @@ Output:
 - [read_line](read_line.md): one line
 - [io::read_lines](../read_lines.md): the lines of a file, in one call
 - [last_error](last_error.md): the error the lines ended on
-- [generator](../../core/generator.md): the range
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [generator](../../core/generator/README.md): the range
+- [sgcl::io::buffered_reader](README.md)

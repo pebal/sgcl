@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::decapsulation_key::encapsulation_key
 
@@ -6,7 +6,7 @@
 mlkem768::encapsulation_key encapsulation_key() const;
 ```
 
-The public key of this key, Go's `EncapsulationKey`: the [encapsulation_key](../mlkem768-encapsulation_key.md) the
+The public key of this key, Go's `EncapsulationKey`: the [encapsulation_key](../mlkem768-encapsulation_key/README.md) the
 owner publishes, whose bytes anyone reads and encapsulates to. It is taken from the expanded key with the matrix the
 key already has, so nothing is sampled again. `mlkem512::decapsulation_key::encapsulation_key` gives a
 `mlkem512::encapsulation_key`, `mlkem1024`'s a `mlkem1024::encapsulation_key`.
@@ -56,5 +56,5 @@ true
 
 ## See also
 
-- [mlkem768::encapsulation_key](../mlkem768-encapsulation_key.md): what it gives
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [mlkem768::encapsulation_key](../mlkem768-encapsulation_key/README.md): what it gives
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

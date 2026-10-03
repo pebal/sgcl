@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [bad_expected_access](../bad_expected_access.md)
+[sgcl](../../README.md) › [core](../README.md) › [bad_expected_access](README.md)
 
 # sgcl::bad_expected_access\<E\>::what
 
@@ -73,4 +73,4 @@ bad access to sgcl::expected without a value
 ## See also
 
 - [error](error.md): the error itself
-- [sgcl::bad_expected_access\<E\>](../bad_expected_access.md)
+- [sgcl::bad_expected_access\<E\>](README.md)

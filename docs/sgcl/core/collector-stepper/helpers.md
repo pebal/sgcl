@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md) › [stepper](../collector-stepper.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](../collector/README.md) › [stepper](README.md)
 
 # sgcl::collector::stepper::helpers
 
@@ -61,4 +61,4 @@ Output:
 
 - [full](full.md): the kind of the cycles
 - [statistics](../collector-statistics.md): `last_helpers_used`
-- [sgcl::collector::stepper](../collector-stepper.md)
+- [sgcl::collector::stepper](README.md)

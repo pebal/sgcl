@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::is_dst
 
@@ -50,4 +50,4 @@ true false
 
 - [offset](offset.md), [abbreviation](abbreviation.md): the rest of what the zone is at the instant
 - [zone::is_dst_at](../zone/is_dst_at.md): the same asked of a zone
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

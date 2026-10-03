@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [txt](README.md) › [collator](collator.md)
+[sgcl](../README.md) › [txt](README.md) › [collator](collator/README.md)
 
 # sgcl::txt::collator::options
 
@@ -20,7 +20,7 @@ namespace sgcl::txt {
 }
 ```
 
-`sgcl::txt::collator::options` is what a [collator](collator.md) is asked for beside putting the letters in order: how much of
+`sgcl::txt::collator::options` is what a [collator](collator/README.md) is asked for beside putting the letters in order: how much of
 a difference counts, and the five settings CLDR names, under the names CLDR gives them. They are a value handed to
 the constructor rather than methods that change a collator afterwards: a collator is a comparator, copied into a
 sort and shared between threads, and a setter would make it a thing that can change under one of them. An
@@ -78,5 +78,5 @@ a before A in Danish, small letters first: true
 
 ## See also
 
-- [collator](collator.md): what takes them
+- [collator](collator/README.md): what takes them
 - [strength](strength.md), [punctuation](punctuation.md), [case_order](case_order.md)

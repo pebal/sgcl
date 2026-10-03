@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::joinable
 
@@ -53,4 +53,4 @@ false
 ## See also
 
 - [join](join.md), [detach](detach.md): what makes a thread no longer joinable
-- [sgcl::thread](../thread.md)
+- [sgcl::thread](README.md)

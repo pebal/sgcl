@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::issuer
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The issuer's [name](../x509-name.md).
+The issuer's [name](../x509-name/README.md).
 
 ## Complexity
 
@@ -53,4 +53,4 @@ sgcl test CA
 
 - [raw_issuer](raw_issuer.md): the bytes a chain is built on
 - [subject](subject.md)
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

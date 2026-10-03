@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::proto
 
@@ -66,4 +66,4 @@ asked over HTTP/2.0
 ## See also
 
 - [response::proto](../response/proto.md): the protocol of a response
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

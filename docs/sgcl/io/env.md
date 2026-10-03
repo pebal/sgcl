@@ -22,7 +22,7 @@ configuration in one line, the default written where the value is used.
 1. `bool` and the numbers are read as [parse](../core/parse.md) reads them (`"8080"`, `"true"`, `"0.5"`), the
    type's range checked; any other `T` by its `T::parse(const string&)`, which returns an `expected` of a value
    `T` is made from.
-2. A span of `<chrono>` as the fallback (`5s`, `250ms`): the value is a [duration](../core/duration.md), read as
+2. A span of `<chrono>` as the fallback (`5s`, `250ms`): the value is a [duration](../core/duration/README.md), read as
    `duration::parse` reads Go's text (`"1.5s"`, `"1m30s"`).
 3. A text fallback (a `string`, a literal): the variable's text as it is.
 
@@ -90,5 +90,5 @@ sgcl::io::env: APP_PORT="abc" is not an integer: not a number
 ## See also
 
 - [getenv](getenv.md): the text of a variable, `nullopt` when it is not set
-- [flags](flags.md): the command line read into variables
-- [parse](../core/parse.md), [duration](../core/duration.md): how the values are read
+- [flags](flags/README.md): the command line read into variables
+- [parse](../core/parse.md), [duration](../core/duration/README.md): how the values are read

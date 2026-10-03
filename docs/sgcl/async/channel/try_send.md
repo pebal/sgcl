@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::try_send
 
@@ -90,4 +90,4 @@ true false
 - [send](send.md): waits for room or for a receiver
 - [on_send](on_send.md): a send as a case of a select, with `otherwise` for a poll
 - [try_receive](try_receive.md): receives without waiting
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

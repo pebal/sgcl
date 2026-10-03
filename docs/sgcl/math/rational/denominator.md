@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::denominator
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The denominator, a [big_integer](../big_integer.md) above zero.
+The denominator, a [big_integer](../big_integer/README.md) above zero.
 
 ## Complexity
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [numerator](numerator.md): the numerator, with the sign
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [generator](../generator.md)
+[sgcl](../../README.md) › [core](../README.md) › [generator](README.md)
 
 # sgcl::generator\<T\>::value
 
@@ -62,4 +62,4 @@ Output:
 ## See also
 
 - [next](next.md): runs the coroutine to its next value
-- [sgcl::generator\<T\>](../generator.md)
+- [sgcl::generator\<T\>](README.md)

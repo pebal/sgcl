@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [match](../match.md)
+[sgcl](../../README.md) › [txt](../README.md) › [match](README.md)
 
 # sgcl::txt::match::text
 
@@ -54,4 +54,4 @@ Output:
 
 - [group](group.md): a group of the match
 - [subject](subject.md): the whole text
-- [sgcl::txt::match](../match.md)
+- [sgcl::txt::match](README.md)

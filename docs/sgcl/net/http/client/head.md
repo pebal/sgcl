@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::head, async_head
 
@@ -24,7 +24,7 @@ once. A redirect of any status goes on as HEAD.
 ## Return value
 
 The response, without a body; a 4xx or a 5xx is a response. Or the error, as [send](send.md) gives it:
-`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url.md#rules)).
+`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url/README.md#rules)).
 
 ## Complexity
 
@@ -75,4 +75,4 @@ Output:
 ## See also
 
 - [get](get.md): the head and the body
-- [sgcl::net::http::client](../client.md)
+- [sgcl::net::http::client](README.md)

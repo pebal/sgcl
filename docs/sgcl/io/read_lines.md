@@ -33,7 +33,7 @@ before the first line is used. A file too large to keep its lines, or a stream r
 
 ## Return value
 
-The lines of the file, none for an empty file, or the [error](error.md) of the step that failed, the lines read
+The lines of the file, none for an empty file, or the [error](error/README.md) of the step that failed, the lines read
 before it dropped: of [open](open.md) (`is_not_found()`, `is_permission()`) or of a read (`EISDIR` for a directory).
 
 ## Complexity
@@ -111,4 +111,4 @@ Output:
 - [read_text](read_text.md): the whole file as one string
 - [buffered_reader::lines](buffered_reader/lines.md): the lines of a stream, one at a time
 - [write_file](write_file.md): the other direction
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

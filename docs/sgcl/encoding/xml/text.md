@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::text
 
@@ -56,4 +56,4 @@ dear old
 
 - [child](child.md): the first element of a name, whose text is asked often
 - [text_node](text_node.md): a text made by the program
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

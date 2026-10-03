@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::erase_if (sgcl::set)
 
@@ -70,4 +70,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases the elements at an iterator, in a range or with a key
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

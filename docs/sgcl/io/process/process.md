@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::process
 
@@ -6,7 +6,7 @@
 process() noexcept = default;
 ```
 
-Makes an empty handle, which holds no process: what a [command](../command.md)'s `process` is before its start. The
+Makes an empty handle, which holds no process: what a [command](../command/README.md)'s `process` is before its start. The
 handle of a running child is made by [command::start](../command/start.md); the copy and the assignment are the
 implicit ones, which copy the word, and the copies are the same process.
 
@@ -50,4 +50,4 @@ true true
 
 - [operator bool](operator_bool.md): whether the handle holds a process
 - [command::start](../command/start.md): makes the process
-- [sgcl::io::process](../process.md)
+- [sgcl::io::process](README.md)

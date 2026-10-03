@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::format_value (sgcl::net::ip_address)
 
@@ -8,7 +8,7 @@ void format_value(txt::format_sink& out, const ip_address& address, const txt::f
 
 Writes an address for [txt::format](../../txt/format.md) and the functions built on it (`println`, `print`), which
 find it beside the class: `{}` writes [to_string](to_string.md), `"10.0.0.1"`, `"fe80::1%en0"`, in the width, the fill and the
-alignment of the field as a [string](../../core/string.md) is written, to the left by default (`{:>20}`,
+alignment of the field as a [string](../../core/string/README.md) is written, to the left by default (`{:>20}`,
 `{:*<20}`). Nothing is allocated for it.
 
 Any type or precision, `{:x}` or `{:.3}`, is an error: of the compiler in a literal pattern, and `nullopt` from a
@@ -64,4 +64,4 @@ false
 
 - [to_string](to_string.md): the text written
 - [txt::format](../../txt/format.md): the patterns and the fields
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

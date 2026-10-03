@@ -13,8 +13,8 @@ namespace sgcl::net::tls {
 ```
 
 Binds `address` as [tcp::listen](../tcp/listen.md) does (`":8443"`, `"127.0.0.1:0"`) and gives a TCP listener whose
-`accept` gives connections whose handshake is done: a plain [net::listener](../listener.md), with `accept`,
-`async_accept`, `close` and `local_endpoint`, so that [net::http::server](../http/server.md) serves it unchanged
+`accept` gives connections whose handshake is done: a plain [net::listener](../listener/README.md), with `accept`,
+`async_accept`, `close` and `local_endpoint`, so that [net::http::server](../http/server/README.md) serves it unchanged
 (https). Go's `tls.Listen` and `tls.NewListener`, but Go's `Accept` gives a connection before its handshake, which
 runs at the first read; here `accept` gives it after.
 
@@ -40,7 +40,7 @@ listener lives until it is closed.
 
 ## Return value
 
-The listener, bound and accepting. Or the [io::error](../../io/error.md): `EINVAL` for a config a handshake cannot
+The listener, bound and accepting. Or the [io::error](../../io/error/README.md): `EINVAL` for a config a handshake cannot
 start with (no identity, no group or no cipher suite, an ALPN protocol of 0 or more than 255 bytes), checked before
 the address is bound; what [tcp::listen](../tcp/listen.md) returns for an address it cannot bind (`EADDRINUSE`).
 
@@ -156,7 +156,7 @@ listening
 ## See also
 
 - [server, async_server](server.md): the handshake each connection gets
-- [net::listener](../listener.md): what it returns; [tcp::listen](../tcp/listen.md): the listener inside
-- [config](config.md), [identity](identity.md): the settings and the certificate
-- [net::http::server](../http/server.md): https over such a listener
+- [net::listener](../listener/README.md): what it returns; [tcp::listen](../tcp/listen.md): the listener inside
+- [config](config.md), [identity](identity/README.md): the settings and the certificate
+- [net::http::server](../http/server/README.md): https over such a listener
 - [net::tls](README.md)

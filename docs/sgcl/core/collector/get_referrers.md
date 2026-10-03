@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_referrers
 
@@ -11,7 +11,7 @@ Every word that points at the object `p` points into, as a [referrer](../collect
 - the members of objects (`object`, with the holder's type and the word's offset);
 - the elements of buffers (`buffer`, the element type as `typeid(T[])`, the offset from the buffer's start, header
   included);
-- the cells of [root_ptr](../root_ptr.md)s in unmanaged memory (`cell`: the block and the cell's offset; the
+- the cells of [root_ptr](../root_ptr/README.md)s in unmanaged memory (`cell`: the block and the cell's offset; the
   `root_ptr` that owns the cell is not known to the collector);
 - the words of every thread's stack (`stack`: the word's address and the thread's id; on the calling thread, the
   frames above the call, so a local that holds the object is listed);
@@ -92,4 +92,4 @@ Output:
 
 - [get_path_to_root](get_path_to_root.md): one chain up to a root
 - [referrer](../collector-referrer.md): the fields of a referrer
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](../hkdf.md) › [prk](../hkdf-prk.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](../hkdf/README.md) › [prk](README.md)
 
 # sgcl::crypto::hkdf\<H\>::prk::clone
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](hkdf-prk.md): the move constructor; no copy
-- [sgcl::crypto::hkdf\<H\>::prk](../hkdf-prk.md)
+- [sgcl::crypto::hkdf\<H\>::prk](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [core](README.md) › [collector](collector.md)
+[sgcl](../README.md) › [core](README.md) › [collector](collector/README.md)
 
 # sgcl::collector::statistics
 
@@ -83,4 +83,4 @@ Sample output:
 
 - [get_statistics](collector/get_statistics.md): what returns it
 - [type_statistics](collector-type_statistics.md): the live objects by type
-- [sgcl::collector](collector.md)
+- [sgcl::collector](collector/README.md)

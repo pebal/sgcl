@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [transform_reader](../transform_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [transform_reader](README.md)
 
 # sgcl::io::transform_reader\<F\>::read, async_read
 
@@ -66,4 +66,4 @@ Output:
 
 ## See also
 
-- [sgcl::io::transform_reader\<F\>](../transform_reader.md)
+- [sgcl::io::transform_reader\<F\>](README.md)

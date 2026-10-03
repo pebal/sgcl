@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](../atomic-tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](README.md)
 
 # sgcl::atomic\<tracked_ptr\<T\>\>::is_lock_free
 
@@ -48,4 +48,4 @@ true true
 
 ## See also
 
-- [sgcl::atomic\<tracked_ptr\<T\>\>](../atomic-tracked_ptr.md)
+- [sgcl::atomic\<tracked_ptr\<T\>\>](README.md)

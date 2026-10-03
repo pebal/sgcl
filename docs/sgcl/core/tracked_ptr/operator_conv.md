@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::operator tracked_ptr\<void\>&
 
@@ -66,4 +66,4 @@ true
 
 - [(constructor)](tracked_ptr.md): constructs the pointer, a `tracked_ptr<void>` from any of them
 - [type](type.md): the type the object was created with
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

@@ -58,5 +58,5 @@ true
 ## See also
 
 - [alert](alert.md), [category](category.md)
-- [io::error](../../io/error.md)
+- [io::error](../../io/error/README.md)
 - [net::tls](README.md)

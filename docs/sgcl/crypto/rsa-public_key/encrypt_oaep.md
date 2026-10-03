@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::encrypt_oaep
 
@@ -88,4 +88,4 @@ sgcl::crypto::rsa: a message too long for OAEP under this key and hash
 
 - [decrypt_oaep](../rsa-private_key/decrypt_oaep.md): the decryption
 - [max_oaep_message_size](max_oaep_message_size.md): the longest message
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

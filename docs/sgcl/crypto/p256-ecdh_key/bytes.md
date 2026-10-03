@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](../p256-ecdh_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [ecdh_key](README.md)
 
 # sgcl::crypto::p256::ecdh_key::bytes
 
@@ -7,7 +7,7 @@ secret<size> bytes() const;
 ```
 
 The scalar d, `size` bytes big-endian (32 on P-256, 48 on P-384), Go's `ecdh.PrivateKey.Bytes`: the form
-[from_bytes](from_bytes.md) reads. It is the key itself, so it comes as a [secret](../secret.md), zeroed when it goes
+[from_bytes](from_bytes.md) reads. It is the key itself, so it comes as a [secret](../secret/README.md), zeroed when it goes
 and never in managed memory.
 
 ## Parameters
@@ -55,4 +55,4 @@ true
 
 - [from_bytes](from_bytes.md): the key of a scalar
 - [to_pkcs8_der](to_pkcs8_der.md): the scalar with the curve, as other programs read a key
-- [sgcl::crypto::p256::ecdh_key](../p256-ecdh_key.md)
+- [sgcl::crypto::p256::ecdh_key](README.md)

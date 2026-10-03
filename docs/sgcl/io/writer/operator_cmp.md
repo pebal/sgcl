@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::operator== (sgcl::io::writer)
 
@@ -9,7 +9,7 @@ friend bool operator==(const writer& a, const writer& b) noexcept;
 Checks whether `a` and `b` hold the same stream: the same object. Two writers of `io::stdout` are equal, and so are
 two made of copies of one handle; two writers of two buffers are not. Two empty writers are equal. `!=` is the
 negation. A child process compares its output and its error streams so: the same writer in both gets one pipe
-([command](../command.md)).
+([command](../command/README.md)).
 
 ## Parameters
 
@@ -54,4 +54,4 @@ true false true
 
 ## See also
 
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

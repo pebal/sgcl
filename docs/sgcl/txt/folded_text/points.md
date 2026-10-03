@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::points
 
@@ -53,4 +53,4 @@ U+0043 U+0061 U+0066 U+0065 U+0301 | 6 positions
 
 - [size](size.md): how many code points
 - [mapped_text](../mapped_text.md)
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

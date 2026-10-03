@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [heif](../heif.md)
+[sgcl](../../README.md) › [codec](../README.md) › [heif](README.md)
 
 # sgcl::codec::heif::decode
 
@@ -101,4 +101,4 @@ from a stream: 64x48
 
 - [encode](encode.md): the image as HEIC
 - [codec::decode](../decode.md): any format, with options
-- [sgcl::codec::heif](../heif.md)
+- [sgcl::codec::heif](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unicode](../unicode.md)
+[sgcl](../../README.md) › [core](../README.md) › [unicode](README.md)
 
 # sgcl::unicode::equal_fold
 
@@ -38,7 +38,7 @@ None.
 
 ## Notes
 
-A string's `equal_fold` ([mixin::text](../mixin/text.md)) compares two texts code point by code point by this, what
+A string's `equal_fold` ([mixin::text](../mixin/text/README.md)) compares two texts code point by code point by this, what
 Go's `strings.EqualFold` does.
 
 ## Example
@@ -67,4 +67,4 @@ true
 ## See also
 
 - [to_lower](to_lower.md), [to_upper](to_upper.md): the mappings it compares by
-- [sgcl::unicode](../unicode.md)
+- [sgcl::unicode](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](README.md)
 
 # sgcl::async::shared_mutex::scoped_lock
 
@@ -7,7 +7,7 @@ auto scoped_lock() noexcept;
 ```
 
 Locks the mutex for the writer for a scope: the writer's lock of a task, and of a thread that wants a
-[guard](../shared_mutex-guard.md). The call does nothing yet; it returns an [operation](../operation.md), carried out
+[guard](../shared_mutex-guard/README.md). The call does nothing yet; it returns an [operation](../operation/README.md), carried out
 in one of two ways ([README: Waiting operations](../README.md#waiting-operations)):
 
 - `auto guard = co_await m.scoped_lock();` in a task: the awaiter, a `shared_mutex::lock_op` in the task's frame,
@@ -23,8 +23,8 @@ None.
 
 ## Return value
 
-An [operation](../operation.md). Carried out, by `co_await` or by `.wait()`, it gives a
-[shared_mutex::guard](../shared_mutex-guard.md) of this mutex, locked for the writer.
+An [operation](../operation/README.md). Carried out, by `co_await` or by `.wait()`, it gives a
+[shared_mutex::guard](../shared_mutex-guard/README.md) of this mutex, locked for the writer.
 
 ## Complexity
 
@@ -74,7 +74,7 @@ Output:
 
 ## See also
 
-- [shared_mutex::guard](../shared_mutex-guard.md): what the operation gives
+- [shared_mutex::guard](../shared_mutex-guard/README.md): what the operation gives
 - [scoped_lock_shared](scoped_lock_shared.md): a reader's lock for a scope
 - [lock](lock.md): the thread's lock, for the standard's guards
-- [sgcl::async::shared_mutex](../shared_mutex.md)
+- [sgcl::async::shared_mutex](README.md)

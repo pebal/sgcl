@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](../lookup.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](README.md)
 
 # sgcl::mixin::lookup\<Derived\>::values_of
 
@@ -73,4 +73,4 @@ a!
 
 - [get](get.md): the first value under a key
 - [values](values.md): all the values as a range
-- [sgcl::mixin::lookup\<Derived\>](../lookup.md)
+- [sgcl::mixin::lookup\<Derived\>](README.md)

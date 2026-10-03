@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::abs
 
@@ -47,4 +47,4 @@ Output:
 ## See also
 
 - [operator-](operator_arith.md): the negation
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

@@ -23,8 +23,8 @@ Writes data to the stream `w`, the type of the data telling what it is, each fro
 made: Go's `io.WriteString` and `Write` in one name.
 
 - (1, 3) `data` is bytes, whatever converts to `slice<const byte>` (a slice, a `vector<byte>`, an `array<byte, N>`),
-  or text: a [string](../core/string.md), a text slice (`slice<const char>`, a line of a
-  [buffered_reader](buffered_reader.md), a piece of a string), a literal or a character array up to its first NUL and
+  or text: a [string](../core/string/README.md), a text slice (`slice<const char>`, a line of a
+  [buffered_reader](buffered_reader/README.md), a piece of a string), a literal or a character array up to its first NUL and
   never past its end (an array filled to the brim has none), a C string (`const char*` or `char*`, to its NUL; a null
   pointer does not compile), a `std::string_view`. They take part only for such data.
 - (2, 4) Writes the one byte `b`.
@@ -36,7 +36,7 @@ made: Go's `io.WriteString` and `Write` in one name.
   given as a temporary is moved into the frame; one given by reference is the caller's to keep alive.
 
 `w` is any [writer](req/writer.md) (3–4: async writer). A class that carries
-[mixin::writer](mixin/writer.md) has the text and the byte forms as members, [w.write(text)](mixin/writer/write.md).
+[mixin::writer](mixin/writer/README.md) has the text and the byte forms as members, [w.write(text)](mixin/writer/write.md).
 
 ## Parameters
 

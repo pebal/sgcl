@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [priority_queue](README.md)
 
 # sgcl::priority_queue\<T, Container, Compare\>::emplace
 
@@ -73,4 +73,4 @@ zzz
 ## See also
 
 - [push](push.md): inserts a value
-- [sgcl::priority_queue\<T, Container, Compare\>](../priority_queue.md)
+- [sgcl::priority_queue\<T, Container, Compare\>](README.md)

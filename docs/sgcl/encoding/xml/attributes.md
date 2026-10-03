@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::attributes
 
@@ -56,4 +56,4 @@ id = x []
 
 - [attribute](attribute.md): the value of one attribute
 - [xml::attr](../xml-attr.md)
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_local](../task_local.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_local](README.md)
 
 # sgcl::async::task_local\<T\>::with
 
@@ -69,5 +69,5 @@ user
 ## See also
 
 - [set](set.md): the value set for the task itself
-- [task](../task.md): the wrapper is one
-- [sgcl::async::task_local\<T\>](../task_local.md)
+- [task](../task/README.md): the wrapper is one
+- [sgcl::async::task_local\<T\>](README.md)

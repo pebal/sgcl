@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::reader
 
@@ -16,7 +16,7 @@ Constructs a reader. Nothing is read yet: the first token is scanned by the firs
   no block, no copy, and no call of it ever waits.
 - (3–4) A reader of a stream, read a block at a time on the thread that calls a method, or in a task by the
   `async_` forms. Anything with a `read` is a stream: a file (`encoding::json::reader r(io::open("events.json"));`),
-  a connection, an [io::buffer](../../io/buffer.md), a decoder of the module, a callable.
+  a connection, an [io::buffer](../../io/buffer/README.md), a decoder of the module, a callable.
 - (1), (3) With the default [options](../json-options.md), Go's v2's.
 - (5) A reader is neither copied nor moved: two readers would share one position in one stream.
 
@@ -78,4 +78,4 @@ false
 - [json::options](../json-options.md): what a reader accepts
 - [json::parse](../json/parse.md): one value of a text or a stream at once
 - [io streams](../../io/README.md)
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [sgcl::encoding::json::reader](README.md)

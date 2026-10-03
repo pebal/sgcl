@@ -41,8 +41,8 @@ namespace sgcl::crypto::mlkem1024 {
 
 ML-KEM (FIPS 203), Go's `crypto/mlkem`: a key encapsulation mechanism on module lattices, believed secure against a
 quantum computer as well as a classical one. The owner of a
-[decapsulation_key](mlkem768-decapsulation_key.md) publishes its
-[encapsulation_key](mlkem768-encapsulation_key.md); anyone encapsulates to it, which gives a 32-byte shared key and
+[decapsulation_key](mlkem768-decapsulation_key/README.md) publishes its
+[encapsulation_key](mlkem768-encapsulation_key/README.md); anyone encapsulates to it, which gives a 32-byte shared key and
 a ciphertext (an [encapsulation](mlkem768-encapsulation.md)); the ciphertext sent to the owner decapsulates to the
 same shared key. TLS 1.3 pairs ML-KEM-768 with [X25519](x25519.md) (X25519MLKEM768, in
 [net::tls](../net/tls/README.md)), so that the exchange holds while either of the two does.
@@ -70,7 +70,7 @@ independent cryptographic audit.**
   | `shared_key_size` | 32 | 32 | 32 | the shared key, a `secret<32>` |
 
 - **The shared key is a key**, 32 uniformly random bytes, as FIPS 203 promises: it may key a cipher as it stands, or
-  go through [hkdf](hkdf.md) with the rest of a protocol's transcript, as TLS does.
+  go through [hkdf](hkdf/README.md) with the rest of a protocol's transcript, as TLS does.
 - **A wrong ciphertext is no error.** A ciphertext of the right length that is not a genuine one decapsulates to a
   pseudorandom key (the implicit rejection of FIPS 203 §6.3), in the same time as a genuine one: the protocol finds
   out when the keys do not match, and an attacker learns nothing from the timing. Only a ciphertext of another
@@ -84,7 +84,7 @@ independent cryptographic audit.**
   collector frees without zeroing. The key is move-only, `clone()` makes a second one, a move leaves the object moved
   from zeroed, the destructor zeroes the whole object with stores the compiler cannot drop
   ([secure_zero](secure_zero.md)), and an object moved from refuses every operation with `std::logic_error`. Keep a
-  key on the stack or in a `unique_ptr`. The shared key and `seed()` are [secret\<N\>](secret.md), which zero
+  key on the stack or in a `unique_ptr`. The shared key and `seed()` are [secret\<N\>](secret/README.md), which zero
   themselves in turn. There is no form of the expanded key and no DER: those come with TLS and X.509's certificates
   of ML-KEM.
 - **What is secret**: the seed, the vector s and the errors made from it, the message m, everything derived from
@@ -151,9 +151,9 @@ sgcl::crypto::mlkem768: a ciphertext of the wrong length
 
 ## See also
 
-- [mlkem768::decapsulation_key](mlkem768-decapsulation_key.md): the owner's secret key
-- [mlkem768::encapsulation_key](mlkem768-encapsulation_key.md): the published key
+- [mlkem768::decapsulation_key](mlkem768-decapsulation_key/README.md): the owner's secret key
+- [mlkem768::encapsulation_key](mlkem768-encapsulation_key/README.md): the published key
 - [mlkem768::encapsulation](mlkem768-encapsulation.md): the shared key and the ciphertext
 - [x25519](x25519.md): the classical exchange TLS pairs it with
-- [hkdf](hkdf.md), [random](random.md), [secret](secret.md), [error](error.md)
+- [hkdf](hkdf/README.md), [random](random/README.md), [secret](secret/README.md), [error](error/README.md)
 - [README: The rules](README.md#the-rules)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::max
 
@@ -7,7 +7,7 @@ const value_type& max() const noexcept;
 ```
 
 Returns the element with the largest key, `*rbegin()`: the last element in the order of `Compare`, read in
-constant time. It hides [mixin::enumerable](../mixin/enumerable.md)'s `max`, a walk of the elements, and its
+constant time. It hides [mixin::enumerable](../mixin/enumerable/README.md)'s `max`, a walk of the elements, and its
 `max(cmp)` with a comparator too: a map is ordered by its own comparator.
 
 The map must not be empty: on an empty map the call is undefined, as `back()` is on an empty vector; nothing is
@@ -58,4 +58,4 @@ Output:
 
 - [min](min.md): the element with the smallest key
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the last element
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

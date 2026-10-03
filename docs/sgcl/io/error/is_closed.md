@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_closed
 
@@ -51,4 +51,4 @@ read pipe: stream closed: closed? true
 ## See also
 
 - [file::close](../file/close.md)
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

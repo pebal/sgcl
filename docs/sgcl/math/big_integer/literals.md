@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::literals::operator""_big
 
@@ -64,4 +64,4 @@ Output:
 
 - [(constructor)](big_integer.md): a number from a text the program writes
 - [parse](parse.md): a number from text read from outside
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::parse
 
@@ -19,7 +19,7 @@ as written: `"10.1.2.3/8"` keeps `10.1.2.3`.
 
 ## Return value
 
-The network, or an [io::error](../../io/error.md) of the code `net::errc::invalid_address` ([errc](../errc.md)), the
+The network, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_address` ([errc](../errc.md)), the
 operation `parse IP network` and the text.
 
 ## Complexity
@@ -63,4 +63,4 @@ fe80::%en0/64 -> parse IP network fe80::%en0/64: invalid address
 
 - [(constructor)](ip_network.md): the network a literal spells
 - [to_string](to_string.md): the text back
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

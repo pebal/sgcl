@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [row](../csv-row.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [row](README.md)
 
 # sgcl::encoding::csv::row::row
 
@@ -6,7 +6,7 @@
 row() noexcept = default;
 ```
 
-An empty row: no fields, no header, line 0. The rows with fields are made by a [reader](../csv-reader.md); this one
+An empty row: no fields, no header, line 0. The rows with fields are made by a [reader](../csv-reader/README.md); this one
 is for a variable that gets a row later, and copies and assignments are the implicit ones.
 
 ## Parameters
@@ -51,4 +51,4 @@ false 2 c
 ## See also
 
 - [reader::next](../csv-reader/next.md): a row read
-- [sgcl::encoding::csv::row](../csv-row.md)
+- [sgcl::encoding::csv::row](README.md)

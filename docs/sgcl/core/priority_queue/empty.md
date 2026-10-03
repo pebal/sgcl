@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [priority_queue](README.md)
 
 # sgcl::priority_queue\<T, Container, Compare\>::empty
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::priority_queue\<T, Container, Compare\>](../priority_queue.md)
+- [sgcl::priority_queue\<T, Container, Compare\>](README.md)

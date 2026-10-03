@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [compress](../README.md) › [error](README.md)
 
 # sgcl::compress::operator== (sgcl::compress::error)
 
@@ -54,4 +54,4 @@ false
 ## See also
 
 - [code](code.md): to compare the code alone
-- [sgcl::compress::error](../error.md)
+- [sgcl::compress::error](README.md)

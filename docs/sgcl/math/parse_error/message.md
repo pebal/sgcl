@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [parse_error](../parse_error.md)
+[sgcl](../../README.md) › [math](../README.md) › [parse_error](README.md)
 
 # sgcl::math::parse_error::message
 
@@ -9,7 +9,7 @@ string message() const noexcept;
 Why the text did not read, as a sentence followed by ` at byte ` and the [offset](offset.md):
 
 - `"empty text"`: the text has no bytes;
-- `"no digits after the sign"`: a sign with nothing after it; for a [rational](../rational.md) also a slash, a
+- `"no digits after the sign"`: a sign with nothing after it; for a [rational](../rational/README.md) also a slash, a
   point or an `e` with no digits where they belong (`"/3"`, `"3/"`, `"."`, `"1e"`), with or without a sign;
 - `"not a digit in base "` and the base: a byte that is not a digit of the base (a space, a separator, a prefix
   such as `0x`, a sign in a denominator);
@@ -64,4 +64,4 @@ an exponent past a million at byte 2
 ## See also
 
 - [offset](offset.md): the byte alone
-- [sgcl::math::parse_error](../parse_error.md)
+- [sgcl::math::parse_error](README.md)

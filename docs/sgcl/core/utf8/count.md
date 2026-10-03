@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::count
 
@@ -30,7 +30,7 @@ None.
 
 ## Notes
 
-A string's `rune_count()` ([mixin::text](../mixin/text.md)) is this over its bytes. The cost a byte, against Go's
+A string's `rune_count()` ([mixin::text](../mixin/text/README.md)) is this over its bytes. The cost a byte, against Go's
 `utf8.RuneCountInString`, is on [Benchmarks: Text](../benchmarks.md#text).
 
 ## Example
@@ -59,6 +59,6 @@ Output:
 
 ## See also
 
-- [runes](../runes.md): the code points themselves
+- [runes](../runes/README.md): the code points themselves
 - [ascii_run](ascii_run.md): the runs counted eight bytes at a time
-- [sgcl::utf8](../utf8.md)
+- [sgcl::utf8](README.md)

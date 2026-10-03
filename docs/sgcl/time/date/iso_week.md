@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::iso_week
 
@@ -6,7 +6,7 @@
 constexpr time::iso_week iso_week() const noexcept;
 ```
 
-The week of ISO 8601 the date is in, and the year that week belongs to, an [iso_week](../iso_week.md): what Go's
+The week of ISO 8601 the date is in, and the year that week belongs to, an [iso_week](../iso_week/README.md): what Go's
 `ISOWeek()` returns. The weeks start on Monday, and week 1 is the one with the year's first Thursday, so the few
 days around New Year may belong to a week of the year next to theirs: 2024-12-30 is in week 1 of 2025, and
 2027-01-01 in week 53 of 2026, a year of 53 weeks.
@@ -60,5 +60,5 @@ week 39 of 2026
 ## See also
 
 - [weekday](weekday.md): the day of the week
-- [iso_week](../iso_week.md): the year and the week
-- [sgcl::time::date](../date.md)
+- [iso_week](../iso_week/README.md): the year and the week
+- [sgcl::time::date](README.md)

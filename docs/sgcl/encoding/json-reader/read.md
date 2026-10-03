@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [reader](../json-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [reader](README.md)
 
 # sgcl::encoding::json::reader::read, async_read
 
@@ -14,9 +14,9 @@ outside its strings, and then parsed: a value read whole needs the memory of its
 memory of what it is read into anyway. Where a key is next, the key is read, as a string. The end of an array or
 an object is not a value: where one is next, the read is an error ([more](more.md) says so beforehand).
 
-- (1–2) The value as a [json](../json.md), parsed as [json::parse](../json/parse.md) parses a text, with the
+- (1–2) The value as a [json](../json/README.md), parsed as [json::parse](../json/parse.md) parses a text, with the
   reader's [options](../json-options.md): Go's `Decoder.Decode` into `any`, v2's `ReadValue`.
-- (3–4) The value as a `T`, a type of the program described by its fields ([field_list](../field_list.md)) or any
+- (3–4) The value as a `T`, a type of the program described by its fields ([field_list](../field_list/README.md)) or any
   type a field may have, read as [json::parse\<T\>](../json/parse.md) reads it: an array of records a record at a
   time, `while (r.more()) { auto e = r.read<event>(); ... }`. A key no field has is skipped
   (`options::reject_unknown_fields`: an error); the error has the path inside the value and the line and the
@@ -127,5 +127,5 @@ Output:
 - [next](next.md): the next token
 - [skip](skip.md): the next value checked and passed over
 - [json::parse](../json/parse.md): one value of a text or a stream at once
-- [field_list](../field_list.md): how a type of the program is read
-- [sgcl::encoding::json::reader](../json-reader.md)
+- [field_list](../field_list/README.md): how a type of the program is read
+- [sgcl::encoding::json::reader](README.md)

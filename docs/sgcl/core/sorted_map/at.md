@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::at
 
@@ -68,4 +68,4 @@ sgcl::sorted_map::at
 
 - [operator[]](operator_at.md): the value under a key, inserted when absent
 - [find](find.md): the element under a key, `end()` when absent
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

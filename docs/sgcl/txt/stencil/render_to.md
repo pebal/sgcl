@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil](../stencil.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil](README.md)
 
 # sgcl::txt::stencil::render_to
 
@@ -60,4 +60,4 @@ Alan  | 88.0 (12 bytes)
 ## See also
 
 - [render](render.md): into a string
-- [sgcl::txt::stencil](../stencil.md)
+- [sgcl::txt::stencil](README.md)

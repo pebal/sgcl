@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::operator==, operator!= (sgcl::io::process)
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [operator bool](operator_bool.md): whether a handle holds a process
-- [sgcl::io::process](../process.md)
+- [sgcl::io::process](README.md)

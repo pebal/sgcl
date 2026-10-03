@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [discard_writer](../discard_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [discard_writer](README.md)
 
 # sgcl::io::discard_writer::write, async_write
 
@@ -62,4 +62,4 @@ Output:
 
 ## See also
 
-- [sgcl::io::discard_writer](../discard_writer.md)
+- [sgcl::io::discard_writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [once](../once.md)
+[sgcl](../../README.md) › [async](../README.md) › [once](README.md)
 
 # sgcl::async::once::call
 
@@ -15,11 +15,11 @@ Runs the function by the first caller; every other caller waits for it to finish
 call, carried out, claims the once; the others wait on the channel its end closes, and none of them runs anything.
 
 1. `f()`, a function that is not a coroutine. The call does nothing yet; it returns an
-   [operation](../operation.md), carried out in one of two ways
+   [operation](../operation/README.md), carried out in one of two ways
    ([README: Waiting operations](../README.md#waiting-operations)): `co_await o.call(f)` in a task, where `f` runs
    in the first caller's task and the others wait holding no thread, and `o.call(f).wait()` on a thread, not from
    a task on a worker (debug builds assert). Takes part only when `F` is not a coroutine function as (3) takes.
-2. The task `t`: the [task](../task.md) returned awaits `t` when it claims the once, and waits for the first
+2. The task `t`: the [task](../task/README.md) returned awaits `t` when it claims the once, and waits for the first
    caller's otherwise; the `t` of a caller that lost is never started. `co_await o.call(t)` in a task,
    `o.call(t).wait()` on a thread.
 3. A coroutine function given uncalled, a lambda that returns a task, captures and all: the closure is copied into a
@@ -38,9 +38,9 @@ call, carried out, claims the once; the others wait on the channel its end close
 
 ## Return value
 
-- (1) An [operation](../operation.md). Carried out, by `co_await` or by `.wait()`, it gives nothing, once the
+- (1) An [operation](../operation/README.md). Carried out, by `co_await` or by `.wait()`, it gives nothing, once the
   function has run, here or by the first caller.
-- (2–3) A [task](../task.md), awaited with `co_await` or `.wait()`; it gives nothing, once the task has run, here or
+- (2–3) A [task](../task/README.md), awaited with `co_await` or `.wait()`; it gives nothing, once the task has run, here or
   by the first caller.
 
 ## Complexity
@@ -109,5 +109,5 @@ cache warmed
 ## See also
 
 - [called](called.md): whether the call is done
-- [promise](../promise.md): a value set once
-- [sgcl::async::once](../once.md)
+- [promise](../promise/README.md): a value set once
+- [sgcl::async::once](README.md)

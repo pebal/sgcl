@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::as
 
@@ -7,7 +7,7 @@ template<class T> expected<T, error> as() const;                    // (1)
 template<class T> expected<T, error> as(const options& o) const;    // (2)
 ```
 
-This value as a program's `T`: a type described by its fields ([field_list](../field_list.md)) or any kind a field
+This value as a program's `T`: a type described by its fields ([field_list](../field_list/README.md)) or any kind a field
 may have. It reads the tree as [parse](parse.md)`<T>` reads a text, by the same rules — the members into the
 fields by their names, a key no field has skipped, a field that is not there left as it is unless it is
 `required()` — for a value that came as a json: a member of a larger document, the answer of a server. It is
@@ -24,7 +24,7 @@ Go's `json.Unmarshal` into a struct of a value already decoded.
 
 ## Return value
 
-The `T`, or an [error](../error.md) with the path of the value that failed as a JSON Pointer: `type_mismatch`,
+The `T`, or an [error](../error/README.md) with the path of the value that failed as a JSON Pointer: `type_mismatch`,
 `missing_field`, `unknown_field` (the path of the unknown member), `out_of_range`. The error has no place, there
 being no text: no line, no column and an offset of 0, and its `message()` is the path and the words,
 `/x: expected an integer, found a string`.
@@ -81,4 +81,4 @@ expected an array, found an object
 
 - [from](from.md): the way back, a program's value as a json
 - [parse](parse.md): `parse<T>`, a program's type of a text
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

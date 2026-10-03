@@ -1,6 +1,6 @@
 # Diagnostics
 
-What the library gives a program to find out what the collector is doing, what is alive and why, and where a rule was broken; and how to use it, case by case. Everything here is in [`collector`](../sgcl/core/collector.md), [`config`](../sgcl/core/config.md) and the debug assertions of the pointers; this page is the map.
+What the library gives a program to find out what the collector is doing, what is alive and why, and where a rule was broken; and how to use it, case by case. Everything here is in [`collector`](../sgcl/core/collector/README.md), [`config`](../sgcl/core/config.md) and the debug assertions of the pointers; this page is the map.
 
 ## The tools
 
@@ -54,8 +54,8 @@ Four things keep an object alive that the program has let go of, in the order to
 
 1. **A word on a stack.** The stacks are scanned conservatively: a dead local, a spilled register, a temporary the compiler left in a frame keep their target for as long as the frame is not overwritten. This is the first suspect for an object that dies "a little later" than expected, and the reason the tests count after `collector::clear_stack(SIZE_MAX)` (`Collector::ClearStack(SIZE_MAX)`). A program does not need to clear its stack; a test that asserts a count does, and asserts it from a frame the cleared region does not include ([collector: clear_stack](../sgcl/core/collector/clear_stack.md)).
 2. **A young cycle.** The marks are sticky through the young cycles: an object marked once stays marked until a full cycle looks again ([README: Generations](overview.md#generations)). `force_collect(true)` is a full cycle; the destructor of an object dropped between full cycles runs at the next one.
-3. **A container's capacity.** A `vector` or `dynamic_array<T>` roots every element up to its `size()`, and an element removed by `pop_back()` or `erase()` is destroyed at once; but a buffer abandoned by a reallocation is garbage of the next cycle, and the elements of a buffer that a dying `vector` leaves behind are collected with it, not destroyed on the spot ([vector: Rules](../sgcl/core/vector.md#rules)).
-4. **A cell of a `root_ptr`.** A [`root_ptr`](../sgcl/core/root_ptr.md) in unmanaged memory (a `std` container, a global, a lambda on the heap) holds its object for exactly its own lifetime, through a cell in a block of a cache line; a block lives while one of its cells is in use. A `root_ptr` that outlives its owner's intent, a global or a cached closure, is the pointer to look for.
+3. **A container's capacity.** A `vector` or `dynamic_array<T>` roots every element up to its `size()`, and an element removed by `pop_back()` or `erase()` is destroyed at once; but a buffer abandoned by a reallocation is garbage of the next cycle, and the elements of a buffer that a dying `vector` leaves behind are collected with it, not destroyed on the spot ([vector: Rules](../sgcl/core/vector/README.md#rules)).
+4. **A cell of a `root_ptr`.** A [`root_ptr`](../sgcl/core/root_ptr/README.md) in unmanaged memory (a `std` container, a global, a lambda on the heap) holds its object for exactly its own lifetime, through a cell in a block of a cache line; a block lives while one of its cells is in use. A `root_ptr` that outlives its owner's intent, a global or a cached closure, is the pointer to look for.
 
 To see which it is, ask the collector:
 
@@ -76,10 +76,10 @@ collector::explain(p, std::cerr);     // Collector::Explain(p, std::cerr)
 
 With the rules kept, it does not: an object is reachable or it is not. The rules broken are what a debug build asserts, at the point of the break rather than at the crash later:
 
-- `a tracked_ptr must live on the stack or inside a managed object`: a `tracked_ptr` (or a container, atomic or weak pointer) constructed in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame. The collector cannot see it; its object dies at the next cycle. The fix is a [`root_ptr`](../sgcl/core/root_ptr.md) there, or a managed object holding the container ([README: Stack roots](overview.md#stack-roots)).
+- `a tracked_ptr must live on the stack or inside a managed object`: a `tracked_ptr` (or a container, atomic or weak pointer) constructed in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame. The collector cannot see it; its object dies at the next cycle. The fix is a [`root_ptr`](../sgcl/core/root_ptr/README.md) there, or a managed object holding the container ([README: Stack roots](overview.md#stack-roots)).
 - `a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer`: a `tracked_ptr` made from the address of a `vector` element. A buffer is rooted by the pointer to its first element only; an alias into it keeps nothing. Hold the container, or an index.
 - `a weak_ptr cannot address an object a unique_ptr owns`: a `weak_ptr` made before the object was handed to a `tracked_ptr`.
-- `type T: the word at byte offset N was classified as data but holds a pointer to a managed object` (a message, once per type, from the collector thread): a `tracked_ptr` sharing its storage with data, in a `union`, a `std::variant`, a small-buffer `std::function` or `std::any` (the library's [variant](../sgcl/core/variant.md), [any](../sgcl/core/any.md), [function](../sgcl/core/function.md) and [expected](../sgcl/core/expected.md), keep it apart), or a raw pointer to a managed object kept as data with nothing to keep its target. The collector's pointer map is built by elimination and cannot follow a word that is a pointer in one object and data in another ([README: The rules](../sgcl/core/README.md#the-rules), 2). Not reported: a raw word whose target a `tracked_ptr` of the same object holds (an owner beside a raw pointer into what it owns, as `slice` and `io::reader` keep them), and data that lands inside a live object rather than at its start (two small integers packed in a word may look like an address; a pointer names an object by its start).
+- `type T: the word at byte offset N was classified as data but holds a pointer to a managed object` (a message, once per type, from the collector thread): a `tracked_ptr` sharing its storage with data, in a `union`, a `std::variant`, a small-buffer `std::function` or `std::any` (the library's [variant](../sgcl/core/variant/README.md), [any](../sgcl/core/any/README.md), [function](../sgcl/core/function/README.md) and [expected](../sgcl/core/expected/README.md), keep it apart), or a raw pointer to a managed object kept as data with nothing to keep its target. The collector's pointer map is built by elimination and cannot follow a word that is a pointer in one object and data in another ([README: The rules](../sgcl/core/README.md#the-rules), 2). Not reported: a raw word whose target a `tracked_ptr` of the same object holds (an owner beside a raw pointer into what it owns, as `slice` and `io::reader` keep them), and data that lands inside a live object rather than at its start (two small integers packed in a word may look like an address; a pointer names an object by its start).
 
 A `tracked_ptr` read in a destructor is the other case: the destructor of a collected object runs on a collector thread, in no order with the destructors of the objects that die with it, so a member pointing at a peer that dies in the same sweep must be read through `if_alive()` (`IfAlive()`; [tracked_ptr: if_alive](../sgcl/core/tracked_ptr/if_alive.md)). A crash in a destructor that dereferences a member is this.
 
@@ -98,7 +98,7 @@ The mutators' side is not in the statistics: it is the write barrier on every po
 
 ### At the memory ceiling
 
-`get_memory_limit()` is the ceiling (90% of the cgroup or physical limit by default, or what `SGCL_MEMORY_LIMIT` in the environment says: `512M`, `50%`), `committed_bytes` the distance to it. Near the ceiling the collector runs more often and returns free chunks at once; at it, an allocation forces a full collection, and if that was not enough the program ends with `sgcl: out of managed memory: N bytes committed, limit L` on stderr. A program that ends so, or that runs close to the ceiling, has a live set that does not fit: the type statistics say what it is, read while it runs ([collector: get_memory_limit](../sgcl/core/collector.md#the-memory-limit)).
+`get_memory_limit()` is the ceiling (90% of the cgroup or physical limit by default, or what `SGCL_MEMORY_LIMIT` in the environment says: `512M`, `50%`), `committed_bytes` the distance to it. Near the ceiling the collector runs more often and returns free chunks at once; at it, an allocation forces a full collection, and if that was not enough the program ends with `sgcl: out of managed memory: N bytes committed, limit L` on stderr. A program that ends so, or that runs close to the ceiling, has a live set that does not fit: the type statistics say what it is, read while it runs ([collector: get_memory_limit](../sgcl/core/collector/README.md#the-memory-limit)).
 
 ### A race with the collector
 
@@ -115,7 +115,7 @@ s.finish_cycle();                                      // registered now, found 
 ```
 
 
-The gates and the scenarios the library's own tests assert with them are in [collector: stepper](../sgcl/core/collector-stepper.md). What a program's tests would use it for: a data structure of its own that stores pointers across threads, checked at every gate rather than under a loop that hopes to hit the window.
+The gates and the scenarios the library's own tests assert with them are in [collector: stepper](../sgcl/core/collector-stepper/README.md). What a program's tests would use it for: a data structure of its own that stores pointers across threads, checked at every gate rather than under a loop that hopes to hit the window.
 
 ### In the debugger
 
@@ -139,7 +139,7 @@ A pointer shows its address, for a `root_ptr` the cell and the block that holds 
 `-DSGCL_LOG_PRINT_LEVEL=2` prints one line per cycle on `std::cout`: the pages allocated and freed since the last cycle, the total, the objects created and removed, the live objects, the kind of the cycle (`full`/`young`), the helpers used, the time. A program whose memory grows shows it there as `objects removed` staying below `objects created` cycle after cycle; a program that stalls on allocation shows cycles back to back. Level 1 prints the thread events and every `force_collect()`, level 3 the collector's pauses for `get_live_objects()` ([config: SGCL_LOG_PRINT_LEVEL](../sgcl/core/config.md#sgcl_log_print_level)).
 
 ## Methods useful for state analysis
-The methods in one listing; the tools by case, with what each costs, are above, and the members in [docs/sgcl/collector.md](../sgcl/core/collector.md).
+The methods in one listing; the tools by case, with what each costs, are above, and the members in [docs/sgcl/core/collector/README.md](../sgcl/core/collector/README.md).
 
 ```cpp
 // Forcing a collection: optional, the collector runs its cycles by itself

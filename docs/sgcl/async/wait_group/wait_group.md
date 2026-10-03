@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [wait_group](../wait_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [wait_group](README.md)
 
 # sgcl::async::wait_group::wait_group
 
@@ -57,4 +57,4 @@ Output:
 
 - [add](add.md), [done](done.md): count the work
 - [operator=](operator_assign.md): makes the handle one of another group
-- [sgcl::async::wait_group](../wait_group.md)
+- [sgcl::async::wait_group](README.md)

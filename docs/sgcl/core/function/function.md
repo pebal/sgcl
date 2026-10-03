@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [function](../function.md)
+[sgcl](../../README.md) › [core](../README.md) › [function](README.md)
 
 # sgcl::function\<R(Args...)\>::function
 
@@ -19,7 +19,7 @@ Constructs a `function`.
 3. A copy of `o`: a copy of its callable, if any. A closure in a node is copied into a node of its own.
 4. Takes the callable of `o` over; `o` is empty after. A closure in a node moves with its node, without a copy.
 5. Holds `std::forward<F>(f)` as a `VF`: in the buffer when it is a small value that cannot hold a pointer, in a
-   managed node of its own otherwise ([function](../function.md)). A null function pointer, a null member pointer
+   managed node of its own otherwise ([function](README.md)). A null function pointer, a null member pointer
    and an empty function of either library (`std::function`, `sgcl::function`) make an empty `function`. Takes part
    only when `VF` is not this `function` and an lvalue `VF` is callable with `Args...` and gives what converts to
    `R`.
@@ -82,5 +82,5 @@ false false
 ## See also
 
 - [operator=](operator_assign.md): assigns another `function`, a callable or `nullptr`
-- [move_only_function](../move_only_function.md): a callable that need not be copyable
-- [sgcl::function\<R(Args...)\>](../function.md)
+- [move_only_function](../move_only_function/README.md): a callable that need not be copyable
+- [sgcl::function\<R(Args...)\>](README.md)

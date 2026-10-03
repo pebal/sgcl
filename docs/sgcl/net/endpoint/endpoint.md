@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [endpoint](../endpoint.md)
+[sgcl](../../README.md) › [net](../README.md) › [endpoint](README.md)
 
 # sgcl::net::endpoint::endpoint
 
@@ -67,4 +67,4 @@ parse endpoint localhost:80: invalid address
 ## See also
 
 - [parse](parse.md): reads a text from outside the program
-- [sgcl::net::endpoint](../endpoint.md)
+- [sgcl::net::endpoint](README.md)

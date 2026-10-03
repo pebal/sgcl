@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::set_path
 
@@ -72,4 +72,4 @@ true
 
 - [at_path](at_path.md): the value at a pointer
 - [set](set.md), [push_back](push_back.md): one step
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

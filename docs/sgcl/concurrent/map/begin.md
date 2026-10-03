@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::begin, cbegin
 
@@ -38,7 +38,7 @@ is weakly consistent: a pass skips the elements erased before it reaches them an
 inserted meanwhile.
 
 Through an `iterator` the value of an element can be changed in place; the map does not synchronize that write
-with the readers of the element ([Rules](../map.md#rules)).
+with the readers of the element ([Rules](README.md#rules)).
 
 ## Example
 
@@ -75,4 +75,4 @@ Sample output:
 
 - [end, cend](end.md): the iterator past the last element
 - [find](find.md): an iterator to the element under a key
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

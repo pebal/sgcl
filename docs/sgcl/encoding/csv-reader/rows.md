@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::rows
 
@@ -18,7 +18,7 @@ None.
 
 ## Return value
 
-A [generator](../../core/generator.md) of the records; it reads through the reader, which must outlive it.
+A [generator](../../core/generator/README.md) of the records; it reads through the reader, which must outlive it.
 
 ## Complexity
 
@@ -57,4 +57,4 @@ pear: 1
 ## See also
 
 - [next](next.md): one record
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

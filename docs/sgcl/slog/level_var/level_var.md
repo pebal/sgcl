@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [level_var](../level_var.md)
+[sgcl](../../README.md) › [slog](../README.md) › [level_var](README.md)
 
 # sgcl::slog::level_var::level_var
 
@@ -50,4 +50,4 @@ true true true
 ## See also
 
 - [set](set.md), [get](get.md)
-- [sgcl::slog::level_var](../level_var.md)
+- [sgcl::slog::level_var](README.md)

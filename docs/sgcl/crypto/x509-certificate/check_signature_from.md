@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::check_signature_from
 
@@ -19,7 +19,7 @@ and it is valid under `parent`'s key. Nothing else is checked: not the names, no
 
 ## Return value
 
-Nothing, or a [crypto::error](../error.md) `errc::verification` whose [reason](../x509-reason.md) is `not_a_ca`,
+Nothing, or a [crypto::error](../error/README.md) `errc::verification` whose [reason](../x509-reason.md) is `not_a_ca`,
 `missing_cert_sign`, `insecure_algorithm`, `unsupported_algorithm` or `invalid_signature`.
 
 ## Complexity
@@ -102,4 +102,4 @@ true
 ## See also
 
 - [verify](verify.md): the whole chain
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](../bidi_runs.md)
+[sgcl](../../README.md) › [txt](../README.md) › [bidi_runs](README.md)
 
 # sgcl::txt::bidi_runs::count
 
@@ -26,7 +26,7 @@ None.
 
 ## Notes
 
-`count()` counts every piece; `count_of(pred)` of [mixin::enumerable](../../core/mixin/enumerable.md) counts those a
+`count()` counts every piece; `count_of(pred)` of [mixin::enumerable](../../core/mixin/enumerable/README.md) counts those a
 predicate accepts.
 
 ## Example
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [empty](empty.md): whether there is no piece
-- [sgcl::txt::bidi_runs](../bidi_runs.md)
+- [sgcl::txt::bidi_runs](README.md)

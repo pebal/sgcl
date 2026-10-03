@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [number_error](../number_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [number_error](README.md)
 
 # sgcl::number_error::message
 
@@ -51,4 +51,4 @@ port "80a": more after the number at byte 2
 ## See also
 
 - [why](why.md): the reason as a value
-- [sgcl::number_error](../number_error.md)
+- [sgcl::number_error](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [promise](../promise.md)
+[sgcl](../../README.md) › [async](../README.md) › [promise](README.md)
 
 # sgcl::async::promise\<T\>::done
 
@@ -56,4 +56,4 @@ true true
 
 - [wait, operator co_await](wait.md), [result](result.md): the value once it is in
 - [on_done](on_done.md): the set as a case of a select
-- [sgcl::async::promise\<T\>](../promise.md)
+- [sgcl::async::promise\<T\>](README.md)

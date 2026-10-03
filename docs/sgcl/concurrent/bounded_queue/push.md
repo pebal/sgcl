@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](../bounded_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](README.md)
 
 # sgcl::concurrent::bounded_queue\<T\>::push
 
@@ -82,4 +82,4 @@ Output:
 
 - [try_push](try_push.md), [try_emplace](try_emplace.md): return at once when the queue is full
 - [pop](pop.md): takes the first element, waiting for one
-- [sgcl::concurrent::bounded_queue\<T\>](../bounded_queue.md)
+- [sgcl::concurrent::bounded_queue\<T\>](README.md)

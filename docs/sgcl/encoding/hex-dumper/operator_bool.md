@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [dumper](../hex-dumper.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [dumper](README.md)
 
 # sgcl::encoding::hex::dumper::operator bool
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [(constructor)](hex-dumper.md): a dumper that holds none
-- [sgcl::encoding::hex::dumper](../hex-dumper.md)
+- [sgcl::encoding::hex::dumper](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::static_pointer_cast, const_pointer_cast, dynamic_pointer_cast (sgcl::tracked_ptr)
 
@@ -79,4 +79,4 @@ Output:
 
 - [as](as.md): the pointer to the whole object as the type it was created with
 - [is](is.md): checks the type the object was created with
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

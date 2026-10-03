@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::emplace
 
@@ -70,4 +70,4 @@ Output:
 - [emplace_hint](emplace_hint.md): constructs an element in place, with a hint
 - [try_emplace](try_emplace.md): builds the element only when the key is absent
 - [insert](insert.md): inserts elements or nodes
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

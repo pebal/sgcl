@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::size
 
@@ -7,7 +7,7 @@ size_t size() const noexcept;
 ```
 
 The number of elements of an array or of members of an object; 0 for any other value, a string included, whose
-length is its [string](../../core/string.md)'s.
+length is its [string](../../core/string/README.md)'s.
 
 ## Parameters
 
@@ -50,4 +50,4 @@ Output:
 
 - [empty](empty.md): whether there are none
 - [elements](elements.md), [members](members.md): the elements, the members
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stopped](../stopped.md)
+[sgcl](../../README.md) › [async](../README.md) › [stopped](README.md)
 
 # sgcl::async::stopped::message
 
@@ -47,4 +47,4 @@ request failed: stopped
 ## See also
 
 - [timed_out::message](../timed_out/message.md): `"timed out"`
-- [sgcl::async::stopped](../stopped.md)
+- [sgcl::async::stopped](README.md)

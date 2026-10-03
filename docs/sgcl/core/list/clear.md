@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::clear
 
@@ -61,4 +61,4 @@ Output:
 
 - [erase](erase.md): erases elements at a position or in a range
 - [empty](empty.md): checks whether the list is empty
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

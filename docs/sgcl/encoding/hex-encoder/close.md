@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [encoder](../hex-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [encoder](README.md)
 
 # sgcl::encoding::hex::encoder::close, async_close
 
@@ -71,4 +71,4 @@ true
 
 - [write, async_write](write.md): bytes into the encoder
 - [is_closed](is_closed.md): whether the encoder was closed
-- [sgcl::encoding::hex::encoder](../hex-encoder.md)
+- [sgcl::encoding::hex::encoder](README.md)

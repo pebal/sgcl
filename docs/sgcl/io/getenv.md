@@ -23,7 +23,7 @@ for a literal.
 
 ## Return value
 
-The value as a [string](../core/string.md), `nullopt` when the variable is not set.
+The value as a [string](../core/string/README.md), `nullopt` when the variable is not set.
 
 ## Complexity
 

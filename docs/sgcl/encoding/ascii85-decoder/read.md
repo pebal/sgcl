@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md) › [decoder](../ascii85-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85/README.md) › [decoder](README.md)
 
 # sgcl::encoding::ascii85::decoder::read, async_read
 
@@ -19,7 +19,7 @@ text, the end of the decoding: `0`, after the short last group.
 
 A text that is not Ascii85 fails the read that reaches the error, after the bytes before it were handed out, and
 every read after. The `io::error` has the [errc](../errc.md) code in the `encoding` category, and
-[last_error](last_error.md) holds the [error](../error.md) with its offset in the text. A failure of the reader
+[last_error](last_error.md) holds the [error](../error/README.md) with its offset in the text. A failure of the reader
 under it is the read's failure too, kept for good.
 
 ## Parameters
@@ -78,4 +78,4 @@ offset 6: invalid character '~'
 
 - [last_error](last_error.md): where the text went wrong
 - [decode](../ascii85/decode.md): the bytes at once
-- [sgcl::encoding::ascii85::decoder](../ascii85-decoder.md)
+- [sgcl::encoding::ascii85::decoder](README.md)

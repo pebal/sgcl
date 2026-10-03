@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](../sorted_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multimap](README.md)
 
 # sgcl::sorted_multimap\<Key, T, Compare\>::max
 
@@ -7,7 +7,7 @@ const value_type& max() const noexcept;
 ```
 
 Returns the last element with the largest key, `*rbegin()`: of several under that key, the one inserted last. It
-is read in constant time and hides [mixin::enumerable](../mixin/enumerable.md)'s `max`, a walk of the elements,
+is read in constant time and hides [mixin::enumerable](../mixin/enumerable/README.md)'s `max`, a walk of the elements,
 and its `max(cmp)` with a comparator too: a multimap is ordered by its own comparator.
 
 The multimap must not be empty: on an empty multimap the call is undefined, as `back()` is on an empty vector;
@@ -53,4 +53,4 @@ Output:
 
 - [min](min.md): the first element with the smallest key
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the last element
-- [sgcl::sorted_multimap\<Key, T, Compare\>](../sorted_multimap.md)
+- [sgcl::sorted_multimap\<Key, T, Compare\>](README.md)

@@ -15,7 +15,7 @@ declarative user interface is built on that (`view = f(state)`: whether a subtre
 comparing the roots of the old and the new value, one word each); undo is the list of the old states; a rendering
 thread reads one version while the logic builds the next, with no lock, because nothing is ever modified. So is
 a configuration read by every thread and replaced by one, and a snapshot handed to a task that outlives the
-change. The mutable [vector](../core/vector.md) stays the default for everything else.
+change. The mutable [vector](../core/vector/README.md) stays the default for everything else.
 
 The argument for having them in this library is the collector. Structural sharing means that a node belongs to no
 version: it is reachable from any number of them, and it may be freed exactly when the last of them lets it go.
@@ -31,7 +31,7 @@ destroyed where they live.
 The containers keep the names of their mutable counterparts and differ by the namespace, `sgcl::immutable`, as
 `std::pmr::vector` differs from `std::vector`: code written on them alone says `using namespace sgcl::immutable;`
 and reads as any container code, and code that mixes the two kinds qualifies, which tells a reader which kind a
-value is. [string](../core/string.md) is not here: it is immutable already and has no mutable twin, so it stays
+value is. [string](../core/string/README.md) is not here: it is immutable already and has no mutable twin, so it stays
 `sgcl::string`. The module depends on [core](../core/README.md) alone; [concurrent](../concurrent/README.md)
 publishes its versions.
 
@@ -55,7 +55,7 @@ publishes its versions.
    it with one load per reader and one compare-exchange per writer. An update through the `copy_on_write` then
    costs a path of the trie, not a copy of the whole value, which is what `copy_on_write` alone costs and what
    makes the two compose.
-7. A builder ([map::builder](map-builder.md), [set::builder](set-builder.md)) is the one object of the module
+7. A builder ([map::builder](map-builder/README.md), [set::builder](set-builder/README.md)) is the one object of the module
    changed in place: one thread's, moved but never copied, and it never changes a container it was thawed from or
    froze.
 
@@ -63,22 +63,22 @@ publishes its versions.
 
 | Container | Header | Description |
 |---|---|---|
-| [list\<T\>](list.md) | `list.h` | the list of Lisp and ML: a chain of cells, `push_front` one cell in front of the shared chain, `pop_front` the rest of it; the structure of a history |
-| [map\<Key, T, Hash, KeyEqual\>](map.md) | `map.h` | Bagwell's hash array mapped trie: every `insert`, `set` and `erase` a new version sharing all but a path; transparent lookup |
-| [map\<Key, T, Hash, KeyEqual\>::builder](map-builder.md) | `map.h` | a map changed in place and frozen into a map: `thaw`, `freeze`, for many changes at once |
-| [set\<Key, Hash, KeyEqual\>](set.md) | `set.h` | the same trie with the key as the element |
-| [set\<Key, Hash, KeyEqual\>::builder](set-builder.md) | `set.h` | a set changed in place and frozen into a set |
-| [vector\<T\>](vector.md) | `vector.h` | Clojure's bit-partitioned trie with a tail: every `push_back`, `pop_back` and `set` a new version sharing all but a path |
+| [list\<T\>](list/README.md) | `list.h` | the list of Lisp and ML: a chain of cells, `push_front` one cell in front of the shared chain, `pop_front` the rest of it; the structure of a history |
+| [map\<Key, T, Hash, KeyEqual\>](map/README.md) | `map.h` | Bagwell's hash array mapped trie: every `insert`, `set` and `erase` a new version sharing all but a path; transparent lookup |
+| [map\<Key, T, Hash, KeyEqual\>::builder](map-builder/README.md) | `map.h` | a map changed in place and frozen into a map: `thaw`, `freeze`, for many changes at once |
+| [set\<Key, Hash, KeyEqual\>](set/README.md) | `set.h` | the same trie with the key as the element |
+| [set\<Key, Hash, KeyEqual\>::builder](set-builder/README.md) | `set.h` | a set changed in place and frozen into a set |
+| [vector\<T\>](vector/README.md) | `vector.h` | Clojure's bit-partitioned trie with a tail: every `push_back`, `pop_back` and `set` a new version sharing all but a path |
 
 The containers carry the mixins of core ([the mixins](../core/mixin/README.md)): the questions of
-[mixin::enumerable](../core/mixin/enumerable.md) all of them, the order of
-[mixin::ordered](../core/mixin/ordered.md) the vector and the list, the reads by the key of
-[mixin::lookup](../core/mixin/lookup.md) the map, and the declaration [mixin::immutable](../core/mixin/immutable.md)
+[mixin::enumerable](../core/mixin/enumerable/README.md) all of them, the order of
+[mixin::ordered](../core/mixin/ordered/README.md) the vector and the list, the reads by the key of
+[mixin::lookup](../core/mixin/lookup/README.md) the map, and the declaration [mixin::immutable](../core/mixin/immutable.md)
 all four, which [req::immutable](../core/req/immutable.md) asks for.
 
 ## See also
 
 - [Benchmarks](benchmarks.md): the vector, the list and the map against immer and `std`
-- [concurrent::copy_on_write](../concurrent/copy_on_write.md): how a version is published to other threads
+- [concurrent::copy_on_write](../concurrent/copy_on_write/README.md): how a version is published to other threads
 - [core: Containers](../core/README.md#containers): the mutable containers
 - [The modules](../README.md)

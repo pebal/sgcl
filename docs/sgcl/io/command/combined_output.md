@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::combined_output, async_combined_output
 
@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-What the child wrote to both streams, or the [error](../error.md): `std::errc::invalid_argument` (operation
+What the child wrote to both streams, or the [error](../error/README.md): `std::errc::invalid_argument` (operation
 `combined_output`) when `out` or `err` is set or the command was started, else the error of [run](run.md).
 
 ## Complexity
@@ -58,4 +58,4 @@ out again
 ## See also
 
 - [output](output.md): the standard output alone
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

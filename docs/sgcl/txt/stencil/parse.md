@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil](../stencil.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil](README.md)
 
 # sgcl::txt::stencil::parse
 
@@ -13,7 +13,7 @@ their jumps, every [specification](../format.md#the-specification) read by `form
 of a pipeline found in the table. Everything that can be settled where the source is read is settled here — the
 shape of every specification, that every function named is one the table knows, that every block is closed, that no
 jump goes nowhere — and what is not a template is the error: where the reading stopped and why
-([stencil_error](../stencil_error.md)). The [syntax](../stencil.md#the-syntax) is on the page of the class.
+([stencil_error](../stencil_error/README.md)). The [syntax](README.md#the-syntax) is on the page of the class.
 
 1. With the six functions every template has ([stencil_functions](../stencil_functions/builtin.md)).
 2. With the program's own table: the template keeps the functions it calls, so the table need not outlive it.
@@ -102,5 +102,5 @@ Output:
 
 - [stencil](stencil.md): the constructor, for a literal of the program's own
 - [parses](parses.md): whether a source parses, with nothing kept
-- [stencil_error](../stencil_error.md): where and why
-- [sgcl::txt::stencil](../stencil.md)
+- [stencil_error](../stencil_error/README.md): where and why
+- [sgcl::txt::stencil](README.md)

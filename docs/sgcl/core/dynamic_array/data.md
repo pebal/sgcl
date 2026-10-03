@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::dynamic_array\<T\>::data
 
@@ -30,7 +30,7 @@ None.
 ## Notes
 
 The buffer never moves, so the pointer stays the same for as long as the array holds that buffer, until it is
-assigned over, moved from or destroyed. The pointer does not keep the buffer alive; a [slice](../slice.md) from
+assigned over, moved from or destroyed. The pointer does not keep the buffer alive; a [slice](../slice/README.md) from
 [as_slice](as_slice.md) does.
 
 ## Example
@@ -65,4 +65,4 @@ true
 
 - [as_slice, operator slice](as_slice.md): the elements as a slice that holds the buffer
 - [begin, cbegin](begin.md): an iterator to the first element
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [sgcl::dynamic_array\<T\>](README.md)

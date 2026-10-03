@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [field](../field.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [field](README.md)
 
 # sgcl::encoding::field::required
 
@@ -67,4 +67,4 @@ ala 3
 ## See also
 
 - [omit_empty](omit_empty.md): the other side, an empty field not written
-- [sgcl::encoding::field](../field.md)
+- [sgcl::encoding::field](README.md)

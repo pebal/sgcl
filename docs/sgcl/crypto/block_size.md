@@ -59,5 +59,5 @@ Output:
 ## See also
 
 - [digest_size](digest_size.md): the length of the digest
-- [hmac](hmac.md): where the block matters
+- [hmac](hmac/README.md): where the block matters
 - [sgcl::crypto::hash_id](hash_id.md)

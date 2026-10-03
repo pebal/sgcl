@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [varint](../varint.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [varint](README.md)
 
 # sgcl::encoding::varint::append
 
@@ -7,7 +7,7 @@ static void append(vector<byte>& out, uint64_t v) noexcept;
 ```
 
 Adds the varint of `v` at the back of `out`: seven bits a byte, the low ones first, the high bit set on every byte
-but the last; 1 byte for a number below 128, [max_size](../varint.md#member-objects), 10, for the largest. Go's
+but the last; 1 byte for a number below 128, [max_size](README.md#member-objects), 10, for the largest. Go's
 `binary.AppendUvarint`. The vector grows as `insert` grows it.
 
 ## Parameters
@@ -57,4 +57,4 @@ Output:
 - [append_signed](append_signed.md): a signed number
 - [write](write.md): into bytes that are there
 - [read, async_read](read.md): the other way
-- [sgcl::encoding::varint](../varint.md)
+- [sgcl::encoding::varint](README.md)

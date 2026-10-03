@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::contains
 
@@ -8,7 +8,7 @@ template<class K> bool contains(const K& key) const noexcept(/* see below */);  
 ```
 
 Checks whether an element is under `key`: a lookup by the key, in place of the walk of every element that
-[mixin::enumerable](../mixin/enumerable.md)'s `contains` would be.
+[mixin::enumerable](../mixin/enumerable/README.md)'s `contains` would be.
 
 1. The key is of the key type.
 2. The key is of any type the hash and the equality take. Takes part only when `Hash` and `KeyEqual` both
@@ -58,4 +58,4 @@ true false
 
 - [find](find.md): an iterator to the element under a key
 - [count](count.md): the number of elements under a key
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

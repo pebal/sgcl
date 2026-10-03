@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::shutdown, async_shutdown
 
@@ -84,4 +84,4 @@ close finished
 ## See also
 
 - [close](close.md): at once
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

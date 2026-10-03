@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::max
 
@@ -56,4 +56,4 @@ true
 
 - [min](min.md): the smallest duration
 - [operator+](operator_arith.md): the saturated arithmetic
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

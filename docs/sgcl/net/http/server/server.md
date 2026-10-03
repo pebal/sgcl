@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::server
 
@@ -6,7 +6,7 @@
 server() noexcept;
 ```
 
-Constructs a server without routes, its settings at their defaults ([Member objects](../server.md#member-objects)).
+Constructs a server without routes, its settings at their defaults ([Member objects](README.md#member-objects)).
 The state the copies share — the routes and the connections — is made at once, so that a copy made later is the same
 server. A copy has settings of its own: its fields are copied and change apart from the original's. There is no move
 of its own: a move copies, so a moved-from server is the same server, its `on_error` and access log kept.
@@ -63,4 +63,4 @@ a route of the copy
 ## See also
 
 - [route](route.md): the routes the copies share
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

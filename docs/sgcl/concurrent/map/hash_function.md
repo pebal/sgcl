@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [map](README.md)
 
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::hash_function
 
@@ -28,7 +28,7 @@ What the copy of `Hash` throws; none when it is noexcept.
 
 The map never changes its hash function, so the call may run concurrently with anything. The bucket of a key is
 the low bits of its hash, the hash taken modulo [bucket_count](bucket_count.md): a hash whose low bits do not vary
-crowds the keys into a few buckets ([Rules](../map.md#rules)).
+crowds the keys into a few buckets ([Rules](README.md#rules)).
 
 ## Example
 
@@ -66,4 +66,4 @@ Output:
 
 - [key_eq](key_eq.md): the equality of the keys
 - [(constructor)](map.md): a map with a hash function of its own
-- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>](README.md)

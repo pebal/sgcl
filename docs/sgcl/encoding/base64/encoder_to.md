@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](README.md)
 
 # sgcl::encoding::base64::encoder_to
 
@@ -9,7 +9,7 @@ encoder encoder_to(const io::writer& out) const noexcept;
 A writer that writes the encoding of what it is given to `out`: Go's `NewEncoder`. Whole groups go out at once,
 the bytes short of a group wait for the next write, and [close()](../base64-encoder/close.md) writes the last
 group with its padding and leaves `out` open, as Go's does, since what is written around the base64 usually goes
-on. The [encoder](../base64-encoder.md) is a handle of one word, made with its state: a managed object holding an
+on. The [encoder](../base64-encoder/README.md) is a handle of one word, made with its state: a managed object holding an
 8 KB block and `out`.
 
 ## Parameters
@@ -58,7 +58,7 @@ data:aGVsbG8sIHdvcmxk;
 
 ## See also
 
-- [base64::encoder](../base64-encoder.md): the stream
+- [base64::encoder](../base64-encoder/README.md): the stream
 - [decoder_from](decoder_from.md): the other way
 - [encode](encode.md): the text at once
-- [sgcl::encoding::base64](../base64.md)
+- [sgcl::encoding::base64](README.md)

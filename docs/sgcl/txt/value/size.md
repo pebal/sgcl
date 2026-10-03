@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::size
 
@@ -49,4 +49,4 @@ Output:
 ## See also
 
 - [at](at.md), [find](find.md): an element
-- [sgcl::txt::value](../value.md)
+- [sgcl::txt::value](README.md)

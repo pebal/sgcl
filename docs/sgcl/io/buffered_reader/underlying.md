@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::underlying
 
@@ -6,7 +6,7 @@
 io::reader underlying() const noexcept;
 ```
 
-Returns the stream the reader reads through its block, as the [io::reader](../reader.md) it was made of: a copy of
+Returns the stream the reader reads through its block, as the [io::reader](../reader/README.md) it was made of: a copy of
 that handle, the same stream. A read from it goes past the block: it does not see what the block holds, and what it
 takes the buffered reader does not see.
 
@@ -49,6 +49,6 @@ true true
 
 ## See also
 
-- [io::reader](../reader.md): what it is
+- [io::reader](../reader/README.md): what it is
 - [close](close.md): closes it
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

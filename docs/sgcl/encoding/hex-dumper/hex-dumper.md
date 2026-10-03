@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [dumper](../hex-dumper.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [dumper](README.md)
 
 # sgcl::encoding::hex::dumper::dumper
 
@@ -61,4 +61,4 @@ true
 
 - [dumper_to](../hex/dumper_to.md): a dumper with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::hex::dumper](../hex-dumper.md)
+- [sgcl::encoding::hex::dumper](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [function](../function.md)
+[sgcl](../../README.md) › [core](../README.md) › [function](README.md)
 
 # sgcl::swap (sgcl::function)
 
@@ -61,4 +61,4 @@ false a
 ## See also
 
 - [swap](swap.md): the member function
-- [sgcl::function\<R(Args...)\>](../function.md)
+- [sgcl::function\<R(Args...)\>](README.md)

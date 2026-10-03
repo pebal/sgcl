@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::add_header
 
@@ -65,4 +65,4 @@ Output:
 ## See also
 
 - [set_header](set_header.md): one field of the name
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

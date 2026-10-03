@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::operator bool
 
@@ -51,4 +51,4 @@ false true
 
 - [(constructor)](udp-socket.md): a handle that holds none
 - [is_closed](is_closed.md): whether the socket was closed
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

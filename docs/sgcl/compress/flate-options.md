@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [flate](flate.md)
+[sgcl](../README.md) › [compress](README.md) › [flate](flate/README.md)
 
 # sgcl::compress::flate::options
 
@@ -16,10 +16,10 @@ namespace sgcl::compress {
 }
 ```
 
-`sgcl::compress::flate::options` is how DEFLATE data is made and read: the [level](level.md) of the encoder and a
+`sgcl::compress::flate::options` is how DEFLATE data is made and read: the [level](level/README.md) of the encoder and a
 preset dictionary, data both sides agree on in advance, which the first matches may refer to (Go's
-`NewWriterDict` and `NewReaderDict`). [compress](flate/compress.md) and the [writer](flate-writer.md) take both;
-[decompress](flate/decompress.md) and the [reader](flate-reader.md) take the dictionary and do not read the level.
+`NewWriterDict` and `NewReaderDict`). [compress](flate/compress.md) and the [writer](flate-writer/README.md) take both;
+[decompress](flate/decompress.md) and the [reader](flate-reader/README.md) take the dictionary and do not read the level.
 
 ## Rules
 
@@ -28,13 +28,13 @@ preset dictionary, data both sides agree on in advance, which the first matches 
   copies it in its constructor, so the bytes need live no longer.
 - Of a dictionary longer than the window, its last 32 KB are the history; put what is most alike the data at its
   end. At level 0 the dictionary is not used. The reader must be given the same bytes: DEFLATE does not name the
-  dictionary, and other bytes decode to other data or to `errc::corrupt` ([zlib](zlib.md) names it).
+  dictionary, and other bytes decode to other data or to `errc::corrupt` ([zlib](zlib/README.md) names it).
 
 ## Member objects
 
 | Member | Description |
 |---|---|
-| `level` | how hard the encoder works, 0 to 9 or `level::huffman_only`; 6 by default ([level](level.md)) |
+| `level` | how hard the encoder works, 0 to 9 or `level::huffman_only`; 6 by default ([level](level/README.md)) |
 | `dictionary` | the preset dictionary; empty by default: none |
 
 ## Example
@@ -69,6 +69,6 @@ true
 
 ## See also
 
-- [level](level.md)
+- [level](level/README.md)
 - [zlib::options](zlib-options.md): the dictionary named in the header
-- [sgcl::compress::flate](flate.md)
+- [sgcl::compress::flate](flate/README.md)

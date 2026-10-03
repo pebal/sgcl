@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](../bounded_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [bounded_queue](README.md)
 
 # sgcl::concurrent::bounded_queue\<T\>::try_push
 
@@ -87,4 +87,4 @@ true
 - [try_emplace](try_emplace.md): constructs the element in place
 - [push](push.md): waits for room
 - [try_pop](try_pop.md), [pop](pop.md): take the first element
-- [sgcl::concurrent::bounded_queue\<T\>](../bounded_queue.md)
+- [sgcl::concurrent::bounded_queue\<T\>](README.md)

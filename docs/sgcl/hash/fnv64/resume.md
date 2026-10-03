@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [fnv64](../fnv64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [fnv64](README.md)
 
 # sgcl::hash::fnv64::resume
 
@@ -54,4 +54,4 @@ true
 ## See also
 
 - [(constructor)](fnv64.md): a hasher of no bytes yet
-- [sgcl::hash::fnv64](../fnv64.md)
+- [sgcl::hash::fnv64](README.md)

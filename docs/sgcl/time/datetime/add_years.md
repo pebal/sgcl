@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::add_years
 
@@ -10,7 +10,7 @@ The same time of the clock `n` years on (back for a negative `n`), in the same z
 The 29th of February in a year without one is cut to the 28th, as a date's [add_years](../date/add_years.md) cuts
 it; Go's `t.AddDate(n, 0, 0)` carries it to the 1st of March. A time of the clock that the new day does not have, or
 has twice, is read by the compatible rule
-([A time of the clock skipped or shown twice](../datetime.md#a-time-of-the-clock-skipped-or-shown-twice)). A result
+([A time of the clock skipped or shown twice](README.md#a-time-of-the-clock-skipped-or-shown-twice)). A result
 past either end of the range is the end; Go wraps.
 
 ## Parameters
@@ -57,4 +57,4 @@ Output:
 
 - [add_days](add_days.md), [add_months](add_months.md): days and months on
 - [date::add_years](../date/add_years.md): years on of a date
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

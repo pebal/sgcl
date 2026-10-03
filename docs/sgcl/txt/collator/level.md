@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::level
 
@@ -50,4 +50,4 @@ true true
 ## See also
 
 - [strength](../strength.md)
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

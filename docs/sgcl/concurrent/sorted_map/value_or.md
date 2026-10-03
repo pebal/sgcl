@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [sorted_map](README.md)
 
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::value_or
 
@@ -12,7 +12,7 @@ T value_or(const K& key, const T& fallback) const         // (2)
 
 Returns a copy of the mapped value under `key`, or a copy of `fallback` when the map holds no element under it:
 [find](find.md) and a copy, in one call, as the `value_or` of the other maps of the library
-([mixin::lookup](../../core/mixin/lookup.md)).
+([mixin::lookup](../../core/mixin/lookup/README.md)).
 
 - (2) Takes part only when `Compare` declares `is_transparent`: the key is of any type the comparison takes, and
   no `Key` is built for the search.
@@ -68,4 +68,4 @@ Output:
 
 - [find](find.md): an iterator to the element, which holds it
 - [contains](contains.md): checks whether the map holds a key
-- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::concurrent::sorted_map\<Key, T, Compare\>](README.md)

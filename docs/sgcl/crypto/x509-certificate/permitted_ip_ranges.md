@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::permitted_ip_ranges, excluded_ip_ranges
 
@@ -114,6 +114,6 @@ true
 
 ## See also
 
-- [ip_range](../x509-ip_range.md): a range and its `contains`
+- [ip_range](../x509-ip_range/README.md): a range and its `contains`
 - [ip_addresses](ip_addresses.md): the addresses they apply to
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

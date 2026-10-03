@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [encoder](../base64-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base64::encoder::is_closed
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [close, async_close](close.md): the last group
-- [sgcl::encoding::base64::encoder](../base64-encoder.md)
+- [sgcl::encoding::base64::encoder](README.md)

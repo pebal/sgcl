@@ -30,7 +30,7 @@ implementation of it can give:
   want.
 - **It is not a way of comparing names.** Two words that differ only in an accent are different words in most
   languages that write accents, and a comparison that ignores them will say Polish `"łasa"` and `"lasa"` are one
-  word. [fold_case](fold_case.md), [nfkc_casefold](nfkc_casefold.md) and the [collator](collator.md) at its first
+  word. [fold_case](fold_case.md), [nfkc_casefold](nfkc_casefold.md) and the [collator](collator/README.md) at its first
   strength are what compare text.
 
 ## Parameters

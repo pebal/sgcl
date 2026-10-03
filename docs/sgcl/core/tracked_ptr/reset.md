@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::reset
 
@@ -70,4 +70,4 @@ true
 
 - [operator=](operator_assign.md): assigns the pointer
 - [(constructor)](tracked_ptr.md): the rules of the raw-pointer constructor
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

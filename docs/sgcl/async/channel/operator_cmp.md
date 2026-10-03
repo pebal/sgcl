@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::operator==, operator!= (sgcl::async::channel)
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [(constructor)](channel.md): a copy is the same channel
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

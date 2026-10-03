@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::parse
 
@@ -30,7 +30,7 @@ DER is broken is a certificate that cannot be read.
 
 ## Return value
 
-The certificate, or a [crypto::error](../error.md) `errc::malformed` with the offset of the byte where the reading
+The certificate, or a [crypto::error](../error/README.md) `errc::malformed` with the offset of the byte where the reading
 stopped, for anything that is not a certificate, is not strict DER, or passes a bound.
 
 ## Complexity
@@ -81,4 +81,4 @@ sgcl::crypto::x509: not a Certificate SEQUENCE
 
 - [from_pem](from_pem.md): the certificate of a PEM text
 - [raw](raw.md): the bytes it was read from
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

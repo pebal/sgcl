@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::insert
 
@@ -55,7 +55,7 @@ Inserts elements unless their keys are there, as `std::unordered_set::insert` do
 | `value` | the element to insert |
 | `first`, `last` | the range of the elements to insert |
 | `ilist` | the list of the elements to insert |
-| `nh` | a node handle from [extract](extract.md) of a set or a [multiset](../multiset.md) |
+| `nh` | a node handle from [extract](extract.md) of a set or a [multiset](../multiset/README.md) |
 
 ## Return value
 
@@ -84,7 +84,7 @@ it.
 
 ## Notes
 
-The node-handle forms move an element between sets, or out of a [multiset](../multiset.md) and back, with no
+The node-handle forms move an element between sets, or out of a [multiset](../multiset/README.md) and back, with no
 copy of the element: [extract](extract.md) unlinks the node, `insert` links it.
 
 ## Example
@@ -130,4 +130,4 @@ a false a
 - [emplace](emplace.md): constructs the element in place
 - [extract](extract.md): takes a node out of a set
 - [merge](merge.md): relinks every node of another set
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

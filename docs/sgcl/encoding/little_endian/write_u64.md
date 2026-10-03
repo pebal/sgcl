@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [little_endian](../little_endian.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [little_endian](README.md)
 
 # sgcl::encoding::little_endian::write_u64
 
@@ -53,4 +53,4 @@ Output:
 
 - [read_u64](read_u64.md): the other way
 - [append_u64](append_u64.md): at the back of a vector
-- [sgcl::encoding::little_endian](../little_endian.md)
+- [sgcl::encoding::little_endian](README.md)

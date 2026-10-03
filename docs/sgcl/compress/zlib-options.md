@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [zlib](zlib.md)
+[sgcl](../README.md) › [compress](README.md) › [zlib](zlib/README.md)
 
 # sgcl::compress::zlib::options
 
@@ -16,10 +16,10 @@ namespace sgcl::compress {
 }
 ```
 
-`sgcl::compress::zlib::options` is how a zlib stream is made and read: the [level](level.md) of the encoder and a
+`sgcl::compress::zlib::options` is how a zlib stream is made and read: the [level](level/README.md) of the encoder and a
 preset dictionary, data both sides agree on in advance, which the first matches may refer to.
-[compress](zlib/compress.md) and the [writer](zlib-writer.md) take both, and name the dictionary in the header by
-its Adler-32; [decompress](zlib/decompress.md) and the [reader](zlib-reader.md) take the dictionary and do not read
+[compress](zlib/compress.md) and the [writer](zlib-writer/README.md) take both, and name the dictionary in the header by
+its Adler-32; [decompress](zlib/decompress.md) and the [reader](zlib-reader/README.md) take the dictionary and do not read
 the level.
 
 ## Rules
@@ -38,7 +38,7 @@ the level.
 
 | Member | Description |
 |---|---|
-| `level` | how hard the encoder works, 0 to 9 or `level::huffman_only`; 6 by default ([level](level.md)) |
+| `level` | how hard the encoder works, 0 to 9 or `level::huffman_only`; 6 by default ([level](level/README.md)) |
 | `dictionary` | the preset dictionary; empty by default: none |
 
 ## Example
@@ -72,5 +72,5 @@ true
 ## See also
 
 - [dictionary_id](zlib/dictionary_id.md): which dictionary a stream needs
-- [level](level.md)
-- [sgcl::compress::zlib](zlib.md)
+- [level](level/README.md)
+- [sgcl::compress::zlib](zlib/README.md)

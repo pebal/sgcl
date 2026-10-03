@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](README.md)
 
 # sgcl::txt::idna::message_of
 
@@ -56,4 +56,4 @@ a label longer than 63 bytes
 ## See also
 
 - [error](../idna-error.md): the rules
-- [sgcl::txt::idna](../idna.md)
+- [sgcl::txt::idna](README.md)

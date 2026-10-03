@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::scheme
 
@@ -49,4 +49,4 @@ mailto
 
 - [with_scheme](with_scheme.md): another scheme
 - [is_special](is_special.md): whether the scheme is special
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](../p256-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](README.md)
 
 # sgcl::crypto::p256::public_key::bytes
 
@@ -57,4 +57,4 @@ Y 7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299
 
 - [bytes_compressed](bytes_compressed.md): the compressed form
 - [to_pkix_der](to_pkix_der.md): the point in a SubjectPublicKeyInfo
-- [sgcl::crypto::p256::public_key](../p256-public_key.md)
+- [sgcl::crypto::p256::public_key](README.md)

@@ -51,7 +51,7 @@ None.
 ## Notes
 
 - **This is not IDNA.** A domain label has rules of its own, the length, the hyphens in the third and fourth places,
-  the Punycode, and they are [idna](idna.md)'s.
+  the Punycode, and they are [idna](idna/README.md)'s.
 - A program that only asks `is_identifier` links the two `XID` sets, 8.8 KB, and the joining types rule R1a needs,
   4.2 more.
 

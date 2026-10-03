@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](../dynamic_array.md)
+[sgcl](../../README.md) › [core](../README.md) › [dynamic_array](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::dynamic_array)
 
@@ -7,8 +7,8 @@ friend constexpr bool operator==(const dynamic_array& a, const dynamic_array& b)
 friend constexpr auto operator<=>(const dynamic_array& a, const dynamic_array& b);    // (2)
 ```
 
-Compares two arrays element by element. The operators come with [mixin::equatable](../mixin/equatable.md) and
-[mixin::comparable](../mixin/comparable.md), hidden friends found by the arguments' type; `!=`, `<`, `<=`, `>`
+Compares two arrays element by element. The operators come with [mixin::equatable](../mixin/equatable/README.md) and
+[mixin::comparable](../mixin/comparable/README.md), hidden friends found by the arguments' type; `!=`, `<`, `<=`, `>`
 and `>=` follow from them.
 
 1. `true` when the arrays have the same size and every element of `a` is equal to the element of `b` at the
@@ -65,5 +65,5 @@ true
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md)
-- [sgcl::dynamic_array\<T\>](../dynamic_array.md)
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md)
+- [sgcl::dynamic_array\<T\>](README.md)

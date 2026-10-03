@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::equal_range
 
@@ -68,4 +68,4 @@ true 30
 
 - [lower_bound](lower_bound.md): the first element whose key is not less than a key
 - [upper_bound](upper_bound.md): the first element whose key is greater than a key
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

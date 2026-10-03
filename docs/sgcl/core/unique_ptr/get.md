@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::get
 
@@ -58,4 +58,4 @@ Output:
 
 - [release](release.md): hands the raw pointer out and leaves the owner empty
 - [operator\*, operator->](operator_deref.md): the object
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

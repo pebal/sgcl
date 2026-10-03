@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [wait_group](../wait_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [wait_group](README.md)
 
 # sgcl::async::operator==, operator!= (sgcl::async::wait_group)
 
@@ -53,4 +53,4 @@ true false true
 ## See also
 
 - [(constructor)](wait_group.md): a handle of the same group
-- [sgcl::async::wait_group](../wait_group.md)
+- [sgcl::async::wait_group](README.md)

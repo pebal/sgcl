@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::column
 
@@ -53,4 +53,4 @@ line 2, column 18, byte 33
 
 - [line](line.md): the line
 - [offset](offset.md): the byte
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

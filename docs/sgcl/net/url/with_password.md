@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_password
 
@@ -17,9 +17,9 @@ refused password does not carry it: its message names the setter alone.
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL password` and the value asked for, when the standard refuses the value or declines to apply it: a
-URL without a host, or a file URL; and a value past 512 MiB, or a URL that would pass it ([the limit](../url.md#rules)).
+URL without a host, or a file URL; and a value past 512 MiB, or a URL that would pass it ([the limit](README.md#rules)).
 
 ## Complexity
 
@@ -55,4 +55,4 @@ set URL password: invalid URL
 
 - [password](password.md): the password
 - [with_username](with_username.md): the user name
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

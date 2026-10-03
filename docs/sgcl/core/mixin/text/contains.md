@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::contains
 
@@ -47,7 +47,7 @@ None.
 ## Notes
 
 On a text slice, `contains` is `mixin::text`'s (a substring or a character), not
-[mixin::enumerable](../enumerable.md)'s of an element: the slice says which, since a name in two bases is
+[mixin::enumerable](../enumerable/README.md)'s of an element: the slice says which, since a name in two bases is
 ambiguous. It declares its own `contains` of a view, of a `CharT`, of a `char32_t` and a deleted one of an `int`,
 which call these.
 
@@ -81,5 +81,5 @@ true false
 
 - [find](find.md): the position of a substring or a character
 - [starts_with](starts_with.md), [ends_with](ends_with.md): the substring at the start, at the end
-- [mixin::enumerable](../enumerable.md): `contains` of an element, in the other containers
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [mixin::enumerable](../enumerable/README.md): `contains` of an element, in the other containers
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

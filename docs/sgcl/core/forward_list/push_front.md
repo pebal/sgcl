@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::push_front
 
@@ -75,4 +75,4 @@ the first of the squares 1000000
 - [emplace_front](emplace_front.md): constructs an element in place at the beginning
 - [pop_front](pop_front.md): removes the first element
 - [insert_after](insert_after.md): inserts elements after a position
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

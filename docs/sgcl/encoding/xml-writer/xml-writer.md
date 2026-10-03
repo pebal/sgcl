@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [writer](../xml-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [writer](README.md)
 
 # sgcl::encoding::xml::writer::writer
 
@@ -64,4 +64,4 @@ Output:
 - [flush](flush.md): what was gathered onto the stream
 - [operator=](operator_assign.md): another writer taken over
 - [style](../xml-style.md)
-- [sgcl::encoding::xml::writer](../xml-writer.md)
+- [sgcl::encoding::xml::writer](README.md)

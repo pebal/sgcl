@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::operator==, operator\<=\> (sgcl::mixin::text)
 
@@ -79,4 +79,4 @@ true true
 
 - [compare](compare.md): the same comparison as an `int`, of a part of the text
 - [equal_fold](equal_fold.md): the same letters in either case
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

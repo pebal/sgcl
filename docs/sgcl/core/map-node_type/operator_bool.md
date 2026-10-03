@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md) › [node_type](../map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](../map/README.md) › [node_type](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::node_type::operator bool
 
@@ -54,4 +54,4 @@ b absent
 ## See also
 
 - [empty](empty.md): checks whether the handle holds no node
-- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](../map-node_type.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

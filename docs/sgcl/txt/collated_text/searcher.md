@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_text](../collated_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_text](README.md)
 
 # sgcl::txt::collated_text::searcher
 
@@ -7,7 +7,7 @@ searcher_type searcher(const string& pattern) const noexcept;
 ```
 
 Returns a pattern weighed by this text's collator, which is the only kind the text can be asked about without
-weighing it again: a [collated_searcher](../collated_searcher.md) of the same collator.
+weighing it again: a [collated_searcher](../collated_searcher/README.md) of the same collator.
 
 ## Parameters
 
@@ -50,5 +50,5 @@ Output:
 
 ## See also
 
-- [collated_searcher](../collated_searcher.md)
-- [sgcl::txt::collated_text](../collated_text.md)
+- [collated_searcher](../collated_searcher/README.md)
+- [sgcl::txt::collated_text](README.md)

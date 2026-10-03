@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::hash
 
@@ -53,4 +53,4 @@ false false
 ## See also
 
 - [operator==](operator_cmp.md): equality by value
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

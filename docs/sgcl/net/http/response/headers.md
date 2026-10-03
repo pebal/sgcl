@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::headers
 
@@ -6,7 +6,7 @@
 const http::headers& headers() const noexcept;
 ```
 
-Returns the fields of the head of the response, Go's `resp.Header`: the [headers](../headers.md) as they came, in
+Returns the fields of the head of the response, Go's `resp.Header`: the [headers](../headers/README.md) as they came, in
 their order, the names as written (over HTTP/2, in lower case). They are slices of the one string the head was copied
 into. The reference is valid while the response is.
 
@@ -69,5 +69,5 @@ theme = dark
 ## See also
 
 - [header](header.md): the first value of a name
-- [sgcl::net::http::headers](../headers.md)
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::headers](../headers/README.md)
+- [sgcl::net::http::response](README.md)

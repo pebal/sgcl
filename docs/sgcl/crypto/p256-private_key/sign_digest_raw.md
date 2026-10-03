@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::sign_digest_raw
 
@@ -81,4 +81,4 @@ s 2362ab1adbe2b8adf9cb9edab740ea6049c028114f2460f96554f61fae3302fe
 - [sign_digest](sign_digest.md): the signature in DER
 - [p256::public_key::verify_digest_raw](../p256-public_key/verify_digest_raw.md): checks it
 - [ECDSA](../ecdsa.md): the digest, the nonce, the encodings
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

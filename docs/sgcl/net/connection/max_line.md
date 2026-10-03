@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::max_line
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [set_max_line](set_max_line.md): sets the bound
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

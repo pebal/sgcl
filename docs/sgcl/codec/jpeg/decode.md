@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [jpeg](../jpeg.md)
+[sgcl](../../README.md) › [codec](../README.md) › [jpeg](README.md)
 
 # sgcl::codec::jpeg::decode
 
@@ -39,7 +39,7 @@ Motion-JPEG frame) takes the typical ones of Annex K, as libjpeg-turbo does.
 
 The image, or the error: `errc::invalid_argument` for a `want` outside the list, `errc::corrupt` for data the
 format does not allow, `errc::unexpected_end` for a file that ends before EOI, `errc::unsupported` for what the
-class's [rules](../jpeg.md#rules) refuse, for a frame of 2 or more than 4 components and for a sampling factor that
+class's [rules](README.md#rules) refuse, for a frame of 2 or more than 4 components and for a sampling factor that
 does not divide the largest, `errc::too_large` for an image of more pixels than `o.limits.max_pixels` or an EXIF
 block or ICC profile past `o.limits.max_metadata`, and (2) `errc::io` when the stream fails.
 
@@ -97,4 +97,4 @@ offset 400: jpeg: the data ends in the middle
 - [codec::decode](../decode.md): any format, told by its signature
 - [decode_options](../decode_options.md), [limits](../limits.md), [pixel_format](../pixel_format.md)
 - [image::oriented](../image/oriented.md): the image turned as its EXIF says
-- [sgcl::codec::jpeg](../jpeg.md)
+- [sgcl::codec::jpeg](README.md)

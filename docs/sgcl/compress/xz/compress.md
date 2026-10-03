@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](README.md)
 
 # sgcl::compress::xz::compress
 
@@ -76,5 +76,5 @@ compress::xz: a Delta distance of 1..256
 ## See also
 
 - [decompress](decompress.md): the other way
-- [xz::writer](../xz-writer.md): a stream
-- [sgcl::compress::xz](../xz.md)
+- [xz::writer](../xz-writer/README.md): a stream
+- [sgcl::compress::xz](README.md)

@@ -57,4 +57,4 @@ true
 ## See also
 
 - [errc](errc.md), [category](category.md)
-- [io::error](../io/error.md)
+- [io::error](../io/error/README.md)

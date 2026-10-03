@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::data
 
@@ -6,7 +6,7 @@
 slice<const byte> data() const noexcept;
 ```
 
-Returns the bytes held, from the first not yet read to the end, as a [slice](../../core/slice.md), without taking
+Returns the bytes held, from the first not yet read to the end, as a [slice](../../core/slice/README.md), without taking
 them: a read after it still reads them. The slice holds the memory it views, so it is never left dangling, but what
 it shows is the buffer's bytes as they are until the next write, which may change them in place or move them.
 
@@ -55,4 +55,4 @@ Output:
 
 - [text](text.md): the same as a string
 - [release](release.md): the bytes taken out
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

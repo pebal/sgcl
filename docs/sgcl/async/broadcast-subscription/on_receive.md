@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md) › [subscription](../broadcast-subscription.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast/README.md) › [subscription](README.md)
 
 # sgcl::async::broadcast\<T\>::subscription::on_receive
 
@@ -92,4 +92,4 @@ Output:
 - [receive](receive.md): the receive alone
 - [select](../select.md): the wait over the cases
 - [on_receive](../channel/on_receive.md): the same case on a channel
-- [sgcl::async::broadcast\<T\>::subscription](../broadcast-subscription.md)
+- [sgcl::async::broadcast\<T\>::subscription](README.md)

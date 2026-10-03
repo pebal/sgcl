@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::to_back
 
@@ -31,7 +31,7 @@ None.
 ## Notes
 
 `to_back` on a hit and `erase(begin())` when full are a cache that evicts the least recently used element, the
-[example of the class](../ordered_map.md#example). Most hits of such a cache go to its newest element, and those
+[example of the class](README.md#example). Most hits of such a cache go to its newest element, and those
 cost a load, where a relink is eight stores of tracked pointers, each with the write barrier.
 
 ## Example
@@ -64,4 +64,4 @@ Output:
 
 - [to_front](to_front.md): moves an element to the start of the order
 - [back](back.md): the newest element
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

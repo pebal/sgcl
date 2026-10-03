@@ -13,7 +13,7 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
-Packs the directory into a 7z file with the [writer](sevenzip-writer.md)'s options: LZMA2 at level 6, solid, the
+Packs the directory into a 7z file with the [writer](sevenzip-writer/README.md)'s options: LZMA2 at level 6, solid, the
 filters chosen by what each file is, as 7-Zip writes it; a password encrypts it, the header too. The entries are
 named from the directory, not with it (`index.html`, `css/`, `css/site.css`), in lexical order, with their mode and
 time; a symbolic link is archived as a link; a socket, a device or a fifo is left out. A failure removes the
@@ -34,7 +34,7 @@ half-made file.
 
 ## Return value
 
-Nothing, or the [error](error.md): what the [writer](sevenzip-writer.md) refuses, a failure of the file system
+Nothing, or the [error](error/README.md): what the [writer](sevenzip-writer/README.md) refuses, a failure of the file system
 (`errc::io`).
 
 ## Complexity

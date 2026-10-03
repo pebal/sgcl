@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha512](../sha512.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha512](README.md)
 
 # sgcl::crypto::sha512::value
 
@@ -59,4 +59,4 @@ cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc23
 
 - [digest](digest.md): the same bytes, under the name every hasher has
 - [update](update.md): hashes bytes in
-- [sgcl::crypto::sha512](../sha512.md)
+- [sgcl::crypto::sha512](README.md)

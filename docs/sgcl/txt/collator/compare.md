@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::compare
 
@@ -63,4 +63,4 @@ Output:
 - [equal](equal.md): whether two texts are one and the same
 - [operator()](operator_call.md): the collator as a comparator
 - [key](key.md): the order as bytes
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::key_to
 
@@ -64,4 +64,4 @@ wrote 40, same as key(): true
 ## See also
 
 - [key](key.md): the key as a new vector
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

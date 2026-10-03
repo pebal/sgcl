@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::at
 
@@ -73,4 +73,4 @@ out of range: sgcl::array::at
 
 - [operator[]](operator_at.md): access an element without the check
 - [get](get.md): the element at a position given at compile time
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

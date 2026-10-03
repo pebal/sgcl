@@ -16,7 +16,7 @@ what stands between an isolate initiator and its matching pop does not count. `"
 paragraph of numbers and punctuation alone, and an empty one, runs left to right.
 
 Of a text of several paragraphs it is the first one's: the text is cut after its first paragraph separator (rule
-P1), and what comes after it runs its own way. [bidi_runs](bidi_runs.md) and [levels](levels.md) resolve every
+P1), and what comes after it runs its own way. [bidi_runs](bidi_runs/README.md) and [levels](levels.md) resolve every
 paragraph.
 
 ## Parameters
@@ -66,5 +66,5 @@ left to right
 ## See also
 
 - [direction](direction.md): the directions of a paragraph
-- [bidi_runs](bidi_runs.md): the pieces in the order they are drawn, and the paragraph's direction
+- [bidi_runs](bidi_runs/README.md): the pieces in the order they are drawn, and the paragraph's direction
 - [txt](README.md)

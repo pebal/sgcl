@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::end, cend
 
@@ -58,4 +58,4 @@ true
 
 - [begin, cbegin](begin.md): an iterator to the first character
 - [rend, crend](rend.md): a reverse iterator before the first character
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

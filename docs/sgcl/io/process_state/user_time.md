@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::user_time
 
@@ -48,4 +48,4 @@ user 41220 us, system 2153 us
 ## See also
 
 - [system_time](system_time.md): the time in the kernel
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

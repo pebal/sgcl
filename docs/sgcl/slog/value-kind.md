@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [slog](README.md) › [value](value.md) › kind
+[sgcl](../README.md) › [slog](README.md) › [value](value/README.md) › kind
 
 # sgcl::slog::value::kind
 
@@ -15,7 +15,7 @@ namespace sgcl::slog {
 }
 ```
 
-The kind of a [value](value.md), slog's `Kind`, as [type](value/type.md) says it: which `as_` accessor gives the
+The kind of a [value](value/README.md), slog's `Kind`, as [type](value/type.md) says it: which `as_` accessor gives the
 value. Every kind is written by [text](value/text.md) and [json](value/json.md).
 
 | Value | Description |
@@ -28,7 +28,7 @@ value. Every kind is written by [text](value/text.md) and [json](value/json.md).
 | `string` | a text, whatever made it — a literal, a string, an error's message, a type's own text: [as_string](value/as_string.md) |
 | `duration` | a `duration` or a `std::chrono` duration: [as_duration](value/as_duration.md) |
 | `time` | a `time::datetime`: [as_time](value/as_time.md) |
-| `group` | a [group](group.md), a logger's group, a type described by its fields: [as_group](value/as_group.md) |
+| `group` | a [group](group/README.md), a logger's group, a type described by its fields: [as_group](value/as_group.md) |
 | `any` | Go's `KindAny`: a container, a map, a variant or a `json` of the program, read through `text()` and `json()` |
 
 ## Example
@@ -64,4 +64,4 @@ true
 ## See also
 
 - [type](value/type.md)
-- [sgcl::slog::value](value.md)
+- [sgcl::slog::value](value/README.md)

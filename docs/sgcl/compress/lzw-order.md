@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [lzw](lzw.md)
+[sgcl](../README.md) › [compress](README.md) › [lzw](lzw/README.md)
 
 # sgcl::compress::lzw::order
 
@@ -17,7 +17,7 @@ namespace sgcl::compress {
 ```
 
 The order of the bits of the codes in the bytes: a value of the data's format, which every function and stream of
-[lzw](lzw.md) takes with the literal width, as Go's `lzw.Order`. The two orders make different bytes of the same
+[lzw](lzw/README.md) takes with the literal width, as Go's `lzw.Order`. The two orders make different bytes of the same
 codes, and data read in the other order decodes to nothing valid.
 
 | Value | Description |
@@ -51,4 +51,4 @@ Output:
 
 ## See also
 
-- [sgcl::compress::lzw](lzw.md)
+- [sgcl::compress::lzw](lzw/README.md)

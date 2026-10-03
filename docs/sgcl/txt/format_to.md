@@ -28,8 +28,8 @@ allocation at all.
 A value may not lie in `buffer`: the text is written over it as it is made.
 
 Both are `noexcept` when the writing of every value cannot throw: a `bool`, a character, a floating-point number,
-text, a [duration](../core/duration.md), a pointer and an enumeration, a range, a pair or an `optional` of them, and
-a type of the program whose `format_value` or [formatter](formatter.md) says `noexcept`. An integer is not among
+text, a [duration](../core/duration/README.md), a pointer and an enumeration, a range, a pair or an `optional` of them, and
+a type of the program whose `format_value` or [formatter](formatter/README.md) says `noexcept`. An integer is not among
 them, nor anything holding one: its `{:c}` throws `out_of_range` for a number no `char` holds.
 
 ## Parameters
@@ -54,7 +54,7 @@ value made of other values, whose body goes first into room the thread keeps.
 ## Exceptions
 
 - `out_of_range` when a `{:c}` field is given an integer no `char` holds.
-- What a `format_value` or a [formatter](formatter.md) of the program throws.
+- What a `format_value` or a [formatter](formatter/README.md) of the program throws.
 
 None when the values' writing is `noexcept`.
 
@@ -119,5 +119,5 @@ false
 
 - [format](format.md): the same into a string, and the rules of the pattern
 - [runtime](runtime.md): a pattern read where the program runs
-- [growing_sink](growing_sink.md): room that grows, for a long text written in steps
+- [growing_sink](growing_sink/README.md): room that grows, for a long text written in steps
 - [render_to](stencil/render_to.md): a page of a template into memory the caller lends

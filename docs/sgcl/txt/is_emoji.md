@@ -59,5 +59,5 @@ true true false
 
 ## See also
 
-- [graphemes](graphemes.md): an emoji and its modifiers as one character
+- [graphemes](graphemes/README.md): an emoji and its modifiers as one character
 - [sgcl::txt](README.md)

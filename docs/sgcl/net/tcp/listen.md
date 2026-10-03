@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [tcp](../tcp.md)
+[sgcl](../../README.md) › [net](../README.md) › [tcp](README.md)
 
 # sgcl::net::tcp::listen, async_listen
 
@@ -35,7 +35,7 @@ A port 0 lets the system choose one, which the listener's [local_endpoint](../li
 
 ## Return value
 
-The [listener](../listener.md); or the [io::error](../../io/error.md), its operation `listen tcp` (`lookup` for a
+The [listener](../listener/README.md); or the [io::error](../../io/error/README.md), its operation `listen tcp` (`lookup` for a
 failure of the lookup) and its path the address given: `net::errc::invalid_address` for an address that is not
 `"host:port"`, `net::errc::host_not_found` for a name nobody knows, `EADDRINUSE` for a port taken, the `errno` of
 the socket otherwise.
@@ -81,6 +81,6 @@ listen tcp 127.0.0.1:99999: invalid address
 ## See also
 
 - [connect, async_connect](connect.md): the other side
-- [listener](../listener.md): what it gives
+- [listener](../listener/README.md): what it gives
 - [unix_domain::listen](../unix_domain/listen.md), [tls::listen](../tls/listen.md): the other listeners
-- [sgcl::net::tcp](../tcp.md)
+- [sgcl::net::tcp](README.md)

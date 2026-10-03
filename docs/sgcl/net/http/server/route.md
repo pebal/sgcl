@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::route
 
@@ -19,7 +19,7 @@ except that a pattern with a host wins over one without. The table is held to Go
 What no pattern matches as it stands: a path with an empty segment inside is redirected (307) to the one without; a
 subtree named without its slash (`/images` for `/images/`) is redirected there (307), as Go does; a path some pattern
 matches for other methods is 405 with `Allow`; anything else goes to [not_found](not_found.md) (404 `text/plain` by
-default). The path is the one the URL parser normalized (`.` and `..` resolved, [url](../../url.md)), and each
+default). The path is the one the URL parser normalized (`.` and `..` resolved, [url](../../url/README.md)), and each
 segment is unescaped before it is compared: `{id}` of `/posts/a%20b` is `a b`, read by
 [request::path_value](../request/path_value.md).
 
@@ -100,4 +100,4 @@ the listing
 
 - [not_found](not_found.md): what no route matches
 - [request::path_value](../request/path_value.md): the values of the wildcards
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

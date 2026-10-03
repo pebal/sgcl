@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::read, async_read
 
@@ -26,7 +26,7 @@ Reads what is available at the position into `buffer`, at most its size, and mov
 ## Return value
 
 The number of bytes read, fewer than the size of `buffer` when fewer were there; 0 at the end of the file, and for
-an empty `buffer`. Or the [error](../error.md), its operation `read` and its path the file's:
+an empty `buffer`. Or the [error](../error/README.md), its operation `read` and its path the file's:
 
 - `errc::closed` when the file was closed before the call, or while it waited ([close](close.md));
 - `ECANCELED` when the reactor stopped while it waited;
@@ -49,7 +49,7 @@ The end is not an error: a read of 0 is how a file says it has no more, as in Go
 
 `buffer` handed to (2) without an owner (a plain array, a `std::span`) on a regular file is read into a managed
 block on the pool and copied into `buffer` when the task resumes; a slice with an owner (a `vector`, an
-[array](../../core/array.md), a [buffer](../buffer.md)'s) is read into as it is.
+[array](../../core/array/README.md), a [buffer](../buffer/README.md)'s) is read into as it is.
 
 ## Example
 
@@ -117,5 +117,5 @@ pipe: 5 bytes, nonblocking true
 - [read_at, async_read_at](read_at.md): a read at an offset, the position untouched
 - [read_full](../mixin/reader/read_full.md), [read_all](../mixin/reader/read_all.md): a whole buffer, the whole
   file
-- [buffered_reader](../buffered_reader.md): lines over a file
-- [sgcl::io::file](../file.md)
+- [buffered_reader](../buffered_reader/README.md): lines over a file
+- [sgcl::io::file](README.md)

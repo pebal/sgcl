@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::reverse
 
@@ -8,7 +8,7 @@ void reverse() noexcept;
 
 Reverses the order of the elements in place, by swapping the two links of every node: no element is moved or
 copied, and iterators and references stay valid, naming the same elements at their new places. It hides the
-`reverse` of [mixin::sequence](../mixin/sequence.md), which swaps the elements themselves.
+`reverse` of [mixin::sequence](../mixin/sequence/README.md), which swaps the elements themselves.
 
 ## Parameters
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [sort](sort.md): sorts the nodes
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

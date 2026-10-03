@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [unix_domain](../unix_domain.md)
+[sgcl](../../README.md) › [net](../README.md) › [unix_domain](README.md)
 
 # sgcl::net::unix_domain::listen, async_listen
 
@@ -22,7 +22,7 @@ socket's file is created here, and anything at the path already is an error, as 
 
 ## Return value
 
-The [listener](../listener.md); or the [io::error](../../io/error.md), its operation `listen unix` and its path
+The [listener](../listener/README.md); or the [io::error](../../io/error/README.md), its operation `listen unix` and its path
 `path`: `net::errc::invalid_address` for a path too long, `EADDRINUSE` when something is at the path, the `errno`
 of `bind` or `listen` otherwise.
 
@@ -66,5 +66,5 @@ false
 ## See also
 
 - [connect, async_connect](connect.md): the other side
-- [listener](../listener.md): what it gives
-- [sgcl::net::unix_domain](../unix_domain.md)
+- [listener](../listener/README.md): what it gives
+- [sgcl::net::unix_domain](README.md)

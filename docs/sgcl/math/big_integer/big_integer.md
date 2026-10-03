@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::big_integer
 
@@ -62,7 +62,7 @@ Constructs a whole number.
 - (1–2), (7–8) None.
 - (3) `domain_error` when `value` is a NaN or an infinity.
 - (6) `invalid_argument` when `base` is outside 2 to 36; `bad_expected_access<parse_error>` when `text` is not a
-  number in `base`, its `error()` the [parse_error](../parse_error.md) of `parse`.
+  number in `base`, its `error()` the [parse_error](../parse_error/README.md) of `parse`.
 
 ## Notes
 
@@ -116,4 +116,4 @@ true 0
 - [from_bytes](from_bytes.md): a number from its bytes
 - [operator=](operator_assign.md): assigns a value
 - [operator""_big](literals.md): a constant of any length
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

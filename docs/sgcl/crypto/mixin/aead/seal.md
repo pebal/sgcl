@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](../aead.md)
+[sgcl](../../../README.md) › [crypto](../../README.md) › [aead](README.md)
 
 # sgcl::crypto::mixin::aead\<Derived\>::seal
 
@@ -20,7 +20,7 @@ aad)` gives.
 
 | Parameter | Description |
 |---|---|
-| `nonce` | exactly `nonce_size` bytes of the class, never used twice under one key ([nonce_counter](../../nonce_counter.md)) |
+| `nonce` | exactly `nonce_size` bytes of the class, never used twice under one key ([nonce_counter](../../nonce_counter/README.md)) |
 | `plaintext` | the bytes to encrypt, at most `max_plaintext_size` of the class |
 | `aad` | the additional data: a header sent in the clear, a record's number, a file's name |
 
@@ -92,4 +92,4 @@ sgcl::crypto::aes_gcm: a nonce of 8 bytes, not 12
 - [open](open.md): checks the tag and decrypts
 - [seal_to](seal_to.md): into the caller's buffer, in place too
 - [xchacha20_poly1305::seal_random](../../xchacha20_poly1305/seal_random.md): a random nonce, written in front
-- [sgcl::crypto::mixin::aead\<Derived\>](../aead.md)
+- [sgcl::crypto::mixin::aead\<Derived\>](README.md)

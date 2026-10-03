@@ -25,7 +25,7 @@ walk:
 | gzip read as a stream, 64 KB a read | 1069 | 1279 | 249 |
 | a zip archive of 10 000 entries opened | 0.59 ms | — | 1.27 ms |
 
-The default level is Go's kind of encoder ([level](level.md)), as fast as Go's default within some 10 % and no
+The default level is Go's kind of encoder ([level](level/README.md)), as fast as Go's default within some 10 % and no
 larger; zlib's level 6 is a chain walk three to six times slower for 3 % less. On text the default is some 3 %
 larger than zlib's 6 and three times as fast; on binary data (object files) 7 % larger at twice the speed, so an
 archive of binaries that should be small asks for 7 to 9. Levels 7 to 9 are zlib's chains, 0.8 to 0.9 of zlib's
@@ -68,7 +68,7 @@ The same benchmark, against liblzma 5.8.4 (`lzma_stream_decoder` and `lzma_easy_
 | compress text, level 6 | 5.19 (12.554%) | 5.40 (12.529%) |
 | compress text, level 9 | 5.14 (12.553%) | 5.33 (12.529%) |
 
-The LZMA2 decoder is the one of [lzma](lzma.md), level with liblzma's; the difference here is the check: CRC-64 on
+The LZMA2 decoder is the one of [lzma](lzma/README.md), level with liblzma's; the difference here is the check: CRC-64 on
 the processor's carry-less multiply (`hash::crc64`) against liblzma's tables, which shows most over stored chunks.
 The branch converters run at 2.1–9 GB/s over a 32 MB program (x86 2.1–2.4, ARM64 5.4, ARM-Thumb 4.0, RISC-V 4.4,
 IA-64 6.5, PowerPC 7.5, SPARC 8.7, ARM 9.1; Delta 2.1 encoding, 1.4 decoding), each a single pass over the bytes.
@@ -80,6 +80,6 @@ The decoder is faster than libbz2 on the same data: 0.66–0.93× its time on e.
 
 ## See also
 
-- [level](level.md): the encoders behind DEFLATE's levels
+- [level](level/README.md): the encoders behind DEFLATE's levels
 - [lzma::options](lzma-options.md): the levels of LZMA and xz
 - [sgcl::compress](README.md)

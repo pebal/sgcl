@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::min
 
@@ -9,7 +9,7 @@ const value_type& min() const noexcept;
 Returns the smallest element, the first in the order of `Compare`, which the tree keeps at the end of its header:
 nothing is compared. The set must not be empty.
 
-It is the set's own and hides the `min` of [mixin::enumerable](../mixin/enumerable.md), which walks every element:
+It is the set's own and hides the `min` of [mixin::enumerable](../mixin/enumerable/README.md), which walks every element:
 both its overloads, the one with a comparison of its own too, since the set is ordered by its own.
 
 ## Parameters
@@ -57,4 +57,4 @@ Output:
 
 - [max](max.md): the last element
 - [begin, cbegin](begin.md): the iterator to the first element
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

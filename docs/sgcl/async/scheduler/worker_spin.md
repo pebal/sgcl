@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::worker_spin
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [set_worker_spin](set_worker_spin.md): sets it
-- [sgcl::async::scheduler](../scheduler.md)
+- [sgcl::async::scheduler](README.md)

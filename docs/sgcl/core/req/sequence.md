@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::sequence
 
@@ -12,7 +12,7 @@ namespace sgcl::req {
 ```
 
 A range whose elements may be written in place: [enumerable](enumerable.md), and `R` carries
-[mixin::sequence](../mixin/sequence.md), which gives it `fill` and `reverse`. The order of the elements is the
+[mixin::sequence](../mixin/sequence/README.md), which gives it `fill` and `reverse`. The order of the elements is the
 program's, not the container's, so `sort` asks for it too.
 
 ## Satisfied by
@@ -57,5 +57,5 @@ false false
 ## See also
 
 - [enumerable](enumerable.md), [ordered](ordered.md)
-- [mixin::sequence](../mixin/sequence.md): the members it gives
-- [sgcl::req](../req.md)
+- [mixin::sequence](../mixin/sequence/README.md): the members it gives
+- [sgcl::req](README.md)

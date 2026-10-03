@@ -11,13 +11,13 @@ namespace sgcl::encoding {
 ```
 
 `sgcl::encoding::errc` is what went wrong in the input of a format of the module, the [code](error/code.md) of an
-[error](error.md). It is one list for every format, so that a program handling the errors of JSON, CSV and base64
+[error](error/README.md). It is one list for every format, so that a program handling the errors of JSON, CSV and base64
 learns one set of names and does it with one `switch`; a format uses the codes that mean something for it and no
 other. The list was one from the start, before the formats that raise its later codes were written.
 
 It is also an error-code enumeration of the category `"encoding"` ([encoding_category](encoding_category.md)): when
-a decoder is read as an [io::reader](../io/reader.md), its read fails with an [io::error](../io/error.md) whose code
-is the `errc`, and the decoder's `last_error()` holds the whole [error](error.md) with its offset.
+a decoder is read as an [io::reader](../io/reader/README.md), its read fails with an [io::error](../io/error/README.md) whose code
+is the `errc`, and the decoder's `last_error()` holds the whole [error](error/README.md) with its offset.
 
 The values start at 1: an `error_code` of 0 is success, and a code of this list travels as an `error_code`.
 `std::is_error_code_enum<errc>` is true, so an `errc` converts to an `error_code` by itself
@@ -80,7 +80,7 @@ offset 3: invalid character '*'
 
 ## See also
 
-- [error](error.md): the code with its place
+- [error](error/README.md): the code with its place
 - [make_error_code](make_error_code.md), [encoding_category](encoding_category.md): an `errc` as an `error_code`
-- [io::error](../io/error.md): a stream's error, its code an `errc` when a decoder failed
+- [io::error](../io/error/README.md): a stream's error, its code an `errc` when a decoder failed
 - [sgcl::encoding](README.md)

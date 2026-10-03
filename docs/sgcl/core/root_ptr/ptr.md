@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [root_ptr](../root_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [root_ptr](README.md)
 
 # sgcl::root_ptr\<T\>::ptr, operator tracked_ptr\<T\>&
 
@@ -78,4 +78,4 @@ Output:
 
 - [get](get.md): the raw pointer
 - [atomic_ref](../atomic_ref.md): the atomic of the root
-- [sgcl::root_ptr\<T\>](../root_ptr.md)
+- [sgcl::root_ptr\<T\>](README.md)

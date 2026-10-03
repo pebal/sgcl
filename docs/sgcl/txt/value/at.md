@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::at
 
@@ -51,4 +51,4 @@ Output:
 
 - [find](find.md): a value of a mapping
 - [size](size.md)
-- [sgcl::txt::value](../value.md)
+- [sgcl::txt::value](README.md)

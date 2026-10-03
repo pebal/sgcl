@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::with_zone
 
@@ -66,4 +66,4 @@ sgcl::net::ip_address::with_zone: a zone is at most 15 bytes, without NUL
 ## See also
 
 - [zone](zone.md): the zone of an address
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

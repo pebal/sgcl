@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma.md) › [writer](../lzma-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzma](../lzma/README.md) › [writer](README.md)
 
 # sgcl::compress::lzma::writer::writer
 
@@ -18,7 +18,7 @@ of range are not refused here: the first write reports them as `errc::invalid_ar
 
 | Parameter | Description |
 |---|---|
-| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer.md) |
+| `out` | the writer the compressed bytes go to: any [io writer](../../io/writer/README.md) |
 | `o` | the level, the dictionary, the literal and position bits ([options](../lzma-options.md)) |
 
 ## Complexity
@@ -54,4 +54,4 @@ write lzma: invalid argument
 ## See also
 
 - [lzma::options](../lzma-options.md)
-- [sgcl::compress::lzma::writer](../lzma-writer.md)
+- [sgcl::compress::lzma::writer](README.md)

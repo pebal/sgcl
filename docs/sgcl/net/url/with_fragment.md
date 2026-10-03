@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_fragment
 
@@ -8,7 +8,7 @@ expected<url, io::error> with_fragment(const string& fragment) const noexcept;
 
 The URL with the fragment given, by the standard's hash setter: escaped with the standard's fragment set, a leading
 `#` dropped; the empty string removes the fragment. The standard takes any fragment; the one refusal is [the
-limit](../url.md#rules) of 512 MiB the other setters keep.
+limit](README.md#rules) of 512 MiB the other setters keep.
 
 ## Parameters
 
@@ -18,7 +18,7 @@ limit](../url.md#rules) of 512 MiB the other setters keep.
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the
 operation `set URL fragment` and the value asked for, when the value is past 512 MiB or the URL would pass it (a byte
 escaped is three).
 
@@ -56,4 +56,4 @@ https://x/doc
 
 - [without_fragment](without_fragment.md): no fragment
 - [fragment](fragment.md): the fragment
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [query_params](../query_params.md)
+[sgcl](../../README.md) › [net](../README.md) › [query_params](README.md)
 
 # sgcl::net::query_params::operator==
 
@@ -50,4 +50,4 @@ true false
 ## See also
 
 - [to_string](to_string.md): the text of the pairs
-- [sgcl::net::query_params](../query_params.md)
+- [sgcl::net::query_params](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](../collated_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collated_matches](README.md)
 
 # sgcl::txt::collated_matches::pattern
 
@@ -7,7 +7,7 @@ const searcher_type& pattern() const noexcept;
 ```
 
 Returns the pattern the range looks for, weighed by the range's collator: the
-[collated_searcher](../collated_searcher.md) it was given, or the one it weighed again where that belonged to
+[collated_searcher](../collated_searcher/README.md) it was given, or the one it weighed again where that belonged to
 another collator. Its
 [pattern](../collated_searcher/pattern.md) is the text as it was given.
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [text](text.md): the text
-- [sgcl::txt::collated_matches](../collated_matches.md)
+- [sgcl::txt::collated_matches](README.md)

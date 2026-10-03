@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [multi_reader](../multi_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [multi_reader](README.md)
 
 # sgcl::io::multi_reader::read, async_read
 
@@ -72,4 +72,4 @@ Output:
 ## See also
 
 - [read_full](../mixin/reader/read_full.md): a buffer filled across the readers
-- [sgcl::io::multi_reader](../multi_reader.md)
+- [sgcl::io::multi_reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [core](../README.md) › [req](README.md)
 
 # sgcl::req::handle
 
@@ -53,5 +53,5 @@ true false false
 ## See also
 
 - [atomic](../atomic.md), [atomic_ref](../atomic_ref.md): the atomics over the word of a handle
-- [rooted](../rooted.md): a handle kept where a tracked word may not live
-- [sgcl::req](../req.md)
+- [rooted](../rooted/README.md): a handle kept where a tracked word may not live
+- [sgcl::req](README.md)

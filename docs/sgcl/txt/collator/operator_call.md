@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::operator()
 
@@ -7,7 +7,7 @@ bool operator()(const string& a, const string& b) const noexcept;
 ```
 
 Checks whether `a` comes before `b`, `compare(a, b) < 0`: so that a collator may stand wherever a comparator is asked
-for — `std::sort`, the `sort` of a container, the `Compare` of a [sorted_map](../../core/sorted_map.md), whose call
+for — `std::sort`, the `sort` of a container, the `Compare` of a [sorted_map](../../core/sorted_map/README.md), whose call
 must be noexcept, and this one is.
 
 ## Parameters
@@ -60,4 +60,4 @@ Lublin Łódź Zielona Góra Żory
 
 - [compare](compare.md): the order of two texts
 - [key](key.md): the order as bytes
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

@@ -22,7 +22,7 @@ at the lengths 16, 64, 1024, 65536 and 1048576 bytes.
 | `fnv32`, `fnv32a`, `fnv64`, `fnv64a`, `fnv128`, `fnv128a` | FNV; Go's hasher made once and `Reset` before each call, `Write` and `Sum`, which is how Go offers it |
 | `maphash` | the process's seed, its secret made once; Go's `maphash.Bytes` with a seed made once |
 | `siphash` | SipHash-2-4 with a fixed key; Go's `github.com/dchest/siphash` |
-| `string-hash` | the keyed hash a [string](../core/string.md) of core keeps of its bytes, one call, for comparing with `maphash` (SGCL only; 16 to 65536 bytes) |
+| `string-hash` | the keyed hash a [string](../core/string/README.md) of core keeps of its bytes, one call, for comparing with `maphash` (SGCL only; 16 to 65536 bytes) |
 | `xxh3_64`, `xxh3_128` | XXH3 with the seed 0, the default secret; Go's `github.com/zeebo/xxh3`, which has NEON assembly on arm64 |
 | `xxh3_64-seeded` | XXH3 with a seed: past 240 bytes the seed's secret is made in each call |
 

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::to_string, sgcl::math::operator\<\< (sgcl::math::big_integer)
 
@@ -90,4 +90,4 @@ Output:
 - [format_value](format_value.md): what [txt::format](../../txt/format.md) writes
 - [to_bytes](to_bytes.md): the magnitude as bytes
 - [benchmarks](../benchmarks.md#big_integer): the time against Go's `math/big`
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

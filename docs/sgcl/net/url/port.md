@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::port
 
@@ -54,4 +54,4 @@ https://x/ none
 
 - [effective_port](effective_port.md): the port or the default
 - [with_port](with_port.md): another port
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

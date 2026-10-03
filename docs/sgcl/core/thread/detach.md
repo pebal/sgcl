@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [thread](../thread.md)
+[sgcl](../../README.md) › [core](../README.md) › [thread](README.md)
 
 # sgcl::thread::detach
 
@@ -68,4 +68,4 @@ false
 ## See also
 
 - [join](join.md): waits for the thread to finish
-- [sgcl::thread](../thread.md)
+- [sgcl::thread](README.md)

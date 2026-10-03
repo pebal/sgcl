@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes](../aes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes](README.md)
 
 # sgcl::crypto::aes::key_size
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [(constructor)](aes.md): sets up a key of 16, 24 or 32 bytes
-- [sgcl::crypto::aes](../aes.md)
+- [sgcl::crypto::aes](README.md)

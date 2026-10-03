@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [codec](../README.md) › [error](README.md)
 
 # sgcl::codec::error::code
 
@@ -66,4 +66,4 @@ not an image to use
 
 - [errc](../errc.md): the codes
 - [message](message.md): the words
-- [sgcl::codec::error](../error.md)
+- [sgcl::codec::error](README.md)

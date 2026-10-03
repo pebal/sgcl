@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::writer
 
@@ -79,4 +79,4 @@ into the buffer, 5 bytes counted
 
 - [operator bool](operator_bool.md): whether a writer holds a stream
 - [reader](../reader/reader.md): the reader's constructors
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

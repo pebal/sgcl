@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [function](../function.md)
+[sgcl](../../README.md) › [core](../README.md) › [function](README.md)
 
 # sgcl::function\<R(Args...)\>::target
 
@@ -60,4 +60,4 @@ true
 ## See also
 
 - [target_type](target_type.md): the type of the callable
-- [sgcl::function\<R(Args...)\>](../function.md)
+- [sgcl::function\<R(Args...)\>](README.md)

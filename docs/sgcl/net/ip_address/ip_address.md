@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::ip_address
 
@@ -64,4 +64,4 @@ parse IP address 127.1: invalid address
 
 - [parse](parse.md): reads a text from outside the program
 - [v4](v4.md), [v6](v6.md): an address of its bytes
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

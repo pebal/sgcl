@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::sort_by
 
@@ -76,4 +76,4 @@ bread tea apple
 
 - [sort](sort.md): sorts the elements by `<` or by a comparator
 - [stable_sort](stable_sort.md): sorts the elements, keeping the order of equivalent ones
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

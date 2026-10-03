@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [codec](README.md) › [png](png.md)
+[sgcl](../README.md) › [codec](README.md) › [png](png/README.md)
 
 # sgcl::codec::png::options
 
@@ -17,7 +17,7 @@ namespace sgcl::codec {
 
 `sgcl::codec::png::options` is what [encode](png/encode.md) is told: the DEFLATE level of the zlib stream the rows
 are written through, a plain struct, written in place as `{.level = 9}`. The level is compress's
-[level](../compress/level.md): 0 stores, 1 is the fastest, 9 the smallest, and `level::huffman_only` codes
+[level](../compress/level/README.md): 0 stores, 1 is the fastest, 9 the smallest, and `level::huffman_only` codes
 the bytes with no search for repeats. An `int` converts to it, and one outside 0 to 9 is `invalid_argument` when the
 options are made (at compile time in a constant).
 
@@ -68,5 +68,5 @@ level 9: 9421 bytes
 
 - [encode](png/encode.md): what takes the options
 - [save_options](save_options.md): the level `save` writes a PNG at
-- [compress::zlib](../compress/zlib.md): the stream of the image data
-- [sgcl::codec::png](png.md)
+- [compress::zlib](../compress/zlib/README.md): the stream of the image data
+- [sgcl::codec::png](png/README.md)

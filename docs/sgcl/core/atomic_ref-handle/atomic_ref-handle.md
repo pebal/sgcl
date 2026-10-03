@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [handle](../atomic_ref-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic_ref](../atomic_ref.md) › [handle](README.md)
 
 # sgcl::atomic_ref\<H\>::atomic_ref
 
@@ -57,4 +57,4 @@ beta beta
 ## See also
 
 - [load, operator H](load.md), [store](store.md): the operations on the word
-- [sgcl::atomic_ref\<H\>](../atomic_ref-handle.md)
+- [sgcl::atomic_ref\<H\>](README.md)

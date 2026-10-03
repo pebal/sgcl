@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::shuffle
 
@@ -13,8 +13,8 @@ void shuffle(R&& range)
 
 Puts the elements of `range` in a random order, every order as likely: Fisher and Yates from the back, as Go's
 `Shuffle`, so with Go's stream the same order. Where Go's `Shuffle(n, swap)` takes a count and a function that
-swaps two elements, this takes the range itself: any range of random access, a [vector](../../core/vector.md), an
-[array](../../core/array.md), a `std::vector`, a built-in array, a part of one.
+swaps two elements, this takes the range itself: any range of random access, a [vector](../../core/vector/README.md), an
+[array](../../core/array/README.md), a `std::vector`, a built-in array, a part of one.
 
 ## Parameters
 
@@ -67,4 +67,4 @@ Output:
 
 - [permutation](permutation.md): the shuffled indices `0 … n - 1`
 - [pick](pick.md): one element
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

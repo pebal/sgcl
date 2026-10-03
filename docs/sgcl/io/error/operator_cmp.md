@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::operator== (sgcl::io::error)
 
@@ -51,4 +51,4 @@ true false
 ## See also
 
 - [code](code.md)
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

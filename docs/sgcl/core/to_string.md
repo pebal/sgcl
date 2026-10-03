@@ -15,7 +15,7 @@ namespace sgcl {
 }
 ```
 
-Makes a [string](string.md) of a value, made once at its size.
+Makes a [string](string/README.md) of a value, made once at its size.
 
 1. A number: the text `std::to_string` writes, an integer in decimal and a floating-point number with six digits
    after the point. A character type other than `char` (`char32_t`, `wchar_t`, `signed char`, `unsigned char`) is a
@@ -75,4 +75,4 @@ item 42: 2.500000 true x
 - [parse](parse.md): a number from its text
 - [string::concat](string/concat.md): one string of a few pieces
 - [txt::format](../txt/format.md): text of values in a form of one's own
-- [sgcl::string](string.md)
+- [sgcl::string](string/README.md)

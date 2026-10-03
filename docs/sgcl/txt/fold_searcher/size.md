@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](../fold_searcher.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_searcher](README.md)
 
 # sgcl::txt::fold_searcher::size
 
@@ -50,4 +50,4 @@ Output:
 
 - [empty](empty.md): whether the pattern mapped to nothing
 - [points](points.md): the code points
-- [sgcl::txt::fold_searcher, normalized_searcher](../fold_searcher.md)
+- [sgcl::txt::fold_searcher, normalized_searcher](README.md)

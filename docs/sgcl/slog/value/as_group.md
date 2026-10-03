@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::as_group
 
@@ -6,7 +6,7 @@
 attrs as_group() const;
 ```
 
-Returns the attributes of a value of kind `group`, in order, as a range of [attr](../attr.md), [attrs](../attrs.md): a [group](../group.md)'s pairs, what a logger's group holds, or the fields of a type described by them, copied first into memory of the range's own, which it keeps. A value of another kind is a mistake of the program: a `logic_error`, where Go panics.
+Returns the attributes of a value of kind `group`, in order, as a range of [attr](../attr/README.md), [attrs](../attrs/README.md): a [group](../group/README.md)'s pairs, what a logger's group holds, or the fields of a type described by them, copied first into memory of the range's own, which it keeps. A value of another kind is a mistake of the program: a `logic_error`, where Go panics.
 
 ## Parameters
 
@@ -14,7 +14,7 @@ None.
 
 ## Return value
 
-The range of the attributes, an [attrs](../attrs.md).
+The range of the attributes, an [attrs](../attrs/README.md).
 
 ## Complexity
 
@@ -65,6 +65,6 @@ path = /a
 ## See also
 
 - [type](type.md)
-- [attrs](../attrs.md): the range
+- [attrs](../attrs/README.md): the range
 - [kind](../value-kind.md): `group`
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::operator[]
 
@@ -77,4 +77,4 @@ null
 - [contains](contains.md): whether a member is there
 - [at_path](at_path.md): a value by a JSON Pointer
 - [elements](elements.md), [members](members.md): all of them
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

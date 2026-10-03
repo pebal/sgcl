@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [memory](../memory.md)
+[sgcl](../../README.md) › [slog](../README.md) › [memory](README.md)
 
 # sgcl::slog::memory::records
 
@@ -59,5 +59,5 @@ true disk almost full free=0.05
 ## See also
 
 - [size](size.md), [clear](clear.md)
-- [record](../record.md)
-- [sgcl::slog::memory](../memory.md)
+- [record](../record/README.md)
+- [sgcl::slog::memory](README.md)

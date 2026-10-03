@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::replace
 
@@ -93,5 +93,5 @@ true
 
 - [trim_prefix](trim_prefix.md), [trim_suffix](trim_suffix.md): without a prefix or a suffix
 - [split](split.md), [join](join.md): the pieces between the occurrences, and one string of them
-- [mixin::text](../mixin/text.md): `find`, `contains`
-- [sgcl::string](../string.md)
+- [mixin::text](../mixin/text/README.md): `find`, `contains`
+- [sgcl::string](README.md)

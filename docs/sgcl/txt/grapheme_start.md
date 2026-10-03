@@ -72,5 +72,5 @@ Output:
 ## See also
 
 - [grapheme_next](grapheme_next.md), [grapheme_prev](grapheme_prev.md): the cursor moved
-- [graphemes](graphemes.md): the graphemes of a text
+- [graphemes](graphemes/README.md): the graphemes of a text
 - [txt](README.md)

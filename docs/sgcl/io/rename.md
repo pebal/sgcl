@@ -29,7 +29,7 @@ under `using namespace sgcl;` a bare `rename` with literals is the C library's.
 
 ## Return value
 
-Nothing, or the [error](error.md) of the call (`is_not_found()` when nothing is at `from`; a move across file systems
+Nothing, or the [error](error/README.md) of the call (`is_not_found()` when nothing is at `from`; a move across file systems
 is the system's `EXDEV`); the operation is `rename` and the path `from`.
 
 ## Complexity

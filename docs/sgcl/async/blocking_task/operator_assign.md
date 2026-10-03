@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_task](../blocking_task.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_task](README.md)
 
 # sgcl::async::blocking_task\<T\>::operator=
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [(constructor)](blocking_task.md): an empty handle, or one moved
-- [sgcl::async::blocking_task\<T\>](../blocking_task.md)
+- [sgcl::async::blocking_task\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [graphemes](../graphemes.md)
+[sgcl](../../README.md) › [txt](../README.md) › [graphemes](README.md)
 
 # sgcl::txt::graphemes::graphemes
 
@@ -14,7 +14,7 @@ explicit graphemes(P text);                                        // (5)
 ```
 
 Constructs the range of the grapheme clusters of a text. `txt::graphemes(s)` looks like a call and is a construction,
-as [runes](../../core/runes.md) is. Nothing is found until the walk.
+as [runes](../../core/runes/README.md) is. Nothing is found until the walk.
 
 1. An empty range, over no text.
 2. The grapheme clusters of a slice of UTF-8 bytes, a piece of a buffer as much as a piece of a string; the range
@@ -70,4 +70,4 @@ true
 ## See also
 
 - [text](text.md): the slice the range walks
-- [sgcl::txt::graphemes](../graphemes.md)
+- [sgcl::txt::graphemes](README.md)

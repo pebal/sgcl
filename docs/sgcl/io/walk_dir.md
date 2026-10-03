@@ -37,7 +37,7 @@ so as well.
 
 ## Return value
 
-Nothing when the walk ran, whatever `f` met on the way; or the [error](error.md) of `root`: the error of its `lstat`
+Nothing when the walk ran, whatever `f` met on the way; or the [error](error/README.md) of `root`: the error of its `lstat`
 (operation `lstat`), or `std::errc::not_a_directory` when it is not a directory (operation `walk_dir`).
 
 ## Complexity

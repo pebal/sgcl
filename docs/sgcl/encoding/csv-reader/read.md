@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::read\<T\>, async_read\<T\>
 
@@ -9,9 +9,9 @@ template<class T>
 async::task<optional<T>> async_read() noexcept;    // (2)
 ```
 
-The next record as a value of `T`, a type with `describe(field_list&)` ([field_list](../field_list.md)) and a
+The next record as a value of `T`, a type with `describe(field_list&)` ([field_list](../field_list/README.md)) and a
 default constructor: each field of `T` is set from the column of the header named as the field. The first record is
-taken for the header when [read_header](read_header.md) was not called. No [row](../csv-row.md) is made: the
+taken for the header when [read_header](read_header.md) was not called. No [row](../csv-row/README.md) is made: the
 fields are set from the text of the record, and the columns of the fields are found once for the type and kept.
 
 - A column no field has is skipped; a field whose column is not there keeps the value `T`'s constructor gave it,
@@ -97,5 +97,5 @@ t2 -30 false true false
 - [read_header](read_header.md): the header the fields are found by
 - [csv::load](../csv/load.md): every record of a file as a value
 - [writer::write](../csv-writer/write.md): a value written as a record
-- [field_list](../field_list.md): how a type describes its fields
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [field_list](../field_list/README.md): how a type describes its fields
+- [sgcl::encoding::csv::reader](README.md)

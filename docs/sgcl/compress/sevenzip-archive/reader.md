@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::reader
 
@@ -8,7 +8,7 @@ expected<io::reader, error> reader(const entry& e, const limits& l) const noexce
 expected<io::reader, error> reader(const string& name) const noexcept;                 // (3)
 ```
 
-Makes an [io reader](../../io/reader.md) of an entry's data, decompressed and checked: its folder decoded from the
+Makes an [io reader](../../io/reader/README.md) of an entry's data, decompressed and checked: its folder decoded from the
 start and what comes before the entry dropped, the data counted to the entry's size and checked against its CRC-32.
 Readers of any entries may be open at once, from any threads; reading every entry of a solid folder this way costs
 the square of the folder's size, which [walk](walk.md) does not. An entry without data gives a reader of nothing.
@@ -27,7 +27,7 @@ the square of the folder's size, which [walk](walk.md) does not. An entry withou
 
 ## Return value
 
-The reader, or the [error](../error.md): (3) no entry of the name (`errc::invalid_argument`). The errors of the data
+The reader, or the [error](../error/README.md): (3) no entry of the name (`errc::invalid_argument`). The errors of the data
 — a password missing or wrong, a damaged folder, a CRC-32 that does not match — are the reader's reads'.
 
 ## Complexity
@@ -73,4 +73,4 @@ Output:
 ## See also
 
 - [read](read.md): the data whole; [walk](walk.md): every entry in order
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

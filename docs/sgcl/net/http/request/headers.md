@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::headers
 
@@ -6,7 +6,7 @@
 http::headers& headers() const noexcept;
 ```
 
-Returns the fields of the request by reference, Go's `r.Header`: the [headers](../headers.md) the request holds, to
+Returns the fields of the request by reference, Go's `r.Header`: the [headers](../headers/README.md) the request holds, to
 read every field or to change them. On the server they are the fields of the head as it came, in their order, the
 names as written. The reference is valid while the request is.
 
@@ -68,5 +68,5 @@ X-Trace: 1
 ## See also
 
 - [header](header.md): the first value of a name
-- [sgcl::net::http::headers](../headers.md)
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::headers](../headers/README.md)
+- [sgcl::net::http::request](README.md)

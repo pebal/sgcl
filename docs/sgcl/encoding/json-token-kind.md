@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [json](json.md) › [token](json-token.md)
+[sgcl](../README.md) › [encoding](README.md) › [json](json/README.md) › [token](json-token/README.md)
 
 # sgcl::encoding::json::token::kind
 
@@ -18,7 +18,7 @@ namespace sgcl::encoding {
 }
 ```
 
-`sgcl::encoding::json::token::kind` is what a [token](json-token.md) is, as its [type](json-token/type.md) says.
+`sgcl::encoding::json::token::kind` is what a [token](json-token/README.md) is, as its [type](json-token/type.md) says.
 A key is a kind of its own, not a string: the reader has checked where it stands, so a loader tells a member's
 key from a string value without counting anything itself. The commas and the colons are no tokens.
 
@@ -77,4 +77,4 @@ begin_object key begin_array string number boolean null end_array end_object
 
 - [type](json-token/type.md): the kind of a token
 - [json::reader::next](json-reader/next.md): what makes the tokens
-- [sgcl::encoding::json::token](json-token.md)
+- [sgcl::encoding::json::token](json-token/README.md)

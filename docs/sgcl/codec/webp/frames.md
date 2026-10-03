@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [webp](../webp.md)
+[sgcl](../../README.md) › [codec](../README.md) › [webp](README.md)
 
 # sgcl::codec::webp::frames
 
@@ -10,7 +10,7 @@ static expected<codec::frames, error> frames(const io::reader& in,              
 ```
 
 Opens a WebP as an animation: reads the RIFF header and VP8X, or the simple format's image header, and returns the
-[frames](../frames.md), whose [next](../frames/next.md) decodes the frames one by one as the program asks for them. A
+[frames](../frames/README.md), whose [next](../frames/next.md) decodes the frames one by one as the program asks for them. A
 still image is one frame. Each [frame](../frame.md) is the whole canvas as it is shown, `rgba8` unless `o.want` asks
 for another format.
 
@@ -35,7 +35,7 @@ the nearest: A = src.A + dst.A × (255 − src.A) / 255, and each color (src.C �
 ## Return value
 
 The frames, or the error of what was read: `errc::invalid_argument` for a `want` outside the list, `errc::corrupt` for
-a file that is not a WebP or a header the class's [rules](../webp.md#rules) refuse, `errc::unexpected_end` for a file
+a file that is not a WebP or a header the class's [rules](README.md#rules) refuse, `errc::unexpected_end` for a file
 that ends before its RIFF size, `errc::too_large` for a canvas past `o.limits.max_pixels`, and (2) `errc::io` when the
 stream fails. An error in a frame comes from `next`, where it is found.
 
@@ -107,5 +107,5 @@ still: rgba8: true, a second frame: false
 
 - [decode](decode.md): a still image, or the first frame alone
 - [codec::decode_frames](../decode_frames.md): GIF or WebP, told by its signature
-- [frames](../frames.md), [frame](../frame.md)
-- [sgcl::codec::webp](../webp.md)
+- [frames](../frames/README.md), [frame](../frame.md)
+- [sgcl::codec::webp](README.md)

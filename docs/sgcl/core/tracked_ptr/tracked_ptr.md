@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::tracked_ptr
 
@@ -61,7 +61,7 @@ the word with the barrier and checks, in a debug build, that the pointer lives w
 what they allow. (10) is the exception: it asserts that the thread is registered already and stores the word
 without the barrier.
 
-A [slice](../slice.md) over unmanaged memory has no owner, and a thread that only makes such slices never touches
+A [slice](../slice/README.md) over unmanaged memory has no owner, and a thread that only makes such slices never touches
 the collector: its null owner is made by a private constructor of the library's own, without the thread-local load,
 and a value stored into that word later comes through an assignment whose caller, the slice, registers the thread
 first.
@@ -108,4 +108,4 @@ true true
 
 - [operator=](operator_assign.md): assigns the pointer
 - [make_tracked](../make_tracked.md): creates a managed object
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

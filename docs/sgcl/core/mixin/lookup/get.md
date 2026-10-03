@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](../lookup.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [lookup](README.md)
 
 # sgcl::mixin::lookup\<Derived\>::get
 
@@ -68,4 +68,4 @@ a
 
 - [try_get](try_get.md): a pointer to the value, null when absent
 - [value_or](value_or.md): the value, or a default
-- [sgcl::mixin::lookup\<Derived\>](../lookup.md)
+- [sgcl::mixin::lookup\<Derived\>](README.md)

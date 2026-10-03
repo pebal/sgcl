@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [range](../range.md)
+[sgcl](../../README.md) › [core](../README.md) › [range](README.md)
 
 # sgcl::range\<It\>::empty
 
@@ -49,4 +49,4 @@ true true
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::range\<It\>](../range.md)
+- [sgcl::range\<It\>](README.md)

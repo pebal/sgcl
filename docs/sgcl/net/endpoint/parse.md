@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [endpoint](../endpoint.md)
+[sgcl](../../README.md) › [net](../README.md) › [endpoint](README.md)
 
 # sgcl::net::endpoint::parse
 
@@ -23,7 +23,7 @@ it.
 
 ## Return value
 
-The endpoint, or an [io::error](../../io/error.md) of the code `net::errc::invalid_address` ([errc](../errc.md)), the
+The endpoint, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_address` ([errc](../errc.md)), the
 operation `parse endpoint` and the text.
 
 ## Complexity
@@ -69,4 +69,4 @@ localhost:80 -> parse endpoint localhost:80: invalid address
 
 - [(constructor)](endpoint.md): the endpoint a literal spells
 - [to_string](to_string.md): the text back
-- [sgcl::net::endpoint](../endpoint.md)
+- [sgcl::net::endpoint](README.md)

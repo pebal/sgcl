@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::set_memory_limit
 
@@ -6,7 +6,7 @@
 static void set_memory_limit(size_t bytes) noexcept;
 ```
 
-Sets the ceiling on committed managed memory to `bytes` ([The memory limit](../collector.md#the-memory-limit)).
+Sets the ceiling on committed managed memory to `bytes` ([The memory limit](README.md#the-memory-limit)).
 Above 75% of it the collector cycles every 100 ms and returns every free chunk at once; when an allocation would
 cross it, the allocation forces a full collection and waits for it, and if that does not free enough the program
 prints one line to stderr, `sgcl: out of managed memory: N bytes committed, limit L`, and ends with
@@ -68,4 +68,4 @@ Output:
 
 - [set_memory_limit_percent](set_memory_limit_percent.md): the ceiling as a share of the memory
 - [get_memory_limit](get_memory_limit.md): the ceiling
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

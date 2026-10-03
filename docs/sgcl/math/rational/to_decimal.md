@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::to_decimal
 
@@ -62,4 +62,4 @@ Output:
 - [to_double](to_double.md): the nearest double
 - [format_value](format_value.md): `{:.5f}` writes the decimal in a field
 - [floor](floor.md), [ceil](ceil.md): the whole numbers either side
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::to_string, sgcl::operator\<\< (sgcl::duration)
 
@@ -71,4 +71,4 @@ Output:
 ## See also
 
 - [parse](parse.md): reads the text back
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hmac](../hmac.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hmac](README.md)
 
 # sgcl::crypto::hmac\<H\>::digest
 
@@ -56,5 +56,5 @@ a30e01098bc6dbbf45690f3a7e9e6d0f8bbea2a39e6148008fd05e44
 ## See also
 
 - [value](value.md): the same bytes
-- [hash::mixin::hasher](../../hash/mixin/hasher.md): the shape every hasher shares
-- [sgcl::crypto::hmac\<H\>](../hmac.md)
+- [hash::mixin::hasher](../../hash/mixin/hasher/README.md): the shape every hasher shares
+- [sgcl::crypto::hmac\<H\>](README.md)

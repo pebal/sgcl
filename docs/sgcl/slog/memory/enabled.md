@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [memory](../memory.md)
+[sgcl](../../README.md) › [slog](../README.md) › [memory](README.md)
 
 # sgcl::slog::memory::enabled
 
@@ -52,4 +52,4 @@ true false
 
 - [handle](handle.md)
 - [logger::enabled](../logger/enabled.md)
-- [sgcl::slog::memory](../memory.md)
+- [sgcl::slog::memory](README.md)

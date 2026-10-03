@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::line
 
@@ -56,4 +56,4 @@ Output:
 
 - [column](column.md): the column on the line
 - [locate](locate.md): the line and the column of the offset in a text
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

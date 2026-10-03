@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::from_pem
 
@@ -9,7 +9,7 @@ static expected<private_key, error> from_pem(const slice<const byte>& text) noex
 Reads the key from PEM text (RFC 7468): the first private key block of the text, `PRIVATE KEY` (PKCS #8, read as
 [from_pkcs8_der](from_pkcs8_der.md) reads it) or `EC PRIVATE KEY` (SEC 1, read as
 [from_sec1_der](from_sec1_der.md) reads it). Its base64 is decoded straight into a
-[secret_bytes](../secret_bytes.md): [encoding::pem](../../encoding/pem.md) would put the DER in managed memory. Text
+[secret_bytes](../secret_bytes/README.md): [encoding::pem](../../encoding/pem/README.md) would put the DER in managed memory. Text
 before, between and after the blocks is passed over, and so are blocks of other labels (OpenSSL writes
 `EC PARAMETERS` before `EC PRIVATE KEY`). For a key file: `from_pem(crypto::read_secret(path))`.
 
@@ -23,7 +23,7 @@ before, between and after the blocks is passed over, and so are blocks of other 
 
 ## Return value
 
-The key, or a [crypto::error](../error.md):
+The key, or a [crypto::error](../error/README.md):
 
 - `errc::malformed` for text with no private key block, a block without its end, base64 that does not decode, or a
   block of another key's type (`RSA PRIVATE KEY`);
@@ -76,4 +76,4 @@ sgcl::crypto::p256: PEM: no private key block
 - [to_pem](to_pem.md): the key as PEM
 - [from_pkcs8_der](from_pkcs8_der.md), [from_sec1_der](from_sec1_der.md): the DER inside
 - [read_secret](../read_secret.md): a key file read into a `secret_bytes`
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

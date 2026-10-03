@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::zone
 
@@ -50,4 +50,4 @@ Output:
 
 - [has_zone](has_zone.md): whether there is one
 - [with_zone](with_zone.md): the address with another
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

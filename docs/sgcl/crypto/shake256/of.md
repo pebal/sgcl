@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [shake256](../shake256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [shake256](README.md)
 
 # sgcl::crypto::shake256::of
 
@@ -8,7 +8,7 @@ static secret_bytes of(const slice<const byte>& data, size_t n) noexcept;
 
 The first `n` bytes of the output over `data`, in one call: a sponge made, `data` absorbed and `n` bytes read, what
 Go's `sha3.SumSHAKE256(data, n)` gives. `shake128::of` is the same over SHAKE128. The data is bytes or text, which
-the slice takes both. The bytes are a [secret_bytes](../secret_bytes.md), as [read](read.md) gives them.
+the slice takes both. The bytes are a [secret_bytes](../secret_bytes/README.md), as [read](read.md) gives them.
 
 ## Parameters
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [read](read.md): the output read in pieces
-- [sgcl::crypto::shake256](../shake256.md)
+- [sgcl::crypto::shake256](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::to_string
 
@@ -14,7 +14,7 @@ an empty string for `xml()`. Go's `xml.Marshal` and `MarshalIndent` of a structu
   a carriage return as character references, which a reader would otherwise make spaces.
 - An element without content is written `<empty/>`.
 - A character XML cannot hold at all — a control, invalid UTF-8 — is written as U+FFFD, as Go writes it.
-- With an indentation in `s` ([pretty](../xml.md#member-objects)), each element stands on a line of its own,
+- With an indentation in `s` ([pretty](README.md#member-objects)), each element stands on a line of its own,
   indented a level deeper than its parent; inside an element that holds text no line is broken from its text on,
   since there the white space is content. `s.declaration` writes `<?xml version="1.0" encoding="UTF-8"?>` first.
 
@@ -76,6 +76,6 @@ Output:
 
 - [save](save.md): the text into a file
 - [stringify](stringify.md): the text of a value of a program's type
-- [writer](../xml-writer.md): XML onto a stream, a call at a time
+- [writer](../xml-writer/README.md): XML onto a stream, a call at a time
 - [style](../xml-style.md)
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

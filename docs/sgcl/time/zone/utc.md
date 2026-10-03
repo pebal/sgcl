@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::utc
 
@@ -55,4 +55,4 @@ true true
 
 - [fixed](fixed.md): another offset
 - [(constructor)](zone.md): a default-constructed zone
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

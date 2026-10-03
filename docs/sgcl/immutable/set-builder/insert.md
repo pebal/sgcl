@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md) › [builder](../set-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](../set/README.md) › [builder](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::insert
 
@@ -63,4 +63,4 @@ true false 1
 ## See also
 
 - [erase](erase.md): takes out an element
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](../set-builder.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](README.md)

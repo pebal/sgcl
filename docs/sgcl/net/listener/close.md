@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::close
 
@@ -21,7 +21,7 @@ None.
 
 ## Return value
 
-Nothing, or the [io::error](../../io/error.md) of the close, its operation `close`.
+Nothing, or the [io::error](../../io/error/README.md) of the close, its operation `close`.
 
 ## Complexity
 
@@ -67,4 +67,4 @@ true true
 
 - [accept, async_accept](accept.md): what the close ends
 - [is_closed](is_closed.md): whether the listener was closed
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

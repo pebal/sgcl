@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [scheduler](../scheduler.md)
+[sgcl](../../README.md) › [async](../README.md) › [scheduler](README.md)
 
 # sgcl::async::scheduler::workers
 
@@ -51,4 +51,4 @@ Output:
 
 - [set_workers](set_workers.md): sets the number
 - [get_statistics](get_statistics.md): the workers and the queues, without starting anything
-- [sgcl::async::scheduler](../scheduler.md)
+- [sgcl::async::scheduler](README.md)

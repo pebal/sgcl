@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw.md) › [writer](../lzw-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw/README.md) › [writer](README.md)
 
 # sgcl::compress::lzw::writer::write, async_write
 
@@ -16,7 +16,7 @@ is kept for good.
    bytes are read when the task runs: `data` lives until the task is done.
 
 The text forms (a string, a literal, a `std::string_view`) and one byte come from
-[mixin::writer](../../io/mixin/writer.md).
+[mixin::writer](../../io/mixin/writer/README.md).
 
 ## Parameters
 
@@ -69,4 +69,4 @@ write lzw: invalid argument
 ## See also
 
 - [close](close.md)
-- [sgcl::compress::lzw::writer](../lzw-writer.md)
+- [sgcl::compress::lzw::writer](README.md)

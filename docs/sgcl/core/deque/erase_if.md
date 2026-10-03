@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::erase, sgcl::erase_if (sgcl::deque)
 
@@ -83,4 +83,4 @@ Output:
 ## See also
 
 - [erase](erase.md): erases the elements at a position or in a range
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

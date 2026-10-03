@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex_matches](../regex_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex_matches](README.md)
 
 # sgcl::txt::regex_matches::end
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [begin](begin.md): an iterator to the first match
-- [sgcl::txt::regex_matches](../regex_matches.md)
+- [sgcl::txt::regex_matches](README.md)

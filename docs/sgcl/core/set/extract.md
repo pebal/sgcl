@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::extract
 
@@ -8,7 +8,7 @@ node_type extract(const key_type& key) noexcept;                           // (2
 template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3)
 ```
 
-Unlinks a node and hands it over in a [node handle](../set-node_type.md), the element untouched: neither copied
+Unlinks a node and hands it over in a [node handle](../set-node_type/README.md), the element untouched: neither copied
 nor destroyed. The handle destroys the element if it dies without having been inserted anywhere.
 
 1. Extracts the node at `pos`.
@@ -41,7 +41,7 @@ Constant on average, the walk of one bucket.
 
 This is the way to change a key: outside a set, [value()](../set-node_type/value.md) of the handle is writable,
 and [insert](insert.md) of the handle links the node again, hashed anew, with no copy of the element. A node
-extracted from a set may be inserted into a [multiset](../multiset.md) of the same `Key`, and back: their
+extracted from a set may be inserted into a [multiset](../multiset/README.md) of the same `Key`, and back: their
 handles are one type.
 
 ## Example
@@ -76,6 +76,6 @@ true
 ## See also
 
 - [insert](insert.md): links the node of a handle
-- [node_type](../set-node_type.md): the node handle
+- [node_type](../set-node_type/README.md): the node handle
 - [erase](erase.md): erases an element, destroying it
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](../request.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [request](README.md)
 
 # sgcl::net::http::request::set_header
 
@@ -71,4 +71,4 @@ send invalid header value: X-Name: Invalid argument
 
 - [add_header](add_header.md): a field appended
 - [header](header.md): a field read
-- [sgcl::net::http::request](../request.md)
+- [sgcl::net::http::request](README.md)

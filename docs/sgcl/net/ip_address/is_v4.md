@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::is_v4
 
@@ -47,4 +47,4 @@ true false
 ## See also
 
 - [is_v6](is_v6.md), [is_v4_mapped](is_v4_mapped.md): the other kinds
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

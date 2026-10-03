@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](../buffered_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](README.md)
 
 # sgcl::io::buffered_writer::write, async_write
 
@@ -76,4 +76,4 @@ Output:
 
 - [mixin::writer::write](../mixin/writer/write.md): text and one byte
 - [flush](flush.md): writes what the block holds
-- [sgcl::io::buffered_writer](../buffered_writer.md)
+- [sgcl::io::buffered_writer](README.md)

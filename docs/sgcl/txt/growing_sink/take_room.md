@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](../growing_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](README.md)
 
 # sgcl::txt::growing_sink::take_room
 
@@ -67,4 +67,4 @@ Output:
 ## See also
 
 - [capacity](capacity.md): read once, before the walk
-- [sgcl::txt::growing_sink](../growing_sink.md)
+- [sgcl::txt::growing_sink](README.md)

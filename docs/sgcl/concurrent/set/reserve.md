@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [set](README.md)
 
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::reserve
 
@@ -35,7 +35,7 @@ May run concurrently with anything. One thread doubles the array at a time: whil
 thread's doubling. The buckets of the new half get their dummy nodes on their first use, not here.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program at the doubling it refuses,
-as any refused managed allocation does ([collector](../../core/collector.md#the-memory-limit)).
+as any refused managed allocation does ([collector](../../core/collector/README.md#the-memory-limit)).
 
 ## Example
 
@@ -69,4 +69,4 @@ Output:
 
 - [bucket_count](bucket_count.md): the number of buckets, and when the array doubles
 - [(constructor)](set.md): a set with its buckets from the start
-- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](README.md)

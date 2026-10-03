@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::is_closed
 
@@ -51,5 +51,5 @@ true
 ## See also
 
 - [close](close.md): ends the file
-- [writer](../writer.md): a stream made of a file holds the same file
-- [sgcl::io::file](../file.md)
+- [writer](../writer/README.md): a stream made of a file holds the same file
+- [sgcl::io::file](README.md)

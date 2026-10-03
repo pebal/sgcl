@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::size
 
@@ -57,4 +57,4 @@ Output:
 - [empty](empty.md): checks whether the deque is empty
 - [max_size](max_size.md): the largest number of elements a deque may hold
 - [resize](resize.md): changes the number of elements
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](../reader.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](README.md)
 
 # sgcl::io::mixin::reader\<Derived\>::read_full, async_read_full
 
@@ -72,4 +72,4 @@ read: unexpected end of stream: 19 bytes
 
 - [io::read_full](../../read_full.md): the same over any stream
 - [read_all](read_all.md): everything to the end of the stream
-- [sgcl::io::mixin::reader\<Derived\>](../reader.md)
+- [sgcl::io::mixin::reader\<Derived\>](README.md)

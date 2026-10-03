@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::parse
 
@@ -23,7 +23,7 @@ dropped. Go's `net/url` reads RFC 3986, loosely, and of all this only lowercases
 
 The text as the parser reads it (its ends trimmed, its tabs and newlines gone, a byte that is not UTF-8 counted as the
 three of U+FFFD) is at most 512 MiB, and so is the URL made of it, an escaped byte counted as three; a host that goes
-through IDNA is at most 1 MiB once decoded ([the limit](../url.md#rules)). A real URL is far shorter: browsers stop
+through IDNA is at most 1 MiB once decoded ([the limit](README.md#rules)). A real URL is far shorter: browsers stop
 near 2 MB.
 
 ## Parameters
@@ -35,7 +35,7 @@ near 2 MB.
 
 ## Return value
 
-The URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the operation
+The URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)), the operation
 `parse URL` and the text: its message reads `parse URL /relative: invalid URL`. A text past the limit is the same
 error.
 
@@ -90,4 +90,4 @@ https://example.com/c?x=1
 - [(constructor)](url.md): the URL a literal spells
 - [resolve](resolve.md): a reference against this URL
 - [to_string](to_string.md): the serialization
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

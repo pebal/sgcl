@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::to_pem
 
@@ -7,7 +7,7 @@ secret_bytes to_pem() const;
 ```
 
 Writes the key as PEM, a `PRIVATE KEY` block over its PKCS #8, as Go's `pem.Encode` of
-`x509.MarshalPKCS8PrivateKey` and OpenSSL's `genpkey` write it: a [secret_bytes](../secret_bytes.md), never managed
+`x509.MarshalPKCS8PrivateKey` and OpenSSL's `genpkey` write it: a [secret_bytes](../secret_bytes/README.md), never managed
 memory, for the program to write to a file of its own.
 
 ## Parameters
@@ -51,4 +51,4 @@ true
 ## See also
 
 - [from_pem](from_pem.md): reads it back
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [shake256](../shake256.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [shake256](README.md)
 
 # sgcl::crypto::shake256::read_to
 
@@ -62,4 +62,4 @@ d5a15bef186a5386c75744c0527e1faa9f8726e462a12a4feb06bd8801e751e4
 
 - [read](read.md): the bytes as a `secret_bytes`
 - [secure_zero](../secure_zero.md): clears the buffer after use
-- [sgcl::crypto::shake256](../shake256.md)
+- [sgcl::crypto::shake256](README.md)

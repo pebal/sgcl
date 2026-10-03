@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex.md) › [shared_guard](../shared_mutex-shared_guard.md)
+[sgcl](../../README.md) › [async](../README.md) › [shared_mutex](../shared_mutex/README.md) › [shared_guard](README.md)
 
 # sgcl::async::shared_mutex::shared_guard::shared_guard
 
@@ -62,4 +62,4 @@ true
 
 - [scoped_lock_shared](../shared_mutex/scoped_lock_shared.md): locks and makes the guard
 - [release](release.md): gives the lock up without giving it back
-- [sgcl::async::shared_mutex::shared_guard](../shared_mutex-shared_guard.md)
+- [sgcl::async::shared_mutex::shared_guard](README.md)

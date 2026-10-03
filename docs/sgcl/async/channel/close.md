@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::close
 
@@ -76,4 +76,4 @@ true false
 
 - [closed](closed.md): checks whether the channel is closed
 - [receive](receive.md), [send](send.md): what they give on a closed channel
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

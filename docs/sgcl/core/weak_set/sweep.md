@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_set](../weak_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_set](README.md)
 
 # sgcl::weak_set\<Key\>::sweep
 
@@ -81,4 +81,4 @@ Output:
 
 - [size](size.md): the number of entries, the dead ones not yet swept included
 - [erase](erase.md): erases an object
-- [sgcl::weak_set\<Key\>](../weak_set.md)
+- [sgcl::weak_set\<Key\>](README.md)

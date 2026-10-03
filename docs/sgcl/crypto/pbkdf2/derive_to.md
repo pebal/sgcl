@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [pbkdf2](../pbkdf2.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [pbkdf2](README.md)
 
 # sgcl::crypto::pbkdf2\<H\>::derive_to
 
@@ -69,4 +69,4 @@ Output:
 
 - [derive](derive.md): the bytes as a `secret_bytes`
 - [secure_zero](../secure_zero.md): clears the buffer after use
-- [sgcl::crypto::pbkdf2\<H\>](../pbkdf2.md)
+- [sgcl::crypto::pbkdf2\<H\>](README.md)

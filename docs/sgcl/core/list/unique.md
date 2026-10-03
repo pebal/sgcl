@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::unique
 
@@ -67,4 +67,4 @@ Output:
 
 - [remove, remove_if](remove.md): erase the elements equal to a value, or satisfying a predicate
 - [sort](sort.md): brings equal elements together
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

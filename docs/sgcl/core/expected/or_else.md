@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::or_else
 
@@ -73,4 +73,4 @@ no port in the config: the default
 
 - [transform_error](transform_error.md): the error mapped
 - [and_then](and_then.md): the next step after a value
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

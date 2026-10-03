@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [transform_reader](../transform_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [transform_reader](README.md)
 
 # sgcl::io::transform_reader\<F\>::transform_reader
 
@@ -7,7 +7,7 @@ transform_reader(const io::reader& r, F f) noexcept(std::is_nothrow_move_constru
 ```
 
 Constructs a reader of `r` that gives what it reads to `f` before it hands it on. The source is held as an
-[io::reader](../reader.md): any stream converts to one, a handle by its object, a stream of the program's by
+[io::reader](../reader/README.md): any stream converts to one, a handle by its object, a stream of the program's by
 reference. `f` is moved in. `F` is deduced from the arguments (the deduction guide), so a lambda is written in the
 call.
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [read, async_read](read.md)
-- [sgcl::io::transform_reader\<F\>](../transform_reader.md)
+- [sgcl::io::transform_reader\<F\>](README.md)

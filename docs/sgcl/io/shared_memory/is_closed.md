@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::is_closed
 
@@ -53,4 +53,4 @@ true false
 
 - [close](close.md): gives the region back
 - [operator bool](operator_bool.md): whether the handle holds a region at all
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [sgcl::io::shared_memory](README.md)

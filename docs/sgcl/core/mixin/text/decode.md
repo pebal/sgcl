@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](../text.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [text](README.md)
 
 # sgcl::mixin::text\<Derived, CharT, Traits\>::decode
 
@@ -67,5 +67,5 @@ fffd 1, fffd 0
 
 - [runes](runes.md): the code points, walked one by one
 - [at](at.md): the byte at a position
-- [utf8, unicode, runes](../../utf8.md): `utf8::decode`, `utf8::decode_last`
-- [sgcl::mixin::text\<Derived, CharT, Traits\>](../text.md)
+- [utf8, unicode, runes](../../utf8/README.md): `utf8::decode`, `utf8::decode_last`
+- [sgcl::mixin::text\<Derived, CharT, Traits\>](README.md)

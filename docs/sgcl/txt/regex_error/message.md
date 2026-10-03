@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex_error](../regex_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex_error](README.md)
 
 # sgcl::txt::regex_error::message
 
@@ -50,4 +50,4 @@ sgcl::txt::regex: an atomic group: it exists to cut a backtracking engine short,
 ## See also
 
 - [offset](offset.md): the byte of the pattern
-- [sgcl::txt::regex_error](../regex_error.md)
+- [sgcl::txt::regex_error](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::headers
 
@@ -64,5 +64,5 @@ false
 
 ## See also
 
-- [headers](../headers.md): the class of the list
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [headers](../headers/README.md): the class of the list
+- [sgcl::net::http::response_writer](README.md)

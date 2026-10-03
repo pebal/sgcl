@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [manual_clock](../manual_clock.md)
+[sgcl](../../README.md) › [async](../README.md) › [manual_clock](README.md)
 
 # sgcl::async::manual_clock::installed
 
@@ -53,4 +53,4 @@ false
 ## See also
 
 - [install](install.md), [uninstall](uninstall.md)
-- [sgcl::async::manual_clock](../manual_clock.md)
+- [sgcl::async::manual_clock](README.md)

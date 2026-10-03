@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [pbkdf2](../pbkdf2.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [pbkdf2](README.md)
 
 # sgcl::crypto::pbkdf2\<H\>::derive
 
@@ -11,7 +11,7 @@ static secret_bytes derive(const slice<const byte>& password, const slice<const 
 it, what Go's `pbkdf2.Key` gives. The password is the HMAC's key, bytes or text as given; the arguments are checked
 before anything is computed. The keyed states and every intermediate block are zeroed before the call returns.
 
-The output is a [secret_bytes](../secret_bytes.md): up to 64 bytes in the object itself, past that in plain memory
+The output is a [secret_bytes](../secret_bytes/README.md): up to 64 bytes in the object itself, past that in plain memory
 zeroed when it goes, never in managed memory.
 
 ## Parameters
@@ -74,5 +74,5 @@ sgcl::crypto::pbkdf2: no iterations
 ## See also
 
 - [derive_to](derive_to.md): into a buffer of the caller's
-- [hmac](../hmac.md): the function of each round
-- [sgcl::crypto::pbkdf2\<H\>](../pbkdf2.md)
+- [hmac](../hmac/README.md): the function of each round
+- [sgcl::crypto::pbkdf2\<H\>](README.md)

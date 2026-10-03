@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::wait, async_wait
 
@@ -9,7 +9,7 @@ async::task<expected<process_state, error>> async_wait() const noexcept;    // (
 
 Waits for the process to end and returns how it ended, Go's `Process.Wait`. The process is waited for once: a second
 wait, or one after [release](release.md), is refused. This is the wait of the process alone; a
-[command](../command.md)'s [wait](../command/wait.md) waits for it through this one and also joins the tasks that
+[command](../command/README.md)'s [wait](../command/wait.md) waits for it through this one and also joins the tasks that
 serve its pipes.
 
 1. Waits on the calling thread, `wait4`, which gives the status and the times of the process.
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-How the process ended, a [process_state](../process_state.md), or the [error](../error.md): `errc::process_done`
+How the process ended, a [process_state](../process_state/README.md), or the [error](../error/README.md): `errc::process_done`
 for a second wait or one after the release, else the `errno` of `wait4`; the operation is `wait`. A failure status
 is no error here: it is in the state.
 
@@ -65,5 +65,5 @@ wait: process already finished
 ## See also
 
 - [command::wait](../command/wait.md): the wait of a command, its pipes joined
-- [process_state](../process_state.md): how the process ended
-- [sgcl::io::process](../process.md)
+- [process_state](../process_state/README.md): how the process ended
+- [sgcl::io::process](README.md)

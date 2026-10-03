@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::reserve
 
@@ -11,7 +11,7 @@ The insertion of `count` elements then grows the table no more. As with `rehash`
 `count` asks for fewer buckets than there are, though never below what the elements need.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
+allocation does ([collector](../collector/README.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
 
 ## Parameters
 
@@ -62,4 +62,4 @@ Output:
 
 - [rehash](rehash.md): sets the number of buckets
 - [(constructor)](set.md): a set with its buckets from the start
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

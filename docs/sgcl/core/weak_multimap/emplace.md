@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](../weak_multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_multimap](README.md)
 
 # sgcl::weak_multimap\<Key, T\>::emplace
 
@@ -8,7 +8,7 @@ template<class... A> iterator emplace(const key_pointer& object, A&&... a);
 
 Inserts one more value for `object`, constructed in place in the entry as `T(std::forward<A>(a)...)`, whatever
 entries the object has already. The entry goes in front of the object's others: the newest first, as in
-[multimap](../multimap.md).
+[multimap](../multimap/README.md).
 
 `object` may not be null: a null pointer is not an object, and debug builds assert.
 
@@ -85,4 +85,4 @@ Output:
 
 - [insert](insert.md): inserts a copy or a moved value
 - [equal_range](equal_range.md): the entries of an object
-- [sgcl::weak_multimap\<Key, T\>](../weak_multimap.md)
+- [sgcl::weak_multimap\<Key, T\>](README.md)

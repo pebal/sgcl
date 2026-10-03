@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](README.md)
 
 # sgcl::async::broadcast\<T\>::send
 
@@ -74,4 +74,4 @@ nullopt
 
 - [subscribe](subscribe.md): the receivers
 - [close](close.md): no more sends
-- [sgcl::async::broadcast\<T\>](../broadcast.md)
+- [sgcl::async::broadcast\<T\>](README.md)

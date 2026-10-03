@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [udp](../udp.md) › [socket](../udp-socket.md)
+[sgcl](../../README.md) › [net](../README.md) › [udp](../udp/README.md) › [socket](README.md)
 
 # sgcl::net::udp::socket::set_read_deadline
 
@@ -6,7 +6,7 @@
 void set_read_deadline(time_point t) const noexcept;
 ```
 
-Sets the deadline of the receives to `t`, an absolute time on the module's [clock](../../core/clock.md): Go's
+Sets the deadline of the receives to `t`, an absolute time on the module's [clock](../../core/clock/README.md): Go's
 `SetReadDeadline`. A receive that starts after it, or would wait past it, fails with `ETIMEDOUT` (`is_timeout()`);
 the sends are not touched. `time_point()` removes it. A change applies to the receives in progress: a deadline in
 the past, set from another task, ends a receive that waits at once.
@@ -65,4 +65,4 @@ true
 
 - [set_deadline](set_deadline.md): both directions
 - [read_deadline](read_deadline.md): the deadline now
-- [sgcl::net::udp::socket](../udp-socket.md)
+- [sgcl::net::udp::socket](README.md)

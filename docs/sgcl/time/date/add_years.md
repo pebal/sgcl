@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::add_years
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [add_months](add_months.md): months, cut to the month's end
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

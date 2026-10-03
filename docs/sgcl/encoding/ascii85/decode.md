@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](README.md)
 
 # sgcl::encoding::ascii85::decode
 
@@ -28,7 +28,7 @@ caller takes them off.
 
 ## Return value
 
-The bytes, or the [error](../error.md): its code, its offset and a message.
+The bytes, or the [error](../error/README.md): its code, its offset and a message.
 
 ## Complexity
 
@@ -74,4 +74,4 @@ offset 1: invalid character '~'
 - [encode](encode.md): the text of bytes
 - [decode_to](decode_to.md): into the caller's buffer
 - [decoder_from](decoder_from.md): as a stream
-- [sgcl::encoding::ascii85](../ascii85.md)
+- [sgcl::encoding::ascii85](README.md)

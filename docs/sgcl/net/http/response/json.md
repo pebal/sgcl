@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::json, async_json
 
@@ -14,10 +14,10 @@ async::task<expected<T, io::error>> async_json() const noexcept;                
 Reads the whole body as [text](text.md) and parses it as JSON, Go's `json.NewDecoder(resp.Body).Decode(&v)`. The
 `Content-Type` of the response is not looked at. The end of the body gives the connection back to the client's pool.
 
-1. The body as an [encoding::json](../../../encoding/json.md) value. Blocks the calling thread: the reading runs on
+1. The body as an [encoding::json](../../../encoding/json/README.md) value. Blocks the calling thread: the reading runs on
    the scheduler and the thread waits for it.
 2. The same, as a task.
-3. The body as a `T` of the program's, filled through its `describe` ([encoding::json::parse](../../../encoding/json.md)
+3. The body as a `T` of the program's, filled through its `describe` ([encoding::json::parse](../../../encoding/json/README.md)
    of `T`). Blocks the calling thread.
 4. The same, as a task.
 
@@ -30,7 +30,7 @@ None.
 ## Return value
 
 The value, or the error: that of the reading, as for [text](text.md), or the error of the JSON, an
-[io::error](../../../io/error.md) of the operation `decode` on `json` (a text that is not JSON; for `T`, a member of
+[io::error](../../../io/error/README.md) of the operation `decode` on `json` (a text that is not JSON; for `T`, a member of
 the wrong kind).
 
 ## Complexity
@@ -98,5 +98,5 @@ decode json
 ## See also
 
 - [text](text.md): the body as text
-- [encoding::json](../../../encoding/json.md): the value and `describe`
-- [sgcl::net::http::response](../response.md)
+- [encoding::json](../../../encoding/json/README.md): the value and `describe`
+- [sgcl::net::http::response](README.md)

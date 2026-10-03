@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [writer](../csv-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [writer](README.md)
 
 # sgcl::encoding::csv::writer::use_crlf
 
@@ -55,4 +55,4 @@ a,"two\r\nlines"\r\nb,c\r\n
 ## See also
 
 - [write](write.md): a record
-- [sgcl::encoding::csv::writer](../csv-writer.md)
+- [sgcl::encoding::csv::writer](README.md)

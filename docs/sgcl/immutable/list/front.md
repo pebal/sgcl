@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [list](README.md)
 
 # sgcl::immutable::list\<T\>::front
 
@@ -53,4 +53,4 @@ usr bin
 
 - [pop_front](pop_front.md): the list without its first element
 - [begin, cbegin](begin.md): an iterator to the beginning
-- [sgcl::immutable::list\<T\>](../list.md)
+- [sgcl::immutable::list\<T\>](README.md)

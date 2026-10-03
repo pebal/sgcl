@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [gzip](../gzip.md)
+[sgcl](../../README.md) › [compress](../README.md) › [gzip](README.md)
 
 # sgcl::compress::gzip::decompress_file, async_decompress_file
 
@@ -29,7 +29,7 @@ is removed. The `.gz` stays unless `keep` is `false`.
 
 ## Return value
 
-Nothing, or the [error](../error.md): the data's error (as [decompress](decompress.md) gives it, at its offset in the
+Nothing, or the [error](../error/README.md): the data's error (as [decompress](decompress.md) gives it, at its offset in the
 `.gz`), a read of the `.gz` that fails (`errc::io`, at the bytes read before it), a name that does not end in `.gz`
 (`errc::invalid_argument`), a failure of the file system (`errc::io`: the `.gz` does not open, the output cannot be
 made or written). The last two have no place, as they are not the data's: their message is the words alone.
@@ -80,4 +80,4 @@ false
 
 - [compress_file](compress_file.md): the other way
 - [file_options](../gzip-file_options.md)
-- [sgcl::compress::gzip](../gzip.md)
+- [sgcl::compress::gzip](README.md)

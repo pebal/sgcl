@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [bzip2](../bzip2.md)
+[sgcl](../../README.md) › [compress](../README.md) › [bzip2](README.md)
 
 # sgcl::compress::bzip2::decompress
 
@@ -24,7 +24,7 @@ decompress a thousand times over.
 
 ## Return value
 
-The decompressed bytes, or the [error](../error.md): not bzip2 (`errc::invalid_header`), a CRC that does not match
+The decompressed bytes, or the [error](../error/README.md): not bzip2 (`errc::invalid_header`), a CRC that does not match
 (`errc::checksum`), a block the format does not allow (`errc::corrupt`), a randomised block
 (`errc::unsupported`), data cut short (`errc::unexpected_end`), output past `max_size` (`errc::too_large`).
 
@@ -66,6 +66,6 @@ offset 42: bzip2: decompressed data past the limit
 
 ## See also
 
-- [bzip2::reader](../bzip2-reader.md): a stream
+- [bzip2::reader](../bzip2-reader/README.md): a stream
 - [limits](../limits.md)
-- [sgcl::compress::bzip2](../bzip2.md)
+- [sgcl::compress::bzip2](README.md)

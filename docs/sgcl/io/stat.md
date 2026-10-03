@@ -12,7 +12,7 @@ namespace sgcl::io {
 ```
 
 Returns what the file system says about the file at `path`, following a symbolic link to its target: Go's
-`os.Stat`, the system's `stat`. The [file_info](file_info.md) holds the name (the last element of the path), the
+`os.Stat`, the system's `stat`. The [file_info](file_info/README.md) holds the name (the last element of the path), the
 size, the type, the permissions and the time of the last modification. [lstat](lstat.md) describes a link itself.
 
 1. Waits on the calling thread.
@@ -26,7 +26,7 @@ size, the type, the permissions and the time of the last modification. [lstat](l
 
 ## Return value
 
-What the file system says, or the [error](error.md) of the call (`is_not_found()` when nothing is at the path,
+What the file system says, or the [error](error/README.md) of the call (`is_not_found()` when nothing is at the path,
 `is_permission()`); the operation is `stat` and the path `path`.
 
 ## Complexity
@@ -92,4 +92,4 @@ Output:
 - [lstat](lstat.md): the link itself, not its target
 - [exists](exists.md), [is_directory](is_directory.md), [is_regular](is_regular.md): the questions without the error
 - [file::stat](file/stat.md): the stat of an open file
-- [file_info](file_info.md): what the result holds
+- [file_info](file_info/README.md): what the result holds

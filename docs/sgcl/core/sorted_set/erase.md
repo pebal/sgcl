@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::erase
 
@@ -17,7 +17,7 @@ later.
    [clear](clear.md).
 3. Erases the element with the key `key`, if there is one.
 4. As (3), with a key of another type, compared without building a `key_type`. Takes part only when `Compare`
-   declares `is_transparent`, as `std::less` of a [string](../string.md) does, and `K` converts to neither
+   declares `is_transparent`, as `std::less` of a [string](../string/README.md) does, and `K` converts to neither
    `iterator` nor `const_iterator`.
 
 ## Parameters
@@ -93,4 +93,4 @@ Output:
 - [clear](clear.md): erases every element
 - [extract](extract.md): takes an element out without destroying it
 - [erase_if](erase_if.md): erases the elements a predicate accepts
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

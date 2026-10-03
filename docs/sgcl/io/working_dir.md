@@ -19,7 +19,7 @@ None.
 
 ## Return value
 
-The path, or the [error](error.md) of `getcwd` (the directory removed meanwhile, a path longer than 4095 bytes); the
+The path, or the [error](error/README.md) of `getcwd` (the directory removed meanwhile, a path longer than 4095 bytes); the
 operation is `getcwd`.
 
 ## Complexity

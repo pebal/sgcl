@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::offset_at
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [abbreviation_at](abbreviation_at.md), [is_dst_at](is_dst_at.md): the rest of what a zone is at an instant
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

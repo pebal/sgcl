@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stop_source](../stop_source.md)
+[sgcl](../../README.md) › [async](../README.md) › [stop_source](README.md)
 
 # sgcl::async::stop_source::stop_after
 
@@ -39,7 +39,7 @@ workers cannot be started.
 
 The timer holds the deadline and not the source's state, which a cancel lets go of: a source stopped by hand is
 not kept alive by its cancelled timer while it waits in its heap for a sweep, as Go's `cancel()` stops the timer
-of a `WithDeadline`. The deadline goes by the module's clock, so a [manual_clock](../manual_clock.md) serves it.
+of a `WithDeadline`. The deadline goes by the module's clock, so a [manual_clock](../manual_clock/README.md) serves it.
 
 ## Example
 
@@ -75,4 +75,4 @@ true
 - [stop_at](stop_at.md): at a point of the clock
 - [request_stop](request_stop.md): the stop at once
 - [with_timeout](../with_timeout.md): a task raced against a span
-- [sgcl::async::stop_source](../stop_source.md)
+- [sgcl::async::stop_source](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [siphash](../siphash.md)
+[sgcl](../../README.md) › [hash](../README.md) › [siphash](README.md)
 
 # sgcl::hash::siphash::reset
 
@@ -51,4 +51,4 @@ true
 ## See also
 
 - [(constructor)](siphash.md): a hasher under a key
-- [sgcl::hash::siphash](../siphash.md)
+- [sgcl::hash::siphash](README.md)

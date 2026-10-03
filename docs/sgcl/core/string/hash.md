@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::hash
 
@@ -74,5 +74,5 @@ true
 
 - [hash_of](hash_of.md): the hash a string of the given characters has, without making one
 - [operator==, operator\<=\>](operator_cmp.md): the equality, which compares the hashes when both are known
-- [map](../map.md), [set](../set.md): the containers a string keys
-- [sgcl::string](../string.md)
+- [map](../map/README.md), [set](../set/README.md): the containers a string keys
+- [sgcl::string](README.md)

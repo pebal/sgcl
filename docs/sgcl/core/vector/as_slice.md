@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::as_slice, operator slice
 
@@ -11,7 +11,7 @@ operator slice<T>() noexcept;                                                 //
 operator slice<const T>() const noexcept;                                     // (6)
 ```
 
-Returns the elements as a [slice](../slice.md) that holds the buffer they lie in.
+Returns the elements as a [slice](../slice/README.md) that holds the buffer they lie in.
 
 - (1–2) All the elements.
 - (3–4) The elements `[pos, pos + n)`, `n` cut to the size: `as_slice(pos)` is every element from `pos` on.
@@ -89,6 +89,6 @@ Output:
 
 ## See also
 
-- [slice](../slice.md): a view of elements that holds their buffer
+- [slice](../slice/README.md): a view of elements that holds their buffer
 - [data](data.md): the buffer as a plain pointer
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

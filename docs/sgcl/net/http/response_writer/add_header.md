@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::add_header
 
@@ -72,4 +72,4 @@ Output:
 
 - [set_header](set_header.md): a field in place of the others of its name
 - [add_cookie](add_cookie.md): a Set-Cookie field
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [punycode](../punycode.md)
+[sgcl](../../README.md) › [txt](../README.md) › [punycode](README.md)
 
 # sgcl::txt::punycode::encode
 
@@ -9,7 +9,7 @@ optional<string> encode(const string& label);
 Returns one label written in punycode, by [RFC 3492](https://www.rfc-editor.org/rfc/rfc3492), without the `xn--`
 prefix: the ASCII code points of the label first, then a `-` when there were any, then the others encoded as
 deltas. A label of ASCII alone is itself with a `-` after it. Nothing is mapped or checked: the case, the
-normalization and the rules of a domain name are [idna](../idna.md)'s.
+normalization and the rules of a domain name are [idna](../idna/README.md)'s.
 
 ## Parameters
 
@@ -60,4 +60,4 @@ abc -> abc-
 
 - [decode](decode.md): the other way
 - [to_ascii](../idna/to_ascii.md): a whole name, with the prefix
-- [sgcl::txt::punycode](../punycode.md)
+- [sgcl::txt::punycode](README.md)

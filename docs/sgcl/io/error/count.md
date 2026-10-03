@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::count
 
@@ -62,4 +62,4 @@ last 13 bytes
 
 - [read_full](../read_full.md): fills a buffer, or says how much it got
 - [is_eof](is_eof.md): whether the stream ended part way
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

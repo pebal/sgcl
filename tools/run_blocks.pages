@@ -4,14 +4,14 @@
 # --echo URL, --tls HOST:PORT[=TEXT], --skip N for program N of the page,
 # page_N, that is not compiled: a fragment, a server with no request block,
 # a program that needs arguments). Pages not named here run with none.
-docs/sgcl/io/mapping.md --tmp
+docs/sgcl/io/mapping/README.md --tmp
 docs/sgcl/io/working_dir.md --tmp
 docs/sgcl/io/chdir.md --tmp
 docs/sgcl/io/seek_from.md --tmp
 docs/sgcl/io/mixin/seeker/tell.md --tmp
 docs/sgcl/io/mixin/seeker/size.md --tmp
 docs/sgcl/io/mixin/seeker/rewind.md --tmp
-docs/sgcl/io/file.md --tmp
+docs/sgcl/io/file/README.md --tmp
 docs/sgcl/io/file/chmod.md --tmp
 docs/sgcl/io/file/close.md --tmp
 docs/sgcl/io/file/fd.md --tmp
@@ -41,7 +41,7 @@ docs/sgcl/io/write_file.md --tmp
 docs/sgcl/io/append_file.md --tmp
 docs/sgcl/io/temp_file.md --tmp
 docs/sgcl/io/make_temp_dir.md --tmp
-docs/sgcl/io/error.md --tmp
+docs/sgcl/io/error/README.md --tmp
 docs/sgcl/io/stat.md --tmp
 docs/sgcl/io/lstat.md --tmp
 docs/sgcl/io/exists.md --tmp
@@ -63,11 +63,11 @@ docs/sgcl/io/buffered_reader/close.md --tmp
 docs/sgcl/io/permissions.md --tmp
 docs/sgcl/io/file_type.md --tmp
 docs/sgcl/io/walk_action.md --tmp
-docs/sgcl/io/file_info.md --tmp
+docs/sgcl/io/file_info/README.md --tmp
 docs/sgcl/io/file_info/is_regular.md --tmp
 docs/sgcl/io/file_info/is_directory.md --tmp
 docs/sgcl/io/file_info/is_symlink.md --tmp
-docs/sgcl/io/directory_entry.md --tmp
+docs/sgcl/io/directory_entry/README.md --tmp
 docs/sgcl/io/directory_entry/is_directory.md --tmp
 docs/sgcl/io/directory_entry/info.md --tmp
 docs/sgcl/io/buffered_writer/close.md --tmp
@@ -102,34 +102,33 @@ docs/sgcl/codec/image/save.md --tmp
 docs/sgcl/codec/load.md --tmp
 docs/sgcl/codec/save.md --tmp
 docs/sgcl/codec/save_options.md --tmp
-docs/sgcl/io/fs.md --skip 0
 docs/sgcl/compress/bzip2-reader/bzip2-reader.md --tmp
 docs/sgcl/compress/gzip-file_options.md --tmp
-docs/sgcl/compress/gzip.md --tmp
+docs/sgcl/compress/gzip/README.md --tmp
 docs/sgcl/compress/gzip/compress_file.md --tmp
 docs/sgcl/compress/gzip/decompress_file.md --tmp
-docs/sgcl/compress/sevenzip-archive.md --tmp
+docs/sgcl/compress/sevenzip-archive/README.md --tmp
 docs/sgcl/compress/sevenzip-archive/close.md --tmp
 docs/sgcl/compress/sevenzip-archive/open.md --tmp
 docs/sgcl/compress/sevenzip-create.md --tmp
 docs/sgcl/compress/sevenzip-extract.md --tmp
-docs/sgcl/compress/sevenzip-writer.md --tmp
+docs/sgcl/compress/sevenzip-writer/README.md --tmp
 docs/sgcl/compress/sevenzip-writer/sevenzip-writer.md --tmp
 docs/sgcl/compress/sevenzip.md --tmp
 docs/sgcl/compress/tar-create.md --tmp
 docs/sgcl/compress/tar-extract.md --tmp
 docs/sgcl/compress/tar-options.md --tmp
-docs/sgcl/compress/tar-reader.md --tmp
+docs/sgcl/compress/tar-reader/README.md --tmp
 docs/sgcl/compress/tar-reader/close.md --tmp
-docs/sgcl/compress/tar-writer.md --tmp
+docs/sgcl/compress/tar-writer/README.md --tmp
 docs/sgcl/compress/tar.md --tmp
-docs/sgcl/compress/zip-archive.md --tmp
+docs/sgcl/compress/zip-archive/README.md --tmp
 docs/sgcl/compress/zip-archive/close.md --tmp
 docs/sgcl/compress/zip-archive/open.md --tmp
 docs/sgcl/compress/zip-create.md --tmp
 docs/sgcl/compress/zip-extract.md --tmp
 docs/sgcl/compress/zip-options.md --tmp
-docs/sgcl/compress/zip-writer.md --tmp
+docs/sgcl/compress/zip-writer/README.md --tmp
 docs/sgcl/compress/zip-writer/add_file.md --tmp
 docs/sgcl/compress/tar-writer/add_file.md --tmp
 docs/sgcl/compress/sevenzip-writer/add_file.md --tmp
@@ -144,6 +143,6 @@ docs/sgcl/net/http/response/save.md --tmp
 docs/sgcl/net/connection/read_from.md --tmp
 docs/sgcl/net/connection/path.md --tmp
 docs/sgcl/net/listener/path.md --tmp
-docs/sgcl/net/unix_domain.md --tmp
+docs/sgcl/net/unix_domain/README.md --tmp
 docs/sgcl/net/unix_domain/connect.md --tmp
 docs/sgcl/net/unix_domain/listen.md --tmp

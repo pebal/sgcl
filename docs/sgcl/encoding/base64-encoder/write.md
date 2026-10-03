@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [encoder](../base64-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base64::encoder::write, async_write
 
@@ -18,7 +18,7 @@ write the text of `"hello, world"`.
 
 A failure of the writer under it is kept for good: this write and every later `write` and `close` report it. A
 write after `close()` is `io::errc::closed`. The text and the byte of the writers of the library,
-`armored.write("text")`, are [io::mixin::writer](../../io/mixin/writer.md)'s, through this one.
+`armored.write("text")`, are [io::mixin::writer](../../io/mixin/writer/README.md)'s, through this one.
 
 ## Parameters
 
@@ -72,4 +72,4 @@ write base64: stream closed
 
 - [close, async_close](close.md): the last group
 - [encode](../base64/encode.md): the text at once
-- [sgcl::encoding::base64::encoder](../base64-encoder.md)
+- [sgcl::encoding::base64::encoder](README.md)

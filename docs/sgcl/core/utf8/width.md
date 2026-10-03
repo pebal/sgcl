@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](README.md)
 
 # sgcl::utf8::width
 
@@ -52,4 +52,4 @@ Output:
 
 - [encode](encode.md): the encoding itself
 - [valid](valid.md): whether a code point is a scalar value
-- [sgcl::utf8](../utf8.md)
+- [sgcl::utf8](README.md)

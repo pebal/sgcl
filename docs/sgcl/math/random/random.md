@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::random
 
@@ -72,4 +72,4 @@ false
 ## See also
 
 - [next_uint64](next_uint64.md): the words of the stream
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

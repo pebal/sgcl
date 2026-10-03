@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::erase
 
@@ -42,7 +42,7 @@ values have changed.
 
 An erasure at the beginning invalidates only the erased elements, one at the end the erased elements and `end()`;
 an erasure in the middle invalidates every iterator and reference
-([Iterator invalidation](../deque.md#iterator-invalidation)). A block emptied by the erasure stays as the spare
+([Iterator invalidation](README.md#iterator-invalidation)). A block emptied by the erasure stays as the spare
 of its end, as after [pop_front](pop_front.md) and [pop_back](pop_back.md).
 
 ## Example
@@ -79,4 +79,4 @@ Output:
 - [erase, erase_if](erase_if.md): erase every element equal to a value, or satisfying a predicate
 - [pop_front](pop_front.md), [pop_back](pop_back.md): remove the first, the last element
 - [clear](clear.md): destroys every element
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

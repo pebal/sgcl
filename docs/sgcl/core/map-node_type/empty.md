@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md) › [node_type](../map-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](../map/README.md) › [node_type](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::node_type::empty
 
@@ -54,4 +54,4 @@ true
 ## See also
 
 - [operator bool](operator_bool.md): the opposite answer, in a condition
-- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](../map-node_type.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>::node_type](README.md)

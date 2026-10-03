@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::line
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [row::line](../csv-row/line.md): the line a record starts on
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

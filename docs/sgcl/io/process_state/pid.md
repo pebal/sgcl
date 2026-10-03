@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process_state](../process_state.md)
+[sgcl](../../README.md) › [io](../README.md) › [process_state](README.md)
 
 # sgcl::io::process_state::pid
 
@@ -47,4 +47,4 @@ true
 ## See also
 
 - [process::pid](../process/pid.md): the id of the running process
-- [sgcl::io::process_state](../process_state.md)
+- [sgcl::io::process_state](README.md)

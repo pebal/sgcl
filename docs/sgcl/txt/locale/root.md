@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [locale](../locale.md)
+[sgcl](../../README.md) › [txt](../README.md) › [locale](README.md)
 
 # sgcl::txt::locale::root
 
@@ -50,4 +50,4 @@ true 0 I
 - [turkish](turkish.md)
 - [azerbaijani](azerbaijani.md)
 - [lithuanian](lithuanian.md)
-- [sgcl::txt::locale](../locale.md)
+- [sgcl::txt::locale](README.md)

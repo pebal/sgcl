@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [once](../once.md)
+[sgcl](../../README.md) › [async](../README.md) › [once](README.md)
 
 # sgcl::async::once::once
 
@@ -55,4 +55,4 @@ false
 ## See also
 
 - [call](call.md): runs the function once
-- [sgcl::async::once](../once.md)
+- [sgcl::async::once](README.md)

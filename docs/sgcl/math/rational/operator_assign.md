@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::operator=
 
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [(constructor)](rational.md): the conversions a whole number and a double take
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

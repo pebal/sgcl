@@ -20,7 +20,7 @@ shown with this frame drawn on what came before, and how long it is shown. A pla
 
 | Member | Description |
 |---|---|
-| `picture` | the whole canvas as it is shown, a new [image](image.md) for every frame: `rgba8`, or the pixel format `decode_options.want` asked for |
+| `picture` | the whole canvas as it is shown, a new [image](image/README.md) for every frame: `rgba8`, or the pixel format `decode_options.want` asked for |
 | `delay` | how long the frame is shown, as the file says: GIF in hundredths of a second, 0 as often as not, which browsers show as 100 ms; WebP in milliseconds |
 
 ## Example
@@ -58,6 +58,6 @@ Output:
 
 ## See also
 
-- [frames](frames.md): what reads them
-- [image](image.md): the picture
+- [frames](frames/README.md): what reads them
+- [image](image/README.md): the picture
 - [codec](README.md)

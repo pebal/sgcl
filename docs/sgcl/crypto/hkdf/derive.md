@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](../hkdf.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [hkdf](README.md)
 
 # sgcl::crypto::hkdf\<H\>::derive
 
@@ -9,7 +9,7 @@ static secret_bytes derive(const slice<const byte>& salt, const slice<const byte
 
 [extract](extract.md) and [expand](expand.md) in one: `n` bytes from the input keying material `ikm` under `salt`,
 bound to `info`, what Go's `hkdf.Key` gives. The PRK between the two steps is zeroed before the call returns; `n` is
-checked before anything is computed. The output is a [secret_bytes](../secret_bytes.md), as `expand` gives it.
+checked before anything is computed. The output is a [secret_bytes](../secret_bytes/README.md), as `expand` gives it.
 
 ## Parameters
 
@@ -58,4 +58,4 @@ Output:
 
 - [derive_to](derive_to.md): into a buffer of the caller's
 - [extract](extract.md), [expand](expand.md): the two steps apart, for several keys from one PRK
-- [sgcl::crypto::hkdf\<H\>](../hkdf.md)
+- [sgcl::crypto::hkdf\<H\>](README.md)

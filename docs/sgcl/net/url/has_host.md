@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::has_host
 
@@ -52,4 +52,4 @@ sc://h/x true
 ## See also
 
 - [host](host.md): the host
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

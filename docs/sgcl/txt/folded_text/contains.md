@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::contains
 
@@ -9,8 +9,8 @@ bool contains(const string& pattern) const noexcept;           // (2)
 
 Checks whether a pattern occurs in the mapped text, `find(pattern) != npos`.
 
-1. A pattern mapped once, a [fold_searcher](../fold_searcher.md) for a `folded_text` and a
-   [normalized_searcher](../fold_searcher.md) for a `normalized_text`.
+1. A pattern mapped once, a [fold_searcher](../fold_searcher/README.md) for a `folded_text` and a
+   [normalized_searcher](../fold_searcher/README.md) for a `normalized_text`.
 2. A pattern as text, mapped on the call.
 
 ## Parameters
@@ -58,4 +58,4 @@ true true false
 ## See also
 
 - [find](find.md): where it occurs
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

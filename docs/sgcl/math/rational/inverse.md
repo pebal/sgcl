@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::inverse
 
@@ -55,4 +55,4 @@ sgcl::math::rational::inverse: the inverse of zero
 
 - [operator/](operator_arith.md): the division
 - [pow](pow.md): a negative power is a power of the inverse
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

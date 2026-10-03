@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](README.md)
 
 # sgcl::runes::count
 
@@ -27,7 +27,7 @@ None.
 
 ## Notes
 
-`count()` counts every code point; `count_of(pred)` of [mixin::enumerable](../mixin/enumerable.md) counts those a
+`count()` counts every code point; `count_of(pred)` of [mixin::enumerable](../mixin/enumerable/README.md) counts those a
 predicate accepts.
 
 ## Example
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [utf8::count](../utf8/count.md): the count over bytes
-- [sgcl::runes](../runes.md)
+- [sgcl::runes](README.md)

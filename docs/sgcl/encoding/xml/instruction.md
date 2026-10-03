@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::instruction
 
@@ -66,4 +66,4 @@ sgcl::encoding::xml: 'XML' cannot be the target of an instruction
 
 - [text_node](text_node.md), [comment](comment.md): the other nodes of an element's content
 - [style](../xml-style.md): the XML declaration in front of a node written
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

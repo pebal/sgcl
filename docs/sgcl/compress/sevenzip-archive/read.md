@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](../sevenzip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [archive](README.md)
 
 # sgcl::compress::sevenzip::archive::read, async_read
 
@@ -30,7 +30,7 @@ against the limits' `max_size` before a byte is read; the vector is made at that
 
 ## Return value
 
-The data, or the [error](../error.md): the entry past `max_size` (`errc::too_large`), no entry of the name
+The data, or the [error](../error/README.md): the entry past `max_size` (`errc::too_large`), no entry of the name
 (`errc::invalid_argument`), the data's errors (`errc::password_required`, `errc::wrong_password`, `errc::checksum`,
 `errc::corrupt`, `errc::unsupported`), a failure of the source (`errc::io`).
 
@@ -74,4 +74,4 @@ Output:
 ## See also
 
 - [reader](reader.md), [walk](walk.md)
-- [sgcl::compress::sevenzip::archive](../sevenzip-archive.md)
+- [sgcl::compress::sevenzip::archive](README.md)

@@ -10,10 +10,10 @@ namespace sgcl::async {
 }
 ```
 
-Returns an [event](event.md) set when the process with the id `pid` has ended. `co_await async::exited(pid)` holds no
+Returns an [event](event/README.md) set when the process with the id `pid` has ended. `co_await async::exited(pid)` holds no
 thread while a child runs, and a `waitpid` after it does not block: the status, still to be collected, says how the
 child ended. A process that has ended already, or that does not exist, sets the event at once. It is what
-[io::process](../io/process.md) waits on, so that a child's wait holds no thread, as Go 1.23 waits on Linux.
+[io::process](../io/process/README.md) waits on, so that a child's wait holds no thread, as Go 1.23 waits on Linux.
 
 On kqueue the wait is a one-shot registration of the reactor (`EVFILT_PROC`), with the rules of
 [readable](readable.md): a stop of the reactor ends it with nothing. On Linux it is for now a thread per process,
@@ -76,6 +76,6 @@ exit code 0
 
 ## See also
 
-- [io::command](../io/command.md), [io::process](../io/process.md): a child process, whose wait this is
+- [io::command](../io/command/README.md), [io::process](../io/process/README.md): a child process, whose wait this is
 - [readable](readable.md): the reactor's waits and their rules
-- [event](event.md): what a wait is
+- [event](event/README.md): what a wait is

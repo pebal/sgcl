@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret](../secret.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret](README.md)
 
 # sgcl::crypto::operator== (sgcl::crypto::secret\<N\>)
 
@@ -59,4 +59,4 @@ true true
 ## See also
 
 - [constant_time::equal](../constant_time/equal.md): the comparison of any bytes
-- [sgcl::crypto::secret\<N\>](../secret.md)
+- [sgcl::crypto::secret\<N\>](README.md)

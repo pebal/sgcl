@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::erase
 
@@ -90,4 +90,4 @@ z 0
 - [take](take.md): erases the element under a key and hands its value back
 - [extract](extract.md): takes the node out without destroying the element
 - [erase_if](erase_if.md): erases the elements a predicate accepts
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

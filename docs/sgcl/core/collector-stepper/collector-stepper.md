@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md) › [stepper](../collector-stepper.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](../collector/README.md) › [stepper](README.md)
 
 # sgcl::collector::stepper::stepper
 
@@ -60,4 +60,4 @@ true
 
 - [step](step.md): one gate
 - [full](full.md): the kind of the cycles
-- [sgcl::collector::stepper](../collector-stepper.md)
+- [sgcl::collector::stepper](README.md)

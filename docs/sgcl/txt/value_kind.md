@@ -18,8 +18,8 @@ namespace sgcl::txt {
 }
 ```
 
-What a [value](value.md) holds, as its [kind](value/kind.md) answers. Scoped, so that `list` and `object` here and the
-two classes of those names do not have to fight over the words: a `value_kind::list` is what a [list](list.md) makes.
+What a [value](value/README.md) holds, as its [kind](value/kind.md) answers. Scoped, so that `list` and `object` here and the
+two classes of those names do not have to fight over the words: a `value_kind::list` is what a [list](list/README.md) makes.
 
 | Value | Description |
 |---|---|
@@ -27,7 +27,7 @@ two classes of those names do not have to fight over the words: a `value_kind::l
 | `boolean` | `true` or `false` |
 | `integer` | a whole number, held as a `long long` |
 | `real` | a floating-point number, held as a `double` |
-| `text` | a [string](../core/string.md) |
+| `text` | a [string](../core/string/README.md) |
 | `list` | a list of values, in order |
 | `object` | a mapping of names to values, in the order they were written |
 
@@ -59,4 +59,4 @@ Output:
 ## See also
 
 - [kind](value/kind.md): what a value holds
-- [value](value.md)
+- [value](value/README.md)

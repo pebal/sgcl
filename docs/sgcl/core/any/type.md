@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [any](../any.md)
+[sgcl](../../README.md) › [core](../README.md) › [any](README.md)
 
 # sgcl::any::type
 
@@ -61,4 +61,4 @@ true false
 
 - [any_cast](any_cast.md): the value as a given type
 - [has_value](has_value.md): checks whether the `any` holds a value
-- [sgcl::any](../any.md)
+- [sgcl::any](README.md)

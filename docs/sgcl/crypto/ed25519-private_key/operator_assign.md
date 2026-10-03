@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::operator=
 
@@ -57,4 +57,4 @@ d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a
 ## See also
 
 - [(constructor)](ed25519-private_key.md): the same for a construction
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [sgcl::crypto::ed25519::private_key](README.md)

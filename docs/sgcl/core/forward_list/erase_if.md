@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::erase, sgcl::erase_if (sgcl::forward_list)
 
@@ -86,4 +86,4 @@ Output:
 
 - [remove, remove_if](remove.md): the same as members
 - [erase_after](erase_after.md): erases elements after a position
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

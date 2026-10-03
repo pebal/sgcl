@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::to_double
 
@@ -57,4 +57,4 @@ inf -0
 
 - [to_decimal](to_decimal.md): the decimal with a number of places
 - [(constructor)](rational.md): the fraction a double is, exactly
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

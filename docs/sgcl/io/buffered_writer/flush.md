@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](../buffered_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](README.md)
 
 # sgcl::io::buffered_writer::flush, async_flush
 
@@ -66,4 +66,4 @@ Output:
 
 - [close](close.md): flushes, then closes the stream underneath
 - [buffered](buffered.md): what a flush would write
-- [sgcl::io::buffered_writer](../buffered_writer.md)
+- [sgcl::io::buffered_writer](README.md)

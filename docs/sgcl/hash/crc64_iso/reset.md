@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc64_iso](../crc64_iso.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc64_iso](README.md)
 
 # sgcl::hash::crc64_iso::reset
 
@@ -53,4 +53,4 @@ true
 ## See also
 
 - [(constructor)](crc64_iso.md): a hasher as it is made
-- [sgcl::hash::crc64_iso](../crc64_iso.md)
+- [sgcl::hash::crc64_iso](README.md)

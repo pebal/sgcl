@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [big_endian](../big_endian.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [big_endian](README.md)
 
 # sgcl::encoding::big_endian::write_u32
 
@@ -53,4 +53,4 @@ Output:
 
 - [read_u32](read_u32.md): the other way
 - [append_u32](append_u32.md): at the back of a vector
-- [sgcl::encoding::big_endian](../big_endian.md)
+- [sgcl::encoding::big_endian](README.md)

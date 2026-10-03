@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [move_only_function](../move_only_function.md)
+[sgcl](../../README.md) › [core](../README.md) › [move_only_function](README.md)
 
 # sgcl::move_only_function\<R(Args...)\>::swap
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [swap](swap2.md): the same as a free function
-- [sgcl::move_only_function\<R(Args...)\>](../move_only_function.md)
+- [sgcl::move_only_function\<R(Args...)\>](README.md)

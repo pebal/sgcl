@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](../aes_ctr.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes_ctr](README.md)
 
 # sgcl::crypto::aes_ctr::clone
 
@@ -65,4 +65,4 @@ Output:
 
 - [(constructor)](aes_ctr.md): sets up a key and a counter, or takes another object's over
 - [seek](seek.md): moves to the start of a block
-- [sgcl::crypto::aes_ctr](../aes_ctr.md)
+- [sgcl::crypto::aes_ctr](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::contains
 
@@ -51,4 +51,4 @@ true false
 ## See also
 
 - [get](get.md): the first value
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

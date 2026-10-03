@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::get, async_get
 
@@ -23,7 +23,7 @@ Sends a GET of `url` with no fields of the program's and no body, Go's `http.Get
 ## Return value
 
 The response, its body not read yet; a 4xx or a 5xx is a response. Or the error, as [send](send.md) gives it:
-`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url.md#rules)).
+`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url/README.md#rules)).
 
 ## Complexity
 
@@ -79,4 +79,4 @@ Output:
 
 - [head](head.md): the head alone; [download](download.md): the body into a file
 - [send](send.md): a request built by hand
-- [sgcl::net::http::client](../client.md)
+- [sgcl::net::http::client](README.md)

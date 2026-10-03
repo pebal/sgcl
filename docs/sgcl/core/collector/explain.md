@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::explain
 
@@ -79,4 +79,4 @@ and keeps alive 1 object, 4 bytes, itself included
 
 - [get_path_to_root](get_path_to_root.md): the chain as values
 - [get_retained](get_retained.md): what dies with the object
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

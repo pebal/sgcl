@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::is_not_found
 
@@ -54,4 +54,4 @@ false
 ## See also
 
 - [is_exists](is_exists.md)
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

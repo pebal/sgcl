@@ -10,7 +10,7 @@ namespace sgcl::async {
 }
 ```
 
-Returns an [event](event.md) set after `d`, for whoever wants to wait for a moment as for anything else:
+Returns an [event](event/README.md) set after `d`, for whoever wants to wait for a moment as for anything else:
 `co_await async::after(1s)` in a task, `async::after(1s).wait()` on a thread, `async::after(1s).on_set(f)` as a
 case of a [select](select.md). Go's `time.After` gives a channel that one receiver takes the time from; this is
 an event, so any number of tasks and threads wait for the same moment, and a wait that starts after it does not
@@ -85,4 +85,4 @@ the task too
 - [at](at.md): the same at a point of the clock
 - [timeout](timeout.md): a moment as a case of a select
 - [sleep](sleep.md): a task or a thread waiting for a while
-- [event](event.md): what `after` returns
+- [event](event/README.md): what `after` returns

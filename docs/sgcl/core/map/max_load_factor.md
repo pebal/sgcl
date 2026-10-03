@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::max_load_factor
 
@@ -15,7 +15,7 @@ Reads or sets the load factor the table grows at: an insertion grows it when the
    grows on the next insertion if it is now overloaded.
 
 A factor so small that the elements need more buckets than the managed heap gives ends the program at the growth it
-refuses, as any refused managed allocation does ([collector](../collector.md#the-memory-limit)).
+refuses, as any refused managed allocation does ([collector](../collector/README.md#the-memory-limit)).
 
 ## Parameters
 
@@ -79,4 +79,4 @@ Output:
 
 - [load_factor](load_factor.md): the average number of elements per bucket
 - [rehash](rehash.md), [reserve](reserve.md): set the number of buckets
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

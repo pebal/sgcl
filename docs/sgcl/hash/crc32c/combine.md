@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc32c](../crc32c.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc32c](README.md)
 
 # sgcl::hash::crc32c::combine
 
@@ -61,4 +61,4 @@ Output:
 
 - [crc32::combine](../crc32/combine.md): a buffer hashed on four tasks
 - [resume](resume.md): going on from a saved CRC
-- [sgcl::hash::crc32c](../crc32c.md)
+- [sgcl::hash::crc32c](README.md)

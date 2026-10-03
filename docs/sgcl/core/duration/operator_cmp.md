@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::duration)
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [operator+](operator_arith.md): the arithmetic
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

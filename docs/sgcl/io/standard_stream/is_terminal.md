@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [standard_stream](../standard_stream.md)
+[sgcl](../../README.md) › [io](../README.md) › [standard_stream](README.md)
 
 # sgcl::io::standard_stream::is_terminal
 
@@ -47,4 +47,4 @@ ready
 
 - [io::is_terminal](../is_terminal.md): the same question of any descriptor
 - [fd](fd.md): the descriptor
-- [sgcl::io::standard_stream](../standard_stream.md)
+- [sgcl::io::standard_stream](README.md)

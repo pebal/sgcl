@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](../atomic-tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [tracked_ptr](README.md)
 
 # sgcl::atomic\<tracked_ptr\<T\>\>::exchange
 
@@ -74,4 +74,4 @@ Output:
 
 - [compare_exchange_weak, compare_exchange_strong](compare_exchange.md): replaces the pointer when it is the one
   expected
-- [sgcl::atomic\<tracked_ptr\<T\>\>](../atomic-tracked_ptr.md)
+- [sgcl::atomic\<tracked_ptr\<T\>\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [stopped](../stopped.md)
+[sgcl](../../README.md) › [async](../README.md) › [stopped](README.md)
 
 # sgcl::async::operator== (sgcl::async::stopped)
 
@@ -53,4 +53,4 @@ false
 ## See also
 
 - [message](message.md): the text of the error
-- [sgcl::async::stopped](../stopped.md)
+- [sgcl::async::stopped](README.md)

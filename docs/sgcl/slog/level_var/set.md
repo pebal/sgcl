@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [level_var](../level_var.md)
+[sgcl](../../README.md) › [slog](../README.md) › [level_var](README.md)
 
 # sgcl::slog::level_var::set
 
@@ -58,4 +58,4 @@ time=2026-09-28T14:05:01.123+02:00 level=WARN msg=text
 ## See also
 
 - [get](get.md)
-- [sgcl::slog::level_var](../level_var.md)
+- [sgcl::slog::level_var](README.md)

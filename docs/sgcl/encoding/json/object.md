@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::object
 
@@ -57,6 +57,6 @@ Output:
 ## See also
 
 - [array](array.md): an array of elements
-- [builder](../json-builder.md): an object made in a loop
+- [builder](../json-builder/README.md): an object made in a loop
 - [set](set.md): the object with a member set
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

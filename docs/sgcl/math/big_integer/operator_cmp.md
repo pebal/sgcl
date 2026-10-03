@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::operator==, operator\<=\> (sgcl::math::big_integer)
 
@@ -83,4 +83,4 @@ true true
 
 - [sign](sign.md): the comparison with zero
 - [operator+](operator_arith.md): the arithmetic
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

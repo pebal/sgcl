@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::split
 
@@ -39,12 +39,12 @@ Linear in the length of the text times the length of the pattern.
 ## Exceptions
 
 - (1–2) None.
-- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (3–4) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Notes
 
-Each piece is a [slice](../../core/slice.md) that holds the text's object: the pieces outlive the string they were
+Each piece is a [slice](../../core/slice/README.md) that holds the text's object: the pieces outlive the string they were
 cut from, with no copy of their bytes.
 
 ## Example
@@ -75,4 +75,4 @@ Output:
 
 - [replace](replace.md): the matches replaced
 - [all](all.md): the matches themselves
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

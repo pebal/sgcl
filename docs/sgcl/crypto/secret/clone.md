@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret](../secret.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret](README.md)
 
 # sgcl::crypto::secret\<N\>::clone
 
@@ -56,4 +56,4 @@ true true
 ## See also
 
 - [(constructor)](secret.md): the move
-- [sgcl::crypto::secret\<N\>](../secret.md)
+- [sgcl::crypto::secret\<N\>](README.md)

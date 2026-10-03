@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_map](../ordered_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_map](README.md)
 
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::at
 
@@ -71,5 +71,5 @@ out of range: sgcl::ordered_map::at
 
 - [operator[]](operator_at.md): the value under a key, inserted when absent
 - [find](find.md): an iterator to the element under a key
-- [value_or](../mixin/lookup.md): a copy of the value under a key, or a fallback
-- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](../ordered_map.md)
+- [value_or](../mixin/lookup/README.md): a copy of the value under a key, or a fallback
+- [sgcl::ordered_map\<Key, T, Hash, KeyEqual\>](README.md)

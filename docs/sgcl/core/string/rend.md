@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::rend, crend
 
@@ -57,4 +57,4 @@ true
 
 - [rbegin, crbegin](rbegin.md): a reverse iterator to the last character
 - [end, cend](end.md): an iterator past the last character
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

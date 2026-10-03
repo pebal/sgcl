@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::unique
 
@@ -67,4 +67,4 @@ Output:
 
 - [remove, remove_if](remove.md): erase the elements equal to a value, or satisfying a predicate
 - [sort](sort.md): brings equal elements together
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

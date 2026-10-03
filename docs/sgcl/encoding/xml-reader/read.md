@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md) › [reader](../xml-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml/README.md) › [reader](README.md)
 
 # sgcl::encoding::xml::reader::read, async_read
 
@@ -11,12 +11,12 @@ template<class T> async::task<optional<T>> async_read() noexcept;    // (4)
 
 The next node whole, read from where the reader is.
 
-1. The next node as a [tree](../xml.md): an element with everything inside it, a text (the pieces of one text
+1. The next node as a [tree](../xml/README.md): an element with everything inside it, a text (the pieces of one text
    joined), a comment or an instruction as the [options](../xml-options.md) keep them. Left out, as a tree leaves
    them out, are comments without `keep_comments`, white space alone without `keep_whitespace`, and the XML and
    DOCTYPE declarations.
 2. (1) in a task: `co_await r.async_read()` gives the worker back while the stream waits.
-3. The next element as a value of a program's type `T`, mapped as [A program's types](../xml.md#a-programs-types)
+3. The next element as a value of a program's type `T`, mapped as [A program's types](../xml/README.md#a-programs-types)
    says: Go's `DecodeElement`. An element that is not a `T`, or text where an element was expected, stops the
    reader: [last_error](last_error.md) has the path inside the element and the offset of its start. A document of
    any length is read a value at a time in the memory of one element.
@@ -102,4 +102,4 @@ true
 - [skip](skip.md): passes over the node `read` would give
 - [peek](peek.md): the token in front, looked at first
 - [xml::as](../xml/as.md): a node of a tree as a value
-- [sgcl::encoding::xml::reader](../xml-reader.md)
+- [sgcl::encoding::xml::reader](README.md)

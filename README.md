@@ -114,7 +114,7 @@ a circle of radius 1
 7
 ```
 
-Tasks and a channel, the shape of a Go program: a coroutine on the scheduler receives managed objects from a thread and sends results back, waiting on either side without holding a thread, and nobody frees anything ([channel](docs/sgcl/async/channel.md), [task](docs/sgcl/async/task.md)):
+Tasks and a channel, the shape of a Go program: a coroutine on the scheduler receives managed objects from a thread and sends results back, waiting on either side without holding a thread, and nobody frees anything ([channel](docs/sgcl/async/channel/README.md), [task](docs/sgcl/async/task/README.md)):
 
 ```cpp
 #include "sgcl/async.h"

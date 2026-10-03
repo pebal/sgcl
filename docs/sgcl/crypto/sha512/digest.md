@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [sha512](../sha512.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [sha512](README.md)
 
 # sgcl::crypto::sha512::digest
 
@@ -58,5 +58,5 @@ Output:
 ## See also
 
 - [value](value.md): the same bytes
-- [hash::mixin::hasher](../../hash/mixin/hasher.md): the shape every hasher shares
-- [sgcl::crypto::sha512](../sha512.md)
+- [hash::mixin::hasher](../../hash/mixin/hasher/README.md): the shape every hasher shares
+- [sgcl::crypto::sha512](README.md)

@@ -12,7 +12,7 @@ namespace sgcl::io {
 
 Returns every variable of the environment as a name and a value, in the order the environment holds them: Go's
 `os.Environ`, split at the first `=`. An entry without `=` is a name with an empty value. The list is what a
-[command](command.md)'s `env` takes: a copy of the program's environment, changed, for a child.
+[command](command/README.md)'s `env` takes: a copy of the program's environment, changed, for a child.
 
 ## Parameters
 
@@ -56,4 +56,4 @@ APP_COLOR=blue
 ## See also
 
 - [getenv](getenv.md): one variable
-- [command](command.md): `env`, the environment of a child
+- [command](command/README.md): `env`, the environment of a child

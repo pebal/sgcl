@@ -64,7 +64,7 @@ What the move constructor of `F` throws, and `std::system_error` when the timer 
 
 The timer is armed when `timeout` is called, not when the select starts waiting: the time runs from the call.
 The timer thread and what the timers share are on [sleep](sleep.md#notes). For a timeout on a whole task, a
-[task](task.md) rather than a wait, [with_timeout](with_timeout.md) races it against the time.
+[task](task/README.md) rather than a wait, [with_timeout](with_timeout.md) races it against the time.
 
 ## Example
 

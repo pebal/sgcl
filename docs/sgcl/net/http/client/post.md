@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::post, async_post
 
@@ -29,7 +29,7 @@ connection may; it goes with its `Content-Length`. A 301, a 302 or a 303 goes on
 ## Return value
 
 The response, its body not read yet; a 4xx or a 5xx is a response. Or the error, as [send](send.md) gives it:
-`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url.md#rules)).
+`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url/README.md#rules)).
 
 ## Complexity
 
@@ -93,4 +93,4 @@ Output:
 
 - [send](send.md): another method, a body of bytes or a stream
 - [json](../response/json.md): the answer read as JSON
-- [sgcl::net::http::client](../client.md)
+- [sgcl::net::http::client](README.md)

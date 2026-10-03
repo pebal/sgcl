@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::is_string
 
@@ -60,4 +60,4 @@ missing false
 
 - [type](type.md): the kind of the value
 - [as_string](as_string.md): the string
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

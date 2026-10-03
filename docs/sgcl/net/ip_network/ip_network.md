@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_network](../ip_network.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_network](README.md)
 
 # sgcl::net::ip_network::ip_network
 
@@ -70,4 +70,4 @@ sgcl::net::ip_network: the prefix length is out of range for the address
 ## See also
 
 - [parse](parse.md): reads a text from outside the program
-- [sgcl::net::ip_network](../ip_network.md)
+- [sgcl::net::ip_network](README.md)

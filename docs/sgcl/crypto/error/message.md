@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [error](README.md)
 
 # sgcl::crypto::error::message
 
@@ -61,4 +61,4 @@ PEM: no private key block
 
 - [code](code.md): the code, for a program
 - [offset](offset.md): where in the input
-- [sgcl::crypto::error](../error.md)
+- [sgcl::crypto::error](README.md)

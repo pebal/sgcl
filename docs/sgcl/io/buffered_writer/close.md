@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](../buffered_writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_writer](README.md)
 
 # sgcl::io::buffered_writer::close, async_close
 
@@ -7,7 +7,7 @@ expected<void, error> close() const;                                // (1)
 async::task<expected<void, error>> async_close() const noexcept;    // (2)
 ```
 
-Flushes the block, then closes the stream underneath when it has a close (a [file](../file.md), a connection), after
+Flushes the block, then closes the stream underneath when it has a close (a [file](../file/README.md), a connection), after
 an error too: a writer that failed still gives back its descriptor. The result is the error the writer kept, the
 first one it gave — a failure of the stream in a write, the flush or the close itself — so a buffered writer is
 written freely and checked once, here. A closed writer refuses every later write with `errc::closed`; a later
@@ -79,4 +79,4 @@ true write: stream closed
 - [flush](flush.md): writes the block, the stream left open
 - [last_error](last_error.md): the error kept
 - [buffered_reader::close](../buffered_reader/close.md): the reader's
-- [sgcl::io::buffered_writer](../buffered_writer.md)
+- [sgcl::io::buffered_writer](README.md)

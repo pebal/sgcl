@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [executor](../executor.md)
+[sgcl](../../README.md) › [async](../README.md) › [executor](README.md)
 
 # sgcl::async::executor::stop
 
@@ -67,4 +67,4 @@ step 2
 
 - [run](run.md): the loop a stop ends
 - [scheduler::stop](../scheduler/stop.md): the workers joined
-- [sgcl::async::executor](../executor.md)
+- [sgcl::async::executor](README.md)

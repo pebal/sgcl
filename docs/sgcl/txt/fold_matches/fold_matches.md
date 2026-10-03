@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](../fold_matches.md)
+[sgcl](../../README.md) › [txt](../README.md) › [fold_matches](README.md)
 
 # sgcl::txt::fold_matches::fold_matches
 
@@ -18,8 +18,8 @@ pattern in one tracked object.
 
 1. An empty range: an empty text and an empty pattern, held as the other constructors hold theirs.
 2. A text and a pattern as strings; the pattern is mapped here. A literal text with a literal pattern comes here.
-3. A text as a string and a pattern mapped once before, a [fold_searcher](../fold_searcher.md) or a
-   [normalized_searcher](../fold_searcher.md).
+3. A text as a string and a pattern mapped once before, a [fold_searcher](../fold_searcher/README.md) or a
+   [normalized_searcher](../fold_searcher/README.md).
 4. A piece of a text, kept as that piece, which copies those bytes: the positions the range answers with are the
    piece's own.
 5. An array of `char` up to its first NUL or its end, copied into a string the range holds.
@@ -40,7 +40,7 @@ pattern in one tracked object.
 ## Exceptions
 
 - (1–3) None.
-- (4–6) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (4–6) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Example
@@ -74,4 +74,4 @@ Output:
 ## See also
 
 - [begin](begin.md): the first occurrence
-- [sgcl::txt::fold_matches, normalized_matches](../fold_matches.md)
+- [sgcl::txt::fold_matches, normalized_matches](README.md)

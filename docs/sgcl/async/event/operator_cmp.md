@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [event](../event.md)
+[sgcl](../../README.md) › [async](../README.md) › [event](README.md)
 
 # sgcl::async::operator==, operator!= (sgcl::async::event)
 
@@ -55,4 +55,4 @@ true false true
 ## See also
 
 - [(constructor)](event.md): a handle of the same event
-- [sgcl::async::event](../event.md)
+- [sgcl::async::event](README.md)

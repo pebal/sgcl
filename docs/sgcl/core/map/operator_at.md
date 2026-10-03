@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::operator[]
 
@@ -74,4 +74,4 @@ seven 1
 - [at](at.md): the value under a key, with bounds checking
 - [try_emplace](try_emplace.md): builds the element only when the key is absent
 - [insert_or_assign](insert_or_assign.md): inserts, or assigns to the value under the key
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

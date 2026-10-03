@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::empty
 
@@ -55,4 +55,4 @@ null true
 
 - [size](size.md): the number of elements or members
 - [is_null](is_null.md): whether the value is null
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

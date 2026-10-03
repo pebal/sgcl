@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::map
 
@@ -100,4 +100,4 @@ true
 - [operator=](operator_assign.md): makes the variable hold another version
 - [insert](insert.md), [set](set.md): the map with one more element
 - [thaw](thaw.md): a builder, for a map made one element at a time
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

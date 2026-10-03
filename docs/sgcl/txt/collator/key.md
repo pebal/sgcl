@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::key
 
@@ -18,7 +18,7 @@ an index beside the text, where the collator need not be called again. ICU's `ge
 
 ## Return value
 
-The key, a new [vector](../../core/vector.md) of bytes. Two keys compare as the collator compares their texts; two
+The key, a new [vector](../../core/vector/README.md) of bytes. Two keys compare as the collator compares their texts; two
 texts the collator calls equal have equal keys.
 
 ## Complexity
@@ -61,4 +61,4 @@ Output:
 
 - [key_to](key_to.md): the key into a buffer
 - [compare](compare.md): the same order without a key
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

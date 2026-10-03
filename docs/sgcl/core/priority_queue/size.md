@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [priority_queue](README.md)
 
 # sgcl::priority_queue\<T, Container, Compare\>::size
 
@@ -51,4 +51,4 @@ Output:
 ## See also
 
 - [empty](empty.md): checks whether the priority queue is empty
-- [sgcl::priority_queue\<T, Container, Compare\>](../priority_queue.md)
+- [sgcl::priority_queue\<T, Container, Compare\>](README.md)

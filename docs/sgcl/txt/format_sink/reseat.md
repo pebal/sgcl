@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [format_sink](../format_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [format_sink](README.md)
 
 # sgcl::txt::format_sink::reseat
 
@@ -8,7 +8,7 @@ constexpr void reseat(char* at, size_t room, size_t counted) noexcept;
 
 Puts the same sink over other room, with what it has counted so far kept rather than started again: the next
 character goes to `at`, and [size](size.md) goes on from `counted`. Nobody writing a value calls this: it is for
-whoever owns the room and can get more of it, which is what [growing_sink](../growing_sink.md) does when a step runs
+whoever owns the room and can get more of it, which is what [growing_sink](../growing_sink/README.md) does when a step runs
 off the end — and why a reference to the sink stays good over the growth.
 
 ## Parameters
@@ -63,5 +63,5 @@ abcdef
 
 ## See also
 
-- [growing_sink](../growing_sink.md): room that grows, built on this
-- [sgcl::txt::format_sink](../format_sink.md)
+- [growing_sink](../growing_sink/README.md): room that grows, built on this
+- [sgcl::txt::format_sink](README.md)

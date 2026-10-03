@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [words](../words.md)
+[sgcl](../../README.md) › [txt](../README.md) › [words](README.md)
 
 # sgcl::txt::words::count
 
@@ -26,7 +26,7 @@ None.
 
 ## Notes
 
-`count()` counts every element; `count_of(pred)` of [mixin::enumerable](../../core/mixin/enumerable.md) counts those a
+`count()` counts every element; `count_of(pred)` of [mixin::enumerable](../../core/mixin/enumerable/README.md) counts those a
 predicate accepts.
 
 ## Example
@@ -56,4 +56,4 @@ Output:
 ## See also
 
 - [empty](empty.md): whether there is none
-- [sgcl::txt::words](../words.md)
+- [sgcl::txt::words](README.md)

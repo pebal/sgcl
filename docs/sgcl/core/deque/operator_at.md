@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::operator[]
 
@@ -66,4 +66,4 @@ Output:
 
 - [at](at.md): access an element with bounds checking
 - [front](front.md), [back](back.md): access the first, the last element
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

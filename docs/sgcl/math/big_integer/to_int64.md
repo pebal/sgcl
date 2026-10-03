@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::to_int64
 
@@ -50,4 +50,4 @@ Output:
 
 - [to_uint64](to_uint64.md): as a `uint64_t`
 - [to_double](to_double.md): the nearest `double`
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::size
 
@@ -53,4 +53,4 @@ grouped 1
 ## See also
 
 - [empty](empty.md), [begin](begin.md)
-- [sgcl::slog::record](../record.md)
+- [sgcl::slog::record](README.md)

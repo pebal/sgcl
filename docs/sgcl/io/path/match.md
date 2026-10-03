@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::match
 
@@ -31,7 +31,7 @@ The pattern is checked whole before anything is matched: a malformed one is an e
 
 ## Return value
 
-Whether the name matches, or an [error](../error.md) with `errc::invalid_pattern`, the operation `match` and the
+Whether the name matches, or an [error](../error/README.md) with `errc::invalid_pattern`, the operation `match` and the
 pattern as its path, for a malformed pattern: a `[` never closed, a `\` at the end, a range whose end is below its
 start.
 
@@ -78,4 +78,4 @@ src/*.cpp src/a/b.cpp: false
 ## See also
 
 - [glob](glob.md): the paths of the file system that match a pattern
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [req](../req.md)
+[sgcl](../../README.md) › [io](../README.md) › [req](README.md)
 
 # sgcl::io::req::seeker
 
@@ -13,10 +13,10 @@ namespace sgcl::io::req {
 
 A stream with a position: `t.seek(offset, from)` with an `int64_t` and a [seek_from](../seek_from.md) gives something
 convertible to `expected<uint64_t, io::error>`, the position after the seek, counted from the first byte, or the
-[error](../error.md) of the seek. `T` is the argument as passed: the type, a reference to it, or a `tracked_ptr`,
+[error](../error/README.md) of the seek. `T` is the argument as passed: the type, a reference to it, or a `tracked_ptr`,
 a `unique_ptr` or a `root_ptr` to it, looked through. A seek is a method; a callable is never a seeker.
 
-It is Go's `io.Seeker`, its `whence` the enumeration `seek_from`. [mixin::seeker](../mixin/seeker.md) gives a class
+It is Go's `io.Seeker`, its `whence` the enumeration `seek_from`. [mixin::seeker](../mixin/seeker/README.md) gives a class
 with `seek` the rest of it: `tell`, `size`, `rewind`.
 
 ## Satisfied by
@@ -61,5 +61,5 @@ true false
 ## See also
 
 - [seek_from](../seek_from.md): where an offset counts from
-- [mixin::seeker](../mixin/seeker.md): `tell`, `size`, `rewind` over `seek`
-- [sgcl::io::req](../req.md)
+- [mixin::seeker](../mixin/seeker/README.md): `tell`, `size`, `rewind` over `seek`
+- [sgcl::io::req](README.md)

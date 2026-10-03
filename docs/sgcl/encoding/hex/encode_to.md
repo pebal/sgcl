@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](README.md)
 
 # sgcl::encoding::hex::encode_to
 
@@ -58,4 +58,4 @@ Output:
 - [encoded_size](encoded_size.md): the size the buffer needs
 - [encode](encode.md): into a string of its own
 - [decode_to](decode_to.md): the other way
-- [sgcl::encoding::hex](../hex.md)
+- [sgcl::encoding::hex](README.md)

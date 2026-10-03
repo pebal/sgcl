@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::release
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md) `errc::process_done` when the process was waited for or released already; the
+Nothing, or the [error](../error/README.md) `errc::process_done` when the process was waited for or released already; the
 operation is `release`.
 
 ## Complexity
@@ -51,4 +51,4 @@ wait: process already finished
 ## See also
 
 - [wait](wait.md): waits for the process
-- [sgcl::io::process](../process.md)
+- [sgcl::io::process](README.md)

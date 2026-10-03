@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [compress](../README.md) › [error](README.md)
 
 # sgcl::compress::error::error
 
@@ -65,4 +65,4 @@ offset 5: input/output error: read data: stream closed
 ## See also
 
 - [message](message.md): what the error says
-- [sgcl::compress::error](../error.md)
+- [sgcl::compress::error](README.md)

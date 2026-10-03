@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [io](../README.md) › [error](README.md)
 
 # sgcl::io::error::error
 
@@ -72,4 +72,4 @@ read header: unexpected end of stream
 - [last_error](../last_error.md): an error from `errno`
 - [errc](../errc.md): the module's own codes
 - [count](count.md): the bytes done before the failure
-- [sgcl::io::error](../error.md)
+- [sgcl::io::error](README.md)

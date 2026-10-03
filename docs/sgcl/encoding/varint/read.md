@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [varint](../varint.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [varint](README.md)
 
 # sgcl::encoding::varint::read, async_read
 
@@ -13,7 +13,7 @@ static async::task<expected<optional<uint64_t>, io::error>>
    number does are `unexpected_end` at their end, empty bytes included; a number past 64 bits — a tenth byte
    above 1 — is `out_of_range` at that byte. A longer encoding of a number than it needs (`80 00` for 0) is read,
    as Go reads it. The bytes after the number are not read.
-2. The next varint of a stream, read a byte at a time from the [buffered_reader](../../io/buffered_reader.md): Go's
+2. The next varint of a stream, read a byte at a time from the [buffered_reader](../../io/buffered_reader/README.md): Go's
    `binary.ReadUvarint`. `nullopt` at the end of the stream before a number's first byte, so that a loop over a
    stream of numbers ends there; `io::errc::unexpected_eof` when the stream ends inside one; `out_of_range` of
    the `encoding` category past 64 bits; and the error of the stream when a read of it fails.
@@ -33,7 +33,7 @@ tenth, as this does.
 
 ## Return value
 
-1. The number and the bytes it took, or the [error](../error.md) with its code and offset.
+1. The number and the bytes it took, or the [error](../error/README.md) with its code and offset.
 2. The number, `nullopt` at the end of the stream, or the `io::error`.
 3. A task of the same.
 
@@ -91,4 +91,4 @@ offset 2: the bytes end inside a varint
 
 - [read_signed, async_read_signed](read_signed.md): a signed number
 - [append](append.md), [write](write.md): the other way
-- [sgcl::encoding::varint](../varint.md)
+- [sgcl::encoding::varint](README.md)

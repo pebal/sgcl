@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::full_match
 
@@ -66,4 +66,4 @@ true a
 
 - [contains](contains.md): whether the pattern matches somewhere in the text
 - [find](find.md): the first match
-- [sgcl::txt::regex](../regex.md)
+- [sgcl::txt::regex](README.md)

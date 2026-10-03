@@ -43,16 +43,16 @@ first two.
 
 | Value | Description |
 |---|---|
-| `sha1` | SHA-1, 20 bytes, block 64 ([sha1](sha1.md)); the first value, 1 |
-| `sha224` | SHA-224, 28 bytes, block 64 ([sha256](sha256.md)) |
-| `sha256` | SHA-256, 32 bytes, block 64 ([sha256](sha256.md)) |
-| `sha384` | SHA-384, 48 bytes, block 128 ([sha512](sha512.md)) |
-| `sha512` | SHA-512, 64 bytes, block 128 ([sha512](sha512.md)) |
-| `sha512_256` | SHA-512/256, 32 bytes, block 128 ([sha512](sha512.md)) |
-| `sha3_224` | SHA3-224, 28 bytes, rate 144 ([sha3_256](sha3_256.md)) |
-| `sha3_256` | SHA3-256, 32 bytes, rate 136 ([sha3_256](sha3_256.md)) |
-| `sha3_384` | SHA3-384, 48 bytes, rate 104 ([sha3_256](sha3_256.md)) |
-| `sha3_512` | SHA3-512, 64 bytes, rate 72 ([sha3_256](sha3_256.md)); the last value, 10 |
+| `sha1` | SHA-1, 20 bytes, block 64 ([sha1](sha1/README.md)); the first value, 1 |
+| `sha224` | SHA-224, 28 bytes, block 64 ([sha256](sha256/README.md)) |
+| `sha256` | SHA-256, 32 bytes, block 64 ([sha256](sha256/README.md)) |
+| `sha384` | SHA-384, 48 bytes, block 128 ([sha512](sha512/README.md)) |
+| `sha512` | SHA-512, 64 bytes, block 128 ([sha512](sha512/README.md)) |
+| `sha512_256` | SHA-512/256, 32 bytes, block 128 ([sha512](sha512/README.md)) |
+| `sha3_224` | SHA3-224, 28 bytes, rate 144 ([sha3_256](sha3_256/README.md)) |
+| `sha3_256` | SHA3-256, 32 bytes, rate 136 ([sha3_256](sha3_256/README.md)) |
+| `sha3_384` | SHA3-384, 48 bytes, rate 104 ([sha3_256](sha3_256/README.md)) |
+| `sha3_512` | SHA3-512, 64 bytes, rate 72 ([sha3_256](sha3_256/README.md)); the last value, 10 |
 
 ## Rules
 
@@ -64,7 +64,7 @@ first two.
   throws `std::invalid_argument` (`async_digest_file` out of the `co_await` of its task). A protocol that reads an
   algorithm from data maps its own identifiers (an OID, a TLS code point) to `hash_id` and reports an unknown one as
   `errc::unsupported` ([errc](errc.md)).
-- **SHAKE is not here**: it has no fixed size ([shake256](shake256.md)).
+- **SHAKE is not here**: it has no fixed size ([shake256](shake256/README.md)).
 
 ## Example
 
@@ -93,6 +93,6 @@ Output:
 
 - [digest_size](digest_size.md), [block_size](block_size.md), [digest](digest.md), [digest_file](digest_file.md): what
   an id answers
-- [sha1](sha1.md), [sha256](sha256.md), [sha512](sha512.md), [sha3_256](sha3_256.md): the digests it names
+- [sha1](sha1/README.md), [sha256](sha256/README.md), [sha512](sha512/README.md), [sha3_256](sha3_256/README.md): the digests it names
 - [rsa](rsa.md), [ecdsa](ecdsa.md), [x509](x509.md): where a digest is named by data
 - [The module](README.md)

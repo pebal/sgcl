@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](../tracked_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [tracked_ptr](README.md)
 
 # sgcl::tracked_ptr\<T\>::operator\*, operator-\>
 
@@ -62,4 +62,4 @@ Output:
 
 - [get](get.md): the raw pointer
 - [operator bool](operator_bool.md): checks whether the pointer is not null
-- [sgcl::tracked_ptr\<T\>](../tracked_ptr.md)
+- [sgcl::tracked_ptr\<T\>](README.md)

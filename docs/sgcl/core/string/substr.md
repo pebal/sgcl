@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::substr
 
@@ -69,4 +69,4 @@ out_of_range
 
 - [as_slice, operator slice_type](as_slice.md): a part of the characters as a slice, no copy
 - [split](split.md): the pieces between the occurrences of a separator
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

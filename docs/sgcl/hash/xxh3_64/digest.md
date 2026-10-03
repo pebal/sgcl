@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](../xxh3_64.md)
+[sgcl](../../README.md) › [hash](../README.md) › [xxh3_64](README.md)
 
 # sgcl::hash::xxh3_64::digest
 
@@ -7,7 +7,7 @@ array<byte, 8> digest() const noexcept;
 ```
 
 `value()` as eight bytes, the most significant first, as every digest of the module: the form a function written
-over any hasher ([req::hasher](../req/hasher.md)) takes, [crypto::sha256](../../crypto/sha256.md) among them.
+over any hasher ([req::hasher](../req/hasher.md)) takes, [crypto::sha256](../../crypto/sha256/README.md) among them.
 
 ## Parameters
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [value](value.md): the hash as a number
-- [sgcl::hash::xxh3_64](../xxh3_64.md)
+- [sgcl::hash::xxh3_64](README.md)

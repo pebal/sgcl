@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [public_key](../x25519-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x25519](../x25519.md) › [public_key](README.md)
 
 # sgcl::crypto::x25519::public_key::from_pkix_der
 
@@ -18,7 +18,7 @@ it must hold.
 
 ## Return value
 
-The key, or an [error](../error.md): `errc::unsupported` for another algorithm's key, `errc::malformed` for DER that
+The key, or an [error](../error/README.md): `errc::unsupported` for another algorithm's key, `errc::malformed` for DER that
 cannot be read and `errc::invalid_key` for a key that is not 32 bytes, each with the [offset](../error/offset.md) of
 the byte where it was found.
 
@@ -32,7 +32,7 @@ None.
 
 ## Notes
 
-The DER of a public key is not a secret, so a PEM block of one is read by [encoding::pem](../../encoding/pem.md)
+The DER of a public key is not a secret, so a PEM block of one is read by [encoding::pem](../../encoding/pem/README.md)
 and its bytes given here.
 
 ## Example
@@ -69,4 +69,4 @@ offset 6: the key is of another algorithm
 
 - [to_pkix_der](to_pkix_der.md): the reverse
 - [from_bytes](from_bytes.md): the key of 32 bytes
-- [sgcl::crypto::x25519::public_key](../x25519-public_key.md)
+- [sgcl::crypto::x25519::public_key](README.md)

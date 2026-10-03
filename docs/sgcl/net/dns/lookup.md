@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [dns](../dns.md)
+[sgcl](../../README.md) › [net](../README.md) › [dns](README.md)
 
 # sgcl::net::dns::lookup, async_lookup
 
@@ -11,7 +11,7 @@ static async::task<expected<vector<ip_address>, io::error>> async_lookup(const s
 Returns the addresses of `host`, through the system's resolver (`getaddrinfo`): Go's `net.LookupIP`. The order is
 the resolver's (RFC 6724 where the system sorts), each address once. A number (`"10.0.0.1"`, `"fe80::1%en0"`) is
 answered at once, with no pool and no resolver, even after a stop. A name outside ASCII is converted by the caller
-first, with [txt::idna](../../txt/idna.md)`::to_ascii`: lookup does not guess the profile.
+first, with [txt::idna](../../txt/idna/README.md)`::to_ascii`: lookup does not guess the profile.
 
 1. On the calling thread, which the resolver blocks. It takes no stop: the system's resolver cannot be
    interrupted, so the call goes on to its end.
@@ -30,7 +30,7 @@ first, with [txt::idna](../../txt/idna.md)`::to_ascii`: lookup does not guess th
 
 ## Return value
 
-The addresses, at least one. Or the [io::error](../../io/error.md), its operation `lookup` and its path `host`:
+The addresses, at least one. Or the [io::error](../../io/error/README.md), its operation `lookup` and its path `host`:
 
 - `net::errc::host_not_found` (`EAI_NONAME`) for a name the resolver does not know, an empty name, a name with a NUL
   byte;
@@ -95,5 +95,5 @@ lookup localhost: Operation canceled
 
 - [reverse_lookup](reverse_lookup.md): the other way
 - [tcp::connect](../tcp/connect.md): a lookup and a connect
-- [ip_address](../ip_address.md): what it gives
-- [sgcl::net::dns](../dns.md)
+- [ip_address](../ip_address/README.md): what it gives
+- [sgcl::net::dns](README.md)

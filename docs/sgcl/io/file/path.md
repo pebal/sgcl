@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::file::path
 
@@ -59,4 +59,4 @@ pipe pipe
 
 - [stat](stat.md): the file's `name`, the base of its path
 - [from_fd](../from_fd.md): a file named by the caller
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

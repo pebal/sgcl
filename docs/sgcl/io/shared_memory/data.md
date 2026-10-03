@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [shared_memory](../shared_memory.md)
+[sgcl](../../README.md) › [io](../README.md) › [shared_memory](README.md)
 
 # sgcl::io::shared_memory::data
 
@@ -62,5 +62,5 @@ s
 ## See also
 
 - [size](size.md): the length of the region
-- [slice](../../core/slice.md): what it returns
-- [sgcl::io::shared_memory](../shared_memory.md)
+- [slice](../../core/slice/README.md): what it returns
+- [sgcl::io::shared_memory](README.md)

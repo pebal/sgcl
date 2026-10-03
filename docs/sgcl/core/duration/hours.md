@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::hours
 
@@ -7,7 +7,7 @@ constexpr double hours() const noexcept;
 ```
 
 The hours with the fraction, a `double`: `1.5` for 90 minutes. Go's `Hours() float64`. A day of the calendar is
-not a number of hours (23, 24 or 25): that is a [date's](../../time/date.md) `add_days`.
+not a number of hours (23, 24 or 25): that is a [date's](../../time/date/README.md) `add_days`.
 
 ## Parameters
 
@@ -56,4 +56,4 @@ Output:
 
 - [minutes](minutes.md): the minutes, with the fraction
 - [max](max.md): the largest duration
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

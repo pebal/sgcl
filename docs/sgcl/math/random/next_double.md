@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [random](../random.md)
+[sgcl](../../README.md) › [math](../README.md) › [random](README.md)
 
 # sgcl::math::random::next_double
 
@@ -59,4 +59,4 @@ pi is about 3.141
 
 - [next_int](next_int.md): a whole number in a range
 - [next_normal](next_normal.md), [next_exponential](next_exponential.md): other distributions
-- [sgcl::math::random](../random.md)
+- [sgcl::math::random](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::bucket_count
 
@@ -65,4 +65,4 @@ Output:
 - [bucket_size](bucket_size.md): the number of elements in a bucket
 - [rehash](rehash.md): sets the number of buckets
 - [load_factor](load_factor.md): the average number of elements per bucket
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

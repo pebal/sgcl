@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [zone](../zone.md)
+[sgcl](../../README.md) › [time](../README.md) › [zone](README.md)
 
 # sgcl::time::zone::load
 
@@ -25,7 +25,7 @@ refused. Windows has no such directory; there `load` finds nothing.
 
 ## Return value
 
-The zone, or an [error](../error.md):
+The zone, or an [error](../error/README.md):
 
 - `not a name of a time zone: "…"`: a name that is not one of the form above;
 - `unknown time zone "…"`: no file of that name in any of the places;
@@ -81,4 +81,4 @@ time zone "zone.tab": TZif: not a TZif file (no "TZif" at the start) (byte 0)
 - [(constructor)](zone.md): a name the program writes
 - [available](available.md): the names there are
 - [from_tzif](from_tzif.md): a zone from a database of one's own
-- [sgcl::time::zone](../zone.md)
+- [sgcl::time::zone](README.md)

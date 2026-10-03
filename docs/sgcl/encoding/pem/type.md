@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [pem](../pem.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [pem](README.md)
 
 # sgcl::encoding::pem::type
 
@@ -54,4 +54,4 @@ a certificate of 3 bytes
 ## See also
 
 - [bytes](bytes.md): what the block holds
-- [sgcl::encoding::pem](../pem.md)
+- [sgcl::encoding::pem](README.md)

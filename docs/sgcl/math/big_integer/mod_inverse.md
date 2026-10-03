@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::mod_inverse
 
@@ -74,4 +74,4 @@ hello
 
 - [mod_pow](mod_pow.md): a power modulo a number
 - [gcd](gcd.md): the greatest common divisor
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

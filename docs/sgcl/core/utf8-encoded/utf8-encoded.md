@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8.md) › [encoded](../utf8-encoded.md)
+[sgcl](../../README.md) › [core](../README.md) › [utf8](../utf8/README.md) › [encoded](README.md)
 
 # sgcl::utf8::encoded::encoded
 
@@ -52,4 +52,4 @@ Output:
 
 - [view, operator std::string_view](view.md): the bytes as a view
 - [utf8::encode](../utf8/encode.md): the encoding into a buffer of the caller's
-- [sgcl::utf8::encoded](../utf8-encoded.md)
+- [sgcl::utf8::encoded](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [variant](../variant.md)
+[sgcl](../../README.md) › [core](../README.md) › [variant](README.md)
 
 # sgcl::variant\<Ts...\>::variant
 
@@ -107,4 +107,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns another variant or a value
 - [emplace](emplace.md): constructs an alternative in place
-- [sgcl::variant\<Ts...\>](../variant.md)
+- [sgcl::variant\<Ts...\>](README.md)

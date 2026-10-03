@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::output, async_output
 
@@ -21,7 +21,7 @@ None.
 
 ## Return value
 
-The standard output of the child, or the [error](../error.md): `std::errc::invalid_argument` (operation `output`)
+The standard output of the child, or the [error](../error/README.md): `std::errc::invalid_argument` (operation `output`)
 when `out` is set or the command was started, else the error of [run](run.md) (`errc::exit_status` for a failure
 status: what the child wrote to its standard error is in `captured_err`).
 
@@ -109,4 +109,4 @@ hello, Grace
 - [combined_output](combined_output.md): the standard output and error together
 - [run](run.md): the run, its output where `out` says
 - [stdout_pipe](stdout_pipe.md): the output read by the program as the child writes it
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

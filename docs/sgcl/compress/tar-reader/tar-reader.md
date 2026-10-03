@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](../tar-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [tar](../tar.md) › [reader](README.md)
 
 # sgcl::compress::tar::reader::reader
 
@@ -54,4 +54,4 @@ a.txt
 ## See also
 
 - [next](next.md)
-- [sgcl::compress::tar::reader](../tar-reader.md)
+- [sgcl::compress::tar::reader](README.md)

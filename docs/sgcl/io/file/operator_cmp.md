@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [file](../file.md)
+[sgcl](../../README.md) › [io](../README.md) › [file](README.md)
 
 # sgcl::io::operator==, operator!= (sgcl::io::file)
 
@@ -54,4 +54,4 @@ true
 ## See also
 
 - [operator=](operator_assign.md): a handle made the same file as another
-- [sgcl::io::file](../file.md)
+- [sgcl::io::file](README.md)

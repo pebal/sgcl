@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::owner
 
@@ -54,4 +54,4 @@ cde true true
 
 - [owned](owned.md): checks whether there is an owner
 - [(constructor)](slice.md): a slice of an owner
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

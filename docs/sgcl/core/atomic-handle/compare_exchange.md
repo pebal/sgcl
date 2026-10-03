@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::compare_exchange_weak, compare_exchange_strong
 
@@ -90,4 +90,4 @@ false
 
 - [exchange](exchange.md): replaces the handle unconditionally
 - [load, operator H](load.md): the read a failure makes
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

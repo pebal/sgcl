@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](../p256-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [private_key](README.md)
 
 # sgcl::crypto::p256::private_key::to_sec1_der
 
@@ -17,7 +17,7 @@ None.
 
 ## Return value
 
-The DER, in a [secret_bytes](../secret_bytes.md): it holds the secret scalar, so it is zeroed when it goes and never
+The DER, in a [secret_bytes](../secret_bytes/README.md): it holds the secret scalar, so it is zeroed when it goes and never
 lies in managed memory.
 
 ## Complexity
@@ -57,4 +57,4 @@ true
 
 - [from_sec1_der](from_sec1_der.md): the key of its ECPrivateKey
 - [to_pkcs8_der](to_pkcs8_der.md): the form `PRIVATE KEY`
-- [sgcl::crypto::p256::private_key](../p256-private_key.md)
+- [sgcl::crypto::p256::private_key](README.md)

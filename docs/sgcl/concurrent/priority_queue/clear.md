@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](../priority_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [priority_queue](README.md)
 
 # sgcl::concurrent::priority_queue\<T, Compare\>::clear
 
@@ -55,4 +55,4 @@ true 0
 ## See also
 
 - [try_pop](try_pop.md): takes one element
-- [sgcl::concurrent::priority_queue\<T, Compare\>](../priority_queue.md)
+- [sgcl::concurrent::priority_queue\<T, Compare\>](README.md)

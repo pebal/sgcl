@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::terminate
 
@@ -60,4 +60,4 @@ Output:
 ## See also
 
 - [force_collect](force_collect.md): returns `false` once the collector is terminating
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

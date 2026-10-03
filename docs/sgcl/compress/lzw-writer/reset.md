@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw.md) › [writer](../lzw-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [lzw](../lzw/README.md) › [writer](README.md)
 
 # sgcl::compress::lzw::writer::reset
 
@@ -59,4 +59,4 @@ second
 ## See also
 
 - [(constructor)](lzw-writer.md)
-- [sgcl::compress::lzw::writer](../lzw-writer.md)
+- [sgcl::compress::lzw::writer](README.md)

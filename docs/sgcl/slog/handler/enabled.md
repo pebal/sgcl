@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [handler](../handler.md)
+[sgcl](../../README.md) › [slog](../README.md) › [handler](README.md)
 
 # sgcl::slog::handler::enabled
 
@@ -70,4 +70,4 @@ false
 
 - [handle](handle.md)
 - [logger::enabled](../logger/enabled.md): the logger's level, then this
-- [sgcl::slog::handler](../handler.md)
+- [sgcl::slog::handler](README.md)

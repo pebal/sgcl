@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::month
 
@@ -51,4 +51,4 @@ true
 
 - [year](year.md), [day](day.md): the other fields
 - [month](../month.md): the enumeration
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

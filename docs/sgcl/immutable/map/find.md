@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [map](README.md)
 
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::find
 
@@ -39,7 +39,7 @@ the last bit.
 ## Notes
 
 An iterator carries the path of nodes from the root; when only the value is wanted, `try_get` of
-[mixin::lookup](../../core/mixin/lookup.md) is the cheaper read, a pointer to the value or null.
+[mixin::lookup](../../core/mixin/lookup/README.md) is the cheaper read, a pointer to the value or null.
 
 ## Example
 
@@ -70,4 +70,4 @@ true
 
 - [at](at.md): the value under a key, with bounds checking
 - [contains](contains.md): checks whether the map has an element under a key
-- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::immutable::map\<Key, T, Hash, KeyEqual\>](README.md)

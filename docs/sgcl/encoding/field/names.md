@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [field](../field.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [field](README.md)
 
 # sgcl::encoding::field::names
 
@@ -72,4 +72,4 @@ Output:
 ## See also
 
 - [tagged](tagged.md): a variant as an object with a tag
-- [sgcl::encoding::field](../field.md)
+- [sgcl::encoding::field](README.md)

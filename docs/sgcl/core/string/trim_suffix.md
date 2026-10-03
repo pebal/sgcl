@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::trim_suffix
 
@@ -61,5 +61,5 @@ true
 
 - [trim_prefix](trim_prefix.md): without a prefix
 - [trim_right](trim_right.md): without white space, or the characters given, at the end
-- [mixin::text](../mixin/text.md): `ends_with`
-- [sgcl::string](../string.md)
+- [mixin::text](../mixin/text/README.md): `ends_with`
+- [sgcl::string](README.md)

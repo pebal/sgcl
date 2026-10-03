@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::is_leap_year
 
@@ -54,4 +54,4 @@ Output:
 
 - [days_in_month](days_in_month.md): the days of the date's month
 - [year](year.md): the year
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

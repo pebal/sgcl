@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [level](../level.md)
+[sgcl](../../README.md) › [compress](../README.md) › [level](README.md)
 
 # sgcl::compress::level::level
 
@@ -58,4 +58,4 @@ compress::level: 0..9 or level::huffman_only
 ## See also
 
 - [value](value.md): the level as an `int`
-- [sgcl::compress::level](../level.md)
+- [sgcl::compress::level](README.md)

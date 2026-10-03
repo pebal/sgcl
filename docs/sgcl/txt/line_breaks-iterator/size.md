@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [line_breaks](../line_breaks.md) › [iterator](../line_breaks-iterator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [line_breaks](../line_breaks/README.md) › [iterator](README.md)
 
 # sgcl::txt::line_breaks::iterator::size
 
@@ -52,4 +52,4 @@ Output:
 ## See also
 
 - [pos](pos.md): where the element begins
-- [sgcl::txt::line_breaks::iterator](../line_breaks-iterator.md)
+- [sgcl::txt::line_breaks::iterator](README.md)

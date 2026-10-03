@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read_full, async_read_full
 
@@ -23,7 +23,7 @@ the connection.
 
 ## Return value
 
-`buffer.size()`; 0 when the stream ends before the first byte; or the [io::error](../../io/error.md):
+`buffer.size()`; 0 when the stream ends before the first byte; or the [io::error](../../io/error/README.md):
 `io::errc::unexpected_eof` (`is_eof()`), its operation `read`, when the stream ends part way, the bytes read until
 then at the front of `buffer` and their number in the error's [count](../../io/error/count.md); the error of a
 [read](read.md) otherwise, as the read gave it.
@@ -77,4 +77,4 @@ read: unexpected end of stream true 9
 
 - [read, async_read](read.md): what has come, at least one byte
 - [read_all](read_all.md): everything to the end
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](../x509-name.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](README.md)
 
 # sgcl::crypto::x509::operator==, operator!= (sgcl::crypto::x509::name)
 
@@ -58,4 +58,4 @@ true
 ## See also
 
 - [certificate::raw_subject](../x509-certificate/raw_subject.md): the bytes chains compare
-- [sgcl::crypto::x509::name](../x509-name.md)
+- [sgcl::crypto::x509::name](README.md)

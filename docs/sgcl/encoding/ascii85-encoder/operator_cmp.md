@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md) › [encoder](../ascii85-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85/README.md) › [encoder](README.md)
 
 # sgcl::encoding::operator== (sgcl::encoding::ascii85::encoder)
 
@@ -55,4 +55,4 @@ true false true
 ## See also
 
 - [(constructor)](ascii85-encoder.md): a copy that shares the stream
-- [sgcl::encoding::ascii85::encoder](../ascii85-encoder.md)
+- [sgcl::encoding::ascii85::encoder](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](../reader.md)
+[sgcl](../../../README.md) › [io](../../README.md) › [mixin](../README.md) › [reader](README.md)
 
 # sgcl::io::mixin::reader\<Derived\>::copy_to, async_copy_to
 
@@ -72,4 +72,4 @@ into a buffer
 
 - [io::copy](../../copy.md): the same over any two streams, and the ways of their own
 - [mixin::writer::copy_from](../writer/copy_from.md): the same from the writer's side
-- [sgcl::io::mixin::reader\<Derived\>](../reader.md)
+- [sgcl::io::mixin::reader\<Derived\>](README.md)

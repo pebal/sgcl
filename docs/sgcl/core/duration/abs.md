@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration](../duration.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration](README.md)
 
 # sgcl::duration::abs
 
@@ -49,4 +49,4 @@ true
 ## See also
 
 - [truncate](truncate.md), [round](round.md): to a multiple of a step
-- [sgcl::duration](../duration.md)
+- [sgcl::duration](README.md)

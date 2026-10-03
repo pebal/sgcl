@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [command](../command.md)
+[sgcl](../../README.md) › [io](../README.md) › [command](README.md)
 
 # sgcl::io::command::operator=
 
@@ -53,4 +53,4 @@ moved
 ## See also
 
 - [(constructor)](command.md): the program and its arguments
-- [sgcl::io::command](../command.md)
+- [sgcl::io::command](README.md)

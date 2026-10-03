@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::read_header, async_read_header
 
@@ -62,4 +62,4 @@ Bob is 27
 
 - [header](header.md): the names read
 - [row::operator\[\]](../csv-row/operator_at.md): a field by its column's name
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::forward_list\<T\>::before_begin, cbefore_begin
 
@@ -64,4 +64,4 @@ Output:
 
 - [begin](begin.md): an iterator to the beginning
 - [insert_after](insert_after.md): inserts elements after a position
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [sgcl::forward_list\<T\>](README.md)

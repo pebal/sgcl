@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](../growing_sink.md)
+[sgcl](../../README.md) › [txt](../README.md) › [growing_sink](README.md)
 
 # sgcl::txt::growing_sink::size
 
@@ -54,4 +54,4 @@ Output:
 ## See also
 
 - [view](view.md): the characters themselves
-- [sgcl::txt::growing_sink](../growing_sink.md)
+- [sgcl::txt::growing_sink](README.md)

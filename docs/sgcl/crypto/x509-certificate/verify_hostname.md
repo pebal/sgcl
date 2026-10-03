@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::verify_hostname
 
@@ -14,7 +14,7 @@ or IPv6 address is refused (RFC 6125 Appendix B.2): an address is verified by it
 [verify_ip](verify_ip.md).
 
 `host` is compared in ASCII: an internationalized name is asked in A-labels (`xn--…`), which
-[txt::idna](../../txt/idna.md)'s `to_ascii` gives.
+[txt::idna](../../txt/idna/README.md)'s `to_ascii` gives.
 
 ## Parameters
 
@@ -24,7 +24,7 @@ or IPv6 address is refused (RFC 6125 Appendix B.2): an address is verified by it
 
 ## Return value
 
-Nothing, or a [crypto::error](../error.md) `errc::verification`, `reason::hostname_mismatch`, whose message names the
+Nothing, or a [crypto::error](../error/README.md) `errc::verification`, `reason::hostname_mismatch`, whose message names the
 names the certificate is for.
 
 ## Complexity
@@ -88,4 +88,4 @@ sgcl::crypto::x509: the certificate is valid for www.example.com, *.api.example.
 
 - [verify_options](../x509-verify_options.md): `dns_name`, the same check in a verification
 - [verify_ip](verify_ip.md): an address
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

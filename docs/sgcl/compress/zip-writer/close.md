@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](../zip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [writer](README.md)
 
 # sgcl::compress::zip::writer::close, async_close
 
@@ -21,7 +21,7 @@ None.
 
 ## Return value
 
-Nothing, or the writer's first [error](../error.md), of any step before.
+Nothing, or the writer's first [error](../error/README.md), of any step before.
 
 ## Complexity
 
@@ -59,4 +59,4 @@ true
 ## See also
 
 - [last_error](last_error.md)
-- [sgcl::compress::zip::writer](../zip-writer.md)
+- [sgcl::compress::zip::writer](README.md)

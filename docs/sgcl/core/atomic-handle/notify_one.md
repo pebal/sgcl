@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](../atomic-handle.md)
+[sgcl](../../README.md) › [core](../README.md) › [atomic](../atomic.md) › [handle](README.md)
 
 # sgcl::atomic\<H\>::notify_one
 
@@ -56,4 +56,4 @@ reply: pong
 
 - [notify_all](notify_all.md): wakes every waiting thread
 - [wait](wait.md): blocks while the handle holds the object given
-- [sgcl::atomic\<H\>](../atomic-handle.md)
+- [sgcl::atomic\<H\>](README.md)

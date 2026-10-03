@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [handler](../handler.md)
+[sgcl](../../README.md) › [slog](../README.md) › [handler](README.md)
 
 # sgcl::slog::handler::operator bool
 
@@ -50,4 +50,4 @@ false true
 ## See also
 
 - [(constructor)](handler.md)
-- [sgcl::slog::handler](../handler.md)
+- [sgcl::slog::handler](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task_group](../task_group.md)
+[sgcl](../../README.md) › [async](../README.md) › [task_group](README.md)
 
 # sgcl::async::task_group::task_group
 
@@ -7,7 +7,7 @@ explicit task_group(const stop_token& parent = stop_token());    // (1)
 task_group(const task_group&) = delete;                          // (2)
 ```
 
-1. A scope under `parent`: its own [stop_source](../stop_source.md) is made a child of the source the token belongs
+1. A scope under `parent`: its own [stop_source](../stop_source/README.md) is made a child of the source the token belongs
    to, stopped with it, and at once when it is stopped already. An empty token, the default, makes a scope on its
    own, stopped only by its children's exceptions, by [request_stop](request_stop.md) and by its end.
 2. A group is not copyable, and not movable: a scope has one place.
@@ -58,5 +58,5 @@ true
 ## See also
 
 - [token](token.md): the token the children are given
-- [stop_source](../stop_source.md): a source made from a token
-- [sgcl::async::task_group](../task_group.md)
+- [stop_source](../stop_source/README.md): a source made from a token
+- [sgcl::async::task_group](README.md)

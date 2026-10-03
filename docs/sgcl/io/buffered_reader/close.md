@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::close, async_close
 
@@ -7,14 +7,14 @@ expected<void, error> close() const;                                // (1)
 async::task<expected<void, error>> async_close() const noexcept;    // (2)
 ```
 
-Drops what the block holds and closes the stream underneath, when it has a close (a [file](../file.md), a
+Drops what the block holds and closes the stream underneath, when it has a close (a [file](../file/README.md), a
 connection), as [buffered_writer::close](../buffered_writer/close.md) closes its writer; a stream with none (a
 `buffer`) has nothing to close, and the close succeeds. A read after it is the stream's: a closed file answers it
 with `errc::closed`.
 
 1. Closes on the calling thread: the stream's `close`, or its `async_close` waited for when it has only that.
 2. The same for a task: the stream's `async_close`, or its `close` on the blocking pool when it has only that, as
-   [io::reader](../reader.md) closes it.
+   [io::reader](../reader/README.md) closes it.
 
 ## Parameters
 
@@ -63,4 +63,4 @@ read close.txt: stream closed
 
 - [underlying](underlying.md): the stream it closes
 - [buffered_writer::close](../buffered_writer/close.md): the writer's, which flushes first
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

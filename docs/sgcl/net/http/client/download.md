@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::download, async_download
 
@@ -81,4 +81,4 @@ true false
 
 - [download](../download.md): the same through a client of the process's
 - [save](../response/save.md): the body of any response into a file
-- [sgcl::net::http::client](../client.md)
+- [sgcl::net::http::client](README.md)

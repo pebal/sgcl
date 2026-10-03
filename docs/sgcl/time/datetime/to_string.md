@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::to_string, sgcl::time::operator\<\< (sgcl::time::datetime)
 
@@ -12,7 +12,7 @@ friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, T
 1. RFC 3339 with the fraction of a second only where there is one, its trailing zeros left out, and `Z` for an
    offset of zero: Go's `RFC3339Nano`, `2026-09-24T12:41:15.122575+02:00`, `2026-09-24T10:41:15.5Z`. An offset with
    seconds (the local mean times of the 19th century) is written to the minute, as Go writes it; RFC 3339 has no
-   seconds there. The other texts are the [layouts](../layout.md) and the patterns of [format](format.md).
+   seconds there. The other texts are the [layouts](../layout/README.md) and the patterns of [format](format.md).
 2. Writes `t.to_string()` to `os`.
 
 ## Parameters
@@ -74,4 +74,4 @@ Output:
 
 - [format](format.md): the text by a layout or a pattern
 - [parse](parse.md): reads the text back
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

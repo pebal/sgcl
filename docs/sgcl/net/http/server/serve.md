@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::serve, async_serve
 
@@ -10,7 +10,7 @@ async::task<expected<void, io::error>> async_serve(const net::listener& l) const
 ```
 
 Serves until [shutdown](shutdown.md) or [close](close.md): accepts each connection and runs it in a task of its own
-on the scheduler, by the [rules](../server.md#rules) of the server and with its settings as they are at the call.
+on the scheduler, by the [rules](README.md#rules) of the server and with its settings as they are at the call.
 
 - (1–2) Listens on `address` as [tcp::listen](../../tcp/listen.md) does (`":8080"` every address of both families,
   `"127.0.0.1:8080"` one), Go's `ListenAndServe`.
@@ -190,4 +190,4 @@ true
 - [serve_tls](serve_tls.md): over TLS on an address, the ALPN completed
 - [shutdown](shutdown.md), [close](close.md): what ends it
 - [serve](../serve.md): the files of a directory in one call
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

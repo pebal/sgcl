@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [heif](../heif.md)
+[sgcl](../../README.md) › [codec](../README.md) › [heif](README.md)
 
 # sgcl::codec::heif::encode
 
@@ -86,4 +86,4 @@ written: true, read back: 64x48, rgb8: true
 - [options](../heif-options.md): the quality
 - [decode](decode.md): the image of a HEIC
 - [png::encode](../png/encode.md), [jpeg::encode](../jpeg/encode.md): the formats the module writes itself
-- [sgcl::codec::heif](../heif.md)
+- [sgcl::codec::heif](README.md)

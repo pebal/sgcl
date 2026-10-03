@@ -63,5 +63,5 @@ DIE STRASSE | DIE STRAßE
 
 - [to_lower_full](to_lower_full.md), [to_title](to_title.md)
 - [string::to_upper](../core/string/to_upper.md): one code point to one
-- [locale](locale.md)
+- [locale](locale/README.md)
 - [sgcl::txt](README.md)

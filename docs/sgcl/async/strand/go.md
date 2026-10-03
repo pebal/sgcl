@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [strand](../strand.md)
+[sgcl](../../README.md) › [async](../README.md) › [strand](README.md)
 
 # sgcl::async::strand::go
 
@@ -81,4 +81,4 @@ Output:
 - [spawn](spawn.md): a task started and kept
 - [executor::go](../executor/go.md): a task let go of on an executor
 - [go](../go.md): a task let go of on the pool of workers
-- [sgcl::async::strand](../strand.md)
+- [sgcl::async::strand](README.md)

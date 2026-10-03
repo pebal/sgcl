@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [folded_text](../folded_text.md)
+[sgcl](../../README.md) › [txt](../README.md) › [folded_text](README.md)
 
 # sgcl::txt::folded_text::folded_text
 
@@ -35,7 +35,7 @@ marks in canonical order. The constructors of `normalized_text` are the same.
 ## Exceptions
 
 - (1–3) None.
-- (4–5) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (4–5) `length_error` when the text is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds.
 
 ## Example
@@ -64,4 +64,4 @@ Output:
 ## See also
 
 - [size](size.md): the code points the text mapped to
-- [sgcl::txt::folded_text, normalized_text](../folded_text.md)
+- [sgcl::txt::folded_text, normalized_text](README.md)

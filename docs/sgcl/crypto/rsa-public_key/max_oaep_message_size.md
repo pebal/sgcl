@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](../rsa-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [public_key](README.md)
 
 # sgcl::crypto::rsa::public_key::max_oaep_message_size
 
@@ -60,4 +60,4 @@ Output:
 
 - [encrypt_oaep](encrypt_oaep.md)
 - [decrypt_oaep_to](../rsa-private_key/decrypt_oaep_to.md)
-- [sgcl::crypto::rsa::public_key](../rsa-public_key.md)
+- [sgcl::crypto::rsa::public_key](README.md)

@@ -15,7 +15,7 @@ A pattern the compiler never saw, asked for by name: `txt::format(txt::runtime(e
 that is not a constant cannot be; wrapped by `runtime`, it is read where the program runs, and the forms that take
 it answer an `optional` — `nullopt` when the pattern does not fit the values.
 
-The result is a [runtime_pattern](runtime_pattern.md), which keeps the string rather than pointing into it.
+The result is a [runtime_pattern](runtime_pattern/README.md), which keeps the string rather than pointing into it.
 
 ## Parameters
 
@@ -62,4 +62,4 @@ Lovelace Ada
 
 - [format](format.md), [format_to](format_to.md): the forms that take it
 - [fits](fits.md): whether it fits, asked where it is loaded
-- [runtime_pattern](runtime_pattern.md): what it makes
+- [runtime_pattern](runtime_pattern/README.md): what it makes

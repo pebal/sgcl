@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::repeat
 
@@ -62,4 +62,4 @@ length_error: sgcl::basic_string::repeat
 - [concat](concat.md): one string of a few known pieces
 - [join](join.md): one string of a range of parts with a separator between each two
 - [max_size](max_size.md): the largest number of characters a string holds
-- [sgcl::string](../string.md)
+- [sgcl::string](README.md)

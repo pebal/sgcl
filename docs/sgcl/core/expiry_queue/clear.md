@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](README.md)
 
 # sgcl::expiry_queue\<T\>::clear
 
@@ -76,4 +76,4 @@ true 0
 
 - [drain](drain.md): calls the functions and drops the entries
 - [entry::cancel](../expiry_queue-entry/cancel.md): withdraws one entry
-- [sgcl::expiry_queue\<T\>](../expiry_queue.md)
+- [sgcl::expiry_queue\<T\>](README.md)

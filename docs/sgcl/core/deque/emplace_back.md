@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::emplace_back
 
@@ -35,7 +35,7 @@ If an exception is thrown, the deque is as it was before the call.
 ## Notes
 
 The references to the other elements stay valid, the iterators do not
-([Iterator invalidation](../deque.md#iterator-invalidation)).
+([Iterator invalidation](README.md#iterator-invalidation)).
 
 ## Example
 
@@ -74,4 +74,4 @@ Output:
 - [push_back](push_back.md): appends a copy or a moved value
 - [emplace_front](emplace_front.md): constructs an element in place at the beginning
 - [emplace](emplace.md): constructs an element in place at any position
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

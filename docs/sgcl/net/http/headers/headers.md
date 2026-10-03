@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::headers
 
@@ -49,4 +49,4 @@ text/plain | application/json
 ## See also
 
 - [set](set.md), [add](add.md): the fields put in
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

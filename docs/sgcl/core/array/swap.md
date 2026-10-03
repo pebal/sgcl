@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::swap
 
@@ -61,4 +61,4 @@ Output:
 
 - [swap](swap2.md): the non-member form
 - [fill](fill.md): assigns a value to every element
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

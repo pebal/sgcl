@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [public_key](../x509-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [public_key](README.md)
 
 # sgcl::crypto::x509::public_key::kind
 
@@ -54,4 +54,4 @@ true
 ## See also
 
 - [has_value](has_value.md)
-- [sgcl::crypto::x509::public_key](../x509-public_key.md)
+- [sgcl::crypto::x509::public_key](README.md)

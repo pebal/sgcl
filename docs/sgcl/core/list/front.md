@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::front
 
@@ -60,4 +60,4 @@ Output:
 
 - [back](back.md): access the last element
 - [begin](begin.md): an iterator to the first element
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

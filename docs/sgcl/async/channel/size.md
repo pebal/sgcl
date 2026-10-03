@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::size
 
@@ -61,4 +61,4 @@ Output:
 
 - [empty](empty.md): also counts the waiting senders
 - [capacity](capacity.md): the number of elements the buffer holds
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

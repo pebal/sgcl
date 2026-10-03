@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](../response_writer.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response_writer](README.md)
 
 # sgcl::net::http::response_writer::set_header
 
@@ -10,7 +10,7 @@ Sets the field `name` to `value`, Go's `w.Header().Set`: the [set](../headers/se
 [headers](headers.md). The name is compared without regard to case; the value takes the place of the first field of
 the name, which keeps its place and its name as first written, and the others of the name are dropped; a field of a
 new name goes at the end. The field is checked when the head goes, not here: a name that is not a token or a value
-with CR, LF, NUL or another control fails the response ([response_writer](../response_writer.md#rules)). After the
+with CR, LF, NUL or another control fails the response ([response_writer](README.md#rules)). After the
 head has gone, the field goes nowhere.
 
 The framing fields are the server's: a Transfer-Encoding set here is not sent, a Content-Length is replaced by the
@@ -75,4 +75,4 @@ max-age=60 | 6
 
 - [add_header](add_header.md): a field beside the others of its name
 - [headers](headers.md): all the fields
-- [sgcl::net::http::response_writer](../response_writer.md)
+- [sgcl::net::http::response_writer](README.md)

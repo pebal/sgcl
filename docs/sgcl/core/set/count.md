@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::count
 
@@ -11,7 +11,7 @@ Returns the number of elements with the key `key`: 0 or 1, the keys of a set bei
 
 - (2) The key is of any type the hash and the equality take, and no `Key` is built for the search. Takes part
   only when `Hash` and `KeyEqual` both declare `is_transparent`, as `std::hash` and `std::equal_to` of a
-  [string](../string.md) do.
+  [string](../string/README.md) do.
 
 ## Parameters
 
@@ -57,4 +57,4 @@ Output:
 
 - [contains](contains.md): checks whether the set holds a key
 - [find](find.md): an iterator to the element with a key
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

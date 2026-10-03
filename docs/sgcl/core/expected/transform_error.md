@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expected](../expected.md)
+[sgcl](../../README.md) › [core](../README.md) › [expected](README.md)
 
 # sgcl::expected\<T, E\>::transform_error
 
@@ -62,4 +62,4 @@ not found
 
 - [transform](transform.md): the value mapped
 - [or_else](or_else.md): the recovery from an error
-- [sgcl::expected\<T, E\>](../expected.md)
+- [sgcl::expected\<T, E\>](README.md)

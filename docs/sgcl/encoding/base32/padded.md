@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::padded
 
@@ -48,4 +48,4 @@ true false
 ## See also
 
 - [without_padding](without_padding.md): the same codec without padding
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [stack](../stack.md)
+[sgcl](../../README.md) › [core](../README.md) › [stack](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::stack)
 
@@ -69,4 +69,4 @@ true true true
 ## See also
 
 - [top](top.md): the top element
-- [sgcl::stack\<T, Container\>](../stack.md)
+- [sgcl::stack\<T, Container\>](README.md)

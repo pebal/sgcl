@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::subject
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The subject's [name](../x509-name.md).
+The subject's [name](../x509-name/README.md).
 
 ## Complexity
 
@@ -71,4 +71,4 @@ SERIALNUMBER=42,CN=Example Docs CA,OU=Docs,O=Example\, Inc.,POSTALCODE=00-001,ST
 
 - [raw_subject](raw_subject.md): the bytes a chain is built on
 - [issuer](issuer.md)
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

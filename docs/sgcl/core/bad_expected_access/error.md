@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [bad_expected_access](../bad_expected_access.md)
+[sgcl](../../README.md) › [core](../README.md) › [bad_expected_access](README.md)
 
 # sgcl::bad_expected_access\<E\>::error
 
@@ -58,4 +58,4 @@ Output:
 ## See also
 
 - [what](what.md): the error's message
-- [sgcl::bad_expected_access\<E\>](../bad_expected_access.md)
+- [sgcl::bad_expected_access\<E\>](README.md)

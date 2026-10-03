@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::listener
 
@@ -60,4 +60,4 @@ true true
 
 - [operator bool](operator_bool.md): whether the handle holds a listener
 - [operator==](operator_cmp.md): whether two handles are the same listener
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

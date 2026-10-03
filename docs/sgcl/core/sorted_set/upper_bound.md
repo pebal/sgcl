@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_set](../sorted_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_set](README.md)
 
 # sgcl::sorted_set\<Key, Compare\>::upper_bound
 
@@ -13,7 +13,7 @@ Returns an iterator to the first element that is greater than `key`. With [lower
 the elements of a closed range of keys: `[lower_bound(a), upper_bound(b))` holds every key from `a` to `b`.
 
 - (3–4) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Take part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -68,4 +68,4 @@ true
 
 - [lower_bound](lower_bound.md): the first element not less than a key
 - [equal_range](equal_range.md): both bounds at once
-- [sgcl::sorted_set\<Key, Compare\>](../sorted_set.md)
+- [sgcl::sorted_set\<Key, Compare\>](README.md)

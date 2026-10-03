@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [async](README.md) › [scheduler](scheduler.md)
+[sgcl](../README.md) › [async](README.md) › [scheduler](scheduler/README.md)
 
 # sgcl::async::scheduler::statistics
 
@@ -61,4 +61,4 @@ Sample output:
 
 - [get_statistics](scheduler/get_statistics.md): what returns it
 - [blocking_pool::statistics](blocking_pool-statistics.md): the same for the blocking pool
-- [sgcl::async::scheduler](scheduler.md)
+- [sgcl::async::scheduler](scheduler/README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](../server.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [server](README.md)
 
 # sgcl::net::http::server::close
 
@@ -77,4 +77,4 @@ the request failed: true
 
 - [shutdown](shutdown.md): gracefully
 - [request::stop](../request/stop.md): the token a handler watches
-- [sgcl::net::http::server](../server.md)
+- [sgcl::net::http::server](README.md)

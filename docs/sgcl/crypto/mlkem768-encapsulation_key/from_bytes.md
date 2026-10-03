@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [encapsulation_key](../mlkem768-encapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [encapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::encapsulation_key::from_bytes
 
@@ -21,7 +21,7 @@ the 32 bytes of ρ at the key's end.
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with `errc::invalid_key` for a key of another length or with a
+The key, or a [crypto::error](../error/README.md) with `errc::invalid_key` for a key of another length or with a
 coefficient not below q.
 
 ## Complexity
@@ -74,4 +74,4 @@ true
 - [bytes](bytes.md): the bytes the key is read from
 - [mlkem768::decapsulation_key::encapsulation_key](../mlkem768-decapsulation_key/encapsulation_key.md): the key of a
   decapsulation key, without its bytes read again
-- [sgcl::crypto::mlkem768::encapsulation_key](../mlkem768-encapsulation_key.md)
+- [sgcl::crypto::mlkem768::encapsulation_key](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::namespace_uri
 
@@ -8,7 +8,7 @@ string namespace_uri() const noexcept;
 
 The namespace of an element's name: what its prefix, or the default namespace when it has none, stood for where
 the element was read. An empty string for an element in no namespace, for a node that is not an element and for
-`xml()`. An element made by the [constructor](xml.md) or a [builder](../xml-builder.md) is in the namespace its own
+`xml()`. An element made by the [constructor](xml.md) or a [builder](../xml-builder/README.md) is in the namespace its own
 `xmlns` declaration gives its prefix, and else in none, but for the prefix `xml`.
 
 A method that takes a name ([child](child.md), [children](children.md), [attribute](attribute.md)) matches the
@@ -61,4 +61,4 @@ Output:
 ## See also
 
 - [name](name.md), [local_name](local_name.md)
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

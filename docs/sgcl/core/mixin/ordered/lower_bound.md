@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](../ordered.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [ordered](README.md)
 
 # sgcl::mixin::ordered\<Derived\>::lower_bound
 
@@ -83,4 +83,4 @@ Output:
 
 - [upper_bound](upper_bound.md): the first element greater than a value
 - [sorted_index_of](sorted_index_of.md): the position of a value in a sorted range
-- [sgcl::mixin::ordered\<Derived\>](../ordered.md)
+- [sgcl::mixin::ordered\<Derived\>](README.md)

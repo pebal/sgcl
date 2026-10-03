@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::operator==, operator\<=\> (sgcl::math::rational)
 
@@ -63,4 +63,4 @@ false
 ## See also
 
 - [operator+](operator_arith.md): the arithmetic
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

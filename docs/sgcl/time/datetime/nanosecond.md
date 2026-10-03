@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::nanosecond
 
@@ -52,4 +52,4 @@ Output:
 
 - [second](second.md): the whole second
 - [unix_nano](unix_nano.md): the whole count
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

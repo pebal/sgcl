@@ -62,5 +62,5 @@ true
 
 - [digest_file](digest_file.md): a whole file, read a block at a time
 - [digest_size](digest_size.md): the length of what it gives
-- [sha256](sha256.md), [sha512](sha512.md), [sha3_256](sha3_256.md): the digests by their types
+- [sha256](sha256/README.md), [sha512](sha512/README.md), [sha3_256](sha3_256/README.md): the digests by their types
 - [sgcl::crypto::hash_id](hash_id.md)

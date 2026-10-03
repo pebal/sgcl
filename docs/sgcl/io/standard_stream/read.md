@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [standard_stream](../standard_stream.md)
+[sgcl](../../README.md) › [io](../README.md) › [standard_stream](README.md)
 
 # sgcl::io::standard_stream::read, async_read
 
@@ -7,7 +7,7 @@ expected<size_t, error> read(const slice<byte>& buffer);                        
 async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) noexcept;    // (2)
 ```
 
-Reads what is available into `buffer`, at most its size, through the [file](../file.md) over the descriptor: the
+Reads what is available into `buffer`, at most its size, through the [file](../file/README.md) over the descriptor: the
 [read](../file/read.md) of that file.
 
 1. Waits on the calling thread until some bytes come, or the end.
@@ -23,7 +23,7 @@ Reads what is available into `buffer`, at most its size, through the [file](../f
 ## Return value
 
 The number of bytes read, 0 at the end of the stream (a closed pipe, the end of a redirected file, Ctrl-D on a
-terminal), or the [error](../error.md) of the read; the operation is `read` and the path the stream's name.
+terminal), or the [error](../error/README.md) of the read; the operation is `read` and the path the stream's name.
 
 ## Complexity
 
@@ -64,6 +64,6 @@ Output:
 
 ## See also
 
-- [mixin::reader](../mixin/reader.md): `read_all_text`, `read_full` and the rest over this read
-- [buffered_reader](../buffered_reader.md): lines of the standard input
-- [sgcl::io::standard_stream](../standard_stream.md)
+- [mixin::reader](../mixin/reader/README.md): `read_all_text`, `read_full` and the rest over this read
+- [buffered_reader](../buffered_reader/README.md): lines of the standard input
+- [sgcl::io::standard_stream](README.md)

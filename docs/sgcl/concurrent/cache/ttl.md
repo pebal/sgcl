@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::ttl
 
@@ -29,8 +29,8 @@ None.
 
 The time of an entry runs from its last `put`, not from its last `get`. A stale entry is erased by the `get` that
 finds it, which misses, and by an eviction pass that walks past it; `get_or_compute` computes it again. The time is
-[sgcl::clock](../../core/clock.md)'s, read only when the cache has a time to live: under an installed
-[manual_clock](../../async/manual_clock.md) the entries age only as the test advances it, as in the example.
+[sgcl::clock](../../core/clock/README.md)'s, read only when the cache has a time to live: under an installed
+[manual_clock](../../async/manual_clock/README.md) the entries age only as the test advances it, as in the example.
 
 ## Example
 
@@ -75,4 +75,4 @@ grace false
 
 - [get](get.md): misses an entry past its time, and erases it
 - [put](put.md): renews the time of an entry
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

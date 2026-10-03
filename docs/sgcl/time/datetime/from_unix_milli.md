@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::datetime::from_unix_milli
 
@@ -9,7 +9,7 @@ static datetime from_unix_milli(int64_t milliseconds,
 
 The datetime of the milliseconds since 1970-01-01T00:00:00Z (negative before 1970), in the zone `z`: the local
 zone unless another is given, as in Go's `time.UnixMilli`. A count beyond the range of a datetime gives the end of
-the range. The unit is written out in the name, as Go's `UnixMilli` and [duration](../../core/duration.md)'s methods
+the range. The unit is written out in the name, as Go's `UnixMilli` and [duration](../../core/duration/README.md)'s methods
 have it.
 
 ## Parameters
@@ -57,4 +57,4 @@ Output:
 - [unix_milli](unix_milli.md): the milliseconds back
 - [from_unix](from_unix.md), [from_unix_micro](from_unix_micro.md), [from_unix_nano](from_unix_nano.md): the other
   units
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

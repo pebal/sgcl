@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [compress](README.md) › [gzip](gzip.md)
+[sgcl](../README.md) › [compress](README.md) › [gzip](gzip/README.md)
 
 # sgcl::compress::gzip::file_options
 
@@ -25,7 +25,7 @@ with member initializers cannot be inside its class.
 
 | Member | Description |
 |---|---|
-| `level` | the level of `compress_file`; 6 by default ([level](level.md)); `decompress_file` does not read it |
+| `level` | the level of `compress_file`; 6 by default ([level](level/README.md)); `decompress_file` does not read it |
 | `keep` | whether the original stays; `true` by default, as gzip(1) with `-k`; `false` removes it once the other file is whole |
 
 ## Example
@@ -53,4 +53,4 @@ false true
 ## See also
 
 - [compress_file](gzip/compress_file.md), [decompress_file](gzip/decompress_file.md)
-- [sgcl::compress::gzip](gzip.md)
+- [sgcl::compress::gzip](gzip/README.md)

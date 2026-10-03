@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::operator+=, operator-=, sgcl::time::operator+, operator- (sgcl::time::date)
 
@@ -11,7 +11,7 @@ constexpr date& operator+=(int n) noexcept;                 // (5)
 constexpr date& operator-=(int n) noexcept;                 // (6)
 ```
 
-The day arithmetic in operators, as a [datetime](../datetime.md) has it. The operators other than the compound
+The day arithmetic in operators, as a [datetime](../datetime/README.md) has it. The operators other than the compound
 assignments are hidden friends, found through a `date` argument.
 
 1. `d.add_days(n)`.
@@ -75,4 +75,4 @@ Output:
 
 - [add_days](add_days.md), [days_until](days_until.md): the named functions
 - [operator==, operator\<=\>](operator_cmp.md): the comparisons
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

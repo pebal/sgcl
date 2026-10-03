@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [match](../match.md)
+[sgcl](../../README.md) › [txt](../README.md) › [match](README.md)
 
 # sgcl::txt::match::empty
 
@@ -48,4 +48,4 @@ true false
 ## See also
 
 - [text](text.md): the bytes of the match
-- [sgcl::txt::match](../match.md)
+- [sgcl::txt::match](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [webp](../webp.md)
+[sgcl](../../README.md) › [codec](../README.md) › [webp](README.md)
 
 # sgcl::codec::webp::decode
 
@@ -34,7 +34,7 @@ that a file libwebp refuses is refused here too.
 ## Return value
 
 The image, or the error: `errc::invalid_argument` for a `want` outside the list, `errc::corrupt`,
-`errc::unexpected_end` and `errc::too_large` as the class's [rules](../webp.md#rules) say, and (2) `errc::io` when the
+`errc::unexpected_end` and `errc::too_large` as the class's [rules](README.md#rules) say, and (2) `errc::io` when the
 stream fails.
 
 ## Complexity
@@ -88,4 +88,4 @@ from a stream: 7x5, ICC 20 bytes, EXIF 10 bytes
 - [frames](frames.md): every frame, one by one
 - [codec::decode](../decode.md): any format, told by its signature
 - [decode_options](../decode_options.md), [limits](../limits.md)
-- [sgcl::codec::webp](../webp.md)
+- [sgcl::codec::webp](README.md)

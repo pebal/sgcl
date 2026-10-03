@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](../secret_bytes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [secret_bytes](README.md)
 
 # sgcl::crypto::secret_bytes::secret_bytes
 
@@ -62,4 +62,4 @@ true true 32
 - [operator=](operator_assign.md): the move by an assignment
 - [clone](clone.md): a copy by name
 - [resize](resize.md): changes the number of bytes
-- [sgcl::crypto::secret_bytes](../secret_bytes.md)
+- [sgcl::crypto::secret_bytes](README.md)

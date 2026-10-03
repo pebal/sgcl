@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil](../stencil.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil](README.md)
 
 # sgcl::txt::stencil::steps
 
@@ -52,4 +52,4 @@ Output:
 
 ## See also
 
-- [sgcl::txt::stencil](../stencil.md)
+- [sgcl::txt::stencil](README.md)

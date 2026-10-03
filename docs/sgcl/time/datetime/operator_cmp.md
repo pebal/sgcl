@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [datetime](../datetime.md)
+[sgcl](../../README.md) › [time](../README.md) › [datetime](README.md)
 
 # sgcl::time::operator==, operator\<=\> (sgcl::time::datetime)
 
@@ -60,4 +60,4 @@ true true
 
 - [operator+, operator-](operator_arith.md): the arithmetic
 - [zone](zone.md): the zone, compared apart
-- [sgcl::time::datetime](../datetime.md)
+- [sgcl::time::datetime](README.md)

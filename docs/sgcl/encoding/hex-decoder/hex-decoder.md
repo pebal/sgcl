@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [decoder](../hex-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [decoder](README.md)
 
 # sgcl::encoding::hex::decoder::decoder
 
@@ -58,4 +58,4 @@ lo
 
 - [decoder_from](../hex/decoder_from.md): a decoder with a stream
 - [operator==](operator_cmp.md): whether two handles share one stream
-- [sgcl::encoding::hex::decoder](../hex-decoder.md)
+- [sgcl::encoding::hex::decoder](README.md)

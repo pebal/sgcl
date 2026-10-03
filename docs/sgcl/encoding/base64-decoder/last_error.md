@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [decoder](../base64-decoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [decoder](README.md)
 
 # sgcl::encoding::base64::decoder::last_error
 
@@ -6,7 +6,7 @@
 const optional<error>& last_error() const noexcept;
 ```
 
-Why the decoder's reads fail: the [error](../error.md) of the text, with its code and its offset in the text, or,
+Why the decoder's reads fail: the [error](../error/README.md) of the text, with its code and its offset in the text, or,
 when the reader under it failed, an error of the code `io` whose `io_error()` is that reader's. Empty while
 nothing failed. The failed read itself carries only an `io::error`, whose code is the [errc](../errc.md) code in
 the `encoding` category; this is the place.
@@ -58,4 +58,4 @@ offset 4: invalid character 0x0A
 
 - [read, async_read](read.md): the reads that fail
 - [lenient](../base64/lenient.md): a codec that takes the line ending
-- [sgcl::encoding::base64::decoder](../base64-decoder.md)
+- [sgcl::encoding::base64::decoder](README.md)

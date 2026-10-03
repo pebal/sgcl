@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [blocking_task](../blocking_task.md)
+[sgcl](../../README.md) › [async](../README.md) › [blocking_task](README.md)
 
 # sgcl::async::blocking_task\<T\>::wait, operator co_await
 
@@ -13,7 +13,7 @@ rethrown.
 1. On a thread: blocks the calling thread until the job ran. Not from a task on a worker, which it would take from
    every other task: debug builds assert.
 2. In a task: `co_await job` suspends the task until the job ran, with no thread held, and resumes it on its worker,
-   or on its [executor](../executor.md).
+   or on its [executor](../executor/README.md).
 
 ## Parameters
 
@@ -68,4 +68,4 @@ a job of nothing
 
 - [result](result.md): the result read in place
 - [on_done](on_done.md): the wait as a case of a select
-- [sgcl::async::blocking_task\<T\>](../blocking_task.md)
+- [sgcl::async::blocking_task\<T\>](README.md)

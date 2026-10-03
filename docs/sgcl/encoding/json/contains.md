@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::contains
 
@@ -55,4 +55,4 @@ false
 
 - [operator[]](operator_at.md): the value of a member
 - [at_path](at_path.md): a value deeper down, `nullopt` when there is none
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

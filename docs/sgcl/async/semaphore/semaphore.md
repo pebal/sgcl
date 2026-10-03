@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [semaphore](../semaphore.md)
+[sgcl](../../README.md) › [async](../README.md) › [semaphore](README.md)
 
 # sgcl::async::semaphore::semaphore
 
@@ -62,4 +62,4 @@ Output:
 
 - [acquire](acquire.md), [release](release.md): take and give back a permit
 - [available](available.md): the permits free now
-- [sgcl::async::semaphore](../semaphore.md)
+- [sgcl::async::semaphore](README.md)

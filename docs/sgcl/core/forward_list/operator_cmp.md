@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [forward_list](../forward_list.md)
+[sgcl](../../README.md) › [core](../README.md) › [forward_list](README.md)
 
 # sgcl::operator==, operator\<=\> (sgcl::forward_list)
 
@@ -8,7 +8,7 @@ friend constexpr auto operator<=>(const forward_list& a, const forward_list& b);
 ```
 
 Compare two lists by their elements, as `std::forward_list`'s operators do, in one walk of both lists. Both are
-hidden friends of [mixin::equatable](../mixin/equatable.md) and [mixin::comparable](../mixin/comparable.md), found
+hidden friends of [mixin::equatable](../mixin/equatable/README.md) and [mixin::comparable](../mixin/comparable/README.md), found
 through the list's type.
 
 1. `true` when `a` and `b` have equal elements in the same order. The walk stops at the first difference or the end
@@ -71,5 +71,5 @@ true false
 
 ## See also
 
-- [mixin::equatable](../mixin/equatable.md), [mixin::comparable](../mixin/comparable.md)
-- [sgcl::forward_list\<T\>](../forward_list.md)
+- [mixin::equatable](../mixin/equatable/README.md), [mixin::comparable](../mixin/comparable/README.md)
+- [sgcl::forward_list\<T\>](README.md)

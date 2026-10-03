@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](README.md)
 
 # sgcl::async::mutex::scoped_lock
 
@@ -6,8 +6,8 @@
 auto scoped_lock() const noexcept;
 ```
 
-Locks the mutex for a scope: the lock of a task, and of a thread that wants a [guard](../mutex-guard.md). The call
-does nothing yet; it returns an [operation](../operation.md), carried out in one of two ways
+Locks the mutex for a scope: the lock of a task, and of a thread that wants a [guard](../mutex-guard/README.md). The call
+does nothing yet; it returns an [operation](../operation/README.md), carried out in one of two ways
 ([README: Waiting operations](../README.md#waiting-operations)):
 
 - `auto guard = co_await m.scoped_lock();` in a task: the task suspends while the mutex is locked, holding no
@@ -23,8 +23,8 @@ None.
 
 ## Return value
 
-An [operation](../operation.md). Carried out, by `co_await` or by `.wait()`, it gives a
-[mutex::guard](../mutex-guard.md) of this mutex, locked.
+An [operation](../operation/README.md). Carried out, by `co_await` or by `.wait()`, it gives a
+[mutex::guard](../mutex-guard/README.md) of this mutex, locked.
 
 ## Complexity
 
@@ -78,8 +78,8 @@ from main
 
 ## See also
 
-- [mutex::guard](../mutex-guard.md): what the operation gives
+- [mutex::guard](../mutex-guard/README.md): what the operation gives
 - [lock](lock.md): the thread's lock, for the standard's guards
 - [on_lock](on_lock.md): the lock as a case of a select
 - [condition_variable::wait](../condition_variable/wait.md): a wait with the guard
-- [sgcl::async::mutex](../mutex.md)
+- [sgcl::async::mutex](README.md)

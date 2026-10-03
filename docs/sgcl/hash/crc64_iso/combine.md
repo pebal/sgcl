@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc64_iso](../crc64_iso.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc64_iso](README.md)
 
 # sgcl::hash::crc64_iso::combine
 
@@ -61,4 +61,4 @@ Output:
 
 - [crc32::combine](../crc32/combine.md): a buffer hashed on four tasks
 - [resume](resume.md): going on from a saved CRC
-- [sgcl::hash::crc64_iso](../crc64_iso.md)
+- [sgcl::hash::crc64_iso](README.md)

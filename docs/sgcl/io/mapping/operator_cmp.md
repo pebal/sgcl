@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [mapping](../mapping.md)
+[sgcl](../../README.md) › [io](../README.md) › [mapping](README.md)
 
 # sgcl::io::operator==, operator!= (sgcl::io::mapping)
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [operator bool](operator_bool.md): whether a handle holds a mapping
-- [sgcl::io::mapping](../mapping.md)
+- [sgcl::io::mapping](README.md)

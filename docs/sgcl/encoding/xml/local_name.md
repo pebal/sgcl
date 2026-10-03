@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::local_name
 
@@ -52,4 +52,4 @@ item item urn:shop
 ## See also
 
 - [name](name.md), [namespace_uri](namespace_uri.md)
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

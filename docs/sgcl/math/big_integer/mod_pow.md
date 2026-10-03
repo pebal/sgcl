@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::mod_pow
 
@@ -72,4 +72,4 @@ Output:
 - [pow](pow.md): a power without a modulus
 - [mod](mod.md): the remainder in `[0, |m|)`
 - [benchmarks](../benchmarks.md#big_integer): the time against Go's `math/big`
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

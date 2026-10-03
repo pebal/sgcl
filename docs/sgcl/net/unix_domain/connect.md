@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [unix_domain](../unix_domain.md)
+[sgcl](../../README.md) › [net](../README.md) › [unix_domain](README.md)
 
 # sgcl::net::unix_domain::connect, async_connect
 
@@ -22,7 +22,7 @@ address, no lookup and no race. The connection's [path](../connection/path.md) i
 
 ## Return value
 
-The [connection](../connection.md); or the [io::error](../../io/error.md), its operation `dial unix` and its path
+The [connection](../connection/README.md); or the [io::error](../../io/error/README.md), its operation `dial unix` and its path
 `path`: `net::errc::invalid_address` for a path too long, `ENOENT` (`is_not_found()`) when nothing is there, the
 `errno` of `connect` otherwise.
 
@@ -69,4 +69,4 @@ app.sock
 
 - [listen, async_listen](listen.md): the other side
 - [tcp::connect](../tcp/connect.md): over the network
-- [sgcl::net::unix_domain](../unix_domain.md)
+- [sgcl::net::unix_domain](README.md)

@@ -20,7 +20,7 @@ None.
 
 ## Return value
 
-The path, or an [error](error.md) whose operation is `executable`: `std::errc::filename_too_long` for a path past
+The path, or an [error](error/README.md) whose operation is `executable`: `std::errc::filename_too_long` for a path past
 4095 bytes, or the error of `realpath` or `readlink`.
 
 ## Complexity

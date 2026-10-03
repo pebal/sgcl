@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::release
 
@@ -52,5 +52,5 @@ false 5
 ## See also
 
 - [reset](reset.md): destroys the object, or replaces it
-- [tracked_ptr](../tracked_ptr.md): takes the object from a `unique_ptr&&` for the collector
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [tracked_ptr](../tracked_ptr/README.md): takes the object from a `unique_ptr&&` for the collector
+- [sgcl::unique_ptr\<T\>](README.md)

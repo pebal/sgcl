@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](../frame_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [frame_ptr](README.md)
 
 # sgcl::frame_ptr\<Promise\>::release
 
@@ -82,4 +82,4 @@ ran to its end
 
 - [destroy](destroy.md): destroys the coroutine and lets go of the frame
 - [handle](handle.md): the handle, the frame kept
-- [sgcl::frame_ptr\<Promise\>](../frame_ptr.md)
+- [sgcl::frame_ptr\<Promise\>](README.md)

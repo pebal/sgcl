@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multiset](../multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [multiset](README.md)
 
 # sgcl::multiset\<Key, Hash, KeyEqual\>::contains
 
@@ -12,7 +12,7 @@ Checks whether the multiset holds an element with the key `key`, by a lookup in 
 
 - (2) The key is of any type the hash and the equality take, and no `Key` is built for the search. Takes part
   only when `Hash` and `KeyEqual` both declare `is_transparent`, as `std::hash` and `std::equal_to` of a
-  [string](../string.md) do.
+  [string](../string/README.md) do.
 
 ## Parameters
 
@@ -62,4 +62,4 @@ true
 
 - [find](find.md): an iterator to the first element with a key
 - [count](count.md): the number of elements with a key
-- [sgcl::multiset\<Key, Hash, KeyEqual\>](../multiset.md)
+- [sgcl::multiset\<Key, Hash, KeyEqual\>](README.md)

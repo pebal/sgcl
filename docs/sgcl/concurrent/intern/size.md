@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::size
 
@@ -26,7 +26,7 @@ None.
 
 ## Notes
 
-The count is striped over cache lines, as the count of [concurrent::set](../set.md) is: under concurrent insertions
+The count is striped over cache lines, as the count of [concurrent::set](../set/README.md) is: under concurrent insertions
 and sweeps it is a snapshot of no particular moment, exact once the other threads are quiet. The number of live
 objects is the size right after a [sweep](sweep.md) with the other threads quiet.
 
@@ -58,4 +58,4 @@ Output:
 
 - [empty](empty.md): checks whether the pool holds an entry
 - [sweep](sweep.md): drops the dead entries
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

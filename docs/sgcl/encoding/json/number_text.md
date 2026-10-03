@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::number_text
 
@@ -77,4 +77,4 @@ true
 
 - [options](../json-options.md): `keep_number_text`
 - [as_double](as_double.md): the number, rounded
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

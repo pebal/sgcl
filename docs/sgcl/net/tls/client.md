@@ -36,7 +36,7 @@ handshake leaves it as it was.
 
 ## Return value
 
-The TLS connection over `transport`, its handshake done. Or the [io::error](../../io/error.md):
+The TLS connection over `transport`, its handshake done. Or the [io::error](../../io/error/README.md):
 
 - `EINVAL` for a config the handshake cannot start with: no group or no cipher suite, no `server_name` without
   `insecure_skip_verify`, an ALPN protocol of 0 or more than 255 bytes;

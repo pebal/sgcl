@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](../unique_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [unique_ptr](README.md)
 
 # sgcl::unique_ptr\<T\>::operator\*, operator-\>
 
@@ -60,4 +60,4 @@ Output:
 
 - [get](get.md): the raw pointer
 - [operator bool](operator_bool.md): checks whether there is an object
-- [sgcl::unique_ptr\<T\>](../unique_ptr.md)
+- [sgcl::unique_ptr\<T\>](README.md)

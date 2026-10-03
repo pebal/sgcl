@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::with_query
 
@@ -7,7 +7,7 @@ expected<url, io::error> with_query(const string& query) const noexcept;        
 expected<url, io::error> with_query(const net::query_params& params) const noexcept;    // (2)
 ```
 
-The URL with the query given. The standard takes any query; the one refusal is [the limit](../url.md#rules) of
+The URL with the query given. The standard takes any query; the one refusal is [the limit](README.md#rules) of
 512 MiB the other setters keep.
 
 1. By the standard's search setter: the query as written, escaped with the standard's query set; a leading `?` is
@@ -24,7 +24,7 @@ The URL with the query given. The standard takes any query; the one refusal is [
 
 ## Return value
 
-The new URL, or an [io::error](../../io/error.md) of the code `net::errc::invalid_url` ([errc](../errc.md)) and the
+The new URL, or an [io::error](../../io/error/README.md) of the code `net::errc::invalid_url` ([errc](../errc.md)) and the
 operation `set URL query`:
 
 - (1) with the value asked for, when it is past 512 MiB or the URL would pass it (a byte escaped is three);
@@ -70,4 +70,4 @@ https://x/search?q=c%2B%2B+%26+go&page=2#top
 ## See also
 
 - [query](query.md), [query_params](query_params.md): the query
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

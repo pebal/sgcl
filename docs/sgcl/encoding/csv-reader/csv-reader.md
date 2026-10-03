@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [reader](../csv-reader.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [reader](README.md)
 
 # sgcl::encoding::csv::reader::reader
 
@@ -13,8 +13,8 @@ reader(const reader&) = delete;                    // (5)
 Constructs a reader at the start of its input. Nothing is read until the first record is asked for.
 
 - (1–2) A reader of a text in memory, read where it is; the reader keeps the text alive.
-- (3–4) A reader of a stream: a file, a socket, a decoder, an [io::buffer](../../io/buffer.md), any
-  [io::reader](../../io/reader.md). It reads the stream a block at a time when a record is asked for, and never
+- (3–4) A reader of a stream: a file, a socket, a decoder, an [io::buffer](../../io/buffer/README.md), any
+  [io::reader](../../io/reader/README.md). It reads the stream a block at a time when a record is asked for, and never
   closes it.
 - (1), (3) With the default [options](../csv-options.md): a comma, no comments, every record as long as the
   first.
@@ -75,4 +75,4 @@ sgcl::encoding::csv: the separator is a quote, a line ending, NUL or not ASCII
 
 - [options](../csv-options.md): what the reader is given
 - [next](next.md): the first record
-- [sgcl::encoding::csv::reader](../csv-reader.md)
+- [sgcl::encoding::csv::reader](README.md)

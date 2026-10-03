@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::clean
 
@@ -58,4 +58,4 @@ Output:
 ## See also
 
 - [join](join.md), [dir](dir.md), [abs](abs.md), [rel](rel.md): the functions that clean their result
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

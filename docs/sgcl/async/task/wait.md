@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [task](../task.md)
+[sgcl](../../README.md) › [async](../README.md) › [task](README.md)
 
 # sgcl::async::task\<T\>::wait, operator co_await
 
@@ -106,4 +106,4 @@ broken
 - [done](done.md): checks whether the task has ended, without waiting
 - [when_all](../when_all.md), [when_any](../when_any.md): a wait for several tasks
 - [run](../run.md): the wait of `main` for the program's task
-- [sgcl::async::task\<T\>](../task.md)
+- [sgcl::async::task\<T\>](README.md)

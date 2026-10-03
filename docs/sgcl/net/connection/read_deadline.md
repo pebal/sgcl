@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read_deadline
 
@@ -55,4 +55,4 @@ true true
 
 - [write_deadline](write_deadline.md): the other direction
 - [set_read_deadline](set_read_deadline.md): sets it
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

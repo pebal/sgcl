@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [nonce_counter](../nonce_counter.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [nonce_counter](README.md)
 
 # sgcl::crypto::nonce_counter::operator=
 
@@ -62,4 +62,4 @@ sgcl::crypto::nonce_counter: every nonce has been used (or the counter was moved
 ## See also
 
 - [(constructor)](nonce_counter.md): a counter, or another's taken over
-- [sgcl::crypto::nonce_counter](../nonce_counter.md)
+- [sgcl::crypto::nonce_counter](README.md)

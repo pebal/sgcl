@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::origin
 
@@ -55,4 +55,4 @@ mailto:x -> null
 ## See also
 
 - [host](host.md): the host and the port
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

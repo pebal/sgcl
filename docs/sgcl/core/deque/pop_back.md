@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [deque](../deque.md)
+[sgcl](../../README.md) › [core](../README.md) › [deque](README.md)
 
 # sgcl::deque\<T\>::pop_back
 
@@ -29,7 +29,7 @@ None.
 
 On an empty deque the call is undefined behaviour, as with `std::deque`. The erased element and `end()` are
 invalidated; the other iterators and references stay valid
-([Iterator invalidation](../deque.md#iterator-invalidation)). The spare block is what the next push at either end
+([Iterator invalidation](README.md#iterator-invalidation)). The spare block is what the next push at either end
 takes before it allocates one, so elements pushed at one end and popped at the other allocate no blocks.
 
 ## Example
@@ -60,4 +60,4 @@ undo delete
 - [back](back.md): access the last element
 - [push_back](push_back.md): appends an element at the end
 - [pop_front](pop_front.md): removes the first element
-- [sgcl::deque\<T\>](../deque.md)
+- [sgcl::deque\<T\>](README.md)

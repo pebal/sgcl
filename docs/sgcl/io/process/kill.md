@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [process](../process.md)
+[sgcl](../../README.md) › [io](../README.md) › [process](README.md)
 
 # sgcl::io::process::kill
 
@@ -14,7 +14,7 @@ None.
 
 ## Return value
 
-Nothing, or the [error](../error.md) of `signal`: `errc::process_done` after the wait or the release.
+Nothing, or the [error](../error/README.md) of `signal`: `errc::process_done` after the wait or the release.
 
 ## Complexity
 
@@ -49,5 +49,5 @@ true, exit code -1
 ## See also
 
 - [signal](signal.md): any signal
-- [command](../command.md): `stop`, the kill on a stop token
-- [sgcl::io::process](../process.md)
+- [command](../command/README.md): `stop`, the kill on a stop token
+- [sgcl::io::process](README.md)

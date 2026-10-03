@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md) › [writer](../csv-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv/README.md) › [writer](README.md)
 
 # sgcl::encoding::csv::writer::writer
 
@@ -8,8 +8,8 @@ writer(const io::writer& out, const options& o);    // (2)
 writer(const writer&) = delete;                     // (3)
 ```
 
-Constructs a writer into the stream `out`: a file, a socket, an encoder, an [io::buffer](../../io/buffer.md),
-`io::stdout`, any [io::writer](../../io/writer.md). The writer never closes it.
+Constructs a writer into the stream `out`: a file, a socket, an encoder, an [io::buffer](../../io/buffer/README.md),
+`io::stdout`, any [io::writer](../../io/writer/README.md). The writer never closes it.
 
 1. With a comma between the fields.
 2. With the separator and the comment character of `o`, checked here as a reader checks them; the other options
@@ -57,4 +57,4 @@ a	b c	"d	e"
 ## See also
 
 - [options](../csv-options.md): the separator
-- [sgcl::encoding::csv::writer](../csv-writer.md)
+- [sgcl::encoding::csv::writer](README.md)

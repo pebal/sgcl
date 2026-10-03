@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffer](../buffer.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffer](README.md)
 
 # sgcl::io::buffer::reserve
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [clear](clear.md): drops the bytes, keeps the memory
-- [sgcl::io::buffer](../buffer.md)
+- [sgcl::io::buffer](README.md)

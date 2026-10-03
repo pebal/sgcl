@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::glob
 
@@ -20,7 +20,7 @@ which is the result when it exists; an empty pattern names none.
 
 ## Return value
 
-The matching paths, empty when there are none, or an [error](../error.md) with `errc::invalid_pattern` for a
+The matching paths, empty when there are none, or an [error](../error/README.md) with `errc::invalid_pattern` for a
 malformed pattern; the error's operation is `glob`, its path the pattern.
 
 ## Complexity
@@ -67,4 +67,4 @@ glob src/[: invalid pattern
 
 - [match](match.md): the rules of a pattern
 - [read_dir](../read_dir.md), [walk_dir](../walk_dir.md): the entries of a directory, and of a tree
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

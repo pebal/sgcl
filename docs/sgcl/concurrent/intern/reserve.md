@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [intern](../intern.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [intern](README.md)
 
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::reserve
 
@@ -29,11 +29,11 @@ None.
 
 ## Notes
 
-The array of [concurrent::set](../set.md) doubles without moving an entry, and so does `reserve`: it may be called
+The array of [concurrent::set](../set/README.md) doubles without moving an entry, and so does `reserve`: it may be called
 while other threads intern, and they go on in the old array or the new one. A pool that will hold many values from
 the start saves the doublings that its first insertions would make. A `count` whose buckets the managed heap cannot
 give, up to `SIZE_MAX`, ends the program at the doubling it refuses, as any refused managed allocation does
-([collector](../../core/collector.md#the-memory-limit)).
+([collector](../../core/collector/README.md#the-memory-limit)).
 
 ## Example
 
@@ -65,4 +65,4 @@ Output:
 ## See also
 
 - [size](size.md): the number of entries
-- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](../intern.md)
+- [sgcl::concurrent::intern\<T, Hash, KeyEqual\>](README.md)

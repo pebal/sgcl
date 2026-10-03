@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [comparable](../comparable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [comparable](README.md)
 
 # sgcl::mixin::operator\<=\>, operator\<, operator\<=, operator\>, operator\>= (sgcl::mixin::comparable)
 
@@ -87,4 +87,4 @@ false
 - [operator==, operator!= (mixin::equatable)](../equatable/operator_cmp.md): the equality of two values by their
   elements
 - [req::comparable](../../req/comparable.md): a value with an order
-- [sgcl::mixin::comparable\<Derived\>](../comparable.md)
+- [sgcl::mixin::comparable\<Derived\>](README.md)

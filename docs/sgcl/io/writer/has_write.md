@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [writer](../writer.md)
+[sgcl](../../README.md) › [io](../README.md) › [writer](README.md)
 
 # sgcl::io::writer::has_write
 
@@ -59,4 +59,4 @@ true false true
 
 - [has_async_write](has_async_write.md): whether `async_write` is the stream's own
 - [write, async_write](write.md)
-- [sgcl::io::writer](../writer.md)
+- [sgcl::io::writer](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [slice](../slice.md)
+[sgcl](../../README.md) › [core](../README.md) › [slice](README.md)
 
 # sgcl::slice\<T\>::operator[]
 
@@ -54,4 +54,4 @@ Output:
 
 - [front](front.md), [back](back.md): the first, the last element
 - [data](data.md): the elements as a plain pointer
-- [sgcl::slice\<T\>](../slice.md)
+- [sgcl::slice\<T\>](README.md)

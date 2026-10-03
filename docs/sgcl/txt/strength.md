@@ -15,7 +15,7 @@ namespace sgcl::txt {
 }
 ```
 
-How much of a difference counts to a [collator](collator.md): which of the levels of UTS #10 are looked at. The
+How much of a difference counts to a [collator](collator/README.md): which of the levels of UTS #10 are looked at. The
 algorithm gives every character weights at three levels — the letter, the accent, the case — and compares them a
 level at a time, so a difference of letters settles the question before an accent is looked at, and an accent
 before a capital. Whatever the strength, a text is the same text however it was written: `café` with one code
@@ -56,4 +56,4 @@ false false
 
 - [collator::options](collator-options.md): the strength beside the settings
 - [collator::level](collator/level.md): the strength of a collator
-- [collator](collator.md)
+- [collator](collator/README.md)

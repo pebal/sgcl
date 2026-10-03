@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [error](README.md)
 
 # sgcl::encoding::error::path
 
@@ -66,4 +66,4 @@ Output:
 ## See also
 
 - [set_path](set_path.md): the path set
-- [sgcl::encoding::error](../error.md)
+- [sgcl::encoding::error](README.md)

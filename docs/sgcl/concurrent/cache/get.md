@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [cache](../cache.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [cache](README.md)
 
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::get
 
@@ -81,4 +81,4 @@ false
 - [get_or_compute](get_or_compute.md): computes and puts the value the `get` did not find
 - [put](put.md): inserts or replaces a value
 - [hits](hits.md), [misses](misses.md): the counts of the gets
-- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](../cache.md)
+- [sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes](../aes.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes](README.md)
 
 # sgcl::crypto::aes::from_key
 
@@ -17,7 +17,7 @@ wrong length is an error, where the [constructor](aes.md) throws.
 
 ## Return value
 
-The object, or an [error](../error.md) of [errc::invalid_key](../errc.md) whose message names the length when
+The object, or an [error](../error/README.md) of [errc::invalid_key](../errc.md) whose message names the length when
 `key` is not 16, 24 or 32 bytes.
 
 ## Complexity
@@ -59,5 +59,5 @@ true aes: a key of 17 bytes
 ## See also
 
 - [(constructor)](aes.md): a key whose length the program fixes
-- [error](../error.md): the error of the module
-- [sgcl::crypto::aes](../aes.md)
+- [error](../error/README.md): the error of the module
+- [sgcl::crypto::aes](README.md)

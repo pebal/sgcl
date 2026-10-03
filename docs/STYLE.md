@@ -8,14 +8,15 @@ touches a page reads this file first and leaves the page satisfying all of it.
 
 ### Files and directories
 
-- A class has a page, `docs/sgcl/<module>/<class>.md`, and next to it a directory `<class>/` with a page per public
-  method: all overloads of a method on one page named after it (`vector/insert.md`), the constructors on the page
-  named after the class (`vector/vector.md`). A function that is not a member but belongs to the class
-  (`erase`, `erase_if` of a container) has a page in the same directory and a row in the class page's
-  `## Non-member functions`. A function belongs to a class when it takes an object of the class as an argument;
-  one that does not (`concurrent::intern_string`, which takes characters and reaches the default pool by
-  itself) is a free function, however close to the class, and the class page names it only in its description
-  and `## See also`.
+- A class has a directory, `docs/sgcl/<module>/<class>/`: the page of the class is the `README.md` in it
+  (`vector/README.md`), and beside it a page per public method: all overloads of a method on one page named
+  after it (`vector/insert.md`), the constructors on the page named after the class (`vector/vector.md`). A class
+  without pages of its members (a struct of fields) has a page without a directory, `<class>.md`. A function
+  that is not a member but belongs to the class (`erase`, `erase_if` of a container) has a page in the same
+  directory and a row in the class page's `## Non-member functions`. A function belongs to a class when it takes
+  an object of the class as an argument; one that does not (`concurrent::intern_string`, which takes characters
+  and reaches the default pool by itself) is a free function, however close to the class, and the class page
+  names it only in its description and `## See also`.
 - A free function (`io::open`, `encoding::base64::encode`, `make_tracked`) has a page of its own,
   `docs/sgcl/<module>/<function>.md`, in the form of a method's page and without a directory; all its overloads
   are on that page, and the README of the module lists it in its Functions table.
@@ -36,26 +37,30 @@ touches a page reads this file first and leaves the page satisfying all of it.
   the README of the module that declares it, with what it means. `config` keeps its one page with the table of
   its constants.
 - A nested type has a page of its own named with a hyphen: `json-reader.md` for `encoding::json::reader`; when
-  it has methods, a directory of the same name (`map-builder.md`, `map-builder/`). Its breadcrumb runs through
-  the enclosing class (`sgcl › immutable › map › builder`) and its names block shows the nesting
-  (`class map { public: class builder; };`).
+  it has methods, a directory of that name with the page as its `README.md` (`map-builder/README.md`). Its
+  breadcrumb runs through the enclosing class (`sgcl › immutable › map › builder`) and its names block shows the
+  nesting (`class map { public: class builder; };`).
 - `begin` and `cbegin` share the page `begin.md`, titled `…::begin, cbegin`; the same for `end`/`cend`,
   `rbegin`/`crbegin` and `rend`/`crend`.
 - A specialization with the interface of the primary template is a section of the class page
   (`## Specializations`: `vector<unique_ptr<T>>`). A specialization with an interface of its own has a page of
-  its own named with a hyphen (`atomic-tracked_ptr.md`, `atomic-handle.md`), with a directory of its methods.
+  its own named with a hyphen, a directory with the page as its `README.md` and the pages of its methods beside it
+  (`atomic-tracked_ptr/README.md`, `atomic-handle/README.md`).
 - An alias over a template is documented under the alias's name (`string`); the template and the other aliases
   stand in the names block of that page.
 - The methods of a mixin are documented once, on the mixin's pages (`mixin/enumerable/contains.md`); the class
   pages link to them.
-- The requirements have a directory, `req/`, with a page per requirement; `req.md` is the overview.
+- The requirements have a directory, `req/`, with a page per requirement; `req/README.md` is the overview.
 - A page about a concept rather than a class (ECDSA over p256 and p384, the hash ids) describes the declarations
   it covers under its rules and has no member tables; the members are on the pages of the classes.
 
 ### Titles, navigation, links
 
-- Above the title, the breadcrumb: `[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)`,
-  names only, without template arguments. The page of a module has `[sgcl](../README.md) › core`.
+- Above the title, the breadcrumb, names only, without template arguments: a method's page
+  `[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)`, a class's page
+  (`vector/README.md`) `[sgcl](../../README.md) › [core](../README.md)`, a page without a directory
+  (`make_tracked.md`) `[sgcl](../README.md) › [core](README.md)`. The page of a module has
+  `[sgcl](../README.md) › core`.
 - The title is the fully qualified name, never without `sgcl::`: `# sgcl::net::http::client`, a header without a
   class of its own the same way (`# sgcl::txt::bidi`). A class template carries the parameters of its primary
   template, without their defaults (`# sgcl::vector<T>`, `# sgcl::map<Key, T, Hash, KeyEqual>`), a function
@@ -67,11 +72,16 @@ touches a page reads this file first and leaves the page satisfying all of it.
 - In the source, `<` and `>` of a title or of a link's text are escaped, `sgcl::vector\<T\>`: a bare `<T>` is an
   HTML tag that GitHub removes.
 - No HTML in a page (`<small>` and the like): what a Markdown viewer does not render shows as text.
-- The text of a link has no backticks: `[as_slice](vector/as_slice.md)`, not ``[`as_slice`](vector/as_slice.md)``.
+- The text of a link has no backticks: `[as_slice](as_slice.md)`, not ``[`as_slice`](as_slice.md)``.
+- A link to a class with a directory names its `README.md`: `[vector](../vector/README.md)`, and
+  `[vector](README.md)` from a page of its methods.
 - Every table has a header row with its columns named, each with a capital letter (`Function | Description`,
   `Parameter | Description`, `Type | Definition`, `Class | Header | Description`); never an empty `| | |`.
 
 ### The page of a class
+
+The `README.md` of the class's directory (`vector/README.md`), or `<class>.md` for a class without pages of its
+members.
 
 1. The breadcrumb and the title.
 2. The names block: a `cpp` block with the include line and the declarations, the class header first and the
@@ -133,7 +143,7 @@ are on their own pages.
    element's construction, copy and move (what the constructor, the copy or the move of `T` throws) and the
    library's own exceptions (`length_error`, `out_of_range`, `invalid_argument`, …). Not listed: running out of
    memory, managed or not — managed memory ends the program with a diagnostic
-   ([collector](sgcl/core/collector.md#the-memory-limit)), and for
+   ([collector](sgcl/core/collector/README.md#the-memory-limit)), and for
    memory outside the managed heap the program's own `operator new` and new-handler decide, which the library
    neither catches nor documents, while the library's own `malloc`/`realloc` and system objects end the program
    with a diagnostic (DESIGN 391, 409); nor the hash, the equality or the comparison of a container, whose `Hash`,
@@ -143,7 +153,7 @@ are on their own pages.
 7. `## Notes`, only when there is something to note: what is particular to the library (the buffer left to the
    collector, a slice that keeps the old elements).
 8. `## Example`: one program.
-9. `## See also`, ending with the link to the class page.
+9. `## See also`, ending with the link to the class page, `[vector](README.md)`.
 
 ### The page of a requirement and of a mixin
 
@@ -154,6 +164,9 @@ are on their own pages.
   without a page of its mixin (`bidirectional`, `random_access`, `contiguous`) links to the README of the mixins.
 
 ### The README of a module
+
+The `README.md` of the module's directory (`core/README.md`, `net/http/README.md`) and of a group of its pages
+(`core/mixin/README.md`); its names block names the namespace, which tells it from the page of a class.
 
 1. The breadcrumb and the title, `# sgcl::<module>`.
 2. A block with the module's header and its namespace: `#include "sgcl/core.h"   // namespace sgcl`.

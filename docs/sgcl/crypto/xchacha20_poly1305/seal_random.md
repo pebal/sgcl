@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [xchacha20_poly1305](../xchacha20_poly1305.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [xchacha20_poly1305](README.md)
 
 # sgcl::crypto::xchacha20_poly1305::seal_random
 
@@ -73,4 +73,4 @@ attack at dawn
 
 - [open_random](open_random.md): opens what seal_random made
 - [seal](../mixin/aead/seal.md): under a nonce the program gives
-- [sgcl::crypto::xchacha20_poly1305](../xchacha20_poly1305.md)
+- [sgcl::crypto::xchacha20_poly1305](README.md)

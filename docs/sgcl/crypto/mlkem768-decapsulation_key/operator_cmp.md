@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](../mlkem768-decapsulation_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [mlkem768](../mlkem.md) › [decapsulation_key](README.md)
 
 # sgcl::crypto::mlkem768::operator== (sgcl::crypto::mlkem768::decapsulation_key)
 
@@ -54,5 +54,5 @@ true
 ## See also
 
 - [mlkem768::encapsulation_key: operator==](../mlkem768-encapsulation_key/operator_cmp.md): the public keys
-- [constant_time](../constant_time.md): comparisons of secrets
-- [sgcl::crypto::mlkem768::decapsulation_key](../mlkem768-decapsulation_key.md)
+- [constant_time](../constant_time/README.md): comparisons of secrets
+- [sgcl::crypto::mlkem768::decapsulation_key](README.md)

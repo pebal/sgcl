@@ -12,9 +12,9 @@ namespace sgcl::codec {
 }
 ```
 
-Decodes a file of any of the module's formats, told by its signature ([sniff](sniff.md)): [png](png.md),
-[jpeg](jpeg.md), [webp](webp.md), the first frame of a [gif](gif.md), and HEIF and AVIF through the system's codec
-([heif](heif.md)). Once the format is known it is that format's own `decode`, with the same options; a file of no
+Decodes a file of any of the module's formats, told by its signature ([sniff](sniff.md)): [png](png/README.md),
+[jpeg](jpeg/README.md), [webp](webp/README.md), the first frame of a [gif](gif/README.md), and HEIF and AVIF through the system's codec
+([heif](heif/README.md)). Once the format is known it is that format's own `decode`, with the same options; a file of no
 format the module reads is `errc::unsupported`. It is Go's `image.Decode` with the decoders registered, and what
 [load](load.md) does with the bytes of a file.
 
@@ -25,7 +25,7 @@ format the module reads is `errc::unsupported`. It is Go's `image.Decode` with t
 [decode_options](decode_options.md) set what differs from the defaults: the pixel format wanted, the
 [limits](limits.md) a file may not pass, and whether EXIF and ICC are read. An error is a value: a program that takes
 the image as it is, `codec::image photo = codec::decode(file);`, gets a
-[bad_expected_access](../core/bad_expected_access.md) thrown in place of an image when the file does not decode.
+[bad_expected_access](../core/bad_expected_access/README.md) thrown in place of an image when the file does not decode.
 
 ## Parameters
 
@@ -37,7 +37,7 @@ the image as it is, `codec::image photo = codec::decode(file);`, gets a
 
 ## Return value
 
-The image, in the pixel format `o.want` names, or in the file's own when it names none; or the [error](error.md):
+The image, in the pixel format `o.want` names, or in the file's own when it names none; or the [error](error/README.md):
 `errc::unsupported` for a file of no format the module reads (and for HEIF and AVIF where the system has no codec),
 `errc::too_large` past `o.limits`, `errc::invalid_argument` for an `o.want` outside the list of pixel formats, the
 decoder's error for data the format does not allow, and (2) `errc::io` when the stream fails, with io's error inside.
@@ -105,5 +105,5 @@ offset 0: not an image format the module reads
 - [load](load.md): the same of a file on disk
 - [decode_frames](decode_frames.md): every frame of an animation
 - [sniff](sniff.md): the format of a file's first bytes
-- [decode_options](decode_options.md), [image](image.md), [error](error.md)
+- [decode_options](decode_options.md), [image](image/README.md), [error](error/README.md)
 - [codec](README.md)

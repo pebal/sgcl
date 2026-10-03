@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [png](../png.md)
+[sgcl](../../README.md) › [codec](../README.md) › [png](README.md)
 
 # sgcl::codec::png::decode
 
@@ -95,4 +95,4 @@ offset 8: png: CRC-32 of chunk IHDR
 - [encode](encode.md): a PNG of an image
 - [codec::decode](../decode.md): any format, told by its signature
 - [decode_options](../decode_options.md), [limits](../limits.md), [pixel_format](../pixel_format.md)
-- [sgcl::codec::png](../png.md)
+- [sgcl::codec::png](README.md)

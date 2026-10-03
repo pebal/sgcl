@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [set](README.md)
 
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::find
 
@@ -15,7 +15,7 @@ nodes without touching them.
 
 - (1–2) The key is of the key type.
 - (3–4) The key is of any type the hash and the equality take. Take part only when `Hash` and `KeyEqual` both
-  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../../core/string.md) do: a
+  declare `is_transparent`, as `std::hash` and `std::equal_to` of a [string](../../core/string/README.md) do: a
   `string_view` or a literal finds a `string` key with no string made for the search.
 
 ## Parameters
@@ -84,4 +84,4 @@ example.org true
 
 - [contains](contains.md): checks whether a key is there
 - [count](count.md): the same answer as a number
-- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::concurrent::set\<Key, Hash, KeyEqual\>](README.md)

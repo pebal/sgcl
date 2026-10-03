@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [standard_stream](../standard_stream.md)
+[sgcl](../../README.md) › [io](../README.md) › [standard_stream](README.md)
 
 # sgcl::io::standard_stream::write, async_write
 
@@ -7,7 +7,7 @@ expected<size_t, error> write(const slice<const byte>& data);                   
 async::task<expected<size_t, error>> async_write(const slice<const byte>& data) noexcept;    // (2)
 ```
 
-Writes all of `data` through the [file](../file.md) over the descriptor, the [write](../file/write.md) of that file.
+Writes all of `data` through the [file](../file/README.md) over the descriptor, the [write](../file/write.md) of that file.
 The text and the single byte of [mixin::writer](../mixin/writer/write.md) are written by the same names, which the
 class brings in beside these: `io::stdout.write("text\n")`.
 
@@ -23,10 +23,10 @@ class brings in beside these: `io::stdout.write("text\n")`.
 
 ## Return value
 
-The number of bytes written, all of `data`, or the [error](../error.md) of the write, which says how far it got;
+The number of bytes written, all of `data`, or the [error](../error/README.md) of the write, which says how far it got;
 the operation is `write` and the path the stream's name. A write to a pipe whose reader is gone raises `SIGPIPE`,
 which ends the process as a shell's `prog | head` expects, as Go's standard output does; a program that ignores the
-signal gets `EPIPE`. A [file](../file.md) io opens or makes takes the signal off.
+signal gets `EPIPE`. A [file](../file/README.md) io opens or makes takes the signal off.
 
 ## Complexity
 
@@ -65,5 +65,5 @@ hello
 ## See also
 
 - [print](../print.md), [println](../println.md): formatted text on the standard output
-- [mixin::writer](../mixin/writer.md): the text and the byte, `copy_from`
-- [sgcl::io::standard_stream](../standard_stream.md)
+- [mixin::writer](../mixin/writer/README.md): the text and the byte, `copy_from`
+- [sgcl::io::standard_stream](README.md)

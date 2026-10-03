@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::empty
 
@@ -56,4 +56,4 @@ true
 
 - [size](size.md): the number of elements in the buffer alone
 - [closed](closed.md): whether the stream has ended
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

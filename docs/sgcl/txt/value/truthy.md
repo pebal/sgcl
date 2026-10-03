@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::truthy
 
@@ -52,5 +52,5 @@ false false false false false true true true true
 
 ## See also
 
-- [stencil](../stencil.md#the-syntax): `if`, `with` and `range`
-- [sgcl::txt::value](../value.md)
+- [stencil](../stencil/README.md#the-syntax): `if`, `with` and `range`
+- [sgcl::txt::value](README.md)

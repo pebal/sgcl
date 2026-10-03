@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](README.md)
 
 # sgcl::async::broadcast\<T\>::subscribers
 
@@ -55,5 +55,5 @@ Output:
 ## See also
 
 - [subscribe](subscribe.md): makes a subscription
-- [subscription](../broadcast-subscription.md): what counts itself off when it is destroyed
-- [sgcl::async::broadcast\<T\>](../broadcast.md)
+- [subscription](../broadcast-subscription/README.md): what counts itself off when it is destroyed
+- [sgcl::async::broadcast\<T\>](README.md)

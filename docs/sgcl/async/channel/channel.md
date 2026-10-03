@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [channel](../channel.md)
+[sgcl](../../README.md) › [async](../README.md) › [channel](README.md)
 
 # sgcl::async::channel\<T\>::channel
 
@@ -73,4 +73,4 @@ true
 
 - [operator=](operator_assign.md): makes the handle one of another channel
 - [capacity](capacity.md): the capacity given here
-- [sgcl::async::channel\<T\>](../channel.md)
+- [sgcl::async::channel\<T\>](README.md)

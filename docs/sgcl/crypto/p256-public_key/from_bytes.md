@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](../p256-public_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [p256](../p256.md) › [public_key](README.md)
 
 # sgcl::crypto::p256::public_key::from_bytes
 
@@ -22,7 +22,7 @@ not below p, a point off the curve and an X with no Y on it. So a `public_key` i
 
 ## Return value
 
-The key, or a [crypto::error](../error.md) with `errc::invalid_key` and a message that says which check failed.
+The key, or a [crypto::error](../error/README.md) with `errc::invalid_key` and a message that says which check failed.
 
 ## Complexity
 
@@ -71,4 +71,4 @@ sgcl::crypto::p256: the point is not on the curve
 
 - [bytes](bytes.md), [bytes_compressed](bytes_compressed.md): the two forms
 - [from_pkix_der](from_pkix_der.md): a key in a SubjectPublicKeyInfo
-- [sgcl::crypto::p256::public_key](../p256-public_key.md)
+- [sgcl::crypto::p256::public_key](README.md)

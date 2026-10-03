@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [path](../path.md)
+[sgcl](../../README.md) › [io](../README.md) › [path](README.md)
 
 # sgcl::io::path::base
 
@@ -57,4 +57,4 @@ Output:
 - [dir](dir.md): everything but the last element
 - [stem](stem.md), [ext](ext.md): the last element without its extension, and the extension
 - [split](split.md): the directory and the file at once
-- [sgcl::io::path](../path.md)
+- [sgcl::io::path](README.md)

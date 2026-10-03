@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base32](../base32.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base32](README.md)
 
 # sgcl::encoding::base32::lenient
 
@@ -9,7 +9,7 @@ constexpr base32 lenient() const noexcept;
 The same codec with a lenient decoding: it skips `'\r'` and `'\n'` anywhere in the text, and takes any bits past
 the data in the last character, which a strict decoding refuses (RFC 4648 sections 3.3 and 3.5). Go's base32
 has no strict decoding: it takes the bits always. Every other character outside the alphabet is still an error,
-the groups Go takes and this refuses ([From code written for Go](../base32.md#from-code-written-for-go)) are
+the groups Go takes and this refuses ([From code written for Go](README.md#from-code-written-for-go)) are
 refused here too, and the encoding is the same: only the decoding changes.
 
 ## Parameters
@@ -56,4 +56,4 @@ offset 8: data after the padding: 'M'
 
 - [is_lenient](is_lenient.md): whether a codec's decoding is lenient
 - [decode](decode.md): the bytes of a text
-- [sgcl::encoding::base32](../base32.md)
+- [sgcl::encoding::base32](README.md)

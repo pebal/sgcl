@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib.md) › [reader](../zlib-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zlib](../zlib/README.md) › [reader](README.md)
 
 # sgcl::compress::zlib::reader::read, async_read
 
@@ -27,7 +27,7 @@ read that reaches it, after every byte before it was handed out, and of every re
 
 The number of bytes put into `out`, 0 at the end of the stream (or for an empty `out`), or an error: an `io::error`
 of the [compress category](../compress_category.md) for the data (`"read zlib: checksum mismatch"`; the whole
-[error](../error.md) is in [last_error](last_error.md)), or the error of `in` as it came.
+[error](../error/README.md) is in [last_error](last_error.md)), or the error of `in` as it came.
 
 ## Complexity
 
@@ -105,4 +105,4 @@ Output:
 ## See also
 
 - [last_error](last_error.md): the whole error of the data
-- [sgcl::compress::zlib::reader](../zlib-reader.md)
+- [sgcl::compress::zlib::reader](README.md)

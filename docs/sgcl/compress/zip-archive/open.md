@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](../zip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](README.md)
 
 # sgcl::compress::zip::archive::open, async_open
 
@@ -27,7 +27,7 @@ of the file.
 
 ## Return value
 
-The archive, or the [error](../error.md): no end of central directory (`errc::invalid_header`, "not a zip file"), a
+The archive, or the [error](../error/README.md): no end of central directory (`errc::invalid_header`, "not a zip file"), a
 directory that cannot be read or a count of entries it does not hold (`errc::corrupt`, `errc::invalid_header`), a
 comment that runs past the end (`errc::unexpected_end`), a failure of the file (`errc::io`).
 
@@ -75,4 +75,4 @@ input/output error: open missing.zip: No such file or directory
 
 - [from](from.md): an archive in memory
 - [close](close.md)
-- [sgcl::compress::zip::archive](../zip-archive.md)
+- [sgcl::compress::zip::archive](README.md)

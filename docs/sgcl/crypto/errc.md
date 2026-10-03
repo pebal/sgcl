@@ -20,7 +20,7 @@ template<>
 struct std::is_error_code_enum<sgcl::crypto::errc> : std::true_type {};
 ```
 
-What went wrong in data the module was given, the [code](error/code.md) of an [error](error.md): one list for the
+What went wrong in data the module was given, the [code](error/code.md) of an [error](error/README.md): one list for the
 whole module, as compress and encoding have one each. The values start at 1, since an `error_code` of 0 is success.
 The specialization of `std::is_error_code_enum` makes a code convert to a `std::error_code` of the category
 [crypto_category](crypto_category.md) by itself, through [make_error_code](make_error_code.md), for code that speaks
@@ -67,6 +67,6 @@ crypto 4: malformed data
 
 ## See also
 
-- [error](error.md): the error that holds the code
+- [error](error/README.md): the error that holds the code
 - [make_error_code](make_error_code.md), [crypto_category](crypto_category.md): the code as a `std::error_code`
 - [x509::reason](x509-reason.md): why a chain does not verify

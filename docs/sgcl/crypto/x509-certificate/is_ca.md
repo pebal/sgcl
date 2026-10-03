@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](../x509-certificate.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [certificate](README.md)
 
 # sgcl::crypto::x509::certificate::is_ca
 
@@ -54,4 +54,4 @@ true false
 
 - [has_basic_constraints](has_basic_constraints.md)
 - [allows](allows.md): keyCertSign, which an issuer with a keyUsage needs too
-- [sgcl::crypto::x509::certificate](../x509-certificate.md)
+- [sgcl::crypto::x509::certificate](README.md)

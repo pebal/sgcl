@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [runes](../runes.md)
+[sgcl](../../README.md) › [core](../README.md) › [runes](README.md)
 
 # sgcl::runes::text
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [(constructor)](runes.md): the range over a slice
-- [sgcl::runes](../runes.md)
+- [sgcl::runes](README.md)

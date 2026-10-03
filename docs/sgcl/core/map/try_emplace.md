@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [map](../map.md)
+[sgcl](../../README.md) › [core](../README.md) › [map](README.md)
 
 # sgcl::map\<Key, T, Hash, KeyEqual\>::try_emplace
 
@@ -100,4 +100,4 @@ xxx
 - [emplace](emplace.md): builds the element before the lookup
 - [insert_or_assign](insert_or_assign.md): inserts, or assigns to the value under the key
 - [operator[]](operator_at.md): the value under a key, inserted when absent
-- [sgcl::map\<Key, T, Hash, KeyEqual\>](../map.md)
+- [sgcl::map\<Key, T, Hash, KeyEqual\>](README.md)

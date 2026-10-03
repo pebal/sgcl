@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::max_size
 
@@ -58,4 +58,4 @@ length error: sgcl::vector
 
 - [capacity](capacity.md): the number of elements the buffer holds
 - [reserve](reserve.md): reserves storage
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

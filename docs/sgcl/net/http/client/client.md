@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::client
 
@@ -14,7 +14,7 @@ after the construction, and each request reads them when it starts.
 
 A copy, made by the copy constructor, shares the pool and carries its own settings: a copy with a shorter `timeout`
 asks over the same connections. There is no move of its own: a move copies, so a moved-from client is the same
-client, its dial and TLS settings kept, as a moved-from [tracked_ptr](../../../core/tracked_ptr.md) still points.
+client, its dial and TLS settings kept, as a moved-from [tracked_ptr](../../../core/tracked_ptr/README.md) still points.
 
 ## Parameters
 
@@ -60,4 +60,4 @@ true true
 ## See also
 
 - [send](send.md): what the settings bound
-- [sgcl::net::http::client](../client.md)
+- [sgcl::net::http::client](README.md)

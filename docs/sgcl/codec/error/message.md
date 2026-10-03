@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [error](../error.md)
+[sgcl](../../README.md) › [codec](../README.md) › [error](README.md)
 
 # sgcl::codec::error::message
 
@@ -10,7 +10,7 @@ The error as one sentence for a person: `"offset "`, the [offset](offset.md), `"
 the format's own when it gave them (`"offset 8: png: CRC-32 of chunk IHDR"`) and the code's otherwise
 (`"offset 8: size limit exceeded"`); for `errc::io`, `": "` and the stream's own message after them
 (`"offset 0: input/output error: open photo.png: No such file or directory"`). A default error, of no code, says
-`"no error"`. It is also what `what()` of a [bad_expected_access](../../core/bad_expected_access.md)`<codec::error>`
+`"no error"`. It is also what `what()` of a [bad_expected_access](../../core/bad_expected_access/README.md)`<codec::error>`
 says.
 
 ## Parameters
@@ -65,4 +65,4 @@ offset 8: png: CRC-32 of chunk IHDR
 
 - [code](code.md): the kind of failure, for a program
 - [offset](offset.md): the byte
-- [sgcl::codec::error](../error.md)
+- [sgcl::codec::error](README.md)

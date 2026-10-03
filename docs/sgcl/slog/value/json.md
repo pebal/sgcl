@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [slog](../README.md) › [value](README.md)
 
 # sgcl::slog::value::json
 
@@ -14,7 +14,7 @@ None.
 
 ## Return value
 
-The JSON text, a new [string](../../core/string.md).
+The JSON text, a new [string](../../core/string/README.md).
 
 ## Complexity
 
@@ -68,4 +68,4 @@ g: {"k":1,"s":"two words"}
 
 - [text](text.md)
 - [The formats](../README.md#the-formats)
-- [sgcl::slog::value](../value.md)
+- [sgcl::slog::value](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [function](../function.md)
+[sgcl](../../README.md) › [core](../README.md) › [function](README.md)
 
 # sgcl::function\<R(Args...)\>::operator=
 
@@ -101,4 +101,4 @@ false
 
 - [swap](swap.md): swaps the callables of two `function` objects
 - [(constructor)](function.md): where a callable goes
-- [sgcl::function\<R(Args...)\>](../function.md)
+- [sgcl::function\<R(Args...)\>](README.md)

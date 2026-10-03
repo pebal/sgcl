@@ -19,15 +19,15 @@ allocated with `operator new`: heap memory the collector does not see. A `tracke
 `sgcl/core/coroutine.h` is the way out. A promise type that derives from [managed_frame](managed_frame.md) gets its
 frames from the managed heap instead, as buffers of words the collector traces conservatively, so everything the
 coroutine holds is a root for as long as the frame is held. The frame is held through a
-[frame_ptr\<Promise\>](frame_ptr.md): a [root_ptr](root_ptr.md) to the frame and the coroutine handle, move-only,
-that destroys the coroutine when destroyed. [generator\<T\>](generator.md) is a coroutine type built this way in the
-core; `async::task<T>` of the async module ([task](../async/task.md)) is another, which runs on the
-[scheduler](../async/scheduler.md) or by hand.
+[frame_ptr\<Promise\>](frame_ptr/README.md): a [root_ptr](root_ptr/README.md) to the frame and the coroutine handle, move-only,
+that destroys the coroutine when destroyed. [generator\<T\>](generator/README.md) is a coroutine type built this way in the
+core; `async::task<T>` of the async module ([task](../async/task/README.md)) is another, which runs on the
+[scheduler](../async/scheduler/README.md) or by hand.
 
 The buffer is four words longer than the frame, and the frame starts past them: a header that belongs to whoever
 drives the coroutine. The core gives it a length and no layout; the async module keeps a task's executor, its
-task-locals and the link of an executor's queue there ([executor](../async/executor.md),
-[task_local](../async/task_local.md)), and the generator, which runs where it is called, leaves it zero. The handle
+task-locals and the link of an executor's queue there ([executor](../async/executor/README.md),
+[task_local](../async/task_local/README.md)), and the generator, which runs where it is called, leaves it zero. The handle
 addresses the frame past the header, the frame's own pointers the buffer.
 
 The compiler looks the allocation function of a coroutine up in the scope of its promise type, so a promise that
@@ -52,7 +52,7 @@ pass over the frame's words per cycle; a frame that holds no managed pointers co
 
 - A `frame_ptr` holds a `root_ptr`, and so does everything built on it: a `task`, a `generator`, a coroutine type
   of your own. It lives anywhere: on a stack, in a managed object, in another frame, in a
-  `std::vector<async::task<int>>`, in a global. What it costs is a cell per handle ([root_ptr](root_ptr.md)), one per
+  `std::vector<async::task<int>>`, in a global. What it costs is a cell per handle ([root_ptr](root_ptr/README.md)), one per
   coroutine.
 - The parameters, locals, temporaries and promise members of a coroutine whose promise derives from `managed_frame`
   are roots while the frame is held: a `tracked_ptr`, a container, a `task` held across a suspension all keep what
@@ -154,9 +154,9 @@ Output:
 ## See also
 
 - [managed_frame](managed_frame.md): the base of a promise whose frame is managed
-- [frame_ptr](frame_ptr.md): the owner of such a coroutine
-- [generator](generator.md): the coroutine type of the core built on a managed frame
-- [task](../async/task.md), [generator](../async/generator.md): `task` and `async::generator`, the coroutine types of the async module;
-  [scheduler](../async/scheduler.md): what runs the tasks
-- [tracked_ptr](tracked_ptr.md), [root_ptr](root_ptr.md), [collector](collector.md)
+- [frame_ptr](frame_ptr/README.md): the owner of such a coroutine
+- [generator](generator/README.md): the coroutine type of the core built on a managed frame
+- [task](../async/task/README.md), [generator](../async/generator/README.md): `task` and `async::generator`, the coroutine types of the async module;
+  [scheduler](../async/scheduler/README.md): what runs the tasks
+- [tracked_ptr](tracked_ptr/README.md), [root_ptr](root_ptr/README.md), [collector](collector/README.md)
 - [README: Coroutines](../async/README.md#coroutines), [README: The rules](README.md#the-rules)

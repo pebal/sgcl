@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [dns](../dns.md)
+[sgcl](../../README.md) › [net](../README.md) › [dns](README.md)
 
 # sgcl::net::dns::reverse_lookup, async_reverse_lookup
 
@@ -25,7 +25,7 @@ gives one name, its own for the address (`/etc/hosts`, the system's cache, a que
 
 ## Return value
 
-The names, one. Or the [io::error](../../io/error.md), its operation `lookup` and its path the address:
+The names, one. Or the [io::error](../../io/error/README.md), its operation `lookup` and its path the address:
 `net::errc::invalid_address` for the empty address and for a zone that names no interface, neither asked of the
 resolver; `net::errc::host_not_found` for an address with no name, an `EAI_*` code in
 [lookup_category](../lookup_category.md) for a failure of the resolver, `ECANCELED` for the stop (2).
@@ -74,4 +74,4 @@ lookup 127.0.0.1: Operation canceled
 ## See also
 
 - [lookup, async_lookup](lookup.md): the other way
-- [sgcl::net::dns](../dns.md)
+- [sgcl::net::dns](README.md)

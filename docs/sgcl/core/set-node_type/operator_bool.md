@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md) › [node_type](../set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](../set/README.md) › [node_type](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::node_type::operator bool
 
@@ -54,4 +54,4 @@ z not there
 ## See also
 
 - [empty](empty.md): checks whether the handle holds no node
-- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](../set-node_type.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](README.md)

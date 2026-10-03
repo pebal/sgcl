@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [array](../array.md)
+[sgcl](../../README.md) › [core](../README.md) › [array](README.md)
 
 # sgcl::array\<T, N\>::end, cend
 
@@ -65,4 +65,4 @@ true
 
 - [begin, cbegin](begin.md): an iterator to the beginning
 - [rend, crend](rend.md): a reverse iterator to the end
-- [sgcl::array\<T, N\>](../array.md)
+- [sgcl::array\<T, N\>](README.md)

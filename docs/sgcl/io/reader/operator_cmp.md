@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [reader](../reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [reader](README.md)
 
 # sgcl::io::operator== (sgcl::io::reader)
 
@@ -53,4 +53,4 @@ true false true
 
 ## See also
 
-- [sgcl::io::reader](../reader.md)
+- [sgcl::io::reader](README.md)

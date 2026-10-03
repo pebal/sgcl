@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::json
 
@@ -15,7 +15,7 @@ json(const slice<const char>& s) noexcept;    // (9)
 ```
 
 Constructs a value of one of the kinds that need no elements; an array and an object are made by
-[array](array.md), [object](object.md) or a [builder](../json-builder.md), or read by [parse](parse.md). None of the
+[array](array.md), [object](object.md) or a [builder](../json-builder/README.md), or read by [parse](parse.md). None of the
 constructors is `explicit`, so a function that takes a `const json&` takes `5`, `true` or `"text"` as they are.
 
 1. Null.
@@ -108,4 +108,4 @@ true
 
 - [array](array.md), [object](object.md): a value with elements or members
 - [parse](parse.md): a value read from a text
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

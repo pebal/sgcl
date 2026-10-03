@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [unicode](../unicode.md)
+[sgcl](../../README.md) › [core](../README.md) › [unicode](README.md)
 
 # sgcl::unicode::is_space
 
@@ -71,4 +71,4 @@ false
 ## See also
 
 - [trim](../string/trim.md), [fields](../string/fields.md): what a string does with it
-- [sgcl::unicode](../unicode.md)
+- [sgcl::unicode](README.md)

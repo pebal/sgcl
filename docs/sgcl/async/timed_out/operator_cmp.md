@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [timed_out](../timed_out.md)
+[sgcl](../../README.md) › [async](../README.md) › [timed_out](README.md)
 
 # sgcl::async::operator== (sgcl::async::timed_out)
 
@@ -53,4 +53,4 @@ false
 ## See also
 
 - [message](message.md): the text of the error
-- [sgcl::async::timed_out](../timed_out.md)
+- [sgcl::async::timed_out](README.md)

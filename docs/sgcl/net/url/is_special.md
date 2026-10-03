@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [url](../url.md)
+[sgcl](../../README.md) › [net](../README.md) › [url](README.md)
 
 # sgcl::net::url::is_special
 
@@ -52,4 +52,4 @@ sc://x/ false
 ## See also
 
 - [scheme](scheme.md): the scheme
-- [sgcl::net::url](../url.md)
+- [sgcl::net::url](README.md)

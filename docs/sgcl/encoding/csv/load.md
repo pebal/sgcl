@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [csv](../csv.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [csv](README.md)
 
 # sgcl::encoding::csv::load\<T\>, async_load\<T\>
 
@@ -12,7 +12,7 @@ static async::task<expected<vector<T>, error>> async_load(string path) noexcept;
 The records of a file as values of `T`, the file's first line the header whose names the fields of `T` are found
 by, as [reader::read\<T\>](../csv-reader/read.md) finds them: a column no field has is skipped, a field whose
 column is not there keeps its value, or is `missing_field` when it is `required()`. `T` has a default constructor
-and `describe(field_list&)` ([field_list](../field_list.md)).
+and `describe(field_list&)` ([field_list](../field_list/README.md)).
 
 1. Reads the file on the thread that calls it.
 2. The same in a task: the reading runs on the [blocking pool](../../async/spawn_blocking.md), and the task waits for it
@@ -27,7 +27,7 @@ and `describe(field_list&)` ([field_list](../field_list.md)).
 
 ## Return value
 
-The values, one for each record after the header, in the order of the file; or the [error](../error.md):
+The values, one for each record after the header, in the order of the file; or the [error](../error/README.md):
 `errc::io` with the stream's error in `io_error()` when the file does not open or a read fails, with no place in
 the text (its message is `input/output error: ` and the stream's message); the reader's error when a record does not
 read (a mistake of the text, a field that is not a value of its type), with its line and its column.
@@ -86,4 +86,4 @@ input/output error: open towns.csv: No such file or directory
 - [save](save.md): values into a file
 - [parse](parse.md): the records of a text
 - [reader::read\<T\>](../csv-reader/read.md): a record of a reader as a type
-- [sgcl::encoding::csv](../csv.md)
+- [sgcl::encoding::csv](README.md)

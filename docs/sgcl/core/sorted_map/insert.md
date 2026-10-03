@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_map](../sorted_map.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_map](README.md)
 
 # sgcl::sorted_map\<Key, T, Compare\>::insert
 
@@ -147,4 +147,4 @@ Output:
 - [try_emplace](try_emplace.md): builds the element only when the key is absent
 - [insert_or_assign](insert_or_assign.md): inserts an element or assigns to its value
 - [extract](extract.md): takes a node out of a map
-- [sgcl::sorted_map\<Key, T, Compare\>](../sorted_map.md)
+- [sgcl::sorted_map\<Key, T, Compare\>](README.md)

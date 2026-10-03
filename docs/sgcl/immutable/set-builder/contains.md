@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md) › [builder](../set-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](../set/README.md) › [builder](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::contains
 
@@ -58,4 +58,4 @@ true false
 ## See also
 
 - [insert](insert.md): adds an element
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](../set-builder.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](README.md)

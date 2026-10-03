@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](README.md)
 
 # sgcl::async::mutex::unlock
 
@@ -70,5 +70,5 @@ true false
 ## See also
 
 - [lock](lock.md), [try_lock](try_lock.md), [scoped_lock](scoped_lock.md): lock the mutex
-- [mutex::guard](../mutex-guard.md): the unlock at the end of a scope
-- [sgcl::async::mutex](../mutex.md)
+- [mutex::guard](../mutex-guard/README.md): the unlock at the end of a scope
+- [sgcl::async::mutex](README.md)

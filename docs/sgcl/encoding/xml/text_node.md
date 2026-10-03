@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::text_node
 
@@ -7,7 +7,7 @@ static xml text_node(const string& text) noexcept;
 ```
 
 A text node holding `text`, for an element's content made a node at a time ([push_back](push_back.md),
-[builder](../xml-builder.md)). Any text is taken: what must be escaped is escaped when the node is written, and a
+[builder](../xml-builder/README.md)). Any text is taken: what must be escaped is escaped when the node is written, and a
 character XML cannot hold is written as U+FFFD.
 
 ## Parameters
@@ -57,4 +57,4 @@ true 1 < 2 & bold!
 
 - [comment](comment.md), [instruction](instruction.md): the other nodes of an element's content
 - [text](text.md): the text of a node
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

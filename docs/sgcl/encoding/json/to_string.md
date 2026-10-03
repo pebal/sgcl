@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::to_string
 
@@ -6,7 +6,7 @@
 string to_string(const style& s = compact) const;
 ```
 
-The text of the value, Go's `json.Marshal` of an `any`; with [pretty](../json.md#member-objects), `MarshalIndent`
+The text of the value, Go's `json.Marshal` of an `any`; with [pretty](README.md#member-objects), `MarshalIndent`
 with two spaces. Compact by default, with no space at all. The members of an object are written in their order, a
 number with the shortest digits that read back as the same double, as JavaScript and Go write it: fixed from
 1e-6 to 1e21 and with an exponent outside (`1e+21`, `1e-7`), no `.0` on an integer, −0 as `-0`. A value always
@@ -33,7 +33,7 @@ Linear in the size of the value.
 
 ## Exceptions
 
-`length_error` when the text would pass the 4 GiB a [string](../../core/string.md) holds.
+`length_error` when the text would pass the 4 GiB a [string](../../core/string/README.md) holds.
 
 ## Notes
 
@@ -86,4 +86,4 @@ Output:
 - [stringify](stringify.md): the text of a program's value
 - [save](save.md): the text into a file
 - [parse](parse.md): the way back
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

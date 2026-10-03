@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](README.md)
 
 # sgcl::txt::idna::unicode_form
 
@@ -20,7 +20,7 @@ back as the same object.
 
 ## Return value
 
-The [outcome](../idna-outcome.md): the text as far as it was converted, and the failure, `error::none` when nothing
+The [outcome](../idna-outcome/README.md): the text as far as it was converted, and the failure, `error::none` when nothing
 was wrong.
 
 ## Complexity
@@ -57,4 +57,4 @@ a hyphen in the third and fourth place, or at an end in label 1
 
 - [to_unicode](to_unicode.md): the name, or only the rule it broke
 - [ascii_form](ascii_form.md): the other way
-- [sgcl::txt::idna](../idna.md)
+- [sgcl::txt::idna](README.md)

@@ -23,7 +23,7 @@ the module reads is `errc::unsupported`. The other way is [save](save.md).
    are gone.
 
 An error is a value: `codec::image photo = codec::load(path);` takes the image as it is, and throws a
-[bad_expected_access](../core/bad_expected_access.md) in place of one when the file does not load.
+[bad_expected_access](../core/bad_expected_access/README.md) in place of one when the file does not load.
 
 ## Parameters
 
@@ -34,7 +34,7 @@ An error is a value: `codec::image photo = codec::load(path);` takes the image a
 
 ## Return value
 
-The image, in the pixel format `o.want` names or in the file's own; or the [error](error.md): `errc::io` when the file
+The image, in the pixel format `o.want` names or in the file's own; or the [error](error/README.md): `errc::io` when the file
 does not read, `errc::unsupported` for a file of no format the module reads, and the decoder's error otherwise. (2)
 gives it through the task.
 
@@ -97,5 +97,5 @@ offset 0: input/output error: open missing.png: No such file or directory
 
 - [save](save.md): an image into a file
 - [decode](decode.md): the same of bytes in memory, or of a stream
-- [decode_options](decode_options.md), [image](image.md), [error](error.md)
+- [decode_options](decode_options.md), [image](image/README.md), [error](error/README.md)
 - [codec](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](README.md)
 
 # sgcl::collector::get_live_objects
 
@@ -76,4 +76,4 @@ true true
 
 - [get_live_object_count](get_live_object_count.md): the count alone, without a pause
 - [get_referrers](get_referrers.md): what holds one of them
-- [sgcl::collector](../collector.md)
+- [sgcl::collector](README.md)

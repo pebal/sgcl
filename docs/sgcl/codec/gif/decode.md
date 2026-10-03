@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [gif](../gif.md)
+[sgcl](../../README.md) › [codec](../README.md) › [gif](README.md)
 
 # sgcl::codec::gif::decode
 
@@ -29,7 +29,7 @@ image decodes.
 
 The image, `rgba8` unless `o.want` asks for another format, or the error: `errc::invalid_argument` for a `want`
 outside the list, `errc::corrupt`, `errc::unexpected_end` and `errc::too_large` as the class's
-[rules](../gif.md#rules) say, `errc::corrupt` for a file that ends at its trailer with no image, and (2)
+[rules](README.md#rules) say, `errc::corrupt` for a file that ends at its trailer with no image, and (2)
 `errc::io` when the stream fails.
 
 ## Complexity
@@ -87,4 +87,4 @@ offset 6: size limit exceeded
 - [frames](frames.md): every frame, one by one
 - [codec::decode](../decode.md): any format, told by its signature
 - [decode_options](../decode_options.md), [limits](../limits.md)
-- [sgcl::codec::gif](../gif.md)
+- [sgcl::codec::gif](README.md)

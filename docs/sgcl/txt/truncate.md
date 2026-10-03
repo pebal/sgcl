@@ -12,7 +12,7 @@ namespace sgcl::txt {
 ```
 
 Returns the text cut to fit `width` **columns** ([columns](columns.md): terminal cells), with the ellipsis counted
-inside that number and the cut made at a grapheme boundary ([graphemes](graphemes.md)): never in the middle of a
+inside that number and the cut made at a grapheme boundary ([graphemes](graphemes/README.md)): never in the middle of a
 character, however many code points it is. A text that already fits comes back as the same object.
 
 1. With the ellipsis given; a limit too small for the ellipsis alone gives the widest prefix of the ellipsis that

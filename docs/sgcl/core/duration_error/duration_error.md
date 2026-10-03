@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [duration_error](../duration_error.md)
+[sgcl](../../README.md) › [core](../README.md) › [duration_error](README.md)
 
 # sgcl::duration_error::duration_error
 
@@ -57,4 +57,4 @@ minutes expected (byte 3)
 ## See also
 
 - [message](message.md), [offset](offset.md): what the error says
-- [sgcl::duration_error](../duration_error.md)
+- [sgcl::duration_error](README.md)

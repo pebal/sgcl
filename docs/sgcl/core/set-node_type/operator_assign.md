@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md) › [node_type](../set-node_type.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](../set/README.md) › [node_type](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::node_type::operator=
 
@@ -58,4 +58,4 @@ true b
 
 - [(constructor)](set-node_type.md): constructs a handle
 - [swap](swap.md): exchanges the nodes of two handles
-- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](../set-node_type.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>::node_type](README.md)

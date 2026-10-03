@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](../zip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](README.md)
 
 # sgcl::compress::zip::archive::read, async_read
 
@@ -32,7 +32,7 @@ bomb nor entries overlapping the same data take more than the limit; the vector 
 
 ## Return value
 
-The data, or the [error](../error.md): the entry past `max_size` (`errc::too_large`), no entry of the name
+The data, or the [error](../error/README.md): the entry past `max_size` (`errc::too_large`), no entry of the name
 (`errc::invalid_argument`), the entry's own errors (`errc::corrupt`, `errc::checksum`, `errc::unsupported`), a failure
 of the source (`errc::io`).
 
@@ -77,4 +77,4 @@ offset 0: zip: entry big.txt: larger than the limit
 
 - [reader](reader.md): the data as a stream
 - [limits](../limits.md)
-- [sgcl::compress::zip::archive](../zip-archive.md)
+- [sgcl::compress::zip::archive](README.md)

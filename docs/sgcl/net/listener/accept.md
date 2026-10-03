@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [listener](../listener.md)
+[sgcl](../../README.md) › [net](../README.md) › [listener](README.md)
 
 # sgcl::net::listener::accept, async_accept
 
@@ -25,7 +25,7 @@ None.
 
 ## Return value
 
-The connection; or the [io::error](../../io/error.md), its operation `accept` and its path the listener (`tcp
+The connection; or the [io::error](../../io/error/README.md), its operation `accept` and its path the listener (`tcp
 127.0.0.1:8080`, `unix app.sock`): `io::errc::closed` after [close](close.md), the `errno` of an error that will not
 pass otherwise.
 
@@ -82,4 +82,4 @@ true
 
 - [close](close.md): ends the accepts in progress
 - [tcp::connect](../tcp/connect.md): the other side
-- [sgcl::net::listener](../listener.md)
+- [sgcl::net::listener](README.md)

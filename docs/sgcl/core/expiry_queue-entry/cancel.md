@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue.md) › [entry](../expiry_queue-entry.md)
+[sgcl](../../README.md) › [core](../README.md) › [expiry_queue](../expiry_queue/README.md) › [entry](README.md)
 
 # sgcl::expiry_queue\<T\>::entry::cancel
 
@@ -88,4 +88,4 @@ texture 1 released
 
 - [expired](expired.md): checks whether a cycle has found the object unreachable
 - [clear](../expiry_queue/clear.md): drops every entry without calling its function
-- [sgcl::expiry_queue\<T\>::entry](../expiry_queue-entry.md)
+- [sgcl::expiry_queue\<T\>::entry](README.md)

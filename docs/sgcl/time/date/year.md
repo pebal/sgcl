@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [time](../README.md) › [date](../date.md)
+[sgcl](../../README.md) › [time](../README.md) › [date](README.md)
 
 # sgcl::time::date::year
 
@@ -49,4 +49,4 @@ Output:
 
 - [month](month.md), [day](day.md): the other fields
 - [is_leap_year](is_leap_year.md): whether the year has a 29th of February
-- [sgcl::time::date](../date.md)
+- [sgcl::time::date](README.md)

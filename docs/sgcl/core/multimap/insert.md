@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [multimap](../multimap.md)
+[sgcl](../../README.md) › [core](../README.md) › [multimap](README.md)
 
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::insert
 
@@ -120,4 +120,4 @@ Output:
 - [emplace](emplace.md): constructs the element in place
 - [extract](extract.md): unlinks an element into a node handle
 - [equal_range](equal_range.md): the run of the elements under a key
-- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](../multimap.md)
+- [sgcl::multimap\<Key, T, Hash, KeyEqual\>](README.md)

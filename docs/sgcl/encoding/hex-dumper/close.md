@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex.md) › [dumper](../hex-dumper.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [hex](../hex/README.md) › [dumper](README.md)
 
 # sgcl::encoding::hex::dumper::close, async_close
 
@@ -61,4 +61,4 @@ write hex dump: stream closed
 
 - [write, async_write](write.md): bytes into the dumper
 - [is_closed](is_closed.md): whether the dumper was closed
-- [sgcl::encoding::hex::dumper](../hex-dumper.md)
+- [sgcl::encoding::hex::dumper](README.md)

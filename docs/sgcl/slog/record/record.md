@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [record](../record.md)
+[sgcl](../../README.md) › [slog](../README.md) › [record](README.md)
 
 # sgcl::slog::record::record
 
@@ -45,4 +45,4 @@ true 0 false true
 ## See also
 
 - [clone](clone.md)
-- [sgcl::slog::record](../record.md)
+- [sgcl::slog::record](README.md)

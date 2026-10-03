@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [codec](../README.md) › [image](../image.md)
+[sgcl](../../README.md) › [codec](../README.md) › [image](README.md)
 
 # sgcl::codec::image::height
 
@@ -56,4 +56,4 @@ Output:
 
 - [width](width.md): the other side
 - [row](row.md): a row by its number
-- [sgcl::codec::image](../image.md)
+- [sgcl::codec::image](README.md)

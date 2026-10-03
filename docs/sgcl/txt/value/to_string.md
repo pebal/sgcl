@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [value](../value.md)
+[sgcl](../../README.md) › [txt](../README.md) › [value](README.md)
 
 # sgcl::txt::value::to_string
 
@@ -53,4 +53,4 @@ Output:
 ## See also
 
 - [text](text.md): the text a value holds, with no conversion
-- [sgcl::txt::value](../value.md)
+- [sgcl::txt::value](README.md)

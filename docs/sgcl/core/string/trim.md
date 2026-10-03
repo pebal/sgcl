@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [string](../string.md)
+[sgcl](../../README.md) › [core](../README.md) › [string](README.md)
 
 # sgcl::string::trim
 
@@ -13,7 +13,7 @@ basic_string trim(std::u32string_view set) const noexcept     // (4)
 
 Returns the string without the white space, or the characters given, at both ends.
 
-1. Trims Unicode white space, [unicode::is_space](../unicode.md): the space, the tab, the newline and the rest of the
+1. Trims Unicode white space, [unicode::is_space](../unicode/README.md): the space, the tab, the newline and the rest of the
    C locale's six, and the no-break, the ideographic and the other spaces. In a `wstring`, a `u16string` and a
    `u32string` each unit is tested as a code point.
 2. Trims the characters of `chars`, each a `CharT`: in UTF-8, bytes.
@@ -88,5 +88,5 @@ true
 - [trim_left](trim_left.md), [trim_right](trim_right.md): at one end only
 - [trim_prefix](trim_prefix.md), [trim_suffix](trim_suffix.md): without a prefix or a suffix, once
 - [fields](fields.md): the words between runs of white space
-- [unicode](../unicode.md): what white space is
-- [sgcl::string](../string.md)
+- [unicode](../unicode/README.md): what white space is
+- [sgcl::string](README.md)

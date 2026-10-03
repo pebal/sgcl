@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](../zip-archive.md)
+[sgcl](../../README.md) › [compress](../README.md) › [zip](../zip.md) › [archive](README.md)
 
 # sgcl::compress::zip::archive::reader
 
@@ -7,7 +7,7 @@ expected<io::reader, error> reader(const entry& e) const noexcept;        // (1)
 expected<io::reader, error> reader(const string& name) const noexcept;    // (2)
 ```
 
-Makes an [io reader](../../io/reader.md) of an entry's data, decompressed and checked: exactly the central record's
+Makes an [io reader](../../io/reader/README.md) of an entry's data, decompressed and checked: exactly the central record's
 size, then 0; fewer or more bytes is `errc::corrupt`, a wrong CRC-32 `errc::checksum`, at the read that reaches the
 end, and a failure names the entry as its path. Its first read reads the entry's local header to find where the
 data starts; its name must be the central one. Readers of any number of entries may be open at once, from any
@@ -25,7 +25,7 @@ threads, each with a task form (`async_read`); the archive's source stays alive 
 
 ## Return value
 
-The reader, or the [error](../error.md): (2) no entry of the name (`errc::invalid_argument`).
+The reader, or the [error](../error/README.md): (2) no entry of the name (`errc::invalid_argument`).
 
 ## Complexity
 
@@ -70,4 +70,4 @@ zip: no entry none.txt
 ## See also
 
 - [read](read.md): the data whole
-- [sgcl::compress::zip::archive](../zip-archive.md)
+- [sgcl::compress::zip::archive](README.md)

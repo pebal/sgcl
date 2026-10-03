@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz.md) › [writer](../xz-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [xz](../xz/README.md) › [writer](README.md)
 
 # sgcl::compress::xz::writer::close, async_close
 
@@ -60,4 +60,4 @@ write xz: stream closed
 ## See also
 
 - [last_error](last_error.md): the error the close gives
-- [sgcl::compress::xz::writer](../xz-writer.md)
+- [sgcl::compress::xz::writer](README.md)

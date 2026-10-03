@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](../headers.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [headers](README.md)
 
 # sgcl::net::http::headers::get_all
 
@@ -57,4 +57,4 @@ Output:
 
 - [get](get.md): the first value
 - [add](add.md): a field more of the same name
-- [sgcl::net::http::headers](../headers.md)
+- [sgcl::net::http::headers](README.md)

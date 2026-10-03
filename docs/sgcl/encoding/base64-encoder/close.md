@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64.md) › [encoder](../base64-encoder.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [base64](../base64/README.md) › [encoder](README.md)
 
 # sgcl::encoding::base64::encoder::close, async_close
 
@@ -71,4 +71,4 @@ true
 
 - [write, async_write](write.md): bytes into the encoder
 - [is_closed](is_closed.md): whether the encoder was closed
-- [sgcl::encoding::base64::encoder](../base64-encoder.md)
+- [sgcl::encoding::base64::encoder](README.md)

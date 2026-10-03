@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [collector](../collector.md) › [stepper](../collector-stepper.md)
+[sgcl](../../README.md) › [core](../README.md) › [collector](../collector/README.md) › [stepper](README.md)
 
 # sgcl::collector::stepper::advance_to
 
@@ -53,4 +53,4 @@ true
 
 - [step](step.md): one gate
 - [finish_cycle](finish_cycle.md): to the end of the cycle
-- [sgcl::collector::stepper](../collector-stepper.md)
+- [sgcl::collector::stepper](README.md)

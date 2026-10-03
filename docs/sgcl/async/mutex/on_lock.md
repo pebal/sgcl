@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [mutex](../mutex.md)
+[sgcl](../../README.md) › [async](../README.md) › [mutex](README.md)
 
 # sgcl::async::mutex::on_lock
 
@@ -68,4 +68,4 @@ busy
 - [select](../select.md): the cases and how one is chosen
 - [try_lock](try_lock.md): the lock without a wait, outside a select
 - [scoped_lock](scoped_lock.md): the lock of a task
-- [sgcl::async::mutex](../mutex.md)
+- [sgcl::async::mutex](README.md)

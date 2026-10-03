@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [regex](../regex.md)
+[sgcl](../../README.md) › [txt](../README.md) › [regex](README.md)
 
 # sgcl::txt::regex::compile
 
@@ -27,7 +27,7 @@ regex or the reason it is not one. A pattern written into the program is better 
 
 ## Return value
 
-The compiled regex, or a [regex_error](../regex_error.md): its [message](../regex_error/message.md) is
+The compiled regex, or a [regex_error](../regex_error/README.md): its [message](../regex_error/message.md) is
 `sgcl::txt::regex: <the reason> (at byte <n> of the pattern)` and its [offset](../regex_error/offset.md) the byte
 `n`.
 
@@ -38,7 +38,7 @@ Linear in the length of the pattern once a `{n,m}` is spelled out into instructi
 ## Exceptions
 
 - (1) None.
-- (2–4) `length_error` when the pattern is longer than 4294967295 bytes, the most a [string](../../core/string.md)
+- (2–4) `length_error` when the pattern is longer than 4294967295 bytes, the most a [string](../../core/string/README.md)
   holds: it is copied into one first.
 
 ## Notes
@@ -149,5 +149,5 @@ sgcl::txt::regex: a backreference: this engine matches in time linear in the len
 ## See also
 
 - [(constructor)](regex.md): a pattern written into the program, checked by the compiler
-- [regex_error](../regex_error.md): the reason and its place
-- [sgcl::txt::regex](../regex.md)
+- [regex_error](../regex_error/README.md): the reason and its place
+- [sgcl::txt::regex](README.md)

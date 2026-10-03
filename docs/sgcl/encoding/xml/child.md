@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::child
 
@@ -59,4 +59,4 @@ true
 
 - [children](children.md): every node inside, or every element of a name
 - [exists](exists.md): whether a node was found
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

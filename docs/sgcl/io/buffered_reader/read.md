@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](../buffered_reader.md)
+[sgcl](../../README.md) › [io](../README.md) › [buffered_reader](README.md)
 
 # sgcl::io::buffered_reader::read, async_read
 
@@ -14,7 +14,7 @@ of the stream gave, as Go's `bufio.Reader.Read`: [read_full](../mixin/reader/rea
 
 1. Reads on the calling thread.
 2. The same for a task: the stream's `async_read`, or its `read` on the blocking pool for a stream that has only
-   that ([io::reader](../reader.md)). The reader is held by the handle the task was made from: the caller keeps it
+   that ([io::reader](../reader/README.md)). The reader is held by the handle the task was made from: the caller keeps it
    alive until the task is done.
 
 ## Parameters
@@ -71,4 +71,4 @@ Output:
 - [read_byte](read_byte.md): one byte
 - [read_line](read_line.md): a line, as a slice of the block
 - [read_full](../mixin/reader/read_full.md): the whole buffer
-- [sgcl::io::buffered_reader](../buffered_reader.md)
+- [sgcl::io::buffered_reader](README.md)

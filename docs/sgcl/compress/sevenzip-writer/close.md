@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](../sevenzip-writer.md)
+[sgcl](../../README.md) › [compress](../README.md) › [sevenzip](../sevenzip.md) › [writer](README.md)
 
 # sgcl::compress::sevenzip::writer::close, async_close
 
@@ -22,7 +22,7 @@ None.
 
 ## Return value
 
-Nothing, or the writer's first [error](../error.md), of any step before.
+Nothing, or the writer's first [error](../error/README.md), of any step before.
 
 ## Complexity
 
@@ -67,4 +67,4 @@ remember the milk
 ## See also
 
 - [last_error](last_error.md)
-- [sgcl::compress::sevenzip::writer](../sevenzip-writer.md)
+- [sgcl::compress::sevenzip::writer](README.md)

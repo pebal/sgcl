@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [slog](../README.md) › [attrs](../attrs.md)
+[sgcl](../../README.md) › [slog](../README.md) › [attrs](README.md)
 
 # sgcl::slog::attrs::attrs
 
@@ -44,4 +44,4 @@ true 0
 ## See also
 
 - [value::as_group](../value/as_group.md)
-- [sgcl::slog::attrs](../attrs.md)
+- [sgcl::slog::attrs](README.md)

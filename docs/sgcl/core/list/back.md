@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::back
 
@@ -58,4 +58,4 @@ Output:
 
 - [front](front.md): access the first element
 - [push_back](push_back.md), [pop_back](pop_back.md): add, remove the last element
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

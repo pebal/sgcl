@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [hash](../README.md) › [crc32c](../crc32c.md)
+[sgcl](../../README.md) › [hash](../README.md) › [crc32c](README.md)
 
 # sgcl::hash::crc32c::crc32c
 
@@ -53,4 +53,4 @@ true true
 ## See also
 
 - [resume](resume.md): a hasher going on from a saved CRC
-- [sgcl::hash::crc32c](../crc32c.md)
+- [sgcl::hash::crc32c](README.md)

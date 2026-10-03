@@ -10,7 +10,7 @@ namespace sgcl::io {
 }
 ```
 
-Returns the [error](error.md) of `errno` after a system call failed: `error(error_code(errno, std::system_category()),
+Returns the [error](error/README.md) of `errno` after a system call failed: `error(error_code(errno, std::system_category()),
 op, path)`. What a stream or a function of the program's returns when a call of its own fails, in the form of the
 module's errors, the predicates included. It is read at once, before another call sets `errno` again.
 
@@ -62,5 +62,5 @@ unlink no.lock: No such file or directory: not found? true
 
 ## See also
 
-- [error](error.md)
+- [error](error/README.md)
 - [errc](errc.md): the failures no `errno` names

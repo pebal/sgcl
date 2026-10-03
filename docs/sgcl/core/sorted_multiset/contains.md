@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](../sorted_multiset.md)
+[sgcl](../../README.md) › [core](../README.md) › [sorted_multiset](README.md)
 
 # sgcl::sorted_multiset\<Key, Compare\>::contains
 
@@ -8,10 +8,10 @@ template<class K> bool contains(const K& key) const noexcept(/* see below */);  
 ```
 
 Checks whether the multiset holds an element equivalent to `key`, by a search of the tree. It is the multiset's own
-and takes the place of [mixin::enumerable](../mixin/enumerable.md)'s `contains`, which would walk every element.
+and takes the place of [mixin::enumerable](../mixin/enumerable/README.md)'s `contains`, which would walk every element.
 
 - (2) The key is of any type the comparison takes with a `Key`, and no `Key` is built for the search. Takes part
-  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string.md) does.
+  only when `Compare` declares `is_transparent`, as `std::less` of a [string](../string/README.md) does.
 
 ## Parameters
 
@@ -62,4 +62,4 @@ false
 
 - [find](find.md): the first element with a key
 - [count](count.md): the number of elements with a key
-- [sgcl::sorted_multiset\<Key, Compare\>](../sorted_multiset.md)
+- [sgcl::sorted_multiset\<Key, Compare\>](README.md)

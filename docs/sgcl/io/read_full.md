@@ -28,7 +28,7 @@ carries the number of bytes read (Go's `io.ErrUnexpectedEOF` beside `n`).
 
 `r` is any [reader](req/reader.md) (2: async reader): a stream of the library, a class of
 the program's with the method, a callable of the same shape, a reference or a `tracked_ptr` to one. A class that
-carries [mixin::reader](mixin/reader.md) has the same as a member, [r.read_full(buffer)](mixin/reader/read_full.md).
+carries [mixin::reader](mixin/reader/README.md) has the same as a member, [r.read_full(buffer)](mixin/reader/read_full.md).
 
 ## Parameters
 

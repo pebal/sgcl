@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_error](../stencil_error.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_error](README.md)
 
 # sgcl::txt::stencil_error::message
 
@@ -53,4 +53,4 @@ a second else
 
 ## See also
 
-- [sgcl::txt::stencil_error](../stencil_error.md)
+- [sgcl::txt::stencil_error](README.md)

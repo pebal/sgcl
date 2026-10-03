@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](../stencil_functions.md)
+[sgcl](../../README.md) › [txt](../README.md) › [stencil_functions](README.md)
 
 # sgcl::txt::stencil_functions::add
 
@@ -60,4 +60,4 @@ Output:
 ## See also
 
 - [stencil_function](../stencil_function.md): what a function takes and answers
-- [sgcl::txt::stencil_functions](../stencil_functions.md)
+- [sgcl::txt::stencil_functions](README.md)

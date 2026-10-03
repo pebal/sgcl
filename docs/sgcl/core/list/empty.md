@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [list](../list.md)
+[sgcl](../../README.md) › [core](../README.md) › [list](README.md)
 
 # sgcl::list\<T\>::empty
 
@@ -56,4 +56,4 @@ true
 
 - [size](size.md): the number of elements
 - [clear](clear.md): destroys every element
-- [sgcl::list\<T\>](../list.md)
+- [sgcl::list\<T\>](README.md)

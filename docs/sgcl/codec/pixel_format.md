@@ -20,7 +20,7 @@ namespace sgcl::codec {
 }
 ```
 
-How the pixels of an [image](image.md) lie in its rows: the channels in the order of the name, each a byte (`…8`)
+How the pixels of an [image](image/README.md) lie in its rows: the channels in the order of the name, each a byte (`…8`)
 or a 16-bit value (`…16`), with no padding between the pixels or at the end of a row. Where Go has a type per
 layout (`image.Gray`, `image.NRGBA64`, `image.CMYK`), the module has one `image` and this value.
 
@@ -85,7 +85,7 @@ red as ink: [0, 255, 255, 0]
 
 ## See also
 
-- [image](image.md): the pixels
+- [image](image/README.md): the pixels
 - [image::convert](image/convert.md): from one format to another
 - [decode_options](decode_options.md): the format a decoder makes
 - [sgcl::codec](README.md)

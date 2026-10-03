@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [ip_address](../ip_address.md)
+[sgcl](../../README.md) › [net](../README.md) › [ip_address](README.md)
 
 # sgcl::net::ip_address::unmap
 
@@ -10,7 +10,7 @@ The IPv4 address of an IPv4-mapped one: `::ffff:1.2.3.4` becomes `1.2.3.4`; any 
 Go's `Addr.Unmap`.
 
 An IPv4 address and its mapped form are two values, as in Go: they differ under `==`, the order and the hash, and an
-[ip_network](../ip_network.md) of IPv4 does not contain the mapped one. `unmap()` first where the mapping should not
+[ip_network](../ip_network/README.md) of IPv4 does not contain the mapped one. `unmap()` first where the mapping should not
 matter, such as the peer of a dual-stack listener.
 
 ## Parameters
@@ -56,4 +56,4 @@ true
 ## See also
 
 - [is_v4_mapped](is_v4_mapped.md): whether there is anything to unmap
-- [sgcl::net::ip_address](../ip_address.md)
+- [sgcl::net::ip_address](README.md)

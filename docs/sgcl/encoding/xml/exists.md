@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [xml](../xml.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [xml](README.md)
 
 # sgcl::encoding::xml::exists
 
@@ -54,4 +54,4 @@ false
 
 - [type](type.md): what the node is
 - [child](child.md): the first element of a name
-- [sgcl::encoding::xml](../xml.md)
+- [sgcl::encoding::xml](README.md)

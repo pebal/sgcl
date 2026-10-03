@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](../response.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [response](README.md)
 
 # sgcl::net::http::response::url
 
@@ -66,6 +66,6 @@ Output:
 
 ## See also
 
-- [max_redirects](../client.md#member-objects): how many redirects are followed
+- [max_redirects](../client/README.md#member-objects): how many redirects are followed
 - [request::url](../request/url.md): the URL of a request
-- [sgcl::net::http::response](../response.md)
+- [sgcl::net::http::response](README.md)

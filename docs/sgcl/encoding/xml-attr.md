@@ -1,4 +1,4 @@
-[sgcl](../README.md) › [encoding](README.md) › [xml](xml.md)
+[sgcl](../README.md) › [encoding](README.md) › [xml](xml/README.md)
 
 # sgcl::encoding::xml::attr
 
@@ -71,4 +71,4 @@ true
 
 - [attributes](xml/attributes.md), [attribute](xml/attribute.md): the attributes of a node
 - [token::attributes](xml-token/attributes.md): the attributes of a start tag
-- [sgcl::encoding::xml](xml.md)
+- [sgcl::encoding::xml](xml/README.md)

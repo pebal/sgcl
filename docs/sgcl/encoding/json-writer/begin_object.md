@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md) › [writer](../json-writer.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](../json/README.md) › [writer](README.md)
 
 # sgcl::encoding::json::writer::begin_object
 
@@ -60,4 +60,4 @@ json: a value in an object where a key belongs: syntax error
 - [end_object](end_object.md): closes it
 - [key](key.md): the key of a member
 - [begin_array](begin_array.md): opens an array
-- [sgcl::encoding::json::writer](../json-writer.md)
+- [sgcl::encoding::json::writer](README.md)

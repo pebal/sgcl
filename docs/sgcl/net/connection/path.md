@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::path
 
@@ -56,5 +56,5 @@ false
 ## See also
 
 - [local_endpoint](local_endpoint.md), [remote_endpoint](remote_endpoint.md): the addresses of a TCP connection
-- [unix_domain](../unix_domain.md): stream sockets in the file system
-- [sgcl::net::connection](../connection.md)
+- [unix_domain](../unix_domain/README.md): stream sockets in the file system
+- [sgcl::net::connection](README.md)

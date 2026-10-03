@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [big_integer](../big_integer.md)
+[sgcl](../../README.md) › [math](../README.md) › [big_integer](README.md)
 
 # sgcl::math::big_integer::factorial
 
@@ -65,4 +65,4 @@ true
 
 - [binomial](binomial.md): the number of ways to choose k of n
 - [operator*=](operator_arith.md): a product grown in place
-- [sgcl::math::big_integer](../big_integer.md)
+- [sgcl::math::big_integer](README.md)

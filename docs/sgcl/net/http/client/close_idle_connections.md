@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](../client.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [http](../README.md) › [client](README.md)
 
 # sgcl::net::http::client::close_idle_connections
 
@@ -64,5 +64,5 @@ the same connection: true, after the close: false
 
 ## See also
 
-- [idle_timeout](../client.md#member-objects): when an idle connection is closed by itself
-- [sgcl::net::http::client](../client.md)
+- [idle_timeout](README.md#member-objects): when an idle connection is closed by itself
+- [sgcl::net::http::client](README.md)

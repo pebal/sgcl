@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [strand](../strand.md)
+[sgcl](../../README.md) › [async](../README.md) › [strand](README.md)
 
 # sgcl::async::strand::spawn
 
@@ -11,7 +11,7 @@ template<class F>
 
 Starts a task on this strand: it is queued behind the strand's other tasks and run by a worker in its turn, never at
 the same time as another task of the strand. The task stays on the strand: whatever wakes it later, it comes back
-through the strand's queue. It inherits the [task-locals](../task_local.md) of the task that spawns it.
+through the strand's queue. It inherits the [task-locals](../task_local/README.md) of the task that spawns it.
 
 1. Starts `t`. A task is started once: debug builds assert on a task started already.
 2. The same for a coroutine function with captures, passed without the call:
@@ -91,4 +91,4 @@ Output:
 - [go](go.md): a task started and let go of
 - [executor::spawn](../executor/spawn.md): a task started on an executor
 - [spawn](../spawn.md): a task started on the pool of workers
-- [sgcl::async::strand](../strand.md)
+- [sgcl::async::strand](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [connection](../connection.md)
+[sgcl](../../README.md) › [net](../README.md) › [connection](README.md)
 
 # sgcl::net::connection::read, async_read
 
@@ -26,7 +26,7 @@ read deadline, or would wait past it, fails and takes nothing, even when data is
 ## Return value
 
 The number of bytes read, fewer than the size of `buffer` when fewer had come; 0 at the end of the stream, and at
-once for an empty `buffer`. Or the [io::error](../../io/error.md), its operation `read` and its path the connection
+once for an empty `buffer`. Or the [io::error](../../io/error/README.md), its operation `read` and its path the connection
 (`tcp 127.0.0.1:50000->127.0.0.1:8080`, a unix socket's path, `pipe` for a pair in memory):
 
 - `io::errc::closed` when the connection was closed before the call, or while it waited ([close](close.md));
@@ -125,4 +125,4 @@ Output:
 - [read_full](read_full.md), [read_all](read_all.md), [read_line](read_line.md): a whole buffer, the whole stream, a
   line
 - [set_read_deadline](set_read_deadline.md): a limit on the wait
-- [sgcl::net::connection](../connection.md)
+- [sgcl::net::connection](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [ordered_set](../ordered_set.md)
+[sgcl](../../README.md) › [core](../README.md) › [ordered_set](README.md)
 
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::reserve
 
@@ -11,7 +11,7 @@ inserted with no growth on the way. As [rehash](rehash.md), it may shrink the ta
 elements there need, and it does not touch the order.
 
 A `count` whose buckets the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused managed
-allocation does ([collector](../collector.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
+allocation does ([collector](../collector/README.md#the-memory-limit)), as [rehash](rehash.md) of their number does.
 
 ## Parameters
 
@@ -66,4 +66,4 @@ Output:
 
 - [rehash](rehash.md): sets the number of buckets
 - [bucket_count](bucket_count.md): the number of buckets
-- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](../ordered_set.md)
+- [sgcl::ordered_set\<Key, Hash, KeyEqual\>](README.md)

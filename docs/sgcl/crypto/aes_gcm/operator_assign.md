@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [aes_gcm](../aes_gcm.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [aes_gcm](README.md)
 
 # sgcl::crypto::aes_gcm::operator=
 
@@ -60,4 +60,4 @@ Output:
 
 - [(constructor)](aes_gcm.md): sets up a key, or takes another object's over
 - [clone](clone.md): a copy of the key, made on purpose
-- [sgcl::crypto::aes_gcm](../aes_gcm.md)
+- [sgcl::crypto::aes_gcm](README.md)

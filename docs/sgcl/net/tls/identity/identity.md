@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [net](../../README.md) › [tls](../README.md) › [identity](../identity.md)
+[sgcl](../../../README.md) › [net](../../README.md) › [tls](../README.md) › [identity](README.md)
 
 # sgcl::net::tls::identity::identity
 
@@ -20,7 +20,7 @@ There is no default constructor: an identity holds a chain and a key from its ma
 | Parameter | Description |
 |---|---|
 | `certificate_chain_pem` | every `CERTIFICATE` block of the text, the leaf first |
-| `key_pem` | the leaf's private key in PEM, read where it lies: the bytes of [crypto::read_secret](../../../crypto/secret.md) |
+| `key_pem` | the leaf's private key in PEM, read where it lies: the bytes of [crypto::read_secret](../../../crypto/secret/README.md) |
 | `other` | the handle whose identity this one shares |
 
 ## Complexity
@@ -70,4 +70,4 @@ identity the private key is not the leaf certificate's: malformed data
 
 - [from_pem](from_pem.md): the same, an error returned
 - [operator=](operator_assign.md): a handle made one of another identity
-- [sgcl::net::tls::identity](../identity.md)
+- [sgcl::net::tls::identity](README.md)

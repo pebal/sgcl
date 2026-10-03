@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [event](../event.md)
+[sgcl](../../README.md) › [async](../README.md) › [event](README.md)
 
 # sgcl::async::event::wait, operator co_await
 
@@ -74,4 +74,4 @@ done
 - [set](set.md): what the wait waits for
 - [on_set](on_set.md): the wait as a case of a select
 - [is_set](is_set.md): a look without a wait
-- [sgcl::async::event](../event.md)
+- [sgcl::async::event](README.md)

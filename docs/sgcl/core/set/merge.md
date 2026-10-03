@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [set](../set.md)
+[sgcl](../../README.md) › [core](../README.md) › [set](README.md)
 
 # sgcl::set\<Key, Hash, KeyEqual\>::merge
 
@@ -14,10 +14,10 @@ node whose key is here already stays in `source`. No element is copied, moved or
 its node into this set. Merging a set into itself does nothing.
 
 - (1–2) `source` is a set of the same `Key`, with any hasher and equality.
-- (3–4) `source` is a [multiset](../multiset.md) of the same `Key`: of a run of equal keys one node moves, the
+- (3–4) `source` is a [multiset](../multiset/README.md) of the same `Key`: of a run of equal keys one node moves, the
   others stay.
 
-An [ordered_set](../ordered_set.md) is not taken, its nodes being of another kind, nor a container of another
+An [ordered_set](../ordered_set/README.md) is not taken, its nodes being of another kind, nor a container of another
 `Key`.
 
 ## Parameters
@@ -41,7 +41,7 @@ None.
 ## Notes
 
 The set grows as the insertions make it grow. Only the containers above are taken, the ones whose
-[node_type](../set-node_type.md) is the set's, as `std` asks: not a [map](../map.md), even into a set of
+[node_type](../set-node_type/README.md) is the set's, as `std` asks: not a [map](../map/README.md), even into a set of
 `pair<const K, T>`, whose elements have the map's type.
 
 ## Example
@@ -78,4 +78,4 @@ Output:
 
 - [insert](insert.md): links the node of a handle
 - [extract](extract.md): takes one node out of a set
-- [sgcl::set\<Key, Hash, KeyEqual\>](../set.md)
+- [sgcl::set\<Key, Hash, KeyEqual\>](README.md)

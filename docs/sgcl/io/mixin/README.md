@@ -8,7 +8,7 @@
 #include "sgcl/io/mixin/writer.h"   // namespace sgcl::io::mixin; or "sgcl/io.h"
 ```
 
-A stream has one primitive, `read`, `write` or `seek` ([req](../req.md)); everything else a stream does is built on
+A stream has one primitive, `read`, `write` or `seek` ([req](../req/README.md)); everything else a stream does is built on
 it once, as the functions of io ([read_full](../read_full.md), [read_all](../read_all.md),
 [read_all_text](../read_all_text.md), [write](../write.md), [copy](../copy.md)) over any stream. A **mixin** of io
 gives the same as members of a class: a base class the stream names itself as the argument of
@@ -26,8 +26,8 @@ ones of its primitives, and a class of your own gets them by deriving from the m
 ## The rules
 
 - A mixin is a base of the class it names, `Derived`, and calls `Derived`'s primitive: `read(slice<byte>)` for
-  [reader](reader.md), `write(slice<const byte>)` for [writer](writer.md), `seek(int64_t, seek_from)` for
-  [seeker](seeker.md). The async forms of a member exist where `Derived` has `async_read` (`async_write`), and are
+  [reader](reader/README.md), `write(slice<const byte>)` for [writer](writer/README.md), `seek(int64_t, seek_from)` for
+  [seeker](seeker/README.md). The async forms of a member exist where `Derived` has `async_read` (`async_write`), and are
   instantiated only where they are called.
 - A class that defines `write` hides the mixin's overloads of the name, as C++ hides a base's name, and brings them
   back with using-declarations, as every writer of the library does:
@@ -44,13 +44,13 @@ ones of its primitives, and a class of your own gets them by deriving from the m
 
 | Mixin | Header | Description |
 |---|---|---|
-| [reader](reader.md) | `sgcl/io/mixin/reader.h` | the rest of a reader over `read`: `read_full`, `read_all`, `read_all_text`, `copy_to`, each with its `async_` form |
-| [seeker](seeker.md) | `sgcl/io/mixin/seeker.h` | the rest of a seeker over `seek`: `tell`, `size`, `rewind` |
-| [writer](writer.md) | `sgcl/io/mixin/writer.h` | the rest of a writer over `write`: `write` of text or a byte, `copy_from`, each with its `async_` form |
+| [reader](reader/README.md) | `sgcl/io/mixin/reader.h` | the rest of a reader over `read`: `read_full`, `read_all`, `read_all_text`, `copy_to`, each with its `async_` form |
+| [seeker](seeker/README.md) | `sgcl/io/mixin/seeker.h` | the rest of a seeker over `seek`: `tell`, `size`, `rewind` |
+| [writer](writer/README.md) | `sgcl/io/mixin/writer.h` | the rest of a writer over `write`: `write` of text or a byte, `copy_from`, each with its `async_` form |
 
 ## Requirements
 
-The page of the requirements: [req](../req.md).
+The page of the requirements: [req](../req/README.md).
 
 | Requirement | Header | Description |
 |---|---|---|
@@ -63,26 +63,26 @@ The page of the requirements: [req](../req.md).
 
 | Class | Reader | Writer | Seeker |
 |---|---|---|---|
-| [buffer](../buffer.md) | ✓ | ✓ | ✓ (`size` its own) |
-| [buffered_reader](../buffered_reader.md) | ✓ | | |
-| [buffered_writer](../buffered_writer.md) | | ✓ | |
-| [discard_writer](../discard_writer.md) | | ✓ | |
-| [file](../file.md) | ✓ | ✓ | ✓ |
-| [limit_reader](../limit_reader.md) | ✓ | | |
-| [multi_reader](../multi_reader.md) | ✓ | | |
-| [multi_writer](../multi_writer.md) | | ✓ | |
-| [reader](../reader.md) | ✓ | | |
-| [standard_stream](../standard_stream.md) | ✓ | ✓ | |
-| [tee_reader](../tee_reader.md) | ✓ | | |
-| [transform_reader](../transform_reader.md) | ✓ | | |
-| [writer](../writer.md) | | ✓ | |
+| [buffer](../buffer/README.md) | ✓ | ✓ | ✓ (`size` its own) |
+| [buffered_reader](../buffered_reader/README.md) | ✓ | | |
+| [buffered_writer](../buffered_writer/README.md) | | ✓ | |
+| [discard_writer](../discard_writer/README.md) | | ✓ | |
+| [file](../file/README.md) | ✓ | ✓ | ✓ |
+| [limit_reader](../limit_reader/README.md) | ✓ | | |
+| [multi_reader](../multi_reader/README.md) | ✓ | | |
+| [multi_writer](../multi_writer/README.md) | | ✓ | |
+| [reader](../reader/README.md) | ✓ | | |
+| [standard_stream](../standard_stream/README.md) | ✓ | ✓ | |
+| [tee_reader](../tee_reader/README.md) | ✓ | | |
+| [transform_reader](../transform_reader/README.md) | ✓ | | |
+| [writer](../writer/README.md) | | ✓ | |
 
 Outside io, the readers and writers of `compress` and the encoders and decoders of `encoding` carry them, and
-[net::connection](../../net/connection.md) has the same members, forwarded to the object inside it.
+[net::connection](../../net/connection/README.md) has the same members, forwarded to the object inside it.
 
 ## See also
 
-- [req](../req.md): the requirements of io, what a stream is
+- [req](../req/README.md): the requirements of io, what a stream is
 - [the mixins of core](../../core/mixin/README.md): the same pattern for containers
 - [io](../README.md)
 - `tests/io/stream.cpp`: the requirements, the mixins and the functions over the streams, checked

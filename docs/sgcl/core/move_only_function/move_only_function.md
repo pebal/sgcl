@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [move_only_function](../move_only_function.md)
+[sgcl](../../README.md) › [core](../README.md) › [move_only_function](README.md)
 
 # sgcl::move_only_function\<R(Args...)\>::move_only_function
 
@@ -94,5 +94,5 @@ Output:
 ## See also
 
 - [operator=](operator_assign.md): assigns another `move_only_function`, a callable or `nullptr`
-- [function](../function.md): the copyable one
-- [sgcl::move_only_function\<R(Args...)\>](../move_only_function.md)
+- [function](../function/README.md): the copyable one
+- [sgcl::move_only_function\<R(Args...)\>](README.md)

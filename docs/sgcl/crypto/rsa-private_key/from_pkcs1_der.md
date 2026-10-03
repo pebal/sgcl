@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](../rsa-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [rsa](../rsa.md) › [private_key](README.md)
 
 # sgcl::crypto::rsa::private_key::from_pkcs1_der
 
@@ -19,7 +19,7 @@ and nothing after it. The key is checked whole: n = p·q, qInv·q = 1 mod p, dP 
 
 ## Return value
 
-The key, or a [crypto::error](../error.md):
+The key, or a [crypto::error](../error/README.md):
 
 - `errc::malformed` with the offset of the byte for DER that is not one RSAPrivateKey in strict DER;
 - `errc::unsupported` for a multi-prime key (version 1), a modulus of fewer than 1024 bits or more than 16384, an
@@ -67,4 +67,4 @@ offset 7: sgcl::crypto::rsa: DER: the modulus is a non-negative INTEGER
 
 - [to_pkcs1_der](to_pkcs1_der.md): writes the encoding
 - [from_pem](from_pem.md): the key from PEM, either encoding
-- [sgcl::crypto::rsa::private_key](../rsa-private_key.md)
+- [sgcl::crypto::rsa::private_key](README.md)

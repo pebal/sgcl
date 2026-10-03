@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna.md) › [outcome](../idna-outcome.md)
+[sgcl](../../README.md) › [txt](../README.md) › [idna](../idna/README.md) › [outcome](README.md)
 
 # sgcl::txt::idna::outcome::operator bool
 
@@ -49,4 +49,4 @@ false
 
 ## See also
 
-- [sgcl::txt::idna::outcome](../idna-outcome.md)
+- [sgcl::txt::idna::outcome](README.md)

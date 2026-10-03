@@ -57,5 +57,5 @@ false
 
 ## See also
 
-- [standard_stream](standard_stream.md): `io::stdin`, `io::stdout`, `io::stderr`
+- [standard_stream](standard_stream/README.md): `io::stdin`, `io::stdout`, `io::stderr`
 - [file::fd](file/fd.md): the descriptor of a file

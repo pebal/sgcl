@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [json](../json.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [json](README.md)
 
 # sgcl::encoding::json::push_back
 
@@ -9,7 +9,7 @@ json push_back(const json& value) const noexcept;
 A new value: the array with `value` appended. On a value that is not an array, an array of that one element. This
 value stays as it was.
 
-Each call copies the elements: an array made in a loop is made by a [builder](../json-builder.md).
+Each call copies the elements: an array made in a loop is made by a [builder](../json-builder/README.md).
 
 ## Parameters
 
@@ -55,6 +55,6 @@ Output:
 ## See also
 
 - [set](set.md): an element replaced
-- [builder](../json-builder.md): an array made in a loop
+- [builder](../json-builder/README.md): an array made in a loop
 - [set_path](set_path.md): `-` appends deeper down
-- [sgcl::encoding::json](../json.md)
+- [sgcl::encoding::json](README.md)

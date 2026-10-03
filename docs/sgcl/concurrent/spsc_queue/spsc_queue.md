@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](../spsc_queue.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [spsc_queue](README.md)
 
 # sgcl::concurrent::spsc_queue\<T\>::spsc_queue
 
@@ -30,7 +30,7 @@ None.
 The buffer is raw storage: no element is constructed in it until a push, and it is zeroed when the element may hold
 tracked pointers, so that the collector, which traces every cell, finds null pointers in the cells without an
 element. A capacity whose buffer the managed heap cannot give, up to `SIZE_MAX`, ends the program as any refused
-managed allocation does ([collector](../../core/collector.md#the-memory-limit)): a capacity past the largest ring an
+managed allocation does ([collector](../../core/collector/README.md#the-memory-limit)): a capacity past the largest ring an
 address space holds is taken as that ring, refused in the same way. The producer and the consumer are not fixed at
 construction: a side may pass from one thread to another, the two ordered by the program's own synchronization (a
 join, a mutex); one thread at a time on each side is the whole rule.
@@ -70,4 +70,4 @@ false
 
 - [capacity](capacity.md): the number of cells
 - [try_push](try_push.md), [push](push.md): append an element
-- [sgcl::concurrent::spsc_queue\<T\>](../spsc_queue.md)
+- [sgcl::concurrent::spsc_queue\<T\>](README.md)

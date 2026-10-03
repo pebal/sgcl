@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [async](../README.md) › [broadcast](../broadcast.md)
+[sgcl](../../README.md) › [async](../README.md) › [broadcast](README.md)
 
 # sgcl::async::broadcast\<T\>::broadcast
 
@@ -50,4 +50,4 @@ Output:
 
 - [capacity](capacity.md): the size of the ring
 - [subscribe](subscribe.md): the receivers
-- [sgcl::async::broadcast\<T\>](../broadcast.md)
+- [sgcl::async::broadcast\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [vector](../vector.md)
+[sgcl](../../README.md) › [core](../README.md) › [vector](README.md)
 
 # sgcl::vector\<T\>::assign
 
@@ -49,7 +49,7 @@ range (2) it holds the elements appended before the throw.
 ## Notes
 
 The capacity never shrinks: an assignment of fewer elements keeps the buffer ([shrink_to_fit](shrink_to_fit.md)
-releases what is left over). A buffer the vector leaves is collected, not freed at once: a [slice](../slice.md)
+releases what is left over). A buffer the vector leaves is collected, not freed at once: a [slice](../slice/README.md)
 taken before still reads the old elements.
 
 ## Example
@@ -87,4 +87,4 @@ Output:
 
 - [operator=](operator_assign.md): assigns another vector or a list
 - [(constructor)](vector.md): constructs the vector
-- [sgcl::vector\<T\>](../vector.md)
+- [sgcl::vector\<T\>](README.md)

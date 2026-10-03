@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [formatter](../formatter.md)
+[sgcl](../../README.md) › [txt](../README.md) › [formatter](README.md)
 
 # sgcl::txt::formatter\<T\>::takes_nested
 
@@ -82,4 +82,4 @@ false
 ## See also
 
 - [format](../format.md#what-follows-a-second-colon): what follows a second colon
-- [sgcl::txt::formatter](../formatter.md)
+- [sgcl::txt::formatter](README.md)

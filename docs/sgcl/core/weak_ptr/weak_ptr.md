@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](../weak_ptr.md)
+[sgcl](../../README.md) › [core](../README.md) › [weak_ptr](README.md)
 
 # sgcl::weak_ptr\<T\>::weak_ptr
 
@@ -93,4 +93,4 @@ true
 
 - [operator=](operator_assign.md): assigns the pointer
 - [lock](lock.md): the object as a `tracked_ptr`
-- [sgcl::weak_ptr\<T\>](../weak_ptr.md)
+- [sgcl::weak_ptr\<T\>](README.md)

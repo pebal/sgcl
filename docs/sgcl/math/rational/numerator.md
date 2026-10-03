@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [math](../README.md) › [rational](../rational.md)
+[sgcl](../../README.md) › [math](../README.md) › [rational](README.md)
 
 # sgcl::math::rational::numerator
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The numerator, a [big_integer](../big_integer.md) with the sign of the fraction.
+The numerator, a [big_integer](../big_integer/README.md) with the sign of the fraction.
 
 ## Complexity
 
@@ -50,4 +50,4 @@ Output:
 ## See also
 
 - [denominator](denominator.md): the denominator, above zero
-- [sgcl::math::rational](../rational.md)
+- [sgcl::math::rational](README.md)

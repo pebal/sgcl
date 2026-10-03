@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](../ascii85.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [ascii85](README.md)
 
 # sgcl::encoding::ascii85::encoder_to
 
@@ -9,7 +9,7 @@ static encoder encoder_to(const io::writer& out) noexcept;
 A writer that writes the Ascii85 text of what it is given to `out`: Go's `ascii85.NewEncoder`. Whole groups of
 four bytes go out at once, the bytes short of a group wait for the next write, and
 [close()](../ascii85-encoder/close.md) writes the last group, n + 1 characters for n bytes, and leaves `out` open.
-The [encoder](../ascii85-encoder.md) is a handle of one word, made with its state: a managed object holding an
+The [encoder](../ascii85-encoder/README.md) is a handle of one word, made with its state: a managed object holding an
 8 KB block and `out`.
 
 ## Parameters
@@ -58,7 +58,7 @@ Output:
 
 ## See also
 
-- [ascii85::encoder](../ascii85-encoder.md): the stream
+- [ascii85::encoder](../ascii85-encoder/README.md): the stream
 - [decoder_from](decoder_from.md): the other way
 - [encode](encode.md): the text at once
-- [sgcl::encoding::ascii85](../ascii85.md)
+- [sgcl::encoding::ascii85](README.md)

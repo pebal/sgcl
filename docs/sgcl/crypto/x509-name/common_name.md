@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](../x509-name.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [x509](../x509.md) › [name](README.md)
 
 # sgcl::crypto::x509::name::common_name
 
@@ -70,4 +70,4 @@ sgcl test CA
 ## See also
 
 - [certificate::verify_hostname](../x509-certificate/verify_hostname.md): what a host is checked against instead
-- [sgcl::crypto::x509::name](../x509-name.md)
+- [sgcl::crypto::x509::name](README.md)

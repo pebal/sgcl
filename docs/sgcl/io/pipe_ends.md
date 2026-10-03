@@ -14,12 +14,12 @@ namespace sgcl::io {
 ```
 
 `sgcl::io::pipe_ends` is the two ends of a pipe, by name, as [pipe](pipe.md) returns them: `ends.read` and
-`ends.write`, or `auto [r, w] = io::pipe().value();`. Each is a [file](file.md), a handle: copied into a task, it
+`ends.write`, or `auto [r, w] = io::pipe().value();`. Each is a [file](file/README.md), a handle: copied into a task, it
 is the same end.
 
 ## Rules
 
-- The struct holds two handles, tracked words: it lives where a [file](file.md) may, on a stack, in a task, in a
+- The struct holds two handles, tracked words: it lives where a [file](file/README.md) may, on a stack, in a task, in a
   managed object.
 
 ## Member objects
@@ -53,4 +53,4 @@ through the pipe
 ## See also
 
 - [pipe](pipe.md): what makes one
-- [sgcl::io::file](file.md)
+- [sgcl::io::file](file/README.md)

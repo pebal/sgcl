@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](../copy_on_write.md)
+[sgcl](../../README.md) › [concurrent](../README.md) › [copy_on_write](README.md)
 
 # sgcl::concurrent::copy_on_write\<T\>::load, operator snapshot
 
@@ -71,4 +71,4 @@ example.com:443
 ## See also
 
 - [store](store.md), [update](update.md): replace the value
-- [sgcl::concurrent::copy_on_write\<T\>](../copy_on_write.md)
+- [sgcl::concurrent::copy_on_write\<T\>](README.md)

@@ -1,4 +1,4 @@
-[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](../enumerable.md)
+[sgcl](../../../README.md) › [core](../../README.md) › [mixin](../README.md) › [enumerable](README.md)
 
 # sgcl::mixin::enumerable\<Derived\>::contains
 
@@ -68,4 +68,4 @@ true
 
 - [index_of](index_of.md), [last_index_of](last_index_of.md): the position of an element equal to a value
 - [exists](exists.md): checks whether a predicate accepts some element
-- [sgcl::mixin::enumerable\<Derived\>](../enumerable.md)
+- [sgcl::mixin::enumerable\<Derived\>](README.md)

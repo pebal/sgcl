@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [net](../README.md) › [query_params](../query_params.md)
+[sgcl](../../README.md) › [net](../README.md) › [query_params](README.md)
 
 # sgcl::net::query_params::get
 
@@ -51,4 +51,4 @@ Output:
 
 - [get_all](get_all.md): every value
 - [contains](contains.md): whether the name is there
-- [sgcl::net::query_params](../query_params.md)
+- [sgcl::net::query_params](README.md)

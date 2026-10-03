@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [encoding](../README.md) › [varint](../varint.md)
+[sgcl](../../README.md) › [encoding](../README.md) › [varint](README.md)
 
 # sgcl::encoding::varint::read_signed, async_read_signed
 
@@ -14,7 +14,7 @@ The signed forms of [read](read.md): the varint read as `read` reads it, and its
 -1, 1, -2. Go's `binary.Varint` and `binary.ReadVarint`.
 
 1. The number at the front of `at`, and the bytes it took; the errors of `read`.
-2. The next number of a stream, read a byte at a time from the [buffered_reader](../../io/buffered_reader.md): `nullopt`
+2. The next number of a stream, read a byte at a time from the [buffered_reader](../../io/buffered_reader/README.md): `nullopt`
    at the end of the stream before a number's first byte, and the errors of `read`.
 3. The same in a task, `co_await encoding::varint::async_read_signed(in)`; the task holds the reader it is given
    for as long as it runs.
@@ -28,7 +28,7 @@ The signed forms of [read](read.md): the varint read as `read` reads it, and its
 
 ## Return value
 
-1. The number and the bytes it took, or the [error](../error.md) with its code and offset.
+1. The number and the bytes it took, or the [error](../error/README.md) with its code and offset.
 2. The number, `nullopt` at the end of the stream, or the `io::error`.
 3. A task of the same.
 
@@ -84,4 +84,4 @@ Output:
 
 - [read, async_read](read.md): an unsigned number
 - [append_signed](append_signed.md), [write_signed](write_signed.md): the other way
-- [sgcl::encoding::varint](../varint.md)
+- [sgcl::encoding::varint](README.md)

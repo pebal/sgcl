@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [txt](../README.md) › [collator](../collator.md)
+[sgcl](../../README.md) › [txt](../README.md) › [collator](README.md)
 
 # sgcl::txt::collator::numeric
 
@@ -52,4 +52,4 @@ true
 ## See also
 
 - [options](../collator-options.md)
-- [sgcl::txt::collator](../collator.md)
+- [sgcl::txt::collator](README.md)

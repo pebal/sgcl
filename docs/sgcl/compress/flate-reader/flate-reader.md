@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate.md) › [reader](../flate-reader.md)
+[sgcl](../../README.md) › [compress](../README.md) › [flate](../flate/README.md) › [reader](README.md)
 
 # sgcl::compress::flate::reader::reader
 
@@ -61,4 +61,4 @@ Output:
 ## See also
 
 - [read](read.md)
-- [sgcl::compress::flate::reader](../flate-reader.md)
+- [sgcl::compress::flate::reader](README.md)

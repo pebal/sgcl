@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [immutable](../README.md) › [set](../set.md) › [builder](../set-builder.md)
+[sgcl](../../README.md) › [immutable](../README.md) › [set](../set/README.md) › [builder](README.md)
 
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::empty
 
@@ -50,4 +50,4 @@ false true false
 ## See also
 
 - [size](size.md): the number of elements
-- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](../set-builder.md)
+- [sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder](README.md)

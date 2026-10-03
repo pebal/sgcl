@@ -1,4 +1,4 @@
-[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](../ed25519-private_key.md)
+[sgcl](../../README.md) › [crypto](../README.md) › [ed25519](../ed25519.md) › [private_key](README.md)
 
 # sgcl::crypto::ed25519::private_key::public_key
 
@@ -15,7 +15,7 @@ None.
 
 ## Return value
 
-The [public key](../ed25519-public_key.md).
+The [public key](../ed25519-public_key/README.md).
 
 ## Complexity
 
@@ -54,5 +54,5 @@ true
 ## See also
 
 - [sign](sign.md): what it verifies
-- [ed25519::public_key](../ed25519-public_key.md)
-- [sgcl::crypto::ed25519::private_key](../ed25519-private_key.md)
+- [ed25519::public_key](../ed25519-public_key/README.md)
+- [sgcl::crypto::ed25519::private_key](README.md)
