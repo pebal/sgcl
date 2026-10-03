@@ -21,14 +21,16 @@ namespace sgcl::detail {
     // the slot handed to a UniquePtr. Default-initialized without
     // arguments (`new T`, not `new T()`): a trivial type, and a trivial
     // member of a class without a constructor of its own, keeps the
-    // bytes the slot holds. Those are zero only on a page fresh from the
-    // heap or given back to it (object_pool_allocator_base.h: _free); a
-    // slot reused in its pool, or a range of pages, holds what its last
-    // user left there, only the words at pointer offsets null (a
-    // destroyed tracked_ptr stores a null, and a buffer of a type that
-    // may hold tracked pointers is zeroed when it is issued). The
-    // containers value-initialize their elements themselves (vector.h,
-    // dynamic_array.h: _make_at).
+    // bytes the slot holds: what its last user left there, an object of
+    // the type or, on a page the type took from the heap, of another
+    // (the heap does not zero a page given back: object_pool_allocator_base.h,
+    // _free); zeros only on a page fresh from the system. For a type
+    // that may hold tracked pointers the words at its pointer offsets
+    // are null (a page such a type takes from the heap is zeroed then:
+    // object_pool_allocator_base.h, _next_page; a destroyed tracked_ptr
+    // stores a null; a large object and a buffer of such a type are
+    // zeroed when they are issued). The containers value-initialize
+    // their elements themselves (vector.h, dynamic_array.h: _make_at).
     class MakerBase {
     public:
         // Whether constructing a T from A cannot throw: the constructor's
@@ -121,7 +123,8 @@ namespace sgcl::detail {
 
         // A slot for a T without a construction: raw storage the caller
         // fills (a trivial type; the slot holds null words at the pointer
-        // offsets and, elsewhere, zeros or what its last user left)
+        // offsets and, elsewhere, what its last user left, of this type or
+        // of another: MakerBase above)
         template<class ...A>
         static UniquePtr<T> make_tracked_data() noexcept {
             return _make_data();
@@ -136,9 +139,11 @@ namespace sgcl::detail {
         // a word at a pointer offset of the type must be null or its final
         // value, never a leftover of the slot's last object. A pool slot
         // (object_pool_allocator.h) needs nothing for that: its page was
-        // zero when it was issued to the type (fresh from the heap, or
-        // zeroed by the collector when it went back: object_pool_allocator_base.h,
-        // _free), and every object of the type that died in the slot since
+        // zeroed when the type took it from the heap, on the allocating
+        // thread before the page was published (object_pool_allocator_base.h,
+        // _next_page: for a type whose pointer map still has an offset; a
+        // map that reads empty is never read, and never fills again), and
+        // every object of the type that died in the slot since
         // left its pointer words null, the destructor of tracked_ptr
         // storing a null (tracked_ptr.h); what is left at the other
         // offsets is data of the same type, which the map's elimination

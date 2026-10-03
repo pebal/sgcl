@@ -263,6 +263,18 @@ namespace sgcl::detail {
                 return page;
             }
             auto data = _page_allocator.alloc();
+            // Zeros where the collector reads them: every page a type whose
+            // pointer map still has an offset takes from the heap is zeroed
+            // here, on the allocating thread, before the page is published
+            // (the heap does not zero a page given back: _free). A type
+            // whose map reads empty never needs zeros again (child_pointers.h:
+            // the map only loses offsets; a conservative type's stays full).
+            // A page fresh from the system pays its first touch here, which
+            // the type's objects would pay anyway. A page of cells is filled
+            // whole by _create_page_parameters.
+            if (!_metadata.is_cell_block && _metadata.child_pointers.any.load(std::memory_order_relaxed)) {
+                std::memset(data, 0, config::page_size);
+            }
             page = _create_page_parameters(data);   // all slots free
             page->owned.store(true, std::memory_order_relaxed);
             Heap::set_pages(data, 1, page);
@@ -303,13 +315,11 @@ namespace sgcl::detail {
 
         // GC thread: returns the pages of entirely empty headers to the heap.
         // The headers stay valid until the collector unlinks and deletes them.
-        // GC thread. The page is zeroed here, before it goes back to the
-        // heap: the next type it is issued to constructs its objects on a
-        // page of zeros, as on a page fresh from the heap (maker.h: _init).
+        // Not zeroed: the next type the page is issued to zeroes it if its
+        // pointer map needs zeros (_next_page).
         static void _free(Page* pages) noexcept {
             std::vector<void*> data;
             for (auto page = pages; page; page = page->next_empty) {
-                std::memset((void*)page->data, 0, config::page_size);
                 data.push_back((void*)page->data);
                 page->is_used = false;
             }

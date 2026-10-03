@@ -243,9 +243,13 @@ namespace sgcl::detail::os {
 #endif
     }
 
-    // A chunk's pages given back to the system, the addresses kept: the
-    // next commit (or the next touch, where nothing needs a commit) gets
-    // zero pages
+    // A chunk's pages given back to the system, the addresses kept. Zero
+    // pages after it where the range is remapped (needs_commit), on
+    // Windows and under Linux's MADV_DONTNEED; on Darwin MADV_DONTNEED
+    // only lets the system take the pages, which read back with their old
+    // bytes until it does. Nothing relies on the zeros: a page is zeroed
+    // where a type needs it (object_pool_allocator_base.h: _next_page,
+    // maker.h: _init)
     inline void decommit(void* p, size_t size, bool needs_commit) noexcept {
 #if defined(_WIN32)
         (void)needs_commit;

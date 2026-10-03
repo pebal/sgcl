@@ -39,10 +39,10 @@ namespace sgcl {
         // write and that read is the collector's (a block is destroyed
         // only after a cycle found it unreferenced), which the thread
         // sanitizer cannot see: the reads are hidden from it.
-        // The page is zero when it is issued to this type and a destroyed
-        // element's tracked pointers are null again (maker.h: _init), so
-        // the pointer map of the block never meets a stale pointer in an
-        // unconstructed slot.
+        // The page is zeroed when this type takes it from the heap and a
+        // destroyed element's tracked pointers are null again (maker.h:
+        // _init), so the pointer map of the block never meets a stale
+        // pointer in an unconstructed slot.
         template<class T, size_t N>
         struct DequeBlock {
             union {

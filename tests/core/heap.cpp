@@ -5,9 +5,17 @@
 //------------------------------------------------------------------------------
 // The managed heap: one reserved range, 64 KB pages from 2 MB chunks, a side
 // table mapping every page (of a range, too) to its header.
+#include "tests/managed_pages.h"
 #include "tests/types.h"
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstring>
 #include <random>
+#include <thread>
+#include <unordered_set>
+#include <vector>
 #if !defined(_WIN32)
 #include <unistd.h>
 #endif
@@ -563,3 +571,437 @@ TEST(Heap_Tests, TheMetadataOfEachKindOfType) {
     }
     EXPECT_EQ(seen[0]->object_size, 24u);
 }
+
+// What a slot holds before its constructor runs, where the collector may
+// already read it (maker.h: _init). A page goes back to the heap as its last
+// type left it (object_pool_allocator_base.h: _free); a type whose pointer
+// map has an offset zeroes every page it takes from the heap (_next_page),
+// a type of plain data takes it as it is. A slot on the type's own pages
+// holds what the type's last object there left, its pointer words null.
+using slot_probe::PageSet;
+using slot_probe::Probed;
+using slot_probe::Shape;
+using slot_probe::probe_slots;
+using heap_count::settle;
+
+namespace {
+    struct Garbage64 {
+        uint64_t w[8];
+    };
+
+    struct Plain64 {
+        uint64_t w[8];
+    };
+
+    struct Pointers64 {
+        tracked_ptr<int> p[8];
+    };
+
+    struct Linked64 {
+        tracked_ptr<int> a;
+        uint64_t pad[6];
+        tracked_ptr<int> b;
+    };
+
+    constexpr size_t PerPage64 = config::page_size / 64;
+
+    // n objects of plain data filled with non-zero bytes and dropped; the
+    // pages they took, entirely free, go back to the heap
+    SGCL_NOINLINE PageSet fill_pages_with_garbage(size_t n) {
+        PageSet pages;
+        for (size_t i = 0; i < n; ++i) {
+            tracked_ptr<Garbage64> g = make_tracked<Garbage64>();
+            for (auto& w : g->w) {
+                w = 0xA5A5A5A5A5A5A5A5ull ^ i;
+            }
+            pages.add(g.get());
+        }
+        return pages;
+    }
+}
+
+TEST(Heap_Tests, APageAPointerTypeTakesFromTheHeapIsZeroed) {
+    auto pages = fill_pages_with_garbage(64 * PerPage64);
+    settle();
+    auto r = probe_slots<Pointers64>(2 * 64 * PerPage64, pages);
+    ASSERT_GT(r.reused, 0u) << "no page of the garbage came back";
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " slots on pages the garbage left";
+}
+
+// The page of plain data is not written when it is taken: a type that cannot
+// hold pointers gets the bytes the last type left (make_tracked.md)
+TEST(Heap_Tests, APageAPlainTypeTakesFromTheHeapIsNotZeroed) {
+    auto pages = fill_pages_with_garbage(64 * PerPage64);
+    settle();
+    auto r = probe_slots<Plain64>(2 * 64 * PerPage64, pages);
+    ASSERT_GT(r.reused, 0u) << "no page of the garbage came back";
+    EXPECT_GT(r.nonzero, 0u) << "of " << r.reused << " slots on pages the garbage left";
+}
+
+// The slots a type takes again on its own pages (more than half freed, kept
+// for the type's allocators, not zeroed): every way an object of a type that
+// may hold tracked pointers dies leaves its pointer words null, so the
+// collector, which may read a slot from its allocation on, never meets a
+// stale pointer there before the constructor runs. A test keeps some
+// objects on every page, so that the pages stay the type's.
+namespace {
+    template<class T, class Make>
+    SGCL_NOINLINE PageSet fill_and_keep_some(size_t n, Make&& make, sgcl::vector<tracked_ptr<T>>& kept) {
+        PageSet pages;
+        for (size_t i = 0; i < n; ++i) {
+            tracked_ptr<T> p = make();
+            pages.add(p.get());
+            if (i % 256 == 0) {
+                kept.push_back(p);
+            }
+        }
+        return pages;
+    }
+}
+
+TEST(Heap_Tests, ASlotReusedAfterTheSweepDestroyedItsObjectHoldsNullPointers) {
+    tracked_ptr<int> target = make_tracked<int>(1);
+    sgcl::vector<tracked_ptr<Linked64>> kept;
+    auto pages = fill_and_keep_some<Linked64>(4 * PerPage64, [&] {
+        tracked_ptr<Linked64> p = make_tracked<Linked64>();
+        p->a = target;
+        p->b = target;
+        for (auto& w : p->pad) {
+            w = 0x5A5A5A5A5A5A5A5Aull;
+        }
+        return p;
+    }, kept);
+    settle();
+    Shape<Linked64> shape;
+    auto r = probe_slots<Linked64>(4 * PerPage64, pages, shape.offsets({&shape->a, &shape->b}));
+    ASSERT_GT(r.reused, 0u);
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " reused slots";
+}
+
+TEST(Heap_Tests, ASlotReusedAfterAUniquePtrDestroyedItsObjectHoldsNullPointers) {
+    tracked_ptr<int> target = make_tracked<int>(1);
+    sgcl::vector<tracked_ptr<Linked64>> kept;
+    PageSet pages;
+    off_frame([&] {
+        for (size_t i = 0; i < 4 * PerPage64; ++i) {
+            unique_ptr<Linked64> u = make_tracked<Linked64>();
+            u->a = target;
+            u->b = target;
+            pages.add(u.get());
+            if (i % 256 == 0) {
+                kept.push_back(std::move(u));
+            }
+        }
+    });
+    settle();
+    Shape<Linked64> shape;
+    auto r = probe_slots<Linked64>(4 * PerPage64, pages, shape.offsets({&shape->a, &shape->b}));
+    ASSERT_GT(r.reused, 0u);
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " reused slots";
+}
+
+TEST(Heap_Tests, ASlotOfATrackedPtrObjectReusedHoldsNull) {
+    tracked_ptr<int> target = make_tracked<int>(1);
+    sgcl::vector<tracked_ptr<tracked_ptr<int>>> kept;
+    const size_t n = 4 * (config::page_size / sizeof(tracked_ptr<int>));
+    auto pages = fill_and_keep_some<tracked_ptr<int>>(n, [&] {
+        return tracked_ptr<tracked_ptr<int>>(make_tracked<tracked_ptr<int>>(target));
+    }, kept);
+    settle();
+    auto r = probe_slots<tracked_ptr<int>>(n, pages);
+    ASSERT_GT(r.reused, 0u);
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " reused slots";
+}
+
+// The nodes of the containers: erase destroys the element and nulls the
+// links before the slot's state says Destroyed (the sweep then frees the
+// node without its destructor); a node that dies with its container keeps
+// its element and links to the sweep, which runs its destructor.
+namespace slot_probe {
+    struct ListNodeTag {};
+    auto exposed(ListNodeTag);
+    template struct Expose<ListNodeTag, sgcl::list<tracked_ptr<int>>::Node>;
+
+    struct ForwardListNodeTag {};
+    auto exposed(ForwardListNodeTag);
+    template struct Expose<ForwardListNodeTag, sgcl::forward_list<tracked_ptr<int>>::Node>;
+
+    struct DequeBlockTag {};
+    auto exposed(DequeBlockTag);
+    template struct Expose<DequeBlockTag, sgcl::deque<tracked_ptr<int>>::Block>;
+}
+
+namespace {
+    using ListNode = decltype(exposed(slot_probe::ListNodeTag{}))::type;
+    using ForwardListNode = decltype(exposed(slot_probe::ForwardListNodeTag{}))::type;
+    using DequeBlock = decltype(exposed(slot_probe::DequeBlockTag{}))::type;
+
+    std::vector<size_t> list_node_words() {
+        Shape<ListNode> shape;
+        return shape.offsets({&shape->prev, &shape->next, &shape->slot.value});
+    }
+
+    std::vector<size_t> forward_list_node_words() {
+        Shape<ForwardListNode> shape;
+        return shape.offsets({&shape->next, &shape->slot.value});
+    }
+
+    // Two containers filled in turns, so that their nodes share pages:
+    // `dying` is emptied by `kill` (or dropped whole), `kept`, a node
+    // for every four of the other, keeps the pages its type's
+    template<class Node, class C, class Kill>
+    Probed probe_nodes(size_t n, std::vector<size_t> words, Kill&& kill) {
+        tracked_ptr<int> target = make_tracked<int>(1);
+        C kept;
+        PageSet pages;
+        off_frame([&] {
+            C dying;
+            for (size_t i = 0; i < n; ++i) {
+                dying.push_front(target);
+                pages.add(&dying.front());
+                if (i % 4 == 0) {
+                    kept.push_front(target);   // a quarter: the pages end more than half free
+                }
+            }
+            kill(dying);
+        });
+        settle();
+        auto r = probe_slots<Node>(2 * n, pages, std::move(words));
+        EXPECT_EQ(std::distance(kept.begin(), kept.end()), std::ptrdiff_t((n + 3) / 4));
+        return r;
+    }
+}
+
+TEST(Heap_Tests, AListNodeReusedHoldsNullPointers) {
+    using List = sgcl::list<tracked_ptr<int>>;
+    const size_t n = 2 * (config::page_size / sizeof(ListNode));
+    auto erased = probe_nodes<ListNode, List>(n, list_node_words(), [](List& l) {
+        for (auto it = l.begin(); it != l.end();) {
+            it = l.erase(it);
+        }
+    });
+    auto popped = probe_nodes<ListNode, List>(n, list_node_words(), [](List& l) {
+        while (!l.empty()) {
+            l.pop_front();
+            if (!l.empty()) {
+                l.pop_back();
+            }
+        }
+    });
+    auto cleared = probe_nodes<ListNode, List>(n, list_node_words(), [](List& l) {
+        l.clear();
+    });
+    auto dropped = probe_nodes<ListNode, List>(n, list_node_words(), [](List&) {
+        // the list dies with its elements: the sweep destroys its nodes
+    });
+    for (auto [name, r] : {std::pair{"erase", erased}, {"pop", popped}, {"clear", cleared}, {"dropped", dropped}}) {
+        EXPECT_GT(r.reused, 0u) << name;
+        EXPECT_EQ(r.nonzero, 0u) << name << ": of " << r.reused << " reused slots";
+    }
+}
+
+TEST(Heap_Tests, AForwardListNodeReusedHoldsNullPointers) {
+    using List = sgcl::forward_list<tracked_ptr<int>>;
+    const size_t n = 2 * (config::page_size / sizeof(ForwardListNode));
+    auto erased = probe_nodes<ForwardListNode, List>(n, forward_list_node_words(), [](List& l) {
+        while (std::next(l.begin()) != l.end()) {
+            l.erase_after(l.begin());
+        }
+        l.pop_front();
+    });
+    auto popped = probe_nodes<ForwardListNode, List>(n, forward_list_node_words(), [](List& l) {
+        while (!l.empty()) {
+            l.pop_front();
+        }
+    });
+    auto cleared = probe_nodes<ForwardListNode, List>(n, forward_list_node_words(), [](List& l) {
+        l.clear();
+    });
+    auto dropped = probe_nodes<ForwardListNode, List>(n, forward_list_node_words(), [](List&) {
+    });
+    for (auto [name, r] : {std::pair{"erase_after", erased}, {"pop_front", popped}, {"clear", cleared}, {"dropped", dropped}}) {
+        EXPECT_GT(r.reused, 0u) << name;
+        EXPECT_EQ(r.nonzero, 0u) << name << ": of " << r.reused << " reused slots";
+    }
+}
+
+// A block of a deque emptied by pops and let go of: its elements were
+// destroyed by the pops, so the block's slot holds null element words when
+// a block of the type takes it again
+TEST(Heap_Tests, ADequeBlockReusedHoldsNullPointers) {
+    using Deque = sgcl::deque<tracked_ptr<int>>;
+    constexpr size_t PerBlock = sizeof(DequeBlock::elems) / sizeof(tracked_ptr<int>);
+    const size_t blocks = 4 * (config::page_size / sizeof(DequeBlock));
+    tracked_ptr<int> target = make_tracked<int>(1);
+    Deque kept;
+    PageSet pages;
+    off_frame([&] {
+        Deque dying;
+        for (size_t i = 0; i < blocks * PerBlock; ++i) {
+            dying.push_back(target);
+            if (i % PerBlock == 0) {
+                pages.add(&dying.back());
+                kept.push_back(target);   // a block of the other deque between every two of this one
+                for (size_t k = 1; k < PerBlock; ++k) {
+                    kept.push_back(target);
+                }
+            }
+        }
+        for (size_t i = 0; !dying.empty(); ++i) {
+            if (i % 2) {
+                dying.pop_back();
+            } else {
+                dying.pop_front();
+            }
+        }
+    });
+    settle();
+    std::vector<size_t> words;
+    for (size_t k = 0; k < PerBlock; ++k) {
+        words.push_back(k * sizeof(tracked_ptr<int>));
+    }
+    auto r = probe_slots<DequeBlock>(2 * blocks, pages, words);
+    ASSERT_GT(r.reused, 0u);
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " reused blocks";
+    EXPECT_EQ(kept.size(), blocks * PerBlock);
+}
+
+TEST(Heap_Tests, AnErasedTreeNodeReusedHoldsNullPointers) {
+    using Map = sgcl::sorted_map<int, tracked_ptr<int>>;
+    using Node = sgcl::detail::RbNode<Map::value_type>;
+    tracked_ptr<int> target = make_tracked<int>(1);
+    Map m;
+    PageSet pages;
+    const size_t n = 4 * (config::page_size / sizeof(Node));
+    off_frame([&] {
+        for (size_t i = 0; i < n; ++i) {
+            auto it = m.emplace(int(i), target).first;
+            pages.add(&*it);
+        }
+        for (size_t i = 0; i < n; ++i) {
+            if (i % 256) {
+                m.erase(int(i));
+            }
+        }
+    });
+    settle();
+    Shape<Node> shape;
+    auto r = probe_slots<Node>(n, pages, shape.offsets({&shape->parent, &shape->left, &shape->right, &shape->slot.value.second}));
+    ASSERT_GT(r.reused, 0u);
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " reused slots";
+    EXPECT_EQ(m.size(), (n + 255) / 256);
+}
+
+TEST(Heap_Tests, AnErasedHashNodeReusedHoldsNullPointers) {
+    using Map = sgcl::map<int, tracked_ptr<int>>;
+    using Node = sgcl::detail::HashNode<Map::value_type>;
+    tracked_ptr<int> target = make_tracked<int>(1);
+    Map m;
+    PageSet pages;
+    const size_t n = 4 * (config::page_size / sizeof(Node));
+    off_frame([&] {
+        for (size_t i = 0; i < n; ++i) {
+            auto it = m.emplace(int(i), target).first;
+            pages.add(&*it);
+        }
+        for (size_t i = 0; i < n; ++i) {
+            if (i % 256) {
+                m.erase(int(i));
+            }
+        }
+    });
+    settle();
+    Shape<Node> shape;
+    auto r = probe_slots<Node>(n, pages, shape.offsets({&shape->next, &shape->slot.value.second}));
+    ASSERT_GT(r.reused, 0u);
+    EXPECT_EQ(r.nonzero, 0u) << "of " << r.reused << " reused slots";
+}
+
+// A vector abandons its buffer without the destructors of tracked elements
+// (vector.h: _destroy_range), so a dead buffer keeps its pointer words; the
+// slot is taken again by any buffer of its size class, and a buffer whose
+// elements may hold pointers is zeroed when it is issued (maker.h: _zero).
+TEST(Heap_Tests, ABufferOfPointersReusingADeadVectorsSlotIsZeroed) {
+    tracked_ptr<int> target = make_tracked<int>(1);
+    sgcl::vector<sgcl::vector<tracked_ptr<int>>> kept;
+    PageSet pages;
+    constexpr size_t Capacity = 6;   // the 48-byte class
+    const size_t n = 4 * (config::page_size / (48 + sizeof(sgcl::detail::ArrayBase)));
+    off_frame([&] {
+        for (size_t i = 0; i < n; ++i) {
+            sgcl::vector<tracked_ptr<int>> v(Capacity, target);
+            pages.add(v.data());
+            if (i % 256 == 0) {
+                kept.push_back(v);
+            }
+        }
+    });
+    settle();
+    Probed plain;
+    Probed pointers;
+    {
+        collector::stepper parked(true);
+        parked.advance_to(collector::stepper::phase::start);
+        // the dead buffers' words, seen through buffers of plain data of
+        // the same class (not zeroed)
+        for (size_t i = 0; i < n; ++i) {
+            auto b = sgcl::detail::Maker<uint64_t[]>::make_tracked_data(Capacity);
+            if (pages.has(b.get())) {
+                ++plain.reused;
+                for (size_t k = 0; k < Capacity; ++k) {
+                    plain.nonzero += b.get()[k] == uintptr_t(target.get());
+                }
+            }
+        }
+        for (size_t i = 0; i < n; ++i) {
+            auto b = sgcl::detail::Maker<tracked_ptr<int>[]>::make_tracked_data(Capacity);
+            auto words = (const uintptr_t*)b.get();
+            if (pages.has(words)) {
+                ++pointers.reused;
+                for (size_t k = 0; k < Capacity; ++k) {
+                    pointers.nonzero += words[k] != 0;
+                }
+            }
+        }
+        parked.finish_cycle();
+    }
+    ASSERT_GT(pointers.reused, 0u);
+    EXPECT_EQ(pointers.nonzero, 0u) << "of " << pointers.reused << " reused buffers";
+    std::printf("[   info   ] dead vector buffers seen through plain buffers: %zu of %zu words still point at the target\n", plain.nonzero, plain.reused * Capacity);
+}
+
+#if !(defined(__has_feature) && (__has_feature(address_sanitizer) || __has_feature(thread_sanitizer)))
+// The memory of many threads allocating plain data stays bounded: the pages
+// the collector frees go back to the heap without a write on its thread, so
+// it keeps up with the allocators (the zeroing of every freed page on the
+// collector's thread let the heap grow without bound under 8 threads).
+TEST(Heap_Tests, ManyThreadsAllocatingPlainDataStayBounded) {
+    struct Small {
+        int64_t w[2];
+    };
+    std::atomic<bool> stop = false;
+    size_t peak = 0;
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 8; ++t) {
+        threads.emplace_back([&] {
+            tracked_ptr<Small> keep;
+            while (!stop.load(std::memory_order_relaxed)) {
+                for (int i = 0; i < 4096; ++i) {
+                    keep = make_tracked<Small>();
+                }
+            }
+        });
+    }
+    auto end = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (std::chrono::steady_clock::now() < end) {
+        peak = std::max(peak, collector::get_statistics().committed_bytes);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    stop = true;
+    for (auto& t : threads) {
+        t.join();
+    }
+    EXPECT_LT(peak, size_t(512) << 20) << "peak committed " << (peak >> 20) << " MB";
+    std::printf("[   info   ] peak committed %zu MB\n", peak >> 20);
+}
+#endif

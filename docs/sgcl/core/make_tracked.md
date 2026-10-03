@@ -20,7 +20,8 @@ the same is `new(T)` or `&T{...}`, whose object is the collector's from the star
 
 The object is constructed as `new (slot) T(std::forward<A>(a)...)`, or `new (slot) T` with no arguments:
 default-initialization, like `std::make_unique_for_overwrite`. A trivial type is then left uninitialized: the slot
-holds whatever the last object of the type left there, null at the pointer offsets. For zeros, write the value:
+holds whatever its last object left there, which may be another type's bytes on a page the type took from the heap;
+for a type that may hold tracked pointers the pointer offsets are null. For zeros, write the value:
 `make_tracked<T>(T{})`. Aggregates take their arguments in parentheses (C++20).
 
 `T` is an object type: not an array (`make_tracked<T[]>` is a compile error: managed arrays are not a public type,
@@ -61,9 +62,10 @@ The constructor of `T` runs on the calling thread, at once; the destructor runs 
 of destructors: [The rules](README.md#the-rules), 5).
 
 The collector may read the words of the slot while the constructor runs. The words at the type's pointer offsets
-are null then (a page is zero when it is issued to a type, and every object of the type that died in the slot since
-left its pointers null: the destructors of `tracked_ptr` and `unique_ptr` store a null) and the constructor's stores
-land one by one, which is why a `tracked_ptr` member initialized in the constructor is a root from its store on.
+are null then (a page is zeroed when a type that may hold tracked pointers takes it from the heap, and every object
+of the type that died in the slot since left its pointers null: the destructors of `tracked_ptr` and `unique_ptr`
+store a null) and the constructor's stores land one by one, which is why a `tracked_ptr` member initialized in the
+constructor is a root from its store on.
 
 Any thread may call it; the first managed object a thread creates registers the thread with the collector, and the
 first one in the program starts the collector ([Threads](../async/README.md#threads)).

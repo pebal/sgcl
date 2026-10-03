@@ -3,6 +3,7 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
+#include "tests/managed_pages.h"
 #include "tests/types.h"
 
 #include <algorithm>
@@ -1147,4 +1148,68 @@ TEST(ImMap_Tests, Update) {
     static_assert(noexcept(m.update(1, 0, nothrow)));
     static_assert(!noexcept(m.update(1, may_throw)));
     static_assert(!noexcept(names.update("a", [](const std::string& v) noexcept { return v; })));   // a string's copy may throw
+}
+
+// The slot of a node a dropped version left, taken again by a node of a new
+// version, holds null words where the node keeps pointers (the links and the
+// elements' tracked words): the collector may read the slot from its
+// allocation on (maker.h: _init). A node's destructor destroys its built
+// entries, an entry moved or erased in place by a builder is destroyed
+// where it was (hamt.h: _relocate, _remove_in_place), and the entries past
+// `built` were never constructed.
+namespace {
+    using HamtMap = sgcl::immutable::map<int, tracked_ptr<int>>;
+    using HamtValue = HamtMap::value_type;
+
+    template<unsigned N>
+    slot_probe::Probed probe_hamt_nodes(size_t n, const slot_probe::PageSet& pages) {
+        using Node = sgcl::immutable::detail::HamtNode<HamtValue, N>;
+        slot_probe::Shape<Node> shape;
+        std::vector<size_t> words;
+        for (unsigned i = 0; i < N; ++i) {
+            auto entry = shape.offsets({&shape->entries[i].link, &shape->entries[i].value.second});
+            words.insert(words.end(), entry.begin(), entry.end());
+        }
+        return slot_probe::probe_slots<Node>(n, pages, words);
+    }
+}
+
+TEST(ImMap_Tests, ANodeOfADroppedVersionReusedHoldsNullPointers) {
+    tracked_ptr<int> target = make_tracked<int>(1);
+    sgcl::vector<HamtMap> kept;
+    slot_probe::PageSet pages;
+    constexpr int Maps = 2000;
+    constexpr int Elements = 48;
+    off_frame([&] {
+        for (int m = 0; m < Maps; ++m) {
+            HamtMap v;
+            for (int k = 0; k < Elements; ++k) {
+                v = v.set(m * Elements + k, target);   // the previous version's path dies
+            }
+            auto b = v.thaw();
+            for (int k = 0; k < Elements; k += 3) {
+                b.erase(m * Elements + k);              // in place, in the builder's own nodes
+            }
+            b.insert(m * Elements + Elements, target);
+            v = b.freeze();
+            for (auto& e : v) {
+                pages.add(&e);
+            }
+            if (m % 8 == 0) {
+                kept.push_back(v);                     // a few live nodes on every page
+            }
+        }
+    });
+    heap_count::settle();
+    const size_t n = 8 * config::page_size / sizeof(sgcl::immutable::detail::HamtNode<HamtValue, 1>);
+    std::pair<unsigned, slot_probe::Probed> probes[] = {
+        {1, probe_hamt_nodes<1>(n, pages)}, {2, probe_hamt_nodes<2>(n, pages)}, {4, probe_hamt_nodes<4>(n, pages)},
+        {8, probe_hamt_nodes<8>(n, pages)}, {16, probe_hamt_nodes<16>(n, pages)}, {32, probe_hamt_nodes<32>(n, pages)}};
+    size_t reused = 0;
+    for (auto& [capacity, r] : probes) {
+        reused += r.reused;
+        EXPECT_EQ(r.nonzero, 0u) << "nodes of " << capacity << " entries: of " << r.reused << " reused slots";
+    }
+    EXPECT_GT(reused, 0u);
+    EXPECT_EQ(kept.size(), size_t(Maps / 8));
 }

@@ -73,7 +73,8 @@ namespace sgcl::immutable::detail {
     // destroyed by the node's destructor. The element lives in a union
     // with itself as the sole member, which keeps its pointers at fixed
     // offsets for the node's map; an entry holding a subtrie leaves null
-    // words there (a fresh page is zero, a destroyed tracked_ptr null).
+    // words there (a page is zeroed when the node's type takes it from
+    // the heap, a destroyed tracked_ptr is null).
     template<class V>
     struct HamtEntry {
         tracked_ptr<HamtHead> link;
