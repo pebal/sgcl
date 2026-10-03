@@ -3,8 +3,8 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::bucket
 
 ```cpp
-/*(1)*/ size_type bucket(const key_type& key) const noexcept;
-/*(2)*/ template<class K> size_type bucket(const K& key) const noexcept(/* see below */);
+size_type bucket(const key_type& key) const noexcept;                                // (1)
+template<class K> size_type bucket(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns the number of the bucket `key` falls into, whether or not an element is under it: the hash, xored with a

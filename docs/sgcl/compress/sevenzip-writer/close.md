@@ -3,8 +3,8 @@
 # sgcl::compress::sevenzip::writer::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, error> close();
-/*(2)*/ async::task<expected<void, error>> async_close() noexcept;
+expected<void, error> close();                                // (1)
+async::task<expected<void, error>> async_close() noexcept;    // (2)
 ```
 
 Ends the archive: ends the last entry and folder, writes the header, packed with LZMA (encrypted with a password and

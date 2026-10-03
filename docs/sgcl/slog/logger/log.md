@@ -3,16 +3,16 @@
 # sgcl::slog::logger::log, debug, info, warn, error
 
 ```cpp
-/*(1)*/ template<class... A>
-        void log(slog::level l, message m, const A&... kv) const;
-/*(2)*/ template<class... A>
-        void debug(message m, const A&... kv) const;
-/*(3)*/ template<class... A>
-        void info(message m, const A&... kv) const;
-/*(4)*/ template<class... A>
-        void warn(message m, const A&... kv) const;
-/*(5)*/ template<class... A>
-        void error(message m, const A&... kv) const;
+template<class... A>
+void log(slog::level l, message m, const A&... kv) const;    // (1)
+template<class... A>
+void debug(message m, const A&... kv) const;                 // (2)
+template<class... A>
+void info(message m, const A&... kv) const;                  // (3)
+template<class... A>
+void warn(message m, const A&... kv) const;                  // (4)
+template<class... A>
+void error(message m, const A&... kv) const;                 // (5)
 ```
 
 Writes a record: the time, the level, the [message](../message.md) `m` and the attributes `kv`, after the logger's

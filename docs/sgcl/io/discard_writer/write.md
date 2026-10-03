@@ -3,8 +3,8 @@
 # sgcl::io::discard_writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& data) noexcept;
-/*(2)*/ async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept;
+expected<size_t, error> write(const slice<const byte>& data) noexcept;                // (1)
+async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept;    // (2)
 ```
 
 Takes `data` and drops it: nothing is copied and nothing is kept.

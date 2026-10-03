@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::count
 
 ```cpp
-/*(1)*/ size_type count(const Key& key) const noexcept;
-/*(2)*/ template<class K> size_type count(const K& key) const noexcept(/* see below */);
+size_type count(const Key& key) const noexcept;                                     // (1)
+template<class K> size_type count(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns the number of elements equal to `key`: 1 or 0, since a set holds each element once.

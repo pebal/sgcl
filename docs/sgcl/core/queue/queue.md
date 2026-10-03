@@ -3,15 +3,15 @@
 # sgcl::queue\<T, Container\>::queue
 
 ```cpp
-/*(1)*/ queue()
-            noexcept(std::is_nothrow_default_constructible_v<Container> &&
-                     std::is_nothrow_move_constructible_v<Container>);
-/*(2)*/ explicit queue(const Container& cont)
-            noexcept(std::is_nothrow_copy_constructible_v<Container>);
-/*(3)*/ explicit queue(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>);
-/*(4)*/ template<std::input_iterator InputIt> queue(InputIt first, InputIt last);
-/*(5)*/ queue(const queue& other);
-/*(6)*/ queue(queue&& other);
+queue()                                                                                        // (1)
+    noexcept(std::is_nothrow_default_constructible_v<Container> &&
+             std::is_nothrow_move_constructible_v<Container>);
+explicit queue(const Container& cont)                                                          // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<Container>);
+explicit queue(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>);    // (3)
+template<std::input_iterator InputIt> queue(InputIt first, InputIt last);                      // (4)
+queue(const queue& other);                                                                     // (5)
+queue(queue&& other);                                                                          // (6)
 ```
 
 Constructs a queue from one of the sources below.

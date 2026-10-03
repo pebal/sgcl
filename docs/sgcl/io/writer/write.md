@@ -3,9 +3,9 @@
 # sgcl::io::writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& data) const;
-/*(2)*/ async::task<expected<size_t, error>> async_write(const slice<const byte>& data)
-            const noexcept;
+expected<size_t, error> write(const slice<const byte>& data) const;                // (1)
+async::task<expected<size_t, error>> async_write(const slice<const byte>& data)    // (2)
+    const noexcept;
 ```
 
 Writes `data` to the stream: all of it, or an error that says how far it got, as Go's `Write`. Both are `const`, as

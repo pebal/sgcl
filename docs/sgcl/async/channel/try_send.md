@@ -3,9 +3,9 @@
 # sgcl::async::channel\<T\>::try_send
 
 ```cpp
-/*(1)*/ bool try_send(const T& value) const;
-/*(2)*/ bool try_send(T&& value) const;
-/*(3)*/ bool try_send() const;
+bool try_send(const T& value) const;    // (1)
+bool try_send(T&& value) const;         // (2)
+bool try_send() const;                  // (3)
 ```
 
 Sends an element if it can without waiting: to a waiting receiver when the buffer is empty, or into the buffer when

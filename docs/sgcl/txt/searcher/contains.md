@@ -3,11 +3,11 @@
 # sgcl::txt::searcher::contains
 
 ```cpp
-/*(1)*/ bool contains(const string& text) const noexcept;
-/*(2)*/ bool contains(const slice<const char>& text) const noexcept;
-/*(3)*/ template<size_t N> bool contains(const char (&text)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        bool contains(P text) const noexcept;
+bool contains(const string& text) const noexcept;                                    // (1)
+bool contains(const slice<const char>& text) const noexcept;                         // (2)
+template<size_t N> bool contains(const char (&text)[N]) const noexcept;              // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+bool contains(P text) const noexcept;                                                // (4)
 ```
 
 Checks whether the pattern occurs in the text, `find(text) != npos`.

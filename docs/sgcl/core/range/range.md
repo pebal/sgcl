@@ -3,15 +3,15 @@
 # sgcl::range\<It\>::range
 
 ```cpp
-/*(1)*/ range() = default;
-/*(2)*/ range(It first, It last) noexcept;
-/*(3)*/ template<class Pair>
-        requires requires(Pair p) { It(p.first); It(p.second); }
-        range(Pair p) noexcept;
-/*(4)*/ template<std::integral T>
-        explicit range(T last) noexcept;
-/*(5)*/ template<std::integral T>
-        range(T first, T last) noexcept;
+range() = default;                                          // (1)
+range(It first, It last) noexcept;                          // (2)
+template<class Pair>
+requires requires(Pair p) { It(p.first); It(p.second); }
+range(Pair p) noexcept;                                     // (3)
+template<std::integral T>
+explicit range(T last) noexcept;                            // (4)
+template<std::integral T>
+range(T first, T last) noexcept;                            // (5)
 ```
 
 Constructs a range.

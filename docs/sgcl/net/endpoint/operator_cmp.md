@@ -3,8 +3,8 @@
 # sgcl::net::endpoint::operator==, operator\<=\>
 
 ```cpp
-/*(1)*/ bool operator==(const endpoint&) const noexcept = default;
-/*(2)*/ auto operator<=>(const endpoint&) const noexcept = default;
+bool operator==(const endpoint&) const noexcept = default;     // (1)
+auto operator<=>(const endpoint&) const noexcept = default;    // (2)
 ```
 
 Compare two endpoints member by member: the address, as [ip_address](../ip_address/operator_cmp.md) orders addresses,

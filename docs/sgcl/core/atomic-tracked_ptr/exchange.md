@@ -3,10 +3,10 @@
 # sgcl::atomic\<tracked_ptr\<T\>\>::exchange
 
 ```cpp
-/*(1)*/ tracked_ptr<T> exchange(tracked_ptr<T> n,
-                                const std::memory_order m = std::memory_order_seq_cst) noexcept;
-/*(2)*/ tracked_ptr<T> exchange(std::nullptr_t,
-                                const std::memory_order m = std::memory_order_seq_cst) noexcept;
+tracked_ptr<T> exchange(tracked_ptr<T> n,                                                   // (1)
+                        const std::memory_order m = std::memory_order_seq_cst) noexcept;
+tracked_ptr<T> exchange(std::nullptr_t,                                                     // (2)
+                        const std::memory_order m = std::memory_order_seq_cst) noexcept;
 ```
 
 Replaces the pointer and returns the old one, held: the old object is under the hazard pointer from before the

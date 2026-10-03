@@ -3,12 +3,12 @@
 # sgcl::io::mixin::reader\<Derived\>::copy_to, async_copy_to
 
 ```cpp
-/*(1)*/ template<req::writer W>
-        expected<size_t, error> copy_to(W&& w)
-            noexcept(noexcept(io::copy(std::forward<W>(w), std::declval<Derived&>())));
-/*(2)*/ template<req::async_writer W>
-        async::task<expected<size_t, error>> async_copy_to(W&& w) noexcept(/* see below */)
-            requires req::async_reader<Derived&>;
+template<req::writer W>
+expected<size_t, error> copy_to(W&& w)                                                 // (1)
+    noexcept(noexcept(io::copy(std::forward<W>(w), std::declval<Derived&>())));
+template<req::async_writer W>
+async::task<expected<size_t, error>> async_copy_to(W&& w) noexcept(/* see below */)    // (2)
+    requires req::async_reader<Derived&>;
 ```
 
 Copies this stream from its position to its end into the stream `w`. It is [io::copy(w, r)](../../copy.md) over

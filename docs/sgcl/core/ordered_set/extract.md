@@ -3,9 +3,9 @@
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::extract
 
 ```cpp
-/*(1)*/ node_type extract(const_iterator pos) noexcept;
-/*(2)*/ node_type extract(const key_type& key) noexcept;
-/*(3)*/ template<class K> node_type extract(K&& key) noexcept(/* see below */);
+node_type extract(const_iterator pos) noexcept;                            // (1)
+node_type extract(const key_type& key) noexcept;                           // (2)
+template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3)
 ```
 
 Unlinks a node from the chain and from the order and hands it over in a

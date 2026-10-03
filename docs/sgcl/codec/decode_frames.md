@@ -6,10 +6,10 @@
 #include "sgcl/codec/decode.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    /*(1)*/ expected<codec::frames, error> decode_frames(const slice<const byte>& data,
-                                                         const decode_options& o = {}) noexcept;
-    /*(2)*/ expected<codec::frames, error> decode_frames(const io::reader& in,
-                                                         const decode_options& o = {});
+    expected<codec::frames, error> decode_frames(const slice<const byte>& data,             // (1)
+                                                 const decode_options& o = {}) noexcept;
+    expected<codec::frames, error> decode_frames(const io::reader& in,                      // (2)
+                                                 const decode_options& o = {});
 }
 ```
 

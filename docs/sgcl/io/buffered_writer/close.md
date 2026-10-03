@@ -3,8 +3,8 @@
 # sgcl::io::buffered_writer::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, error> close() const;
-/*(2)*/ async::task<expected<void, error>> async_close() const noexcept;
+expected<void, error> close() const;                                // (1)
+async::task<expected<void, error>> async_close() const noexcept;    // (2)
 ```
 
 Flushes the block, then closes the stream underneath when it has a close (a [file](../file.md), a connection), after

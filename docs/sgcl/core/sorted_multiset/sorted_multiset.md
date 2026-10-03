@@ -3,15 +3,15 @@
 # sgcl::sorted_multiset\<Key, Compare\>::sorted_multiset
 
 ```cpp
-/*(1)*/ sorted_multiset() = default;
-/*(2)*/ explicit sorted_multiset(const key_compare& comp)
-            noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
-/*(3)*/ template<std::input_iterator InputIt>
-        sorted_multiset(InputIt first, InputIt last, const key_compare& comp = key_compare());
-/*(4)*/ sorted_multiset(std::initializer_list<value_type> ilist,
-                        const key_compare& comp = key_compare());
-/*(5)*/ sorted_multiset(const sorted_multiset& other) = default;
-/*(6)*/ sorted_multiset(sorted_multiset&& other) = default;
+sorted_multiset() = default;                                                              // (1)
+explicit sorted_multiset(const key_compare& comp)                                         // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
+template<std::input_iterator InputIt>
+sorted_multiset(InputIt first, InputIt last, const key_compare& comp = key_compare());    // (3)
+sorted_multiset(std::initializer_list<value_type> ilist,                                  // (4)
+                const key_compare& comp = key_compare());
+sorted_multiset(const sorted_multiset& other) = default;                                  // (5)
+sorted_multiset(sorted_multiset&& other) = default;                                       // (6)
 ```
 
 Constructs a multiset from one of the sources below.

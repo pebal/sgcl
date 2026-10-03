@@ -3,9 +3,9 @@
 # sgcl::txt::list::list
 
 ```cpp
-/*(1)*/ list() noexcept;
-/*(2)*/ list(std::initializer_list<value> items) noexcept;
-/*(3)*/ explicit list(const vector<value>& items) noexcept;
+list() noexcept;                                       // (1)
+list(std::initializer_list<value> items) noexcept;     // (2)
+explicit list(const vector<value>& items) noexcept;    // (3)
 ```
 
 1. An empty list, written `[]`: `txt::list{}` as well.

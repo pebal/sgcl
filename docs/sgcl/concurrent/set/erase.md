@@ -3,9 +3,9 @@
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::erase
 
 ```cpp
-/*(1)*/ size_type erase(const Key& key) noexcept;
-/*(2)*/ template<class K> size_type erase(const K& key) noexcept;
-/*(3)*/ iterator erase(const_iterator pos) noexcept;
+size_type erase(const Key& key) noexcept;                    // (1)
+template<class K> size_type erase(const K& key) noexcept;    // (2)
+iterator erase(const_iterator pos) noexcept;                 // (3)
 ```
 
 Erases an element. The node is marked first, a marker node linked after it with a compare-exchange, and then

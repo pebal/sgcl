@@ -3,14 +3,14 @@
 # sgcl::dynamic_array\<T\>::dynamic_array
 
 ```cpp
-/*(1)*/ dynamic_array() noexcept = default;
-/*(2)*/ explicit dynamic_array(size_type count);
-/*(3)*/ dynamic_array(size_type count, const T& value);
-/*(4)*/ template<std::input_iterator InputIt> dynamic_array(InputIt first, InputIt last);
-/*(5)*/ template<std::ranges::input_range R> explicit dynamic_array(R&& r);
-/*(6)*/ dynamic_array(std::initializer_list<T> ilist);
-/*(7)*/ dynamic_array(const dynamic_array& other);
-/*(8)*/ dynamic_array(dynamic_array&& other) noexcept;
+dynamic_array() noexcept = default;                                                  // (1)
+explicit dynamic_array(size_type count);                                             // (2)
+dynamic_array(size_type count, const T& value);                                      // (3)
+template<std::input_iterator InputIt> dynamic_array(InputIt first, InputIt last);    // (4)
+template<std::ranges::input_range R> explicit dynamic_array(R&& r);                  // (5)
+dynamic_array(std::initializer_list<T> ilist);                                       // (6)
+dynamic_array(const dynamic_array& other);                                           // (7)
+dynamic_array(dynamic_array&& other) noexcept;                                       // (8)
 ```
 
 Constructs an array from one of the sources below. Its size is fixed from then on.

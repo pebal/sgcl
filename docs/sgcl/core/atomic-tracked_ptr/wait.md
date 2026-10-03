@@ -3,8 +3,8 @@
 # sgcl::atomic\<tracked_ptr\<T\>\>::wait
 
 ```cpp
-/*(1)*/ void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept;
-/*(2)*/ void wait(tracked_ptr<T> p, std::memory_order m = std::memory_order_seq_cst) const noexcept;
+void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept;      // (1)
+void wait(tracked_ptr<T> p, std::memory_order m = std::memory_order_seq_cst) const noexcept;    // (2)
 ```
 
 The waiting of `std::atomic`: blocks while the word equals the pointer given, until a

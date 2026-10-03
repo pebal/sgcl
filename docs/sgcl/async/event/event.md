@@ -3,9 +3,9 @@
 # sgcl::async::event::event
 
 ```cpp
-/*(1)*/ event() noexcept;
-/*(2)*/ event(const event&) noexcept = default;
-/*(3)*/ event(event&&) noexcept = default;
+event() noexcept;                          // (1)
+event(const event&) noexcept = default;    // (2)
+event(event&&) noexcept = default;         // (3)
 ```
 
 1. A new event, not set: its state, an open channel of signals, made on the managed heap.

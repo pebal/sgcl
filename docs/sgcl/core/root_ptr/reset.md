@@ -3,9 +3,9 @@
 # sgcl::root_ptr\<T\>::reset
 
 ```cpp
-/*(1)*/ void reset() noexcept;
-/*(2)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        void reset(const tracked_ptr<U>& p) noexcept;
+void reset() noexcept;                                                                                                        // (1)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+void reset(const tracked_ptr<U>& p) noexcept;                                                                                 // (2)
 ```
 
 Stores another pointer in the cell; the cell stays.

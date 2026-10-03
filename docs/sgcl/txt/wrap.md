@@ -6,13 +6,13 @@
 #include "sgcl/txt/segment.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ vector<slice<const char>> wrap(const slice<const char>& text, size_t width) noexcept;
-    /*(2)*/ vector<slice<const char>> wrap(const string& text, size_t width) noexcept;
-    /*(3)*/ template<size_t N>
-            vector<slice<const char>> wrap(const char (&text)[N], size_t width);
-    /*(4)*/ template<class P>
-            requires std::same_as<P, const char*> || std::same_as<P, char*>
-            vector<slice<const char>> wrap(P text, size_t width);
+    vector<slice<const char>> wrap(const slice<const char>& text, size_t width) noexcept;    // (1)
+    vector<slice<const char>> wrap(const string& text, size_t width) noexcept;               // (2)
+    template<size_t N>
+    vector<slice<const char>> wrap(const char (&text)[N], size_t width);                     // (3)
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    vector<slice<const char>> wrap(P text, size_t width);                                    // (4)
 }
 ```
 

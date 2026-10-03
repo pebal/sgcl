@@ -3,13 +3,13 @@
 # sgcl::set\<Key, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ set& operator=(const set& other);
-/*(2)*/ set& operator=(set&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal> &&
-                     std::is_nothrow_move_assignable_v<hasher> &&
-                     std::is_nothrow_move_assignable_v<key_equal>);
-/*(3)*/ set& operator=(std::initializer_list<value_type> ilist);
+set& operator=(const set& other);                                  // (1)
+set& operator=(set&& other)                                        // (2)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal> &&
+             std::is_nothrow_move_assignable_v<hasher> &&
+             std::is_nothrow_move_assignable_v<key_equal>);
+set& operator=(std::initializer_list<value_type> ilist);           // (3)
 ```
 
 Replaces the elements of the set.

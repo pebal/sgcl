@@ -3,9 +3,9 @@
 # sgcl::sorted_multiset\<Key, Compare\>::begin, cbegin
 
 ```cpp
-/*(1)*/ iterator begin() noexcept;
-/*(2)*/ const_iterator begin() const noexcept;
-/*(3)*/ const_iterator cbegin() const noexcept;
+iterator begin() noexcept;                 // (1)
+const_iterator begin() const noexcept;     // (2)
+const_iterator cbegin() const noexcept;    // (3)
 ```
 
 Returns an iterator to the smallest element, the first in the order of `Compare`. The tree keeps its leftmost node

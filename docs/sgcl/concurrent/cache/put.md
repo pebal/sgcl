@@ -3,13 +3,13 @@
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::put
 
 ```cpp
-/*(1)*/ void put(const Key& key, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ void put(const Key& key, T&& value)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<T>);
+void put(const Key& key, const T& value)                     // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_copy_constructible_v<T>);
+void put(const Key& key, T&& value)                          // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<T>);
 ```
 
 Inserts the value under `key`, or replaces the value there; then, if the size is past the capacity, evicts down to

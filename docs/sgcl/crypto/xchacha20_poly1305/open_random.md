@@ -3,10 +3,10 @@
 # sgcl::crypto::xchacha20_poly1305::open_random
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<vector<byte>, error>
-        open_random(const slice<const byte>& sealed) const;
-/*(2)*/ [[nodiscard]] expected<vector<byte>, error>
-        open_random(const slice<const byte>& sealed, const slice<const byte>& aad) const;
+[[nodiscard]] expected<vector<byte>, error>
+open_random(const slice<const byte>& sealed) const;                                  // (1)
+[[nodiscard]] expected<vector<byte>, error>
+open_random(const slice<const byte>& sealed, const slice<const byte>& aad) const;    // (2)
 ```
 
 Opens what [seal_random](seal_random.md) made: the nonce read from the first 24 bytes of `sealed`, the tag from the

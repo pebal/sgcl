@@ -3,8 +3,8 @@
 # sgcl::crypto::hkdf\<H\>::prk::operator=
 
 ```cpp
-/*(1)*/ prk& operator=(prk&& other) noexcept;
-/*(2)*/ prk& operator=(const prk&) = delete;
+prk& operator=(prk&& other) noexcept;    // (1)
+prk& operator=(const prk&) = delete;     // (2)
 ```
 
 1. Takes the key's bytes from `other` in place of this object's own and zeroes them in `other`. An assignment to itself

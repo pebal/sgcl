@@ -3,9 +3,9 @@
 # sgcl::crypto::hmac\<H\>::hmac
 
 ```cpp
-/*(1)*/ explicit hmac(const slice<const byte>& key) noexcept;
-/*(2)*/ hmac(hmac&& other) noexcept;
-/*(3)*/ hmac(const hmac&) = delete;
+explicit hmac(const slice<const byte>& key) noexcept;    // (1)
+hmac(hmac&& other) noexcept;                             // (2)
+hmac(const hmac&) = delete;                              // (3)
 ```
 
 1. Makes an hmac under `key`, ready for a message. The key is bytes or text of any length: one longer than the

@@ -3,10 +3,10 @@
 # sgcl::crypto::nonce_counter::nonce_counter
 
 ```cpp
-/*(1)*/ nonce_counter() noexcept = default;
-/*(2)*/ explicit nonce_counter(const array<byte, 12>& start) noexcept;
-/*(3)*/ nonce_counter(nonce_counter&& other) noexcept;
-/*(4)*/ nonce_counter(const nonce_counter&) = delete;
+nonce_counter() noexcept = default;                               // (1)
+explicit nonce_counter(const array<byte, 12>& start) noexcept;    // (2)
+nonce_counter(nonce_counter&& other) noexcept;                    // (3)
+nonce_counter(const nonce_counter&) = delete;                     // (4)
 ```
 
 1. A counter from zero: its first nonce is twelve zero bytes.

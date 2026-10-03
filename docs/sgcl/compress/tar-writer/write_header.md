@@ -3,8 +3,8 @@
 # sgcl::compress::tar::writer::write_header, async_write_header
 
 ```cpp
-/*(1)*/ expected<void, error> write_header(const entry& e);
-/*(2)*/ async::task<expected<void, error>> async_write_header(entry e) noexcept;
+expected<void, error> write_header(const entry& e);                         // (1)
+async::task<expected<void, error>> async_write_header(entry e) noexcept;    // (2)
 ```
 
 Starts an entry: pads the data of the one before to its block, and writes the header of `e` — ustar when it fits,

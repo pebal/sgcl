@@ -3,10 +3,10 @@
 # sgcl::encoding::xml::reader::read, async_read
 
 ```cpp
-/*(1)*/ optional<xml> read();
-/*(2)*/ async::task<optional<xml>> async_read() noexcept;
-/*(3)*/ template<class T> optional<T> read();
-/*(4)*/ template<class T> async::task<optional<T>> async_read() noexcept;
+optional<xml> read();                                                // (1)
+async::task<optional<xml>> async_read() noexcept;                    // (2)
+template<class T> optional<T> read();                                // (3)
+template<class T> async::task<optional<T>> async_read() noexcept;    // (4)
 ```
 
 The next node whole, read from where the reader is.

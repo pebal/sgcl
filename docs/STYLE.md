@@ -101,12 +101,26 @@ are on their own pages.
 ### The page of a method
 
 1. The breadcrumb and the title.
-2. The signatures in a `cpp` block, without the include line. Overloads are numbered by a comment at the start
-   of the line, without spaces: `/*(1)*/ iterator insert(const_iterator pos, const T& value);`. A signature
-   longer than 100 columns is broken after its `template<…>`, the declaration indented to the column of the
-   signatures; one without `template<…>` is broken after a parameter's comma, the continuation aligned under the
-   first parameter. A `requires` clause naming a `detail` concept is left out of the signature and said in the
-   description in words ("takes part only when `Compare` declares `is_transparent`").
+2. The signatures in a `cpp` block, without the include line. Overloads are numbered by a comment on the right,
+   `// (1)`, in one column per block: the longest declaration line of the block (template, name and
+   continuation lines, without a trailing comment of their own) plus 4 spaces. The number stands on the line
+   that holds the function's name, never on a `template<…>` line or a continuation line; a remark of the line
+   follows it, `// (2), implicitly declared`. An unnumbered declaration has no comment, and a block of one
+   declaration has no number. A signature longer than 100 columns is broken after its `template<…>`, the
+   declaration below it at the same column; one without `template<…>` is broken after a parameter's comma, the
+   continuation aligned under the first parameter:
+
+   ```cpp
+   namespace sgcl::compress::sevenzip {
+       expected<void, error> extract(const string& archive_path, const string& directory,         // (1)
+                                     const options& o = {});
+       async::task<expected<void, error>> async_extract(string archive_path, string directory,    // (2)
+                                                        options o = {}) noexcept;
+   }
+   ```
+
+   A `requires` clause naming a `detail` concept is left out of the signature and said in the description in
+   words ("takes part only when `Compare` declares `is_transparent`").
 3. The description. Overloads with a sentence each are a numbered list (`1.`, `2.`); a sentence shared by
    several is a bullet with their numbers, `- (1–2) …`. The text refers to an overload as `(7)`.
 4. `## Parameters`: a table of the function's parameters, `Parameter | Description`. The template parameters of

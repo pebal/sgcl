@@ -3,8 +3,8 @@
 # sgcl::runes::runes
 
 ```cpp
-/*(1)*/ runes() noexcept = default;
-/*(2)*/ explicit runes(const slice<const char>& text) noexcept;
+runes() noexcept = default;                                // (1)
+explicit runes(const slice<const char>& text) noexcept;    // (2)
 ```
 
 Constructs the range of the code points of a text.

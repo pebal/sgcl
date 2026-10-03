@@ -3,10 +3,10 @@
 # sgcl::forward_list\<T\>::resize
 
 ```cpp
-/*(1)*/ void resize(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>)
-            requires std::default_initializable<T>;
-/*(2)*/ void resize(size_type count, const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
+void resize(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>)    // (1)
+    requires std::default_initializable<T>;
+void resize(size_type count, const value_type& value)                                // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
 ```
 
 Changes the number of elements to `count`, in one walk of the list. A list longer than `count` erases the elements

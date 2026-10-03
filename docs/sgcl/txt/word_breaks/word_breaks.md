@@ -3,14 +3,14 @@
 # sgcl::txt::word_breaks::word_breaks
 
 ```cpp
-/*(1)*/ word_breaks() noexcept = default;
-/*(2)*/ explicit word_breaks(const slice<const char>& text) noexcept;
-/*(3)*/ explicit word_breaks(const string& text) noexcept;
-/*(4)*/ template<size_t N>
-        explicit word_breaks(const char (&text)[N]);
-/*(5)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit word_breaks(P text);
+word_breaks() noexcept = default;                                  // (1)
+explicit word_breaks(const slice<const char>& text) noexcept;      // (2)
+explicit word_breaks(const string& text) noexcept;                 // (3)
+template<size_t N>
+explicit word_breaks(const char (&text)[N]);                       // (4)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit word_breaks(P text);                                      // (5)
 ```
 
 Constructs the range of the text cut at every word boundary. `txt::word_breaks(s)` looks like a call and is a

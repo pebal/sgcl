@@ -3,9 +3,9 @@
 # sgcl::sorted_set\<Key, Compare\>::end, cend
 
 ```cpp
-/*(1)*/ iterator end() noexcept;
-/*(2)*/ const_iterator end() const noexcept;
-/*(3)*/ const_iterator cend() const noexcept;
+iterator end() noexcept;                 // (1)
+const_iterator end() const noexcept;     // (2)
+const_iterator cend() const noexcept;    // (3)
 ```
 
 Returns the iterator past the largest element: the header node of the tree, which is not an element and may not be

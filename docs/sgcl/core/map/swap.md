@@ -3,9 +3,9 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::swap
 
 ```cpp
-/*(1)*/ void swap(map& other)
-            noexcept(std::is_nothrow_swappable_v<hasher> && std::is_nothrow_swappable_v<key_equal>);
-/*(2)*/ friend void swap(map& lhs, map& rhs) noexcept(noexcept(lhs.swap(rhs)));
+void swap(map& other)                                                                           // (1)
+    noexcept(std::is_nothrow_swappable_v<hasher> && std::is_nothrow_swappable_v<key_equal>);
+friend void swap(map& lhs, map& rhs) noexcept(noexcept(lhs.swap(rhs)));                         // (2)
 ```
 
 Exchanges the contents of two maps: their tables, counts, load factors, hashers and equalities. No element is

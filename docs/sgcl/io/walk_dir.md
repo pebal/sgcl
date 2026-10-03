@@ -6,11 +6,11 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<class F>
-            expected<void, error> walk_dir(const string& root, F f) noexcept(/* see below */);
-    /*(2)*/ template<class F>
-            async::task<expected<void, error>> async_walk_dir(const string& root, F f)
-                noexcept(std::is_nothrow_move_constructible_v<F>);
+    template<class F>
+    expected<void, error> walk_dir(const string& root, F f) noexcept(/* see below */);    // (1)
+    template<class F>
+    async::task<expected<void, error>> async_walk_dir(const string& root, F f)            // (2)
+        noexcept(std::is_nothrow_move_constructible_v<F>);
 }
 ```
 

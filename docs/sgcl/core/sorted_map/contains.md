@@ -3,8 +3,8 @@
 # sgcl::sorted_map\<Key, T, Compare\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const key_type& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept(/* see below */);
+bool contains(const key_type& key) const noexcept;                                // (1)
+template<class K> bool contains(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Checks whether the map holds an element under `key`. It hides

@@ -3,9 +3,9 @@
 # sgcl::mixin::enumerable\<Derived\>::min
 
 ```cpp
-/*(1)*/ constexpr decltype(auto) min() const noexcept(/* see below */);
-/*(2)*/ template<class Compare>
-        constexpr decltype(auto) min(Compare cmp) const noexcept(/* see below */);
+constexpr decltype(auto) min() const noexcept(/* see below */);               // (1)
+template<class Compare>
+constexpr decltype(auto) min(Compare cmp) const noexcept(/* see below */);    // (2)
 ```
 
 Finds the smallest element, walking the whole range; of several equal smallest, the first.

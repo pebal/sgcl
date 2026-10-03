@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::end, cend
 
 ```cpp
-/*(1)*/ const_iterator end() const noexcept;
-/*(2)*/ const_iterator cend() const noexcept;
+const_iterator end() const noexcept;     // (1)
+const_iterator cend() const noexcept;    // (2)
 ```
 
 Returns an iterator past the last element, equal to a default-constructed `const_iterator`; it is also what

@@ -3,21 +3,21 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::insert
 
 ```cpp
-/*(1)*/ bool insert(const Key& key, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, const T&>);
-/*(2)*/ bool insert(const Key& key, T&& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
-/*(3)*/ bool insert(Key&& key, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, Key&&, const T&>);
-/*(4)*/ bool insert(Key&& key, T&& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, Key&&, T&&>);
-/*(5)*/ bool insert(const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, const T&>);
+bool insert(const Key& key, const T& value)                                         // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, const T&>);
+bool insert(const Key& key, T&& value)                                              // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
+bool insert(Key&& key, const T& value)                                              // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, Key&&, const T&>);
+bool insert(Key&& key, T&& value)                                                   // (4)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, Key&&, T&&>);
+bool insert(const value_type& value)                                                // (5)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, const T&>);
 ```
 
 Adds `value` under `key` when the key is absent, and does nothing when it is there, as the map's

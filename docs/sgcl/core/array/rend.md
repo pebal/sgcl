@@ -3,9 +3,9 @@
 # sgcl::array\<T, N\>::rend, crend
 
 ```cpp
-/*(1)*/ constexpr reverse_iterator rend() noexcept;
-/*(2)*/ constexpr const_reverse_iterator rend() const noexcept;
-/*(3)*/ constexpr const_reverse_iterator crend() const noexcept;
+constexpr reverse_iterator rend() noexcept;                 // (1)
+constexpr const_reverse_iterator rend() const noexcept;     // (2)
+constexpr const_reverse_iterator crend() const noexcept;    // (3)
 ```
 
 Returns a reverse iterator past the first element, the end of the walk from the back:

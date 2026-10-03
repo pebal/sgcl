@@ -6,8 +6,8 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<file_info, error> lstat(const string& path) noexcept;
-    /*(2)*/ async::task<expected<file_info, error>> async_lstat(const string& path) noexcept;
+    expected<file_info, error> lstat(const string& path) noexcept;                       // (1)
+    async::task<expected<file_info, error>> async_lstat(const string& path) noexcept;    // (2)
 }
 ```
 

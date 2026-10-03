@@ -3,8 +3,8 @@
 # sgcl::queue\<T, Container\>::operator=
 
 ```cpp
-/*(1)*/ queue& operator=(const queue& other);
-/*(2)*/ queue& operator=(queue&& other);
+queue& operator=(const queue& other);    // (1)
+queue& operator=(queue&& other);         // (2)
 ```
 
 Replaces the contents of the queue.

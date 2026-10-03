@@ -3,8 +3,8 @@
 # sgcl::thread::operator=
 
 ```cpp
-/*(1)*/ thread& operator=(thread&& o) noexcept;
-/*(2)*/ thread& operator=(const thread&) = delete;
+thread& operator=(thread&& o) noexcept;       // (1)
+thread& operator=(const thread&) = delete;    // (2)
 ```
 
 1. Takes the thread of `o` over; `o` stands for no thread after. When this object still stands for a joinable

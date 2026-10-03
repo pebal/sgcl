@@ -3,8 +3,8 @@
 # sgcl::txt::percent_set::percent_set
 
 ```cpp
-/*(1)*/ constexpr percent_set() noexcept = default;
-/*(2)*/ constexpr explicit percent_set(const char* chars) noexcept;
+constexpr percent_set() noexcept = default;                    // (1)
+constexpr explicit percent_set(const char* chars) noexcept;    // (2)
 ```
 
 Constructs a set.

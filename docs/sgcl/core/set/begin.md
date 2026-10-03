@@ -3,12 +3,12 @@
 # sgcl::set\<Key, Hash, KeyEqual\>::begin, cbegin
 
 ```cpp
-/*(1)*/ iterator begin() noexcept;
-/*(2)*/ const_iterator begin() const noexcept;
-/*(3)*/ const_iterator cbegin() const noexcept;
-/*(4)*/ local_iterator begin(size_type n) noexcept;
-/*(5)*/ const_local_iterator begin(size_type n) const noexcept;
-/*(6)*/ const_local_iterator cbegin(size_type n) const noexcept;
+iterator begin() noexcept;                                  // (1)
+const_iterator begin() const noexcept;                      // (2)
+const_iterator cbegin() const noexcept;                     // (3)
+local_iterator begin(size_type n) noexcept;                 // (4)
+const_local_iterator begin(size_type n) const noexcept;     // (5)
+const_local_iterator cbegin(size_type n) const noexcept;    // (6)
 ```
 
 Returns an iterator to the first element.

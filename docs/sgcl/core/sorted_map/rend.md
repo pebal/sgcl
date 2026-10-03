@@ -3,9 +3,9 @@
 # sgcl::sorted_map\<Key, T, Compare\>::rend, crend
 
 ```cpp
-/*(1)*/ reverse_iterator rend() noexcept;
-/*(2)*/ const_reverse_iterator rend() const noexcept;
-/*(3)*/ const_reverse_iterator crend() const noexcept;
+reverse_iterator rend() noexcept;                 // (1)
+const_reverse_iterator rend() const noexcept;     // (2)
+const_reverse_iterator crend() const noexcept;    // (3)
 ```
 
 Returns the reverse iterator past the first element: `std::reverse_iterator` over [begin()](begin.md), which may

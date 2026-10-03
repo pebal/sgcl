@@ -3,8 +3,8 @@
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::set)
 
 ```cpp
-/*(1)*/ friend bool operator==(const set& a, const set& b) noexcept;
-/*(2)*/ friend bool operator!=(const set& a, const set& b) noexcept;
+friend bool operator==(const set& a, const set& b) noexcept;    // (1)
+friend bool operator!=(const set& a, const set& b) noexcept;    // (2)
 ```
 
 Compares two sets by their elements.

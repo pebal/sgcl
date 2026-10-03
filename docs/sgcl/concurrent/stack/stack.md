@@ -3,8 +3,8 @@
 # sgcl::concurrent::stack\<T\>::stack
 
 ```cpp
-/*(1)*/ stack() noexcept;
-/*(2)*/ stack(const stack&) = delete;
+stack() noexcept;                // (1)
+stack(const stack&) = delete;    // (2)
 ```
 
 1. An empty stack: a null head. Nothing is allocated.

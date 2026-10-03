@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::reader::peek, async_peek
 
 ```cpp
-/*(1)*/ optional<token> peek();
-/*(2)*/ async::task<optional<token>> async_peek() noexcept;
+optional<token> peek();                                // (1)
+async::task<optional<token>> async_peek() noexcept;    // (2)
 ```
 
 The token [next](next.md) gives next, left where it is: a copy of it, the reader keeping its own. The loop that

@@ -3,9 +3,9 @@
 # sgcl::mixin::ordered\<Derived\>::is_sorted
 
 ```cpp
-/*(1)*/ constexpr bool is_sorted() const noexcept(/* see below */);
-/*(2)*/ template<class Compare>
-        constexpr bool is_sorted(Compare cmp) const noexcept(/* see below */);
+constexpr bool is_sorted() const noexcept(/* see below */);               // (1)
+template<class Compare>
+constexpr bool is_sorted(Compare cmp) const noexcept(/* see below */);    // (2)
 ```
 
 Checks whether the elements are in order: no element goes before the one ahead of it. Equal neighbours are in

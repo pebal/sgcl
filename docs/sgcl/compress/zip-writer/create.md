@@ -3,9 +3,9 @@
 # sgcl::compress::zip::writer::create, async_create
 
 ```cpp
-/*(1)*/ expected<io::writer, error> create(const string& name);
-/*(2)*/ expected<io::writer, error> create(const entry& e);
-/*(3)*/ async::task<expected<io::writer, error>> async_create(entry e) noexcept;
+expected<io::writer, error> create(const string& name);                     // (1)
+expected<io::writer, error> create(const entry& e);                         // (2)
+async::task<expected<io::writer, error>> async_create(entry e) noexcept;    // (3)
 ```
 
 Ends the current entry and starts a new one: writes its local header and gives an [io writer](../../io/writer.md) of

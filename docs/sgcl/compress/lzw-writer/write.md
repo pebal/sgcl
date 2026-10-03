@@ -3,8 +3,8 @@
 # sgcl::compress::lzw::writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> write(const slice<const byte>& data);
-/*(2)*/ async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;
+expected<size_t, io::error> write(const slice<const byte>& data);                         // (1)
+async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;    // (2)
 ```
 
 Codes `data`, 64 KB at a time, and writes the codes to `out` as they come. A byte the literal width cannot hold (5

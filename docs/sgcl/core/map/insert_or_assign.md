@@ -3,26 +3,26 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::insert_or_assign
 
 ```cpp
-/*(1)*/ template<class M>
-        pair<iterator, bool> insert_or_assign(const key_type& key, M&& obj)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, M&&> &&
-                     std::is_nothrow_assignable_v<T&, M&&>);
-/*(2)*/ template<class M>
-        pair<iterator, bool> insert_or_assign(key_type&& key, M&& obj)
-            noexcept(std::is_nothrow_move_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, M&&> &&
-                     std::is_nothrow_assignable_v<T&, M&&>);
-/*(3)*/ template<class M>
-        iterator insert_or_assign(const_iterator hint, const key_type& key, M&& obj)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, M&&> &&
-                     std::is_nothrow_assignable_v<T&, M&&>);
-/*(4)*/ template<class M>
-        iterator insert_or_assign(const_iterator hint, key_type&& key, M&& obj)
-            noexcept(std::is_nothrow_move_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, M&&> &&
-                     std::is_nothrow_assignable_v<T&, M&&>);
+template<class M>
+pair<iterator, bool> insert_or_assign(const key_type& key, M&& obj)             // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, M&&> &&
+             std::is_nothrow_assignable_v<T&, M&&>);
+template<class M>
+pair<iterator, bool> insert_or_assign(key_type&& key, M&& obj)                  // (2)
+    noexcept(std::is_nothrow_move_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, M&&> &&
+             std::is_nothrow_assignable_v<T&, M&&>);
+template<class M>
+iterator insert_or_assign(const_iterator hint, const key_type& key, M&& obj)    // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, M&&> &&
+             std::is_nothrow_assignable_v<T&, M&&>);
+template<class M>
+iterator insert_or_assign(const_iterator hint, key_type&& key, M&& obj)         // (4)
+    noexcept(std::is_nothrow_move_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, M&&> &&
+             std::is_nothrow_assignable_v<T&, M&&>);
 ```
 
 Inserts `{key, obj}` when the key is not in the map, otherwise assigns `obj` to the value under it, in place.

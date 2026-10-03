@@ -3,9 +3,9 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::take
 
 ```cpp
-/*(1)*/ optional<mapped_type> take(const key_type& key)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(2)*/ template<class K> optional<mapped_type> take(const K& key) noexcept(/* see below */);
+optional<mapped_type> take(const key_type& key)                                          // (1)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
+template<class K> optional<mapped_type> take(const K& key) noexcept(/* see below */);    // (2)
 ```
 
 Moves the value under `key` out and erases the element, in one search; `nullopt` when the key is absent. What

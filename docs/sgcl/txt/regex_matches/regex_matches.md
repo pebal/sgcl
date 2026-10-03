@@ -3,11 +3,11 @@
 # sgcl::txt::regex_matches::regex_matches
 
 ```cpp
-/*(1)*/ regex_matches() noexcept = default;
-/*(2)*/ regex_matches(const regex& re, const slice<const char>& text) noexcept;
-/*(3)*/ template<size_t N> regex_matches(const regex& re, const char (&text)[N]);
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        regex_matches(const regex& re, P text);
+regex_matches() noexcept = default;                                                  // (1)
+regex_matches(const regex& re, const slice<const char>& text) noexcept;              // (2)
+template<size_t N> regex_matches(const regex& re, const char (&text)[N]);            // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+regex_matches(const regex& re, P text);                                              // (4)
 ```
 
 Constructs the range of the matches of a pattern in a text. [regex::all](../regex/all.md) is the usual way to

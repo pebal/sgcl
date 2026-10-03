@@ -3,12 +3,12 @@
 # sgcl::time::date::operator+=, operator-=, sgcl::time::operator+, operator- (sgcl::time::date)
 
 ```cpp
-/*(1)*/ friend constexpr date operator+(date d, int n) noexcept;
-/*(2)*/ friend constexpr date operator+(int n, date d) noexcept;
-/*(3)*/ friend constexpr date operator-(date d, int n) noexcept;
-/*(4)*/ friend constexpr int operator-(date a, date b) noexcept;
-/*(5)*/ constexpr date& operator+=(int n) noexcept;
-/*(6)*/ constexpr date& operator-=(int n) noexcept;
+friend constexpr date operator+(date d, int n) noexcept;    // (1)
+friend constexpr date operator+(int n, date d) noexcept;    // (2)
+friend constexpr date operator-(date d, int n) noexcept;    // (3)
+friend constexpr int operator-(date a, date b) noexcept;    // (4)
+constexpr date& operator+=(int n) noexcept;                 // (5)
+constexpr date& operator-=(int n) noexcept;                 // (6)
 ```
 
 The day arithmetic in operators, as a [datetime](../datetime.md) has it. The operators other than the compound

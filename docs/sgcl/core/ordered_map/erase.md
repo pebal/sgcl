@@ -3,11 +3,11 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::erase
 
 ```cpp
-/*(1)*/ iterator erase(const_iterator pos) noexcept;
-/*(2)*/ iterator erase(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>);
-/*(3)*/ iterator erase(const_iterator first, const_iterator last) noexcept;
-/*(4)*/ size_type erase(const key_type& key) noexcept;
-/*(5)*/ template<class K> size_type erase(K&& key) noexcept(/* see below */);
+iterator erase(const_iterator pos) noexcept;                                                   // (1)
+iterator erase(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>);    // (2)
+iterator erase(const_iterator first, const_iterator last) noexcept;                            // (3)
+size_type erase(const key_type& key) noexcept;                                                 // (4)
+template<class K> size_type erase(K&& key) noexcept(/* see below */);                          // (5)
 ```
 
 Erases elements. An erased element is destroyed at once and its node unlinked from the chain and from the order;

@@ -3,12 +3,12 @@
 # sgcl::txt::collated_text::collated_text
 
 ```cpp
-/*(1)*/ collated_text() noexcept = default;
-/*(2)*/ collated_text(const collator& by, const string& text) noexcept;
-/*(3)*/ collated_text(const collator& by, const slice<const char>& text);
-/*(4)*/ template<size_t N> collated_text(const collator& by, const char (&text)[N]);
-/*(5)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        collated_text(const collator& by, P text);
+collated_text() noexcept = default;                                                  // (1)
+collated_text(const collator& by, const string& text) noexcept;                      // (2)
+collated_text(const collator& by, const slice<const char>& text);                    // (3)
+template<size_t N> collated_text(const collator& by, const char (&text)[N]);         // (4)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+collated_text(const collator& by, P text);                                           // (5)
 ```
 
 Weighs a text once by a collator, keeping a copy of the collator and the text.

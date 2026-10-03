@@ -3,8 +3,8 @@
 # sgcl::net::http::response_writer::flush, async_flush
 
 ```cpp
-/*(1)*/ expected<void, io::error> flush() const;
-/*(2)*/ async::task<expected<void, io::error>> async_flush() const noexcept;
+expected<void, io::error> flush() const;                                // (1)
+async::task<expected<void, io::error>> async_flush() const noexcept;    // (2)
 ```
 
 Sends now what is buffered, Go's `Flusher.Flush`: the head, if it has not gone, then the body written so far. From

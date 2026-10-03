@@ -3,11 +3,11 @@
 # sgcl::encoding::csv::reader::reader
 
 ```cpp
-/*(1)*/ explicit reader(const string& text) noexcept;
-/*(2)*/ reader(const string& text, const options& o);
-/*(3)*/ explicit reader(const io::reader& in) noexcept;
-/*(4)*/ reader(const io::reader& in, const options& o);
-/*(5)*/ reader(const reader&) = delete;
+explicit reader(const string& text) noexcept;      // (1)
+reader(const string& text, const options& o);      // (2)
+explicit reader(const io::reader& in) noexcept;    // (3)
+reader(const io::reader& in, const options& o);    // (4)
+reader(const reader&) = delete;                    // (5)
 ```
 
 Constructs a reader at the start of its input. Nothing is read until the first record is asked for.

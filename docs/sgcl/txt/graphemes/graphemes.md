@@ -3,14 +3,14 @@
 # sgcl::txt::graphemes::graphemes
 
 ```cpp
-/*(1)*/ graphemes() noexcept = default;
-/*(2)*/ explicit graphemes(const slice<const char>& text) noexcept;
-/*(3)*/ explicit graphemes(const string& text) noexcept;
-/*(4)*/ template<size_t N>
-        explicit graphemes(const char (&text)[N]);
-/*(5)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit graphemes(P text);
+graphemes() noexcept = default;                                    // (1)
+explicit graphemes(const slice<const char>& text) noexcept;        // (2)
+explicit graphemes(const string& text) noexcept;                   // (3)
+template<size_t N>
+explicit graphemes(const char (&text)[N]);                         // (4)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit graphemes(P text);                                        // (5)
 ```
 
 Constructs the range of the grapheme clusters of a text. `txt::graphemes(s)` looks like a call and is a construction,

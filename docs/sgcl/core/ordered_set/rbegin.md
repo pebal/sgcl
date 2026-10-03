@@ -3,8 +3,8 @@
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::rbegin, crbegin
 
 ```cpp
-/*(1)*/ const_reverse_iterator rbegin() const noexcept;
-/*(2)*/ const_reverse_iterator crbegin() const noexcept;
+const_reverse_iterator rbegin() const noexcept;     // (1)
+const_reverse_iterator crbegin() const noexcept;    // (2)
 ```
 
 Returns a reverse iterator to the newest element: the order of insertion walked backwards, from the newest

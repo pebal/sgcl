@@ -3,8 +3,8 @@
 # sgcl::codec::image::pixels
 
 ```cpp
-/*(1)*/ slice<byte> pixels() noexcept;
-/*(2)*/ slice<const byte> pixels() const noexcept;
+slice<byte> pixels() noexcept;                // (1)
+slice<const byte> pixels() const noexcept;    // (2)
 ```
 
 Every row of the image, from the top, [stride](stride.md) bytes each with no gap between them: the pixels as the

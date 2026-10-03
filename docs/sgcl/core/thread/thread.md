@@ -3,11 +3,11 @@
 # sgcl::thread::thread
 
 ```cpp
-/*(1)*/ thread() noexcept = default;
-/*(2)*/ template<class F, class... Args>
-        explicit thread(F&& f, Args&&... args);
-/*(3)*/ thread(thread&& o) noexcept = default;
-/*(4)*/ thread(const thread&) = delete;
+thread() noexcept = default;               // (1)
+template<class F, class... Args>
+explicit thread(F&& f, Args&&... args);    // (2)
+thread(thread&& o) noexcept = default;     // (3)
+thread(const thread&) = delete;            // (4)
 ```
 
 Constructs a thread object.

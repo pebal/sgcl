@@ -3,11 +3,11 @@
 # sgcl::string::swap, sgcl::swap (sgcl::string)
 
 ```cpp
-/*(1)*/ void swap(basic_string& o) noexcept;
+void swap(basic_string& o) noexcept;                                                       // (1)
 
 namespace sgcl {
-    /*(2)*/ template<class CharT, class Traits>
-            void swap(basic_string<CharT, Traits>& l, basic_string<CharT, Traits>& r) noexcept;
+    template<class CharT, class Traits>
+    void swap(basic_string<CharT, Traits>& l, basic_string<CharT, Traits>& r) noexcept;    // (2)
 }
 ```
 

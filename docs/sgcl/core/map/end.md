@@ -3,12 +3,12 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::end, cend
 
 ```cpp
-/*(1)*/ iterator end() noexcept;
-/*(2)*/ const_iterator end() const noexcept;
-/*(3)*/ const_iterator cend() const noexcept;
-/*(4)*/ local_iterator end(size_type n) noexcept;
-/*(5)*/ const_local_iterator end(size_type n) const noexcept;
-/*(6)*/ const_local_iterator cend(size_type n) const noexcept;
+iterator end() noexcept;                                  // (1)
+const_iterator end() const noexcept;                      // (2)
+const_iterator cend() const noexcept;                     // (3)
+local_iterator end(size_type n) noexcept;                 // (4)
+const_local_iterator end(size_type n) const noexcept;     // (5)
+const_local_iterator cend(size_type n) const noexcept;    // (6)
 ```
 
 Returns an iterator past the last element.

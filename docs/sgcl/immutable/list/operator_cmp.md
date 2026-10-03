@@ -3,8 +3,8 @@
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::list)
 
 ```cpp
-/*(1)*/ friend bool operator==(const list& a, const list& b);
-/*(2)*/ friend bool operator!=(const list& a, const list& b);
+friend bool operator==(const list& a, const list& b);    // (1)
+friend bool operator!=(const list& a, const list& b);    // (2)
 ```
 
 Compares two lists by their elements.

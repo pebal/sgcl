@@ -3,11 +3,11 @@
 # sgcl::encoding::ascii85::decode_to
 
 ```cpp
-/*(1)*/ static expected<size_t, error> decode_to(const slice<byte>& out, const string& text);
-/*(2)*/ static expected<size_t, error> decode_to(const slice<byte>& out,
-                                                 const slice<const char>& text);
-/*(3)*/ template<class T>
-        static expected<size_t, error> decode_to(const slice<byte>& out, const T& text);
+static expected<size_t, error> decode_to(const slice<byte>& out, const string& text);    // (1)
+static expected<size_t, error> decode_to(const slice<byte>& out,                         // (2)
+                                         const slice<const char>& text);
+template<class T>
+static expected<size_t, error> decode_to(const slice<byte>& out, const T& text);         // (3)
 ```
 
 The bytes of a text written into the caller's buffer, nothing allocated: Go's `ascii85.Decode` of the whole text.

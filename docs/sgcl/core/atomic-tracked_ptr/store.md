@@ -3,11 +3,11 @@
 # sgcl::atomic\<tracked_ptr\<T\>\>::store
 
 ```cpp
-/*(1)*/ void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;
-/*(2)*/ void store(unique_ptr<T>&& p,
-                   const std::memory_order m = std::memory_order_seq_cst) noexcept;
-/*(3)*/ void store(tracked_ptr<T> p,
-                   const std::memory_order m = std::memory_order_seq_cst) noexcept;
+void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;    // (1)
+void store(unique_ptr<T>&& p,                                                                  // (2)
+           const std::memory_order m = std::memory_order_seq_cst) noexcept;
+void store(tracked_ptr<T> p,                                                                   // (3)
+           const std::memory_order m = std::memory_order_seq_cst) noexcept;
 ```
 
 Replaces the pointer. The old object lives on for whoever holds it; the store carries the write barrier.

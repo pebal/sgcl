@@ -3,11 +3,11 @@
 # sgcl::atomic\<tracked_ptr\<T\>\>::atomic
 
 ```cpp
-/*(1)*/ atomic() noexcept;
-/*(2)*/ atomic(std::nullptr_t) noexcept;
-/*(3)*/ atomic(unique_ptr<T>&& p) noexcept;
-/*(4)*/ atomic(value_type p) noexcept;
-/*(5)*/ atomic(const atomic&) = delete;
+atomic() noexcept;                     // (1)
+atomic(std::nullptr_t) noexcept;       // (2)
+atomic(unique_ptr<T>&& p) noexcept;    // (3)
+atomic(value_type p) noexcept;         // (4)
+atomic(const atomic&) = delete;        // (5)
 ```
 
 Constructs the atomic, as the constructors of `std::atomic` do.

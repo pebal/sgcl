@@ -3,10 +3,10 @@
 # sgcl::crypto::mixin::aead\<Derived\>::seal_to
 
 ```cpp
-/*(1)*/ size_t seal_to(const slice<byte>& out, const slice<const byte>& nonce,
-                       const slice<const byte>& plaintext) const;
-/*(2)*/ size_t seal_to(const slice<byte>& out, const slice<const byte>& nonce,
-                       const slice<const byte>& plaintext, const slice<const byte>& aad) const;
+size_t seal_to(const slice<byte>& out, const slice<const byte>& nonce,                     // (1)
+               const slice<const byte>& plaintext) const;
+size_t seal_to(const slice<byte>& out, const slice<const byte>& nonce,                     // (2)
+               const slice<const byte>& plaintext, const slice<const byte>& aad) const;
 ```
 
 Seals as [seal](seal.md) does, into a buffer the caller gives, with nothing allocated: the ciphertext and the tag

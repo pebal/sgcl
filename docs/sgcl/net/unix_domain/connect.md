@@ -3,8 +3,8 @@
 # sgcl::net::unix_domain::connect, async_connect
 
 ```cpp
-/*(1)*/ static expected<net::connection, io::error> connect(const string& path);
-/*(2)*/ static async::task<expected<net::connection, io::error>> async_connect(const string& path) noexcept;
+static expected<net::connection, io::error> connect(const string& path);                                // (1)
+static async::task<expected<net::connection, io::error>> async_connect(const string& path) noexcept;    // (2)
 ```
 
 Connects to the unix socket at `path`, the file a [listen](listen.md) made: Go's `net.Dial("unix", path)`. One

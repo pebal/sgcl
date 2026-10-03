@@ -3,8 +3,8 @@
 # sgcl::concurrent::copy_on_write\<T\>::load, operator snapshot
 
 ```cpp
-/*(1)*/ snapshot load() const noexcept;
-/*(2)*/ operator snapshot() const noexcept;
+snapshot load() const noexcept;        // (1)
+operator snapshot() const noexcept;    // (2)
 ```
 
 1. The current value: one atomic load of the pointer.

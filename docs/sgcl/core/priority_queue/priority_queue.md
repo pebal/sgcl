@@ -3,30 +3,30 @@
 # sgcl::priority_queue\<T, Container, Compare\>::priority_queue
 
 ```cpp
-/*(1)*/ priority_queue()
-            noexcept(std::is_nothrow_default_constructible_v<Container> &&
-                     std::is_nothrow_default_constructible_v<Compare>);
-/*(2)*/ explicit priority_queue(const Compare& compare)
-            noexcept(std::is_nothrow_default_constructible_v<Container> &&
-                     std::is_nothrow_copy_constructible_v<Compare>);
-/*(3)*/ priority_queue(const Compare& compare, const Container& cont)
-            noexcept(std::is_nothrow_copy_constructible_v<Container> &&
-                     std::is_nothrow_copy_constructible_v<Compare> &&
-                     std::is_nothrow_move_constructible_v<value_type> &&
-                     std::is_nothrow_move_assignable_v<value_type>);
-/*(4)*/ priority_queue(const Compare& compare, Container&& cont)
-            noexcept(std::is_nothrow_move_constructible_v<Container> &&
-                     std::is_nothrow_copy_constructible_v<Compare> &&
-                     std::is_nothrow_move_constructible_v<value_type> &&
-                     std::is_nothrow_move_assignable_v<value_type>);
-/*(5)*/ template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& compare = Compare());
-/*(6)*/ template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& compare, const Container& cont);
-/*(7)*/ template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& compare, Container&& cont);
-/*(8)*/ priority_queue(const priority_queue& other);
-/*(9)*/ priority_queue(priority_queue&& other);
+priority_queue()                                                                               // (1)
+    noexcept(std::is_nothrow_default_constructible_v<Container> &&
+             std::is_nothrow_default_constructible_v<Compare>);
+explicit priority_queue(const Compare& compare)                                                // (2)
+    noexcept(std::is_nothrow_default_constructible_v<Container> &&
+             std::is_nothrow_copy_constructible_v<Compare>);
+priority_queue(const Compare& compare, const Container& cont)                                  // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<Container> &&
+             std::is_nothrow_copy_constructible_v<Compare> &&
+             std::is_nothrow_move_constructible_v<value_type> &&
+             std::is_nothrow_move_assignable_v<value_type>);
+priority_queue(const Compare& compare, Container&& cont)                                       // (4)
+    noexcept(std::is_nothrow_move_constructible_v<Container> &&
+             std::is_nothrow_copy_constructible_v<Compare> &&
+             std::is_nothrow_move_constructible_v<value_type> &&
+             std::is_nothrow_move_assignable_v<value_type>);
+template<std::input_iterator InputIt>
+priority_queue(InputIt first, InputIt last, const Compare& compare = Compare());               // (5)
+template<std::input_iterator InputIt>
+priority_queue(InputIt first, InputIt last, const Compare& compare, const Container& cont);    // (6)
+template<std::input_iterator InputIt>
+priority_queue(InputIt first, InputIt last, const Compare& compare, Container&& cont);         // (7)
+priority_queue(const priority_queue& other);                                                   // (8)
+priority_queue(priority_queue&& other);                                                        // (9)
 ```
 
 Constructs a priority queue from one of the sources below. (3)–(7) then make the container a heap under

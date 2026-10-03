@@ -3,8 +3,8 @@
 # sgcl::io::command::combined_output, async_combined_output
 
 ```cpp
-/*(1)*/ expected<string, error> combined_output();
-/*(2)*/ async::task<expected<string, error>> async_combined_output() noexcept;
+expected<string, error> combined_output();                                // (1)
+async::task<expected<string, error>> async_combined_output() noexcept;    // (2)
 ```
 
 Runs the child with its standard output and its standard error captured together, in one pipe, in the order it

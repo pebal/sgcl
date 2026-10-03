@@ -3,9 +3,9 @@
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::swap
 
 ```cpp
-/*(1)*/ void swap(multimap& other)
-            noexcept(std::is_nothrow_swappable_v<hasher> && std::is_nothrow_swappable_v<key_equal>);
-/*(2)*/ friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs)));
+void swap(multimap& other)                                                                      // (1)
+    noexcept(std::is_nothrow_swappable_v<hasher> && std::is_nothrow_swappable_v<key_equal>);
+friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs)));               // (2)
 ```
 
 Exchanges the contents of two multimaps: their tables, counts, load factors, hashers and equalities. No element is

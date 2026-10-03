@@ -3,15 +3,15 @@
 # sgcl::math::operator==, operator\<=\> (sgcl::math::big_integer)
 
 ```cpp
-/*(1)*/ friend bool operator==(const big_integer& a, const big_integer& b) noexcept;
-/*(2)*/ friend std::strong_ordering operator<=>(const big_integer& a,
-                                                const big_integer& b) noexcept;
-/*(3)*/ template<std::integral T>
-        requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        friend bool operator==(const big_integer& a, T b) noexcept;
-/*(4)*/ template<std::integral T>
-        requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        friend std::strong_ordering operator<=>(const big_integer& a, T b) noexcept;
+friend bool operator==(const big_integer& a, const big_integer& b) noexcept;    // (1)
+friend std::strong_ordering operator<=>(const big_integer& a,                   // (2)
+                                        const big_integer& b) noexcept;
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
+friend bool operator==(const big_integer& a, T b) noexcept;                     // (3)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
+friend std::strong_ordering operator<=>(const big_integer& a, T b) noexcept;    // (4)
 ```
 
 Compare two numbers; the order is the mathematical one. `!=`, `<`, `<=`, `>` and `>=` are made from these by the

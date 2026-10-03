@@ -3,20 +3,20 @@
 # sgcl::multiset\<Key, Hash, KeyEqual\>::multiset
 
 ```cpp
-/*(1)*/ multiset() noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                            std::is_nothrow_default_constructible_v<key_equal>);
-/*(2)*/ explicit multiset(size_type bucket_count, const hasher& hash = hasher(),
-                          const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        multiset(InputIt first, InputIt last, size_type bucket_count = 0,
-                 const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(4)*/ multiset(std::initializer_list<value_type> ilist, size_type bucket_count = 0,
-                 const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ multiset(const multiset& other);
-/*(6)*/ multiset(multiset&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                                            std::is_nothrow_move_constructible_v<key_equal>);
+multiset() noexcept(std::is_nothrow_default_constructible_v<hasher> &&                   // (1)
+                    std::is_nothrow_default_constructible_v<key_equal>);
+explicit multiset(size_type bucket_count, const hasher& hash = hasher(),                 // (2)
+                  const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+multiset(InputIt first, InputIt last, size_type bucket_count = 0,                        // (3)
+         const hasher& hash = hasher(), const key_equal& equal = key_equal());
+multiset(std::initializer_list<value_type> ilist, size_type bucket_count = 0,            // (4)
+         const hasher& hash = hasher(), const key_equal& equal = key_equal());
+multiset(const multiset& other);                                                         // (5)
+multiset(multiset&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&      // (6)
+                                    std::is_nothrow_move_constructible_v<key_equal>);
 ```
 
 Constructs a multiset from one of the sources below.

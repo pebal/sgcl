@@ -3,8 +3,8 @@
 # sgcl::sorted_set\<Key, Compare\>::node_type::swap
 
 ```cpp
-/*(1)*/ void swap(node_type& other) noexcept;
-/*(2)*/ friend void swap(node_type& lhs, node_type& rhs) noexcept;
+void swap(node_type& other) noexcept;                         // (1)
+friend void swap(node_type& lhs, node_type& rhs) noexcept;    // (2)
 ```
 
 Exchanges the nodes of two handles; no element is touched.

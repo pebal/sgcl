@@ -3,8 +3,8 @@
 # sgcl::mixin::enumerable\<Derived\>::find_if
 
 ```cpp
-/*(1)*/ template<class Pred> constexpr auto find_if(Pred pred) noexcept(/* see below */);
-/*(2)*/ template<class Pred> constexpr auto find_if(Pred pred) const noexcept(/* see below */);
+template<class Pred> constexpr auto find_if(Pred pred) noexcept(/* see below */);          // (1)
+template<class Pred> constexpr auto find_if(Pred pred) const noexcept(/* see below */);    // (2)
 ```
 
 Finds the first element `pred` accepts, calling it on the elements from the first on, and returns a pointer to

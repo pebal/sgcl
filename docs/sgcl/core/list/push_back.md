@@ -3,8 +3,8 @@
 # sgcl::list\<T\>::push_back
 
 ```cpp
-/*(1)*/ void push_back(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ void push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
+void push_back(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+void push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
 ```
 
 Appends an element at the end, in a node of its own.

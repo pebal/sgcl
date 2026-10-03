@@ -3,8 +3,8 @@
 # sgcl::array\<T, N\>::operator[]
 
 ```cpp
-/*(1)*/ constexpr reference operator[](size_type pos) noexcept;
-/*(2)*/ constexpr const_reference operator[](size_type pos) const noexcept;
+constexpr reference operator[](size_type pos) noexcept;                // (1)
+constexpr const_reference operator[](size_type pos) const noexcept;    // (2)
 ```
 
 Returns a reference to the element at `pos`, without bounds checking: `pos` must be less than `N`. `array<T, 0>`

@@ -3,8 +3,8 @@
 # sgcl::operator==, operator\<=\> (sgcl::deque)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const deque& a, const deque& b);
-/*(2)*/ friend constexpr auto operator<=>(const deque& a, const deque& b);
+friend constexpr bool operator==(const deque& a, const deque& b);     // (1)
+friend constexpr auto operator<=>(const deque& a, const deque& b);    // (2)
 ```
 
 Compares two deques by their elements, as `std::deque` compares them.

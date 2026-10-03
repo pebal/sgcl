@@ -3,8 +3,8 @@
 # sgcl::encoding::field_list::field_list
 
 ```cpp
-/*(1)*/ field_list() noexcept;
-/*(2)*/ field_list(const field_list&) = delete;
+field_list() noexcept;                     // (1)
+field_list(const field_list&) = delete;    // (2)
 ```
 
 Constructs a list. A format makes one for each object it reads or writes and hands it to the object's

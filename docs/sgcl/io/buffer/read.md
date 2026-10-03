@@ -3,8 +3,8 @@
 # sgcl::io::buffer::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, error> read(const slice<byte>& out) const noexcept;
-/*(2)*/ async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept;
+expected<size_t, error> read(const slice<byte>& out) const noexcept;                       // (1)
+async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept;    // (2)
 ```
 
 Takes bytes from the front of the buffer into `out`: as many as `out` holds, or as the buffer holds, whichever is

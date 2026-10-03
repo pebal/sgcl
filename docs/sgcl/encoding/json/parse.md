@@ -3,20 +3,20 @@
 # sgcl::encoding::json::parse, async_parse
 
 ```cpp
-/*(1)*/ static expected<json, error> parse(const string& text) noexcept;
-/*(2)*/ static expected<json, error> parse(const string& text, const options& o) noexcept;
-/*(3)*/ static expected<json, error> parse(const io::reader& in);
-/*(4)*/ static expected<json, error> parse(const io::reader& in, const options& o);
-/*(5)*/ static async::task<expected<json, error>> async_parse(const io::reader& in) noexcept;
-/*(6)*/ static async::task<expected<json, error>> async_parse(io::reader in, options o) noexcept;
-/*(7)*/ template<class T> static expected<T, error> parse(const string& text);
-/*(8)*/ template<class T> static expected<T, error> parse(const string& text, const options& o);
-/*(9)*/ template<class T> static expected<T, error> parse(const io::reader& in);
-/*(10)*/ template<class T> static expected<T, error> parse(const io::reader& in, const options& o);
-/*(11)*/ template<class T>
-         static async::task<expected<T, error>> async_parse(const io::reader& in) noexcept;
-/*(12)*/ template<class T>
-         static async::task<expected<T, error>> async_parse(io::reader in, options o) noexcept;
+static expected<json, error> parse(const string& text) noexcept;                              // (1)
+static expected<json, error> parse(const string& text, const options& o) noexcept;            // (2)
+static expected<json, error> parse(const io::reader& in);                                     // (3)
+static expected<json, error> parse(const io::reader& in, const options& o);                   // (4)
+static async::task<expected<json, error>> async_parse(const io::reader& in) noexcept;         // (5)
+static async::task<expected<json, error>> async_parse(io::reader in, options o) noexcept;     // (6)
+template<class T> static expected<T, error> parse(const string& text);                        // (7)
+template<class T> static expected<T, error> parse(const string& text, const options& o);      // (8)
+template<class T> static expected<T, error> parse(const io::reader& in);                      // (9)
+template<class T> static expected<T, error> parse(const io::reader& in, const options& o);    // (10)
+template<class T>
+static async::task<expected<T, error>> async_parse(const io::reader& in) noexcept;            // (11)
+template<class T>
+static async::task<expected<T, error>> async_parse(io::reader in, options o) noexcept;        // (12)
 ```
 
 The one value of a text or of a stream, with nothing but white space around it: Go's `json.Unmarshal`.

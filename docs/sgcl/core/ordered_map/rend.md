@@ -3,9 +3,9 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::rend, crend
 
 ```cpp
-/*(1)*/ reverse_iterator rend() noexcept;
-/*(2)*/ const_reverse_iterator rend() const noexcept;
-/*(3)*/ const_reverse_iterator crend() const noexcept;
+reverse_iterator rend() noexcept;                 // (1)
+const_reverse_iterator rend() const noexcept;     // (2)
+const_reverse_iterator crend() const noexcept;    // (3)
 ```
 
 Returns the reverse iterator past the oldest element, the end of a walk of the order backwards. It is not

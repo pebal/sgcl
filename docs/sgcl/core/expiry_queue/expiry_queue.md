@@ -3,9 +3,9 @@
 # sgcl::expiry_queue\<T\>::expiry_queue
 
 ```cpp
-/*(1)*/ expiry_queue() = default;
-/*(2)*/ expiry_queue(expiry_queue&& other) noexcept;
-/*(3)*/ expiry_queue(const expiry_queue&) = delete;
+expiry_queue() = default;                       // (1)
+expiry_queue(expiry_queue&& other) noexcept;    // (2)
+expiry_queue(const expiry_queue&) = delete;     // (3)
 ```
 
 Constructs a queue.

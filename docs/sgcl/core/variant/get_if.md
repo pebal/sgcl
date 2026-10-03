@@ -6,16 +6,16 @@
 #include "sgcl/core/variant.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<size_t I, class... Ts>
-            std::add_pointer_t<variant_alternative_t<I, variant<Ts...>>>
-            get_if(variant<Ts...>* v) noexcept;
-    /*(2)*/ template<size_t I, class... Ts>
-            std::add_pointer_t<const variant_alternative_t<I, variant<Ts...>>>
-            get_if(const variant<Ts...>* v) noexcept;
-    /*(3)*/ template<class T, class... Ts>
-            std::add_pointer_t<T> get_if(variant<Ts...>* v) noexcept;
-    /*(4)*/ template<class T, class... Ts>
-            std::add_pointer_t<const T> get_if(const variant<Ts...>* v) noexcept;
+    template<size_t I, class... Ts>
+    std::add_pointer_t<variant_alternative_t<I, variant<Ts...>>>
+    get_if(variant<Ts...>* v) noexcept;                                      // (1)
+    template<size_t I, class... Ts>
+    std::add_pointer_t<const variant_alternative_t<I, variant<Ts...>>>
+    get_if(const variant<Ts...>* v) noexcept;                                // (2)
+    template<class T, class... Ts>
+    std::add_pointer_t<T> get_if(variant<Ts...>* v) noexcept;                // (3)
+    template<class T, class... Ts>
+    std::add_pointer_t<const T> get_if(const variant<Ts...>* v) noexcept;    // (4)
 }
 ```
 

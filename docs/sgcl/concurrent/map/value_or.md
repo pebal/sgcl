@@ -3,11 +3,11 @@
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::value_or
 
 ```cpp
-/*(1)*/ T value_or(const Key& key, const T& fallback) const
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ template<class K>
-        T value_or(const K& key, const T& fallback) const
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
+T value_or(const Key& key, const T& fallback) const       // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
+template<class K>
+T value_or(const K& key, const T& fallback) const         // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
 ```
 
 Returns a copy of the value under `key`, or `fallback` when the key is not there: the search of [find](find.md),

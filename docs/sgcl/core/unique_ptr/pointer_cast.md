@@ -3,12 +3,12 @@
 # sgcl::static_pointer_cast, const_pointer_cast, dynamic_pointer_cast (sgcl::unique_ptr)
 
 ```cpp
-/*(1)*/ template<class T, class U>
-        unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept;
-/*(2)*/ template<class T, class U>
-        unique_ptr<T> const_pointer_cast(unique_ptr<U>&& r) noexcept;
-/*(3)*/ template<class T, class U>
-        unique_ptr<T> dynamic_pointer_cast(unique_ptr<U>&& r) noexcept;
+template<class T, class U>
+unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept;     // (1)
+template<class T, class U>
+unique_ptr<T> const_pointer_cast(unique_ptr<U>&& r) noexcept;      // (2)
+template<class T, class U>
+unique_ptr<T> dynamic_pointer_cast(unique_ptr<U>&& r) noexcept;    // (3)
 ```
 
 The casts, on an rvalue: the object is released from `r` and owned by the result, a `unique_ptr` having one owner.

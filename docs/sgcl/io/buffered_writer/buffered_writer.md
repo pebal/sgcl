@@ -3,8 +3,8 @@
 # sgcl::io::buffered_writer::buffered_writer
 
 ```cpp
-/*(1)*/ buffered_writer() noexcept = default;
-/*(2)*/ explicit buffered_writer(const io::writer& w) noexcept;
+buffered_writer() noexcept = default;                      // (1)
+explicit buffered_writer(const io::writer& w) noexcept;    // (2)
 ```
 
 Makes a buffered writer handle.

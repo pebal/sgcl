@@ -3,8 +3,8 @@
 # sgcl::txt::collated_text::ends_with
 
 ```cpp
-/*(1)*/ bool ends_with(const searcher_type& pattern) const noexcept;
-/*(2)*/ bool ends_with(const string& pattern) const noexcept;
+bool ends_with(const searcher_type& pattern) const noexcept;    // (1)
+bool ends_with(const string& pattern) const noexcept;           // (2)
 ```
 
 Checks whether the text ends with a pattern, by the same equality and the same boundaries as [find](find.md), with

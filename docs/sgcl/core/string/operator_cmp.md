@@ -4,18 +4,18 @@
 
 ```cpp
 namespace sgcl {
-    /*(1)*/ template<class CharT, class Traits>
-            bool operator==(const basic_string<CharT, Traits>& a,
-                            const basic_string<CharT, Traits>& b) noexcept;
-    /*(2)*/ template<class CharT, class Traits>
-            std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a,
-                                             const basic_string<CharT, Traits>& b) noexcept;
-    /*(3)*/ template<class CharT, class Traits>
-            bool operator==(const basic_string<CharT, Traits>& a,
-                            const slice<const CharT>& b) noexcept;
-    /*(4)*/ template<class CharT, class Traits>
-            std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a,
-                                             const slice<const CharT>& b) noexcept;
+    template<class CharT, class Traits>
+    bool operator==(const basic_string<CharT, Traits>& a,                               // (1)
+                    const basic_string<CharT, Traits>& b) noexcept;
+    template<class CharT, class Traits>
+    std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a,              // (2)
+                                     const basic_string<CharT, Traits>& b) noexcept;
+    template<class CharT, class Traits>
+    bool operator==(const basic_string<CharT, Traits>& a,                               // (3)
+                    const slice<const CharT>& b) noexcept;
+    template<class CharT, class Traits>
+    std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a,              // (4)
+                                     const slice<const CharT>& b) noexcept;
 }
 ```
 

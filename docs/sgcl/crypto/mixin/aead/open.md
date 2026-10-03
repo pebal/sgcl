@@ -3,11 +3,11 @@
 # sgcl::crypto::mixin::aead\<Derived\>::open
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<vector<byte>, error> open(const slice<const byte>& nonce,
-                                                         const slice<const byte>& sealed) const;
-/*(2)*/ [[nodiscard]] expected<vector<byte>, error> open(const slice<const byte>& nonce,
-                                                         const slice<const byte>& sealed,
-                                                         const slice<const byte>& aad) const;
+[[nodiscard]] expected<vector<byte>, error> open(const slice<const byte>& nonce,            // (1)
+                                                 const slice<const byte>& sealed) const;
+[[nodiscard]] expected<vector<byte>, error> open(const slice<const byte>& nonce,            // (2)
+                                                 const slice<const byte>& sealed,
+                                                 const slice<const byte>& aad) const;
 ```
 
 Checks the tag at the end of `sealed` against the ciphertext before it, the nonce and the additional data, and

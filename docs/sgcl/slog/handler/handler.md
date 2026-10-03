@@ -3,9 +3,9 @@
 # sgcl::slog::handler::handler
 
 ```cpp
-/*(1)*/ handler() noexcept = default;
-/*(2)*/ template<class H>
-        handler(H&& h) noexcept(/* see below */);
+handler() noexcept = default;                // (1)
+template<class H>
+handler(H&& h) noexcept(/* see below */);    // (2)
 ```
 
 Constructs a handler.

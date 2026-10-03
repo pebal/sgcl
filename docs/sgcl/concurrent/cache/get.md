@@ -3,9 +3,9 @@
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::get
 
 ```cpp
-/*(1)*/ optional<T> get(const Key& key) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ template<class K> optional<T> get(const K& key)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
+optional<T> get(const Key& key) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+template<class K> optional<T> get(const K& key)                                       // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
 ```
 
 Returns a copy of the value under `key`, or nothing: the key is absent, or its entry is older than the time to

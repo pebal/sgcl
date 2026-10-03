@@ -3,14 +3,14 @@
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::try_emplace
 
 ```cpp
-/*(1)*/ template<class... A>
-        pair<iterator, bool> try_emplace(const Key& key, A&&... a)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, A...>);
-/*(2)*/ template<class... A>
-        pair<iterator, bool> try_emplace(Key&& key, A&&... a)
-            noexcept(std::is_nothrow_move_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, A...>);
+template<class... A>
+pair<iterator, bool> try_emplace(const Key& key, A&&... a)    // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, A...>);
+template<class... A>
+pair<iterator, bool> try_emplace(Key&& key, A&&... a)         // (2)
+    noexcept(std::is_nothrow_move_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, A...>);
 ```
 
 Inserts an element under `key` unless the key is taken, searching once: the element is built only when the key is

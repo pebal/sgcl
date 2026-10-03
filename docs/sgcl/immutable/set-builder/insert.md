@@ -3,10 +3,10 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::insert
 
 ```cpp
-/*(1)*/ bool insert(const Key& key) noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ bool insert(Key&& key)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_move_constructible_v<value_type>);
+bool insert(const Key& key) noexcept(std::is_nothrow_copy_constructible_v<value_type>);    // (1)
+bool insert(Key&& key)                                                                     // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_move_constructible_v<value_type>);
 ```
 
 Adds `key` when no equal element is there, and does nothing when one is, as the set's [insert](../set/insert.md).

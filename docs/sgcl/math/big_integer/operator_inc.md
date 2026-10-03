@@ -3,10 +3,10 @@
 # sgcl::math::big_integer::operator++, operator--
 
 ```cpp
-/*(1)*/ big_integer& operator++() noexcept;
-/*(2)*/ big_integer& operator--() noexcept;
-/*(3)*/ big_integer operator++(int) noexcept;
-/*(4)*/ big_integer operator--(int) noexcept;
+big_integer& operator++() noexcept;      // (1)
+big_integer& operator--() noexcept;      // (2)
+big_integer operator++(int) noexcept;    // (3)
+big_integer operator--(int) noexcept;    // (4)
 ```
 
 Adds or takes one. Nothing overflows: one past `INT64_MAX` is 2^63, one below `INT64_MIN` is -2^63 - 1.

@@ -3,9 +3,9 @@
 # sgcl::compress::sevenzip::archive::reader
 
 ```cpp
-/*(1)*/ expected<io::reader, error> reader(const entry& e) const noexcept;
-/*(2)*/ expected<io::reader, error> reader(const entry& e, const limits& l) const noexcept;
-/*(3)*/ expected<io::reader, error> reader(const string& name) const noexcept;
+expected<io::reader, error> reader(const entry& e) const noexcept;                     // (1)
+expected<io::reader, error> reader(const entry& e, const limits& l) const noexcept;    // (2)
+expected<io::reader, error> reader(const string& name) const noexcept;                 // (3)
 ```
 
 Makes an [io reader](../../io/reader.md) of an entry's data, decompressed and checked: its folder decoded from the

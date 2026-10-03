@@ -3,8 +3,8 @@
 # sgcl::string::rend, crend
 
 ```cpp
-/*(1)*/ const_reverse_iterator rend() const noexcept;
-/*(2)*/ const_reverse_iterator crend() const noexcept;
+const_reverse_iterator rend() const noexcept;     // (1)
+const_reverse_iterator crend() const noexcept;    // (2)
 ```
 
 Returns a reverse iterator before the first character: `std::reverse_iterator` over [begin()](begin.md). (2) is (1)

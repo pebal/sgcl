@@ -3,8 +3,8 @@
 # sgcl::io::buffered_reader::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, error> read(const slice<byte>& out) const;
-/*(2)*/ async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept;
+expected<size_t, error> read(const slice<byte>& out) const;                                // (1)
+async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept;    // (2)
 ```
 
 Reads bytes into `out`: what the block holds first, as much of it as fits. When the block is empty it is refilled

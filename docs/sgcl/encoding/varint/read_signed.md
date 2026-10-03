@@ -3,11 +3,11 @@
 # sgcl::encoding::varint::read_signed, async_read_signed
 
 ```cpp
-/*(1)*/ static expected<pair<int64_t, size_t>, error> read_signed(const slice<const byte>& at)
-            noexcept;
-/*(2)*/ static expected<optional<int64_t>, io::error> read_signed(const io::buffered_reader& in);
-/*(3)*/ static async::task<expected<optional<int64_t>, io::error>>
-            async_read_signed(const io::buffered_reader& in) noexcept;
+static expected<pair<int64_t, size_t>, error> read_signed(const slice<const byte>& at)       // (1)
+    noexcept;
+static expected<optional<int64_t>, io::error> read_signed(const io::buffered_reader& in);    // (2)
+static async::task<expected<optional<int64_t>, io::error>>
+    async_read_signed(const io::buffered_reader& in) noexcept;                               // (3)
 ```
 
 The signed forms of [read](read.md): the varint read as `read` reads it, and its zigzag undone — 0, 1, 2, 3 to 0,

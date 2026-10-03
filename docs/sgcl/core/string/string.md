@@ -3,32 +3,32 @@
 # sgcl::string::string
 
 ```cpp
-/*(1)*/ constexpr basic_string() noexcept = default;
-/*(2)*/ constexpr basic_string(std::nullptr_t) = delete;
-/*(3)*/ template<size_t N> basic_string(const CharT (&s)[N]);
-/*(4)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        basic_string(P s);
-/*(5)*/ basic_string(const CharT* s, size_type n);
-/*(6)*/ basic_string(view_type s);
-/*(7)*/ template<class V>
-        requires std::is_convertible_v<const V&, view_type>
-              && (!std::is_convertible_v<const V&, const CharT*>)
-              && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
-        explicit basic_string(const V& v);
-/*(8)*/ basic_string(size_type n, CharT c);
-/*(9)*/ template<std::input_iterator It> basic_string(It first, It last);
-/*(10)*/ template<std::forward_iterator It> basic_string(It first, It last);
-/*(11)*/ basic_string(std::initializer_list<CharT> il);
-/*(12)*/ explicit basic_string(const slice_type& v);
-/*(13)*/ template<class B>
-         requires (sizeof(CharT) == 1) && std::is_convertible_v<const B&, slice<const byte>>
-               && (!std::is_convertible_v<const B&, view_type>)
-               && (!std::is_convertible_v<const B&, const CharT*>)
-               && (!std::is_same_v<std::remove_cvref_t<B>, basic_string>)
-               && (!std::is_same_v<std::remove_cvref_t<B>, slice_type>)
-         explicit basic_string(const B& bytes);
-/*(14)*/ basic_string(const basic_string&) noexcept = default;
-/*(15)*/ basic_string(basic_string&&) noexcept = default;
+constexpr basic_string() noexcept = default;                                           // (1)
+constexpr basic_string(std::nullptr_t) = delete;                                       // (2)
+template<size_t N> basic_string(const CharT (&s)[N]);                                  // (3)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+basic_string(P s);                                                                     // (4)
+basic_string(const CharT* s, size_type n);                                             // (5)
+basic_string(view_type s);                                                             // (6)
+template<class V>
+requires std::is_convertible_v<const V&, view_type>
+      && (!std::is_convertible_v<const V&, const CharT*>)
+      && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
+explicit basic_string(const V& v);                                                     // (7)
+basic_string(size_type n, CharT c);                                                    // (8)
+template<std::input_iterator It> basic_string(It first, It last);                      // (9)
+template<std::forward_iterator It> basic_string(It first, It last);                    // (10)
+basic_string(std::initializer_list<CharT> il);                                         // (11)
+explicit basic_string(const slice_type& v);                                            // (12)
+template<class B>
+requires (sizeof(CharT) == 1) && std::is_convertible_v<const B&, slice<const byte>>
+      && (!std::is_convertible_v<const B&, view_type>)
+      && (!std::is_convertible_v<const B&, const CharT*>)
+      && (!std::is_same_v<std::remove_cvref_t<B>, basic_string>)
+      && (!std::is_same_v<std::remove_cvref_t<B>, slice_type>)
+explicit basic_string(const B& bytes);                                                 // (13)
+basic_string(const basic_string&) noexcept = default;                                  // (14)
+basic_string(basic_string&&) noexcept = default;                                       // (15)
 ```
 
 Constructs a string from what a `std::string` is made of. The characters are copied once into the string's object,

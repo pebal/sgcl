@@ -3,14 +3,14 @@
 # sgcl::io::mixin::writer\<Derived\>::write, async_write
 
 ```cpp
-/*(1)*/ template<class D>
-        expected<size_t, error> write(const D& text)
-            noexcept(noexcept(io::write(std::declval<Derived&>(), text)));
-/*(2)*/ expected<size_t, error> write(byte b)
-            noexcept(noexcept(io::write(std::declval<Derived&>(), b)));
-/*(3)*/ template<class D>
-        async::task<expected<size_t, error>> async_write(const D& text) noexcept;
-/*(4)*/ async::task<expected<size_t, error>> async_write(byte b) noexcept;
+template<class D>
+expected<size_t, error> write(const D& text)                                 // (1)
+    noexcept(noexcept(io::write(std::declval<Derived&>(), text)));
+expected<size_t, error> write(byte b)                                        // (2)
+    noexcept(noexcept(io::write(std::declval<Derived&>(), b)));
+template<class D>
+async::task<expected<size_t, error>> async_write(const D& text) noexcept;    // (3)
+async::task<expected<size_t, error>> async_write(byte b) noexcept;           // (4)
 ```
 
 Writes text or one byte to this stream, through `Derived`'s `write` of bytes: [io::write](../../write.md) over this

@@ -6,24 +6,24 @@
 #include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<void, error> append_file(const string& path, const string& text,
-                                              permissions p = permissions(0666));
-    /*(2)*/ expected<void, error> append_file(const string& path, const slice<const byte>& data,
-                                              permissions p = permissions(0666));
-    /*(3)*/ template<class T>
-            expected<void, error> append_file(const string& path, const T& text,
-                                              permissions p = permissions(0666));
-    /*(4)*/ async::task<expected<void, error>> async_append_file(const string& path,
-                                                                 const string& text,
-                                                                 permissions p = permissions(0666))
-                noexcept;
-    /*(5)*/ async::task<expected<void, error>> async_append_file(const string& path,
-                                                                 const slice<const byte>& data,
-                                                                 permissions p = permissions(0666))
-                noexcept;
-    /*(6)*/ template<class T>
-            async::task<expected<void, error>> async_append_file(const string& path, const T& text,
-                                                                 permissions p = permissions(0666));
+    expected<void, error> append_file(const string& path, const string& text,                   // (1)
+                                      permissions p = permissions(0666));
+    expected<void, error> append_file(const string& path, const slice<const byte>& data,        // (2)
+                                      permissions p = permissions(0666));
+    template<class T>
+    expected<void, error> append_file(const string& path, const T& text,                        // (3)
+                                      permissions p = permissions(0666));
+    async::task<expected<void, error>> async_append_file(const string& path,                    // (4)
+                                                         const string& text,
+                                                         permissions p = permissions(0666))
+        noexcept;
+    async::task<expected<void, error>> async_append_file(const string& path,                    // (5)
+                                                         const slice<const byte>& data,
+                                                         permissions p = permissions(0666))
+        noexcept;
+    template<class T>
+    async::task<expected<void, error>> async_append_file(const string& path, const T& text,     // (6)
+                                                         permissions p = permissions(0666));
 }
 ```
 

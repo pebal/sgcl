@@ -3,8 +3,8 @@
 # sgcl::compress::gzip::writer::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close();
-/*(2)*/ async::task<expected<void, io::error>> async_close() noexcept;
+expected<void, io::error> close();                                // (1)
+async::task<expected<void, io::error>> async_close() noexcept;    // (2)
 ```
 
 Ends the stream: writes the last block, the CRC-32 and the length of the data (and the header, when nothing was written)

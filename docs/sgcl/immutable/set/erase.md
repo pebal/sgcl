@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::erase
 
 ```cpp
-/*(1)*/ set erase(const Key& key) const noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ template<class K> set erase(const K& key) const noexcept(/* see below */);
+set erase(const Key& key) const noexcept(std::is_nothrow_copy_constructible_v<value_type>);    // (1)
+template<class K> set erase(const K& key) const noexcept(/* see below */);                     // (2)
 ```
 
 Returns the set without the element equal to `key`. This set is unchanged. The path to the element is copied, a

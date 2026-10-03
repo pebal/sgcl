@@ -3,9 +3,9 @@
 # sgcl::set\<Key, Hash, KeyEqual\>::swap
 
 ```cpp
-/*(1)*/ void swap(set& other) noexcept(std::is_nothrow_swappable_v<hasher> &&
-                                       std::is_nothrow_swappable_v<key_equal>);
-/*(2)*/ friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs)));
+void swap(set& other) noexcept(std::is_nothrow_swappable_v<hasher> &&      // (1)
+                               std::is_nothrow_swappable_v<key_equal>);
+friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs)));    // (2)
 ```
 
 Exchanges the contents of two sets: the tables, the counts, the load factors, the hashers and the equalities.

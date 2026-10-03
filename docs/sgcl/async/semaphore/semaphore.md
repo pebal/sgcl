@@ -3,8 +3,8 @@
 # sgcl::async::semaphore::semaphore
 
 ```cpp
-/*(1)*/ explicit semaphore(size_t permits, size_t max = 0);
-/*(2)*/ semaphore(const semaphore&) = delete;
+explicit semaphore(size_t permits, size_t max = 0);    // (1)
+semaphore(const semaphore&) = delete;                  // (2)
 ```
 
 1. A semaphore with `permits` free permits and room for `max`: a channel of capacity `max` with `permits` signals in

@@ -3,9 +3,9 @@
 # sgcl::list\<T\>::end, cend
 
 ```cpp
-/*(1)*/ iterator end() noexcept;
-/*(2)*/ const_iterator end() const noexcept;
-/*(3)*/ const_iterator cend() const noexcept;
+iterator end() noexcept;                 // (1)
+const_iterator end() const noexcept;     // (2)
+const_iterator cend() const noexcept;    // (3)
 ```
 
 Returns the iterator past the last element: the sentinel. It is not to be dereferenced; `--end()` is the last

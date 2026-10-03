@@ -3,15 +3,15 @@
 # sgcl::tracked_ptr\<T\>::operator=
 
 ```cpp
-/*(1)*/ tracked_ptr& operator=(std::nullptr_t) noexcept;
-/*(2)*/ tracked_ptr& operator=(const tracked_ptr& p) noexcept;
-/*(3)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept;
-/*(4)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr& operator=(unique_ptr<U>&& u) noexcept;
-/*(5)*/ tracked_ptr& operator=(tracked_ptr&& p) noexcept;
-/*(6)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept;
+tracked_ptr& operator=(std::nullptr_t) noexcept;                                                                              // (1)
+tracked_ptr& operator=(const tracked_ptr& p) noexcept;                                                                        // (2)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept;                                                                     // (3)
+template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+tracked_ptr& operator=(unique_ptr<U>&& u) noexcept;                                                                           // (4)
+tracked_ptr& operator=(tracked_ptr&& p) noexcept;                                                                             // (5)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept;                                                                          // (6)
 ```
 
 Replaces the pointer: one store with the barrier, no temporary.

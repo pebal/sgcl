@@ -6,11 +6,11 @@
 #include "sgcl/async/parallel.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class T, class R, class Map>
-            R parallel_reduce(T begin, T end, R init, Map map, const parallel_options& options = {});
-    /*(2)*/ template<class T, class R, class Map, class Combine>
-            R parallel_reduce(T begin, T end, R init, Map map, Combine combine,
-                              const parallel_options& options = {});
+    template<class T, class R, class Map>
+    R parallel_reduce(T begin, T end, R init, Map map, const parallel_options& options = {});    // (1)
+    template<class T, class R, class Map, class Combine>
+    R parallel_reduce(T begin, T end, R init, Map map, Combine combine,                          // (2)
+                      const parallel_options& options = {});
 }
 ```
 

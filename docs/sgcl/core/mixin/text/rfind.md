@@ -3,16 +3,16 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::rfind
 
 ```cpp
-/*(1)*/ size_type rfind(view_type s, size_type pos = npos) const noexcept;
-/*(2)*/ size_type rfind(CharT c, size_type pos = npos) const noexcept;
-/*(3)*/ size_type rfind(const CharT* s, size_type pos, size_type n) const noexcept;
-/*(4)*/ template<size_t N>
-        size_type rfind(const CharT (&s)[N], size_type pos = npos) const noexcept;
-/*(5)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type rfind(P s, size_type pos = npos) const noexcept;
-/*(6)*/ size_type rfind(char32_t c, size_type pos = npos) const noexcept
-            requires (!std::same_as<CharT, char32_t>);
-/*(7)*/ size_type rfind(int, size_type = npos) const = delete;
+size_type rfind(view_type s, size_type pos = npos) const noexcept;                     // (1)
+size_type rfind(CharT c, size_type pos = npos) const noexcept;                         // (2)
+size_type rfind(const CharT* s, size_type pos, size_type n) const noexcept;            // (3)
+template<size_t N>
+size_type rfind(const CharT (&s)[N], size_type pos = npos) const noexcept;             // (4)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+size_type rfind(P s, size_type pos = npos) const noexcept;                             // (5)
+size_type rfind(char32_t c, size_type pos = npos) const noexcept                       // (6)
+    requires (!std::same_as<CharT, char32_t>);
+size_type rfind(int, size_type = npos) const = delete;                                 // (7)
 ```
 
 Finds the last occurrence of a substring or a character that begins at or before `pos`, as

@@ -3,9 +3,9 @@
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::of
 
 ```cpp
-/*(1)*/ handle of(const T& value) noexcept(std::is_nothrow_constructible_v<T, const T&>);
-/*(2)*/ template<class K> handle of(const K& value)
-            noexcept(std::is_nothrow_constructible_v<T, const K&>);
+handle of(const T& value) noexcept(std::is_nothrow_constructible_v<T, const T&>);    // (1)
+template<class K> handle of(const K& value)                                          // (2)
+    noexcept(std::is_nothrow_constructible_v<T, const K&>);
 ```
 
 Returns the canonical object of `value`: the pool's when one is alive, or a new one made from the value and

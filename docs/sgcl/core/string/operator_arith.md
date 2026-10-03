@@ -4,31 +4,31 @@
 
 ```cpp
 namespace sgcl {
-    /*(1)*/ template<class CharT, class Traits>
-            basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a,
-                                                  const basic_string<CharT, Traits>& b);
-    /*(2)*/ template<class CharT, class Traits>
-            basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a,
-                                                  std::type_identity_t<std::basic_string_view<CharT, Traits>> b);
-    /*(3)*/ template<class CharT, class Traits>
-            basic_string<CharT, Traits> operator+(std::type_identity_t<std::basic_string_view<CharT, Traits>> a,
-                                                  const basic_string<CharT, Traits>& b);
-    /*(4)*/ template<class CharT, class Traits, size_t N>
-            basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a,
-                                                  const CharT (&b)[N]);
-    /*(5)*/ template<class CharT, class Traits, class P>
-            requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-            basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, P b);
-    /*(6)*/ template<class CharT, class Traits, size_t N>
-            basic_string<CharT, Traits> operator+(const CharT (&a)[N],
-                                                  const basic_string<CharT, Traits>& b);
-    /*(7)*/ template<class CharT, class Traits, class P>
-            requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-            basic_string<CharT, Traits> operator+(P a, const basic_string<CharT, Traits>& b);
-    /*(8)*/ template<class CharT, class Traits>
-            basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, CharT b);
-    /*(9)*/ template<class CharT, class Traits>
-            basic_string<CharT, Traits> operator+(CharT a, const basic_string<CharT, Traits>& b);
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a,                              // (1)
+                                          const basic_string<CharT, Traits>& b);
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a,                              // (2)
+                                          std::type_identity_t<std::basic_string_view<CharT, Traits>> b);
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(std::type_identity_t<std::basic_string_view<CharT, Traits>> a,     // (3)
+                                          const basic_string<CharT, Traits>& b);
+    template<class CharT, class Traits, size_t N>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a,                              // (4)
+                                          const CharT (&b)[N]);
+    template<class CharT, class Traits, class P>
+    requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, P b);                        // (5)
+    template<class CharT, class Traits, size_t N>
+    basic_string<CharT, Traits> operator+(const CharT (&a)[N],                                               // (6)
+                                          const basic_string<CharT, Traits>& b);
+    template<class CharT, class Traits, class P>
+    requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+    basic_string<CharT, Traits> operator+(P a, const basic_string<CharT, Traits>& b);                        // (7)
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, CharT b);                    // (8)
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(CharT a, const basic_string<CharT, Traits>& b);                    // (9)
 }
 ```
 

@@ -3,8 +3,8 @@
 # sgcl::io::standard_stream::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& data);
-/*(2)*/ async::task<expected<size_t, error>> async_write(const slice<const byte>& data) noexcept;
+expected<size_t, error> write(const slice<const byte>& data);                                // (1)
+async::task<expected<size_t, error>> async_write(const slice<const byte>& data) noexcept;    // (2)
 ```
 
 Writes all of `data` through the [file](../file.md) over the descriptor, the [write](../file/write.md) of that file.

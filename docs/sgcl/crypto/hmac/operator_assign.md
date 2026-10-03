@@ -3,8 +3,8 @@
 # sgcl::crypto::hmac\<H\>::operator=
 
 ```cpp
-/*(1)*/ hmac& operator=(hmac&& other) noexcept;
-/*(2)*/ hmac& operator=(const hmac&) = delete;
+hmac& operator=(hmac&& other) noexcept;    // (1)
+hmac& operator=(const hmac&) = delete;     // (2)
 ```
 
 1. Takes over the states of `other`, its key and its message so far, in place of this hmac's own, and zeroes them in

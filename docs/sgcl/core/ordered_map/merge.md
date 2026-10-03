@@ -3,8 +3,8 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::merge
 
 ```cpp
-/*(1)*/ template<class H2, class P2> void merge(ordered_map<Key, T, H2, P2>& source) noexcept;
-/*(2)*/ template<class H2, class P2> void merge(ordered_map<Key, T, H2, P2>&& source) noexcept;
+template<class H2, class P2> void merge(ordered_map<Key, T, H2, P2>& source) noexcept;     // (1)
+template<class H2, class P2> void merge(ordered_map<Key, T, H2, P2>&& source) noexcept;    // (2)
 ```
 
 Relinks the nodes of `source` whose keys are not yet here into this map, hashing their keys with this map's hash;

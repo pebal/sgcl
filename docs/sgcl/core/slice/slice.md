@@ -3,52 +3,52 @@
 # sgcl::slice\<T\>::slice
 
 ```cpp
-/*(1)*/  slice() noexcept;
-/*(2)*/  slice(T* first, T* last) noexcept;
-/*(3)*/  slice(T* first, size_type n) noexcept;
-/*(4)*/  slice(const tracked_ptr<const void>& owner, T* first, T* last) noexcept;
-/*(5)*/  slice(const tracked_ptr<const void>& owner, T* first, size_type n) noexcept;
-/*(6)*/  slice(std::span<T> s) noexcept;
-/*(7)*/  template<size_t N>
-         slice(T (&a)[N]) noexcept;
-/*(8)*/  template<class U, size_t N>
-         requires std::is_convertible_v<U (*)[], T (*)[]>
-         slice(std::array<U, N>& a) noexcept;
-/*(9)*/  template<class U, size_t N>
-         requires std::is_convertible_v<const U (*)[], T (*)[]>
-         slice(const std::array<U, N>& a) noexcept;
-/*(10)*/ template<class U, class A>
-         requires std::is_convertible_v<U (*)[], T (*)[]>
-         slice(std::vector<U, A>& v) noexcept;
-/*(11)*/ template<class U, class A>
-         requires std::is_convertible_v<const U (*)[], T (*)[]>
-         slice(const std::vector<U, A>& v) noexcept;
-/*(12)*/ template<class Traits>
-         requires std::is_convertible_v<const std::remove_const_t<T> (*)[], T (*)[]>
-         slice(std::basic_string_view<std::remove_const_t<T>, Traits> s) noexcept;
-/*(13)*/ template<class U>
-         requires (!std::is_same_v<U, T>) && std::is_convertible_v<U (*)[], T (*)[]>
-         slice(const slice<U>& o) noexcept;
-/*(14)*/ template<class U>
-         requires std::is_same_v<T, const byte> && std::is_same_v<std::remove_const_t<U>, char>
-         slice(const slice<U>& text) noexcept;
-/*(15)*/ template<class Traits>
-         requires std::is_same_v<T, const byte>
-         slice(const basic_string<char, Traits>& text) noexcept;
-/*(16)*/ template<class Traits>
-         requires std::is_same_v<T, const byte>
-         slice(std::basic_string_view<char, Traits> text) noexcept;
-/*(17)*/ template<size_t N>
-         requires std::is_same_v<T, const byte>
-         slice(const char (&text)[N]) noexcept;
-/*(18)*/ template<size_t N>
-         requires std::is_same_v<T, const byte>
-         slice(const unsigned char (&data)[N]) noexcept;
-/*(19)*/ template<size_t N>
-         requires std::is_same_v<T, const byte>
-         slice(const std::array<unsigned char, N>& data) noexcept;
-/*(20)*/ slice(const slice& o) noexcept;
-/*(21)*/ slice(slice&& o) noexcept;
+slice() noexcept;                                                                         // (1)
+slice(T* first, T* last) noexcept;                                                        // (2)
+slice(T* first, size_type n) noexcept;                                                    // (3)
+slice(const tracked_ptr<const void>& owner, T* first, T* last) noexcept;                  // (4)
+slice(const tracked_ptr<const void>& owner, T* first, size_type n) noexcept;              // (5)
+slice(std::span<T> s) noexcept;                                                           // (6)
+template<size_t N>
+slice(T (&a)[N]) noexcept;                                                                // (7)
+template<class U, size_t N>
+requires std::is_convertible_v<U (*)[], T (*)[]>
+slice(std::array<U, N>& a) noexcept;                                                      // (8)
+template<class U, size_t N>
+requires std::is_convertible_v<const U (*)[], T (*)[]>
+slice(const std::array<U, N>& a) noexcept;                                                // (9)
+template<class U, class A>
+requires std::is_convertible_v<U (*)[], T (*)[]>
+slice(std::vector<U, A>& v) noexcept;                                                     // (10)
+template<class U, class A>
+requires std::is_convertible_v<const U (*)[], T (*)[]>
+slice(const std::vector<U, A>& v) noexcept;                                               // (11)
+template<class Traits>
+requires std::is_convertible_v<const std::remove_const_t<T> (*)[], T (*)[]>
+slice(std::basic_string_view<std::remove_const_t<T>, Traits> s) noexcept;                 // (12)
+template<class U>
+requires (!std::is_same_v<U, T>) && std::is_convertible_v<U (*)[], T (*)[]>
+slice(const slice<U>& o) noexcept;                                                        // (13)
+template<class U>
+requires std::is_same_v<T, const byte> && std::is_same_v<std::remove_const_t<U>, char>
+slice(const slice<U>& text) noexcept;                                                     // (14)
+template<class Traits>
+requires std::is_same_v<T, const byte>
+slice(const basic_string<char, Traits>& text) noexcept;                                   // (15)
+template<class Traits>
+requires std::is_same_v<T, const byte>
+slice(std::basic_string_view<char, Traits> text) noexcept;                                // (16)
+template<size_t N>
+requires std::is_same_v<T, const byte>
+slice(const char (&text)[N]) noexcept;                                                    // (17)
+template<size_t N>
+requires std::is_same_v<T, const byte>
+slice(const unsigned char (&data)[N]) noexcept;                                           // (18)
+template<size_t N>
+requires std::is_same_v<T, const byte>
+slice(const std::array<unsigned char, N>& data) noexcept;                                 // (19)
+slice(const slice& o) noexcept;                                                           // (20)
+slice(slice&& o) noexcept;                                                                // (21)
 ```
 
 Constructs a slice.

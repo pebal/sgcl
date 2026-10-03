@@ -30,8 +30,9 @@ The exit status is 1 when anything was found. The rules, by name:
   detail          a program names nothing from a detail namespace: what an
                   example needs and the public API does not give is a gap in
                   the API, reported and filled
-  overloads       overloads numbered `/*(n)*/` at the start of the line,
-                  never `// (n)` after it
+  overloads       overloads numbered `// (n)` on the right, in one column per
+                  block: the longest declaration line plus 4 spaces; never
+                  the old `/*(n)*/` at the start of the line
   sections        the sections a page of a method, of a class and of a
                   README has, in their order; `## Members` is the old form
   readme          a README has no program; its tables are alphabetical
@@ -278,10 +279,30 @@ def check_blocks(p):
             p.report(line, 'readme', 'a README has no program')
         if n > 0 and not program and p.kind != 'readme' and is_statements(text):
             p.report(line, 'fragment', 'a cpp block that is not a program')
-        if n == 0 and not program:
-            for k, l in enumerate(body, line + 1):
-                if re.search(r'//\s*\(\d+\)\s*$', l):
-                    p.report(k, 'overloads', 'number an overload /*(n)*/ at the start of the line')
+        if not program:
+            check_overload_numbers(p, line, body)
+
+
+def check_overload_numbers(p, line, body):
+    """Overload numbers are `// (n)` comments in one column per block: the longest declaration
+    line of the block (its code, without a trailing comment) plus 4 spaces."""
+    numbered = []
+    longest = 0
+    for k, l in enumerate(body, line + 1):
+        if re.match(r'\s*/\*\(\d+\)\*/', l):
+            p.report(k, 'overloads', 'the old form /*(n)*/: number an overload `// (n)` on the right')
+        s = l.strip()
+        if not s or s.startswith('#') or s.startswith('//'):
+            continue
+        m = re.search(r'//\s*\(\d+\)', l)
+        if m:
+            numbered.append((k, m.start()))
+        code = l[:m.start()] if m else re.sub(r'\s*//.*$', '', l)
+        longest = max(longest, len(code.rstrip()))
+    for k, col in numbered:
+        if col != longest + 4:
+            p.report(k, 'overloads', f'`// (n)` at column {col + 1}, the block\'s is {longest + 5} '
+                                     '(the longest declaration line plus 4 spaces)')
 
 
 def check_order(p, allowed, required=()):

@@ -3,14 +3,14 @@
 # sgcl::priority_queue\<T, Container, Compare\>::push
 
 ```cpp
-/*(1)*/ void push(const value_type& value)
-            noexcept(noexcept(c.push_back(value)) &&
-                     std::is_nothrow_move_constructible_v<value_type> &&
-                     std::is_nothrow_move_assignable_v<value_type>);
-/*(2)*/ void push(value_type&& value)
-            noexcept(noexcept(c.push_back(std::move(value))) &&
-                     std::is_nothrow_move_constructible_v<value_type> &&
-                     std::is_nothrow_move_assignable_v<value_type>);
+void push(const value_type& value)                                  // (1)
+    noexcept(noexcept(c.push_back(value)) &&
+             std::is_nothrow_move_constructible_v<value_type> &&
+             std::is_nothrow_move_assignable_v<value_type>);
+void push(value_type&& value)                                       // (2)
+    noexcept(noexcept(c.push_back(std::move(value))) &&
+             std::is_nothrow_move_constructible_v<value_type> &&
+             std::is_nothrow_move_assignable_v<value_type>);
 ```
 
 Inserts an element: appends it to the container, `c.push_back(value)`, and sifts it up the heap with

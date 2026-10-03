@@ -3,8 +3,8 @@
 # sgcl::weak_multimap\<Key, T\>::operator=
 
 ```cpp
-/*(1)*/ weak_multimap& operator=(weak_multimap&& other) noexcept;
-/*(2)*/ weak_multimap& operator=(const weak_multimap&) = delete;
+weak_multimap& operator=(weak_multimap&& other) noexcept;    // (1)
+weak_multimap& operator=(const weak_multimap&) = delete;     // (2)
 ```
 
 Replaces the entries of the map.

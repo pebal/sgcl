@@ -3,12 +3,12 @@
 # sgcl::io::mixin::writer\<Derived\>::copy_from, async_copy_from
 
 ```cpp
-/*(1)*/ template<req::reader R>
-        expected<size_t, error> copy_from(R&& r)
-            noexcept(noexcept(io::copy(std::declval<Derived&>(), std::forward<R>(r))));
-/*(2)*/ template<req::async_reader R>
-        async::task<expected<size_t, error>> async_copy_from(R&& r) noexcept(/* see below */)
-            requires req::async_writer<Derived&>;
+template<req::reader R>
+expected<size_t, error> copy_from(R&& r)                                                 // (1)
+    noexcept(noexcept(io::copy(std::declval<Derived&>(), std::forward<R>(r))));
+template<req::async_reader R>
+async::task<expected<size_t, error>> async_copy_from(R&& r) noexcept(/* see below */)    // (2)
+    requires req::async_writer<Derived&>;
 ```
 
 Writes everything the stream `r` gives, from its position to its end, to this stream. It is

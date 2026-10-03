@@ -3,8 +3,8 @@
 # sgcl::hash::maphash::maphash
 
 ```cpp
-/*(1)*/ maphash() noexcept;
-/*(2)*/ explicit maphash(uint64_t seed) noexcept;
+maphash() noexcept;                          // (1)
+explicit maphash(uint64_t seed) noexcept;    // (2)
 ```
 
 Makes a hasher of no bytes yet.

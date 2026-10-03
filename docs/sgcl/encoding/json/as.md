@@ -3,8 +3,8 @@
 # sgcl::encoding::json::as
 
 ```cpp
-/*(1)*/ template<class T> expected<T, error> as() const;
-/*(2)*/ template<class T> expected<T, error> as(const options& o) const;
+template<class T> expected<T, error> as() const;                    // (1)
+template<class T> expected<T, error> as(const options& o) const;    // (2)
 ```
 
 This value as a program's `T`: a type described by its fields ([field_list](../field_list.md)) or any kind a field

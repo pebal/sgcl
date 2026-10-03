@@ -3,8 +3,8 @@
 # sgcl::compress::level::level
 
 ```cpp
-/*(1)*/ constexpr level() noexcept;
-/*(2)*/ constexpr level(int n);
+constexpr level() noexcept;    // (1)
+constexpr level(int n);        // (2)
 ```
 
 1. The default level, 6 (`level::standard`).

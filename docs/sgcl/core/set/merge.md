@@ -3,10 +3,10 @@
 # sgcl::set\<Key, Hash, KeyEqual\>::merge
 
 ```cpp
-/*(1)*/ template<class H2, class P2> void merge(set<Key, H2, P2>& source) noexcept;
-/*(2)*/ template<class H2, class P2> void merge(set<Key, H2, P2>&& source) noexcept;
-/*(3)*/ template<class H2, class P2> void merge(multiset<Key, H2, P2>& source) noexcept;
-/*(4)*/ template<class H2, class P2> void merge(multiset<Key, H2, P2>&& source) noexcept;
+template<class H2, class P2> void merge(set<Key, H2, P2>& source) noexcept;          // (1)
+template<class H2, class P2> void merge(set<Key, H2, P2>&& source) noexcept;         // (2)
+template<class H2, class P2> void merge(multiset<Key, H2, P2>& source) noexcept;     // (3)
+template<class H2, class P2> void merge(multiset<Key, H2, P2>&& source) noexcept;    // (4)
 ```
 
 Relinks into this set the nodes of `source` whose keys are not here yet, each hashed with this set's hasher; a

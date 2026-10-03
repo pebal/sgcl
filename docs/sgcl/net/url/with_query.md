@@ -3,8 +3,8 @@
 # sgcl::net::url::with_query
 
 ```cpp
-/*(1)*/ expected<url, io::error> with_query(const string& query) const noexcept;
-/*(2)*/ expected<url, io::error> with_query(const net::query_params& params) const noexcept;
+expected<url, io::error> with_query(const string& query) const noexcept;                // (1)
+expected<url, io::error> with_query(const net::query_params& params) const noexcept;    // (2)
 ```
 
 The URL with the query given. The standard takes any query; the one refusal is [the limit](../url.md#rules) of

@@ -3,11 +3,11 @@
 # sgcl::txt::regex::find
 
 ```cpp
-/*(1)*/ optional<match> find(const slice<const char>& text, size_t from = 0) const noexcept;
-/*(2)*/ optional<match> find(const string& text, size_t from = 0) const noexcept;
-/*(3)*/ template<size_t N> optional<match> find(const char (&text)[N], size_t from = 0) const;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        optional<match> find(P text, size_t from = 0) const;
+optional<match> find(const slice<const char>& text, size_t from = 0) const noexcept;      // (1)
+optional<match> find(const string& text, size_t from = 0) const noexcept;                 // (2)
+template<size_t N> optional<match> find(const char (&text)[N], size_t from = 0) const;    // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+optional<match> find(P text, size_t from = 0) const;                                      // (4)
 ```
 
 Finds the first match that begins at or after the byte `from`: the leftmost one, and of those beginning there the

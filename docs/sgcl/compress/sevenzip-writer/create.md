@@ -3,8 +3,8 @@
 # sgcl::compress::sevenzip::writer::create
 
 ```cpp
-/*(1)*/ io::writer create(const string& name) noexcept;
-/*(2)*/ io::writer create(const string& name, const entry_info& info) noexcept;
+io::writer create(const string& name) noexcept;                            // (1)
+io::writer create(const string& name, const entry_info& info) noexcept;    // (2)
 ```
 
 Ends the entry before and starts a new one: gives an [io writer](../../io/writer.md) of its data, which goes into the

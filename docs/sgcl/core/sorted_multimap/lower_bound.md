@@ -3,10 +3,10 @@
 # sgcl::sorted_multimap\<Key, T, Compare\>::lower_bound
 
 ```cpp
-/*(1)*/ iterator lower_bound(const key_type& key) noexcept;
-/*(2)*/ const_iterator lower_bound(const key_type& key) const noexcept;
-/*(3)*/ template<class K> iterator lower_bound(const K& key) noexcept(/* see below */);
-/*(4)*/ template<class K> const_iterator lower_bound(const K& key) const noexcept(/* see below */);
+iterator lower_bound(const key_type& key) noexcept;                                            // (1)
+const_iterator lower_bound(const key_type& key) const noexcept;                                // (2)
+template<class K> iterator lower_bound(const K& key) noexcept(/* see below */);                // (3)
+template<class K> const_iterator lower_bound(const K& key) const noexcept(/* see below */);    // (4)
 ```
 
 Returns an iterator to the first element whose key is not less than `key`, as in `std::multimap`: the first of the

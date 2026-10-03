@@ -6,8 +6,8 @@
 #include "sgcl/txt/identifier.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ bool is_identifier(const string& text) noexcept;
-    /*(2)*/ bool is_identifier(const string& text, program_syntax_t) noexcept;
+    bool is_identifier(const string& text) noexcept;                      // (1)
+    bool is_identifier(const string& text, program_syntax_t) noexcept;    // (2)
 }
 ```
 

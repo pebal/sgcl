@@ -3,9 +3,9 @@
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::erase
 
 ```cpp
-/*(1)*/ size_type erase(const Key& key) noexcept;
-/*(2)*/ template<class K> size_type erase(const K& key) noexcept;
-/*(3)*/ iterator erase(const_iterator pos) noexcept;
+size_type erase(const Key& key) noexcept;                    // (1)
+template<class K> size_type erase(const K& key) noexcept;    // (2)
+iterator erase(const_iterator pos) noexcept;                 // (3)
 ```
 
 Erases an element.

@@ -3,10 +3,10 @@
 # sgcl::time::date::to_string, sgcl::time::operator\<\< (sgcl::time::date)
 
 ```cpp
-/*(1)*/ string to_string() const noexcept;
-/*(2)*/ template<class CharT, class Traits>
-        friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,
-                                                             date d);
+string to_string() const noexcept;                                                             // (1)
+template<class CharT, class Traits>
+friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,    // (2)
+                                                     date d);
 ```
 
 1. ISO 8601's extended calendar date, as `std::format`'s `%F` writes it: `"2026-09-24"`. The year has four digits

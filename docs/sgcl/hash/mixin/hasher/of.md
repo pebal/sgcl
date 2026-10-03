@@ -3,14 +3,14 @@
 # sgcl::hash::mixin::hasher\<Derived\>::of
 
 ```cpp
-/*(1)*/ template<class... Args>
-        requires (sizeof...(Args) == 0 ? std::default_initializable<Derived>
-                                       : requires(const Args&... args) {
-                                             Derived::_of(std::declval<const slice<const byte>&>(), args...);
-                                         })
-        static auto of(const slice<const byte>& data, const Args&... args) noexcept;
-/*(2)*/ template<class Data, class... Args>
-        static auto of(const Data& data, const Args&... args) noexcept;
+template<class... Args>
+requires (sizeof...(Args) == 0 ? std::default_initializable<Derived>
+                               : requires(const Args&... args) {
+                                     Derived::_of(std::declval<const slice<const byte>&>(), args...);
+                                 })
+static auto of(const slice<const byte>& data, const Args&... args) noexcept;                             // (1)
+template<class Data, class... Args>
+static auto of(const Data& data, const Args&... args) noexcept;                                          // (2)
 ```
 
 The hash of `data` in one call: `crc32::of(data)` is `crc32 h; h.update(data); return h.value();`, the value in the

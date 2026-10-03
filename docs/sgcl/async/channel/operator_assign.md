@@ -3,8 +3,8 @@
 # sgcl::async::channel\<T\>::operator=
 
 ```cpp
-/*(1)*/ channel& operator=(const channel& other) noexcept;
-/*(2)*/ channel& operator=(channel&& other) noexcept;
+channel& operator=(const channel& other) noexcept;    // (1)
+channel& operator=(channel&& other) noexcept;         // (2)
 ```
 
 Makes the handle one of the channel `other` refers to. The channel this handle referred to before is not touched:

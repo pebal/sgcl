@@ -3,9 +3,9 @@
 # sgcl::time::operator==, operator\<=\> (sgcl::time::date)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const date&, const date&) noexcept = default;
-/*(2)*/ friend constexpr std::strong_ordering operator<=>(const date&,
-                                                         const date&) noexcept = default;
+friend constexpr bool operator==(const date&, const date&) noexcept = default;       // (1)
+friend constexpr std::strong_ordering operator<=>(const date&,                       // (2)
+                                                 const date&) noexcept = default;
 ```
 
 Compare two dates by their days from 1970-01-01. `!=`, `<`, `<=`, `>` and `>=` are made from these by the

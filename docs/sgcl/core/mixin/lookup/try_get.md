@@ -3,10 +3,10 @@
 # sgcl::mixin::lookup\<Derived\>::try_get
 
 ```cpp
-/*(1)*/ template<class K>
-        auto try_get(const K& key) noexcept(/* see below */);
-/*(2)*/ template<class K>
-        auto try_get(const K& key) const noexcept(/* see below */);
+template<class K>
+auto try_get(const K& key) noexcept(/* see below */);          // (1)
+template<class K>
+auto try_get(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns a pointer to the value under `key`, in the map, or a null pointer when the map has none: one search, by

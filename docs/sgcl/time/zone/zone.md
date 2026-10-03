@@ -3,8 +3,8 @@
 # sgcl::time::zone::zone
 
 ```cpp
-/*(1)*/ zone() noexcept = default;
-/*(2)*/ explicit zone(const string& name);
+zone() noexcept = default;            // (1)
+explicit zone(const string& name);    // (2)
 ```
 
 1. UTC, the same as [utc](utc.md): the null pointer, nothing allocated.

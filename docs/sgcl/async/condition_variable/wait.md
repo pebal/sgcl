@@ -3,17 +3,17 @@
 # sgcl::async::condition_variable::wait
 
 ```cpp
-/*(1)*/ auto wait(mutex::guard& g) noexcept;
-/*(2)*/ template<class Pred>
-        auto wait(mutex::guard& g, Pred pred)
-            noexcept(std::is_nothrow_copy_constructible_v<Pred> &&
-                     std::is_nothrow_move_constructible_v<Pred>);
-/*(3)*/ template<class Lock>
-            requires (!std::is_same_v<Lock, mutex::guard>)
-        void wait(Lock& lock);
-/*(4)*/ template<class Lock, class Pred>
-            requires (!std::is_same_v<Lock, mutex::guard>)
-        void wait(Lock& lock, Pred pred);
+auto wait(mutex::guard& g) noexcept;                          // (1)
+template<class Pred>
+auto wait(mutex::guard& g, Pred pred)                         // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<Pred> &&
+             std::is_nothrow_move_constructible_v<Pred>);
+template<class Lock>
+    requires (!std::is_same_v<Lock, mutex::guard>)
+void wait(Lock& lock);                                        // (3)
+template<class Lock, class Pred>
+    requires (!std::is_same_v<Lock, mutex::guard>)
+void wait(Lock& lock, Pred pred);                             // (4)
 ```
 
 Lets go of the mutex, waits for a notify and takes the mutex back. The waiter is put on the queue before the mutex

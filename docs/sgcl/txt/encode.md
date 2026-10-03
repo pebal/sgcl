@@ -6,8 +6,8 @@
 #include "sgcl/txt/encoding.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ vector<byte> encode(const string& text, encoding to) noexcept;
-    /*(2)*/ optional<vector<byte>> encode(const string& text, const string& name) noexcept;
+    vector<byte> encode(const string& text, encoding to) noexcept;                     // (1)
+    optional<vector<byte>> encode(const string& text, const string& name) noexcept;    // (2)
 }
 ```
 

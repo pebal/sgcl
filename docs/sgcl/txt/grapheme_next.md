@@ -6,13 +6,13 @@
 #include "sgcl/txt/segment.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ size_t grapheme_next(const slice<const char>& text, size_t pos) noexcept;
-    /*(2)*/ size_t grapheme_next(const string& text, size_t pos) noexcept;
-    /*(3)*/ template<size_t N>
-            size_t grapheme_next(const char (&text)[N], size_t pos) noexcept;
-    /*(4)*/ template<class P>
-            requires std::same_as<P, const char*> || std::same_as<P, char*>
-            size_t grapheme_next(P text, size_t pos) noexcept;
+    size_t grapheme_next(const slice<const char>& text, size_t pos) noexcept;    // (1)
+    size_t grapheme_next(const string& text, size_t pos) noexcept;               // (2)
+    template<size_t N>
+    size_t grapheme_next(const char (&text)[N], size_t pos) noexcept;            // (3)
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    size_t grapheme_next(P text, size_t pos) noexcept;                           // (4)
 }
 ```
 

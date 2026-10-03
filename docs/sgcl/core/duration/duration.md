@@ -3,14 +3,14 @@
 # sgcl::duration::duration
 
 ```cpp
-/*(1)*/ constexpr duration() noexcept = default;
-/*(2)*/ template<class Rep, class Period>
-        requires std::is_integral_v<Rep> && (std::ratio_divide<Period, std::nano>::den == 1)
-        constexpr duration(std::chrono::duration<Rep, Period> d) noexcept;
-/*(3)*/ template<class Rep, class Period>
-        requires std::is_floating_point_v<Rep>
-        explicit constexpr duration(std::chrono::duration<Rep, Period> d) noexcept;
-/*(4)*/ explicit duration(const string& text);
+constexpr duration() noexcept = default;                                                // (1)
+template<class Rep, class Period>
+requires std::is_integral_v<Rep> && (std::ratio_divide<Period, std::nano>::den == 1)
+constexpr duration(std::chrono::duration<Rep, Period> d) noexcept;                      // (2)
+template<class Rep, class Period>
+requires std::is_floating_point_v<Rep>
+explicit constexpr duration(std::chrono::duration<Rep, Period> d) noexcept;             // (3)
+explicit duration(const string& text);                                                  // (4)
 ```
 
 Constructs a duration.

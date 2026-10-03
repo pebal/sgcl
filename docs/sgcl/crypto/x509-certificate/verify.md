@@ -3,8 +3,8 @@
 # sgcl::crypto::x509::certificate::verify
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<x509::chain, error> verify() const;
-/*(2)*/ [[nodiscard]] expected<x509::chain, error> verify(const verify_options& options) const;
+[[nodiscard]] expected<x509::chain, error> verify() const;                                 // (1)
+[[nodiscard]] expected<x509::chain, error> verify(const verify_options& options) const;    // (2)
 ```
 
 Builds and checks a chain from this certificate to a trusted root, Go's `Verify`.

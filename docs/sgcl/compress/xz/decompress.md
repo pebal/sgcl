@@ -3,9 +3,9 @@
 # sgcl::compress::xz::decompress
 
 ```cpp
-/*(1)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept;
-/*(2)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data,
-                                                        const limits& l) noexcept;
+static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept;    // (1)
+static expected<vector<byte>, error> decompress(const slice<const byte>& data,              // (2)
+                                                const limits& l) noexcept;
 ```
 
 Decompresses the whole of an `.xz` stream at once: every stream there is, with the stream padding between them,

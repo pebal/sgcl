@@ -3,8 +3,8 @@
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::vector)
 
 ```cpp
-/*(1)*/ friend bool operator==(const vector& a, const vector& b);
-/*(2)*/ friend bool operator!=(const vector& a, const vector& b);
+friend bool operator==(const vector& a, const vector& b);    // (1)
+friend bool operator!=(const vector& a, const vector& b);    // (2)
 ```
 
 Compares two vectors by their elements.

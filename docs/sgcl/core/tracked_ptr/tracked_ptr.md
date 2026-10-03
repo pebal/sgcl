@@ -3,21 +3,21 @@
 # sgcl::tracked_ptr\<T\>::tracked_ptr
 
 ```cpp
-/*(1)*/ tracked_ptr() noexcept;
-/*(2)*/ tracked_ptr(std::nullptr_t) noexcept;
-/*(3)*/ template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
-        explicit tracked_ptr(U* p) noexcept;
-/*(4)*/ tracked_ptr(const tracked_ptr& p) noexcept;
-/*(5)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(const tracked_ptr<U>& p) noexcept;
-/*(6)*/ tracked_ptr(tracked_ptr&& p) noexcept;
-/*(7)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(tracked_ptr<U>&& p) noexcept;
-/*(8)*/ template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<U*, element_type*>, int> = 0>
-        tracked_ptr(const root_ptr<U>& r) noexcept;
-/*(9)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(unique_ptr<U>&& u) noexcept;
-/*(10)*/ tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept;
+tracked_ptr() noexcept;                                                                                                       // (1)
+tracked_ptr(std::nullptr_t) noexcept;                                                                                         // (2)
+template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
+explicit tracked_ptr(U* p) noexcept;                                                                                          // (3)
+tracked_ptr(const tracked_ptr& p) noexcept;                                                                                   // (4)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+tracked_ptr(const tracked_ptr<U>& p) noexcept;                                                                                // (5)
+tracked_ptr(tracked_ptr&& p) noexcept;                                                                                        // (6)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+tracked_ptr(tracked_ptr<U>&& p) noexcept;                                                                                     // (7)
+template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<U*, element_type*>, int> = 0>
+tracked_ptr(const root_ptr<U>& r) noexcept;                                                                                   // (8)
+template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+tracked_ptr(unique_ptr<U>&& u) noexcept;                                                                                      // (9)
+tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept;                                                                   // (10)
 ```
 
 Constructs a pointer from one of the sources below.

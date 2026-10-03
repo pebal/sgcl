@@ -3,12 +3,12 @@
 # sgcl::string::trim_left
 
 ```cpp
-/*(1)*/ basic_string trim_left() const noexcept;
-/*(2)*/ basic_string trim_left(view_type chars) const noexcept;
-/*(3)*/ template<size_t N>
-        basic_string trim_left(const CharT (&chars)[N]) const noexcept;
-/*(4)*/ basic_string trim_left(std::u32string_view set) const noexcept
-            requires (!std::same_as<CharT, char32_t>);
+basic_string trim_left() const noexcept;                           // (1)
+basic_string trim_left(view_type chars) const noexcept;            // (2)
+template<size_t N>
+basic_string trim_left(const CharT (&chars)[N]) const noexcept;    // (3)
+basic_string trim_left(std::u32string_view set) const noexcept     // (4)
+    requires (!std::same_as<CharT, char32_t>);
 ```
 
 Returns the string without the white space, or the characters given, at the start.

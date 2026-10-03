@@ -3,8 +3,8 @@
 # sgcl::net::ip_address::operator==, operator\<=\>
 
 ```cpp
-/*(1)*/ bool operator==(const ip_address&) const noexcept = default;
-/*(2)*/ auto operator<=>(const ip_address&) const noexcept = default;
+bool operator==(const ip_address&) const noexcept = default;     // (1)
+auto operator<=>(const ip_address&) const noexcept = default;    // (2)
 ```
 
 Compare two addresses member by member: the kind (the empty address, then IPv4, then IPv6), the sixteen bytes, the

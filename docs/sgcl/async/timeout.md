@@ -14,10 +14,10 @@ namespace sgcl::async {
         ~timeout_case();
     };
 
-    /*(1)*/ template<class F>
-            auto timeout(duration d, F f);
-    /*(2)*/ template<class F>
-            auto timeout(time_point t, F f);
+    template<class F>
+    auto timeout(duration d, F f);                     // (1)
+    template<class F>
+    auto timeout(time_point t, F f);                   // (2)
 }
 ```
 

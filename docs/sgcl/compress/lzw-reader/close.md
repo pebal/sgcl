@@ -3,8 +3,8 @@
 # sgcl::compress::lzw::reader::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close();
-/*(2)*/ async::task<expected<void, io::error>> async_close() noexcept;
+expected<void, io::error> close();                                // (1)
+async::task<expected<void, io::error>> async_close() noexcept;    // (2)
 ```
 
 Closes `in`, as `io::buffered_reader`'s close does: a reader made over a file it opened is closed with it. Whatever

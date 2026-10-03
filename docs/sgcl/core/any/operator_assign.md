@@ -3,11 +3,11 @@
 # sgcl::any::operator=
 
 ```cpp
-/*(1)*/ any& operator=(const any& o);
-/*(2)*/ any& operator=(any&& o) noexcept;
-/*(3)*/ template<class T, class VT = std::decay_t<T>>
-        requires (!std::is_same_v<VT, any> && std::is_copy_constructible_v<VT>)
-        any& operator=(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>);
+any& operator=(const any& o);                                                  // (1)
+any& operator=(any&& o) noexcept;                                              // (2)
+template<class T, class VT = std::decay_t<T>>
+requires (!std::is_same_v<VT, any> && std::is_copy_constructible_v<VT>)
+any& operator=(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>);    // (3)
 ```
 
 Replaces the value held.

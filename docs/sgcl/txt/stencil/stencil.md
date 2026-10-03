@@ -3,9 +3,9 @@
 # sgcl::txt::stencil::stencil
 
 ```cpp
-/*(1)*/ stencil() = default;
-/*(2)*/ explicit stencil(const string& source);
-/*(3)*/ explicit stencil(const string& source, const stencil_functions& functions);
+stencil() = default;                                                           // (1)
+explicit stencil(const string& source);                                        // (2)
+explicit stencil(const string& source, const stencil_functions& functions);    // (3)
 ```
 
 1. An empty template, which renders an empty page.

@@ -3,15 +3,15 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::find
 
 ```cpp
-/*(1)*/ size_type find(view_type s, size_type pos = 0) const noexcept;
-/*(2)*/ size_type find(CharT c, size_type pos = 0) const noexcept;
-/*(3)*/ size_type find(const CharT* s, size_type pos, size_type n) const noexcept;
-/*(4)*/ template<size_t N> size_type find(const CharT (&s)[N], size_type pos = 0) const noexcept;
-/*(5)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find(P s, size_type pos = 0) const noexcept;
-/*(6)*/ size_type find(char32_t c, size_type pos = 0) const noexcept
-            requires (!std::same_as<CharT, char32_t>);
-/*(7)*/ size_type find(int, size_type = 0) const = delete;
+size_type find(view_type s, size_type pos = 0) const noexcept;                               // (1)
+size_type find(CharT c, size_type pos = 0) const noexcept;                                   // (2)
+size_type find(const CharT* s, size_type pos, size_type n) const noexcept;                   // (3)
+template<size_t N> size_type find(const CharT (&s)[N], size_type pos = 0) const noexcept;    // (4)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+size_type find(P s, size_type pos = 0) const noexcept;                                       // (5)
+size_type find(char32_t c, size_type pos = 0) const noexcept                                 // (6)
+    requires (!std::same_as<CharT, char32_t>);
+size_type find(int, size_type = 0) const = delete;                                           // (7)
 ```
 
 Finds the first occurrence of a substring or a character at or after `pos`, as `std::basic_string_view::find`.

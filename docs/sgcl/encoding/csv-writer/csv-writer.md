@@ -3,9 +3,9 @@
 # sgcl::encoding::csv::writer::writer
 
 ```cpp
-/*(1)*/ explicit writer(const io::writer& out) noexcept;
-/*(2)*/ writer(const io::writer& out, const options& o);
-/*(3)*/ writer(const writer&) = delete;
+explicit writer(const io::writer& out) noexcept;    // (1)
+writer(const io::writer& out, const options& o);    // (2)
+writer(const writer&) = delete;                     // (3)
 ```
 
 Constructs a writer into the stream `out`: a file, a socket, an encoder, an [io::buffer](../../io/buffer.md),

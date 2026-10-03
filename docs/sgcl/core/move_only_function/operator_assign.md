@@ -3,13 +3,13 @@
 # sgcl::move_only_function\<R(Args...)\>::operator=
 
 ```cpp
-/*(1)*/ move_only_function& operator=(move_only_function&& o) noexcept;
-/*(2)*/ move_only_function& operator=(const move_only_function&) = delete;
-/*(3)*/ move_only_function& operator=(std::nullptr_t) noexcept;
-/*(4)*/ template<class F>
-        requires std::is_constructible_v<move_only_function, F>
-        move_only_function& operator=(F&& f)
-            noexcept(std::is_nothrow_constructible_v<move_only_function, F>);
+move_only_function& operator=(move_only_function&& o) noexcept;          // (1)
+move_only_function& operator=(const move_only_function&) = delete;       // (2)
+move_only_function& operator=(std::nullptr_t) noexcept;                  // (3)
+template<class F>
+requires std::is_constructible_v<move_only_function, F>
+move_only_function& operator=(F&& f)                                     // (4)
+    noexcept(std::is_nothrow_constructible_v<move_only_function, F>);
 ```
 
 Replaces the callable held.

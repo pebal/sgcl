@@ -3,10 +3,10 @@
 # sgcl::deque\<T\>::assign
 
 ```cpp
-/*(1)*/ void assign(size_type count, const T& value);
-/*(2)*/ template<std::input_iterator InputIt>
-        void assign(InputIt first, InputIt last);
-/*(3)*/ void assign(std::initializer_list<T> ilist);
+void assign(size_type count, const T& value);    // (1)
+template<std::input_iterator InputIt>
+void assign(InputIt first, InputIt last);        // (2)
+void assign(std::initializer_list<T> ilist);     // (3)
 ```
 
 Replaces the elements of the deque.

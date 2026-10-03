@@ -3,10 +3,10 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::at
 
 ```cpp
-/*(1)*/ mapped_type& at(const key_type& key);
-/*(2)*/ const mapped_type& at(const key_type& key) const;
-/*(3)*/ template<class K> mapped_type& at(const K& key);
-/*(4)*/ template<class K> const mapped_type& at(const K& key) const;
+mapped_type& at(const key_type& key);                           // (1)
+const mapped_type& at(const key_type& key) const;               // (2)
+template<class K> mapped_type& at(const K& key);                // (3)
+template<class K> const mapped_type& at(const K& key) const;    // (4)
 ```
 
 Returns a reference to the value under `key`, with bounds checking: a key that is not in the map throws.

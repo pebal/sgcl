@@ -3,8 +3,8 @@
 # sgcl::forward_list\<T\>::push_front
 
 ```cpp
-/*(1)*/ void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
+void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
 ```
 
 Inserts an element at the beginning, in a node of its own.

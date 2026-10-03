@@ -3,9 +3,9 @@
 # sgcl::net::listener::listener
 
 ```cpp
-/*(1)*/ listener() noexcept = default;
-/*(2)*/ listener(const listener& other) noexcept;   // implicitly declared
-/*(3)*/ listener(listener&& other) noexcept;        // implicitly declared
+listener() noexcept = default;               // (1)
+listener(const listener& other) noexcept;    // (2), implicitly declared
+listener(listener&& other) noexcept;         // (3), implicitly declared
 ```
 
 1. A handle that holds no listener: `!l`. An operation on it is a contract violation (debug builds assert); it is

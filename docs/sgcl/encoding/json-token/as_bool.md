@@ -3,8 +3,8 @@
 # sgcl::encoding::json::token::as_bool
 
 ```cpp
-/*(1)*/ optional<bool> as_bool() const noexcept;
-/*(2)*/ bool as_bool(bool fallback) const noexcept;
+optional<bool> as_bool() const noexcept;       // (1)
+bool as_bool(bool fallback) const noexcept;    // (2)
 ```
 
 The value of a boolean token. Only `true` and `false` are booleans: a string `"true"`, a number and null are not.

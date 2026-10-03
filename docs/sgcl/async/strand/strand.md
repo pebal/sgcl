@@ -3,8 +3,8 @@
 # sgcl::async::strand::strand
 
 ```cpp
-/*(1)*/ strand() noexcept;
-/*(2)*/ strand(const strand&) = delete;
+strand() noexcept;                 // (1)
+strand(const strand&) = delete;    // (2)
 ```
 
 1. Constructs a strand with an empty queue, a managed object the strand holds through a root. It runs nothing and

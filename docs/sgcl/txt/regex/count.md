@@ -3,11 +3,11 @@
 # sgcl::txt::regex::count
 
 ```cpp
-/*(1)*/ size_t count(const slice<const char>& text) const noexcept;
-/*(2)*/ size_t count(const string& text) const noexcept;
-/*(3)*/ template<size_t N> size_t count(const char (&text)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        size_t count(P text) const noexcept;
+size_t count(const slice<const char>& text) const noexcept;                          // (1)
+size_t count(const string& text) const noexcept;                                     // (2)
+template<size_t N> size_t count(const char (&text)[N]) const noexcept;               // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+size_t count(P text) const noexcept;                                                 // (4)
 ```
 
 Counts the matches of the pattern in the text, never overlapping: the matches [all](all.md) walks, walked and

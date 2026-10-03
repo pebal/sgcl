@@ -6,10 +6,10 @@
 #include "sgcl/compress/sevenzip.h"   // or "sgcl/compress.h"
 
 namespace sgcl::compress::sevenzip {
-    /*(1)*/ expected<void, error> create(const string& directory, const string& archive_path,
-                                         const options& o = {});
-    /*(2)*/ async::task<expected<void, error>> async_create(string directory, string archive_path,
-                                                            options o = {}) noexcept;
+    expected<void, error> create(const string& directory, const string& archive_path,         // (1)
+                                 const options& o = {});
+    async::task<expected<void, error>> async_create(string directory, string archive_path,    // (2)
+                                                    options o = {}) noexcept;
 }
 ```
 

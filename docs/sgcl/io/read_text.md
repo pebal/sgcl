@@ -6,8 +6,8 @@
 #include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<string, error> read_text(const string& path);
-    /*(2)*/ async::task<expected<string, error>> async_read_text(const string& path) noexcept;
+    expected<string, error> read_text(const string& path);                                // (1)
+    async::task<expected<string, error>> async_read_text(const string& path) noexcept;    // (2)
 }
 ```
 

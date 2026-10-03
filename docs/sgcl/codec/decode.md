@@ -6,9 +6,9 @@
 #include "sgcl/codec/decode.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    /*(1)*/ expected<image, error> decode(const slice<const byte>& data,
-                                          const decode_options& o = {}) noexcept;
-    /*(2)*/ expected<image, error> decode(const io::reader& in, const decode_options& o = {});
+    expected<image, error> decode(const slice<const byte>& data,                          // (1)
+                                  const decode_options& o = {}) noexcept;
+    expected<image, error> decode(const io::reader& in, const decode_options& o = {});    // (2)
 }
 ```
 

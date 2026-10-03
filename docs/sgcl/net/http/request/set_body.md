@@ -3,9 +3,9 @@
 # sgcl::net::http::request::set_body
 
 ```cpp
-/*(1)*/ request& set_body(const string& text) noexcept;
-/*(2)*/ request& set_body(vector<byte> bytes) noexcept;
-/*(3)*/ request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) noexcept;
+request& set_body(const string& text) noexcept;                                               // (1)
+request& set_body(vector<byte> bytes) noexcept;                                               // (2)
+request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) noexcept;    // (3)
 ```
 
 Sets the body the request sends, in place of any set before, Go's `r.Body` with its `ContentLength`. The client sends

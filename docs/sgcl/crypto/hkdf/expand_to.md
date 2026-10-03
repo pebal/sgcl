@@ -3,10 +3,10 @@
 # sgcl::crypto::hkdf\<H\>::expand_to
 
 ```cpp
-/*(1)*/ static void expand_to(const slice<byte>& out, const prk& key,
-                              const slice<const byte>& info);
-/*(2)*/ static void expand_to(const slice<byte>& out, const slice<const byte>& key,
-                              const slice<const byte>& info);
+static void expand_to(const slice<byte>& out, const prk& key,                  // (1)
+                      const slice<const byte>& info);
+static void expand_to(const slice<byte>& out, const slice<const byte>& key,    // (2)
+                      const slice<const byte>& info);
 ```
 
 [expand](expand.md) into a buffer of the caller's: `out.size()` bytes of output keying material from the PRK, bound

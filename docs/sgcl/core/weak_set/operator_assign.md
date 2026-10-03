@@ -3,8 +3,8 @@
 # sgcl::weak_set\<Key\>::operator=
 
 ```cpp
-/*(1)*/ weak_set& operator=(weak_set&& other) noexcept;
-/*(2)*/ weak_set& operator=(const weak_set&) = delete;
+weak_set& operator=(weak_set&& other) noexcept;    // (1)
+weak_set& operator=(const weak_set&) = delete;     // (2)
 ```
 
 Replaces the entries of the set.

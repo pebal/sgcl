@@ -3,8 +3,8 @@
 # sgcl::time::date::is_valid
 
 ```cpp
-/*(1)*/ static constexpr bool is_valid(int year, int month, int day) noexcept;
-/*(2)*/ static constexpr bool is_valid(int year, time::month month, int day) noexcept;
+static constexpr bool is_valid(int year, int month, int day) noexcept;            // (1)
+static constexpr bool is_valid(int year, time::month month, int day) noexcept;    // (2)
 ```
 
 Checks whether a date exists as written: a year from -32767 to 32767, a month from 1 to 12 and a day within the

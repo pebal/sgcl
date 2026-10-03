@@ -9,10 +9,10 @@ namespace sgcl::txt {
     // called as identifier_status_of(c)
     inline constexpr /* unspecified */ identifier_status_of {};
 
-    /*(1)*/ template<class... T> requires (std::same_as<T, char32_t> && ...)
-            constexpr auto operator()(T... c) const noexcept;
-    /*(2)*/ template<class... T> requires (!(std::same_as<T, char32_t> && ...))
-            constexpr auto operator()(T...) const noexcept = delete;
+    template<class... T> requires (std::same_as<T, char32_t> && ...)
+    constexpr auto operator()(T... c) const noexcept;                      // (1)
+    template<class... T> requires (!(std::same_as<T, char32_t> && ...))
+    constexpr auto operator()(T...) const noexcept = delete;               // (2)
 }
 ```
 

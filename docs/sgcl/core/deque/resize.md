@@ -3,8 +3,8 @@
 # sgcl::deque\<T\>::resize
 
 ```cpp
-/*(1)*/ void resize(size_type count) requires std::default_initializable<T>;
-/*(2)*/ void resize(size_type count, const value_type& value);
+void resize(size_type count) requires std::default_initializable<T>;    // (1)
+void resize(size_type count, const value_type& value);                  // (2)
 ```
 
 Changes the number of elements to `count`: pops from the back down to it, or pushes elements at the back up to

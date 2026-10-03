@@ -3,13 +3,13 @@
 # sgcl::io::path::join
 
 ```cpp
-/*(1)*/ template<class R>
-            requires std::ranges::input_range<R>
-                  && std::convertible_to<std::ranges::range_reference_t<R>, const string&>
-        string join(const R& elements) noexcept(/* see below */);
-/*(2)*/ string join(std::initializer_list<string> elements) noexcept;
-/*(3)*/ template<class... S>
-        string join(const string& first, const S&... rest) noexcept(/* see below */);
+template<class R>
+    requires std::ranges::input_range<R>
+          && std::convertible_to<std::ranges::range_reference_t<R>, const string&>
+string join(const R& elements) noexcept(/* see below */);                             // (1)
+string join(std::initializer_list<string> elements) noexcept;                         // (2)
+template<class... S>
+string join(const string& first, const S&... rest) noexcept(/* see below */);         // (3)
 ```
 
 Joins the elements with the separator and [cleans](clean.md) the result, Go's `filepath.Join`. Empty elements are

@@ -5,10 +5,10 @@
 ```cpp
 static constexpr /* unspecified */ to_lower {};
 
-/*(1)*/ template<class... T> requires (std::same_as<T, char32_t> && ...)
-        constexpr auto operator()(T... c) const noexcept;
-/*(2)*/ template<class... T> requires (!(std::same_as<T, char32_t> && ...))
-        constexpr auto operator()(T...) const noexcept = delete;
+template<class... T> requires (std::same_as<T, char32_t> && ...)
+constexpr auto operator()(T... c) const noexcept;                      // (1)
+template<class... T> requires (!(std::same_as<T, char32_t> && ...))
+constexpr auto operator()(T...) const noexcept = delete;               // (2)
 ```
 
 An object called as a function, `unicode::to_lower(c)`.

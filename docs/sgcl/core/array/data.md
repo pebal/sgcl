@@ -3,8 +3,8 @@
 # sgcl::array\<T, N\>::data
 
 ```cpp
-/*(1)*/ constexpr T* data() noexcept;
-/*(2)*/ constexpr const T* data() const noexcept;
+constexpr T* data() noexcept;                // (1)
+constexpr const T* data() const noexcept;    // (2)
 ```
 
 Returns a pointer to the first element: the elements lie inline, one after another, and `[data(), data() + N)` is

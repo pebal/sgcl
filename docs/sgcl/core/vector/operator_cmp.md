@@ -3,8 +3,8 @@
 # sgcl::operator==, operator\<=\> (sgcl::vector)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const vector& a, const vector& b);
-/*(2)*/ friend constexpr auto operator<=>(const vector& a, const vector& b);
+friend constexpr bool operator==(const vector& a, const vector& b);     // (1)
+friend constexpr auto operator<=>(const vector& a, const vector& b);    // (2)
 ```
 
 Compares two vectors by their elements.

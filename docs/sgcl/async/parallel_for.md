@@ -6,21 +6,21 @@
 #include "sgcl/async/parallel.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class T, class F>
-            void parallel_for(T count, F f, const parallel_options& options = {})
-                noexcept(/* see below */);
-    /*(2)*/ template<class T, class F>
-            void parallel_for(T begin, T end, F f, const parallel_options& options = {})
-                noexcept(/* see below */);
-    /*(3)*/ template<class T, class F>
-            void parallel_for(T begin, T end, T step, F f, const parallel_options& options = {});
+    template<class T, class F>
+    void parallel_for(T count, F f, const parallel_options& options = {})                    // (1)
+        noexcept(/* see below */);
+    template<class T, class F>
+    void parallel_for(T begin, T end, F f, const parallel_options& options = {})             // (2)
+        noexcept(/* see below */);
+    template<class T, class F>
+    void parallel_for(T begin, T end, T step, F f, const parallel_options& options = {});    // (3)
 }
 ```
 
 Calls `f` for every index of a range, the calls spread over the workers of the [scheduler](scheduler.md) and the
 caller: OpenMP's `parallel for`, `std::for_each(std::execution::par, ...)` over a range of integers, a loop Go
 writes by hand with goroutines and a `WaitGroup`. The loop runs inside the call, which returns once `f` has been
-called for every index, as SNS-HDR's `parallel_for_` does: `async::parallel_for(n, f);` on a thread and in a task
+called for every index: `async::parallel_for(n, f);` on a thread and in a task
 alike, with nothing to wait for or `co_await` afterwards.
 
 1. The indices `0 .. count - 1`; none for a `count` of zero or less.
@@ -32,14 +32,13 @@ alike, with nothing to wait for or `co_await` afterwards.
 `f(i)` is called with the index, or `f(i, lane)` when `f` takes two arguments: the number of the lane that calls
 it, `0` to the number of lanes less one, `unsigned`. A lane is one caller at a time: the loop is run by the calling
 thread (lane `0`; in a task, the task's worker) and by tasks it starts on the workers, each of them a lane, so
-per-lane scratch space indexed by `lane` is touched by one call at a time and needs no lock, SNS-HDR's `threadNum()`
-passed as an argument. The number of lanes is the [options](parallel_options.md)' `lanes`, by default
+per-lane scratch space indexed by `lane` is touched by one call at a time and needs no lock. The number of lanes is the [options](parallel_options.md)' `lanes`, by default
 [scheduler::workers()](scheduler/workers.md), which is what a vector of scratch space is sized with.
 
 The lanes take the indices in chunks of `grain` consecutive indices, each chunk claimed by an increment of a
 counter they share, so a lane that is slow (a core taken by another program, indices dearer than the rest) takes
 fewer chunks and the others make up for it. The default grain cuts the range into about eight chunks per lane; a
-grain of `1` claims an index at a time, SNS-HDR's `parallel_for_`.
+grain of `1` claims an index at a time.
 
 `T` is an integer type of up to 64 bits other than `bool`, the same for both ends and the step:
 `async::parallel_for(size_t(0), v.size(), f)`, not `(0, v.size(), f)`, or (1), `async::parallel_for(v.size(), f)`.

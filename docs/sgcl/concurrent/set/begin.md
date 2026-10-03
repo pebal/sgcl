@@ -3,9 +3,9 @@
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::begin, cbegin
 
 ```cpp
-/*(1)*/ iterator begin() noexcept;
-/*(2)*/ const_iterator begin() const noexcept;
-/*(3)*/ const_iterator cbegin() const noexcept;
+iterator begin() noexcept;                 // (1)
+const_iterator begin() const noexcept;     // (2)
+const_iterator cbegin() const noexcept;    // (3)
 ```
 
 Returns an iterator to the first element of the list: a walk from the head over the dummies of the buckets and

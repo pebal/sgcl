@@ -3,9 +3,9 @@
 # sgcl::concurrent::sorted_set\<Key, Compare\>::begin, cbegin
 
 ```cpp
-/*(1)*/ iterator begin() noexcept;
-/*(2)*/ const_iterator begin() const noexcept;
-/*(3)*/ const_iterator cbegin() const noexcept;
+iterator begin() noexcept;                 // (1)
+const_iterator begin() const noexcept;     // (2)
+const_iterator cbegin() const noexcept;    // (3)
 ```
 
 Returns an iterator to the first key in order: the first node of the bottom list that is not erased. When the set

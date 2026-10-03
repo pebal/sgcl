@@ -3,8 +3,8 @@
 # sgcl::concurrent::queue\<T\>::queue
 
 ```cpp
-/*(1)*/ queue() noexcept;
-/*(2)*/ queue(const queue&) = delete;
+queue() noexcept;                // (1)
+queue(const queue&) = delete;    // (2)
 ```
 
 1. An empty queue: one node on the managed heap whose element is taken, addressed by the head and the tail.

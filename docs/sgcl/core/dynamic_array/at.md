@@ -3,8 +3,8 @@
 # sgcl::dynamic_array\<T\>::at
 
 ```cpp
-/*(1)*/ reference at(size_type pos);
-/*(2)*/ const_reference at(size_type pos) const;
+reference at(size_type pos);                // (1)
+const_reference at(size_type pos) const;    // (2)
 ```
 
 Returns a reference to the element at `pos`, with bounds checking: a `pos` outside the array throws.

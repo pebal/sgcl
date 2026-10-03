@@ -3,11 +3,11 @@
 # sgcl::net::http::response_writer::write
 
 ```cpp
-/*(1)*/ response_writer& write(const string& text) noexcept;
-/*(2)*/ response_writer& write(const slice<const byte>& data) noexcept;
-/*(3)*/ response_writer& write(const io::file& f);
-/*(4)*/ template<class T>
-        response_writer& write(const T& text) noexcept;
+response_writer& write(const string& text) noexcept;               // (1)
+response_writer& write(const slice<const byte>& data) noexcept;    // (2)
+response_writer& write(const io::file& f);                         // (3)
+template<class T>
+response_writer& write(const T& text) noexcept;                    // (4)
 ```
 
 Adds to the body, Go's `Write`. It never waits: the bytes go to a buffer in memory, sent with the head when the

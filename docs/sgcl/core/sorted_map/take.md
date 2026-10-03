@@ -3,9 +3,9 @@
 # sgcl::sorted_map\<Key, T, Compare\>::take
 
 ```cpp
-/*(1)*/ optional<mapped_type> take(const key_type& key)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(2)*/ template<class K> optional<mapped_type> take(const K& key) noexcept(/* see below */);
+optional<mapped_type> take(const key_type& key)                                          // (1)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
+template<class K> optional<mapped_type> take(const K& key) noexcept(/* see below */);    // (2)
 ```
 
 Moves the value under `key` out of the map and erases the element; returns `nullopt` when the map does not hold

@@ -3,11 +3,11 @@
 # sgcl::io::command::command
 
 ```cpp
-/*(1)*/ template<class... Args>
-            requires (std::is_convertible_v<const Args&, string> && ...)
-        explicit command(const string& name, const Args&... arguments) noexcept(/* see below */);
-/*(2)*/ command(const string& name, vector<string> arguments) noexcept;
-/*(3)*/ command(command&&) noexcept = default;
+template<class... Args>
+    requires (std::is_convertible_v<const Args&, string> && ...)
+explicit command(const string& name, const Args&... arguments) noexcept(/* see below */);    // (1)
+command(const string& name, vector<string> arguments) noexcept;                              // (2)
+command(command&&) noexcept = default;                                                       // (3)
 ```
 
 Makes a command of the program `name` and its arguments, Go's `exec.Command`. Nothing runs and nothing is looked up:

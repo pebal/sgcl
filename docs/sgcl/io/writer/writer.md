@@ -3,11 +3,11 @@
 # sgcl::io::writer::writer
 
 ```cpp
-/*(1)*/ writer() noexcept = default;
-/*(2)*/ template<class W>
-        requires (!std::same_as<std::remove_cvref_t<W>, writer>) &&
-                 (req::writer<W> || req::async_writer<W>)
-        writer(W&& w) noexcept(/* see below */);
+writer() noexcept = default;                                   // (1)
+template<class W>
+requires (!std::same_as<std::remove_cvref_t<W>, writer>) &&
+         (req::writer<W> || req::async_writer<W>)
+writer(W&& w) noexcept(/* see below */);                       // (2)
 ```
 
 Constructs a writer.

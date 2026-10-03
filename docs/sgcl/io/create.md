@@ -6,11 +6,11 @@
 #include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<file, error> create(const string& path,
-                                         permissions p = permissions(0666)) noexcept;
-    /*(2)*/ async::task<expected<file, error>> async_create(const string& path,
-                                                            permissions p = permissions(0666))
-                noexcept;
+    expected<file, error> create(const string& path,                                      // (1)
+                                 permissions p = permissions(0666)) noexcept;
+    async::task<expected<file, error>> async_create(const string& path,                   // (2)
+                                                    permissions p = permissions(0666))
+        noexcept;
 }
 ```
 

@@ -3,8 +3,8 @@
 # sgcl::set\<Key, Hash, KeyEqual\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const key_type& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept(/* see below */);
+bool contains(const key_type& key) const noexcept;                                // (1)
+template<class K> bool contains(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Checks whether the set holds an element with the key `key`, by a lookup in its bucket. It hides the `contains`

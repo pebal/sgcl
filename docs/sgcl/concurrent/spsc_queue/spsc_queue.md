@@ -3,8 +3,8 @@
 # sgcl::concurrent::spsc_queue\<T\>::spsc_queue
 
 ```cpp
-/*(1)*/ explicit spsc_queue(size_type capacity) noexcept;
-/*(2)*/ spsc_queue(const spsc_queue&) = delete;
+explicit spsc_queue(size_type capacity) noexcept;    // (1)
+spsc_queue(const spsc_queue&) = delete;              // (2)
 ```
 
 1. An empty queue of `capacity` cells, rounded up to a power of two, at least one: one managed buffer of that many

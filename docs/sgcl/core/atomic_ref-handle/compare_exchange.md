@@ -3,15 +3,15 @@
 # sgcl::atomic_ref\<H\>::compare_exchange_weak, compare_exchange_strong
 
 ```cpp
-/*(1)*/ bool compare_exchange_weak(H& expected, const H& desired,
-                                   const std::memory_order m = std::memory_order_seq_cst) noexcept;
-/*(2)*/ bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s,
-                                   const std::memory_order f) noexcept;
-/*(3)*/ bool compare_exchange_strong(H& expected, const H& desired,
-                                     const std::memory_order m = std::memory_order_seq_cst)
-            noexcept;
-/*(4)*/ bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s,
-                                     const std::memory_order f) noexcept;
+bool compare_exchange_weak(H& expected, const H& desired,                                      // (1)
+                           const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s,           // (2)
+                           const std::memory_order f) noexcept;
+bool compare_exchange_strong(H& expected, const H& desired,                                    // (3)
+                             const std::memory_order m = std::memory_order_seq_cst)
+    noexcept;
+bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s,         // (4)
+                             const std::memory_order f) noexcept;
 ```
 
 The compare-exchange of `std::atomic_ref` on the handle's word: when the handle viewed holds the object `expected`

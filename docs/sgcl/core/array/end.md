@@ -3,9 +3,9 @@
 # sgcl::array\<T, N\>::end, cend
 
 ```cpp
-/*(1)*/ constexpr iterator end() noexcept;
-/*(2)*/ constexpr const_iterator end() const noexcept;
-/*(3)*/ constexpr const_iterator cend() const noexcept;
+constexpr iterator end() noexcept;                 // (1)
+constexpr const_iterator end() const noexcept;     // (2)
+constexpr const_iterator cend() const noexcept;    // (3)
 ```
 
 Returns an iterator past the last element, `begin() + N`. It may not be dereferenced.

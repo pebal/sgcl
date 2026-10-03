@@ -3,9 +3,9 @@
 # sgcl::net::dns::lookup, async_lookup
 
 ```cpp
-/*(1)*/ static expected<vector<ip_address>, io::error> lookup(const string& host) noexcept;
-/*(2)*/ static async::task<expected<vector<ip_address>, io::error>> async_lookup(const string& host,
-                                                                                 async::stop_token stop = {}) noexcept;
+static expected<vector<ip_address>, io::error> lookup(const string& host) noexcept;                                // (1)
+static async::task<expected<vector<ip_address>, io::error>> async_lookup(const string& host,                       // (2)
+                                                                         async::stop_token stop = {}) noexcept;
 ```
 
 Returns the addresses of `host`, through the system's resolver (`getaddrinfo`): Go's `net.LookupIP`. The order is

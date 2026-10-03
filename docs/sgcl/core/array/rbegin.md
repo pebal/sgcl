@@ -3,9 +3,9 @@
 # sgcl::array\<T, N\>::rbegin, crbegin
 
 ```cpp
-/*(1)*/ constexpr reverse_iterator rbegin() noexcept;
-/*(2)*/ constexpr const_reverse_iterator rbegin() const noexcept;
-/*(3)*/ constexpr const_reverse_iterator crbegin() const noexcept;
+constexpr reverse_iterator rbegin() noexcept;                 // (1)
+constexpr const_reverse_iterator rbegin() const noexcept;     // (2)
+constexpr const_reverse_iterator crbegin() const noexcept;    // (3)
 ```
 
 Returns a reverse iterator to the last element, the first of the walk from the back: `reverse_iterator(end())`.

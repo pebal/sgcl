@@ -3,8 +3,8 @@
 # sgcl::compress::sevenzip::writer::add_directory
 
 ```cpp
-/*(1)*/ void add_directory(const string& name) noexcept;
-/*(2)*/ void add_directory(const string& name, const entry_info& info) noexcept;
+void add_directory(const string& name) noexcept;                            // (1)
+void add_directory(const string& name, const entry_info& info) noexcept;    // (2)
 ```
 
 Writes a directory entry, with no data and in no folder; a trailing `/` of the name is dropped. A failure is kept as

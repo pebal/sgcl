@@ -3,9 +3,9 @@
 # sgcl::io::buffered_writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& data) const;
-/*(2)*/ async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const
-            noexcept;
+expected<size_t, error> write(const slice<const byte>& data) const;                      // (1)
+async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const    // (2)
+    noexcept;
 ```
 
 Writes `data` into the block. When the block is full it is written to the stream underneath and filled again; while

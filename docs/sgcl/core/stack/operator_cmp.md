@@ -3,10 +3,10 @@
 # sgcl::operator==, operator\<=\> (sgcl::stack)
 
 ```cpp
-/*(1)*/ friend bool operator==(const stack& lhs, const stack& rhs)
-            requires std::equality_comparable<Container>;
-/*(2)*/ friend auto operator<=>(const stack& lhs, const stack& rhs)
-            requires std::three_way_comparable<Container>;
+friend bool operator==(const stack& lhs, const stack& rhs)     // (1)
+    requires std::equality_comparable<Container>;
+friend auto operator<=>(const stack& lhs, const stack& rhs)    // (2)
+    requires std::three_way_comparable<Container>;
 ```
 
 Compares two stacks by their containers, the elements from the bottom to the top. Hidden friends of the stack,

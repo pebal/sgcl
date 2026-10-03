@@ -3,9 +3,9 @@
 # sgcl::net::http::server::serve_tls, async_serve_tls
 
 ```cpp
-/*(1)*/ expected<void, io::error> serve_tls(const string& address, const net::tls::config& c) const;
-/*(2)*/ async::task<expected<void, io::error>> async_serve_tls(const string& address,
-                                                              const net::tls::config& c) const noexcept;
+expected<void, io::error> serve_tls(const string& address, const net::tls::config& c) const;        // (1)
+async::task<expected<void, io::error>> async_serve_tls(const string& address,                       // (2)
+                                                      const net::tls::config& c) const noexcept;
 ```
 
 Listens over TLS 1.3 on `address` with the config `c` and serves until [shutdown](shutdown.md) or [close](close.md),

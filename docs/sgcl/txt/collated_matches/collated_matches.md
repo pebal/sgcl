@@ -3,14 +3,14 @@
 # sgcl::txt::collated_matches::collated_matches
 
 ```cpp
-/*(1)*/ collated_matches() noexcept;
-/*(2)*/ collated_matches(const collator& by, const string& text, const string& pattern) noexcept;
-/*(3)*/ collated_matches(const collator& by, const string& text, searcher_type pattern) noexcept;
-/*(4)*/ collated_matches(const collator& by, const slice<const char>& text, searcher_type pattern);
-/*(5)*/ template<size_t N>
-        collated_matches(const collator& by, const char (&text)[N], searcher_type pattern);
-/*(6)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        collated_matches(const collator& by, P text, searcher_type pattern);
+collated_matches() noexcept;                                                                   // (1)
+collated_matches(const collator& by, const string& text, const string& pattern) noexcept;      // (2)
+collated_matches(const collator& by, const string& text, searcher_type pattern) noexcept;      // (3)
+collated_matches(const collator& by, const slice<const char>& text, searcher_type pattern);    // (4)
+template<size_t N>
+collated_matches(const collator& by, const char (&text)[N], searcher_type pattern);            // (5)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+collated_matches(const collator& by, P text, searcher_type pattern);                           // (6)
 ```
 
 Constructs the range of the occurrences of a pattern in a text by a collator: weighs the text once and keeps it

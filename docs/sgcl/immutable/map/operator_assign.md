@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ map& operator=(const map& other) noexcept;
-/*(2)*/ map& operator=(map&& other) noexcept;
+map& operator=(const map& other) noexcept;    // (1)
+map& operator=(map&& other) noexcept;         // (2)
 ```
 
 Makes this variable hold the version `other` holds.

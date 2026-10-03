@@ -3,8 +3,8 @@
 # sgcl::list\<T\>::erase
 
 ```cpp
-/*(1)*/ iterator erase(const_iterator pos) noexcept;
-/*(2)*/ iterator erase(const_iterator first, const_iterator last) noexcept;
+iterator erase(const_iterator pos) noexcept;                           // (1)
+iterator erase(const_iterator first, const_iterator last) noexcept;    // (2)
 ```
 
 Erases elements: destroys them and unlinks their nodes.

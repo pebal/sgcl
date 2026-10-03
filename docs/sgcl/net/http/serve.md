@@ -5,8 +5,8 @@
 ```cpp
 #include "sgcl/net/http/serve.h"   // or "sgcl/net/http.h"
 
-/*(1)*/ expected<void, io::error> serve(const string& address, const string& directory);
-/*(2)*/ async::task<expected<void, io::error>> async_serve(string address, string directory) noexcept;
+expected<void, io::error> serve(const string& address, const string& directory);                  // (1)
+async::task<expected<void, io::error>> async_serve(string address, string directory) noexcept;    // (2)
 ```
 
 Serves the files of a directory over HTTP, Go's `http.ListenAndServe(address,

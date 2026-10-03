@@ -3,22 +3,22 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::try_emplace
 
 ```cpp
-/*(1)*/ template<class... A>
-        pair<iterator, bool> try_emplace(const key_type& key, A&&... a)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, A&&...>);
-/*(2)*/ template<class... A>
-        pair<iterator, bool> try_emplace(key_type&& key, A&&... a)
-            noexcept(std::is_nothrow_move_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, A&&...>);
-/*(3)*/ template<class... A>
-        iterator try_emplace(const_iterator hint, const key_type& key, A&&... a)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, A&&...>);
-/*(4)*/ template<class... A>
-        iterator try_emplace(const_iterator hint, key_type&& key, A&&... a)
-            noexcept(std::is_nothrow_move_constructible_v<Key> &&
-                     std::is_nothrow_constructible_v<T, A&&...>);
+template<class... A>
+pair<iterator, bool> try_emplace(const key_type& key, A&&... a)             // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, A&&...>);
+template<class... A>
+pair<iterator, bool> try_emplace(key_type&& key, A&&... a)                  // (2)
+    noexcept(std::is_nothrow_move_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, A&&...>);
+template<class... A>
+iterator try_emplace(const_iterator hint, const key_type& key, A&&... a)    // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, A&&...>);
+template<class... A>
+iterator try_emplace(const_iterator hint, key_type&& key, A&&... a)         // (4)
+    noexcept(std::is_nothrow_move_constructible_v<Key> &&
+             std::is_nothrow_constructible_v<T, A&&...>);
 ```
 
 Inserts an element under `key` with the value constructed in place from `a...`, when the key is not in the map.

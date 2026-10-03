@@ -3,11 +3,11 @@
 # sgcl::sorted_map\<Key, T, Compare\>::extract
 
 ```cpp
-/*(1)*/ node_type extract(iterator pos) noexcept
-            requires (!std::is_same_v<iterator, const_iterator>);
-/*(2)*/ node_type extract(const_iterator pos) noexcept;
-/*(3)*/ node_type extract(const key_type& key) noexcept;
-/*(4)*/ template<class K> node_type extract(K&& key) noexcept(/* see below */);
+node_type extract(iterator pos) noexcept                                   // (1)
+    requires (!std::is_same_v<iterator, const_iterator>);
+node_type extract(const_iterator pos) noexcept;                            // (2)
+node_type extract(const key_type& key) noexcept;                           // (3)
+template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (4)
 ```
 
 Unlinks a node and hands it over in a [node handle](../sorted_map-node_type.md), the element untouched: the handle

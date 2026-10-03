@@ -6,9 +6,9 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<void, error> copy_file(const string& from, const string& to) noexcept;
-    /*(2)*/ async::task<expected<void, error>> async_copy_file(const string& from,
-                                                             const string& to) noexcept;
+    expected<void, error> copy_file(const string& from, const string& to) noexcept;    // (1)
+    async::task<expected<void, error>> async_copy_file(const string& from,             // (2)
+                                                     const string& to) noexcept;
 }
 ```
 

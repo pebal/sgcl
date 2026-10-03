@@ -3,9 +3,9 @@
 # sgcl::net::endpoint::endpoint
 
 ```cpp
-/*(1)*/ endpoint() noexcept = default;
-/*(2)*/ endpoint(ip_address address, uint16_t port) noexcept;
-/*(3)*/ explicit endpoint(const string& text);
+endpoint() noexcept = default;                           // (1)
+endpoint(ip_address address, uint16_t port) noexcept;    // (2)
+explicit endpoint(const string& text);                   // (3)
 ```
 
 Constructs an endpoint.

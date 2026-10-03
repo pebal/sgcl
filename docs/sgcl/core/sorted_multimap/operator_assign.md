@@ -3,10 +3,10 @@
 # sgcl::sorted_multimap\<Key, T, Compare\>::operator=
 
 ```cpp
-/*(1)*/ sorted_multimap& operator=(const sorted_multimap& other);
-/*(2)*/ sorted_multimap& operator=(sorted_multimap&& other)
-            noexcept(std::is_nothrow_move_assignable_v<key_compare>);
-/*(3)*/ sorted_multimap& operator=(std::initializer_list<value_type> ilist);
+sorted_multimap& operator=(const sorted_multimap& other);               // (1)
+sorted_multimap& operator=(sorted_multimap&& other)                     // (2)
+    noexcept(std::is_nothrow_move_assignable_v<key_compare>);
+sorted_multimap& operator=(std::initializer_list<value_type> ilist);    // (3)
 ```
 
 Replaces the contents of the multimap. The elements the multimap held are destroyed at once, before the new ones

@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::operator=
 
 ```cpp
-/*(1)*/ builder& operator=(builder&& other) noexcept;
-/*(2)*/ builder& operator=(const builder&) = delete;
+builder& operator=(builder&& other) noexcept;    // (1)
+builder& operator=(const builder&) = delete;     // (2)
 ```
 
 1. Takes the trie of `other` over; `other` is empty after, with the same hash and equality. What this builder held

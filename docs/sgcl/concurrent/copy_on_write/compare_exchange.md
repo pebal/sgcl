@@ -3,10 +3,10 @@
 # sgcl::concurrent::copy_on_write\<T\>::compare_exchange
 
 ```cpp
-/*(1)*/ bool compare_exchange(snapshot& expected, const T& desired)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ bool compare_exchange(snapshot& expected, T&& desired)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
+bool compare_exchange(snapshot& expected, const T& desired)    // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
+bool compare_exchange(snapshot& expected, T&& desired)         // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
 ```
 
 Replaces the value with `desired` if the current value is still the one `expected` is a snapshot of; otherwise

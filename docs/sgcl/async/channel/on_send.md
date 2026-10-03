@@ -3,17 +3,17 @@
 # sgcl::async::channel\<T\>::on_send
 
 ```cpp
-/*(1)*/ template<class F = void (*)()>
-        auto on_send(const T& value, F f = [] {}) const
-            noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<F>);
-/*(2)*/ template<class F = void (*)()>
-        auto on_send(T&& value, F f = [] {}) const
-            noexcept(std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<F>);
-/*(3)*/ template<class F = void (*)()>  // channel<void>
-        auto on_send(F f = [] {}) const noexcept(std::is_nothrow_move_constructible_v<F>);
+template<class F = void (*)()>
+auto on_send(const T& value, F f = [] {}) const                                       // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<F>);
+template<class F = void (*)()>
+auto on_send(T&& value, F f = [] {}) const                                            // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<F>);
+template<class F = void (*)()>  // channel<void>
+auto on_send(F f = [] {}) const noexcept(std::is_nothrow_move_constructible_v<F>);    // (3)
 ```
 
 A send as a case of a [select](../select.md): the case holds the element and is served when the select delivers it

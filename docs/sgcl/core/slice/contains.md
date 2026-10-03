@@ -3,11 +3,11 @@
 # sgcl::slice\<T\>::contains
 
 ```cpp
-/*(1)*/ bool contains(std::basic_string_view<CharT> s) const noexcept;
-/*(2)*/ bool contains(value_type c) const noexcept;
-/*(3)*/ bool contains(char32_t c) const noexcept;
-/*(4)*/ bool contains(std::same_as<int> auto) const = delete;
-/*(5)*/ bool contains(const auto& value) const;
+bool contains(std::basic_string_view<CharT> s) const noexcept;    // (1)
+bool contains(value_type c) const noexcept;                       // (2)
+bool contains(char32_t c) const noexcept;                         // (3)
+bool contains(std::same_as<int> auto) const = delete;             // (4)
+bool contains(const auto& value) const;                           // (5)
 ```
 
 Checks whether the slice holds a piece of text or an element. The name is in two bases of a slice,

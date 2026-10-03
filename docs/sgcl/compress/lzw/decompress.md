@@ -3,11 +3,11 @@
 # sgcl::compress::lzw::decompress
 
 ```cpp
-/*(1)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data, order o,
-                                                        int literal_width);
-/*(2)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data, order o,
-                                                        int literal_width,
-                                                        const limits& l);
+static expected<vector<byte>, error> decompress(const slice<const byte>& data, order o,    // (1)
+                                                int literal_width);
+static expected<vector<byte>, error> decompress(const slice<const byte>& data, order o,    // (2)
+                                                int literal_width,
+                                                const limits& l);
 ```
 
 Decompresses the whole of the LZW codes at once, in the order `o`, of literals of `literal_width` bits. It stops

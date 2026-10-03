@@ -3,8 +3,8 @@
 # sgcl::io::buffered_reader::read_line, async_read_line
 
 ```cpp
-/*(1)*/ expected<optional<slice<const char>>, error> read_line() const;
-/*(2)*/ async::task<expected<optional<slice<const char>>, error>> async_read_line() const noexcept;
+expected<optional<slice<const char>>, error> read_line() const;                                // (1)
+async::task<expected<optional<slice<const char>>, error>> async_read_line() const noexcept;    // (2)
 ```
 
 Reads the next line and returns it as a slice of the reader's block, without its `"\n"` and without a `"\r"` before

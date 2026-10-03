@@ -3,8 +3,8 @@
 # sgcl::async::stop_source::stop_source
 
 ```cpp
-/*(1)*/ stop_source() noexcept;
-/*(2)*/ explicit stop_source(const stop_token& parent);
+stop_source() noexcept;                            // (1)
+explicit stop_source(const stop_token& parent);    // (2)
 ```
 
 1. A source of its own: a new state on the managed heap, not stopped.

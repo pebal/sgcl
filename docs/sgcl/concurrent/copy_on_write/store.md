@@ -3,8 +3,8 @@
 # sgcl::concurrent::copy_on_write\<T\>::store
 
 ```cpp
-/*(1)*/ void store(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ void store(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
+void store(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+void store(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
 ```
 
 Replaces the value, whole: a new managed object holding the value, stored into the pointer.

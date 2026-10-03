@@ -3,8 +3,8 @@
 # sgcl::compress::flate::writer::flush, async_flush
 
 ```cpp
-/*(1)*/ expected<void, io::error> flush();
-/*(2)*/ async::task<expected<void, io::error>> async_flush() noexcept;
+expected<void, io::error> flush();                                // (1)
+async::task<expected<void, io::error>> async_flush() noexcept;    // (2)
 ```
 
 Ends the current block and aligns the output with an empty stored block (a *sync flush*, zlib's `Z_SYNC_FLUSH` and

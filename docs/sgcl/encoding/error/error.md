@@ -3,9 +3,9 @@
 # sgcl::encoding::error::error
 
 ```cpp
-/*(1)*/ error() noexcept = default;
-/*(2)*/ error(errc code, uint64_t offset, const string& detail = {}) noexcept;
-/*(3)*/ error(const io::error& e, uint64_t offset) noexcept;
+error() noexcept = default;                                               // (1)
+error(errc code, uint64_t offset, const string& detail = {}) noexcept;    // (2)
+error(const io::error& e, uint64_t offset) noexcept;                      // (3)
 ```
 
 Constructs an error. The formats of the module make their own; a program makes one for an input it reads itself and

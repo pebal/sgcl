@@ -3,8 +3,8 @@
 # sgcl::io::reader::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, error> close() const;
-/*(2)*/ async::task<expected<void, error>> async_close() const noexcept;
+expected<void, error> close() const;                                // (1)
+async::task<expected<void, error>> async_close() const noexcept;    // (2)
 ```
 
 Closes the stream through the reader, as Go's `io.ReadCloser` does: a file held as an `io::reader` is closed by it,

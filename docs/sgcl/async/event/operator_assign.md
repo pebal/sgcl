@@ -3,8 +3,8 @@
 # sgcl::async::event::operator=
 
 ```cpp
-/*(1)*/ event& operator=(const event&) noexcept = default;
-/*(2)*/ event& operator=(event&&) noexcept = default;
+event& operator=(const event&) noexcept = default;    // (1)
+event& operator=(event&&) noexcept = default;         // (2)
 ```
 
 Makes this handle one of the event the other stands for.

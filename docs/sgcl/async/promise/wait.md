@@ -3,9 +3,9 @@
 # sgcl::async::promise\<T\>::wait, operator co_await
 
 ```cpp
-/*(1)*/ T& wait() const;
-/*(2)*/ awaiter operator co_await() const noexcept;
-/*(3)*/ void wait() const;  // promise<void>
+T& wait() const;                               // (1)
+awaiter operator co_await() const noexcept;    // (2)
+void wait() const;                             // (3), promise<void>
 ```
 
 Waits for the promise to be set and gives its result: the value, or the exception [set_exception](set_exception.md)

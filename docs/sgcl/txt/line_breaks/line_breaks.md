@@ -3,14 +3,14 @@
 # sgcl::txt::line_breaks::line_breaks
 
 ```cpp
-/*(1)*/ line_breaks() noexcept = default;
-/*(2)*/ explicit line_breaks(const slice<const char>& text) noexcept;
-/*(3)*/ explicit line_breaks(const string& text) noexcept;
-/*(4)*/ template<size_t N>
-        explicit line_breaks(const char (&text)[N]);
-/*(5)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit line_breaks(P text);
+line_breaks() noexcept = default;                                  // (1)
+explicit line_breaks(const slice<const char>& text) noexcept;      // (2)
+explicit line_breaks(const string& text) noexcept;                 // (3)
+template<size_t N>
+explicit line_breaks(const char (&text)[N]);                       // (4)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit line_breaks(P text);                                      // (5)
 ```
 
 Constructs the range of the pieces of a text that must stay on one line. `txt::line_breaks(s)` looks like a call and

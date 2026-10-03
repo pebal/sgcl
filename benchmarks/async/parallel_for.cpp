@@ -3,12 +3,10 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// async::parallel_for against a plain loop and SNS-HDR's parallel_for_
-// (Core/Parallel.h, the model of the async loops) on one kernel: a
-// separable stack blur of a float image, as SNS-HDR's BlurFilter runs it —
-// the rows spread over the lanes, then the columns in groups of eight (a
-// loop with a step), each lane with a ring of its own (its scratch, indexed
-// by the lane, by Parallel::threadNum() in SNS-HDR). The image is the same
+// async::parallel_for against a plain loop on one kernel: a separable
+// stack blur of a float image — the rows spread over the lanes, then the
+// columns in groups of eight (a loop with a step), each lane with a ring of
+// its own (its scratch, indexed by the lane). The image is the same
 // for every variant and every pixel is computed by the same code, so the
 // checksum printed is the same for all of them.
 //
@@ -23,18 +21,11 @@
 //       every variant's blur of a small image against the plain loop's
 //
 // Variants: plain (one thread), sgcl (async::parallel_for, default grain),
-// sgcl1 (grain 1: an index a claim, as SNS-HDR claims), sgcltask (the
-// sgcl loops called inside a task), snshdr (parallel_for_ on
-// Parallel::maxThreads() threads; built when -DSGCL_SNS_HDR_CORE=<SNS-HDR's
-// Core directory> is given to cmake: Parallel.cpp needs nothing but the
-// standard library). The lanes of sgcl are the scheduler's workers, one
-// per core by default (SGCL_WORKERS), and SNS-HDR's threads one per core.
+// sgcl1 (grain 1: an index a claim), sgcltask (the sgcl loops called inside
+// a task). The lanes of sgcl are the scheduler's workers, one per core by
+// default (SGCL_WORKERS).
 #include "benchmarks/common.h"
 #include "sgcl/async.h"
-
-#if defined(SGCL_BENCH_SNS_HDR)
-#include "Parallel.h"
-#endif
 
 #include <algorithm>
 #include <atomic>
@@ -189,11 +180,6 @@ namespace {
         if (v == "plain") {
             return 1;
         }
-#if defined(SGCL_BENCH_SNS_HDR)
-        if (v == "snshdr") {
-            return Parallel::maxThreads();
-        }
-#endif
         return async::scheduler::workers();
     }
 
@@ -218,11 +204,6 @@ namespace {
             async::parallel_for(0, im.w, Group, [&](int x0, unsigned lane) { im.columns(x0, lane); }, o);
         } else if (v == "sgcltask") {
             async::spawn(blur_in_task(im, {})).wait();
-#if defined(SGCL_BENCH_SNS_HDR)
-        } else if (v == "snshdr") {
-            parallel_for_(0, im.h, [&](int y) { im.row(y, unsigned(Parallel::threadNum())); });
-            parallel_for_(0, im.w, Group, [&](int x0) { im.columns(x0, unsigned(Parallel::threadNum())); });
-#endif
         } else {
             std::fprintf(stderr, "parallel_for: no variant %s\n", v.c_str());
             std::exit(2);
@@ -263,10 +244,6 @@ namespace {
                 async::parallel_for(indices, body);
             } else if (v == "sgcl1") {
                 async::parallel_for(indices, body, {.grain = 1});
-#if defined(SGCL_BENCH_SNS_HDR)
-            } else if (v == "snshdr") {
-                parallel_for_(0, indices, body);
-#endif
             } else {
                 std::fprintf(stderr, "parallel_for: no variant %s\n", v.c_str());
                 std::exit(2);
@@ -298,9 +275,6 @@ namespace {
 
     int run_check() {
         std::vector<std::string> variants = {"sgcl", "sgcl1", "sgcltask"};
-#if defined(SGCL_BENCH_SNS_HDR)
-        variants.push_back("snshdr");
-#endif
         Image plain(256, 200, 5, 1);
         blur("plain", plain);
         int bad = 0;
@@ -317,7 +291,7 @@ namespace {
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::fprintf(stderr, "usage: bench_parallel_for <plain|sgcl|sgcl1|sgcltask|snshdr> <blur [reps] [w] [h] [r] | call [n] [indices] | check>\n");
+        std::fprintf(stderr, "usage: bench_parallel_for <plain|sgcl|sgcl1|sgcltask> <blur [reps] [w] [h] [r] | call [n] [indices] | check>\n");
         return 2;
     }
     const std::string v = argv[1];

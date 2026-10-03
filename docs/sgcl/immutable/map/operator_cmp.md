@@ -3,8 +3,8 @@
 # sgcl::immutable::operator==, operator!= (sgcl::immutable::map)
 
 ```cpp
-/*(1)*/ friend bool operator==(const map& a, const map& b);
-/*(2)*/ friend bool operator!=(const map& a, const map& b);
+friend bool operator==(const map& a, const map& b);    // (1)
+friend bool operator!=(const map& a, const map& b);    // (2)
 ```
 
 Compares two maps by their elements.

@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::contains
 
 ```cpp
-/*(1)*/ bool contains(const Key& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept(/* see below */);
+bool contains(const Key& key) const noexcept;                                     // (1)
+template<class K> bool contains(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Checks whether the builder holds an element equal to `key` now.

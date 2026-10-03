@@ -3,8 +3,8 @@
 # sgcl::compress::xz::writer::writer
 
 ```cpp
-/*(1)*/ explicit writer(const io::writer& out) noexcept;
-/*(2)*/ writer(const io::writer& out, const options& o) noexcept;
+explicit writer(const io::writer& out) noexcept;             // (1)
+writer(const io::writer& out, const options& o) noexcept;    // (2)
 ```
 
 Constructs a writer that compresses what is written to it into `out`. Nothing is written yet, and nothing large is

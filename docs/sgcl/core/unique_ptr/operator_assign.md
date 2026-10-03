@@ -3,10 +3,10 @@
 # sgcl::unique_ptr\<T\>::operator=
 
 ```cpp
-/*(1)*/ unique_ptr& operator=(unique_ptr&&) noexcept = default;
-/*(2)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        unique_ptr& operator=(std::unique_ptr<U, deleter_type>&& u) noexcept;
-/*(3)*/ unique_ptr& operator=(std::nullptr_t) noexcept;
+unique_ptr& operator=(unique_ptr&&) noexcept = default;                                                                      // (1)
+template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+unique_ptr& operator=(std::unique_ptr<U, deleter_type>&& u) noexcept;                                                        // (2)
+unique_ptr& operator=(std::nullptr_t) noexcept;                                                                              // (3)
 ```
 
 The assignments of `std::unique_ptr`, returning this `unique_ptr`: the current object, if any, is destroyed, at once

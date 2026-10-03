@@ -3,8 +3,8 @@
 # sgcl::stack\<T, Container\>::push
 
 ```cpp
-/*(1)*/ void push(const value_type& value) noexcept(noexcept(c.push_back(value)));
-/*(2)*/ void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value))));
+void push(const value_type& value) noexcept(noexcept(c.push_back(value)));          // (1)
+void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value))));    // (2)
 ```
 
 Inserts an element at the top: `c.push_back(value)`.

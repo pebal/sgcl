@@ -3,9 +3,9 @@
 # sgcl::string::as_slice, operator slice_type
 
 ```cpp
-/*(1)*/ slice_type as_slice() const noexcept;
-/*(2)*/ slice_type as_slice(size_type pos, size_type n = npos) const;
-/*(3)*/ operator slice_type() const noexcept;
+slice_type as_slice() const noexcept;                            // (1)
+slice_type as_slice(size_type pos, size_type n = npos) const;    // (2)
+operator slice_type() const noexcept;                            // (3)
 ```
 
 Returns the characters as a [slice](../slice.md), `slice<const CharT>` (a `string_slice` of a `string`), whose owner

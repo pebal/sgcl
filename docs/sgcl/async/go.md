@@ -7,14 +7,14 @@
 #include "sgcl/async/executor.h"    // (3–4), or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class T>
-            void go(task<T> t);
-    /*(2)*/ template<class F>
-            void go(F f);
-    /*(3)*/ template<class T, class Executor>
-            void go(task<T> t, Executor& ex);
-    /*(4)*/ template<class F, class Executor>
-            void go(F f, Executor& ex);
+    template<class T>
+    void go(task<T> t);                  // (1)
+    template<class F>
+    void go(F f);                        // (2)
+    template<class T, class Executor>
+    void go(task<T> t, Executor& ex);    // (3)
+    template<class F, class Executor>
+    void go(F f, Executor& ex);          // (4)
 }
 ```
 

@@ -3,8 +3,8 @@
 # sgcl::dynamic_array\<T\>::data
 
 ```cpp
-/*(1)*/ T* data() noexcept;
-/*(2)*/ const T* data() const noexcept;
+T* data() noexcept;                // (1)
+const T* data() const noexcept;    // (2)
 ```
 
 Returns a pointer to the first element of the buffer: the elements lie in one block, and

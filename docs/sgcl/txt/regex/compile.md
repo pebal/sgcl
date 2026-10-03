@@ -3,11 +3,11 @@
 # sgcl::txt::regex::compile
 
 ```cpp
-/*(1)*/ static expected<regex, regex_error> compile(const string& pattern) noexcept;
-/*(2)*/ static expected<regex, regex_error> compile(const slice<const char>& pattern);
-/*(3)*/ template<size_t N> static expected<regex, regex_error> compile(const char (&pattern)[N]);
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        static expected<regex, regex_error> compile(P pattern);
+static expected<regex, regex_error> compile(const string& pattern) noexcept;                 // (1)
+static expected<regex, regex_error> compile(const slice<const char>& pattern);               // (2)
+template<size_t N> static expected<regex, regex_error> compile(const char (&pattern)[N]);    // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+static expected<regex, regex_error> compile(P pattern);                                      // (4)
 ```
 
 Compiles a pattern the program only has where it runs — read from a file, typed by a user — and gives either the

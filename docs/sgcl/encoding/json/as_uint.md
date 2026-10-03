@@ -3,8 +3,8 @@
 # sgcl::encoding::json::as_uint
 
 ```cpp
-/*(1)*/ optional<uint64_t> as_uint() const noexcept;
-/*(2)*/ uint64_t as_uint(uint64_t fallback) const noexcept;
+optional<uint64_t> as_uint() const noexcept;           // (1)
+uint64_t as_uint(uint64_t fallback) const noexcept;    // (2)
 ```
 
 The number as an `uint64_t`, exactly or not at all: a number whose value is an integer from 0 to 2^64 − 1,

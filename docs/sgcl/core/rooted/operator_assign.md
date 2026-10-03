@@ -3,8 +3,8 @@
 # sgcl::rooted\<T\>::operator=
 
 ```cpp
-/*(1)*/ rooted& operator=(const rooted&) noexcept = default;
-/*(2)*/ rooted& operator=(rooted&&) noexcept = default;
+rooted& operator=(const rooted&) noexcept = default;    // (1)
+rooted& operator=(rooted&&) noexcept = default;         // (2)
 ```
 
 Makes this `rooted` hold the value of another; its cell stays, and the value it held before lives on if anything

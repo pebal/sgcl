@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::count
 
 ```cpp
-/*(1)*/ size_type count(const Key& key) const noexcept;
-/*(2)*/ template<class K> size_type count(const K& key) const noexcept(/* see below */);
+size_type count(const Key& key) const noexcept;                                     // (1)
+template<class K> size_type count(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns the number of elements under `key`: 1 when the key is there, 0 when it is absent, since a map holds one

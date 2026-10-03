@@ -3,8 +3,8 @@
 # sgcl::crypto::aes_ctr::operator=
 
 ```cpp
-/*(1)*/ aes_ctr& operator=(aes_ctr&& other) noexcept;
-/*(2)*/ aes_ctr& operator=(const aes_ctr&) = delete;
+aes_ctr& operator=(aes_ctr&& other) noexcept;    // (1)
+aes_ctr& operator=(const aes_ctr&) = delete;     // (2)
 ```
 
 1. Takes the state of `other` over, its place in the keystream with it, written over the state this object held;

@@ -3,11 +3,11 @@
 # sgcl::array\<T, N\>::array
 
 ```cpp
-/*(1)*/ constexpr array() = default;
-/*(2)*/ constexpr array(T... elements) noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(3)*/ template<class... U>
-        requires (sizeof...(U) >= 1 && sizeof...(U) <= N && (std::convertible_to<U, T> && ...))
-        constexpr array(U&&... elements) noexcept(/* see below */);
+constexpr array() = default;                                                               // (1)
+constexpr array(T... elements) noexcept(std::is_nothrow_move_constructible_v<T>);          // (2)
+template<class... U>
+requires (sizeof...(U) >= 1 && sizeof...(U) <= N && (std::convertible_to<U, T> && ...))
+constexpr array(U&&... elements) noexcept(/* see below */);                                // (3)
 ```
 
 Constructs an array, with the braces of an aggregate written as a constructor.

@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::writer::flush, async_flush
 
 ```cpp
-/*(1)*/ expected<void, io::error> flush();
-/*(2)*/ async::task<expected<void, io::error>> async_flush() noexcept;
+expected<void, io::error> flush();                                // (1)
+async::task<expected<void, io::error>> async_flush() noexcept;    // (2)
 ```
 
 Writes what was gathered onto the stream, in one write, and starts gathering again: Go's `Encoder.Flush`. The

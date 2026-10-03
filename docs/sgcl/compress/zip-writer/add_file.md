@@ -3,8 +3,8 @@
 # sgcl::compress::zip::writer::add_file
 
 ```cpp
-/*(1)*/ expected<void, error> add_file(const string& path);
-/*(2)*/ expected<void, error> add_file(const string& path, const string& name);
+expected<void, error> add_file(const string& path);                        // (1)
+expected<void, error> add_file(const string& path, const string& name);    // (2)
 ```
 
 Writes the file at `path` as a whole entry, deflated, with the file's mode and modification time, as

@@ -3,12 +3,12 @@
 # sgcl::expected\<T, E\>::emplace
 
 ```cpp
-/*(1)*/ template<class... A>
-        requires std::is_nothrow_constructible_v<T, A...>
-        T& emplace(A&&... a) noexcept;
-/*(2)*/ template<class U, class... A>
-        requires std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>
-        T& emplace(std::initializer_list<U> il, A&&... a) noexcept;
+template<class... A>
+requires std::is_nothrow_constructible_v<T, A...>
+T& emplace(A&&... a) noexcept;                                                  // (1)
+template<class U, class... A>
+requires std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>
+T& emplace(std::initializer_list<U> il, A&&... a) noexcept;                     // (2)
 ```
 
 Destroys the value or the error held and constructs a value in its place.

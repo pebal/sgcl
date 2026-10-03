@@ -3,8 +3,8 @@
 # sgcl::io::buffered_reader::buffered_reader
 
 ```cpp
-/*(1)*/ buffered_reader() noexcept = default;
-/*(2)*/ explicit buffered_reader(const io::reader& r) noexcept;
+buffered_reader() noexcept = default;                      // (1)
+explicit buffered_reader(const io::reader& r) noexcept;    // (2)
 ```
 
 Makes a buffered reader handle.

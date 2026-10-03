@@ -3,10 +3,10 @@
 # sgcl::encoding::field_list::add
 
 ```cpp
-/*(1)*/ template<class Name, class T>
-        requires std::same_as<Name, const char*> || std::same_as<Name, char*>
-        field add(Name name, T& value) noexcept;
-/*(2)*/ template<size_t N, class T> field add(const char (&name)[N], T& value) noexcept;
+template<class Name, class T>
+requires std::same_as<Name, const char*> || std::same_as<Name, char*>
+field add(Name name, T& value) noexcept;                                            // (1)
+template<size_t N, class T> field add(const char (&name)[N], T& value) noexcept;    // (2)
 ```
 
 Adds a field of the object: its name in the formats and the member itself, in the order the fields are written.

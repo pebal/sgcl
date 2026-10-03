@@ -3,9 +3,9 @@
 # sgcl::concurrent::copy_on_write\<T\>::operator=
 
 ```cpp
-/*(1)*/ copy_on_write& operator=(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ copy_on_write& operator=(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(3)*/ copy_on_write& operator=(const copy_on_write&) = delete;
+copy_on_write& operator=(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+copy_on_write& operator=(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
+copy_on_write& operator=(const copy_on_write&) = delete;                                       // (3)
 ```
 
 1. [store](store.md) of a copy of `value`.

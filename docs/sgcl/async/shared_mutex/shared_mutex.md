@@ -3,8 +3,8 @@
 # sgcl::async::shared_mutex::shared_mutex
 
 ```cpp
-/*(1)*/ shared_mutex() noexcept = default;
-/*(2)*/ shared_mutex(const shared_mutex&) = delete;
+shared_mutex() noexcept = default;             // (1)
+shared_mutex(const shared_mutex&) = delete;    // (2)
 ```
 
 1. An unlocked shared mutex: the word at zero, no reader and no writer, and the writers' mutex and the channel of

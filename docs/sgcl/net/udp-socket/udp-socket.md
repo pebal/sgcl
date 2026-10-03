@@ -3,9 +3,9 @@
 # sgcl::net::udp::socket::socket
 
 ```cpp
-/*(1)*/ socket() noexcept = default;
-/*(2)*/ socket(const socket& other) noexcept;   // implicitly declared
-/*(3)*/ socket(socket&& other) noexcept;        // implicitly declared
+socket() noexcept = default;             // (1)
+socket(const socket& other) noexcept;    // (2), implicitly declared
+socket(socket&& other) noexcept;         // (3), implicitly declared
 ```
 
 1. A handle that holds no socket: `!s`. An operation on it is a contract violation (debug builds assert); it is

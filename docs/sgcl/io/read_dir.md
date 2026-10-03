@@ -6,9 +6,9 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<vector<directory_entry>, error> read_dir(const string& path) noexcept;
-    /*(2)*/ async::task<expected<vector<directory_entry>, error>> async_read_dir(const string& path)
-                noexcept;
+    expected<vector<directory_entry>, error> read_dir(const string& path) noexcept;             // (1)
+    async::task<expected<vector<directory_entry>, error>> async_read_dir(const string& path)    // (2)
+        noexcept;
 }
 ```
 

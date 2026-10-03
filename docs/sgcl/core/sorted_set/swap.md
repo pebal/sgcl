@@ -3,10 +3,10 @@
 # sgcl::sorted_set\<Key, Compare\>::swap
 
 ```cpp
-/*(1)*/ void swap(sorted_set& other) noexcept(std::is_nothrow_swappable_v<key_compare>);
-/*(2)*/ template<class Key, class Compare>
-        void swap(sorted_set<Key, Compare>& lhs, sorted_set<Key, Compare>& rhs)
-            noexcept(noexcept(lhs.swap(rhs)));
+void swap(sorted_set& other) noexcept(std::is_nothrow_swappable_v<key_compare>);    // (1)
+template<class Key, class Compare>
+void swap(sorted_set<Key, Compare>& lhs, sorted_set<Key, Compare>& rhs)             // (2)
+    noexcept(noexcept(lhs.swap(rhs)));
 ```
 
 Exchanges the contents of two sets: their trees, their counts and their comparisons. No element is copied, moved

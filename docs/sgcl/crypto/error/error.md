@@ -3,12 +3,12 @@
 # sgcl::crypto::error::error
 
 ```cpp
-/*(1)*/ error() = default;
-/*(2)*/ explicit error(errc code) noexcept;
-/*(3)*/ error(errc code, const string& detail) noexcept;
-/*(4)*/ error(x509::reason why, const string& detail) noexcept;
-/*(5)*/ error(errc code, uint64_t offset) noexcept;
-/*(6)*/ error(errc code, uint64_t offset, const string& detail) noexcept;
+error() = default;                                                   // (1)
+explicit error(errc code) noexcept;                                  // (2)
+error(errc code, const string& detail) noexcept;                     // (3)
+error(x509::reason why, const string& detail) noexcept;              // (4)
+error(errc code, uint64_t offset) noexcept;                          // (5)
+error(errc code, uint64_t offset, const string& detail) noexcept;    // (6)
 ```
 
 Constructs an error. The module makes its errors itself; a program makes one for a function of its own that answers

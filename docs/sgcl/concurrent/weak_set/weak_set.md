@@ -3,8 +3,8 @@
 # sgcl::concurrent::weak_set\<Key\>::weak_set
 
 ```cpp
-/*(1)*/ weak_set();
-/*(2)*/ weak_set(const weak_set&) = delete;
+weak_set();                            // (1)
+weak_set(const weak_set&) = delete;    // (2)
 ```
 
 1. An empty set: the table of [concurrent::set](../set.md) with sixteen buckets, its head node and its counters, and

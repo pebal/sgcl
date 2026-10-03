@@ -3,11 +3,11 @@
 # sgcl::encoding::json::array
 
 ```cpp
-/*(1)*/ static json array(std::initializer_list<json> elements) noexcept;
-/*(2)*/ template<class R>
-            requires std::ranges::input_range<const R&> &&
-                     std::is_convertible_v<std::ranges::range_reference_t<const R&>, json>
-        static json array(const R& elements);
+static json array(std::initializer_list<json> elements) noexcept;                     // (1)
+template<class R>
+    requires std::ranges::input_range<const R&> &&
+             std::is_convertible_v<std::ranges::range_reference_t<const R&>, json>
+static json array(const R& elements);                                                 // (2)
 ```
 
 An array of the given elements, in their order.

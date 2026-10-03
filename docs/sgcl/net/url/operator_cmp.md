@@ -3,8 +3,8 @@
 # sgcl::net::operator==, operator\<=\> (sgcl::net::url)
 
 ```cpp
-/*(1)*/ friend bool operator==(const url& a, const url& b) noexcept;
-/*(2)*/ friend std::strong_ordering operator<=>(const url& a, const url& b) noexcept;
+friend bool operator==(const url& a, const url& b) noexcept;                     // (1)
+friend std::strong_ordering operator<=>(const url& a, const url& b) noexcept;    // (2)
 ```
 
 Compare two URLs by their serializations: two texts that parse to the same URL are equal, `HTTP://EXAMPLE.com:80/./a`

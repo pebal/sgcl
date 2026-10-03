@@ -3,49 +3,49 @@
 # sgcl::expected\<T, E\>::expected
 
 ```cpp
-/*(1)*/  expected() noexcept(std::is_nothrow_default_constructible_v<T>)
-             requires std::is_default_constructible_v<T>;
-/*(2)*/  expected(const expected&) = default;
-/*(3)*/  expected(expected&&) = default;
-/*(4)*/  template<class U, class G>
-         requires std::is_constructible_v<T, const U&> && std::is_constructible_v<E, const G&>
-         explicit(!std::is_convertible_v<const U&, T> || !std::is_convertible_v<const G&, E>)
-         expected(const expected<U, G>& o)
-             noexcept(std::is_nothrow_constructible_v<T, const U&> &&
-                      std::is_nothrow_constructible_v<E, const G&>);
-/*(5)*/  template<class U, class G>
-         requires std::is_constructible_v<T, U> && std::is_constructible_v<E, G>
-         explicit(!std::is_convertible_v<U, T> || !std::is_convertible_v<G, E>)
-         expected(expected<U, G>&& o)
-             noexcept(std::is_nothrow_constructible_v<T, U> &&
-                      std::is_nothrow_constructible_v<E, G>);
-/*(6)*/  template<class U = T>
-         requires std::is_constructible_v<T, U>
-         explicit(!std::is_convertible_v<U, T>)
-         expected(U&& v) noexcept(std::is_nothrow_constructible_v<T, U>);
-/*(7)*/  template<class G>
-         requires std::is_constructible_v<E, const G&>
-         explicit(!std::is_convertible_v<const G&, E>)
-         expected(const unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<E, const G&>);
-/*(8)*/  template<class G>
-         requires std::is_constructible_v<E, G>
-         explicit(!std::is_convertible_v<G, E>)
-         expected(unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<E, G>);
-/*(9)*/  template<class... A>
-         requires std::is_constructible_v<T, A...>
-         explicit expected(std::in_place_t, A&&... a)
-             noexcept(std::is_nothrow_constructible_v<T, A...>);
-/*(10)*/ template<class U, class... A>
-         requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
-         explicit expected(std::in_place_t, std::initializer_list<U> il, A&&... a)
-             noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>);
-/*(11)*/ template<class... A>
-         requires std::is_constructible_v<E, A...>
-         explicit expected(unexpect_t, A&&... a) noexcept(std::is_nothrow_constructible_v<E, A...>);
-/*(12)*/ template<class U, class... A>
-         requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
-         explicit expected(unexpect_t, std::initializer_list<U> il, A&&... a)
-             noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>);
+expected() noexcept(std::is_nothrow_default_constructible_v<T>)                                // (1)
+    requires std::is_default_constructible_v<T>;
+expected(const expected&) = default;                                                           // (2)
+expected(expected&&) = default;                                                                // (3)
+template<class U, class G>
+requires std::is_constructible_v<T, const U&> && std::is_constructible_v<E, const G&>
+explicit(!std::is_convertible_v<const U&, T> || !std::is_convertible_v<const G&, E>)
+expected(const expected<U, G>& o)                                                              // (4)
+    noexcept(std::is_nothrow_constructible_v<T, const U&> &&
+             std::is_nothrow_constructible_v<E, const G&>);
+template<class U, class G>
+requires std::is_constructible_v<T, U> && std::is_constructible_v<E, G>
+explicit(!std::is_convertible_v<U, T> || !std::is_convertible_v<G, E>)
+expected(expected<U, G>&& o)                                                                   // (5)
+    noexcept(std::is_nothrow_constructible_v<T, U> &&
+             std::is_nothrow_constructible_v<E, G>);
+template<class U = T>
+requires std::is_constructible_v<T, U>
+explicit(!std::is_convertible_v<U, T>)
+expected(U&& v) noexcept(std::is_nothrow_constructible_v<T, U>);                               // (6)
+template<class G>
+requires std::is_constructible_v<E, const G&>
+explicit(!std::is_convertible_v<const G&, E>)
+expected(const unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<E, const G&>);       // (7)
+template<class G>
+requires std::is_constructible_v<E, G>
+explicit(!std::is_convertible_v<G, E>)
+expected(unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<E, G>);                   // (8)
+template<class... A>
+requires std::is_constructible_v<T, A...>
+explicit expected(std::in_place_t, A&&... a)                                                   // (9)
+    noexcept(std::is_nothrow_constructible_v<T, A...>);
+template<class U, class... A>
+requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
+explicit expected(std::in_place_t, std::initializer_list<U> il, A&&... a)                      // (10)
+    noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>);
+template<class... A>
+requires std::is_constructible_v<E, A...>
+explicit expected(unexpect_t, A&&... a) noexcept(std::is_nothrow_constructible_v<E, A...>);    // (11)
+template<class U, class... A>
+requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
+explicit expected(unexpect_t, std::initializer_list<U> il, A&&... a)                           // (12)
+    noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>);
 ```
 
 Constructs an `expected` with a value or an error.

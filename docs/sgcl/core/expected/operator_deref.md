@@ -3,12 +3,12 @@
 # sgcl::expected\<T, E\>::operator-\>, operator*
 
 ```cpp
-/*(1)*/ const T* operator->() const;
-/*(2)*/ T* operator->();
-/*(3)*/ const T& operator*() const&;
-/*(4)*/ T& operator*() &;
-/*(5)*/ const T&& operator*() const&&;
-/*(6)*/ T&& operator*() &&;
+const T* operator->() const;      // (1)
+T* operator->();                  // (2)
+const T& operator*() const&;      // (3)
+T& operator*() &;                 // (4)
+const T&& operator*() const&&;    // (5)
+T&& operator*() &&;               // (6)
 ```
 
 The value, checked: without a value, `bad_expected_access<E>` carrying a copy of the error, as

@@ -3,9 +3,9 @@
 # sgcl::slice\<T\>::trim_right
 
 ```cpp
-/*(1)*/ slice trim_right() const noexcept;
-/*(2)*/ slice trim_right(std::basic_string_view<CharT> chars) const noexcept;
-/*(3)*/ slice trim_right(std::u32string_view set) const noexcept;
+slice trim_right() const noexcept;                                       // (1)
+slice trim_right(std::basic_string_view<CharT> chars) const noexcept;    // (2)
+slice trim_right(std::u32string_view set) const noexcept;                // (3)
 ```
 
 The text without the given characters at its end, a slice of the same owner, as [trim](trim.md) trims both ends:

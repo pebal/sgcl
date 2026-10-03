@@ -3,9 +3,9 @@
 # sgcl::crypto::aes_ctr::aes_ctr
 
 ```cpp
-/*(1)*/ aes_ctr(const slice<const byte>& key, const slice<const byte>& iv);
-/*(2)*/ aes_ctr(aes_ctr&& other) noexcept;
-/*(3)*/ aes_ctr(const aes_ctr&) = delete;
+aes_ctr(const slice<const byte>& key, const slice<const byte>& iv);    // (1)
+aes_ctr(aes_ctr&& other) noexcept;                                     // (2)
+aes_ctr(const aes_ctr&) = delete;                                      // (3)
 ```
 
 1. Sets up the key schedule of `key`, AES-128, AES-192 or AES-256 by its length, and the counter at `iv`; the

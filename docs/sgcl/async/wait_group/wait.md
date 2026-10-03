@@ -3,8 +3,8 @@
 # sgcl::async::wait_group::wait, operator co_await
 
 ```cpp
-/*(1)*/ void wait() const noexcept;
-/*(2)*/ auto operator co_await() const noexcept;
+void wait() const noexcept;                 // (1)
+auto operator co_await() const noexcept;    // (2)
 ```
 
 Waits for the count to reach zero; at zero, returns at once. A group is waited for as a task is

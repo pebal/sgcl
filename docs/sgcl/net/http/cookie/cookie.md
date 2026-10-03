@@ -3,9 +3,9 @@
 # sgcl::net::http::cookie::cookie
 
 ```cpp
-/*(1)*/ cookie() noexcept = default;
-/*(2)*/ cookie(const string& name, const string& value) noexcept;
-/*(3)*/ explicit cookie(const string& field);
+cookie() noexcept = default;                                 // (1)
+cookie(const string& name, const string& value) noexcept;    // (2)
+explicit cookie(const string& field);                        // (3)
 ```
 
 Constructs a cookie.

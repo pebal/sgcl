@@ -3,9 +3,9 @@
 # sgcl::async::wait_group::wait_group
 
 ```cpp
-/*(1)*/ wait_group() noexcept;
-/*(2)*/ wait_group(const wait_group&) noexcept = default;
-/*(3)*/ wait_group(wait_group&&) noexcept = default;
+wait_group() noexcept;                               // (1)
+wait_group(const wait_group&) noexcept = default;    // (2)
+wait_group(wait_group&&) noexcept = default;         // (3)
 ```
 
 1. A new group at zero: its state made on the managed heap, with the channel of its first round closed from the

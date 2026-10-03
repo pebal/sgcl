@@ -3,11 +3,11 @@
 # sgcl::encoding::csv::save, async_save
 
 ```cpp
-/*(1)*/ template<class R>
-        static expected<void, error> save(const string& path, const R& records);
-/*(2)*/ template<class R>
-        static async::task<expected<void, error>> async_save(string path, R records)
-            noexcept(std::is_nothrow_move_constructible_v<R>);
+template<class R>
+static expected<void, error> save(const string& path, const R& records);        // (1)
+template<class R>
+static async::task<expected<void, error>> async_save(string path, R records)    // (2)
+    noexcept(std::is_nothrow_move_constructible_v<R>);
 ```
 
 Writes the records into a file, made or written over: each element of `records` as

@@ -3,8 +3,8 @@
 # sgcl::txt::collated_text::starts_with
 
 ```cpp
-/*(1)*/ bool starts_with(const searcher_type& pattern) const noexcept;
-/*(2)*/ bool starts_with(const string& pattern) const noexcept;
+bool starts_with(const searcher_type& pattern) const noexcept;    // (1)
+bool starts_with(const string& pattern) const noexcept;           // (2)
 ```
 
 Checks whether the text begins with a pattern, by the same equality and the same boundaries as [find](find.md),

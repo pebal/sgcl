@@ -3,10 +3,10 @@
 # sgcl::immutable::vector\<T\>::push_back
 
 ```cpp
-/*(1)*/ vector push_back(const T& value) const noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ vector push_back(T&& value) const
-            noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<T>);
+vector push_back(const T& value) const noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+vector push_back(T&& value) const                                                            // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<T>);
 ```
 
 Returns the vector with one more element at the end. This vector is unchanged.

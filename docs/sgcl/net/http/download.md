@@ -6,9 +6,9 @@
 #include "sgcl/net/http/download.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    /*(1)*/ expected<response, io::error> download(const string& url, const string& path);
-    /*(2)*/ async::task<expected<response, io::error>> async_download(string url,
-                                                                      string path) noexcept;
+    expected<response, io::error> download(const string& url, const string& path);      // (1)
+    async::task<expected<response, io::error>> async_download(string url,               // (2)
+                                                              string path) noexcept;
 }
 ```
 

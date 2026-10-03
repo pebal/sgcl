@@ -3,9 +3,9 @@
 # sgcl::forward_list\<T\>::sort
 
 ```cpp
-/*(1)*/ void sort() noexcept(/* see below */);
-/*(2)*/ template<class Compare>
-        void sort(Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>);
+void sort() noexcept(/* see below */);                                              // (1)
+template<class Compare>
+void sort(Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>);    // (2)
 ```
 
 Sorts the elements, stable: equal elements keep their order.

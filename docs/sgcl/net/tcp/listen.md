@@ -3,12 +3,12 @@
 # sgcl::net::tcp::listen, async_listen
 
 ```cpp
-/*(1)*/ static expected<net::listener, io::error> listen(const string& address) noexcept;
-/*(2)*/ static expected<net::listener, io::error> listen(const string& address,
-                                                         net::reuse_port_t flag) noexcept;
-/*(3)*/ static async::task<expected<net::listener, io::error>> async_listen(const string& address) noexcept;
-/*(4)*/ static async::task<expected<net::listener, io::error>> async_listen(const string& address,
-                                                                            net::reuse_port_t flag) noexcept;
+static expected<net::listener, io::error> listen(const string& address) noexcept;                        // (1)
+static expected<net::listener, io::error> listen(const string& address,                                  // (2)
+                                                 net::reuse_port_t flag) noexcept;
+static async::task<expected<net::listener, io::error>> async_listen(const string& address) noexcept;     // (3)
+static async::task<expected<net::listener, io::error>> async_listen(const string& address,               // (4)
+                                                                    net::reuse_port_t flag) noexcept;
 ```
 
 Listens for TCP connections on `address`: Go's `net.Listen("tcp", address)`. The socket is bound with

@@ -3,9 +3,9 @@
 # sgcl::net::connection::connection
 
 ```cpp
-/*(1)*/ connection() noexcept = default;
-/*(2)*/ connection(const connection& other) noexcept;   // implicitly declared
-/*(3)*/ connection(connection&& other) noexcept;        // implicitly declared
+connection() noexcept = default;                 // (1)
+connection(const connection& other) noexcept;    // (2), implicitly declared
+connection(connection&& other) noexcept;         // (3), implicitly declared
 ```
 
 1. A handle that holds no connection: `!c`. An operation on it is a contract violation (debug builds assert); it is

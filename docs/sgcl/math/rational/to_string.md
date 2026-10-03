@@ -3,8 +3,8 @@
 # sgcl::math::rational::to_string, sgcl::math::operator\<\< (sgcl::math::rational)
 
 ```cpp
-/*(1)*/ string to_string() const;
-/*(2)*/ std::ostream& operator<<(std::ostream& os, const rational& v);
+string to_string() const;                                         // (1)
+std::ostream& operator<<(std::ostream& os, const rational& v);    // (2)
 ```
 
 1. The fraction in lowest terms as the numerator, a slash and the denominator, in decimal: `"3/4"`, `"-3/2"`. A

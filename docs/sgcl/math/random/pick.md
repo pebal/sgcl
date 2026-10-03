@@ -3,11 +3,11 @@
 # sgcl::math::random::pick
 
 ```cpp
-/*(1)*/ template<std::ranges::random_access_range R>
-        requires std::is_lvalue_reference_v<std::ranges::range_reference_t<R>>
-        decltype(auto) pick(R& range);
-/*(2)*/ template<class R>
-        void pick(const R&&) = delete;
+template<std::ranges::random_access_range R>
+requires std::is_lvalue_reference_v<std::ranges::range_reference_t<R>>
+decltype(auto) pick(R& range);                                            // (1)
+template<class R>
+void pick(const R&&) = delete;                                            // (2)
 ```
 
 1. One element of `range`, each as likely. The element itself, not a copy: `r.pick(cards) = 0` writes into

@@ -3,9 +3,9 @@
 # sgcl::net::http::client::download, async_download
 
 ```cpp
-/*(1)*/ expected<response, io::error> download(const string& url, const string& path) const;
-/*(2)*/ async::task<expected<response, io::error>> async_download(string url,
-                                                                  string path) const noexcept;
+expected<response, io::error> download(const string& url, const string& path) const;      // (1)
+async::task<expected<response, io::error>> async_download(string url,                     // (2)
+                                                          string path) const noexcept;
 ```
 
 Saves the file at `url` to `path`, curl's `-fo path url`: a [get](get.md) whose body is streamed into

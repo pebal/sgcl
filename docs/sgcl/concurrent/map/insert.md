@@ -3,17 +3,17 @@
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::insert
 
 ```cpp
-/*(1)*/ pair<iterator, bool> insert(const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ pair<iterator, bool> insert(value_type&& value)
-            noexcept(std::is_nothrow_move_constructible_v<value_type>);
-/*(3)*/ template<class P> requires std::is_constructible_v<value_type, P&&>
-        pair<iterator, bool> insert(P&& value)
-            noexcept(std::is_nothrow_constructible_v<value_type, P&&>);
-/*(4)*/ template<std::input_iterator InputIt>
-        void insert(InputIt first, InputIt last);
-/*(5)*/ void insert(std::initializer_list<value_type> ilist)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type>);
+pair<iterator, bool> insert(const value_type& value)                   // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type>);
+pair<iterator, bool> insert(value_type&& value)                        // (2)
+    noexcept(std::is_nothrow_move_constructible_v<value_type>);
+template<class P> requires std::is_constructible_v<value_type, P&&>
+pair<iterator, bool> insert(P&& value)                                 // (3)
+    noexcept(std::is_nothrow_constructible_v<value_type, P&&>);
+template<std::input_iterator InputIt>
+void insert(InputIt first, InputIt last);                              // (4)
+void insert(std::initializer_list<value_type> ilist)                   // (5)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type>);
 ```
 
 Inserts elements unless their keys are taken, as `std::unordered_map::insert` does.

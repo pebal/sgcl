@@ -3,8 +3,8 @@
 # sgcl::encoding::hex::dumper::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close() const;
-/*(2)*/ async::task<expected<void, io::error>> async_close() const noexcept;
+expected<void, io::error> close() const;                                // (1)
+async::task<expected<void, io::error>> async_close() const noexcept;    // (2)
 ```
 
 Writes the short line at the end, the bytes that waited for sixteen, with the columns where a whole line has

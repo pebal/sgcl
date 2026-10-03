@@ -3,8 +3,8 @@
 # sgcl::net::http::response_writer::error
 
 ```cpp
-/*(1)*/ void error(int code);
-/*(2)*/ void error(int code, const string& message);
+void error(int code);                           // (1)
+void error(int code, const string& message);    // (2)
 ```
 
 Answers with an error, Go's `http.Error`: sets the status and writes a line of text as the body, in place of what was

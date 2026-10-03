@@ -3,11 +3,11 @@
 # sgcl::compress::gzip::compress_file, async_compress_file
 
 ```cpp
-/*(1)*/ static expected<void, error> compress_file(const string& path);
-/*(2)*/ static expected<void, error> compress_file(const string& path, const file_options& o);
-/*(3)*/ static async::task<expected<void, error>> async_compress_file(string path) noexcept;
-/*(4)*/ static async::task<expected<void, error>> async_compress_file(string path,
-                                                                      file_options o) noexcept;
+static expected<void, error> compress_file(const string& path);                            // (1)
+static expected<void, error> compress_file(const string& path, const file_options& o);     // (2)
+static async::task<expected<void, error>> async_compress_file(string path) noexcept;       // (3)
+static async::task<expected<void, error>> async_compress_file(string path,                 // (4)
+                                                              file_options o) noexcept;
 ```
 
 What gzip(1) does to a file: writes `path + ".gz"` beside it, with the file's name (without its directory) in the

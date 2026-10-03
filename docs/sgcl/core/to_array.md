@@ -6,13 +6,13 @@
 #include "sgcl/core/array.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T, size_t N>
-            constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N])
-                noexcept(std::is_nothrow_constructible_v<std::remove_cv_t<T>, T&> &&
-                         std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>);
-    /*(2)*/ template<class T, size_t N>
-            constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N])
-                noexcept(std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>);
+    template<class T, size_t N>
+    constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N])                 // (1)
+        noexcept(std::is_nothrow_constructible_v<std::remove_cv_t<T>, T&> &&
+                 std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>);
+    template<class T, size_t N>
+    constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N])                // (2)
+        noexcept(std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>);
 }
 ```
 

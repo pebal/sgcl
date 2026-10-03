@@ -3,20 +3,20 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::map
 
 ```cpp
-/*(1)*/ map() noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                       std::is_nothrow_default_constructible_v<key_equal>);
-/*(2)*/ explicit map(size_type bucket_count, const hasher& hash = hasher(),
-                     const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        map(InputIt first, InputIt last, size_type bucket_count = 0, const hasher& hash = hasher(),
-            const key_equal& equal = key_equal());
-/*(4)*/ map(std::initializer_list<value_type> ilist, size_type bucket_count = 0,
-            const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ map(const map& other);
-/*(6)*/ map(map&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                                  std::is_nothrow_move_constructible_v<key_equal>);
+map() noexcept(std::is_nothrow_default_constructible_v<hasher> &&                              // (1)
+               std::is_nothrow_default_constructible_v<key_equal>);
+explicit map(size_type bucket_count, const hasher& hash = hasher(),                            // (2)
+             const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+map(InputIt first, InputIt last, size_type bucket_count = 0, const hasher& hash = hasher(),    // (3)
+    const key_equal& equal = key_equal());
+map(std::initializer_list<value_type> ilist, size_type bucket_count = 0,                       // (4)
+    const hasher& hash = hasher(), const key_equal& equal = key_equal());
+map(const map& other);                                                                         // (5)
+map(map&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&                      // (6)
+                          std::is_nothrow_move_constructible_v<key_equal>);
 ```
 
 Constructs a map from one of the sources below.

@@ -3,8 +3,8 @@
 # sgcl::hash::mixin::hasher\<Derived\>::copy_from, async_copy_from
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> copy_from(const io::reader& r);
-/*(2)*/ async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) noexcept;
+expected<size_t, io::error> copy_from(const io::reader& r);                                // (1)
+async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) noexcept;    // (2)
 ```
 
 Reads `r` to its end and hashes every byte it gives after what the hasher took before: Go's `io.Copy(h, r)`. `r` is

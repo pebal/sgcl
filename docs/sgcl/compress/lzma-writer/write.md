@@ -3,8 +3,8 @@
 # sgcl::compress::lzma::writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> write(const slice<const byte>& data);
-/*(2)*/ async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;
+expected<size_t, io::error> write(const slice<const byte>& data);                         // (1)
+async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;    // (2)
 ```
 
 Takes `data` into the writer's window and codes what the parser can see far enough ahead of, writing to `out` what

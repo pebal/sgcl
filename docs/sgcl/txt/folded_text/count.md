@@ -3,8 +3,8 @@
 # sgcl::txt::folded_text::count
 
 ```cpp
-/*(1)*/ size_t count(const searcher_type& pattern) const noexcept;
-/*(2)*/ size_t count(const string& pattern) const noexcept;
+size_t count(const searcher_type& pattern) const noexcept;    // (1)
+size_t count(const string& pattern) const noexcept;           // (2)
 ```
 
 Counts the occurrences of a pattern in the mapped text that do not overlap, left to right: the next is looked for

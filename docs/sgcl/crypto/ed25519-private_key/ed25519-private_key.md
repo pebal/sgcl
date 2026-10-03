@@ -3,8 +3,8 @@
 # sgcl::crypto::ed25519::private_key::private_key
 
 ```cpp
-/*(1)*/ private_key(private_key&& other) noexcept;
-/*(2)*/ private_key(const private_key&) = delete;
+private_key(private_key&& other) noexcept;    // (1)
+private_key(const private_key&) = delete;     // (2)
 ```
 
 1. Takes the key of `other` over and zeroes it in `other`, the seed, the scalar, the prefix and the public key, with

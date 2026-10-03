@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::at
 
 ```cpp
-/*(1)*/ const T& at(const Key& key) const;
-/*(2)*/ template<class K> const T& at(const K& key) const;
+const T& at(const Key& key) const;                    // (1)
+template<class K> const T& at(const K& key) const;    // (2)
 ```
 
 Returns a reference to the value under `key`, with bounds checking: a key that is absent throws.

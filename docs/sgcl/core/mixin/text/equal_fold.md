@@ -3,12 +3,12 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::equal_fold
 
 ```cpp
-/*(1)*/ bool equal_fold(view_type s) const noexcept;
-/*(2)*/ template<size_t N>
-        bool equal_fold(const CharT (&s)[N]) const noexcept;
-/*(3)*/ template<class P>
-        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool equal_fold(P s) const noexcept;
+bool equal_fold(view_type s) const noexcept;                         // (1)
+template<size_t N>
+bool equal_fold(const CharT (&s)[N]) const noexcept;                 // (2)
+template<class P>
+requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+bool equal_fold(P s) const noexcept;                                 // (3)
 ```
 
 Checks whether the two texts are the same letters in either case: by the simple case folding of each code point

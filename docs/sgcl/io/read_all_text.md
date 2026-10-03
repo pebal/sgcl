@@ -6,11 +6,11 @@
 #include "sgcl/io/functions.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<req::reader R>
-            expected<string, error> read_all_text(R&& r);
-    /*(2)*/ template<req::async_reader R>
-            async::task<expected<string, error>> async_read_all_text(R&& r)
-                noexcept(/* see below */);
+    template<req::reader R>
+    expected<string, error> read_all_text(R&& r);                      // (1)
+    template<req::async_reader R>
+    async::task<expected<string, error>> async_read_all_text(R&& r)    // (2)
+        noexcept(/* see below */);
 }
 ```
 

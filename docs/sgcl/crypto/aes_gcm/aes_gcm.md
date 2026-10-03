@@ -3,9 +3,9 @@
 # sgcl::crypto::aes_gcm::aes_gcm
 
 ```cpp
-/*(1)*/ explicit aes_gcm(const slice<const byte>& key);
-/*(2)*/ aes_gcm(aes_gcm&& other) noexcept;
-/*(3)*/ aes_gcm(const aes_gcm&) = delete;
+explicit aes_gcm(const slice<const byte>& key);    // (1)
+aes_gcm(aes_gcm&& other) noexcept;                 // (2)
+aes_gcm(const aes_gcm&) = delete;                  // (3)
 ```
 
 1. Sets up `key`: AES-128, AES-192 or AES-256 by its length, its round keys and the powers of GHASH's key, in the

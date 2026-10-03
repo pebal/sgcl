@@ -3,9 +3,9 @@
 # sgcl::atomic\<H\>::atomic
 
 ```cpp
-/*(1)*/ atomic() noexcept(std::is_nothrow_default_constructible_v<H>) = default;
-/*(2)*/ atomic(const H& h) noexcept;
-/*(3)*/ atomic(const atomic&) = delete;
+atomic() noexcept(std::is_nothrow_default_constructible_v<H>) = default;    // (1)
+atomic(const H& h) noexcept;                                                // (2)
+atomic(const atomic&) = delete;                                             // (3)
 ```
 
 Constructs the atomic.

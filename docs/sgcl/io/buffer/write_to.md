@@ -3,10 +3,10 @@
 # sgcl::io::buffer::write_to, async_write_to
 
 ```cpp
-/*(1)*/ template<class W>
-        expected<size_t, error> write_to(W& w) const noexcept(/* see below */);
-/*(2)*/ template<class W>
-        async::task<expected<size_t, error>> async_write_to(W& w) const noexcept;
+template<class W>
+expected<size_t, error> write_to(W& w) const noexcept(/* see below */);      // (1)
+template<class W>
+async::task<expected<size_t, error>> async_write_to(W& w) const noexcept;    // (2)
 ```
 
 Writes everything the buffer holds to `w` in one write, and takes the bytes written from its front when the write

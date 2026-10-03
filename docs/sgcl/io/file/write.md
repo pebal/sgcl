@@ -3,9 +3,9 @@
 # sgcl::io::file::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& data) const;
-/*(2)*/ async::task<expected<size_t, error>> async_write(const slice<const byte>& data)
-            const noexcept;
+expected<size_t, error> write(const slice<const byte>& data) const;                // (1)
+async::task<expected<size_t, error>> async_write(const slice<const byte>& data)    // (2)
+    const noexcept;
 ```
 
 Writes the whole of `data` at the position, or at the end for a file opened with `open_flags::append`, and moves

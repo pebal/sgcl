@@ -6,10 +6,10 @@
 #include "sgcl/async/timeout.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class T>
-            task<expected<T, timed_out>> with_timeout(task<T> t, duration d);
-    /*(2)*/ template<class T>
-            task<expected<T, timed_out>> with_timeout(task<T> t, duration d, stop_source loser);
+    template<class T>
+    task<expected<T, timed_out>> with_timeout(task<T> t, duration d);                       // (1)
+    template<class T>
+    task<expected<T, timed_out>> with_timeout(task<T> t, duration d, stop_source loser);    // (2)
 }
 ```
 

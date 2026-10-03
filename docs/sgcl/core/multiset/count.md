@@ -3,8 +3,8 @@
 # sgcl::multiset\<Key, Hash, KeyEqual\>::count
 
 ```cpp
-/*(1)*/ size_type count(const key_type& key) const noexcept;
-/*(2)*/ template<class K> size_type count(const K& key) const noexcept(/* see below */);
+size_type count(const key_type& key) const noexcept;                                // (1)
+template<class K> size_type count(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns the number of elements with the key `key`: the length of the key's run, found by a lookup and walked to

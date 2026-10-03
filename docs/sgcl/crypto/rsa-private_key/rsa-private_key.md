@@ -3,8 +3,8 @@
 # sgcl::crypto::rsa::private_key::private_key
 
 ```cpp
-/*(1)*/ private_key(private_key&& other) noexcept;
-/*(2)*/ private_key(const private_key& other) = delete;
+private_key(private_key&& other) noexcept;         // (1)
+private_key(const private_key& other) = delete;    // (2)
 ```
 
 Moves a key. There is no other constructor: a key is made by [generate](generate.md), read by

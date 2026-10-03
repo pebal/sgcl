@@ -3,10 +3,10 @@
 # sgcl::sorted_map\<Key, T, Compare\>::find
 
 ```cpp
-/*(1)*/ iterator find(const key_type& key) noexcept;
-/*(2)*/ const_iterator find(const key_type& key) const noexcept;
-/*(3)*/ template<class K> iterator find(const K& key) noexcept(/* see below */);
-/*(4)*/ template<class K> const_iterator find(const K& key) const noexcept(/* see below */);
+iterator find(const key_type& key) noexcept;                                            // (1)
+const_iterator find(const key_type& key) const noexcept;                                // (2)
+template<class K> iterator find(const K& key) noexcept(/* see below */);                // (3)
+template<class K> const_iterator find(const K& key) const noexcept(/* see below */);    // (4)
 ```
 
 Finds the element under `key`. The search descends the tree reading raw pointers only: no write barrier, no

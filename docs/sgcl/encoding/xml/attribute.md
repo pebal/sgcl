@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::attribute
 
 ```cpp
-/*(1)*/ optional<string> attribute(const string& name) const noexcept;
-/*(2)*/ string attribute(const string& name, const string& fallback) const noexcept;
+optional<string> attribute(const string& name) const noexcept;                  // (1)
+string attribute(const string& name, const string& fallback) const noexcept;    // (2)
 ```
 
 The value of an attribute of the element, its references replaced and its white space normalized.

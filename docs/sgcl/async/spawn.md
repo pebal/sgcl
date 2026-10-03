@@ -7,16 +7,16 @@
 #include "sgcl/async/executor.h"    // (4–5), or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class T>
-            [[nodiscard]] task<T> spawn(task<T> t);
-    /*(2)*/ template<class F>
-            [[nodiscard]] auto spawn(operation<F> op);
-    /*(3)*/ template<class F>
-            [[nodiscard]] auto spawn(F f);
-    /*(4)*/ template<class T, class Executor>
-            [[nodiscard]] task<T> spawn(task<T> t, Executor& ex);
-    /*(5)*/ template<class F, class Executor>
-            [[nodiscard]] auto spawn(F f, Executor& ex);
+    template<class T>
+    [[nodiscard]] task<T> spawn(task<T> t);                  // (1)
+    template<class F>
+    [[nodiscard]] auto spawn(operation<F> op);               // (2)
+    template<class F>
+    [[nodiscard]] auto spawn(F f);                           // (3)
+    template<class T, class Executor>
+    [[nodiscard]] task<T> spawn(task<T> t, Executor& ex);    // (4)
+    template<class F, class Executor>
+    [[nodiscard]] auto spawn(F f, Executor& ex);             // (5)
 }
 ```
 

@@ -3,10 +3,10 @@
 # sgcl::compress::error::error
 
 ```cpp
-/*(1)*/ error() noexcept = default;
-/*(2)*/ error(errc code, uint64_t offset) noexcept;
-/*(3)*/ error(errc code, uint64_t offset, const string& detail) noexcept;
-/*(4)*/ error(const io::error& e, uint64_t offset) noexcept;
+error() noexcept = default;                                          // (1)
+error(errc code, uint64_t offset) noexcept;                          // (2)
+error(errc code, uint64_t offset, const string& detail) noexcept;    // (3)
+error(const io::error& e, uint64_t offset) noexcept;                 // (4)
 ```
 
 Constructs an error. The module makes its errors itself; a program makes one to compare with, or to report a

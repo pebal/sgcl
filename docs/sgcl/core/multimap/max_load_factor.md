@@ -3,8 +3,8 @@
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::max_load_factor
 
 ```cpp
-/*(1)*/ float max_load_factor() const noexcept;
-/*(2)*/ void max_load_factor(float z) noexcept;
+float max_load_factor() const noexcept;    // (1)
+void max_load_factor(float z) noexcept;    // (2)
 ```
 
 Reads or sets the load factor the table grows at: an insertion grows it when the size has reached

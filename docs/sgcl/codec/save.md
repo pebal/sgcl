@@ -6,10 +6,10 @@
 #include "sgcl/codec/files.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    /*(1)*/ expected<void, error> save(const image& im, const string& path,
-                                       const save_options& o = {});
-    /*(2)*/ async::task<expected<void, error>> async_save(const image& im, const string& path,
-                                                          const save_options& o = {}) noexcept;
+    expected<void, error> save(const image& im, const string& path,                        // (1)
+                               const save_options& o = {});
+    async::task<expected<void, error>> async_save(const image& im, const string& path,     // (2)
+                                                  const save_options& o = {}) noexcept;
 }
 ```
 

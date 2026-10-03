@@ -3,16 +3,16 @@
 # sgcl::forward_list\<T\>::forward_list
 
 ```cpp
-/*(1)*/ forward_list() noexcept;
-/*(2)*/ explicit forward_list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>)
-            requires std::default_initializable<T>;
-/*(3)*/ forward_list(size_type count, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(4)*/ template<std::input_iterator InputIt> forward_list(InputIt first, InputIt last);
-/*(5)*/ template<std::ranges::input_range R> explicit forward_list(R&& r);
-/*(6)*/ forward_list(std::initializer_list<T> ilist);
-/*(7)*/ forward_list(const forward_list& other);
-/*(8)*/ forward_list(forward_list&& other) noexcept;
+forward_list() noexcept;                                                                       // (1)
+explicit forward_list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>)    // (2)
+    requires std::default_initializable<T>;
+forward_list(size_type count, const T& value)                                                  // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
+template<std::input_iterator InputIt> forward_list(InputIt first, InputIt last);               // (4)
+template<std::ranges::input_range R> explicit forward_list(R&& r);                             // (5)
+forward_list(std::initializer_list<T> ilist);                                                  // (6)
+forward_list(const forward_list& other);                                                       // (7)
+forward_list(forward_list&& other) noexcept;                                                   // (8)
 ```
 
 Constructs a list from one of the sources below. The sentinel is inside the list object: an empty list allocates

@@ -3,10 +3,10 @@
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::find
 
 ```cpp
-/*(1)*/ iterator find(const Key& key) noexcept;
-/*(2)*/ const_iterator find(const Key& key) const noexcept;
-/*(3)*/ template<class K> iterator find(const K& key) noexcept;
-/*(4)*/ template<class K> const_iterator find(const K& key) const noexcept;
+iterator find(const Key& key) noexcept;                                // (1)
+const_iterator find(const Key& key) const noexcept;                    // (2)
+template<class K> iterator find(const K& key) noexcept;                // (3)
+template<class K> const_iterator find(const K& key) const noexcept;    // (4)
 ```
 
 Finds the element equal to `key`: from the dummy node of the key's bucket along the list while the split keys are

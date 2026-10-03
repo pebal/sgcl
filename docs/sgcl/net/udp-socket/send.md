@@ -3,8 +3,8 @@
 # sgcl::net::udp::socket::send, async_send
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> send(const slice<const byte>& data) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_send(const slice<const byte>& data) const noexcept;
+expected<size_t, io::error> send(const slice<const byte>& data) const;                                // (1)
+async::task<expected<size_t, io::error>> async_send(const slice<const byte>& data) const noexcept;    // (2)
 ```
 
 Sends `data` as one datagram to the peer of a socket of [udp::connect](../udp/connect.md): the `Write` of the

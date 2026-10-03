@@ -3,8 +3,8 @@
 # sgcl::encoding::json::set
 
 ```cpp
-/*(1)*/ json set(const string& key, const json& value) const noexcept;
-/*(2)*/ json set(size_t index, const json& value) const noexcept;
+json set(const string& key, const json& value) const noexcept;    // (1)
+json set(size_t index, const json& value) const noexcept;         // (2)
 ```
 
 A new value with a member or an element set; this value stays as it was.

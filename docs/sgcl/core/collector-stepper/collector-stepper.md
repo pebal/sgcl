@@ -3,8 +3,8 @@
 # sgcl::collector::stepper::stepper
 
 ```cpp
-/*(1)*/ explicit stepper(bool full = true) noexcept;
-/*(2)*/ stepper(const stepper&) = delete;
+explicit stepper(bool full = true) noexcept;    // (1)
+stepper(const stepper&) = delete;               // (2)
 ```
 
 1. Takes the collector over: from here on no cycle runs by itself, and the collector stands at a gate until

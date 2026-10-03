@@ -3,11 +3,11 @@
 # sgcl::codec::heif::encode
 
 ```cpp
-/*(1)*/ static expected<vector<byte>, error> encode(const image& im) noexcept;
-/*(2)*/ static expected<vector<byte>, error> encode(const image& im, const options& o) noexcept;
-/*(3)*/ static expected<void, error> encode(const image& im, const io::writer& out);
-/*(4)*/ static expected<void, error> encode(const image& im, const io::writer& out,
-                                            const options& o);
+static expected<vector<byte>, error> encode(const image& im) noexcept;                      // (1)
+static expected<vector<byte>, error> encode(const image& im, const options& o) noexcept;    // (2)
+static expected<void, error> encode(const image& im, const io::writer& out);                // (3)
+static expected<void, error> encode(const image& im, const io::writer& out,                 // (4)
+                                    const options& o);
 ```
 
 Encodes the image as HEIC through the system's encoder, ImageIO on macOS, with its ICC profile and orientation; on

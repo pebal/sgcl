@@ -3,12 +3,12 @@
 # sgcl::compress::sevenzip::writer::writer
 
 ```cpp
-/*(1)*/ explicit writer(const string& path) noexcept;
-/*(2)*/ writer(const string& path, const options& o) noexcept;
-/*(3)*/ explicit writer(const io::file& file) noexcept;
-/*(4)*/ writer(const io::file& file, const options& o) noexcept;
-/*(5)*/ explicit writer(const io::buffer& b) noexcept;
-/*(6)*/ writer(const io::buffer& b, const options& o) noexcept;
+explicit writer(const string& path) noexcept;               // (1)
+writer(const string& path, const options& o) noexcept;      // (2)
+explicit writer(const io::file& file) noexcept;             // (3)
+writer(const io::file& file, const options& o) noexcept;    // (4)
+explicit writer(const io::buffer& b) noexcept;              // (5)
+writer(const io::buffer& b, const options& o) noexcept;     // (6)
 ```
 
 Constructs a writer of an archive. Nothing of the archive is written yet; with a password in the options, its key is

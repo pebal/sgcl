@@ -27,15 +27,14 @@ What the numbers say. The floor is the scheduler's hop: a yield on a worker is 2
 
 ## Parallel loops
 
-[parallel_for](parallel_for.md) against a plain loop and SNS-HDR's `parallel_for_`, the loop it is modelled on
-(`benchmarks/async/parallel_for.cpp`, built as `bench_parallel_for`; SNS-HDR's side with
-`-DSGCL_SNS_HDR_CORE=<SNS-HDR>/Core`). The kernel is a separable stack blur of a float image of 4096 × 4096 pixels
-with a radius of 8, as SNS-HDR's blur filter runs it: the rows spread over the lanes, then the columns in groups of
+[parallel_for](parallel_for.md) against a plain loop (`benchmarks/async/parallel_for.cpp`, built as
+`bench_parallel_for`). The kernel is a separable stack blur of a float image of 4096 × 4096 pixels
+with a radius of 8: the rows spread over the lanes, then the columns in groups of
 eight (a loop with a step), each lane with a ring of scratch of its own indexed by its lane. Every variant computes
 every pixel with the same code and prints the same checksum (`bench_parallel_for <variant> check` holds each against
 the plain loop). Milliseconds per blur, the median of 400 blurs in a process (20 for the plain loop), the best of
 three processes after one discarded; the CPU is the process's over the blurs; 24 lanes, the scheduler's default
-workers and SNS-HDR's `Parallel::maxThreads()` threads, one per core (3 October 2026):
+workers, one per core (3 October 2026):
 
 | Variant | Time per blur, ms | Against the plain loop | CPU per blur, ms |
 |---|---|---|---|
@@ -43,12 +42,10 @@ workers and SNS-HDR's `Parallel::maxThreads()` threads, one per core (3 October 
 | `async::parallel_for`, the default grain | 5.27 | 16.3× | 111 |
 | `async::parallel_for`, a grain of 1 | 5.53 | 15.5× | 120 |
 | `async::parallel_for` called inside a task | 5.33 | 16.1× | 112 |
-| SNS-HDR's `parallel_for_` | 5.42 | 15.8× | 120 |
 
-The four parallel variants are within 5 per cent of each other. The loop runs inside the call, the caller taking
+The three parallel variants are within 5 per cent of each other. The loop runs inside the call, the caller taking
 chunks as lane 0, so a call from a task costs what a call from a thread does; the default grain, about eight chunks
-a lane, claims a row or a group of columns less often than a grain of 1, which claims every index as SNS-HDR's
-`parallel_for_` does, and spends 5 per cent less time and 7 per cent less CPU.
+a lane, claims a row or a group of columns less often than a grain of 1, which claims every index, and spends 5 per cent less time and 7 per cent less CPU.
 
 ## Measured with the classes
 

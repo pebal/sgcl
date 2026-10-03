@@ -3,24 +3,24 @@
 # sgcl::atomic_ref\<tracked_ptr\<T\>\>::compare_exchange_weak, compare_exchange_strong
 
 ```cpp
-/*(1)*/ bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t,
-                                   const std::memory_order m = std::memory_order_seq_cst) noexcept;
-/*(2)*/ bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n,
-                                   const std::memory_order m = std::memory_order_seq_cst) noexcept;
-/*(3)*/ bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t,
-                                   const std::memory_order s, const std::memory_order f) noexcept;
-/*(4)*/ bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n,
-                                   const std::memory_order s, const std::memory_order f) noexcept;
-/*(5)*/ bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t,
-                                     const std::memory_order m = std::memory_order_seq_cst)
-            noexcept;
-/*(6)*/ bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n,
-                                     const std::memory_order m = std::memory_order_seq_cst)
-            noexcept;
-/*(7)*/ bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t,
-                                     const std::memory_order s, const std::memory_order f) noexcept;
-/*(8)*/ bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n,
-                                     const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t,                                   // (1)
+                           const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n,                                 // (2)
+                           const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t,                                   // (3)
+                           const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n,                                 // (4)
+                           const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t,                                 // (5)
+                             const std::memory_order m = std::memory_order_seq_cst)
+    noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n,                               // (6)
+                             const std::memory_order m = std::memory_order_seq_cst)
+    noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t,                                 // (7)
+                             const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n,                               // (8)
+                             const std::memory_order s, const std::memory_order f) noexcept;
 ```
 
 The compare-exchange of `std::atomic_ref` on the pointer viewed: when the word equals `e`, it is replaced by `n` (or

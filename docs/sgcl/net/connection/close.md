@@ -3,8 +3,8 @@
 # sgcl::net::connection::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close() const noexcept;
-/*(2)*/ async::task<expected<void, io::error>> async_close() const noexcept;
+expected<void, io::error> close() const noexcept;                       // (1)
+async::task<expected<void, io::error>> async_close() const noexcept;    // (2)
 ```
 
 Ends the connection now, both ways, from any thread or task: Go's `Conn.Close`. The reads, writes and waits in

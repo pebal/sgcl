@@ -3,9 +3,9 @@
 # sgcl::net::dns::reverse_lookup, async_reverse_lookup
 
 ```cpp
-/*(1)*/ static expected<vector<string>, io::error> reverse_lookup(const ip_address& address) noexcept;
-/*(2)*/ static async::task<expected<vector<string>, io::error>> async_reverse_lookup(const ip_address& address,
-                                                                                     async::stop_token stop = {}) noexcept;
+static expected<vector<string>, io::error> reverse_lookup(const ip_address& address) noexcept;                         // (1)
+static async::task<expected<vector<string>, io::error>> async_reverse_lookup(const ip_address& address,                // (2)
+                                                                             async::stop_token stop = {}) noexcept;
 ```
 
 Returns the names of `address`, through the system's resolver (`getnameinfo`): Go's `net.LookupAddr`. The system

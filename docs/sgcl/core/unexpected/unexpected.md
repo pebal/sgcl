@@ -3,19 +3,19 @@
 # sgcl::unexpected\<E\>::unexpected
 
 ```cpp
-/*(1)*/ unexpected(const unexpected&) = default;
-/*(2)*/ unexpected(unexpected&&) = default;
-/*(3)*/ template<class Err = E>
-        requires std::is_constructible_v<E, Err>
-        explicit unexpected(Err&& e) noexcept(std::is_nothrow_constructible_v<E, Err>);
-/*(4)*/ template<class... A>
-        requires std::is_constructible_v<E, A...>
-        explicit unexpected(std::in_place_t, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<E, A...>);
-/*(5)*/ template<class U, class... A>
-        requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
-        explicit unexpected(std::in_place_t, std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>);
+unexpected(const unexpected&) = default;                                              // (1)
+unexpected(unexpected&&) = default;                                                   // (2)
+template<class Err = E>
+requires std::is_constructible_v<E, Err>
+explicit unexpected(Err&& e) noexcept(std::is_nothrow_constructible_v<E, Err>);       // (3)
+template<class... A>
+requires std::is_constructible_v<E, A...>
+explicit unexpected(std::in_place_t, A&&... a)                                        // (4)
+    noexcept(std::is_nothrow_constructible_v<E, A...>);
+template<class U, class... A>
+requires std::is_constructible_v<E, std::initializer_list<U>&, A...>
+explicit unexpected(std::in_place_t, std::initializer_list<U> il, A&&... a)           // (5)
+    noexcept(std::is_nothrow_constructible_v<E, std::initializer_list<U>&, A...>);
 ```
 
 Constructs an `unexpected`.

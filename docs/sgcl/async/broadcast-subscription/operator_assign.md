@@ -3,8 +3,8 @@
 # sgcl::async::broadcast\<T\>::subscription::operator=
 
 ```cpp
-/*(1)*/ subscription& operator=(subscription&& other) noexcept;
-/*(2)*/ subscription& operator=(const subscription&) = delete;
+subscription& operator=(subscription&& other) noexcept;    // (1)
+subscription& operator=(const subscription&) = delete;     // (2)
 ```
 
 1. Ends this subscription as its destructor does, counting it off the values it has not passed, then takes `other`

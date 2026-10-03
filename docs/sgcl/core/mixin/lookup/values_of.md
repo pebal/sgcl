@@ -3,12 +3,12 @@
 # sgcl::mixin::lookup\<Derived\>::values_of
 
 ```cpp
-/*(1)*/ template<class K>
-        auto values_of(const K& key) noexcept(/* see below */)
-            requires requires(Derived& d) { d.equal_range(key); };
-/*(2)*/ template<class K>
-        auto values_of(const K& key) const noexcept(/* see below */)
-            requires requires(const Derived& d) { d.equal_range(key); };
+template<class K>
+auto values_of(const K& key) noexcept(/* see below */)              // (1)
+    requires requires(Derived& d) { d.equal_range(key); };
+template<class K>
+auto values_of(const K& key) const noexcept(/* see below */)        // (2)
+    requires requires(const Derived& d) { d.equal_range(key); };
 ```
 
 Returns every value under `key` as a range: a view of the values of the map's `equal_range(key)`, which copies

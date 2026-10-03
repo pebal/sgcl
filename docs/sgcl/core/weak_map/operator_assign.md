@@ -3,8 +3,8 @@
 # sgcl::weak_map\<Key, T\>::operator=
 
 ```cpp
-/*(1)*/ weak_map& operator=(weak_map&& other) noexcept;
-/*(2)*/ weak_map& operator=(const weak_map&) = delete;
+weak_map& operator=(weak_map&& other) noexcept;    // (1)
+weak_map& operator=(const weak_map&) = delete;     // (2)
 ```
 
 Replaces the entries of the map.

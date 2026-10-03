@@ -6,8 +6,8 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<void, error> remove_all(const string& path) noexcept;
-    /*(2)*/ async::task<expected<void, error>> async_remove_all(const string& path) noexcept;
+    expected<void, error> remove_all(const string& path) noexcept;                       // (1)
+    async::task<expected<void, error>> async_remove_all(const string& path) noexcept;    // (2)
 }
 ```
 

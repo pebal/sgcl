@@ -3,10 +3,10 @@
 # sgcl::encoding::hex::dump
 
 ```cpp
-/*(1)*/ static string dump(const slice<const byte>& data);
-/*(2)*/ static string dump(const string& text);
-/*(3)*/ template<class T>
-        static string dump(const T& text);
+static string dump(const slice<const byte>& data);    // (1)
+static string dump(const string& text);               // (2)
+template<class T>
+static string dump(const T& text);                    // (3)
 ```
 
 The lines `hexdump -C` writes of bytes, as Go's `hex.Dump` writes them, line for line: the offset in eight

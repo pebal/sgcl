@@ -3,10 +3,10 @@
 # sgcl::async::strand::go
 
 ```cpp
-/*(1)*/ template<class T>
-        void go(task<T> t);
-/*(2)*/ template<class F>
-        void go(F f);
+template<class T>
+void go(task<T> t);    // (1)
+template<class F>
+void go(F f);          // (2)
 ```
 
 Starts a task on this strand and lets go of it: a [spawn](spawn.md) and a detach. Nobody waits for the task; it runs

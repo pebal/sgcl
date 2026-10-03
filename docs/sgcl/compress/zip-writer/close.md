@@ -3,8 +3,8 @@
 # sgcl::compress::zip::writer::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, error> close();
-/*(2)*/ async::task<expected<void, error>> async_close() noexcept;
+expected<void, error> close();                                // (1)
+async::task<expected<void, error>> async_close() noexcept;    // (2)
 ```
 
 Ends the archive: ends the current entry and writes the central directory, with the ZIP64 records when there are

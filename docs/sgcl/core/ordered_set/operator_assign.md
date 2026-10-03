@@ -3,13 +3,13 @@
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ ordered_set& operator=(const ordered_set& other);
-/*(2)*/ ordered_set& operator=(ordered_set&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal> &&
-                     std::is_nothrow_move_assignable_v<hasher> &&
-                     std::is_nothrow_move_assignable_v<key_equal>);
-/*(3)*/ ordered_set& operator=(std::initializer_list<value_type> ilist);
+ordered_set& operator=(const ordered_set& other);                   // (1)
+ordered_set& operator=(ordered_set&& other)                         // (2)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal> &&
+             std::is_nothrow_move_assignable_v<hasher> &&
+             std::is_nothrow_move_assignable_v<key_equal>);
+ordered_set& operator=(std::initializer_list<value_type> ilist);    // (3)
 ```
 
 Replaces the contents of the set.

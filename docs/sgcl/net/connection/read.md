@@ -3,8 +3,8 @@
 # sgcl::net::connection::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> read(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const noexcept;
+expected<size_t, io::error> read(const slice<byte>& buffer) const;                                // (1)
+async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const noexcept;    // (2)
 ```
 
 Reads what has come into `buffer`, at least one byte and at most its size, waiting until something comes: Go's

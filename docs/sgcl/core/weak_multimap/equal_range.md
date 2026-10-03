@@ -3,8 +3,8 @@
 # sgcl::weak_multimap\<Key, T\>::equal_range
 
 ```cpp
-/*(1)*/ pair<iterator, iterator> equal_range(const key_pointer& object) noexcept;
-/*(2)*/ pair<const_iterator, const_iterator> equal_range(const key_pointer& object) const noexcept;
+pair<iterator, iterator> equal_range(const key_pointer& object) noexcept;                      // (1)
+pair<const_iterator, const_iterator> equal_range(const key_pointer& object) const noexcept;    // (2)
 ```
 
 Returns the range of the entries of `object`, `[first, last)`: they stand together in the table, the newest first,

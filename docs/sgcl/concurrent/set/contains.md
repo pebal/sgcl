@@ -3,8 +3,8 @@
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const Key& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept;
+bool contains(const Key& key) const noexcept;                    // (1)
+template<class K> bool contains(const K& key) const noexcept;    // (2)
 ```
 
 Checks whether the set holds an element equal to `key`: the search of [find](find.md), without an iterator.

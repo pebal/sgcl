@@ -3,8 +3,8 @@
 # sgcl::compress::zlib::writer::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close();
-/*(2)*/ async::task<expected<void, io::error>> async_close() noexcept;
+expected<void, io::error> close();                                // (1)
+async::task<expected<void, io::error>> async_close() noexcept;    // (2)
 ```
 
 Ends the stream: writes the last block and the Adler-32 of the data to `out`, and leaves `out` open, for a format or a

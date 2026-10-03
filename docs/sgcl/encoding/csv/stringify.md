@@ -3,10 +3,10 @@
 # sgcl::encoding::csv::stringify
 
 ```cpp
-/*(1)*/ template<class R>
-        static expected<string, error> stringify(const R& records);
-/*(2)*/ template<class R>
-        static expected<string, error> stringify(const R& records, const options& o);
+template<class R>
+static expected<string, error> stringify(const R& records);                      // (1)
+template<class R>
+static expected<string, error> stringify(const R& records, const options& o);    // (2)
 ```
 
 The text of the records in one call, what a [writer](../csv-writer.md) writes of them; the form of a text that

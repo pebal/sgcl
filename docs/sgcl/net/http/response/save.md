@@ -3,8 +3,8 @@
 # sgcl::net::http::response::save, async_save
 
 ```cpp
-/*(1)*/ expected<uint64_t, io::error> save(const string& path) const;
-/*(2)*/ async::task<expected<uint64_t, io::error>> async_save(string path) const noexcept;
+expected<uint64_t, io::error> save(const string& path) const;                         // (1)
+async::task<expected<uint64_t, io::error>> async_save(string path) const noexcept;    // (2)
 ```
 
 Streams the body into the file at `path`, through `path + ".part"` renamed over `path` at its end, so that nothing

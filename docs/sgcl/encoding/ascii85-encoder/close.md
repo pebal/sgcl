@@ -3,8 +3,8 @@
 # sgcl::encoding::ascii85::encoder::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close() const;
-/*(2)*/ async::task<expected<void, io::error>> async_close() const noexcept;
+expected<void, io::error> close() const;                                // (1)
+async::task<expected<void, io::error>> async_close() const noexcept;    // (2)
 ```
 
 Writes the last group, the n bytes short of four that waited for one, as n + 1 characters, and ends the

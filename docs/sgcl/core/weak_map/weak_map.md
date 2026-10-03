@@ -3,9 +3,9 @@
 # sgcl::weak_map\<Key, T\>::weak_map
 
 ```cpp
-/*(1)*/ weak_map() noexcept;
-/*(2)*/ weak_map(weak_map&& other) noexcept;
-/*(3)*/ weak_map(const weak_map&) = delete;
+weak_map() noexcept;                    // (1)
+weak_map(weak_map&& other) noexcept;    // (2)
+weak_map(const weak_map&) = delete;     // (3)
 ```
 
 Constructs a map.

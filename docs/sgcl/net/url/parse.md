@@ -3,8 +3,8 @@
 # sgcl::net::url::parse
 
 ```cpp
-/*(1)*/ static expected<url, io::error> parse(const string& text) noexcept;
-/*(2)*/ static expected<url, io::error> parse(const string& text, const url& base) noexcept;
+static expected<url, io::error> parse(const string& text) noexcept;                     // (1)
+static expected<url, io::error> parse(const string& text, const url& base) noexcept;    // (2)
 ```
 
 Reads a URL by the WHATWG URL Standard, as a browser reads one; Go's `url.Parse`.

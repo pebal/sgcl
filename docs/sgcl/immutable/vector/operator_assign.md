@@ -3,8 +3,8 @@
 # sgcl::immutable::vector\<T\>::operator=
 
 ```cpp
-/*(1)*/ vector& operator=(const vector& other) noexcept;
-/*(2)*/ vector& operator=(vector&& other) noexcept;
+vector& operator=(const vector& other) noexcept;    // (1)
+vector& operator=(vector&& other) noexcept;         // (2)
 ```
 
 Makes this variable hold the version `other` holds.

@@ -3,10 +3,10 @@
 # sgcl::crypto::p256::private_key::sign_digest
 
 ```cpp
-/*(1)*/ vector<byte> sign_digest(const slice<const byte>& digest) const;
-/*(2)*/ vector<byte> sign_digest(const slice<const byte>& digest, deterministic_t) const;
-/*(3)*/ vector<byte> sign_digest(const slice<const byte>& digest,
-                                 deterministic_t, hash_id id) const;
+vector<byte> sign_digest(const slice<const byte>& digest) const;                     // (1)
+vector<byte> sign_digest(const slice<const byte>& digest, deterministic_t) const;    // (2)
+vector<byte> sign_digest(const slice<const byte>& digest,                            // (3)
+                         deterministic_t, hash_id id) const;
 ```
 
 Signs a digest the program made (`sha256::of(message)`, or any other), and gives the signature as an ECDSA-Sig-Value

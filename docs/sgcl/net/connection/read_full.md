@@ -3,8 +3,8 @@
 # sgcl::net::connection::read_full, async_read_full
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> read_full(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_read_full(const slice<byte>& buffer) const noexcept;
+expected<size_t, io::error> read_full(const slice<byte>& buffer) const;                                // (1)
+async::task<expected<size_t, io::error>> async_read_full(const slice<byte>& buffer) const noexcept;    // (2)
 ```
 
 Fills the whole of `buffer` from the connection, reading as many times as it takes: Go's `io.ReadFull(c, b)`. The

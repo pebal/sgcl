@@ -3,10 +3,10 @@
 # sgcl::sorted_map\<Key, T, Compare\>::merge
 
 ```cpp
-/*(1)*/ template<class C2> void merge(sorted_map<Key, T, C2>& source) noexcept;
-/*(2)*/ template<class C2> void merge(sorted_map<Key, T, C2>&& source) noexcept;
-/*(3)*/ template<class C2> void merge(sorted_multimap<Key, T, C2>& source) noexcept;
-/*(4)*/ template<class C2> void merge(sorted_multimap<Key, T, C2>&& source) noexcept;
+template<class C2> void merge(sorted_map<Key, T, C2>& source) noexcept;          // (1)
+template<class C2> void merge(sorted_map<Key, T, C2>&& source) noexcept;         // (2)
+template<class C2> void merge(sorted_multimap<Key, T, C2>& source) noexcept;     // (3)
+template<class C2> void merge(sorted_multimap<Key, T, C2>&& source) noexcept;    // (4)
 ```
 
 Relinks into this map the nodes of `source` whose keys it does not hold yet, in `source`'s order; a node whose key

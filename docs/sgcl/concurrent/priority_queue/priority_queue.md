@@ -3,15 +3,15 @@
 # sgcl::concurrent::priority_queue\<T, Compare\>::priority_queue
 
 ```cpp
-/*(1)*/ priority_queue()
-            noexcept(std::is_nothrow_default_constructible_v<Compare> &&
-                     std::is_nothrow_copy_constructible_v<Compare>);
-/*(2)*/ explicit priority_queue(const Compare& comp)
-            noexcept(std::is_nothrow_copy_constructible_v<Compare>);
-/*(3)*/ template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& comp = Compare());
-/*(4)*/ priority_queue(std::initializer_list<T> ilist, const Compare& comp = Compare());
-/*(5)*/ priority_queue(const priority_queue&) = delete;
+priority_queue()                                                                    // (1)
+    noexcept(std::is_nothrow_default_constructible_v<Compare> &&
+             std::is_nothrow_copy_constructible_v<Compare>);
+explicit priority_queue(const Compare& comp)                                        // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<Compare>);
+template<std::input_iterator InputIt>
+priority_queue(InputIt first, InputIt last, const Compare& comp = Compare());       // (3)
+priority_queue(std::initializer_list<T> ilist, const Compare& comp = Compare());    // (4)
+priority_queue(const priority_queue&) = delete;                                     // (5)
 ```
 
 Constructs a queue from one of the sources below.

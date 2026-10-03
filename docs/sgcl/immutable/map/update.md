@@ -3,20 +3,20 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::update
 
 ```cpp
-/*(1)*/ template<class F>
-        map update(const Key& key, F f) const
-            noexcept(std::is_nothrow_invocable_v<F&, const T&> &&
-                     std::is_nothrow_constructible_v<T, std::invoke_result_t<F&, const T&>> &&
-                     std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
-/*(2)*/ template<class F>
-        map update(const Key& key, const T& fallback, F f) const
-            noexcept(std::is_nothrow_invocable_v<F&, const T&> &&
-                     std::is_nothrow_constructible_v<T, std::invoke_result_t<F&, const T&>> &&
-                     std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
+template<class F>
+map update(const Key& key, F f) const                                                     // (1)
+    noexcept(std::is_nothrow_invocable_v<F&, const T&> &&
+             std::is_nothrow_constructible_v<T, std::invoke_result_t<F&, const T&>> &&
+             std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
+template<class F>
+map update(const Key& key, const T& fallback, F f) const                                  // (2)
+    noexcept(std::is_nothrow_invocable_v<F&, const T&> &&
+             std::is_nothrow_constructible_v<T, std::invoke_result_t<F&, const T&>> &&
+             std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
 ```
 
 Returns the map with `f(value)` in place of the value under `key`: [set](set.md) of what `f` gives of the old value,

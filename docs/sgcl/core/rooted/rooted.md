@@ -3,13 +3,13 @@
 # sgcl::rooted\<T\>::rooted
 
 ```cpp
-/*(1)*/ template<class... A>
-            requires std::is_constructible_v<T, A...>
-        explicit rooted(std::in_place_t, A&&... a) noexcept(/* see below */);
-/*(2)*/ template<class U = T>
-        rooted(U&& value) noexcept(/* see below */);
-/*(3)*/ rooted(const rooted&) noexcept = default;
-/*(4)*/ rooted(rooted&&) noexcept = default;
+template<class... A>
+    requires std::is_constructible_v<T, A...>
+explicit rooted(std::in_place_t, A&&... a) noexcept(/* see below */);    // (1)
+template<class U = T>
+rooted(U&& value) noexcept(/* see below */);                             // (2)
+rooted(const rooted&) noexcept = default;                                // (3)
+rooted(rooted&&) noexcept = default;                                     // (4)
 ```
 
 Makes the value, or shares the value of another `rooted`.

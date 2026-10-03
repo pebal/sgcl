@@ -3,8 +3,8 @@
 # sgcl::io::reader::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, error> read(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept;
+expected<size_t, error> read(const slice<byte>& buffer) const;                                // (1)
+async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept;    // (2)
 ```
 
 Reads bytes of the stream into `buffer`, at most `buffer.size()`. Both are `const`, as a call through a pointer is:

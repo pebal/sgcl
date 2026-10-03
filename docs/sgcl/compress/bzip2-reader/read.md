@@ -3,8 +3,8 @@
 # sgcl::compress::bzip2::reader::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> read(const slice<byte>& out);
-/*(2)*/ async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept;
+expected<size_t, io::error> read(const slice<byte>& out);                         // (1)
+async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept;    // (2)
 ```
 
 Decompresses into `out`, decoding straight into it: as many bytes as the decoder can give, at least one unless the

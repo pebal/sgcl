@@ -6,16 +6,16 @@
 #include "sgcl/io/functions.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<req::writer W, class D>
-            expected<size_t, error> write(W&& w, const D& data) noexcept(/* see below */);
-    /*(2)*/ template<req::writer W>
-            expected<size_t, error> write(W&& w, byte b) noexcept(/* see below */);
-    /*(3)*/ template<req::async_writer W, class D>
-            async::task<expected<size_t, error>> async_write(W&& w, const D& data)
-                noexcept(/* see below */);
-    /*(4)*/ template<req::async_writer W>
-            async::task<expected<size_t, error>> async_write(W&& w, byte b)
-                noexcept(/* see below */);
+    template<req::writer W, class D>
+    expected<size_t, error> write(W&& w, const D& data) noexcept(/* see below */);    // (1)
+    template<req::writer W>
+    expected<size_t, error> write(W&& w, byte b) noexcept(/* see below */);           // (2)
+    template<req::async_writer W, class D>
+    async::task<expected<size_t, error>> async_write(W&& w, const D& data)            // (3)
+        noexcept(/* see below */);
+    template<req::async_writer W>
+    async::task<expected<size_t, error>> async_write(W&& w, byte b)                   // (4)
+        noexcept(/* see below */);
 }
 ```
 

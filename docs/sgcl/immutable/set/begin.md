@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::begin, cbegin
 
 ```cpp
-/*(1)*/ const_iterator begin() const noexcept;
-/*(2)*/ const_iterator cbegin() const noexcept;
+const_iterator begin() const noexcept;     // (1)
+const_iterator cbegin() const noexcept;    // (2)
 ```
 
 Returns an iterator to the first element in the order of the trie; on an empty set it is equal to

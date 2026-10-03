@@ -3,8 +3,8 @@
 # sgcl::io::standard_stream::standard_stream
 
 ```cpp
-/*(1)*/ constexpr standard_stream(int fd, const char* name) noexcept;
-/*(2)*/ standard_stream(const standard_stream&) = delete;
+constexpr standard_stream(int fd, const char* name) noexcept;    // (1)
+standard_stream(const standard_stream&) = delete;                // (2)
 ```
 
 1. A stream over the descriptor `fd`, named `name` in its errors. Nothing is made and nothing is checked: the file

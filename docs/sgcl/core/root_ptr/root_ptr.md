@@ -3,16 +3,16 @@
 # sgcl::root_ptr\<T\>::root_ptr
 
 ```cpp
-/*(1)*/ root_ptr() noexcept;
-/*(2)*/ root_ptr(std::nullptr_t) noexcept;
-/*(3)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr(const tracked_ptr<U>& p) noexcept;
-/*(4)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr(unique_ptr<U>&& u) noexcept;
-/*(5)*/ root_ptr(const root_ptr& o) noexcept;
-/*(6)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename root_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr(const root_ptr<U>& o) noexcept;
-/*(7)*/ root_ptr(root_ptr&& o) noexcept;
+root_ptr() noexcept;                                                                                                          // (1)
+root_ptr(std::nullptr_t) noexcept;                                                                                            // (2)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+root_ptr(const tracked_ptr<U>& p) noexcept;                                                                                   // (3)
+template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+root_ptr(unique_ptr<U>&& u) noexcept;                                                                                         // (4)
+root_ptr(const root_ptr& o) noexcept;                                                                                         // (5)
+template<class U, std::enable_if_t<std::is_convertible_v<typename root_ptr<U>::element_type*, element_type*>, int> = 0>
+root_ptr(const root_ptr<U>& o) noexcept;                                                                                      // (6)
+root_ptr(root_ptr&& o) noexcept;                                                                                              // (7)
 ```
 
 Takes a cell from the thread's cell allocator and stores in it the pointer from one of the sources below. Every

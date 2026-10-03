@@ -3,22 +3,22 @@
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::ordered_set
 
 ```cpp
-/*(1)*/ ordered_set()
-            noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                     std::is_nothrow_default_constructible_v<key_equal>);
-/*(2)*/ explicit ordered_set(size_type bucket_count, const hasher& hash = hasher(),
-                             const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        ordered_set(InputIt first, InputIt last, size_type bucket_count = 0,
-                    const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(4)*/ ordered_set(std::initializer_list<value_type> ilist, size_type bucket_count = 0,
-                    const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ ordered_set(const ordered_set& other);
-/*(6)*/ ordered_set(ordered_set&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal>);
+ordered_set()                                                                        // (1)
+    noexcept(std::is_nothrow_default_constructible_v<hasher> &&
+             std::is_nothrow_default_constructible_v<key_equal>);
+explicit ordered_set(size_type bucket_count, const hasher& hash = hasher(),          // (2)
+                     const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+ordered_set(InputIt first, InputIt last, size_type bucket_count = 0,                 // (3)
+            const hasher& hash = hasher(), const key_equal& equal = key_equal());
+ordered_set(std::initializer_list<value_type> ilist, size_type bucket_count = 0,     // (4)
+            const hasher& hash = hasher(), const key_equal& equal = key_equal());
+ordered_set(const ordered_set& other);                                               // (5)
+ordered_set(ordered_set&& other)                                                     // (6)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal>);
 ```
 
 Constructs a set from one of the sources below.

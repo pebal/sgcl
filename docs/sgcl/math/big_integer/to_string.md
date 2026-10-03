@@ -3,8 +3,8 @@
 # sgcl::math::big_integer::to_string, sgcl::math::operator\<\< (sgcl::math::big_integer)
 
 ```cpp
-/*(1)*/ string to_string(int base = 10) const;
-/*(2)*/ std::ostream& operator<<(std::ostream& os, const big_integer& v);
+string to_string(int base = 10) const;                               // (1)
+std::ostream& operator<<(std::ostream& os, const big_integer& v);    // (2)
 ```
 
 1. The digits of the number in `base`, 2 to 36, the letters small, a minus in front of a negative number and

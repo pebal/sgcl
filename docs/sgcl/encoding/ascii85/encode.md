@@ -3,10 +3,10 @@
 # sgcl::encoding::ascii85::encode
 
 ```cpp
-/*(1)*/ static string encode(const slice<const byte>& data);
-/*(2)*/ static string encode(const string& text);
-/*(3)*/ template<class T>
-        static string encode(const T& text);
+static string encode(const slice<const byte>& data);    // (1)
+static string encode(const string& text);               // (2)
+template<class T>
+static string encode(const T& text);                    // (3)
 ```
 
 The Ascii85 text of bytes: five characters for every group of four bytes, `z` for four zero bytes, and n + 1

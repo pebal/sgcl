@@ -3,14 +3,14 @@
 # sgcl::txt::words::words
 
 ```cpp
-/*(1)*/ words() noexcept = default;
-/*(2)*/ explicit words(const slice<const char>& text) noexcept;
-/*(3)*/ explicit words(const string& text) noexcept;
-/*(4)*/ template<size_t N>
-        explicit words(const char (&text)[N]);
-/*(5)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit words(P text);
+words() noexcept = default;                                        // (1)
+explicit words(const slice<const char>& text) noexcept;            // (2)
+explicit words(const string& text) noexcept;                       // (3)
+template<size_t N>
+explicit words(const char (&text)[N]);                             // (4)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit words(P text);                                            // (5)
 ```
 
 Constructs the range of the words of a text. `txt::words(s)` looks like a call and is a construction, as

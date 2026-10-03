@@ -3,8 +3,8 @@
 # sgcl::crypto::chacha20_poly1305::chacha20_poly1305
 
 ```cpp
-/*(1)*/ explicit chacha20_poly1305(const slice<const byte>& key);
-/*(2)*/ chacha20_poly1305(chacha20_poly1305&& other) noexcept = default;
+explicit chacha20_poly1305(const slice<const byte>& key);           // (1)
+chacha20_poly1305(chacha20_poly1305&& other) noexcept = default;    // (2)
 ```
 
 1. Copies the 32 bytes of `key` into the object.

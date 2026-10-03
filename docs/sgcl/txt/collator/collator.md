@@ -3,13 +3,13 @@
 # sgcl::txt::collator::collator
 
 ```cpp
-/*(1)*/ collator() noexcept = default;
-/*(2)*/ explicit collator(locale where, strength level = strength::tertiary) noexcept;
-/*(3)*/ explicit collator(strength level) noexcept;
-/*(4)*/ explicit collator(const options& how) noexcept;
-/*(5)*/ collator(locale where, const options& how) noexcept;
-/*(6)*/ explicit collator(const string& tag, strength level = strength::tertiary) noexcept;
-/*(7)*/ collator(const string& tag, const options& how) noexcept;
+collator() noexcept = default;                                                         // (1)
+explicit collator(locale where, strength level = strength::tertiary) noexcept;         // (2)
+explicit collator(strength level) noexcept;                                            // (3)
+explicit collator(const options& how) noexcept;                                        // (4)
+collator(locale where, const options& how) noexcept;                                   // (5)
+explicit collator(const string& tag, strength level = strength::tertiary) noexcept;    // (6)
+collator(const string& tag, const options& how) noexcept;                              // (7)
 ```
 
 Constructs a collator of the root order or of a language's.

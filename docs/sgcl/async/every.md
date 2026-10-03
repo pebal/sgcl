@@ -6,10 +6,10 @@
 #include "sgcl/async/every.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class F>
-            stop_source every(duration d, F f);
-    /*(2)*/ template<class F>
-            stop_source every(duration d, F f, const stop_token& parent);
+    template<class F>
+    stop_source every(duration d, F f);                              // (1)
+    template<class F>
+    stop_source every(duration d, F f, const stop_token& parent);    // (2)
 }
 ```
 

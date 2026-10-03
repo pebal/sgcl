@@ -3,8 +3,8 @@
 # sgcl::encoding::json::as_double
 
 ```cpp
-/*(1)*/ optional<double> as_double() const noexcept;
-/*(2)*/ double as_double(double fallback) const noexcept;
+optional<double> as_double() const noexcept;         // (1)
+double as_double(double fallback) const noexcept;    // (2)
 ```
 
 Any number as a `double`, rounded to the nearest one: an integer past 2^53 loses its last digits here, as it does

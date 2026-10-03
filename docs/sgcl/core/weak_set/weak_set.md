@@ -3,9 +3,9 @@
 # sgcl::weak_set\<Key\>::weak_set
 
 ```cpp
-/*(1)*/ weak_set() noexcept;
-/*(2)*/ weak_set(weak_set&& other) noexcept;
-/*(3)*/ weak_set(const weak_set&) = delete;
+weak_set() noexcept;                    // (1)
+weak_set(weak_set&& other) noexcept;    // (2)
+weak_set(const weak_set&) = delete;     // (3)
 ```
 
 Constructs a set.

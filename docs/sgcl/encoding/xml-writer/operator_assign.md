@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::writer::operator=
 
 ```cpp
-/*(1)*/ writer& operator=(writer&& other) noexcept = default;
-/*(2)*/ writer& operator=(const writer&) = delete;
+writer& operator=(writer&& other) noexcept = default;    // (1)
+writer& operator=(const writer&) = delete;               // (2)
 ```
 
 1. Takes the writing of `other` over, with its stream, what it gathered and not flushed, its open elements and its

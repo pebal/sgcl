@@ -9,10 +9,10 @@ namespace sgcl::txt {
     // called as is_identifier_continue(c)
     inline constexpr /* unspecified */ is_identifier_continue {};
 
-    /*(1)*/ constexpr bool operator()(char32_t c) const noexcept;
-    /*(2)*/ constexpr bool operator()(char32_t c, program_syntax_t) const noexcept;
-    /*(3)*/ template<class T, class... Rest> requires (!std::same_as<T, char32_t>)
-            constexpr bool operator()(T, Rest...) const noexcept = delete;
+    constexpr bool operator()(char32_t c) const noexcept;                      // (1)
+    constexpr bool operator()(char32_t c, program_syntax_t) const noexcept;    // (2)
+    template<class T, class... Rest> requires (!std::same_as<T, char32_t>)
+    constexpr bool operator()(T, Rest...) const noexcept = delete;             // (3)
 }
 ```
 

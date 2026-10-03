@@ -3,10 +3,10 @@
 # sgcl::expected\<T, E\>::transform_error
 
 ```cpp
-/*(1)*/ template<class F> auto transform_error(F&& f) & noexcept(/* see below */);
-/*(2)*/ template<class F> auto transform_error(F&& f) const& noexcept(/* see below */);
-/*(3)*/ template<class F> auto transform_error(F&& f) && noexcept(/* see below */);
-/*(4)*/ template<class F> auto transform_error(F&& f) const&& noexcept(/* see below */);
+template<class F> auto transform_error(F&& f) & noexcept(/* see below */);          // (1)
+template<class F> auto transform_error(F&& f) const& noexcept(/* see below */);     // (2)
+template<class F> auto transform_error(F&& f) && noexcept(/* see below */);         // (3)
+template<class F> auto transform_error(F&& f) const&& noexcept(/* see below */);    // (4)
 ```
 
 The error mapped: when there is an error, an `expected<T, G>` holding what `f` returns when called with it (through

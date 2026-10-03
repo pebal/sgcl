@@ -3,10 +3,10 @@
 # sgcl::duration::to_string, sgcl::operator\<\< (sgcl::duration)
 
 ```cpp
-/*(1)*/ string to_string() const noexcept;
-/*(2)*/ template<class CharT, class Traits>
-        friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,
-                                                             duration d);
+string to_string() const noexcept;                                                             // (1)
+template<class CharT, class Traits>
+friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,    // (2)
+                                                     duration d);
 ```
 
 1. Go's text of the duration, as Go's `String()` writes it. The hours, minutes and seconds with the seconds'

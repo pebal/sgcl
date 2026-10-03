@@ -3,11 +3,11 @@
 # sgcl::async::channel\<T\>::send
 
 ```cpp
-/*(1)*/ auto send(const T& value) const
-            noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<T>);
-/*(2)*/ auto send(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(3)*/ auto send() const noexcept;
+auto send(const T& value) const                                                  // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<T>);
+auto send(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>);    // (2)
+auto send() const noexcept;                                                      // (3)
 ```
 
 Sends an element, waiting for room in the buffer or, on a rendezvous, for a receiver. The call makes an

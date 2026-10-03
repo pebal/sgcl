@@ -3,8 +3,8 @@
 # sgcl::async::generator\<T\>::generator
 
 ```cpp
-/*(1)*/ generator() noexcept = default;
-/*(2)*/ generator(generator&&) noexcept = default;
+generator() noexcept = default;               // (1)
+generator(generator&&) noexcept = default;    // (2)
 ```
 
 Constructs a generator object.

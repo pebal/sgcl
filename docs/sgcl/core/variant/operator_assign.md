@@ -3,19 +3,19 @@
 # sgcl::variant\<Ts...\>::operator=
 
 ```cpp
-/*(1)*/ variant& operator=(const variant& o)
-            noexcept(((std::is_nothrow_copy_constructible_v<Ts>
-                       && std::is_nothrow_copy_assignable_v<Ts>) && ...))
-            requires ((std::is_copy_constructible_v<Ts> && std::is_copy_assignable_v<Ts>) && ...);
-/*(2)*/ variant& operator=(variant&& o)
-            noexcept(((std::is_nothrow_move_constructible_v<Ts>
-                       && std::is_nothrow_move_assignable_v<Ts>) && ...))
-            requires ((std::is_move_constructible_v<Ts> && std::is_move_assignable_v<Ts>) && ...);
-/*(3)*/ template<class U>
-        requires std::is_constructible_v<T_j, U> && std::is_assignable_v<T_j&, U>
-        variant& operator=(U&& u)
-            noexcept(std::is_nothrow_constructible_v<T_j, U>
-                     && std::is_nothrow_assignable_v<T_j&, U>);
+variant& operator=(const variant& o)                                                          // (1)
+    noexcept(((std::is_nothrow_copy_constructible_v<Ts>
+               && std::is_nothrow_copy_assignable_v<Ts>) && ...))
+    requires ((std::is_copy_constructible_v<Ts> && std::is_copy_assignable_v<Ts>) && ...);
+variant& operator=(variant&& o)                                                               // (2)
+    noexcept(((std::is_nothrow_move_constructible_v<Ts>
+               && std::is_nothrow_move_assignable_v<Ts>) && ...))
+    requires ((std::is_move_constructible_v<Ts> && std::is_move_assignable_v<Ts>) && ...);
+template<class U>
+requires std::is_constructible_v<T_j, U> && std::is_assignable_v<T_j&, U>
+variant& operator=(U&& u)                                                                     // (3)
+    noexcept(std::is_nothrow_constructible_v<T_j, U>
+             && std::is_nothrow_assignable_v<T_j&, U>);
 ```
 
 Replaces the alternative held, as `std::variant`'s assignments do.

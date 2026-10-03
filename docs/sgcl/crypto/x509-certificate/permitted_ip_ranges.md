@@ -3,8 +3,8 @@
 # sgcl::crypto::x509::certificate::permitted_ip_ranges, excluded_ip_ranges
 
 ```cpp
-/*(1)*/ const vector<ip_range>& permitted_ip_ranges() const noexcept;
-/*(2)*/ const vector<ip_range>& excluded_ip_ranges() const noexcept;
+const vector<ip_range>& permitted_ip_ranges() const noexcept;    // (1)
+const vector<ip_range>& excluded_ip_ranges() const noexcept;     // (2)
 ```
 
 Return the IP subtrees of the nameConstraints:

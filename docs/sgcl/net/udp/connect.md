@@ -3,8 +3,8 @@
 # sgcl::net::udp::connect, async_connect
 
 ```cpp
-/*(1)*/ static expected<udp::socket, io::error> connect(const string& address) noexcept;
-/*(2)*/ static async::task<expected<udp::socket, io::error>> async_connect(const string& address) noexcept;
+static expected<udp::socket, io::error> connect(const string& address) noexcept;                       // (1)
+static async::task<expected<udp::socket, io::error>> async_connect(const string& address) noexcept;    // (2)
 ```
 
 Makes a UDP socket whose peer is `address`: Go's `net.Dial("udp", address)`. [send](../udp-socket/send.md) and

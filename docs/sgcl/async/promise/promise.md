@@ -3,9 +3,9 @@
 # sgcl::async::promise\<T\>::promise
 
 ```cpp
-/*(1)*/ promise() noexcept;
-/*(2)*/ promise(const promise& other) noexcept;
-/*(3)*/ promise(promise&& other) noexcept;
+promise() noexcept;                        // (1)
+promise(const promise& other) noexcept;    // (2)
+promise(promise&& other) noexcept;         // (3)
 ```
 
 Makes a promise, or another handle of an existing one.

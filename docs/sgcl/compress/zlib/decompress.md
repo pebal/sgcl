@@ -3,14 +3,14 @@
 # sgcl::compress::zlib::decompress
 
 ```cpp
-/*(1)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept;
-/*(2)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data,
-                                                        const limits& l) noexcept;
-/*(3)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data,
-                                                        const options& o) noexcept;
-/*(4)*/ static expected<vector<byte>, error> decompress(const slice<const byte>& data,
-                                                        const options& o,
-                                                        const limits& l) noexcept;
+static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept;    // (1)
+static expected<vector<byte>, error> decompress(const slice<const byte>& data,              // (2)
+                                                const limits& l) noexcept;
+static expected<vector<byte>, error> decompress(const slice<const byte>& data,              // (3)
+                                                const options& o) noexcept;
+static expected<vector<byte>, error> decompress(const slice<const byte>& data,              // (4)
+                                                const options& o,
+                                                const limits& l) noexcept;
 ```
 
 Decompresses the whole of a zlib stream at once, made by any encoder: the header is checked, the data decoded and the

@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::erase
 
 ```cpp
-/*(1)*/ bool erase(const Key& key) noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ template<class K> bool erase(const K& key) noexcept(/* see below */);
+bool erase(const Key& key) noexcept(std::is_nothrow_copy_constructible_v<value_type>);    // (1)
+template<class K> bool erase(const K& key) noexcept(/* see below */);                     // (2)
 ```
 
 Takes out the element equal to `key`. The key is looked up first, so that an absent key copies nothing; then the

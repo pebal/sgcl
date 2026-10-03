@@ -3,15 +3,15 @@
 # sgcl::math::rational::operator+=, operator-=, operator\*=, operator/=, operator-, sgcl::math::operator+, operator-, operator\*, operator/ (sgcl::math::rational)
 
 ```cpp
-/*(1)*/ friend rational operator+(const rational& a, const rational& b) noexcept;
-/*(2)*/ friend rational operator-(const rational& a, const rational& b) noexcept;
-/*(3)*/ friend rational operator*(const rational& a, const rational& b) noexcept;
-/*(4)*/ friend rational operator/(const rational& a, const rational& b);
-/*(5)*/ rational operator-() const noexcept;
-/*(6)*/ rational& operator+=(const rational& b) noexcept;
-/*(7)*/ rational& operator-=(const rational& b) noexcept;
-/*(8)*/ rational& operator*=(const rational& b) noexcept;
-/*(9)*/ rational& operator/=(const rational& b);
+friend rational operator+(const rational& a, const rational& b) noexcept;    // (1)
+friend rational operator-(const rational& a, const rational& b) noexcept;    // (2)
+friend rational operator*(const rational& a, const rational& b) noexcept;    // (3)
+friend rational operator/(const rational& a, const rational& b);             // (4)
+rational operator-() const noexcept;                                         // (5)
+rational& operator+=(const rational& b) noexcept;                            // (6)
+rational& operator-=(const rational& b) noexcept;                            // (7)
+rational& operator*=(const rational& b) noexcept;                            // (8)
+rational& operator/=(const rational& b);                                     // (9)
 ```
 
 The arithmetic of fractions, exact: nothing is ever rounded, and the result is in lowest terms. The binary

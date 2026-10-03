@@ -3,8 +3,8 @@
 # sgcl::concurrent::weak_map\<Key, T\>::weak_map
 
 ```cpp
-/*(1)*/ weak_map();
-/*(2)*/ weak_map(const weak_map&) = delete;
+weak_map();                            // (1)
+weak_map(const weak_map&) = delete;    // (2)
 ```
 
 1. An empty map: the table of [concurrent::map](../map.md) with sixteen buckets, its head node and its counters, and

@@ -3,8 +3,8 @@
 # sgcl::math::big_integer::operator=
 
 ```cpp
-/*(1)*/ big_integer& operator=(const big_integer& other) noexcept;
-/*(2)*/ big_integer& operator=(big_integer&& other) noexcept;
+big_integer& operator=(const big_integer& other) noexcept;    // (1)
+big_integer& operator=(big_integer&& other) noexcept;         // (2)
 ```
 
 Replaces the value.

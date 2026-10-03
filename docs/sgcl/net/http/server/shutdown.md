@@ -3,8 +3,8 @@
 # sgcl::net::http::server::shutdown, async_shutdown
 
 ```cpp
-/*(1)*/ void shutdown() const;
-/*(2)*/ async::task<> async_shutdown() const noexcept;
+void shutdown() const;                            // (1)
+async::task<> async_shutdown() const noexcept;    // (2)
 ```
 
 Stops the server gracefully, Go's `Server.Shutdown`: closes the listeners and the idle connections, lets each active

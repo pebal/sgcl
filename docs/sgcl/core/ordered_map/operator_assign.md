@@ -3,13 +3,13 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ ordered_map& operator=(const ordered_map& other);
-/*(2)*/ ordered_map& operator=(ordered_map&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal> &&
-                     std::is_nothrow_move_assignable_v<hasher> &&
-                     std::is_nothrow_move_assignable_v<key_equal>);
-/*(3)*/ ordered_map& operator=(std::initializer_list<value_type> ilist);
+ordered_map& operator=(const ordered_map& other);                   // (1)
+ordered_map& operator=(ordered_map&& other)                         // (2)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal> &&
+             std::is_nothrow_move_assignable_v<hasher> &&
+             std::is_nothrow_move_assignable_v<key_equal>);
+ordered_map& operator=(std::initializer_list<value_type> ilist);    // (3)
 ```
 
 Replaces the contents of the map.

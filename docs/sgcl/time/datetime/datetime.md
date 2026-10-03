@@ -3,12 +3,12 @@
 # sgcl::time::datetime::datetime
 
 ```cpp
-/*(1)*/ datetime() noexcept = default;
-/*(2)*/ explicit datetime(std::chrono::sys_time<std::chrono::nanoseconds> t,
-                          const time::zone& z = time::zone::local()) noexcept;
-/*(3)*/ explicit datetime(const string& text, layout format);
-/*(4)*/ explicit datetime(const string& text, const string& pattern,
-                          const time::zone& z = time::zone::utc());
+datetime() noexcept = default;                                            // (1)
+explicit datetime(std::chrono::sys_time<std::chrono::nanoseconds> t,      // (2)
+                  const time::zone& z = time::zone::local()) noexcept;
+explicit datetime(const string& text, layout format);                     // (3)
+explicit datetime(const string& text, const string& pattern,              // (4)
+                  const time::zone& z = time::zone::utc());
 ```
 
 Constructs a datetime.

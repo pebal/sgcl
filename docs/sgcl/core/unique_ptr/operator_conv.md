@@ -3,8 +3,8 @@
 # sgcl::unique_ptr\<T\>::operator unique_ptr\<void\>&
 
 ```cpp
-/*(1)*/ operator unique_ptr<void>&() noexcept;
-/*(2)*/ operator const unique_ptr<void>&() const noexcept;
+operator unique_ptr<void>&() noexcept;                // (1)
+operator const unique_ptr<void>&() const noexcept;    // (2)
 ```
 
 Every `unique_ptr<T>` is a `unique_ptr<void>&`: the same owner seen without its type. [type](type.md),

@@ -3,8 +3,8 @@
 # sgcl::async::once::once
 
 ```cpp
-/*(1)*/ once() noexcept = default;
-/*(2)*/ once(const once&) = delete;
+once() noexcept = default;     // (1)
+once(const once&) = delete;    // (2)
 ```
 
 1. A once not yet called: its channel open, no exception kept.

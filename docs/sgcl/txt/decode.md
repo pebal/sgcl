@@ -6,10 +6,10 @@
 #include "sgcl/txt/encoding.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ string decode(const slice<const byte>& bytes, encoding from);
-    /*(2)*/ expected<string, decode_error> decode(const slice<const byte>& bytes, encoding from,
-                                                  strict_t);
-    /*(3)*/ optional<string> decode(const slice<const byte>& bytes, const string& name);
+    string decode(const slice<const byte>& bytes, encoding from);                           // (1)
+    expected<string, decode_error> decode(const slice<const byte>& bytes, encoding from,    // (2)
+                                          strict_t);
+    optional<string> decode(const slice<const byte>& bytes, const string& name);            // (3)
 }
 ```
 

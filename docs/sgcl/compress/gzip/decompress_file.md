@@ -3,11 +3,11 @@
 # sgcl::compress::gzip::decompress_file, async_decompress_file
 
 ```cpp
-/*(1)*/ static expected<void, error> decompress_file(const string& path);
-/*(2)*/ static expected<void, error> decompress_file(const string& path, const file_options& o);
-/*(3)*/ static async::task<expected<void, error>> async_decompress_file(string path) noexcept;
-/*(4)*/ static async::task<expected<void, error>> async_decompress_file(string path,
-                                                                        file_options o) noexcept;
+static expected<void, error> decompress_file(const string& path);                            // (1)
+static expected<void, error> decompress_file(const string& path, const file_options& o);     // (2)
+static async::task<expected<void, error>> async_decompress_file(string path) noexcept;       // (3)
+static async::task<expected<void, error>> async_decompress_file(string path,                 // (4)
+                                                                file_options o) noexcept;
 ```
 
 What gunzip does to a file: takes a name ending in `.gz` and writes the name without it, every member one after

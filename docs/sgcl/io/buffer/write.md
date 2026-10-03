@@ -3,9 +3,9 @@
 # sgcl::io::buffer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& in) const;
-/*(2)*/ async::task<expected<size_t, error>> async_write(const slice<const byte>& in)
-            const noexcept;
+expected<size_t, error> write(const slice<const byte>& in) const;                // (1)
+async::task<expected<size_t, error>> async_write(const slice<const byte>& in)    // (2)
+    const noexcept;
 ```
 
 Writes the bytes of `in` at the write position. At the end, where the position is until a [seek](seek.md) moves

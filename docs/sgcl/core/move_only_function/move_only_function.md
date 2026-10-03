@@ -3,21 +3,21 @@
 # sgcl::move_only_function\<R(Args...)\>::move_only_function
 
 ```cpp
-/*(1)*/ move_only_function() noexcept = default;
-/*(2)*/ move_only_function(std::nullptr_t) noexcept;
-/*(3)*/ move_only_function(move_only_function&& o) noexcept = default;
-/*(4)*/ move_only_function(const move_only_function&) = delete;
-/*(5)*/ template<class F, class VF = std::decay_t<F>>
-        requires std::is_constructible_v<VF, F>
-        move_only_function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>);
-/*(6)*/ template<class T, class... A, class VF = std::decay_t<T>>
-        requires std::is_constructible_v<VF, A...>
-        explicit move_only_function(std::in_place_type_t<T>, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<VF, A...>);
-/*(7)*/ template<class T, class U, class... A, class VF = std::decay_t<T>>
-        requires std::is_constructible_v<VF, std::initializer_list<U>&, A...>
-        explicit move_only_function(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<VF, std::initializer_list<U>&, A...>);
+move_only_function() noexcept = default;                                                       // (1)
+move_only_function(std::nullptr_t) noexcept;                                                   // (2)
+move_only_function(move_only_function&& o) noexcept = default;                                 // (3)
+move_only_function(const move_only_function&) = delete;                                        // (4)
+template<class F, class VF = std::decay_t<F>>
+requires std::is_constructible_v<VF, F>
+move_only_function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>);                    // (5)
+template<class T, class... A, class VF = std::decay_t<T>>
+requires std::is_constructible_v<VF, A...>
+explicit move_only_function(std::in_place_type_t<T>, A&&... a)                                 // (6)
+    noexcept(std::is_nothrow_constructible_v<VF, A...>);
+template<class T, class U, class... A, class VF = std::decay_t<T>>
+requires std::is_constructible_v<VF, std::initializer_list<U>&, A...>
+explicit move_only_function(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a)    // (7)
+    noexcept(std::is_nothrow_constructible_v<VF, std::initializer_list<U>&, A...>);
 ```
 
 Constructs a `move_only_function`.

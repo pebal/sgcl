@@ -3,8 +3,8 @@
 # sgcl::weak_map\<Key, T\>::find
 
 ```cpp
-/*(1)*/ iterator find(const key_pointer& object) noexcept;
-/*(2)*/ const_iterator find(const key_pointer& object) const noexcept;
+iterator find(const key_pointer& object) noexcept;                // (1)
+const_iterator find(const key_pointer& object) const noexcept;    // (2)
 ```
 
 Finds the entry of `object`: a search of the table by the object's address. A null pointer has no entry. A dead

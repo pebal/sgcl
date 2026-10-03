@@ -6,12 +6,12 @@
 #include "sgcl/core/string.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T>
-            requires std::is_arithmetic_v<T> && (!std::is_same_v<T, bool>)
-                     && (!std::is_same_v<T, char>)
-            string to_string(T v) noexcept;
-    /*(2)*/ string to_string(bool v) noexcept;
-    /*(3)*/ string to_string(char c) noexcept;
+    template<class T>
+    requires std::is_arithmetic_v<T> && (!std::is_same_v<T, bool>)
+             && (!std::is_same_v<T, char>)
+    string to_string(T v) noexcept;                                   // (1)
+    string to_string(bool v) noexcept;                                // (2)
+    string to_string(char c) noexcept;                                // (3)
 }
 ```
 

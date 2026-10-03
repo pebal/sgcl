@@ -3,14 +3,14 @@
 # sgcl::expected\<T, E\>::error_or
 
 ```cpp
-/*(1)*/ template<class G = E>
-        E error_or(G&& e) const&
-            noexcept(std::is_nothrow_copy_constructible_v<E> &&
-                     std::is_nothrow_constructible_v<E, G>);
-/*(2)*/ template<class G = E>
-        E error_or(G&& e) &&
-            noexcept(std::is_nothrow_move_constructible_v<E> &&
-                     std::is_nothrow_constructible_v<E, G>);
+template<class G = E>
+E error_or(G&& e) const&                                   // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<E> &&
+             std::is_nothrow_constructible_v<E, G>);
+template<class G = E>
+E error_or(G&& e) &&                                       // (2)
+    noexcept(std::is_nothrow_move_constructible_v<E> &&
+             std::is_nothrow_constructible_v<E, G>);
 ```
 
 The error when there is one, else `e` converted to `E`.

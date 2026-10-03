@@ -3,10 +3,10 @@
 # sgcl::compress::sevenzip::archive::walk, async_walk
 
 ```cpp
-/*(1)*/ generator<pair<entry, io::reader>> walk() const noexcept;
-/*(2)*/ generator<pair<entry, io::reader>> walk(const limits& l) const noexcept;
-/*(3)*/ async::generator<pair<entry, io::reader>> async_walk() const noexcept;
-/*(4)*/ async::generator<pair<entry, io::reader>> async_walk(const limits& l) const noexcept;
+generator<pair<entry, io::reader>> walk() const noexcept;                                // (1)
+generator<pair<entry, io::reader>> walk(const limits& l) const noexcept;                 // (2)
+async::generator<pair<entry, io::reader>> async_walk() const noexcept;                   // (3)
+async::generator<pair<entry, io::reader>> async_walk(const limits& l) const noexcept;    // (4)
 ```
 
 Gives every entry in the archive's order, each with a reader of its data, decoding each folder once: `for (auto

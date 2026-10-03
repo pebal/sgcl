@@ -3,8 +3,8 @@
 # sgcl::frame_ptr\<Promise\>::operator=
 
 ```cpp
-/*(1)*/ frame_ptr& operator=(frame_ptr&& o) noexcept;
-/*(2)*/ frame_ptr& operator=(const frame_ptr&) = delete;
+frame_ptr& operator=(frame_ptr&& o) noexcept;       // (1)
+frame_ptr& operator=(const frame_ptr&) = delete;    // (2)
 ```
 
 1. Destroys the coroutine held, if any ([destroy](destroy.md)), then takes the frame and the handle of `o` over; `o`

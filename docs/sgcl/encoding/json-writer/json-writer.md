@@ -3,9 +3,9 @@
 # sgcl::encoding::json::writer::writer
 
 ```cpp
-/*(1)*/ explicit writer(const io::writer& out) noexcept;
-/*(2)*/ writer(const io::writer& out, const style& s) noexcept;
-/*(3)*/ writer(const writer&) = delete;
+explicit writer(const io::writer& out) noexcept;           // (1)
+writer(const io::writer& out, const style& s) noexcept;    // (2)
+writer(const writer&) = delete;                            // (3)
 ```
 
 Constructs a writer into a stream. Nothing is written until [flush](flush.md). Anything with a `write` is a

@@ -3,8 +3,8 @@
 # sgcl::io::process::wait, async_wait
 
 ```cpp
-/*(1)*/ expected<process_state, error> wait() const noexcept;
-/*(2)*/ async::task<expected<process_state, error>> async_wait() const noexcept;
+expected<process_state, error> wait() const noexcept;                       // (1)
+async::task<expected<process_state, error>> async_wait() const noexcept;    // (2)
 ```
 
 Waits for the process to end and returns how it ended, Go's `Process.Wait`. The process is waited for once: a second

@@ -3,17 +3,17 @@
 # sgcl::operator== (sgcl::expected)
 
 ```cpp
-/*(1)*/ template<class T2, class E2>
-        requires (!std::is_void_v<T2>)
-        friend bool operator==(const expected& x, const expected<T2, E2>& y)
-            noexcept(noexcept(bool(std::declval<const T&>() == std::declval<const T2&>())) &&
-                     noexcept(bool(x.error() == y.error())));
-/*(2)*/ template<class T2>
-        friend bool operator==(const expected& x, const T2& v)
-            noexcept(noexcept(bool(std::declval<const T&>() == v)));
-/*(3)*/ template<class E2>
-        friend bool operator==(const expected& x, const unexpected<E2>& e)
-            noexcept(noexcept(bool(x.error() == e.error())));
+template<class T2, class E2>
+requires (!std::is_void_v<T2>)
+friend bool operator==(const expected& x, const expected<T2, E2>& y)                     // (1)
+    noexcept(noexcept(bool(std::declval<const T&>() == std::declval<const T2&>())) &&
+             noexcept(bool(x.error() == y.error())));
+template<class T2>
+friend bool operator==(const expected& x, const T2& v)                                   // (2)
+    noexcept(noexcept(bool(std::declval<const T&>() == v)));
+template<class E2>
+friend bool operator==(const expected& x, const unexpected<E2>& e)                       // (3)
+    noexcept(noexcept(bool(x.error() == e.error())));
 ```
 
 Compares an `expected` with another, with a value or with an error. Hidden friends: found by the argument's type

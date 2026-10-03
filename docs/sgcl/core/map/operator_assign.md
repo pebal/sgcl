@@ -3,13 +3,13 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ map& operator=(const map& other);
-/*(2)*/ map& operator=(map&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal> &&
-                     std::is_nothrow_move_assignable_v<hasher> &&
-                     std::is_nothrow_move_assignable_v<key_equal>);
-/*(3)*/ map& operator=(std::initializer_list<value_type> ilist);
+map& operator=(const map& other);                                  // (1)
+map& operator=(map&& other)                                        // (2)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal> &&
+             std::is_nothrow_move_assignable_v<hasher> &&
+             std::is_nothrow_move_assignable_v<key_equal>);
+map& operator=(std::initializer_list<value_type> ilist);           // (3)
 ```
 
 Replaces the elements of the map.

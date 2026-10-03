@@ -3,10 +3,10 @@
 # sgcl::encoding::hex::encode
 
 ```cpp
-/*(1)*/ static string encode(const slice<const byte>& data);
-/*(2)*/ static string encode(const string& text);
-/*(3)*/ template<class T>
-        static string encode(const T& text);
+static string encode(const slice<const byte>& data);    // (1)
+static string encode(const string& text);               // (2)
+template<class T>
+static string encode(const T& text);                    // (3)
 ```
 
 The lower-case hexadecimal digits of bytes, two a byte, the high four bits first: Go's `hex.EncodeToString`.

@@ -3,8 +3,8 @@
 # sgcl::io::buffer::operator=
 
 ```cpp
-/*(1)*/ buffer& operator=(const buffer&) noexcept = default;
-/*(2)*/ buffer& operator=(buffer&&) noexcept = default;
+buffer& operator=(const buffer&) noexcept = default;    // (1)
+buffer& operator=(buffer&&) noexcept = default;         // (2)
 ```
 
 Makes this handle the same buffer as the other: the word is copied (1) or moved (2), and the state this handle held

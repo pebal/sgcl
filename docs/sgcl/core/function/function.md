@@ -3,13 +3,13 @@
 # sgcl::function\<R(Args...)\>::function
 
 ```cpp
-/*(1)*/ function() noexcept = default;
-/*(2)*/ function(std::nullptr_t) noexcept;
-/*(3)*/ function(const function& o) = default;
-/*(4)*/ function(function&& o) noexcept = default;
-/*(5)*/ template<class F, class VF = std::decay_t<F>>
-        requires std::is_copy_constructible_v<VF>
-        function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>);
+function() noexcept = default;                                       // (1)
+function(std::nullptr_t) noexcept;                                   // (2)
+function(const function& o) = default;                               // (3)
+function(function&& o) noexcept = default;                           // (4)
+template<class F, class VF = std::decay_t<F>>
+requires std::is_copy_constructible_v<VF>
+function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>);    // (5)
 ```
 
 Constructs a `function`.

@@ -3,13 +3,13 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::starts_with
 
 ```cpp
-/*(1)*/ bool starts_with(view_type s) const noexcept;
-/*(2)*/ bool starts_with(CharT c) const noexcept;
-/*(3)*/ template<size_t N> bool starts_with(const CharT (&s)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool starts_with(P s) const noexcept;
-/*(5)*/ bool starts_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>);
-/*(6)*/ bool starts_with(int) const = delete;
+bool starts_with(view_type s) const noexcept;                                             // (1)
+bool starts_with(CharT c) const noexcept;                                                 // (2)
+template<size_t N> bool starts_with(const CharT (&s)[N]) const noexcept;                  // (3)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+bool starts_with(P s) const noexcept;                                                     // (4)
+bool starts_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>);    // (5)
+bool starts_with(int) const = delete;                                                     // (6)
 ```
 
 Checks whether the text begins with the given prefix.

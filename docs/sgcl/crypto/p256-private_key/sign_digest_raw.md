@@ -3,11 +3,11 @@
 # sgcl::crypto::p256::private_key::sign_digest_raw
 
 ```cpp
-/*(1)*/ array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest) const;
-/*(2)*/ array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest,
-                                                    deterministic_t) const;
-/*(3)*/ array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest,
-                                                    deterministic_t, hash_id id) const;
+array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest) const;    // (1)
+array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest,           // (2)
+                                            deterministic_t) const;
+array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest,           // (3)
+                                            deterministic_t, hash_id id) const;
 ```
 
 Signs a digest as [sign_digest](sign_digest.md) does, and gives the signature as the fixed-size r ‖ s of IEEE P1363,

@@ -3,8 +3,8 @@
 # sgcl::net::http::client::send, async_send
 
 ```cpp
-/*(1)*/ expected<response, io::error> send(const request& req) const;
-/*(2)*/ async::task<expected<response, io::error>> async_send(const request& req) const noexcept;
+expected<response, io::error> send(const request& req) const;                                // (1)
+async::task<expected<response, io::error>> async_send(const request& req) const noexcept;    // (2)
 ```
 
 Sends the [request](../request.md) and follows the redirects, Go's `Client.Do`: a connection is taken from the pool

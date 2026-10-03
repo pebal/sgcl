@@ -3,8 +3,8 @@
 # sgcl::async::condition_variable::condition_variable
 
 ```cpp
-/*(1)*/ condition_variable() = default;
-/*(2)*/ condition_variable(const condition_variable&) = delete;
+condition_variable() = default;                            // (1)
+condition_variable(const condition_variable&) = delete;    // (2)
 ```
 
 1. A condition variable with no waiter: its queue of waiters, empty.

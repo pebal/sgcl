@@ -3,8 +3,8 @@
 # sgcl::operator==, operator\<=\> (sgcl::array)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const array& a, const array& b);
-/*(2)*/ friend constexpr auto operator<=>(const array& a, const array& b);
+friend constexpr bool operator==(const array& a, const array& b);     // (1)
+friend constexpr auto operator<=>(const array& a, const array& b);    // (2)
 ```
 
 Compares two arrays of the same type element by element, as for `std::array`. The operators come with

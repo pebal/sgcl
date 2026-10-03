@@ -3,8 +3,8 @@
 # sgcl::txt::object::object
 
 ```cpp
-/*(1)*/ object() noexcept;
-/*(2)*/ object(std::initializer_list<pair<string, value>> fields) noexcept;
+object() noexcept;                                                     // (1)
+object(std::initializer_list<pair<string, value>> fields) noexcept;    // (2)
 ```
 
 1. An empty mapping, to be filled with [set](set.md).

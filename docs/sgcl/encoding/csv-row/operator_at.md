@@ -3,10 +3,10 @@
 # sgcl::encoding::csv::row::operator[]
 
 ```cpp
-/*(1)*/ slice<const char> operator[](size_t index) const noexcept;
-/*(2)*/ optional<slice<const char>> operator[](const string& column) const noexcept;
-/*(3)*/ template<size_t N>
-        optional<slice<const char>> operator[](const char (&column)[N]) const noexcept;
+slice<const char> operator[](size_t index) const noexcept;                         // (1)
+optional<slice<const char>> operator[](const string& column) const noexcept;       // (2)
+template<size_t N>
+optional<slice<const char>> operator[](const char (&column)[N]) const noexcept;    // (3)
 ```
 
 A field of the record, as a slice of the row's own text.

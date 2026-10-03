@@ -3,14 +3,14 @@
 # sgcl::txt::sentences::sentences
 
 ```cpp
-/*(1)*/ sentences() noexcept = default;
-/*(2)*/ explicit sentences(const slice<const char>& text) noexcept;
-/*(3)*/ explicit sentences(const string& text) noexcept;
-/*(4)*/ template<size_t N>
-        explicit sentences(const char (&text)[N]);
-/*(5)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit sentences(P text);
+sentences() noexcept = default;                                    // (1)
+explicit sentences(const slice<const char>& text) noexcept;        // (2)
+explicit sentences(const string& text) noexcept;                   // (3)
+template<size_t N>
+explicit sentences(const char (&text)[N]);                         // (4)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit sentences(P text);                                        // (5)
 ```
 
 Constructs the range of the sentences of a text. `txt::sentences(s)` looks like a call and is a construction, as

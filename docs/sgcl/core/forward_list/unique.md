@@ -3,10 +3,10 @@
 # sgcl::forward_list\<T\>::unique
 
 ```cpp
-/*(1)*/ size_type unique() noexcept(/* see below */);
-/*(2)*/ template<class BinaryPredicate>
-        size_type unique(BinaryPredicate pred)
-            noexcept(std::is_nothrow_invocable_v<BinaryPredicate&, T&, T&>);
+size_type unique() noexcept(/* see below */);                           // (1)
+template<class BinaryPredicate>
+size_type unique(BinaryPredicate pred)                                  // (2)
+    noexcept(std::is_nothrow_invocable_v<BinaryPredicate&, T&, T&>);
 ```
 
 Erases every element equal to the one before it, keeping the first of each run of equal elements.

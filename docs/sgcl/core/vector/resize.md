@@ -3,8 +3,8 @@
 # sgcl::vector\<T\>::resize
 
 ```cpp
-/*(1)*/ void resize(size_type count);
-/*(2)*/ void resize(size_type count, const value_type& value);
+void resize(size_type count);                             // (1)
+void resize(size_type count, const value_type& value);    // (2)
 ```
 
 Changes the number of elements to `count`. Below the size, the last elements are destroyed, at once. Above it,

@@ -3,12 +3,12 @@
 # sgcl::stack\<T, Container\>::stack
 
 ```cpp
-/*(1)*/ stack() noexcept(std::is_nothrow_default_constructible_v<Container> &&
-                         std::is_nothrow_move_constructible_v<Container>);
-/*(2)*/ explicit stack(const Container& cont)
-            noexcept(std::is_nothrow_copy_constructible_v<Container>);
-/*(3)*/ explicit stack(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>);
-/*(4)*/ template<std::input_iterator InputIt> stack(InputIt first, InputIt last);
+stack() noexcept(std::is_nothrow_default_constructible_v<Container> &&                         // (1)
+                 std::is_nothrow_move_constructible_v<Container>);
+explicit stack(const Container& cont)                                                          // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<Container>);
+explicit stack(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>);    // (3)
+template<std::input_iterator InputIt> stack(InputIt first, InputIt last);                      // (4)
 ```
 
 Constructs a stack.

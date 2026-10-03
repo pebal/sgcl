@@ -3,8 +3,8 @@
 # sgcl::net::connection::read_all_text, async_read_all_text
 
 ```cpp
-/*(1)*/ expected<string, io::error> read_all_text() const;
-/*(2)*/ async::task<expected<string, io::error>> async_read_all_text() const noexcept;
+expected<string, io::error> read_all_text() const;                                // (1)
+async::task<expected<string, io::error>> async_read_all_text() const noexcept;    // (2)
 ```
 
 Reads everything to the end of the stream into a `string`: [read_all](read_all.md) with the bytes as text, which

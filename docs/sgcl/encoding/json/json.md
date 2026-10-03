@@ -3,15 +3,15 @@
 # sgcl::encoding::json::json
 
 ```cpp
-/*(1)*/ json() noexcept;
-/*(2)*/ json(std::nullptr_t) noexcept;
-/*(3)*/ json(bool b) noexcept;
-/*(4)*/ template<class I> json(I v) noexcept;
-/*(5)*/ json(double d) noexcept;
-/*(6)*/ json(float f) noexcept;
-/*(7)*/ json(const string& s) noexcept;
-/*(8)*/ json(const char* s) noexcept;
-/*(9)*/ json(const slice<const char>& s) noexcept;
+json() noexcept;                              // (1)
+json(std::nullptr_t) noexcept;                // (2)
+json(bool b) noexcept;                        // (3)
+template<class I> json(I v) noexcept;         // (4)
+json(double d) noexcept;                      // (5)
+json(float f) noexcept;                       // (6)
+json(const string& s) noexcept;               // (7)
+json(const char* s) noexcept;                 // (8)
+json(const slice<const char>& s) noexcept;    // (9)
 ```
 
 Constructs a value of one of the kinds that need no elements; an array and an object are made by

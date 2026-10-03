@@ -3,9 +3,9 @@
 # sgcl::crypto::chacha20::chacha20
 
 ```cpp
-/*(1)*/ chacha20(const slice<const byte>& key, const slice<const byte>& nonce);
-/*(2)*/ chacha20(chacha20&& other) noexcept;
-/*(3)*/ chacha20(const chacha20&) = delete;
+chacha20(const slice<const byte>& key, const slice<const byte>& nonce);    // (1)
+chacha20(chacha20&& other) noexcept;                                       // (2)
+chacha20(const chacha20&) = delete;                                        // (3)
 ```
 
 1. Sets up the key and the nonce, the keystream at block 0. A nonce of 12 bytes is RFC 8439's cipher; one of 24

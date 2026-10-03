@@ -3,8 +3,8 @@
 # sgcl::async::manual_clock::manual_clock
 
 ```cpp
-/*(1)*/ manual_clock() = default;
-/*(2)*/ manual_clock(const manual_clock&) = delete;
+manual_clock() = default;                      // (1)
+manual_clock(const manual_clock&) = delete;    // (2)
 ```
 
 1. A clock not yet installed: the module's time is still the steady clock's until [install](install.md).

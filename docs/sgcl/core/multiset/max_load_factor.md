@@ -3,8 +3,8 @@
 # sgcl::multiset\<Key, Hash, KeyEqual\>::max_load_factor
 
 ```cpp
-/*(1)*/ float max_load_factor() const noexcept;
-/*(2)*/ void max_load_factor(float z) noexcept;
+float max_load_factor() const noexcept;    // (1)
+void max_load_factor(float z) noexcept;    // (2)
 ```
 
 Reads or sets the maximum load factor, the average number of elements per bucket at which an insertion grows

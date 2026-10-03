@@ -3,11 +3,11 @@
 # sgcl::txt::regex::all
 
 ```cpp
-/*(1)*/ regex_matches all(const slice<const char>& text) const noexcept;
-/*(2)*/ regex_matches all(const string& text) const noexcept;
-/*(3)*/ template<size_t N> regex_matches all(const char (&text)[N]) const;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        regex_matches all(P text) const;
+regex_matches all(const slice<const char>& text) const noexcept;                     // (1)
+regex_matches all(const string& text) const noexcept;                                // (2)
+template<size_t N> regex_matches all(const char (&text)[N]) const;                   // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+regex_matches all(P text) const;                                                     // (4)
 ```
 
 Returns every match of the pattern in the text, one after another and never overlapping, as a range of the library

@@ -3,10 +3,10 @@
 # sgcl::expected\<T, E\>::transform
 
 ```cpp
-/*(1)*/ template<class F> auto transform(F&& f) & noexcept(/* see below */);
-/*(2)*/ template<class F> auto transform(F&& f) const& noexcept(/* see below */);
-/*(3)*/ template<class F> auto transform(F&& f) && noexcept(/* see below */);
-/*(4)*/ template<class F> auto transform(F&& f) const&& noexcept(/* see below */);
+template<class F> auto transform(F&& f) & noexcept(/* see below */);          // (1)
+template<class F> auto transform(F&& f) const& noexcept(/* see below */);     // (2)
+template<class F> auto transform(F&& f) && noexcept(/* see below */);         // (3)
+template<class F> auto transform(F&& f) const&& noexcept(/* see below */);    // (4)
 ```
 
 The value mapped by a function that cannot fail: when there is a value, an `expected<U, E>` holding what `f` returns

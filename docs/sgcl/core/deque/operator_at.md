@@ -3,8 +3,8 @@
 # sgcl::deque\<T\>::operator[]
 
 ```cpp
-/*(1)*/ reference operator[](size_type pos) noexcept;
-/*(2)*/ const_reference operator[](size_type pos) const noexcept;
+reference operator[](size_type pos) noexcept;                // (1)
+const_reference operator[](size_type pos) const noexcept;    // (2)
 ```
 
 Returns a reference to the element at `pos`, without bounds checking: `pos` must be less than `size()`.

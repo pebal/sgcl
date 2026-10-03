@@ -3,10 +3,10 @@
 # sgcl::time::datetime::to_string, sgcl::time::operator\<\< (sgcl::time::datetime)
 
 ```cpp
-/*(1)*/ string to_string() const noexcept;
-/*(2)*/ template<class CharT, class Traits>
-        friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,
-                                                             const datetime& t);
+string to_string() const noexcept;                                                             // (1)
+template<class CharT, class Traits>
+friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,    // (2)
+                                                     const datetime& t);
 ```
 
 1. RFC 3339 with the fraction of a second only where there is one, its trailing zeros left out, and `Z` for an

@@ -3,10 +3,10 @@
 # sgcl::io::mixin::reader\<Derived\>::read_full, async_read_full
 
 ```cpp
-/*(1)*/ expected<size_t, error> read_full(const slice<byte>& buffer)
-            noexcept(noexcept(io::read_full(std::declval<Derived&>(), buffer)));
-/*(2)*/ async::task<expected<size_t, error>> async_read_full(const slice<byte>& buffer) noexcept
-            requires req::async_reader<Derived&>;
+expected<size_t, error> read_full(const slice<byte>& buffer)                                // (1)
+    noexcept(noexcept(io::read_full(std::declval<Derived&>(), buffer)));
+async::task<expected<size_t, error>> async_read_full(const slice<byte>& buffer) noexcept    // (2)
+    requires req::async_reader<Derived&>;
 ```
 
 Fills the whole of `buffer` from this stream, reading as many times as it takes; the stream ending part way is

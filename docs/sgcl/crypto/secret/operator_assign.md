@@ -3,8 +3,8 @@
 # sgcl::crypto::secret\<N\>::operator=
 
 ```cpp
-/*(1)*/ secret& operator=(secret&& other) noexcept;
-/*(2)*/ secret& operator=(const secret&) = delete;
+secret& operator=(secret&& other) noexcept;    // (1)
+secret& operator=(const secret&) = delete;     // (2)
 ```
 
 1. Takes the bytes of `other` over, in place of this secret's own, and zeroes them in `other` with stores the

@@ -3,13 +3,13 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::contains
 
 ```cpp
-/*(1)*/ bool contains(view_type s) const noexcept;
-/*(2)*/ bool contains(CharT c) const noexcept;
-/*(3)*/ template<size_t N> bool contains(const CharT (&s)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool contains(P s) const noexcept;
-/*(5)*/ bool contains(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>);
-/*(6)*/ bool contains(int) const = delete;
+bool contains(view_type s) const noexcept;                                             // (1)
+bool contains(CharT c) const noexcept;                                                 // (2)
+template<size_t N> bool contains(const CharT (&s)[N]) const noexcept;                  // (3)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+bool contains(P s) const noexcept;                                                     // (4)
+bool contains(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>);    // (5)
+bool contains(int) const = delete;                                                     // (6)
 ```
 
 Checks whether the text contains a substring or a character: `find(s) != npos`.

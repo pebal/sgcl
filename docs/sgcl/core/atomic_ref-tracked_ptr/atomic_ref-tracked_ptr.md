@@ -3,8 +3,8 @@
 # sgcl::atomic_ref\<tracked_ptr\<T\>\>::atomic_ref
 
 ```cpp
-/*(1)*/ explicit atomic_ref(value_type& p) noexcept;
-/*(2)*/ atomic_ref(const atomic_ref& a) noexcept;
+explicit atomic_ref(value_type& p) noexcept;    // (1)
+atomic_ref(const atomic_ref& a) noexcept;       // (2)
 ```
 
 1. A view of `p`: the operations act on its word. A `root_ptr` converts to the `tracked_ptr` it holds its object

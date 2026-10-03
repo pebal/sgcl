@@ -3,8 +3,8 @@
 # sgcl::weak_multimap\<Key, T\>::insert
 
 ```cpp
-/*(1)*/ iterator insert(const key_pointer& object, const T& value);
-/*(2)*/ iterator insert(const key_pointer& object, T&& value);
+iterator insert(const key_pointer& object, const T& value);    // (1)
+iterator insert(const key_pointer& object, T&& value);         // (2)
 ```
 
 Inserts one more value for `object`, whatever entries the object has already.

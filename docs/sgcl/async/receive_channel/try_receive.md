@@ -3,8 +3,8 @@
 # sgcl::async::receive_channel\<T\>::try_receive
 
 ```cpp
-/*(1)*/ optional<T> try_receive() const;
-/*(2)*/ bool try_receive() const;  // receive_channel<void>
+optional<T> try_receive() const;    // (1)
+bool try_receive() const;           // (2), receive_channel<void>
 ```
 
 Receives an element if one is there, without waiting: the channel's [try_receive](../channel/try_receive.md).

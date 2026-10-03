@@ -3,9 +3,9 @@
 # sgcl::io::error::error
 
 ```cpp
-/*(1)*/ error() noexcept = default;
-/*(2)*/ error(error_code code, const string& op, const string& path = {}, size_t count = 0) noexcept;
-/*(3)*/ error(errc e, const string& op, const string& path = {}, size_t count = 0) noexcept;
+error() noexcept = default;                                                                      // (1)
+error(error_code code, const string& op, const string& path = {}, size_t count = 0) noexcept;    // (2)
+error(errc e, const string& op, const string& path = {}, size_t count = 0) noexcept;             // (3)
 ```
 
 Constructs an error. A stream or a function of the program's makes one where it fails, to return in an

@@ -6,15 +6,15 @@
 #include "sgcl/core/string.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T>
-            requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
-            expected<T, number_error> parse(std::string_view text, int base = 10) noexcept;
-    /*(2)*/ template<class T>
-            requires std::is_floating_point_v<T>
-            expected<T, number_error> parse(std::string_view text) noexcept;
-    /*(3)*/ template<class T>
-            requires std::is_same_v<T, bool>
-            expected<T, number_error> parse(std::string_view text) noexcept;
+    template<class T>
+    requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
+    expected<T, number_error> parse(std::string_view text, int base = 10) noexcept;    // (1)
+    template<class T>
+    requires std::is_floating_point_v<T>
+    expected<T, number_error> parse(std::string_view text) noexcept;                   // (2)
+    template<class T>
+    requires std::is_same_v<T, bool>
+    expected<T, number_error> parse(std::string_view text) noexcept;                   // (3)
 }
 ```
 

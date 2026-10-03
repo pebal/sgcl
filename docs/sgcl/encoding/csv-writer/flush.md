@@ -3,8 +3,8 @@
 # sgcl::encoding::csv::writer::flush, async_flush
 
 ```cpp
-/*(1)*/ expected<void, io::error> flush();
-/*(2)*/ async::task<expected<void, io::error>> async_flush() noexcept;
+expected<void, io::error> flush();                                // (1)
+async::task<expected<void, io::error>> async_flush() noexcept;    // (2)
 ```
 
 Hands the text gathered since the last flush to the stream, in one write, Go's `Flush` and `Error` together. The

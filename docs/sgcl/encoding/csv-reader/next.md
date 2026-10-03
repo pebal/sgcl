@@ -3,8 +3,8 @@
 # sgcl::encoding::csv::reader::next, async_next
 
 ```cpp
-/*(1)*/ optional<row> next();
-/*(2)*/ async::task<optional<row>> async_next() noexcept;
+optional<row> next();                                // (1)
+async::task<optional<row>> async_next() noexcept;    // (2)
 ```
 
 The next record, Go's `Read`. Empty lines are skipped, and with [options](../csv-options.md)`::comment` the lines

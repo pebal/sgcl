@@ -6,11 +6,11 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<void, error> mkdir(const string& path,
-                                        permissions p = permissions(0777)) noexcept;
-    /*(2)*/ async::task<expected<void, error>> async_mkdir(const string& path,
-                                                         permissions p = permissions(0777))
-                noexcept;
+    expected<void, error> mkdir(const string& path,                                    // (1)
+                                permissions p = permissions(0777)) noexcept;
+    async::task<expected<void, error>> async_mkdir(const string& path,                 // (2)
+                                                 permissions p = permissions(0777))
+        noexcept;
 }
 ```
 

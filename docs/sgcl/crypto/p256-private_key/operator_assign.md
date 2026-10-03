@@ -3,8 +3,8 @@
 # sgcl::crypto::p256::private_key::operator=
 
 ```cpp
-/*(1)*/ private_key& operator=(private_key&& other) noexcept;
-/*(2)*/ private_key& operator=(const private_key&) = delete;
+private_key& operator=(private_key&& other) noexcept;    // (1)
+private_key& operator=(const private_key&) = delete;     // (2)
 ```
 
 1. Replaces the key with the key of `other` and zeroes `other`: the scalar this object held before is overwritten,

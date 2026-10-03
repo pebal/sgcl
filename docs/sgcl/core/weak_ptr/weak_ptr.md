@@ -3,16 +3,16 @@
 # sgcl::weak_ptr\<T\>::weak_ptr
 
 ```cpp
-/*(1)*/ constexpr weak_ptr() noexcept = default;
-/*(2)*/ constexpr weak_ptr(std::nullptr_t) noexcept;
-/*(3)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr(const tracked_ptr<U>& p) noexcept;
-/*(4)*/ template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
-        weak_ptr(const root_ptr<U>& r) noexcept;
-/*(5)*/ weak_ptr(const weak_ptr&) noexcept = default;
-/*(6)*/ weak_ptr(weak_ptr&&) noexcept = default;
-/*(7)*/ template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
-        weak_ptr(const weak_ptr<U>& w) noexcept;
+constexpr weak_ptr() noexcept = default;                                                                                                   // (1)
+constexpr weak_ptr(std::nullptr_t) noexcept;                                                                                               // (2)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+weak_ptr(const tracked_ptr<U>& p) noexcept;                                                                                                // (3)
+template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
+weak_ptr(const root_ptr<U>& r) noexcept;                                                                                                   // (4)
+weak_ptr(const weak_ptr&) noexcept = default;                                                                                              // (5)
+weak_ptr(weak_ptr&&) noexcept = default;                                                                                                   // (6)
+template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
+weak_ptr(const weak_ptr<U>& w) noexcept;                                                                                                   // (7)
 ```
 
 Constructs a weak pointer from one of the sources below.

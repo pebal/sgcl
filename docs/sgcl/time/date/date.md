@@ -3,13 +3,13 @@
 # sgcl::time::date::date
 
 ```cpp
-/*(1)*/ constexpr date() noexcept = default;
-/*(2)*/ constexpr date(int year, int month, int day) noexcept;
-/*(3)*/ constexpr date(int year, time::month month, int day) noexcept;
-/*(4)*/ constexpr date(std::chrono::year_month_day ymd) noexcept;
-/*(5)*/ constexpr date(std::chrono::sys_days days) noexcept;
-/*(6)*/ explicit date(const string& text);
-/*(7)*/ explicit date(const string& text, const string& pattern);
+constexpr date() noexcept = default;                              // (1)
+constexpr date(int year, int month, int day) noexcept;            // (2)
+constexpr date(int year, time::month month, int day) noexcept;    // (3)
+constexpr date(std::chrono::year_month_day ymd) noexcept;         // (4)
+constexpr date(std::chrono::sys_days days) noexcept;              // (5)
+explicit date(const string& text);                                // (6)
+explicit date(const string& text, const string& pattern);         // (7)
 ```
 
 Constructs a date.

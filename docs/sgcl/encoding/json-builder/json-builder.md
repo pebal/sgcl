@@ -3,9 +3,9 @@
 # sgcl::encoding::json::builder::builder
 
 ```cpp
-/*(1)*/ builder() noexcept;
-/*(2)*/ builder(const builder& other);
-/*(3)*/ builder(builder&& other) noexcept;
+builder() noexcept;                   // (1)
+builder(const builder& other);        // (2)
+builder(builder&& other) noexcept;    // (3)
 ```
 
 1. Constructs an empty builder, of no kind yet: its first [push_back](push_back.md) makes it a builder of an array,

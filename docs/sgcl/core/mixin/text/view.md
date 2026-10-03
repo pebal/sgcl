@@ -3,8 +3,8 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::view, operator view_type
 
 ```cpp
-/*(1)*/ view_type view() const noexcept;
-/*(2)*/ operator view_type() const noexcept;
+view_type view() const noexcept;        // (1)
+operator view_type() const noexcept;    // (2)
 ```
 
 Returns the characters as a `std::basic_string_view<CharT, Traits>`: `data()` and `size()` of the class that carries

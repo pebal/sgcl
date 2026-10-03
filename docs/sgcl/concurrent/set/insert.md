@@ -3,13 +3,13 @@
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::insert
 
 ```cpp
-/*(1)*/ pair<iterator, bool> insert(const Key& key)
-            noexcept(std::is_nothrow_copy_constructible_v<Key>);
-/*(2)*/ pair<iterator, bool> insert(Key&& key) noexcept(std::is_nothrow_move_constructible_v<Key>);
-/*(3)*/ template<std::input_iterator InputIt>
-        void insert(InputIt first, InputIt last);
-/*(4)*/ void insert(std::initializer_list<value_type> ilist)
-            noexcept(std::is_nothrow_copy_constructible_v<Key>);
+pair<iterator, bool> insert(const Key& key)                                                    // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<Key>);
+pair<iterator, bool> insert(Key&& key) noexcept(std::is_nothrow_move_constructible_v<Key>);    // (2)
+template<std::input_iterator InputIt>
+void insert(InputIt first, InputIt last);                                                      // (3)
+void insert(std::initializer_list<value_type> ilist)                                           // (4)
+    noexcept(std::is_nothrow_copy_constructible_v<Key>);
 ```
 
 Inserts keys unless they are there, as `std::unordered_set::insert` does.

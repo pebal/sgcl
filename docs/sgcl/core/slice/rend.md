@@ -3,8 +3,8 @@
 # sgcl::slice\<T\>::rend, crend
 
 ```cpp
-/*(1)*/ reverse_iterator rend() const noexcept;
-/*(2)*/ const_reverse_iterator crend() const noexcept;
+reverse_iterator rend() const noexcept;           // (1)
+const_reverse_iterator crend() const noexcept;    // (2)
 ```
 
 A reverse iterator past the first element, the end of the reversed slice.

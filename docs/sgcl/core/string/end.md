@@ -3,8 +3,8 @@
 # sgcl::string::end, cend
 
 ```cpp
-/*(1)*/ const_iterator end() const noexcept;
-/*(2)*/ const_iterator cend() const noexcept;
+const_iterator end() const noexcept;     // (1)
+const_iterator cend() const noexcept;    // (2)
 ```
 
 Returns an iterator past the last character: `data() + size()`, which points at the terminator. (2) is (1) under the

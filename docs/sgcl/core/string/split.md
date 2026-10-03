@@ -3,17 +3,17 @@
 # sgcl::string::split
 
 ```cpp
-/*(1)*/ pieces split(view_type sep, size_type max_parts = 0) const;
-/*(2)*/ pieces split(CharT sep, size_type max_parts = 0) const noexcept;
-/*(3)*/ template<size_t N>
-        pieces split(const CharT (&sep)[N], size_type max_parts = 0) const;
-/*(4)*/ template<class P>
-        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        pieces split(P sep, size_type max_parts = 0) const;
-/*(5)*/ pieces split(const basic_string& sep, size_type max_parts = 0) const noexcept;
-/*(6)*/ pieces split(char32_t sep, size_type max_parts = 0) const noexcept
-            requires (!std::same_as<CharT, char32_t>);
-/*(7)*/ pieces split(int, size_type = 0) const = delete;
+pieces split(view_type sep, size_type max_parts = 0) const;                       // (1)
+pieces split(CharT sep, size_type max_parts = 0) const noexcept;                  // (2)
+template<size_t N>
+pieces split(const CharT (&sep)[N], size_type max_parts = 0) const;               // (3)
+template<class P>
+requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+pieces split(P sep, size_type max_parts = 0) const;                               // (4)
+pieces split(const basic_string& sep, size_type max_parts = 0) const noexcept;    // (5)
+pieces split(char32_t sep, size_type max_parts = 0) const noexcept                // (6)
+    requires (!std::same_as<CharT, char32_t>);
+pieces split(int, size_type = 0) const = delete;                                  // (7)
 ```
 
 Splits the string at the occurrences of `sep`: the pieces between them, in order, as a range of slices into the

@@ -3,14 +3,14 @@
 # sgcl::list\<T\>::splice
 
 ```cpp
-/*(1)*/ void splice(const_iterator pos, list& other) noexcept;
-/*(2)*/ void splice(const_iterator pos, list&& other) noexcept;
-/*(3)*/ void splice(const_iterator pos, list& other, const_iterator it) noexcept;
-/*(4)*/ void splice(const_iterator pos, list&& other, const_iterator it) noexcept;
-/*(5)*/ void splice(const_iterator pos, list& other,
-                    const_iterator first, const_iterator last) noexcept;
-/*(6)*/ void splice(const_iterator pos, list&& other,
-                    const_iterator first, const_iterator last) noexcept;
+void splice(const_iterator pos, list& other) noexcept;                        // (1)
+void splice(const_iterator pos, list&& other) noexcept;                       // (2)
+void splice(const_iterator pos, list& other, const_iterator it) noexcept;     // (3)
+void splice(const_iterator pos, list&& other, const_iterator it) noexcept;    // (4)
+void splice(const_iterator pos, list& other,                                  // (5)
+            const_iterator first, const_iterator last) noexcept;
+void splice(const_iterator pos, list&& other,                                 // (6)
+            const_iterator first, const_iterator last) noexcept;
 ```
 
 Moves nodes of `other` before `pos`, without copying or destroying an element.

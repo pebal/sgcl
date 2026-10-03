@@ -3,8 +3,8 @@
 # sgcl::io::buffered_writer::flush, async_flush
 
 ```cpp
-/*(1)*/ expected<void, error> flush() const;
-/*(2)*/ async::task<expected<void, error>> async_flush() const noexcept;
+expected<void, error> flush() const;                                // (1)
+async::task<expected<void, error>> async_flush() const noexcept;    // (2)
 ```
 
 Writes what the block holds to the stream underneath, in one write, and empties the block; an empty block writes

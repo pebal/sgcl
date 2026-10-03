@@ -3,8 +3,8 @@
 # sgcl::rooted\<T\>::operator\*, operator-\>
 
 ```cpp
-/*(1)*/ T& operator*() const noexcept;
-/*(2)*/ T* operator->() const noexcept;
+T& operator*() const noexcept;     // (1)
+T* operator->() const noexcept;    // (2)
 ```
 
 Access the value.

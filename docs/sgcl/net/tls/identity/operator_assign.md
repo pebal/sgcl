@@ -3,8 +3,8 @@
 # sgcl::net::tls::identity::operator=
 
 ```cpp
-/*(1)*/ identity& operator=(const identity& other) noexcept;   // implicitly declared
-/*(2)*/ identity& operator=(identity&& other) noexcept;        // implicitly declared
+identity& operator=(const identity& other) noexcept;    // (1), implicitly declared
+identity& operator=(identity&& other) noexcept;         // (2), implicitly declared
 ```
 
 Makes this handle one of the identity `other` holds; the two share its chain and its key. The move is the copy:

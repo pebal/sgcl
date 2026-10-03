@@ -3,8 +3,8 @@
 # sgcl::encoding::json::writer::key
 
 ```cpp
-/*(1)*/ writer& key(const string& name) noexcept;
-/*(2)*/ template<size_t N> writer& key(const char (&name)[N]) noexcept;
+writer& key(const string& name) noexcept;                          // (1)
+template<size_t N> writer& key(const char (&name)[N]) noexcept;    // (2)
 ```
 
 The key of the next member of the object open, written with the escapes it needs, as a string is; the member's

@@ -3,8 +3,8 @@
 # sgcl::crypto::p256::ecdh_key::operator=
 
 ```cpp
-/*(1)*/ ecdh_key& operator=(ecdh_key&& other) noexcept;
-/*(2)*/ ecdh_key& operator=(const ecdh_key&) = delete;
+ecdh_key& operator=(ecdh_key&& other) noexcept;    // (1)
+ecdh_key& operator=(const ecdh_key&) = delete;     // (2)
 ```
 
 1. Replaces the key with the key of `other` and zeroes `other`: the scalar this object held before is overwritten,

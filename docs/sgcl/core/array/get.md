@@ -6,9 +6,9 @@
 #include "sgcl/core/array.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<size_t I, class T, size_t N> constexpr T& get(array<T, N>& a) noexcept;
-    /*(2)*/ template<size_t I, class T, size_t N> constexpr const T& get(const array<T, N>& a) noexcept;
-    /*(3)*/ template<size_t I, class T, size_t N> constexpr T&& get(array<T, N>&& a) noexcept;
+    template<size_t I, class T, size_t N> constexpr T& get(array<T, N>& a) noexcept;                // (1)
+    template<size_t I, class T, size_t N> constexpr const T& get(const array<T, N>& a) noexcept;    // (2)
+    template<size_t I, class T, size_t N> constexpr T&& get(array<T, N>&& a) noexcept;              // (3)
 }
 ```
 

@@ -6,9 +6,9 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<void, error> chmod(const string& path, permissions p) noexcept;
-    /*(2)*/ async::task<expected<void, error>> async_chmod(const string& path,
-                                                         permissions p) noexcept;
+    expected<void, error> chmod(const string& path, permissions p) noexcept;    // (1)
+    async::task<expected<void, error>> async_chmod(const string& path,          // (2)
+                                                 permissions p) noexcept;
 }
 ```
 

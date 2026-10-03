@@ -3,8 +3,8 @@
 # sgcl::async::operation\<F\>::operation
 
 ```cpp
-/*(1)*/ operation(operation&& o) noexcept(std::is_nothrow_move_constructible_v<F>);
-/*(2)*/ operation(const operation&) = delete;
+operation(operation&& o) noexcept(std::is_nothrow_move_constructible_v<F>);    // (1)
+operation(const operation&) = delete;                                          // (2)
 ```
 
 Constructs an operation from another. An operation of a callable is made by the functions of the module that wait,

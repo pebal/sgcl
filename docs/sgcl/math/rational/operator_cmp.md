@@ -3,8 +3,8 @@
 # sgcl::math::operator==, operator\<=\> (sgcl::math::rational)
 
 ```cpp
-/*(1)*/ friend bool operator==(const rational& a, const rational& b) noexcept;
-/*(2)*/ friend std::strong_ordering operator<=>(const rational& a, const rational& b) noexcept;
+friend bool operator==(const rational& a, const rational& b) noexcept;                     // (1)
+friend std::strong_ordering operator<=>(const rational& a, const rational& b) noexcept;    // (2)
 ```
 
 Compare two fractions by their values. `!=`, `<`, `<=`, `>` and `>=` are made from these by the compiler. The

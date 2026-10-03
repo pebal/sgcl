@@ -3,8 +3,8 @@
 # sgcl::net::connection::read_line, async_read_line
 
 ```cpp
-/*(1)*/ expected<optional<string>, io::error> read_line() const;
-/*(2)*/ async::task<expected<optional<string>, io::error>> async_read_line() const noexcept;
+expected<optional<string>, io::error> read_line() const;                                // (1)
+async::task<expected<optional<string>, io::error>> async_read_line() const noexcept;    // (2)
 ```
 
 Reads the next line, without its `"\n"` or `"\r\n"`: Go's `bufio.NewReader(c).ReadString('\n')` without the reader

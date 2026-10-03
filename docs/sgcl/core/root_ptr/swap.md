@@ -3,9 +3,9 @@
 # sgcl::root_ptr\<T\>::swap
 
 ```cpp
-/*(1)*/ void swap(root_ptr& o) noexcept;
-/*(2)*/ template<class T>
-        void swap(root_ptr<T>& l, root_ptr<T>& r) noexcept;
+void swap(root_ptr& o) noexcept;                       // (1)
+template<class T>
+void swap(root_ptr<T>& l, root_ptr<T>& r) noexcept;    // (2)
 ```
 
 Exchanges the pointers of two roots; the cells stay with their `root_ptr`s.

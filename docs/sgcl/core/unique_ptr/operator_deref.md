@@ -3,8 +3,8 @@
 # sgcl::unique_ptr\<T\>::operator\*, operator-\>
 
 ```cpp
-/*(1)*/ typename std::add_lvalue_reference<T>::type operator*() const;
-/*(2)*/ pointer operator->() const noexcept;
+typename std::add_lvalue_reference<T>::type operator*() const;    // (1)
+pointer operator->() const noexcept;                              // (2)
 ```
 
 Access the owned object: the operators of `std::unique_ptr`.

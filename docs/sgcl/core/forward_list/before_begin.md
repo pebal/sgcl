@@ -3,9 +3,9 @@
 # sgcl::forward_list\<T\>::before_begin, cbefore_begin
 
 ```cpp
-/*(1)*/ iterator before_begin() noexcept;
-/*(2)*/ const_iterator before_begin() const noexcept;
-/*(3)*/ const_iterator cbefore_begin() const noexcept;
+iterator before_begin() noexcept;                 // (1)
+const_iterator before_begin() const noexcept;     // (2)
+const_iterator cbefore_begin() const noexcept;    // (3)
 ```
 
 Returns the iterator to the sentinel, the position before the first element: what

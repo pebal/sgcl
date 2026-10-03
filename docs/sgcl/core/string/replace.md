@@ -3,18 +3,18 @@
 # sgcl::string::replace
 
 ```cpp
-/*(1)*/ basic_string replace(view_type from, view_type to, size_type count = 0) const;
-/*(2)*/ template<size_t N, size_t M>
-        basic_string replace(const CharT (&from)[N], const CharT (&to)[M],
-                             size_type count = 0) const;
-/*(3)*/ template<size_t N>
-        basic_string replace(const CharT (&from)[N], view_type to, size_type count = 0) const;
-/*(4)*/ template<size_t M>
-        basic_string replace(view_type from, const CharT (&to)[M], size_type count = 0) const;
-/*(5)*/ basic_string replace(CharT from, CharT to, size_type count = 0) const;
-/*(6)*/ basic_string replace(char32_t from, char32_t to, size_type count = 0) const
-            requires (!std::same_as<CharT, char32_t>);
-/*(7)*/ basic_string replace(int, int, size_type = 0) const = delete;
+basic_string replace(view_type from, view_type to, size_type count = 0) const;            // (1)
+template<size_t N, size_t M>
+basic_string replace(const CharT (&from)[N], const CharT (&to)[M],                        // (2)
+                     size_type count = 0) const;
+template<size_t N>
+basic_string replace(const CharT (&from)[N], view_type to, size_type count = 0) const;    // (3)
+template<size_t M>
+basic_string replace(view_type from, const CharT (&to)[M], size_type count = 0) const;    // (4)
+basic_string replace(CharT from, CharT to, size_type count = 0) const;                    // (5)
+basic_string replace(char32_t from, char32_t to, size_type count = 0) const               // (6)
+    requires (!std::same_as<CharT, char32_t>);
+basic_string replace(int, int, size_type = 0) const = delete;                             // (7)
 ```
 
 Returns the string with the occurrences of `from` replaced by `to`: every one, or the first `count` of them.

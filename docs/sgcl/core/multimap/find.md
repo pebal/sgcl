@@ -3,10 +3,10 @@
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::find
 
 ```cpp
-/*(1)*/ iterator find(const key_type& key) noexcept;
-/*(2)*/ const_iterator find(const key_type& key) const noexcept;
-/*(3)*/ template<class K> iterator find(const K& key) noexcept(/* see below */);
-/*(4)*/ template<class K> const_iterator find(const K& key) const noexcept(/* see below */);
+iterator find(const key_type& key) noexcept;                                            // (1)
+const_iterator find(const key_type& key) const noexcept;                                // (2)
+template<class K> iterator find(const K& key) noexcept(/* see below */);                // (3)
+template<class K> const_iterator find(const K& key) const noexcept(/* see below */);    // (4)
 ```
 
 Finds the first element under `key`, the start of the key's run: the walk of the key's bucket, the cached hash

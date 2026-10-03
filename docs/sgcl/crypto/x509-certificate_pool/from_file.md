@@ -3,9 +3,9 @@
 # sgcl::crypto::x509::certificate_pool::from_file, async_from_file
 
 ```cpp
-/*(1)*/ [[nodiscard]] static expected<certificate_pool, io::error> from_file(const string& path);
-/*(2)*/ [[nodiscard]] static async::task<expected<certificate_pool, io::error>>
-        async_from_file(string path) noexcept;
+[[nodiscard]] static expected<certificate_pool, io::error> from_file(const string& path);    // (1)
+[[nodiscard]] static async::task<expected<certificate_pool, io::error>>
+async_from_file(string path) noexcept;                                                       // (2)
 ```
 
 Makes a pool of the certificates of a PEM file, read as [append_pem](append_pem.md) reads a text: a block that does

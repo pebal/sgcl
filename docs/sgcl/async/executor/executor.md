@@ -3,8 +3,8 @@
 # sgcl::async::executor::executor
 
 ```cpp
-/*(1)*/ executor() noexcept;
-/*(2)*/ executor(const executor&) = delete;
+executor() noexcept;                   // (1)
+executor(const executor&) = delete;    // (2)
 ```
 
 1. Constructs an executor with an empty queue, a managed object the executor holds through a root. Nothing runs

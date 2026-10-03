@@ -3,9 +3,9 @@
 # sgcl::list\<T\>::operator=
 
 ```cpp
-/*(1)*/ list& operator=(const list& other);
-/*(2)*/ list& operator=(list&& other) noexcept;
-/*(3)*/ list& operator=(std::initializer_list<T> ilist);
+list& operator=(const list& other);                 // (1)
+list& operator=(list&& other) noexcept;             // (2)
+list& operator=(std::initializer_list<T> ilist);    // (3)
 ```
 
 Replaces the contents of the list.

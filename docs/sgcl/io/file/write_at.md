@@ -3,10 +3,10 @@
 # sgcl::io::file::write_at, async_write_at
 
 ```cpp
-/*(1)*/ expected<size_t, error> write_at(const slice<const byte>& data,
-                                        uint64_t offset) const noexcept;
-/*(2)*/ async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data,
-                                                            uint64_t offset) const noexcept;
+expected<size_t, error> write_at(const slice<const byte>& data,                         // (1)
+                                uint64_t offset) const noexcept;
+async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data,      // (2)
+                                                    uint64_t offset) const noexcept;
 ```
 
 Writes the whole of `data` at `offset` bytes from the beginning of the file: the `pwrite(2)` of the descriptor, made

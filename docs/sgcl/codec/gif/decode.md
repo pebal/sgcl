@@ -3,9 +3,9 @@
 # sgcl::codec::gif::decode
 
 ```cpp
-/*(1)*/ static expected<image, error> decode(const slice<const byte>& data,
-                                             const decode_options& o = {}) noexcept;
-/*(2)*/ static expected<image, error> decode(const io::reader& in, const decode_options& o = {});
+static expected<image, error> decode(const slice<const byte>& data,                          // (1)
+                                     const decode_options& o = {}) noexcept;
+static expected<image, error> decode(const io::reader& in, const decode_options& o = {});    // (2)
 ```
 
 Decodes the first frame of a GIF: the whole canvas with the frame drawn on it, as it is shown.

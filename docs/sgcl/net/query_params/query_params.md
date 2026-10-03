@@ -3,10 +3,10 @@
 # sgcl::net::query_params::query_params
 
 ```cpp
-/*(1)*/ query_params() noexcept = default;
-/*(2)*/ explicit query_params(const string& text);
-/*(3)*/ query_params(const query_params& other);
-/*(4)*/ query_params(query_params&& other) noexcept;
+query_params() noexcept = default;              // (1)
+explicit query_params(const string& text);      // (2)
+query_params(const query_params& other);        // (3)
+query_params(query_params&& other) noexcept;    // (4)
 ```
 
 Constructs a list of pairs.

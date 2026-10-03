@@ -3,12 +3,12 @@
 # sgcl::net::http::response::json, async_json
 
 ```cpp
-/*(1)*/ expected<encoding::json, io::error> json() const;
-/*(2)*/ async::task<expected<encoding::json, io::error>> async_json() const noexcept;
-/*(3)*/ template<class T>
-        expected<T, io::error> json() const;
-/*(4)*/ template<class T>
-        async::task<expected<T, io::error>> async_json() const noexcept;
+expected<encoding::json, io::error> json() const;                                // (1)
+async::task<expected<encoding::json, io::error>> async_json() const noexcept;    // (2)
+template<class T>
+expected<T, io::error> json() const;                                             // (3)
+template<class T>
+async::task<expected<T, io::error>> async_json() const noexcept;                 // (4)
 ```
 
 Reads the whole body as [text](text.md) and parses it as JSON, Go's `json.NewDecoder(resp.Body).Decode(&v)`. The

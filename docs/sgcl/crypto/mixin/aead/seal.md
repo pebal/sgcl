@@ -3,9 +3,9 @@
 # sgcl::crypto::mixin::aead\<Derived\>::seal
 
 ```cpp
-/*(1)*/ vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext) const;
-/*(2)*/ vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext,
-                          const slice<const byte>& aad) const;
+vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext) const;    // (1)
+vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext,           // (2)
+                  const slice<const byte>& aad) const;
 ```
 
 Encrypts `plaintext` under the key of the object and `nonce`, and authenticates the ciphertext together with the

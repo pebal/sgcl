@@ -3,10 +3,10 @@
 # sgcl::async::task\<T\>::wait, operator co_await
 
 ```cpp
-/*(1)*/ T& wait();
-/*(2)*/ awaiter operator co_await() noexcept;
-/*(3)*/ void wait();
-/*(4)*/ awaiter operator co_await() noexcept;
+T& wait();                               // (1)
+awaiter operator co_await() noexcept;    // (2)
+void wait();                             // (3)
+awaiter operator co_await() noexcept;    // (4)
 ```
 
 Waits until the task is done and gives its value, or rethrows what the coroutine threw: `t.wait()` on a thread,

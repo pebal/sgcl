@@ -3,10 +3,10 @@
 # sgcl::sorted_map\<Key, T, Compare\>::swap
 
 ```cpp
-/*(1)*/ void swap(sorted_map& other) noexcept(std::is_nothrow_swappable_v<key_compare>);
-/*(2)*/ template<class Key, class T, class Compare>
-        void swap(sorted_map<Key, T, Compare>& lhs, sorted_map<Key, T, Compare>& rhs)
-            noexcept(noexcept(lhs.swap(rhs)));
+void swap(sorted_map& other) noexcept(std::is_nothrow_swappable_v<key_compare>);    // (1)
+template<class Key, class T, class Compare>
+void swap(sorted_map<Key, T, Compare>& lhs, sorted_map<Key, T, Compare>& rhs)       // (2)
+    noexcept(noexcept(lhs.swap(rhs)));
 ```
 
 Exchanges the contents of two maps: their trees, counts and comparators. No element is touched, and every

@@ -3,8 +3,8 @@
 # sgcl::utf8::encoded::view, operator std::string_view
 
 ```cpp
-/*(1)*/ constexpr std::string_view view() const noexcept;
-/*(2)*/ constexpr operator std::string_view() const noexcept;
+constexpr std::string_view view() const noexcept;        // (1)
+constexpr operator std::string_view() const noexcept;    // (2)
 ```
 
 Returns the bytes of the encoding as a `std::string_view` of `size` bytes over `bytes`. (2) is the same, implicit,

@@ -3,9 +3,9 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::extract
 
 ```cpp
-/*(1)*/ node_type extract(const_iterator pos) noexcept;
-/*(2)*/ node_type extract(const key_type& key) noexcept;
-/*(3)*/ template<class K> node_type extract(K&& key) noexcept(/* see below */);
+node_type extract(const_iterator pos) noexcept;                            // (1)
+node_type extract(const key_type& key) noexcept;                           // (2)
+template<class K> node_type extract(K&& key) noexcept(/* see below */);    // (3)
 ```
 
 Unlinks an element's node from the map and hands it over in a [node handle](../map-node_type.md), the element

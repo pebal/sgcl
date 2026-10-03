@@ -3,8 +3,8 @@
 # sgcl::async::blocking_task\<T\>::wait, operator co_await
 
 ```cpp
-/*(1)*/ T wait();
-/*(2)*/ awaiter operator co_await() noexcept;
+T wait();                                // (1)
+awaiter operator co_await() noexcept;    // (2)
 ```
 
 Waits for the job and gives its result: what the job's function returned, moved out of the job, or what it threw,

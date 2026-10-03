@@ -3,10 +3,10 @@
 # sgcl::async::channel\<T\>::channel
 
 ```cpp
-/*(1)*/ channel() noexcept;
-/*(2)*/ explicit channel(size_type capacity);
-/*(3)*/ channel(const channel& other) noexcept;
-/*(4)*/ channel(channel&& other) noexcept;
+channel() noexcept;                        // (1)
+explicit channel(size_type capacity);      // (2)
+channel(const channel& other) noexcept;    // (3)
+channel(channel&& other) noexcept;         // (4)
 ```
 
 Makes a channel, or another handle of an existing one.

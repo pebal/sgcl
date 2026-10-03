@@ -3,8 +3,8 @@
 # sgcl::net::listener::accept, async_accept
 
 ```cpp
-/*(1)*/ expected<connection, io::error> accept() const;
-/*(2)*/ async::task<expected<connection, io::error>> async_accept() const noexcept;
+expected<connection, io::error> accept() const;                                // (1)
+async::task<expected<connection, io::error>> async_accept() const noexcept;    // (2)
 ```
 
 Waits for the next connection and returns it: Go's `Listener.Accept`. A connection aborted before it was taken

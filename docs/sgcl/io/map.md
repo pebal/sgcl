@@ -6,9 +6,9 @@
 #include "sgcl/io/mapping.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<mapping, error> map(const string& path, const map_options& options) noexcept;
-    /*(2)*/ expected<mapping, error> map(const string& path) noexcept;
-    /*(3)*/ expected<mapping, error> map(const file& f, const map_options& options = {}) noexcept;
+    expected<mapping, error> map(const string& path, const map_options& options) noexcept;    // (1)
+    expected<mapping, error> map(const string& path) noexcept;                                // (2)
+    expected<mapping, error> map(const file& f, const map_options& options = {}) noexcept;    // (3)
 }
 ```
 

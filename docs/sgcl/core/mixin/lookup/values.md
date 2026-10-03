@@ -3,8 +3,8 @@
 # sgcl::mixin::lookup\<Derived\>::values
 
 ```cpp
-/*(1)*/ auto values() noexcept;
-/*(2)*/ auto values() const noexcept;
+auto values() noexcept;          // (1)
+auto values() const noexcept;    // (2)
 ```
 
 Returns the values of the map as a range: a view over the map's own range of pairs, `std::views::values` of it,

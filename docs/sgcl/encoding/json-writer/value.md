@@ -3,9 +3,9 @@
 # sgcl::encoding::json::writer::value
 
 ```cpp
-/*(1)*/ writer& value(std::nullptr_t) noexcept;
-/*(2)*/ writer& value(const char* text) noexcept;
-/*(3)*/ template<class T> writer& value(const T& v) noexcept(/* see below */);
+writer& value(std::nullptr_t) noexcept;                                   // (1)
+writer& value(const char* text) noexcept;                                 // (2)
+template<class T> writer& value(const T& v) noexcept(/* see below */);    // (3)
 ```
 
 Writes a value: an element of the array open, the value of the member whose [key](key.md) came last, or a value

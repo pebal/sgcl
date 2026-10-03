@@ -3,8 +3,8 @@
 # sgcl::time::datetime::format
 
 ```cpp
-/*(1)*/ string format(layout format) const noexcept;
-/*(2)*/ string format(const string& pattern) const noexcept;
+string format(layout format) const noexcept;            // (1)
+string format(const string& pattern) const noexcept;    // (2)
 ```
 
 The text of the datetime, Go's `t.Format`.

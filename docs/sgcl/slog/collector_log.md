@@ -6,8 +6,8 @@
 #include "sgcl/slog/collector_log.h"   // or "sgcl/slog.h"
 
 namespace sgcl::slog {
-    /*(1)*/ void collector_log(const logger& log) noexcept;
-    /*(2)*/ void collector_log() noexcept;
+    void collector_log(const logger& log) noexcept;    // (1)
+    void collector_log() noexcept;                     // (2)
 }
 ```
 

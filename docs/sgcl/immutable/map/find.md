@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::find
 
 ```cpp
-/*(1)*/ const_iterator find(const Key& key) const noexcept;
-/*(2)*/ template<class K> const_iterator find(const K& key) const noexcept(/* see below */);
+const_iterator find(const Key& key) const noexcept;                                     // (1)
+template<class K> const_iterator find(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns an iterator to the element under `key`, or [end()](end.md) when the key is absent, as every `find` of the

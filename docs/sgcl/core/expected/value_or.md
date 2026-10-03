@@ -3,14 +3,14 @@
 # sgcl::expected\<T, E\>::value_or
 
 ```cpp
-/*(1)*/ template<class U>
-        T value_or(U&& v) const&
-            noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_constructible_v<T, U>);
-/*(2)*/ template<class U>
-        T value_or(U&& v) &&
-            noexcept(std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_constructible_v<T, U>);
+template<class U>
+T value_or(U&& v) const&                                   // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_constructible_v<T, U>);
+template<class U>
+T value_or(U&& v) &&                                       // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_constructible_v<T, U>);
 ```
 
 The value when there is one, else `v` converted to `T`.

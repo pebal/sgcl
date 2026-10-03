@@ -3,20 +3,20 @@
 # sgcl::hash::mixin::hasher\<Derived\>::update
 
 ```cpp
-/*(1)*/ void update(const string& text) noexcept;
-/*(2)*/ void update(const slice<const char>& text) noexcept;
-/*(3)*/ void update(const slice<char>& text) noexcept;
-/*(4)*/ template<size_t N>
-        void update(const char (&text)[N]) noexcept;
-/*(5)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        void update(P text) noexcept;
-/*(6)*/ void update(std::string_view text) noexcept;
-/*(7)*/ template<size_t N>
-        void update(const array<byte, N>& digest) noexcept;
-/*(8)*/ template<class S>
-        requires std::same_as<S, std::span<byte>> || std::same_as<S, std::span<const byte>>
-        void update(S bytes) noexcept;
+void update(const string& text) noexcept;                                              // (1)
+void update(const slice<const char>& text) noexcept;                                   // (2)
+void update(const slice<char>& text) noexcept;                                         // (3)
+template<size_t N>
+void update(const char (&text)[N]) noexcept;                                           // (4)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+void update(P text) noexcept;                                                          // (5)
+void update(std::string_view text) noexcept;                                           // (6)
+template<size_t N>
+void update(const array<byte, N>& digest) noexcept;                                    // (7)
+template<class S>
+requires std::same_as<S, std::span<byte>> || std::same_as<S, std::span<const byte>>
+void update(S bytes) noexcept;                                                         // (8)
 ```
 
 Hashes a text, the digest of another hasher or a `std::span` of bytes after what the hasher took before, by handing

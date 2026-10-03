@@ -3,17 +3,17 @@
 # sgcl::math::big_integer::big_integer
 
 ```cpp
-/*(1)*/ big_integer() noexcept;
-/*(2)*/ template<std::integral T>
-        requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        big_integer(T value) noexcept;
-/*(3)*/ explicit big_integer(double value);
-/*(4)*/ template<std::same_as<bool> B>
-        big_integer(B) = delete;
-/*(5)*/ explicit big_integer(long double) = delete;
-/*(6)*/ explicit big_integer(const string& text, int base = 10);
-/*(7)*/ big_integer(const big_integer& other) noexcept;
-/*(8)*/ big_integer(big_integer&& other) noexcept;
+big_integer() noexcept;                                     // (1)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
+big_integer(T value) noexcept;                              // (2)
+explicit big_integer(double value);                         // (3)
+template<std::same_as<bool> B>
+big_integer(B) = delete;                                    // (4)
+explicit big_integer(long double) = delete;                 // (5)
+explicit big_integer(const string& text, int base = 10);    // (6)
+big_integer(const big_integer& other) noexcept;             // (7)
+big_integer(big_integer&& other) noexcept;                  // (8)
 ```
 
 Constructs a whole number.

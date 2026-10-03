@@ -3,12 +3,12 @@
 # sgcl::encoding::xml::reader::reader
 
 ```cpp
-/*(1)*/ explicit reader(const string& text) noexcept;
-/*(2)*/ reader(const string& text, const options& o) noexcept;
-/*(3)*/ explicit reader(const io::reader& in) noexcept;
-/*(4)*/ reader(const io::reader& in, const options& o) noexcept;
-/*(5)*/ reader(reader&& other) = default;
-/*(6)*/ reader(const reader&) = delete;
+explicit reader(const string& text) noexcept;               // (1)
+reader(const string& text, const options& o) noexcept;      // (2)
+explicit reader(const io::reader& in) noexcept;             // (3)
+reader(const io::reader& in, const options& o) noexcept;    // (4)
+reader(reader&& other) = default;                           // (5)
+reader(const reader&) = delete;                             // (6)
 ```
 
 Constructs a reader. Nothing is read until the first call that asks for a token.

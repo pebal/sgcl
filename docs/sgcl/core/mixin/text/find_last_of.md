@@ -3,17 +3,17 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::find_last_of
 
 ```cpp
-/*(1)*/ size_type find_last_of(view_type s, size_type pos = npos) const noexcept;
-/*(2)*/ size_type find_last_of(CharT c, size_type pos = npos) const noexcept;
-/*(3)*/ template<size_t N>
-        size_type find_last_of(const CharT (&s)[N], size_type pos = npos) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find_last_of(P s, size_type pos = npos) const noexcept;
-/*(5)*/ size_type find_last_of(std::u32string_view set, size_type pos = npos) const noexcept
-            requires (!std::same_as<CharT, char32_t>);
-/*(6)*/ size_type find_last_of(char32_t c, size_type pos = npos) const noexcept
-            requires (!std::same_as<CharT, char32_t>);
-/*(7)*/ size_type find_last_of(int, size_type = npos) const = delete;
+size_type find_last_of(view_type s, size_type pos = npos) const noexcept;               // (1)
+size_type find_last_of(CharT c, size_type pos = npos) const noexcept;                   // (2)
+template<size_t N>
+size_type find_last_of(const CharT (&s)[N], size_type pos = npos) const noexcept;       // (3)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+size_type find_last_of(P s, size_type pos = npos) const noexcept;                       // (4)
+size_type find_last_of(std::u32string_view set, size_type pos = npos) const noexcept    // (5)
+    requires (!std::same_as<CharT, char32_t>);
+size_type find_last_of(char32_t c, size_type pos = npos) const noexcept                 // (6)
+    requires (!std::same_as<CharT, char32_t>);
+size_type find_last_of(int, size_type = npos) const = delete;                           // (7)
 ```
 
 Finds the last character at or before `pos` that is one of a set of characters.

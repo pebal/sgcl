@@ -3,9 +3,9 @@
 # sgcl::crypto::aes::aes
 
 ```cpp
-/*(1)*/ explicit aes(const slice<const byte>& key);
-/*(2)*/ aes(aes&& other) noexcept;
-/*(3)*/ aes(const aes&) = delete;
+explicit aes(const slice<const byte>& key);    // (1)
+aes(aes&& other) noexcept;                     // (2)
+aes(const aes&) = delete;                      // (3)
 ```
 
 1. Sets up the key schedule of `key`: AES-128, AES-192 or AES-256 by its length, the round keys of encryption and

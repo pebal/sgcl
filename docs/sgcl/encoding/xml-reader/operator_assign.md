@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::reader::operator=
 
 ```cpp
-/*(1)*/ reader& operator=(reader&& other) = default;
-/*(2)*/ reader& operator=(const reader&) = delete;
+reader& operator=(reader&& other) = default;    // (1)
+reader& operator=(const reader&) = delete;      // (2)
 ```
 
 1. Takes the reading of `other` over, where it is; what this reader read before is dropped, and `other` is left to

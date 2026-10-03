@@ -3,15 +3,15 @@
 # sgcl::sorted_set\<Key, Compare\>::sorted_set
 
 ```cpp
-/*(1)*/ sorted_set() = default;
-/*(2)*/ explicit sorted_set(const key_compare& comp)
-            noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
-/*(3)*/ template<std::input_iterator InputIt>
-        sorted_set(InputIt first, InputIt last, const key_compare& comp = key_compare());
-/*(4)*/ sorted_set(std::initializer_list<value_type> ilist,
-                   const key_compare& comp = key_compare());
-/*(5)*/ sorted_set(const sorted_set& other) = default;
-/*(6)*/ sorted_set(sorted_set&& other) = default;
+sorted_set() = default;                                                              // (1)
+explicit sorted_set(const key_compare& comp)                                         // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
+template<std::input_iterator InputIt>
+sorted_set(InputIt first, InputIt last, const key_compare& comp = key_compare());    // (3)
+sorted_set(std::initializer_list<value_type> ilist,                                  // (4)
+           const key_compare& comp = key_compare());
+sorted_set(const sorted_set& other) = default;                                       // (5)
+sorted_set(sorted_set&& other) = default;                                            // (6)
 ```
 
 Constructs a set from one of the sources below.

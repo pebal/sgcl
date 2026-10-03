@@ -3,8 +3,8 @@
 # sgcl::async::task\<T\>::task
 
 ```cpp
-/*(1)*/ task() noexcept = default;
-/*(2)*/ task(task&&) noexcept = default;
+task() noexcept = default;          // (1)
+task(task&&) noexcept = default;    // (2)
 ```
 
 Constructs a task object.

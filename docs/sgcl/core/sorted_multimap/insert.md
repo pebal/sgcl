@@ -3,24 +3,24 @@
 # sgcl::sorted_multimap\<Key, T, Compare\>::insert
 
 ```cpp
-/*(1)*/ iterator insert(const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>);
-/*(3)*/ iterator insert(value_type&& value)
-            noexcept(std::is_nothrow_move_constructible_v<value_type>);
-/*(4)*/ iterator insert(const_iterator hint, const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(5)*/ template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator hint, P&& value)
-            noexcept(std::is_nothrow_constructible_v<value_type, P&&>);
-/*(6)*/ iterator insert(const_iterator hint, value_type&& value)
-            noexcept(std::is_nothrow_move_constructible_v<value_type>);
-/*(7)*/ template<std::input_iterator InputIt>
-        void insert(InputIt first, InputIt last);
-/*(8)*/ void insert(std::initializer_list<value_type> ilist);
-/*(9)*/ iterator insert(node_type&& nh) noexcept;
-/*(10)*/ iterator insert(const_iterator hint, node_type&& nh) noexcept;
+iterator insert(const value_type& value)                                                  // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type>);
+template<class P> requires std::is_constructible_v<value_type, P&&>
+iterator insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>);    // (2)
+iterator insert(value_type&& value)                                                       // (3)
+    noexcept(std::is_nothrow_move_constructible_v<value_type>);
+iterator insert(const_iterator hint, const value_type& value)                             // (4)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type>);
+template<class P> requires std::is_constructible_v<value_type, P&&>
+iterator insert(const_iterator hint, P&& value)                                           // (5)
+    noexcept(std::is_nothrow_constructible_v<value_type, P&&>);
+iterator insert(const_iterator hint, value_type&& value)                                  // (6)
+    noexcept(std::is_nothrow_move_constructible_v<value_type>);
+template<std::input_iterator InputIt>
+void insert(InputIt first, InputIt last);                                                 // (7)
+void insert(std::initializer_list<value_type> ilist);                                     // (8)
+iterator insert(node_type&& nh) noexcept;                                                 // (9)
+iterator insert(const_iterator hint, node_type&& nh) noexcept;                            // (10)
 ```
 
 Inserts elements, as `std::multimap::insert` does: always, a key already present getting the new element after

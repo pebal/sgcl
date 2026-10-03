@@ -3,12 +3,12 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::operator[]
 
 ```cpp
-/*(1)*/ mapped_type& operator[](const key_type& key)
-            noexcept(std::is_nothrow_copy_constructible_v<Key> &&
-                     std::is_nothrow_default_constructible_v<T>);
-/*(2)*/ mapped_type& operator[](key_type&& key)
-            noexcept(std::is_nothrow_move_constructible_v<Key> &&
-                     std::is_nothrow_default_constructible_v<T>);
+mapped_type& operator[](const key_type& key)                 // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<Key> &&
+             std::is_nothrow_default_constructible_v<T>);
+mapped_type& operator[](key_type&& key)                      // (2)
+    noexcept(std::is_nothrow_move_constructible_v<Key> &&
+             std::is_nothrow_default_constructible_v<T>);
 ```
 
 Returns a reference to the value under `key`, inserting it first when the key is absent: a new element at the

@@ -3,8 +3,8 @@
 # sgcl::encoding::hex::dumper::dumper
 
 ```cpp
-/*(1)*/ dumper() noexcept;
-/*(2)*/ dumper(const dumper& other) noexcept;
+dumper() noexcept;                       // (1)
+dumper(const dumper& other) noexcept;    // (2)
 ```
 
 1. A dumper that holds no stream: `!d` is `true`, and any other operation on it is a contract violation,

@@ -3,9 +3,9 @@
 # sgcl::dynamic_array\<T\>::operator=
 
 ```cpp
-/*(1)*/ dynamic_array& operator=(const dynamic_array& other);
-/*(2)*/ dynamic_array& operator=(dynamic_array&& other) noexcept;
-/*(3)*/ dynamic_array& operator=(std::initializer_list<T> ilist);
+dynamic_array& operator=(const dynamic_array& other);        // (1)
+dynamic_array& operator=(dynamic_array&& other) noexcept;    // (2)
+dynamic_array& operator=(std::initializer_list<T> ilist);    // (3)
 ```
 
 Replaces the contents of the array.

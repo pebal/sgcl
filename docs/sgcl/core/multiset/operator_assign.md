@@ -3,13 +3,13 @@
 # sgcl::multiset\<Key, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ multiset& operator=(const multiset& other);
-/*(2)*/ multiset& operator=(multiset&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal> &&
-                     std::is_nothrow_move_assignable_v<hasher> &&
-                     std::is_nothrow_move_assignable_v<key_equal>);
-/*(3)*/ multiset& operator=(std::initializer_list<value_type> ilist);
+multiset& operator=(const multiset& other);                        // (1)
+multiset& operator=(multiset&& other)                              // (2)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal> &&
+             std::is_nothrow_move_assignable_v<hasher> &&
+             std::is_nothrow_move_assignable_v<key_equal>);
+multiset& operator=(std::initializer_list<value_type> ilist);      // (3)
 ```
 
 Replaces the elements of the multiset.

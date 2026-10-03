@@ -3,8 +3,8 @@
 # sgcl::operator==, operator\<=\> (sgcl::forward_list)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const forward_list& a, const forward_list& b);
-/*(2)*/ friend constexpr auto operator<=>(const forward_list& a, const forward_list& b);
+friend constexpr bool operator==(const forward_list& a, const forward_list& b);     // (1)
+friend constexpr auto operator<=>(const forward_list& a, const forward_list& b);    // (2)
 ```
 
 Compare two lists by their elements, as `std::forward_list`'s operators do, in one walk of both lists. Both are

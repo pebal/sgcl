@@ -3,10 +3,10 @@
 # sgcl::encoding::csv::load\<T\>, async_load\<T\>
 
 ```cpp
-/*(1)*/ template<class T>
-        static expected<vector<T>, error> load(const string& path);
-/*(2)*/ template<class T>
-        static async::task<expected<vector<T>, error>> async_load(string path) noexcept;
+template<class T>
+static expected<vector<T>, error> load(const string& path);                         // (1)
+template<class T>
+static async::task<expected<vector<T>, error>> async_load(string path) noexcept;    // (2)
 ```
 
 The records of a file as values of `T`, the file's first line the header whose names the fields of `T` are found

@@ -3,9 +3,9 @@
 # sgcl::root_ptr\<T\>::operator\*, operator-\>
 
 ```cpp
-/*(1)*/ template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
-        U& operator*() const noexcept;
-/*(2)*/ element_type* operator->() const noexcept;
+template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
+U& operator*() const noexcept;                                                     // (1)
+element_type* operator->() const noexcept;                                         // (2)
 ```
 
 Access the object the root points at.

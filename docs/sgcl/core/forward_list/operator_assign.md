@@ -3,9 +3,9 @@
 # sgcl::forward_list\<T\>::operator=
 
 ```cpp
-/*(1)*/ forward_list& operator=(const forward_list& other);
-/*(2)*/ forward_list& operator=(forward_list&& other) noexcept;
-/*(3)*/ forward_list& operator=(std::initializer_list<T> ilist);
+forward_list& operator=(const forward_list& other);         // (1)
+forward_list& operator=(forward_list&& other) noexcept;     // (2)
+forward_list& operator=(std::initializer_list<T> ilist);    // (3)
 ```
 
 Replaces the contents of the list.

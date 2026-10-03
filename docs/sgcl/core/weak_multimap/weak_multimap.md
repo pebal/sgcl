@@ -3,9 +3,9 @@
 # sgcl::weak_multimap\<Key, T\>::weak_multimap
 
 ```cpp
-/*(1)*/ weak_multimap() noexcept;
-/*(2)*/ weak_multimap(weak_multimap&& other) noexcept;
-/*(3)*/ weak_multimap(const weak_multimap&) = delete;
+weak_multimap() noexcept;                         // (1)
+weak_multimap(weak_multimap&& other) noexcept;    // (2)
+weak_multimap(const weak_multimap&) = delete;     // (3)
 ```
 
 Constructs a map.

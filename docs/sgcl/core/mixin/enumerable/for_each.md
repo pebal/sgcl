@@ -3,8 +3,8 @@
 # sgcl::mixin::enumerable\<Derived\>::for_each
 
 ```cpp
-/*(1)*/ template<class F> constexpr void for_each(F f) noexcept(/* see below */);
-/*(2)*/ template<class F> constexpr void for_each(F f) const noexcept(/* see below */);
+template<class F> constexpr void for_each(F f) noexcept(/* see below */);          // (1)
+template<class F> constexpr void for_each(F f) const noexcept(/* see below */);    // (2)
 ```
 
 Calls `f` with every element, from the first to the last; what `f` returns is ignored.

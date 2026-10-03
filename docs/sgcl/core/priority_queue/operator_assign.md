@@ -3,8 +3,8 @@
 # sgcl::priority_queue\<T, Container, Compare\>::operator=
 
 ```cpp
-/*(1)*/ priority_queue& operator=(const priority_queue& other);
-/*(2)*/ priority_queue& operator=(priority_queue&& other);
+priority_queue& operator=(const priority_queue& other);    // (1)
+priority_queue& operator=(priority_queue&& other);         // (2)
 ```
 
 Replaces the contents of the priority queue.

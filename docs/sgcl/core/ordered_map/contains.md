@@ -3,8 +3,8 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const key_type& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept(/* see below */);
+bool contains(const key_type& key) const noexcept;                                // (1)
+template<class K> bool contains(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Checks whether an element is under `key`: a lookup by the key, in place of the walk of every element that

@@ -3,9 +3,9 @@
 # sgcl::list\<T\>::resize
 
 ```cpp
-/*(1)*/ void resize(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>);
-/*(2)*/ void resize(size_type count, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
+void resize(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>);    // (1)
+void resize(size_type count, const T& value)                                          // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
 ```
 
 Changes the number of elements to `count`. A list longer than `count` erases the elements past it; a shorter one

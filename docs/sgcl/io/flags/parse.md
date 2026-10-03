@@ -3,8 +3,8 @@
 # sgcl::io::flags::parse
 
 ```cpp
-/*(1)*/ void parse(int argc, char** argv) const;
-/*(2)*/ expected<void, error> parse(const vector<string>& args) const;
+void parse(int argc, char** argv) const;                          // (1)
+expected<void, error> parse(const vector<string>& args) const;    // (2)
 ```
 
 Reads a command line into the variables of the flags, and the arguments after the flags into the

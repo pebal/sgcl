@@ -3,9 +3,9 @@
 # sgcl::crypto::xchacha20_poly1305::seal_random
 
 ```cpp
-/*(1)*/ vector<byte> seal_random(const slice<const byte>& plaintext) const;
-/*(2)*/ vector<byte> seal_random(const slice<const byte>& plaintext,
-                                 const slice<const byte>& aad) const;
+vector<byte> seal_random(const slice<const byte>& plaintext) const;    // (1)
+vector<byte> seal_random(const slice<const byte>& plaintext,           // (2)
+                         const slice<const byte>& aad) const;
 ```
 
 Draws a nonce of 24 bytes from the system's generator and seals `plaintext` under it, the nonce written before

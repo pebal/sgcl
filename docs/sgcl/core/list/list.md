@@ -3,14 +3,14 @@
 # sgcl::list\<T\>::list
 
 ```cpp
-/*(1)*/ list() noexcept;
-/*(2)*/ explicit list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>);
-/*(3)*/ list(size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(4)*/ template<std::input_iterator InputIt> list(InputIt first, InputIt last);
-/*(5)*/ template<std::ranges::input_range R> explicit list(R&& r);
-/*(6)*/ list(std::initializer_list<T> ilist);
-/*(7)*/ list(const list& other);
-/*(8)*/ list(list&& other) noexcept;
+list() noexcept;                                                                            // (1)
+explicit list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>);        // (2)
+list(size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (3)
+template<std::input_iterator InputIt> list(InputIt first, InputIt last);                    // (4)
+template<std::ranges::input_range R> explicit list(R&& r);                                  // (5)
+list(std::initializer_list<T> ilist);                                                       // (6)
+list(const list& other);                                                                    // (7)
+list(list&& other) noexcept;                                                                // (8)
 ```
 
 Constructs a list from one of the sources below.

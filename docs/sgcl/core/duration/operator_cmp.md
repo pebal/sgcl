@@ -3,9 +3,9 @@
 # sgcl::operator==, operator\<=\> (sgcl::duration)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const duration&, const duration&) noexcept = default;
-/*(2)*/ friend constexpr std::strong_ordering operator<=>(const duration&,
-                                                         const duration&) noexcept = default;
+friend constexpr bool operator==(const duration&, const duration&) noexcept = default;    // (1)
+friend constexpr std::strong_ordering operator<=>(const duration&,                        // (2)
+                                                 const duration&) noexcept = default;
 ```
 
 Compare two durations by their nanoseconds. `!=`, `<`, `<=`, `>` and `>=` are made from these by the compiler. A

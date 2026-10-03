@@ -3,8 +3,8 @@
 # sgcl::crypto::secret\<N\>::bytes, operator slice\<const byte\>
 
 ```cpp
-/*(1)*/ slice<const byte> bytes() const noexcept;
-/*(2)*/ operator slice<const byte>() const noexcept;
+slice<const byte> bytes() const noexcept;       // (1)
+operator slice<const byte>() const noexcept;    // (2)
 ```
 
 Returns the `N` bytes as a slice without an owner over the object's own memory, valid while the secret lives and

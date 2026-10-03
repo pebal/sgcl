@@ -3,8 +3,8 @@
 # sgcl::txt::folded_text::find
 
 ```cpp
-/*(1)*/ optional<occurrence> find(const searcher_type& pattern, size_t from = 0) const noexcept;
-/*(2)*/ optional<occurrence> find(const string& pattern, size_t from = 0) const noexcept;
+optional<occurrence> find(const searcher_type& pattern, size_t from = 0) const noexcept;    // (1)
+optional<occurrence> find(const string& pattern, size_t from = 0) const noexcept;           // (2)
 ```
 
 Finds the first occurrence of a pattern in the mapped text at or after the byte `from` — a byte of the text as it

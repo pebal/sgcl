@@ -3,8 +3,8 @@
 # sgcl::io::file::operator=
 
 ```cpp
-/*(1)*/ file& operator=(const file& other) noexcept;   // implicitly declared
-/*(2)*/ file& operator=(file&& other) noexcept;        // implicitly declared
+file& operator=(const file& other) noexcept;    // (1), implicitly declared
+file& operator=(file&& other) noexcept;         // (2), implicitly declared
 ```
 
 Makes this handle one of the file `other` holds, or one that holds none when `other` holds none.

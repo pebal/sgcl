@@ -3,8 +3,8 @@
 # sgcl::crypto::mlkem768::decapsulation_key::decapsulation_key
 
 ```cpp
-/*(1)*/ decapsulation_key(decapsulation_key&& other) noexcept;
-/*(2)*/ decapsulation_key(const decapsulation_key&) = delete;
+decapsulation_key(decapsulation_key&& other) noexcept;    // (1)
+decapsulation_key(const decapsulation_key&) = delete;     // (2)
 ```
 
 1. Takes the key of `other` over: the seed, the expanded key and the matrix are copied into the new object, and

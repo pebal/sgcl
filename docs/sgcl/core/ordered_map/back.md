@@ -3,8 +3,8 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::back
 
 ```cpp
-/*(1)*/ value_type& back() noexcept;
-/*(2)*/ const value_type& back() const noexcept;
+value_type& back() noexcept;                // (1)
+const value_type& back() const noexcept;    // (2)
 ```
 
 Returns a reference to the newest element: the last of the order, the one before [end()](end.md). The map must

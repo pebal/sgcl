@@ -3,8 +3,8 @@
 # sgcl::compress::sevenzip::writer::add
 
 ```cpp
-/*(1)*/ void add(const string& name, const slice<const byte>& data);
-/*(2)*/ void add(const string& name, const slice<const byte>& data, const entry_info& info);
+void add(const string& name, const slice<const byte>& data);                            // (1)
+void add(const string& name, const slice<const byte>& data, const entry_info& info);    // (2)
 ```
 
 Writes a whole entry: a [create](create.md) of the name and its data. A text is its bytes, a `vector<byte>`

@@ -3,10 +3,10 @@
 # sgcl::mixin::ordered\<Derived\>::binary_search
 
 ```cpp
-/*(1)*/ constexpr bool binary_search(const auto& value) const noexcept(/* see below */);
-/*(2)*/ template<class Compare>
-        constexpr bool binary_search(const auto& value,
-                                     Compare cmp) const noexcept(/* see below */);
+constexpr bool binary_search(const auto& value) const noexcept(/* see below */);    // (1)
+template<class Compare>
+constexpr bool binary_search(const auto& value,                                     // (2)
+                             Compare cmp) const noexcept(/* see below */);
 ```
 
 Checks whether a sorted range holds an element equivalent to `value`: one that neither goes before `value` nor

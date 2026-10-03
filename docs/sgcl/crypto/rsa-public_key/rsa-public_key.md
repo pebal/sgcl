@@ -3,8 +3,8 @@
 # sgcl::crypto::rsa::public_key::public_key
 
 ```cpp
-/*(1)*/ public_key(const public_key& other) noexcept;
-/*(2)*/ public_key(public_key&& other) noexcept;
+public_key(const public_key& other) noexcept;    // (1)
+public_key(public_key&& other) noexcept;         // (2)
 ```
 
 Copies or moves a key. There is no other constructor: a key is made by

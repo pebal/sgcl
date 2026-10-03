@@ -3,8 +3,8 @@
 # sgcl::io::buffered_reader::lines, async_lines
 
 ```cpp
-/*(1)*/ generator<slice<const char>> lines() const noexcept;
-/*(2)*/ async::generator<slice<const char>> async_lines() const noexcept;
+generator<slice<const char>> lines() const noexcept;                 // (1)
+async::generator<slice<const char>> async_lines() const noexcept;    // (2)
 ```
 
 Returns the lines of the stream, from the position on, as a generator over [read_line](read_line.md): each line a

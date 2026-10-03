@@ -3,8 +3,8 @@
 # sgcl::encoding::hex::encoder::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close() const;
-/*(2)*/ async::task<expected<void, io::error>> async_close() const noexcept;
+expected<void, io::error> close() const;                                // (1)
+async::task<expected<void, io::error>> async_close() const noexcept;    // (2)
 ```
 
 Ends the encoder: a write after it is `io::errc::closed`. A byte is a whole group, so nothing waits and nothing

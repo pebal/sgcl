@@ -3,13 +3,13 @@
 # sgcl::encoding::xml::save, async_save
 
 ```cpp
-/*(1)*/ template<class T>
-        static expected<void, error> save(const string& path, const string& name, const T& value);
-/*(2)*/ template<class T>
-        static async::task<expected<void, error>> async_save(string path, string name, T value)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(3)*/ expected<void, error> save(const string& path) const;
-/*(4)*/ async::task<expected<void, error>> async_save(string path) const noexcept;
+template<class T>
+static expected<void, error> save(const string& path, const string& name, const T& value);    // (1)
+template<class T>
+static async::task<expected<void, error>> async_save(string path, string name, T value)       // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
+expected<void, error> save(const string& path) const;                                         // (3)
+async::task<expected<void, error>> async_save(string path) const noexcept;                    // (4)
 ```
 
 Writes a file whole, in one line: `xml::save("feed.xml", "feed", f)`, `doc.save("feed.xml")`. The file is made or

@@ -3,18 +3,18 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::set
 
 ```cpp
-/*(1)*/ map set(const Key& key, const T& value) const
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, const T&>);
-/*(2)*/ map set(const Key& key, T&& value) const
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
-/*(3)*/ map set(Key&& key, const T& value) const
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, Key&&, const T&>);
-/*(4)*/ map set(Key&& key, T&& value) const
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_constructible_v<value_type, Key&&, T&&>);
+map set(const Key& key, const T& value) const                                       // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, const T&>);
+map set(const Key& key, T&& value) const                                            // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, const Key&, T&&>);
+map set(Key&& key, const T& value) const                                            // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, Key&&, const T&>);
+map set(Key&& key, T&& value) const                                                 // (4)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_constructible_v<value_type, Key&&, T&&>);
 ```
 
 Returns the map with `value` under `key`: added when the key is absent, in place of the value there when it is

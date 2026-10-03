@@ -3,11 +3,11 @@
 # sgcl::txt::regex::full_match
 
 ```cpp
-/*(1)*/ bool full_match(const slice<const char>& text) const noexcept;
-/*(2)*/ bool full_match(const string& text) const noexcept;
-/*(3)*/ template<size_t N> bool full_match(const char (&text)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        bool full_match(P text) const noexcept;
+bool full_match(const slice<const char>& text) const noexcept;                       // (1)
+bool full_match(const string& text) const noexcept;                                  // (2)
+template<size_t N> bool full_match(const char (&text)[N]) const noexcept;            // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+bool full_match(P text) const noexcept;                                              // (4)
 ```
 
 Checks whether the whole text is a match, its first byte to its last: the question of Python's `re.fullmatch` and

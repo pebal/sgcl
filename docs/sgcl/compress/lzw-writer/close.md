@@ -3,8 +3,8 @@
 # sgcl::compress::lzw::writer::close, async_close
 
 ```cpp
-/*(1)*/ expected<void, io::error> close();
-/*(2)*/ async::task<expected<void, io::error>> async_close() noexcept;
+expected<void, io::error> close();                                // (1)
+async::task<expected<void, io::error>> async_close() noexcept;    // (2)
 ```
 
 Ends the stream: writes the last code and the end code to `out`, and leaves `out` open, as Go's does; the program

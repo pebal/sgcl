@@ -3,8 +3,8 @@
 # sgcl::txt::folded_text::contains
 
 ```cpp
-/*(1)*/ bool contains(const searcher_type& pattern) const noexcept;
-/*(2)*/ bool contains(const string& pattern) const noexcept;
+bool contains(const searcher_type& pattern) const noexcept;    // (1)
+bool contains(const string& pattern) const noexcept;           // (2)
 ```
 
 Checks whether a pattern occurs in the mapped text, `find(pattern) != npos`.

@@ -6,12 +6,12 @@
 #include "sgcl/io/functions.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<req::reader R>
-            expected<size_t, error> read_full(R&& r, const slice<byte>& buffer)
-                noexcept(/* see below */);
-    /*(2)*/ template<req::async_reader R>
-            async::task<expected<size_t, error>> async_read_full(R&& r, const slice<byte>& buffer)
-                noexcept(/* see below */);
+    template<req::reader R>
+    expected<size_t, error> read_full(R&& r, const slice<byte>& buffer)                       // (1)
+        noexcept(/* see below */);
+    template<req::async_reader R>
+    async::task<expected<size_t, error>> async_read_full(R&& r, const slice<byte>& buffer)    // (2)
+        noexcept(/* see below */);
 }
 ```
 

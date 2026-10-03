@@ -3,8 +3,8 @@
 # sgcl::crypto::ed25519::private_key::operator=
 
 ```cpp
-/*(1)*/ private_key& operator=(private_key&& other) noexcept;
-/*(2)*/ private_key& operator=(const private_key&) = delete;
+private_key& operator=(private_key&& other) noexcept;    // (1)
+private_key& operator=(const private_key&) = delete;     // (2)
 ```
 
 1. Takes the key of `other` over, in place of this key, and zeroes it in `other` with stores the compiler cannot

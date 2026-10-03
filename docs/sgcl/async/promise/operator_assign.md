@@ -3,8 +3,8 @@
 # sgcl::async::promise\<T\>::operator=
 
 ```cpp
-/*(1)*/ promise& operator=(const promise& other) noexcept;
-/*(2)*/ promise& operator=(promise&& other) noexcept;
+promise& operator=(const promise& other) noexcept;    // (1)
+promise& operator=(promise&& other) noexcept;         // (2)
 ```
 
 Makes the handle one of the promise `other` refers to. The promise this handle referred to before is not touched: it

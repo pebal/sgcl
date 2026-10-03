@@ -3,15 +3,15 @@
 # sgcl::forward_list\<T\>::insert_after
 
 ```cpp
-/*(1)*/ iterator insert_after(const_iterator pos, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ iterator insert_after(const_iterator pos, T&& value)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(3)*/ iterator insert_after(const_iterator pos, size_type count, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(4)*/ template<std::input_iterator InputIt>
-        iterator insert_after(const_iterator pos, InputIt first, InputIt last);
-/*(5)*/ iterator insert_after(const_iterator pos, std::initializer_list<T> ilist);
+iterator insert_after(const_iterator pos, const T& value)                     // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
+iterator insert_after(const_iterator pos, T&& value)                          // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
+iterator insert_after(const_iterator pos, size_type count, const T& value)    // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
+template<std::input_iterator InputIt>
+iterator insert_after(const_iterator pos, InputIt first, InputIt last);       // (4)
+iterator insert_after(const_iterator pos, std::initializer_list<T> ilist);    // (5)
 ```
 
 Inserts elements after `pos`; [before_begin()](before_begin.md) inserts at the front.

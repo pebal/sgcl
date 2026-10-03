@@ -3,12 +3,12 @@
 # sgcl::async::once::call
 
 ```cpp
-/*(1)*/ template<class F>
-        auto call(F f) noexcept(std::is_nothrow_move_constructible_v<F>);
-/*(2)*/ template<class T>
-        task<> call(task<T> t);
-/*(3)*/ template<class F>
-        task<> call(F f);
+template<class F>
+auto call(F f) noexcept(std::is_nothrow_move_constructible_v<F>);    // (1)
+template<class T>
+task<> call(task<T> t);                                              // (2)
+template<class F>
+task<> call(F f);                                                    // (3)
 ```
 
 Runs the function by the first caller; every other caller waits for it to finish. The first is the caller whose

@@ -3,8 +3,8 @@
 # sgcl::crypto::x509::certificate_pool::system, async_system
 
 ```cpp
-/*(1)*/ static expected<certificate_pool, error> system();
-/*(2)*/ static async::task<expected<certificate_pool, error>> async_system() noexcept;
+static expected<certificate_pool, error> system();                                // (1)
+static async::task<expected<certificate_pool, error>> async_system() noexcept;    // (2)
 ```
 
 Returns the system's roots: the file the environment variable `SSL_CERT_FILE` names, else the first of the bundles Go

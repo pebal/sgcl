@@ -3,9 +3,9 @@
 # sgcl::string::trim_suffix
 
 ```cpp
-/*(1)*/ basic_string trim_suffix(view_type suffix) const noexcept;
-/*(2)*/ template<size_t N>
-        basic_string trim_suffix(const CharT (&suffix)[N]) const noexcept;
+basic_string trim_suffix(view_type suffix) const noexcept;            // (1)
+template<size_t N>
+basic_string trim_suffix(const CharT (&suffix)[N]) const noexcept;    // (2)
 ```
 
 Returns the string without `suffix` at its end when it ends with it, and the same object when it does not, as Go's

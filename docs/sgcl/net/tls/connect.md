@@ -6,10 +6,10 @@
 #include "sgcl/net/tls.h"
 
 namespace sgcl::net::tls {
-    /*(1)*/ expected<net::connection, io::error> connect(const string& address,
-                                                         const config& c = {});
-    /*(2)*/ async::task<expected<net::connection, io::error>> async_connect(string address,
-                                                                            config c = {}) noexcept;
+    expected<net::connection, io::error> connect(const string& address,                         // (1)
+                                                 const config& c = {});
+    async::task<expected<net::connection, io::error>> async_connect(string address,             // (2)
+                                                                    config c = {}) noexcept;
 }
 ```
 

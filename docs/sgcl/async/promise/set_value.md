@@ -3,9 +3,9 @@
 # sgcl::async::promise\<T\>::set_value
 
 ```cpp
-/*(1)*/ void set_value(const T& v) const;
-/*(2)*/ void set_value(T&& v) const;
-/*(3)*/ void set_value() const;  // promise<void>
+void set_value(const T& v) const;    // (1)
+void set_value(T&& v) const;         // (2)
+void set_value() const;              // (3), promise<void>
 ```
 
 Sets the promise: the value goes into the promise's state and every waiter is woken, a task made ready on the

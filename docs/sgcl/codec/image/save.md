@@ -3,11 +3,11 @@
 # sgcl::codec::image::save, async_save
 
 ```cpp
-/*(1)*/ expected<void, error> save(const string& path) const;
-/*(2)*/ expected<void, error> save(const string& path, const save_options& o) const;
-/*(3)*/ async::task<expected<void, error>> async_save(const string& path) const noexcept;
-/*(4)*/ async::task<expected<void, error>> async_save(const string& path,
-                                                      const save_options& o) const noexcept;
+expected<void, error> save(const string& path) const;                                   // (1)
+expected<void, error> save(const string& path, const save_options& o) const;            // (2)
+async::task<expected<void, error>> async_save(const string& path) const noexcept;       // (3)
+async::task<expected<void, error>> async_save(const string& path,                       // (4)
+                                              const save_options& o) const noexcept;
 ```
 
 Writes the image into the file at `path`, in the format the path's extension names, in letters of either case:

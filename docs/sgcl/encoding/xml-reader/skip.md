@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::reader::skip, async_skip
 
 ```cpp
-/*(1)*/ bool skip();
-/*(2)*/ async::task<bool> async_skip() noexcept;
+bool skip();                                // (1)
+async::task<bool> async_skip() noexcept;    // (2)
 ```
 
 Passes over the node [read](read.md) would give, without building it: an element with everything inside it, a

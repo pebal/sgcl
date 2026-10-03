@@ -3,8 +3,8 @@
 # sgcl::async::event::wait, operator co_await
 
 ```cpp
-/*(1)*/ void wait() const noexcept;
-/*(2)*/ wait_op operator co_await() const noexcept;
+void wait() const noexcept;                    // (1)
+wait_op operator co_await() const noexcept;    // (2)
 ```
 
 Waits for the event to be set; on an event set already, returns at once. An event is waited for as a task is

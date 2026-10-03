@@ -3,9 +3,9 @@
 # sgcl::deque\<T\>::operator=
 
 ```cpp
-/*(1)*/ deque& operator=(const deque& other);
-/*(2)*/ deque& operator=(deque&& other) noexcept;
-/*(3)*/ deque& operator=(std::initializer_list<T> ilist);
+deque& operator=(const deque& other);                // (1)
+deque& operator=(deque&& other) noexcept;            // (2)
+deque& operator=(std::initializer_list<T> ilist);    // (3)
 ```
 
 Replaces the elements of the deque.

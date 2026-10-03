@@ -3,8 +3,8 @@
 # sgcl::encoding::json::reader::skip, async_skip
 
 ```cpp
-/*(1)*/ bool skip();
-/*(2)*/ async::task<bool> async_skip() noexcept;
+bool skip();                                // (1)
+async::task<bool> async_skip() noexcept;    // (2)
 ```
 
 Checks the next value and passes over it: a scalar, or an array or an object to its closing bracket, every token

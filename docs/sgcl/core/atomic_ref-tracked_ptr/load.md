@@ -3,8 +3,8 @@
 # sgcl::atomic_ref\<tracked_ptr\<T\>\>::load, operator tracked_ptr\<T\>
 
 ```cpp
-/*(1)*/ tracked_ptr<T> load(const std::memory_order m = std::memory_order_seq_cst) const noexcept;
-/*(2)*/ operator tracked_ptr<T>() const noexcept;
+tracked_ptr<T> load(const std::memory_order m = std::memory_order_seq_cst) const noexcept;    // (1)
+operator tracked_ptr<T>() const noexcept;                                                     // (2)
 ```
 
 1. Reads the pointer viewed, as a `tracked_ptr` that holds the object: the word read twice around a hazard pointer

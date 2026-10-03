@@ -3,12 +3,12 @@
 # sgcl::encoding::json::save, async_save
 
 ```cpp
-/*(1)*/ template<class T> static expected<void, error> save(const string& path, const T& value);
-/*(2)*/ template<class T>
-        static async::task<expected<void, error>> async_save(string path, T value)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(3)*/ expected<void, error> save(const string& path) const;
-/*(4)*/ async::task<expected<void, error>> async_save(string path) const noexcept;
+template<class T> static expected<void, error> save(const string& path, const T& value);    // (1)
+template<class T>
+static async::task<expected<void, error>> async_save(string path, T value)                  // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
+expected<void, error> save(const string& path) const;                                       // (3)
+async::task<expected<void, error>> async_save(string path) const noexcept;                  // (4)
 ```
 
 A value into a file in one call: the file made or written over, the text compact and a new line after it.

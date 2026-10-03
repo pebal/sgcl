@@ -3,8 +3,8 @@
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::find
 
 ```cpp
-/*(1)*/ handle find(const T& value) const noexcept;
-/*(2)*/ template<class K> handle find(const K& value) const noexcept;
+handle find(const T& value) const noexcept;                      // (1)
+template<class K> handle find(const K& value) const noexcept;    // (2)
 ```
 
 Returns the canonical object of `value` when one is alive, and never makes one.

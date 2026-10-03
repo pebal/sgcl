@@ -3,8 +3,8 @@
 # sgcl::encoding::json::stringify
 
 ```cpp
-/*(1)*/ template<class T> static expected<string, error> stringify(const T& value);
-/*(2)*/ template<class T> static expected<string, error> stringify(const T& value, const style& s);
+template<class T> static expected<string, error> stringify(const T& value);                    // (1)
+template<class T> static expected<string, error> stringify(const T& value, const style& s);    // (2)
 ```
 
 The text of a program's value, Go's `json.Marshal` of a struct: `T` is a type described by its fields

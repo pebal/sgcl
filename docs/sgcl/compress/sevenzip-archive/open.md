@@ -3,19 +3,19 @@
 # sgcl::compress::sevenzip::archive::open, async_open
 
 ```cpp
-/*(1)*/ static expected<archive, error> open(const string& path) noexcept;
-/*(2)*/ static expected<archive, error> open(const string& path, const limits& l) noexcept;
-/*(3)*/ static expected<archive, error> open(const string& path, const options& o) noexcept;
-/*(4)*/ static async::task<expected<archive, error>> async_open(string path) noexcept;
-/*(5)*/ static async::task<expected<archive, error>> async_open(string path, limits l) noexcept;
-/*(6)*/ static async::task<expected<archive, error>> async_open(string path, options o) noexcept;
-/*(7)*/ static expected<archive, error> open(const io::file& file) noexcept;
-/*(8)*/ static expected<archive, error> open(const io::file& file, const limits& l) noexcept;
-/*(9)*/ static expected<archive, error> open(const io::file& file, const options& o) noexcept;
-/*(10)*/ static async::task<expected<archive, error>> async_open(io::file file) noexcept;
-/*(11)*/ static async::task<expected<archive, error>> async_open(io::file file, limits l) noexcept;
-/*(12)*/ static async::task<expected<archive, error>> async_open(io::file file,
-                                                                 options opt) noexcept;
+static expected<archive, error> open(const string& path) noexcept;                            // (1)
+static expected<archive, error> open(const string& path, const limits& l) noexcept;           // (2)
+static expected<archive, error> open(const string& path, const options& o) noexcept;          // (3)
+static async::task<expected<archive, error>> async_open(string path) noexcept;                // (4)
+static async::task<expected<archive, error>> async_open(string path, limits l) noexcept;      // (5)
+static async::task<expected<archive, error>> async_open(string path, options o) noexcept;     // (6)
+static expected<archive, error> open(const io::file& file) noexcept;                          // (7)
+static expected<archive, error> open(const io::file& file, const limits& l) noexcept;         // (8)
+static expected<archive, error> open(const io::file& file, const options& o) noexcept;        // (9)
+static async::task<expected<archive, error>> async_open(io::file file) noexcept;              // (10)
+static async::task<expected<archive, error>> async_open(io::file file, limits l) noexcept;    // (11)
+static async::task<expected<archive, error>> async_open(io::file file,                        // (12)
+                                                        options opt) noexcept;
 ```
 
 Opens an archive: reads the signature header and the header at the end — decoding it first when it is packed, and

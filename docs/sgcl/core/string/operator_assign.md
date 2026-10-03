@@ -3,17 +3,17 @@
 # sgcl::string::operator=
 
 ```cpp
-/*(1)*/ basic_string& operator=(const basic_string&) noexcept = default;
-/*(2)*/ basic_string& operator=(basic_string&&) noexcept = default;
-/*(3)*/ template<size_t N> basic_string& operator=(const CharT (&s)[N]);
-/*(4)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        basic_string& operator=(P s);
-/*(5)*/ basic_string& operator=(view_type s);
-/*(6)*/ template<class V>
-        requires std::is_convertible_v<const V&, view_type>
-              && (!std::is_convertible_v<const V&, const CharT*>)
-              && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
-        basic_string& operator=(const V& v);
+basic_string& operator=(const basic_string&) noexcept = default;                       // (1)
+basic_string& operator=(basic_string&&) noexcept = default;                            // (2)
+template<size_t N> basic_string& operator=(const CharT (&s)[N]);                       // (3)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+basic_string& operator=(P s);                                                          // (4)
+basic_string& operator=(view_type s);                                                  // (5)
+template<class V>
+requires std::is_convertible_v<const V&, view_type>
+      && (!std::is_convertible_v<const V&, const CharT*>)
+      && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
+basic_string& operator=(const V& v);                                                   // (6)
 ```
 
 Replaces the string with another one. The object the string held before is not touched: other strings may hold it,

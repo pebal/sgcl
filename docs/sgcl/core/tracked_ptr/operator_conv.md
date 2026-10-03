@@ -3,8 +3,8 @@
 # sgcl::tracked_ptr\<T\>::operator tracked_ptr\<void\>&
 
 ```cpp
-/*(1)*/ operator tracked_ptr<void>&() noexcept;
-/*(2)*/ operator const tracked_ptr<void>&() const noexcept;
+operator tracked_ptr<void>&() noexcept;                // (1)
+operator const tracked_ptr<void>&() const noexcept;    // (2)
 ```
 
 Every `tracked_ptr<T>` is a `tracked_ptr<void>&`: the same word seen without its type, so a function taking a

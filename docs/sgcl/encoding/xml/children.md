@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::children
 
 ```cpp
-/*(1)*/ slice<const xml> children() const noexcept;
-/*(2)*/ generator<xml> children(const string& name) const noexcept;
+slice<const xml> children() const noexcept;                    // (1)
+generator<xml> children(const string& name) const noexcept;    // (2)
 ```
 
 The nodes inside the element.

@@ -3,9 +3,9 @@
 # sgcl::codec::png::encode
 
 ```cpp
-/*(1)*/ static expected<vector<byte>, error> encode(const image& im, const options& o = {}) noexcept;
-/*(2)*/ static expected<void, error> encode(const image& im, const io::writer& out,
-                                            const options& o = {});
+static expected<vector<byte>, error> encode(const image& im, const options& o = {}) noexcept;    // (1)
+static expected<void, error> encode(const image& im, const io::writer& out,                      // (2)
+                                    const options& o = {});
 ```
 
 Encodes an image as a PNG file.

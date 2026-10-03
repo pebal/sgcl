@@ -3,8 +3,8 @@
 # sgcl::codec::heif::decode
 
 ```cpp
-/*(1)*/ static expected<image, error> decode(const slice<const byte>& data) noexcept;
-/*(2)*/ static expected<image, error> decode(const io::reader& in);
+static expected<image, error> decode(const slice<const byte>& data) noexcept;    // (1)
+static expected<image, error> decode(const io::reader& in);                      // (2)
 ```
 
 Decodes the first image of a HEIC, HEIF or AVIF file through the system's codec, ImageIO on macOS; on other systems

@@ -3,8 +3,8 @@
 # sgcl::atomic\<H\>::load, operator H
 
 ```cpp
-/*(1)*/ H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept;
-/*(2)*/ operator H() const noexcept;
+H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept;    // (1)
+operator H() const noexcept;                                                     // (2)
 ```
 
 1. Reads the handle: one atomic load of the word, with the hazard pointer of every atomic load

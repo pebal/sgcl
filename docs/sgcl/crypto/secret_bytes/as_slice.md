@@ -3,10 +3,10 @@
 # sgcl::crypto::secret_bytes::as_slice, operator slice\<const byte\>, operator slice\<byte\>
 
 ```cpp
-/*(1)*/ slice<const byte> as_slice() const noexcept;
-/*(2)*/ slice<byte> as_slice() noexcept;
-/*(3)*/ operator slice<const byte>() const noexcept;
-/*(4)*/ operator slice<byte>() & noexcept;
+slice<const byte> as_slice() const noexcept;    // (1)
+slice<byte> as_slice() noexcept;                // (2)
+operator slice<const byte>() const noexcept;    // (3)
+operator slice<byte>() & noexcept;              // (4)
 ```
 
 Returns the bytes as a slice without an owner over the secret's own memory, its inline bytes or its block, valid

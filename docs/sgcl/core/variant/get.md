@@ -6,18 +6,18 @@
 #include "sgcl/core/variant.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<size_t I, class... Ts>
-            variant_alternative_t<I, variant<Ts...>>& get(variant<Ts...>& v);
-    /*(2)*/ template<size_t I, class... Ts>
-            const variant_alternative_t<I, variant<Ts...>>& get(const variant<Ts...>& v);
-    /*(3)*/ template<size_t I, class... Ts>
-            variant_alternative_t<I, variant<Ts...>>&& get(variant<Ts...>&& v);
-    /*(4)*/ template<size_t I, class... Ts>
-            const variant_alternative_t<I, variant<Ts...>>&& get(const variant<Ts...>&& v);
-    /*(5)*/ template<class T, class... Ts> T& get(variant<Ts...>& v);
-    /*(6)*/ template<class T, class... Ts> const T& get(const variant<Ts...>& v);
-    /*(7)*/ template<class T, class... Ts> T&& get(variant<Ts...>&& v);
-    /*(8)*/ template<class T, class... Ts> const T&& get(const variant<Ts...>&& v);
+    template<size_t I, class... Ts>
+    variant_alternative_t<I, variant<Ts...>>& get(variant<Ts...>& v);                  // (1)
+    template<size_t I, class... Ts>
+    const variant_alternative_t<I, variant<Ts...>>& get(const variant<Ts...>& v);      // (2)
+    template<size_t I, class... Ts>
+    variant_alternative_t<I, variant<Ts...>>&& get(variant<Ts...>&& v);                // (3)
+    template<size_t I, class... Ts>
+    const variant_alternative_t<I, variant<Ts...>>&& get(const variant<Ts...>&& v);    // (4)
+    template<class T, class... Ts> T& get(variant<Ts...>& v);                          // (5)
+    template<class T, class... Ts> const T& get(const variant<Ts...>& v);              // (6)
+    template<class T, class... Ts> T&& get(variant<Ts...>&& v);                        // (7)
+    template<class T, class... Ts> const T&& get(const variant<Ts...>&& v);            // (8)
 }
 ```
 

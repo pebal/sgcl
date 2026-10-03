@@ -3,9 +3,9 @@
 # sgcl::weak_map\<Key, T\>::begin, cbegin
 
 ```cpp
-/*(1)*/ iterator begin() noexcept;
-/*(2)*/ const_iterator begin() const noexcept;
-/*(3)*/ const_iterator cbegin() const noexcept;
+iterator begin() noexcept;                 // (1)
+const_iterator begin() const noexcept;     // (2)
+const_iterator cbegin() const noexcept;    // (3)
 ```
 
 Returns an iterator to the first live entry, or [end](end.md) when there is none. The walk visits the live entries

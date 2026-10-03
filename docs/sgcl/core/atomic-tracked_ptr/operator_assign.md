@@ -3,10 +3,10 @@
 # sgcl::atomic\<tracked_ptr\<T\>\>::operator=
 
 ```cpp
-/*(1)*/ std::nullptr_t operator=(std::nullptr_t) noexcept;
-/*(2)*/ void operator=(unique_ptr<T>&& p) noexcept;
-/*(3)*/ value_type operator=(value_type p) noexcept;
-/*(4)*/ atomic& operator=(const atomic&) = delete;
+std::nullptr_t operator=(std::nullptr_t) noexcept;    // (1)
+void operator=(unique_ptr<T>&& p) noexcept;           // (2)
+value_type operator=(value_type p) noexcept;          // (3)
+atomic& operator=(const atomic&) = delete;            // (4)
 ```
 
 Stores a pointer, as `store` with `std::memory_order_seq_cst`.

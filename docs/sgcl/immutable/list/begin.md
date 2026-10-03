@@ -3,8 +3,8 @@
 # sgcl::immutable::list\<T\>::begin, cbegin
 
 ```cpp
-/*(1)*/ const_iterator begin() const noexcept;
-/*(2)*/ const_iterator cbegin() const noexcept;
+const_iterator begin() const noexcept;     // (1)
+const_iterator cbegin() const noexcept;    // (2)
 ```
 
 Returns an iterator to the first element; on an empty list it is equal to [end()](end.md).

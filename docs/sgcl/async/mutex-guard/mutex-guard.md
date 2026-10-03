@@ -3,9 +3,9 @@
 # sgcl::async::mutex::guard::guard
 
 ```cpp
-/*(1)*/ explicit guard(const mutex& m) noexcept;
-/*(2)*/ guard(guard&& o) noexcept;
-/*(3)*/ guard(const guard&) = delete;
+explicit guard(const mutex& m) noexcept;    // (1)
+guard(guard&& o) noexcept;                  // (2)
+guard(const guard&) = delete;               // (3)
 ```
 
 1. Takes over `m`, which the caller has locked: the guard locks nothing, and unlocks `m` when it is destroyed. The

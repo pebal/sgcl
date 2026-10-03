@@ -3,9 +3,9 @@
 # sgcl::encoding::xml::xml
 
 ```cpp
-/*(1)*/ xml() noexcept = default;
-/*(2)*/ explicit xml(const string& name);
-/*(3)*/ xml(const string& name, const string& text);
+xml() noexcept = default;                       // (1)
+explicit xml(const string& name);               // (2)
+xml(const string& name, const string& text);    // (3)
 ```
 
 Constructs a node.

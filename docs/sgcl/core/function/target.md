@@ -3,8 +3,8 @@
 # sgcl::function\<R(Args...)\>::target
 
 ```cpp
-/*(1)*/ template<class T> T* target() noexcept;
-/*(2)*/ template<class T> const T* target() const noexcept;
+template<class T> T* target() noexcept;                // (1)
+template<class T> const T* target() const noexcept;    // (2)
 ```
 
 A pointer to the callable held, when its type is `T` (compared by `typeid`, as [target_type](target_type.md) gives

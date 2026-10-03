@@ -3,8 +3,8 @@
 # sgcl::time::date::parse
 
 ```cpp
-/*(1)*/ static expected<date, error> parse(const string& text) noexcept;
-/*(2)*/ static expected<date, error> parse(const string& text, const string& pattern) noexcept;
+static expected<date, error> parse(const string& text) noexcept;                           // (1)
+static expected<date, error> parse(const string& text, const string& pattern) noexcept;    // (2)
 ```
 
 Reads a date from a text.

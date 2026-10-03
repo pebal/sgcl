@@ -3,8 +3,8 @@
 # sgcl::encoding::json::reader::more, async_more
 
 ```cpp
-/*(1)*/ bool more();
-/*(2)*/ async::task<bool> async_more() noexcept;
+bool more();                                // (1)
+async::task<bool> async_more() noexcept;    // (2)
 ```
 
 Checks whether the array or the object open has another element: whether what comes next is not its end. At the

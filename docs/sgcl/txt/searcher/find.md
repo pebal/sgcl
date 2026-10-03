@@ -3,11 +3,11 @@
 # sgcl::txt::searcher::find
 
 ```cpp
-/*(1)*/ size_t find(const string& text, size_t from = 0) const noexcept;
-/*(2)*/ size_t find(const slice<const char>& text, size_t from = 0) const noexcept;
-/*(3)*/ template<size_t N> size_t find(const char (&text)[N], size_t from = 0) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        size_t find(P text, size_t from = 0) const noexcept;
+size_t find(const string& text, size_t from = 0) const noexcept;                          // (1)
+size_t find(const slice<const char>& text, size_t from = 0) const noexcept;               // (2)
+template<size_t N> size_t find(const char (&text)[N], size_t from = 0) const noexcept;    // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+size_t find(P text, size_t from = 0) const noexcept;                                      // (4)
 ```
 
 Finds the first occurrence of the pattern in the text at or after the byte `from`, as `std::string::find` does with

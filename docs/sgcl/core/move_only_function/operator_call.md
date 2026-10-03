@@ -3,8 +3,8 @@
 # sgcl::move_only_function\<R(Args...)\>::operator()
 
 ```cpp
-/*(1)*/ R operator()(Args... args) noexcept(Noexcept) requires (!Const);
-/*(2)*/ R operator()(Args... args) const noexcept(Noexcept) requires Const;
+R operator()(Args... args) noexcept(Noexcept) requires (!Const);       // (1)
+R operator()(Args... args) const noexcept(Noexcept) requires Const;    // (2)
 ```
 
 Calls the callable with `args...`, forwarded, through `std::invoke`, and returns its result converted to `R`, or

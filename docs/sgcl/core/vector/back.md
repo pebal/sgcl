@@ -3,8 +3,8 @@
 # sgcl::vector\<T\>::back
 
 ```cpp
-/*(1)*/ reference back() noexcept;
-/*(2)*/ const_reference back() const noexcept;
+reference back() noexcept;                // (1)
+const_reference back() const noexcept;    // (2)
 ```
 
 Returns a reference to the last element, `(*this)[size() - 1]`. The vector must not be empty.

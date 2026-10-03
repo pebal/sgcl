@@ -3,9 +3,9 @@
 # sgcl::codec::webp::decode
 
 ```cpp
-/*(1)*/ static expected<image, error> decode(const slice<const byte>& data,
-                                             const decode_options& o = {}) noexcept;
-/*(2)*/ static expected<image, error> decode(const io::reader& in, const decode_options& o = {});
+static expected<image, error> decode(const slice<const byte>& data,                          // (1)
+                                     const decode_options& o = {}) noexcept;
+static expected<image, error> decode(const io::reader& in, const decode_options& o = {});    // (2)
 ```
 
 Decodes a still WebP image, or an animation's first frame on its canvas.

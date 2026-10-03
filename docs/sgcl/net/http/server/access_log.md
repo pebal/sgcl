@@ -3,8 +3,8 @@
 # sgcl::net::http::server::access_log
 
 ```cpp
-/*(1)*/ server& access_log(const slog::logger& log) noexcept;
-/*(2)*/ server& access_log();
+server& access_log(const slog::logger& log) noexcept;    // (1)
+server& access_log();                                    // (2)
 ```
 
 Writes a record of every exchange, when its response is finished, at `info`, and at `error` for a 5xx. The record's

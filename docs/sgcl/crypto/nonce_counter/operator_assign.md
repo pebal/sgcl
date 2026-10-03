@@ -3,8 +3,8 @@
 # sgcl::crypto::nonce_counter::operator=
 
 ```cpp
-/*(1)*/ nonce_counter& operator=(nonce_counter&& other) noexcept;
-/*(2)*/ nonce_counter& operator=(const nonce_counter&) = delete;
+nonce_counter& operator=(nonce_counter&& other) noexcept;    // (1)
+nonce_counter& operator=(const nonce_counter&) = delete;     // (2)
 ```
 
 1. Takes the place of `other` over, in place of this counter's own; `other` is spent, and its `next()` throws

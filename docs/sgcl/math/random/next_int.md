@@ -3,9 +3,9 @@
 # sgcl::math::random::next_int
 
 ```cpp
-/*(1)*/ int64_t next_int(int64_t bound);
-/*(2)*/ int64_t next_int(int64_t first, int64_t last);
-/*(3)*/ big_integer next_int(const big_integer& bound);
+int64_t next_int(int64_t bound);                   // (1)
+int64_t next_int(int64_t first, int64_t last);     // (2)
+big_integer next_int(const big_integer& bound);    // (3)
 ```
 
 A whole number drawn so that every value is as likely.

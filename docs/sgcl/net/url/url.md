@@ -3,8 +3,8 @@
 # sgcl::net::url::url
 
 ```cpp
-/*(1)*/ explicit url(const string& text);
-/*(2)*/ explicit url(const string& text, const url& base);
+explicit url(const string& text);                     // (1)
+explicit url(const string& text, const url& base);    // (2)
 ```
 
 Constructs the URL a literal in the program spells.

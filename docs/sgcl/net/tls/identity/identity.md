@@ -3,9 +3,9 @@
 # sgcl::net::tls::identity::identity
 
 ```cpp
-/*(1)*/ identity(const string& certificate_chain_pem, const slice<const byte>& key_pem);
-/*(2)*/ identity(const identity& other) noexcept;   // implicitly declared
-/*(3)*/ identity(identity&& other) noexcept;        // implicitly declared
+identity(const string& certificate_chain_pem, const slice<const byte>& key_pem);    // (1)
+identity(const identity& other) noexcept;                                           // (2), implicitly declared
+identity(identity&& other) noexcept;                                                // (3), implicitly declared
 ```
 
 1. An identity of the chain and the key, each in PEM, as [from_pem](from_pem.md) makes it; a chain or a key it

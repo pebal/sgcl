@@ -3,8 +3,8 @@
 # sgcl::immutable::vector\<T\>::set
 
 ```cpp
-/*(1)*/ vector set(size_type i, const T& value) const;
-/*(2)*/ vector set(size_type i, T&& value) const;
+vector set(size_type i, const T& value) const;    // (1)
+vector set(size_type i, T&& value) const;         // (2)
 ```
 
 Returns the vector with the element at `i` replaced. This vector is unchanged. The branches on the path to the

@@ -3,8 +3,8 @@
 # sgcl::crypto::aes_gcm::operator=
 
 ```cpp
-/*(1)*/ aes_gcm& operator=(aes_gcm&& other) noexcept;
-/*(2)*/ aes_gcm& operator=(const aes_gcm&) = delete;
+aes_gcm& operator=(aes_gcm&& other) noexcept;    // (1)
+aes_gcm& operator=(const aes_gcm&) = delete;     // (2)
 ```
 
 1. Takes the key of `other` over, written over the key this object held; `other` is overwritten with zeros and

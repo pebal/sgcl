@@ -3,8 +3,8 @@
 # sgcl::crypto::mlkem768::decapsulation_key::operator=
 
 ```cpp
-/*(1)*/ decapsulation_key& operator=(decapsulation_key&& other) noexcept;
-/*(2)*/ decapsulation_key& operator=(const decapsulation_key&) = delete;
+decapsulation_key& operator=(decapsulation_key&& other) noexcept;    // (1)
+decapsulation_key& operator=(const decapsulation_key&) = delete;     // (2)
 ```
 
 1. Replaces the key with the key of `other` and zeroes `other` whole: the key this object held before is

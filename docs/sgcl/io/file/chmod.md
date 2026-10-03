@@ -3,8 +3,8 @@
 # sgcl::io::file::chmod, async_chmod
 
 ```cpp
-/*(1)*/ expected<void, error> chmod(permissions p) const noexcept;
-/*(2)*/ async::task<expected<void, error>> async_chmod(permissions p) const noexcept;
+expected<void, error> chmod(permissions p) const noexcept;                       // (1)
+async::task<expected<void, error>> async_chmod(permissions p) const noexcept;    // (2)
 ```
 
 Sets the permissions of the open file to `p`: the `fchmod(2)` of the descriptor. The umask does not apply.

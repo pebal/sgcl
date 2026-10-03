@@ -3,8 +3,8 @@
 # sgcl::sorted_map\<Key, T, Compare\>::count
 
 ```cpp
-/*(1)*/ size_type count(const key_type& key) const noexcept;
-/*(2)*/ template<class K> size_type count(const K& key) const noexcept(/* see below */);
+size_type count(const key_type& key) const noexcept;                                // (1)
+template<class K> size_type count(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns the number of elements under `key`: 0 or 1, the keys being unique.

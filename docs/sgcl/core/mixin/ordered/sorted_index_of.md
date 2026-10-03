@@ -3,10 +3,10 @@
 # sgcl::mixin::ordered\<Derived\>::sorted_index_of
 
 ```cpp
-/*(1)*/ constexpr size_t sorted_index_of(const auto& value) const noexcept(/* see below */);
-/*(2)*/ template<class Compare>
-        constexpr size_t sorted_index_of(const auto& value,
-                                         Compare cmp) const noexcept(/* see below */);
+constexpr size_t sorted_index_of(const auto& value) const noexcept(/* see below */);    // (1)
+template<class Compare>
+constexpr size_t sorted_index_of(const auto& value,                                     // (2)
+                                 Compare cmp) const noexcept(/* see below */);
 ```
 
 Finds the position of an element equivalent to `value` in a sorted range, by a binary search: the first of the

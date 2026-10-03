@@ -3,16 +3,16 @@
 # sgcl::expected\<T, E\>::value, operator U
 
 ```cpp
-/*(1)*/ const T& value() const&;
-/*(2)*/ T& value() &;
-/*(3)*/ const T&& value() const&&;
-/*(4)*/ T&& value() &&;
-/*(5)*/ template<class U>
-        requires (!std::same_as<std::remove_cvref_t<U>, bool>) && std::is_convertible_v<const T&, U>
-        operator U() const&;
-/*(6)*/ template<class U>
-        requires (!std::same_as<std::remove_cvref_t<U>, bool>) && std::is_convertible_v<T&&, U>
-        operator U() &&;
+const T& value() const&;                                                                        // (1)
+T& value() &;                                                                                   // (2)
+const T&& value() const&&;                                                                      // (3)
+T&& value() &&;                                                                                 // (4)
+template<class U>
+requires (!std::same_as<std::remove_cvref_t<U>, bool>) && std::is_convertible_v<const T&, U>
+operator U() const&;                                                                            // (5)
+template<class U>
+requires (!std::same_as<std::remove_cvref_t<U>, bool>) && std::is_convertible_v<T&&, U>
+operator U() &&;                                                                                // (6)
 ```
 
 The value; without one, `bad_expected_access<E>` carrying a copy of the error (moved from an rvalue `expected`).

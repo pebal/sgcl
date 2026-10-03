@@ -3,15 +3,15 @@
 # sgcl::txt::bidi_runs::bidi_runs
 
 ```cpp
-/*(1)*/ bidi_runs() noexcept = default;
-/*(2)*/ explicit bidi_runs(const string& text, direction paragraph = direction::automatic) noexcept;
-/*(3)*/ template<size_t N>
-        explicit bidi_runs(const char (&text)[N], direction paragraph = direction::automatic);
-/*(4)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit bidi_runs(P text, direction paragraph = direction::automatic);
-/*(5)*/ explicit bidi_runs(const slice<const char>& text,
-                           direction paragraph = direction::automatic) noexcept;
+bidi_runs() noexcept = default;                                                                 // (1)
+explicit bidi_runs(const string& text, direction paragraph = direction::automatic) noexcept;    // (2)
+template<size_t N>
+explicit bidi_runs(const char (&text)[N], direction paragraph = direction::automatic);          // (3)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit bidi_runs(P text, direction paragraph = direction::automatic);                         // (4)
+explicit bidi_runs(const slice<const char>& text,                                               // (5)
+                   direction paragraph = direction::automatic) noexcept;
 ```
 
 Constructs the pieces of a text in the order they are drawn: the bidirectional algorithm of

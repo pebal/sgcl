@@ -3,8 +3,8 @@
 # sgcl::queue\<T, Container\>::back
 
 ```cpp
-/*(1)*/ reference back() noexcept(noexcept(c.back()));
-/*(2)*/ const_reference back() const noexcept(noexcept(c.back()));
+reference back() noexcept(noexcept(c.back()));                // (1)
+const_reference back() const noexcept(noexcept(c.back()));    // (2)
 ```
 
 Returns a reference to the last element, the newest one, the last [push](push.md) appended: `c.back()`. The

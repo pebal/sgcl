@@ -3,8 +3,8 @@
 # sgcl::compress::tar::reader::next, async_next
 
 ```cpp
-/*(1)*/ expected<optional<entry>, error> next();
-/*(2)*/ async::task<expected<optional<entry>, error>> async_next() noexcept;
+expected<optional<entry>, error> next();                                // (1)
+async::task<expected<optional<entry>, error>> async_next() noexcept;    // (2)
 ```
 
 Goes to the next entry: skips what is left of the current entry's data, reads the headers before the next one —

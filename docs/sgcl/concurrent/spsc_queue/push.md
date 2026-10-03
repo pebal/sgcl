@@ -3,8 +3,8 @@
 # sgcl::concurrent::spsc_queue\<T\>::push
 
 ```cpp
-/*(1)*/ void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
+void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
 ```
 
 The producer's. Appends an element at the end of the queue, waiting for room while the queue is full.

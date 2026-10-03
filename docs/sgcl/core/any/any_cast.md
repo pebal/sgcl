@@ -6,17 +6,17 @@
 #include "sgcl/core/any.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T, class U = std::remove_cvref_t<T>>
-            requires std::is_constructible_v<T, const U&>
-            T any_cast(const any& a);
-    /*(2)*/ template<class T, class U = std::remove_cvref_t<T>>
-            requires std::is_constructible_v<T, U&>
-            T any_cast(any& a);
-    /*(3)*/ template<class T, class U = std::remove_cvref_t<T>>
-            requires std::is_constructible_v<T, U>
-            T any_cast(any&& a);
-    /*(4)*/ template<class T> const T* any_cast(const any* a) noexcept;
-    /*(5)*/ template<class T> T* any_cast(any* a) noexcept;
+    template<class T, class U = std::remove_cvref_t<T>>
+    requires std::is_constructible_v<T, const U&>
+    T any_cast(const any& a);                                      // (1)
+    template<class T, class U = std::remove_cvref_t<T>>
+    requires std::is_constructible_v<T, U&>
+    T any_cast(any& a);                                            // (2)
+    template<class T, class U = std::remove_cvref_t<T>>
+    requires std::is_constructible_v<T, U>
+    T any_cast(any&& a);                                           // (3)
+    template<class T> const T* any_cast(const any* a) noexcept;    // (4)
+    template<class T> T* any_cast(any* a) noexcept;                // (5)
 }
 ```
 

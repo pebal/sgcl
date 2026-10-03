@@ -3,10 +3,10 @@
 # sgcl::sorted_set\<Key, Compare\>::erase
 
 ```cpp
-/*(1)*/ iterator erase(const_iterator pos) noexcept;
-/*(2)*/ iterator erase(const_iterator first, const_iterator last) noexcept;
-/*(3)*/ size_type erase(const key_type& key) noexcept;
-/*(4)*/ template<class K> size_type erase(K&& key) noexcept(/* see below */);
+iterator erase(const_iterator pos) noexcept;                             // (1)
+iterator erase(const_iterator first, const_iterator last) noexcept;      // (2)
+size_type erase(const key_type& key) noexcept;                           // (3)
+template<class K> size_type erase(K&& key) noexcept(/* see below */);    // (4)
 ```
 
 Erases elements: each is destroyed at once and its node unlinked from the tree; the collector reclaims the node

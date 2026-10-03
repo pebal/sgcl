@@ -3,9 +3,9 @@
 # sgcl::txt::format_sink::put
 
 ```cpp
-/*(1)*/ constexpr void put(char c) noexcept;
-/*(2)*/ constexpr void put(const char* text, size_t n) noexcept;
-/*(3)*/ constexpr void put(std::string_view text) noexcept;
+constexpr void put(char c) noexcept;                        // (1)
+constexpr void put(const char* text, size_t n) noexcept;    // (2)
+constexpr void put(std::string_view text) noexcept;         // (3)
 ```
 
 Writes characters where the sink stands and moves it on; what does not fit in the room is counted and dropped.

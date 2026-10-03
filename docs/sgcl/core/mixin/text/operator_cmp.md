@@ -3,16 +3,16 @@
 # sgcl::mixin::operator==, operator\<=\> (sgcl::mixin::text)
 
 ```cpp
-/*(1)*/ friend bool operator==(const Derived& a, view_type s) noexcept;
-/*(2)*/ template<size_t N>
-        friend bool operator==(const Derived& a, const CharT (&s)[N]) noexcept;
-/*(3)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        friend bool operator==(const Derived& a, P s) noexcept;
-/*(4)*/ friend std::strong_ordering operator<=>(const Derived& a, view_type s) noexcept;
-/*(5)*/ template<size_t N>
-        friend std::strong_ordering operator<=>(const Derived& a, const CharT (&s)[N]) noexcept;
-/*(6)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        friend std::strong_ordering operator<=>(const Derived& a, P s) noexcept;
+friend bool operator==(const Derived& a, view_type s) noexcept;                             // (1)
+template<size_t N>
+friend bool operator==(const Derived& a, const CharT (&s)[N]) noexcept;                     // (2)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+friend bool operator==(const Derived& a, P s) noexcept;                                     // (3)
+friend std::strong_ordering operator<=>(const Derived& a, view_type s) noexcept;            // (4)
+template<size_t N>
+friend std::strong_ordering operator<=>(const Derived& a, const CharT (&s)[N]) noexcept;    // (5)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+friend std::strong_ordering operator<=>(const Derived& a, P s) noexcept;                    // (6)
 ```
 
 Compare a string or a text slice with another text by the characters, as `std::basic_string_view`'s `==` and `<=>`

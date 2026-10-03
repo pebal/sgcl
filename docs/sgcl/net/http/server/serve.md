@@ -3,10 +3,10 @@
 # sgcl::net::http::server::serve, async_serve
 
 ```cpp
-/*(1)*/ expected<void, io::error> serve(const string& address) const;
-/*(2)*/ async::task<expected<void, io::error>> async_serve(const string& address) const noexcept;
-/*(3)*/ expected<void, io::error> serve(const net::listener& l) const;
-/*(4)*/ async::task<expected<void, io::error>> async_serve(const net::listener& l) const noexcept;
+expected<void, io::error> serve(const string& address) const;                                 // (1)
+async::task<expected<void, io::error>> async_serve(const string& address) const noexcept;     // (2)
+expected<void, io::error> serve(const net::listener& l) const;                                // (3)
+async::task<expected<void, io::error>> async_serve(const net::listener& l) const noexcept;    // (4)
 ```
 
 Serves until [shutdown](shutdown.md) or [close](close.md): accepts each connection and runs it in a task of its own

@@ -3,13 +3,13 @@
 # sgcl::txt::regex::split
 
 ```cpp
-/*(1)*/ vector<slice<const char>> split(const slice<const char>& text,
-                                        size_t limit = 0) const noexcept;
-/*(2)*/ vector<slice<const char>> split(const string& text, size_t limit = 0) const noexcept;
-/*(3)*/ template<size_t N>
-        vector<slice<const char>> split(const char (&text)[N], size_t limit = 0) const;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        vector<slice<const char>> split(P text, size_t limit = 0) const;
+vector<slice<const char>> split(const slice<const char>& text,                           // (1)
+                                size_t limit = 0) const noexcept;
+vector<slice<const char>> split(const string& text, size_t limit = 0) const noexcept;    // (2)
+template<size_t N>
+vector<slice<const char>> split(const char (&text)[N], size_t limit = 0) const;          // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+vector<slice<const char>> split(P text, size_t limit = 0) const;                         // (4)
 ```
 
 Returns the pieces of the text between the matches of the pattern, as slices of it: Python's `re.split` without the

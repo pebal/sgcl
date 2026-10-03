@@ -3,11 +3,11 @@
 # sgcl::async::operation\<F\>::wait, await_ready, await_suspend, await_resume
 
 ```cpp
-/*(1)*/ decltype(auto) wait() && noexcept(/* see below */);
-/*(2)*/ bool await_ready() noexcept(/* see below */);
-/*(3)*/ template<class H>
-        decltype(auto) await_suspend(H h) noexcept(/* see below */);
-/*(4)*/ decltype(auto) await_resume() noexcept(/* see below */);
+decltype(auto) wait() && noexcept(/* see below */);             // (1)
+bool await_ready() noexcept(/* see below */);                   // (2)
+template<class H>
+decltype(auto) await_suspend(H h) noexcept(/* see below */);    // (3)
+decltype(auto) await_resume() noexcept(/* see below */);        // (4)
 ```
 
 Carry the operation out, in one of its two ways.

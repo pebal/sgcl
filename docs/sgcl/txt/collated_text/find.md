@@ -3,8 +3,8 @@
 # sgcl::txt::collated_text::find
 
 ```cpp
-/*(1)*/ optional<match> find(const searcher_type& pattern, size_t from = 0) const noexcept;
-/*(2)*/ optional<match> find(const string& pattern, size_t from = 0) const noexcept;
+optional<match> find(const searcher_type& pattern, size_t from = 0) const noexcept;    // (1)
+optional<match> find(const string& pattern, size_t from = 0) const noexcept;           // (2)
 ```
 
 Finds where a pattern is in the weighed text at or after the byte `from`, counting as equal what the collator

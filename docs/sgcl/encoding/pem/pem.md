@@ -3,9 +3,9 @@
 # sgcl::encoding::pem::pem
 
 ```cpp
-/*(1)*/ pem(const string& type, vector<byte> bytes);
-/*(2)*/ pem(const string& type, vector<byte> bytes, ordered_map<string, string> headers);
-/*(3)*/ explicit pem(const string& text);
+pem(const string& type, vector<byte> bytes);                                         // (1)
+pem(const string& type, vector<byte> bytes, ordered_map<string, string> headers);    // (2)
+explicit pem(const string& text);                                                    // (3)
 ```
 
 Constructs a block. There is no empty block: a `pem` is made of its parts, or of a text.

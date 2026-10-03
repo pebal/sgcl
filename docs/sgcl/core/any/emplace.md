@@ -3,14 +3,14 @@
 # sgcl::any::emplace
 
 ```cpp
-/*(1)*/ template<class T, class... A, class VT = std::decay_t<T>>
-        requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
-        VT& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>);
-/*(2)*/ template<class T, class U, class... A, class VT = std::decay_t<T>>
-        requires std::is_constructible_v<VT, std::initializer_list<U>&, A...>
-                 && std::is_copy_constructible_v<VT>
-        VT& emplace(std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>);
+template<class T, class... A, class VT = std::decay_t<T>>
+requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
+VT& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>);             // (1)
+template<class T, class U, class... A, class VT = std::decay_t<T>>
+requires std::is_constructible_v<VT, std::initializer_list<U>&, A...>
+         && std::is_copy_constructible_v<VT>
+VT& emplace(std::initializer_list<U> il, A&&... a)                                     // (2)
+    noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>);
 ```
 
 Destroys the value held, if any, and constructs a `VT` in its place, placed as the [constructor](any.md) places

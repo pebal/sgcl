@@ -3,8 +3,8 @@
 # sgcl::encoding::json::as_string
 
 ```cpp
-/*(1)*/ optional<string> as_string() const noexcept;
-/*(2)*/ string as_string(const string& fallback) const noexcept;
+optional<string> as_string() const noexcept;                // (1)
+string as_string(const string& fallback) const noexcept;    // (2)
 ```
 
 The string of the value, its characters with the escapes of the text decoded. The [string](../../core/string.md)

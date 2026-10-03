@@ -3,8 +3,8 @@
 # sgcl::crypto::secret_bytes::operator=
 
 ```cpp
-/*(1)*/ secret_bytes& operator=(secret_bytes&&) noexcept = default;
-/*(2)*/ secret_bytes& operator=(const secret_bytes&) = delete;
+secret_bytes& operator=(secret_bytes&&) noexcept = default;    // (1)
+secret_bytes& operator=(const secret_bytes&) = delete;         // (2)
 ```
 
 1. Zeroes and lets go of what this secret held, and takes the bytes of the other over: a block is handed on, inline

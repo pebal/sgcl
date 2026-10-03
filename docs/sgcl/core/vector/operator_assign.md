@@ -3,9 +3,9 @@
 # sgcl::vector\<T\>::operator=
 
 ```cpp
-/*(1)*/ vector& operator=(const vector& other);
-/*(2)*/ vector& operator=(vector&& other) noexcept;
-/*(3)*/ vector& operator=(std::initializer_list<T> ilist);
+vector& operator=(const vector& other);               // (1)
+vector& operator=(vector&& other) noexcept;           // (2)
+vector& operator=(std::initializer_list<T> ilist);    // (3)
 ```
 
 Replaces the elements of the vector.

@@ -3,10 +3,10 @@
 # sgcl::operator==, operator\<=\> (sgcl::queue)
 
 ```cpp
-/*(1)*/ friend bool operator==(const queue& lhs, const queue& rhs)
-            requires std::equality_comparable<Container>;
-/*(2)*/ friend auto operator<=>(const queue& lhs, const queue& rhs)
-            requires std::three_way_comparable<Container>;
+friend bool operator==(const queue& lhs, const queue& rhs)     // (1)
+    requires std::equality_comparable<Container>;
+friend auto operator<=>(const queue& lhs, const queue& rhs)    // (2)
+    requires std::three_way_comparable<Container>;
 ```
 
 Compares two queues by their containers, front to back.

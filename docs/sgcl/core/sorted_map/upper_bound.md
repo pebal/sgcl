@@ -3,10 +3,10 @@
 # sgcl::sorted_map\<Key, T, Compare\>::upper_bound
 
 ```cpp
-/*(1)*/ iterator upper_bound(const key_type& key) noexcept;
-/*(2)*/ const_iterator upper_bound(const key_type& key) const noexcept;
-/*(3)*/ template<class K> iterator upper_bound(const K& key) noexcept(/* see below */);
-/*(4)*/ template<class K> const_iterator upper_bound(const K& key) const noexcept(/* see below */);
+iterator upper_bound(const key_type& key) noexcept;                                            // (1)
+const_iterator upper_bound(const key_type& key) const noexcept;                                // (2)
+template<class K> iterator upper_bound(const K& key) noexcept(/* see below */);                // (3)
+template<class K> const_iterator upper_bound(const K& key) const noexcept(/* see below */);    // (4)
 ```
 
 Returns an iterator to the first element whose key is greater than `key`, as in `std::map`: the end of a range

@@ -3,8 +3,8 @@
 # sgcl::net::udp::bind, async_bind
 
 ```cpp
-/*(1)*/ static expected<udp::socket, io::error> bind(const string& address) noexcept;
-/*(2)*/ static async::task<expected<udp::socket, io::error>> async_bind(const string& address) noexcept;
+static expected<udp::socket, io::error> bind(const string& address) noexcept;                       // (1)
+static async::task<expected<udp::socket, io::error>> async_bind(const string& address) noexcept;    // (2)
 ```
 
 Makes a UDP socket bound to `address`, which receives datagrams from anyone and sends them to any address: Go's

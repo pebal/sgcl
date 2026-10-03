@@ -3,8 +3,8 @@
 # sgcl::operator==, operator\<=\> (sgcl::dynamic_array)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const dynamic_array& a, const dynamic_array& b);
-/*(2)*/ friend constexpr auto operator<=>(const dynamic_array& a, const dynamic_array& b);
+friend constexpr bool operator==(const dynamic_array& a, const dynamic_array& b);     // (1)
+friend constexpr auto operator<=>(const dynamic_array& a, const dynamic_array& b);    // (2)
 ```
 
 Compares two arrays element by element. The operators come with [mixin::equatable](../mixin/equatable.md) and

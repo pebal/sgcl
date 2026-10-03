@@ -3,9 +3,9 @@
 # sgcl::encoding::hex::encoder::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> write(const slice<const byte>& data) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const
-            noexcept;
+expected<size_t, io::error> write(const slice<const byte>& data) const;                      // (1)
+async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const    // (2)
+    noexcept;
 ```
 
 Writes the lower-case digits of `data` to the writer under the encoder, through the encoder's block of 8 KB. A

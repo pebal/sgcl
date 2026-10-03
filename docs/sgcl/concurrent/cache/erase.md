@@ -3,8 +3,8 @@
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::erase
 
 ```cpp
-/*(1)*/ bool erase(const Key& key) noexcept;
-/*(2)*/ template<class K> bool erase(const K& key) noexcept;
+bool erase(const Key& key) noexcept;                    // (1)
+template<class K> bool erase(const K& key) noexcept;    // (2)
 ```
 
 Erases the entry under `key`, if there is one.

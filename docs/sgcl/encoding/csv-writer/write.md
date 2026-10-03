@@ -3,17 +3,17 @@
 # sgcl::encoding::csv::writer::write
 
 ```cpp
-/*(1)*/ writer& write(std::initializer_list<string> fields) noexcept;
-/*(2)*/ writer& write(const row& r) noexcept;
-/*(3)*/ template<class R>
-        requires std::ranges::input_range<const R&>
-            && (std::is_convertible_v<std::ranges::range_reference_t<const R&>, std::string_view>
-                || std::is_convertible_v<std::ranges::range_reference_t<const R&>, string>
-                || std::is_same_v<std::remove_cvref_t<std::ranges::range_reference_t<const R&>>,
-                                  slice<const char>>)
-        writer& write(const R& fields);
-/*(4)*/ template<class T>
-        writer& write(const T& record);
+writer& write(std::initializer_list<string> fields) noexcept;                                // (1)
+writer& write(const row& r) noexcept;                                                        // (2)
+template<class R>
+requires std::ranges::input_range<const R&>
+    && (std::is_convertible_v<std::ranges::range_reference_t<const R&>, std::string_view>
+        || std::is_convertible_v<std::ranges::range_reference_t<const R&>, string>
+        || std::is_same_v<std::remove_cvref_t<std::ranges::range_reference_t<const R&>>,
+                          slice<const char>>)
+writer& write(const R& fields);                                                              // (3)
+template<class T>
+writer& write(const T& record);                                                              // (4)
 ```
 
 Writes a record, Go's `Write`: the fields one after another with the separator between them, each quoted when it

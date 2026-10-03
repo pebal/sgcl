@@ -6,10 +6,10 @@
 #include "sgcl/compress/zip.h"   // or "sgcl/compress.h"
 
 namespace sgcl::compress::zip {
-    /*(1)*/ expected<void, error> extract(const string& archive_path, const string& directory,
-                                          const options& o = {});
-    /*(2)*/ async::task<expected<void, error>> async_extract(string archive_path, string directory,
-                                                             options o = {}) noexcept;
+    expected<void, error> extract(const string& archive_path, const string& directory,         // (1)
+                                  const options& o = {});
+    async::task<expected<void, error>> async_extract(string archive_path, string directory,    // (2)
+                                                     options o = {}) noexcept;
 }
 ```
 

@@ -3,8 +3,8 @@
 # sgcl::io::command::run, async_run
 
 ```cpp
-/*(1)*/ expected<void, error> run();
-/*(2)*/ async::task<expected<void, error>> async_run() noexcept;
+expected<void, error> run();                                // (1)
+async::task<expected<void, error>> async_run() noexcept;    // (2)
 ```
 
 Starts the child and waits for it to end, Go's `Cmd.Run`: [start](start.md), then [wait](wait.md).

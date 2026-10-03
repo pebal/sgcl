@@ -3,13 +3,13 @@
 # sgcl::sorted_multimap\<Key, T, Compare\>::equal_range
 
 ```cpp
-/*(1)*/ std::pair<iterator, iterator> equal_range(const key_type& key) noexcept;
-/*(2)*/ std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const noexcept;
-/*(3)*/ template<class K>
-        std::pair<iterator, iterator> equal_range(const K& key) noexcept(/* see below */);
-/*(4)*/ template<class K>
-        std::pair<const_iterator, const_iterator> equal_range(const K& key) const
-            noexcept(/* see below */);
+std::pair<iterator, iterator> equal_range(const key_type& key) noexcept;                      // (1)
+std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const noexcept;    // (2)
+template<class K>
+std::pair<iterator, iterator> equal_range(const K& key) noexcept(/* see below */);            // (3)
+template<class K>
+std::pair<const_iterator, const_iterator> equal_range(const K& key) const                     // (4)
+    noexcept(/* see below */);
 ```
 
 Returns the run of the elements under `key`, in the order they were inserted: [lower_bound](lower_bound.md) its

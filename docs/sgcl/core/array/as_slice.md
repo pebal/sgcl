@@ -3,12 +3,12 @@
 # sgcl::array\<T, N\>::as_slice, operator slice
 
 ```cpp
-/*(1)*/ slice<T> as_slice() noexcept;
-/*(2)*/ slice<const T> as_slice() const noexcept;
-/*(3)*/ slice<T> as_slice(size_type pos, size_type n = size_type(-1));
-/*(4)*/ slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const;
-/*(5)*/ operator slice<T>() noexcept;
-/*(6)*/ operator slice<const T>() const noexcept;
+slice<T> as_slice() noexcept;                                                 // (1)
+slice<const T> as_slice() const noexcept;                                     // (2)
+slice<T> as_slice(size_type pos, size_type n = size_type(-1));                // (3)
+slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const;    // (4)
+operator slice<T>() noexcept;                                                 // (5)
+operator slice<const T>() const noexcept;                                     // (6)
 ```
 
 Returns the elements as a [slice](../slice.md) without an owner, as a C array and a `std::array` give one: the

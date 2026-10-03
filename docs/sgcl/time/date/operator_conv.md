@@ -3,8 +3,8 @@
 # sgcl::time::date::operator std::chrono::year_month_day, operator std::chrono::sys_days
 
 ```cpp
-/*(1)*/ constexpr explicit operator std::chrono::year_month_day() const noexcept;
-/*(2)*/ constexpr explicit operator std::chrono::sys_days() const noexcept;
+constexpr explicit operator std::chrono::year_month_day() const noexcept;    // (1)
+constexpr explicit operator std::chrono::sys_days() const noexcept;          // (2)
 ```
 
 Converts the date into the calendar of `<chrono>`, explicitly: `std::chrono::year_month_day(d)`,

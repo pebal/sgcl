@@ -3,9 +3,9 @@
 # sgcl::multiset\<Key, Hash, KeyEqual\>::swap
 
 ```cpp
-/*(1)*/ void swap(multiset& other) noexcept(std::is_nothrow_swappable_v<hasher> &&
-                                            std::is_nothrow_swappable_v<key_equal>);
-/*(2)*/ friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs)));
+void swap(multiset& other) noexcept(std::is_nothrow_swappable_v<hasher> &&           // (1)
+                                    std::is_nothrow_swappable_v<key_equal>);
+friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs)));    // (2)
 ```
 
 Exchanges the contents of two multisets: the tables, the counts, the load factors, the hashers and the

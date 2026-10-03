@@ -3,8 +3,8 @@
 # sgcl::atomic\<H\>::operator=
 
 ```cpp
-/*(1)*/ H operator=(const H& h) noexcept;
-/*(2)*/ atomic& operator=(const atomic&) = delete;
+H operator=(const H& h) noexcept;             // (1)
+atomic& operator=(const atomic&) = delete;    // (2)
 ```
 
 1. `store(h)`, with `std::memory_order_seq_cst`: the atomic holds the object `h` holds.

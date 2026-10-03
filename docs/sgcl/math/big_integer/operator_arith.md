@@ -3,37 +3,37 @@
 # sgcl::math::big_integer::operator-, operator~, operator+=, operator-=, operator\*=, operator/=, operator%=, operator&=, operator|=, operator^=, operator\<\<=, operator\>\>=, sgcl::math::operator+, operator-, operator\*, operator/, operator%, operator&, operator|, operator^, operator\<\<, operator\>\> (sgcl::math::big_integer)
 
 ```cpp
-/*(1)*/ friend big_integer operator+(const big_integer& a, const big_integer& b) noexcept;
-/*(2)*/ friend big_integer operator-(const big_integer& a, const big_integer& b) noexcept;
-/*(3)*/ friend big_integer operator*(const big_integer& a, const big_integer& b) noexcept;
-/*(4)*/ friend big_integer operator/(const big_integer& a, const big_integer& b);
-/*(5)*/ friend big_integer operator%(const big_integer& a, const big_integer& b);
-/*(6)*/ big_integer operator-() const noexcept;
-/*(7)*/ friend big_integer operator&(const big_integer& a, const big_integer& b) noexcept;
-/*(8)*/ friend big_integer operator|(const big_integer& a, const big_integer& b) noexcept;
-/*(9)*/ friend big_integer operator^(const big_integer& a, const big_integer& b) noexcept;
-/*(10)*/ big_integer operator~() const noexcept;
-/*(11)*/ template<std::integral T>
-         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-         friend big_integer operator<<(const big_integer& a, T bits);
-/*(12)*/ template<std::integral T>
-         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-         friend big_integer operator>>(const big_integer& a, T bits)
-             noexcept(std::is_unsigned_v<T>);
-/*(13)*/ big_integer& operator+=(const big_integer& b) noexcept;
-/*(14)*/ big_integer& operator-=(const big_integer& b) noexcept;
-/*(15)*/ big_integer& operator*=(const big_integer& b) noexcept;
-/*(16)*/ big_integer& operator/=(const big_integer& b);
-/*(17)*/ big_integer& operator%=(const big_integer& b);
-/*(18)*/ big_integer& operator&=(const big_integer& b) noexcept;
-/*(19)*/ big_integer& operator|=(const big_integer& b) noexcept;
-/*(20)*/ big_integer& operator^=(const big_integer& b) noexcept;
-/*(21)*/ template<std::integral T>
-         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-         big_integer& operator<<=(T bits);
-/*(22)*/ template<std::integral T>
-         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-         big_integer& operator>>=(T bits) noexcept(std::is_unsigned_v<T>);
+friend big_integer operator+(const big_integer& a, const big_integer& b) noexcept;    // (1)
+friend big_integer operator-(const big_integer& a, const big_integer& b) noexcept;    // (2)
+friend big_integer operator*(const big_integer& a, const big_integer& b) noexcept;    // (3)
+friend big_integer operator/(const big_integer& a, const big_integer& b);             // (4)
+friend big_integer operator%(const big_integer& a, const big_integer& b);             // (5)
+big_integer operator-() const noexcept;                                               // (6)
+friend big_integer operator&(const big_integer& a, const big_integer& b) noexcept;    // (7)
+friend big_integer operator|(const big_integer& a, const big_integer& b) noexcept;    // (8)
+friend big_integer operator^(const big_integer& a, const big_integer& b) noexcept;    // (9)
+big_integer operator~() const noexcept;                                               // (10)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
+friend big_integer operator<<(const big_integer& a, T bits);                          // (11)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
+friend big_integer operator>>(const big_integer& a, T bits)                           // (12)
+    noexcept(std::is_unsigned_v<T>);
+big_integer& operator+=(const big_integer& b) noexcept;                               // (13)
+big_integer& operator-=(const big_integer& b) noexcept;                               // (14)
+big_integer& operator*=(const big_integer& b) noexcept;                               // (15)
+big_integer& operator/=(const big_integer& b);                                        // (16)
+big_integer& operator%=(const big_integer& b);                                        // (17)
+big_integer& operator&=(const big_integer& b) noexcept;                               // (18)
+big_integer& operator|=(const big_integer& b) noexcept;                               // (19)
+big_integer& operator^=(const big_integer& b) noexcept;                               // (20)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
+big_integer& operator<<=(T bits);                                                     // (21)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
+big_integer& operator>>=(T bits) noexcept(std::is_unsigned_v<T>);                     // (22)
 ```
 
 The arithmetic of whole numbers, as an `int`'s but for overflow, which does not happen. The binary operators are

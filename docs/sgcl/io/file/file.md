@@ -3,9 +3,9 @@
 # sgcl::io::file::file
 
 ```cpp
-/*(1)*/ file() noexcept = default;
-/*(2)*/ file(const file& other) noexcept;   // implicitly declared
-/*(3)*/ file(file&& other) noexcept;        // implicitly declared
+file() noexcept = default;           // (1)
+file(const file& other) noexcept;    // (2), implicitly declared
+file(file&& other) noexcept;         // (3), implicitly declared
 ```
 
 1. A handle that holds no file: `!f`. An operation on it is a contract violation (debug builds assert); it is given

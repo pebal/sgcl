@@ -3,8 +3,8 @@
 # sgcl::async::wait_group::operator=
 
 ```cpp
-/*(1)*/ wait_group& operator=(const wait_group&) noexcept = default;
-/*(2)*/ wait_group& operator=(wait_group&&) noexcept = default;
+wait_group& operator=(const wait_group&) noexcept = default;    // (1)
+wait_group& operator=(wait_group&&) noexcept = default;         // (2)
 ```
 
 Makes this handle one of the group the other stands for.

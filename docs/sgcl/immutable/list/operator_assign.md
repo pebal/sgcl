@@ -3,8 +3,8 @@
 # sgcl::immutable::list\<T\>::operator=
 
 ```cpp
-/*(1)*/ list& operator=(const list& other) noexcept;
-/*(2)*/ list& operator=(list&& other) noexcept;
+list& operator=(const list& other) noexcept;    // (1)
+list& operator=(list&& other) noexcept;         // (2)
 ```
 
 Makes this variable hold the version `other` holds.

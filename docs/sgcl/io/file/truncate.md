@@ -3,8 +3,8 @@
 # sgcl::io::file::truncate, async_truncate
 
 ```cpp
-/*(1)*/ expected<void, error> truncate(uint64_t size) const noexcept;
-/*(2)*/ async::task<expected<void, error>> async_truncate(uint64_t size) const noexcept;
+expected<void, error> truncate(uint64_t size) const noexcept;                       // (1)
+async::task<expected<void, error>> async_truncate(uint64_t size) const noexcept;    // (2)
 ```
 
 Makes the file `size` bytes long: the `ftruncate(2)` of the descriptor. A file longer than `size` loses its bytes

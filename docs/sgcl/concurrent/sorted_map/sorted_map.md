@@ -3,15 +3,15 @@
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::sorted_map
 
 ```cpp
-/*(1)*/ sorted_map()
-            noexcept(std::is_nothrow_default_constructible_v<Compare> &&
-                     std::is_nothrow_copy_constructible_v<Compare>);
-/*(2)*/ explicit sorted_map(const Compare& comp)
-            noexcept(std::is_nothrow_copy_constructible_v<Compare>);
-/*(3)*/ template<std::input_iterator InputIt>
-        sorted_map(InputIt first, InputIt last, const Compare& comp = Compare());
-/*(4)*/ sorted_map(std::initializer_list<value_type> ilist, const Compare& comp = Compare());
-/*(5)*/ sorted_map(const sorted_map&) = delete;
+sorted_map()                                                                             // (1)
+    noexcept(std::is_nothrow_default_constructible_v<Compare> &&
+             std::is_nothrow_copy_constructible_v<Compare>);
+explicit sorted_map(const Compare& comp)                                                 // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<Compare>);
+template<std::input_iterator InputIt>
+sorted_map(InputIt first, InputIt last, const Compare& comp = Compare());                // (3)
+sorted_map(std::initializer_list<value_type> ilist, const Compare& comp = Compare());    // (4)
+sorted_map(const sorted_map&) = delete;                                                  // (5)
 ```
 
 Constructs a map from one of the sources below.

@@ -3,8 +3,8 @@
 # sgcl::async::task_group::wait, operator co_await
 
 ```cpp
-/*(1)*/ void wait();
-/*(2)*/ auto operator co_await() noexcept;
+void wait();                          // (1)
+auto operator co_await() noexcept;    // (2)
 ```
 
 Waits for every child to finish, then rethrows the first exception a child threw, if any. A group is waited for as a

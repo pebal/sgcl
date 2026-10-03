@@ -3,10 +3,10 @@
 # sgcl::encoding::json::load, async_load
 
 ```cpp
-/*(1)*/ static expected<json, error> load(const string& path);
-/*(2)*/ template<class T> static expected<T, error> load(const string& path);
-/*(3)*/ static async::task<expected<json, error>> async_load(string path) noexcept;
-/*(4)*/ template<class T> static async::task<expected<T, error>> async_load(string path) noexcept;
+static expected<json, error> load(const string& path);                                        // (1)
+template<class T> static expected<T, error> load(const string& path);                         // (2)
+static async::task<expected<json, error>> async_load(string path) noexcept;                   // (3)
+template<class T> static async::task<expected<T, error>> async_load(string path) noexcept;    // (4)
 ```
 
 The value of a file in one call: [parse](parse.md) of the file, read as it comes, and the file closed after.

@@ -3,8 +3,8 @@
 # sgcl::io::process_state::process_state
 
 ```cpp
-/*(1)*/ process_state() noexcept = default;
-/*(2)*/ process_state(const process_state& o) noexcept;
+process_state() noexcept = default;                // (1)
+process_state(const process_state& o) noexcept;    // (2)
 ```
 
 1. The state of no process: id 0, exited with 0, no processor time.

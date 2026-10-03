@@ -3,13 +3,13 @@
 # sgcl::immutable::list\<T\>::list
 
 ```cpp
-/*(1)*/ list() noexcept;
-/*(2)*/ template<std::input_iterator InputIt> list(InputIt first, InputIt last)
-            noexcept(/* see below */);
-/*(3)*/ list(std::initializer_list<T> ilist) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(4)*/ template<std::ranges::input_range R> explicit list(R&& r) noexcept(/* see below */);
-/*(5)*/ list(const list& other) noexcept;
-/*(6)*/ list(list&& other) noexcept;
+list() noexcept;                                                                           // (1)
+template<std::input_iterator InputIt> list(InputIt first, InputIt last)                    // (2)
+    noexcept(/* see below */);
+list(std::initializer_list<T> ilist) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (3)
+template<std::ranges::input_range R> explicit list(R&& r) noexcept(/* see below */);       // (4)
+list(const list& other) noexcept;                                                          // (5)
+list(list&& other) noexcept;                                                               // (6)
 ```
 
 Constructs a list from one of the sources below.

@@ -3,8 +3,8 @@
 # sgcl::async::receive_channel\<T\>::receive
 
 ```cpp
-/*(1)*/ auto receive() const noexcept;
-/*(2)*/ auto receive() const noexcept;  // receive_channel<void>
+auto receive() const noexcept;    // (1)
+auto receive() const noexcept;    // (2), receive_channel<void>
 ```
 
 Receives the next element of the channel, waiting for one: the channel's [receive](../channel/receive.md), the same

@@ -3,8 +3,8 @@
 # sgcl::net::http::client::head, async_head
 
 ```cpp
-/*(1)*/ expected<response, io::error> head(const string& url) const;
-/*(2)*/ async::task<expected<response, io::error>> async_head(const string& url) const noexcept;
+expected<response, io::error> head(const string& url) const;                                // (1)
+async::task<expected<response, io::error>> async_head(const string& url) const noexcept;    // (2)
 ```
 
 Sends a HEAD of `url`, Go's `http.Head`: [send](send.md) of `request("HEAD", url)`. The response is the head a GET

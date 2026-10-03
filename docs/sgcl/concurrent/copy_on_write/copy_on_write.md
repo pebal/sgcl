@@ -3,15 +3,15 @@
 # sgcl::concurrent::copy_on_write\<T\>::copy_on_write
 
 ```cpp
-/*(1)*/ copy_on_write()
-            noexcept(std::is_nothrow_default_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<T>);
-/*(2)*/ explicit copy_on_write(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(3)*/ explicit copy_on_write(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
-/*(4)*/ template<class... A>
-        explicit copy_on_write(std::in_place_t, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T, A...>);
-/*(5)*/ copy_on_write(const copy_on_write&) = delete;
+copy_on_write()                                                                              // (1)
+    noexcept(std::is_nothrow_default_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<T>);
+explicit copy_on_write(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (2)
+explicit copy_on_write(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (3)
+template<class... A>
+explicit copy_on_write(std::in_place_t, A&&... a)                                            // (4)
+    noexcept(std::is_nothrow_constructible_v<T, A...>);
+copy_on_write(const copy_on_write&) = delete;                                                // (5)
 ```
 
 Constructs the first value, in a managed object of its own.

@@ -6,9 +6,9 @@
 #include "sgcl/crypto/hash_id.h"   // or "sgcl/crypto.h"
 
 namespace sgcl::crypto {
-    /*(1)*/ expected<vector<byte>, io::error> digest_file(hash_id id, const string& path);
-    /*(2)*/ async::task<expected<vector<byte>, io::error>> async_digest_file(hash_id id,
-                                                                            const string& path) noexcept;
+    expected<vector<byte>, io::error> digest_file(hash_id id, const string& path);                   // (1)
+    async::task<expected<vector<byte>, io::error>> async_digest_file(hash_id id,                     // (2)
+                                                                    const string& path) noexcept;
 }
 ```
 

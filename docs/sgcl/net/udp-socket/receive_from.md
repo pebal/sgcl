@@ -3,8 +3,8 @@
 # sgcl::net::udp::socket::receive_from, async_receive_from
 
 ```cpp
-/*(1)*/ expected<udp::datagram, io::error> receive_from(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<udp::datagram, io::error>> async_receive_from(const slice<byte>& buffer) const noexcept;
+expected<udp::datagram, io::error> receive_from(const slice<byte>& buffer) const;                                // (1)
+async::task<expected<udp::datagram, io::error>> async_receive_from(const slice<byte>& buffer) const noexcept;    // (2)
 ```
 
 Receives the next datagram into `buffer`, waiting until one comes, and says who sent it: Go's

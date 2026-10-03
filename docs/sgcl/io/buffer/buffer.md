@@ -3,13 +3,13 @@
 # sgcl::io::buffer::buffer
 
 ```cpp
-/*(1)*/ buffer() noexcept;
-/*(2)*/ buffer(const buffer&) noexcept = default;
-/*(3)*/ buffer(buffer&&) noexcept = default;
-/*(4)*/ explicit buffer(const slice<const byte>& initial) noexcept;
-/*(5)*/ explicit buffer(const string& initial) noexcept;
-/*(6)*/ template<class T>
-        explicit buffer(const T& initial) noexcept;
+buffer() noexcept;                                             // (1)
+buffer(const buffer&) noexcept = default;                      // (2)
+buffer(buffer&&) noexcept = default;                           // (3)
+explicit buffer(const slice<const byte>& initial) noexcept;    // (4)
+explicit buffer(const string& initial) noexcept;               // (5)
+template<class T>
+explicit buffer(const T& initial) noexcept;                    // (6)
 ```
 
 Constructs a buffer. Every constructor but the copy and the move makes the state at once, so that a copy made

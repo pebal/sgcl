@@ -3,8 +3,8 @@
 # sgcl::async::promise\<T\>::result
 
 ```cpp
-/*(1)*/ T& result() const;
-/*(2)*/ void result() const;  // promise<void>
+T& result() const;      // (1)
+void result() const;    // (2), promise<void>
 ```
 
 The result of a set promise: the value, or the exception rethrown. On a promise not set yet it waits first, blocking

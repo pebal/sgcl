@@ -3,8 +3,8 @@
 # sgcl::txt::locale::locale
 
 ```cpp
-/*(1)*/ constexpr locale() noexcept = default;
-/*(2)*/ explicit locale(const string& tag) noexcept;
+constexpr locale() noexcept = default;          // (1)
+explicit locale(const string& tag) noexcept;    // (2)
 ```
 
 Constructs a locale.

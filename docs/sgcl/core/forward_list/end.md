@@ -3,9 +3,9 @@
 # sgcl::forward_list\<T\>::end, cend
 
 ```cpp
-/*(1)*/ iterator end() noexcept;
-/*(2)*/ const_iterator end() const noexcept;
-/*(3)*/ const_iterator cend() const noexcept;
+iterator end() noexcept;                 // (1)
+const_iterator end() const noexcept;     // (2)
+const_iterator cend() const noexcept;    // (3)
 ```
 
 Returns the iterator past the last element: a null iterator, the link of the last node. It is not to be

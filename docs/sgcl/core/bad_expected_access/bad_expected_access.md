@@ -3,9 +3,9 @@
 # sgcl::bad_expected_access\<E\>::bad_expected_access
 
 ```cpp
-/*(1)*/ explicit bad_expected_access(E e) noexcept(std::is_nothrow_move_constructible_v<E>);
-/*(2)*/ bad_expected_access(const bad_expected_access& o) noexcept;
-/*(3)*/ bad_expected_access(bad_expected_access&& o) noexcept;
+explicit bad_expected_access(E e) noexcept(std::is_nothrow_move_constructible_v<E>);    // (1)
+bad_expected_access(const bad_expected_access& o) noexcept;                             // (2)
+bad_expected_access(bad_expected_access&& o) noexcept;                                  // (3)
 ```
 
 1. The exception with the error `e`, moved into a managed object of its own under a root.

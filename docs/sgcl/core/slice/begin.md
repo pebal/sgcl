@@ -3,8 +3,8 @@
 # sgcl::slice\<T\>::begin, cbegin
 
 ```cpp
-/*(1)*/ iterator begin() const noexcept;
-/*(2)*/ const_iterator cbegin() const noexcept;
+iterator begin() const noexcept;           // (1)
+const_iterator cbegin() const noexcept;    // (2)
 ```
 
 An iterator to the first element: a plain pointer, `T*` (1) or `const T*` (2). Equal to [end](end.md) for an empty

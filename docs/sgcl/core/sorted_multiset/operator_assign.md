@@ -3,9 +3,9 @@
 # sgcl::sorted_multiset\<Key, Compare\>::operator=
 
 ```cpp
-/*(1)*/ sorted_multiset& operator=(const sorted_multiset& other) = default;
-/*(2)*/ sorted_multiset& operator=(sorted_multiset&& other) = default;
-/*(3)*/ sorted_multiset& operator=(std::initializer_list<value_type> ilist);
+sorted_multiset& operator=(const sorted_multiset& other) = default;     // (1)
+sorted_multiset& operator=(sorted_multiset&& other) = default;          // (2)
+sorted_multiset& operator=(std::initializer_list<value_type> ilist);    // (3)
 ```
 
 Replaces the contents of the multiset.

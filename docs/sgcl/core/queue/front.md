@@ -3,8 +3,8 @@
 # sgcl::queue\<T, Container\>::front
 
 ```cpp
-/*(1)*/ reference front() noexcept(noexcept(c.front()));
-/*(2)*/ const_reference front() const noexcept(noexcept(c.front()));
+reference front() noexcept(noexcept(c.front()));                // (1)
+const_reference front() const noexcept(noexcept(c.front()));    // (2)
 ```
 
 Returns a reference to the first element, the oldest one, the next [pop](pop.md) removes: `c.front()`. The queue

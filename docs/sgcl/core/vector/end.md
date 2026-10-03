@@ -3,9 +3,9 @@
 # sgcl::vector\<T\>::end, cend
 
 ```cpp
-/*(1)*/ iterator end() noexcept;
-/*(2)*/ const_iterator end() const noexcept;
-/*(3)*/ const_iterator cend() const noexcept;
+iterator end() noexcept;                 // (1)
+const_iterator end() const noexcept;     // (2)
+const_iterator cend() const noexcept;    // (3)
 ```
 
 Returns an iterator past the last element, `begin() + size()`. It addresses no element and must not be

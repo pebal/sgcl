@@ -6,29 +6,29 @@
 #include "sgcl/core/variant.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class... Ts>
-            bool operator==(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...));
-    /*(2)*/ template<class... Ts>
-            bool operator!=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...));
-    /*(3)*/ template<class... Ts>
-            bool operator<(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
-    /*(4)*/ template<class... Ts>
-            bool operator>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
-    /*(5)*/ template<class... Ts>
-            bool operator<=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
-    /*(6)*/ template<class... Ts>
-            bool operator>=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
-    /*(7)*/ template<class... Ts>
-            requires (std::three_way_comparable<Ts> && ...)
-            std::common_comparison_category_t<std::compare_three_way_result_t<Ts>...>
-            operator<=>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(
-                (noexcept(std::declval<const Ts&>() <=> std::declval<const Ts&>()) && ...));
+    template<class... Ts>
+    bool operator==(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(              // (1)
+        (noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...));
+    template<class... Ts>
+    bool operator!=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(              // (2)
+        (noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...));
+    template<class... Ts>
+    bool operator<(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(               // (3)
+        (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
+    template<class... Ts>
+    bool operator>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(               // (4)
+        (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
+    template<class... Ts>
+    bool operator<=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(              // (5)
+        (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
+    template<class... Ts>
+    bool operator>=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(              // (6)
+        (noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...));
+    template<class... Ts>
+    requires (std::three_way_comparable<Ts> && ...)
+    std::common_comparison_category_t<std::compare_three_way_result_t<Ts>...>
+    operator<=>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept(                  // (7)
+        (noexcept(std::declval<const Ts&>() <=> std::declval<const Ts&>()) && ...));
 }
 ```
 

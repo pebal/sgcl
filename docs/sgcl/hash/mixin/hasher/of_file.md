@@ -3,8 +3,8 @@
 # sgcl::hash::mixin::hasher\<Derived\>::of_file, async_of_file
 
 ```cpp
-/*(1)*/ static auto of_file(const string& path) requires std::default_initializable<Derived>;
-/*(2)*/ static auto async_of_file(const string& path) noexcept requires std::default_initializable<Derived>;
+static auto of_file(const string& path) requires std::default_initializable<Derived>;                   // (1)
+static auto async_of_file(const string& path) noexcept requires std::default_initializable<Derived>;    // (2)
 ```
 
 The hash of the whole file at `path`: the one-shot form of a file, what [of](of.md) of its bytes gives,

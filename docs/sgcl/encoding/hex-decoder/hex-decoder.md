@@ -3,8 +3,8 @@
 # sgcl::encoding::hex::decoder::decoder
 
 ```cpp
-/*(1)*/ decoder() noexcept;
-/*(2)*/ decoder(const decoder& other) noexcept;
+decoder() noexcept;                        // (1)
+decoder(const decoder& other) noexcept;    // (2)
 ```
 
 1. A decoder that holds no stream: `!d` is `true`, and any other operation on it is a contract violation,

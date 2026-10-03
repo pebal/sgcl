@@ -3,10 +3,10 @@
 # sgcl::encoding::varint::read, async_read
 
 ```cpp
-/*(1)*/ static expected<pair<uint64_t, size_t>, error> read(const slice<const byte>& at) noexcept;
-/*(2)*/ static expected<optional<uint64_t>, io::error> read(const io::buffered_reader& in);
-/*(3)*/ static async::task<expected<optional<uint64_t>, io::error>>
-            async_read(const io::buffered_reader& in) noexcept;
+static expected<pair<uint64_t, size_t>, error> read(const slice<const byte>& at) noexcept;    // (1)
+static expected<optional<uint64_t>, io::error> read(const io::buffered_reader& in);           // (2)
+static async::task<expected<optional<uint64_t>, io::error>>
+    async_read(const io::buffered_reader& in) noexcept;                                       // (3)
 ```
 
 1. The varint at the front of `at`, and the bytes it took: Go's `binary.Uvarint`. Bytes that end before the

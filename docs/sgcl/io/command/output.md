@@ -3,8 +3,8 @@
 # sgcl::io::command::output, async_output
 
 ```cpp
-/*(1)*/ expected<string, error> output();
-/*(2)*/ async::task<expected<string, error>> async_output() noexcept;
+expected<string, error> output();                                // (1)
+async::task<expected<string, error>> async_output() noexcept;    // (2)
 ```
 
 Runs the child with its standard output captured and returns what it wrote, Go's `Cmd.Output`. When `err` is empty,

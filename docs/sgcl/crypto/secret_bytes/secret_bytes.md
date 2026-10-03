@@ -3,10 +3,10 @@
 # sgcl::crypto::secret_bytes::secret_bytes
 
 ```cpp
-/*(1)*/ secret_bytes() noexcept = default;
-/*(2)*/ explicit secret_bytes(size_t n) noexcept;
-/*(3)*/ secret_bytes(secret_bytes&&) noexcept = default;
-/*(4)*/ secret_bytes(const secret_bytes&) = delete;
+secret_bytes() noexcept = default;                  // (1)
+explicit secret_bytes(size_t n) noexcept;           // (2)
+secret_bytes(secret_bytes&&) noexcept = default;    // (3)
+secret_bytes(const secret_bytes&) = delete;         // (4)
 ```
 
 1. Empty. Nothing is allocated.

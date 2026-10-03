@@ -3,20 +3,20 @@
 # sgcl::set\<Key, Hash, KeyEqual\>::set
 
 ```cpp
-/*(1)*/ set() noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                       std::is_nothrow_default_constructible_v<key_equal>);
-/*(2)*/ explicit set(size_type bucket_count, const hasher& hash = hasher(),
-                     const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        set(InputIt first, InputIt last, size_type bucket_count = 0, const hasher& hash = hasher(),
-            const key_equal& equal = key_equal());
-/*(4)*/ set(std::initializer_list<value_type> ilist, size_type bucket_count = 0,
-            const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ set(const set& other);
-/*(6)*/ set(set&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                                  std::is_nothrow_move_constructible_v<key_equal>);
+set() noexcept(std::is_nothrow_default_constructible_v<hasher> &&                              // (1)
+               std::is_nothrow_default_constructible_v<key_equal>);
+explicit set(size_type bucket_count, const hasher& hash = hasher(),                            // (2)
+             const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+set(InputIt first, InputIt last, size_type bucket_count = 0, const hasher& hash = hasher(),    // (3)
+    const key_equal& equal = key_equal());
+set(std::initializer_list<value_type> ilist, size_type bucket_count = 0,                       // (4)
+    const hasher& hash = hasher(), const key_equal& equal = key_equal());
+set(const set& other);                                                                         // (5)
+set(set&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&                      // (6)
+                          std::is_nothrow_move_constructible_v<key_equal>);
 ```
 
 Constructs a set from one of the sources below.

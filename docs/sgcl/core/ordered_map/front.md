@@ -3,8 +3,8 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::front
 
 ```cpp
-/*(1)*/ value_type& front() noexcept;
-/*(2)*/ const value_type& front() const noexcept;
+value_type& front() noexcept;                // (1)
+const value_type& front() const noexcept;    // (2)
 ```
 
 Returns a reference to the oldest element: the first of the order, the one [begin()](begin.md) addresses. The

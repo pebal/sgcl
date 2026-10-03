@@ -3,8 +3,8 @@
 # sgcl::concurrent::bounded_queue\<T\>::bounded_queue
 
 ```cpp
-/*(1)*/ explicit bounded_queue(size_type capacity) noexcept;
-/*(2)*/ bounded_queue(const bounded_queue&) = delete;
+explicit bounded_queue(size_type capacity) noexcept;    // (1)
+bounded_queue(const bounded_queue&) = delete;           // (2)
 ```
 
 1. An empty queue of `capacity` cells, rounded up to a power of two, at least two: one managed buffer of that many

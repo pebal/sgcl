@@ -3,8 +3,8 @@
 # sgcl::string::begin, cbegin
 
 ```cpp
-/*(1)*/ const_iterator begin() const noexcept;
-/*(2)*/ const_iterator cbegin() const noexcept;
+const_iterator begin() const noexcept;     // (1)
+const_iterator cbegin() const noexcept;    // (2)
 ```
 
 Returns an iterator to the first character. The iterator is `const CharT*`, a pointer into the string's object: a

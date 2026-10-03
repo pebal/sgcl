@@ -6,12 +6,12 @@
 #include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<file, error> open(const string& path, open_flags flags = open_flags::read,
-                                       permissions p = permissions(0666)) noexcept;
-    /*(2)*/ async::task<expected<file, error>> async_open(const string& path,
-                                                          open_flags flags = open_flags::read,
-                                                          permissions p = permissions(0666))
-                noexcept;
+    expected<file, error> open(const string& path, open_flags flags = open_flags::read,    // (1)
+                               permissions p = permissions(0666)) noexcept;
+    async::task<expected<file, error>> async_open(const string& path,                      // (2)
+                                                  open_flags flags = open_flags::read,
+                                                  permissions p = permissions(0666))
+        noexcept;
 }
 ```
 

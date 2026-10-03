@@ -3,10 +3,10 @@
 # sgcl::crypto::x509::certificate::verify_ip
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<void, error> verify_ip(const slice<const byte>& ip) const;
-/*(2)*/ template<class T>
-        requires std::is_convertible_v<const T&, std::string_view>
-        expected<void, error> verify_ip(const T& text) const = delete;
+[[nodiscard]] expected<void, error> verify_ip(const slice<const byte>& ip) const;    // (1)
+template<class T>
+requires std::is_convertible_v<const T&, std::string_view>
+expected<void, error> verify_ip(const T& text) const = delete;                       // (2)
 ```
 
 Checks that the certificate is for an IP address.

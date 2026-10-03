@@ -3,9 +3,9 @@
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::make
 
 ```cpp
-/*(1)*/ static handle make(const T& value) noexcept(std::is_nothrow_constructible_v<T, const T&>);
-/*(2)*/ template<class K> static handle make(const K& value)
-            noexcept(std::is_nothrow_constructible_v<T, const K&>);
+static handle make(const T& value) noexcept(std::is_nothrow_constructible_v<T, const T&>);    // (1)
+template<class K> static handle make(const K& value)                                          // (2)
+    noexcept(std::is_nothrow_constructible_v<T, const K&>);
 ```
 
 Returns the canonical object of `value` in the default pool of the type: `pool().of(value)`, Go's `unique.Make`.

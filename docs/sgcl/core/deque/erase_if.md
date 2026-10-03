@@ -6,10 +6,10 @@
 #include "sgcl/core/deque.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T, class U>
-            typename deque<T>::size_type erase(deque<T>& c, const U& value);
-    /*(2)*/ template<class T, class Pred>
-            typename deque<T>::size_type erase_if(deque<T>& c, Pred pred);
+    template<class T, class U>
+    typename deque<T>::size_type erase(deque<T>& c, const U& value);    // (1)
+    template<class T, class Pred>
+    typename deque<T>::size_type erase_if(deque<T>& c, Pred pred);      // (2)
 }
 
 namespace std {

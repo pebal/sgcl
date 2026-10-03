@@ -3,9 +3,9 @@
 # sgcl::net::ip_network::ip_network
 
 ```cpp
-/*(1)*/ ip_network() noexcept = default;
-/*(2)*/ ip_network(ip_address address, int bits);
-/*(3)*/ explicit ip_network(const string& text);
+ip_network() noexcept = default;             // (1)
+ip_network(ip_address address, int bits);    // (2)
+explicit ip_network(const string& text);     // (3)
 ```
 
 Constructs a network.

@@ -3,9 +3,9 @@
 # sgcl::deque\<T\>::erase
 
 ```cpp
-/*(1)*/ iterator erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>);
-/*(2)*/ iterator erase(const_iterator first, const_iterator last)
-            noexcept(std::is_nothrow_move_assignable_v<T>);
+iterator erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>);    // (1)
+iterator erase(const_iterator first, const_iterator last)                             // (2)
+    noexcept(std::is_nothrow_move_assignable_v<T>);
 ```
 
 Erases elements.

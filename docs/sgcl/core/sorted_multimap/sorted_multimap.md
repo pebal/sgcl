@@ -3,16 +3,16 @@
 # sgcl::sorted_multimap\<Key, T, Compare\>::sorted_multimap
 
 ```cpp
-/*(1)*/ sorted_multimap() noexcept(std::is_nothrow_default_constructible_v<key_compare>);
-/*(2)*/ explicit sorted_multimap(const key_compare& comp)
-            noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
-/*(3)*/ template<std::input_iterator InputIt>
-        sorted_multimap(InputIt first, InputIt last, const key_compare& comp = key_compare());
-/*(4)*/ sorted_multimap(std::initializer_list<value_type> ilist,
-                        const key_compare& comp = key_compare());
-/*(5)*/ sorted_multimap(const sorted_multimap& other);
-/*(6)*/ sorted_multimap(sorted_multimap&& other)
-            noexcept(std::is_nothrow_move_constructible_v<key_compare>);
+sorted_multimap() noexcept(std::is_nothrow_default_constructible_v<key_compare>);         // (1)
+explicit sorted_multimap(const key_compare& comp)                                         // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
+template<std::input_iterator InputIt>
+sorted_multimap(InputIt first, InputIt last, const key_compare& comp = key_compare());    // (3)
+sorted_multimap(std::initializer_list<value_type> ilist,                                  // (4)
+                const key_compare& comp = key_compare());
+sorted_multimap(const sorted_multimap& other);                                            // (5)
+sorted_multimap(sorted_multimap&& other)                                                  // (6)
+    noexcept(std::is_nothrow_move_constructible_v<key_compare>);
 ```
 
 Constructs a multimap from one of the sources below.

@@ -3,8 +3,8 @@
 # sgcl::concurrent::bounded_queue\<T\>::try_push
 
 ```cpp
-/*(1)*/ bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);
+bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
 ```
 
 Appends an element at the end of the queue when there is room, and returns at once when there is none.

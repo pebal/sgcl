@@ -3,10 +3,10 @@
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::merge
 
 ```cpp
-/*(1)*/ template<class H2, class P2> void merge(multimap<Key, T, H2, P2>& source) noexcept;
-/*(2)*/ template<class H2, class P2> void merge(multimap<Key, T, H2, P2>&& source) noexcept;
-/*(3)*/ template<class H2, class P2> void merge(map<Key, T, H2, P2>& source) noexcept;
-/*(4)*/ template<class H2, class P2> void merge(map<Key, T, H2, P2>&& source) noexcept;
+template<class H2, class P2> void merge(multimap<Key, T, H2, P2>& source) noexcept;     // (1)
+template<class H2, class P2> void merge(multimap<Key, T, H2, P2>&& source) noexcept;    // (2)
+template<class H2, class P2> void merge(map<Key, T, H2, P2>& source) noexcept;          // (3)
+template<class H2, class P2> void merge(map<Key, T, H2, P2>&& source) noexcept;         // (4)
 ```
 
 Moves every node of `source` into this multimap, rehashing each with this multimap's hasher, and leaves `source`

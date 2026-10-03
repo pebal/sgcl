@@ -3,8 +3,8 @@
 # sgcl::forward_list\<T\>::front
 
 ```cpp
-/*(1)*/ reference front() noexcept;
-/*(2)*/ const_reference front() const noexcept;
+reference front() noexcept;                // (1)
+const_reference front() const noexcept;    // (2)
 ```
 
 Returns a reference to the first element. The list must not be empty: on an empty list the call is undefined, and

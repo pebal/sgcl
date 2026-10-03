@@ -3,10 +3,10 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::builder::builder
 
 ```cpp
-/*(1)*/ builder();
-/*(2)*/ explicit builder(const Hash& hash, const KeyEqual& equal = KeyEqual());
-/*(3)*/ builder(builder&& other) noexcept;
-/*(4)*/ builder(const builder&) = delete;
+builder();                                                                 // (1)
+explicit builder(const Hash& hash, const KeyEqual& equal = KeyEqual());    // (2)
+builder(builder&& other) noexcept;                                         // (3)
+builder(const builder&) = delete;                                          // (4)
 ```
 
 Constructs a builder. A builder over the elements of a set is made by the set's [thaw()](../set/thaw.md).

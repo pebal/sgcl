@@ -3,14 +3,14 @@
 # sgcl::deque\<T\>::deque
 
 ```cpp
-/*(1)*/ deque() noexcept;
-/*(2)*/ explicit deque(size_type count) requires std::default_initializable<T>;
-/*(3)*/ deque(size_type count, const T& value);
-/*(4)*/ template<std::input_iterator InputIt> deque(InputIt first, InputIt last);
-/*(5)*/ template<std::ranges::input_range R> explicit deque(R&& r);
-/*(6)*/ deque(std::initializer_list<T> ilist);
-/*(7)*/ deque(const deque& other);
-/*(8)*/ deque(deque&& other) noexcept;
+deque() noexcept;                                                            // (1)
+explicit deque(size_type count) requires std::default_initializable<T>;      // (2)
+deque(size_type count, const T& value);                                      // (3)
+template<std::input_iterator InputIt> deque(InputIt first, InputIt last);    // (4)
+template<std::ranges::input_range R> explicit deque(R&& r);                  // (5)
+deque(std::initializer_list<T> ilist);                                       // (6)
+deque(const deque& other);                                                   // (7)
+deque(deque&& other) noexcept;                                               // (8)
 ```
 
 Constructs a deque from one of the sources below.

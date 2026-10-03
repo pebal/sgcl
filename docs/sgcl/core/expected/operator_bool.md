@@ -3,8 +3,8 @@
 # sgcl::expected\<T, E\>::operator bool, has_value
 
 ```cpp
-/*(1)*/ explicit operator bool() const noexcept;
-/*(2)*/ bool has_value() const noexcept;
+explicit operator bool() const noexcept;    // (1)
+bool has_value() const noexcept;            // (2)
 ```
 
 Checks whether the `expected` holds a value rather than an error. `if (e)` asks this, for an `expected<bool, E>` as

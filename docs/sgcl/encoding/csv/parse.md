@@ -3,12 +3,12 @@
 # sgcl::encoding::csv::parse
 
 ```cpp
-/*(1)*/ static expected<vector<row>, error> parse(const string& text) noexcept;
-/*(2)*/ static expected<vector<row>, error> parse(const string& text, const options& o);
-/*(3)*/ template<class T>
-        static expected<vector<T>, error> parse(const string& text);
-/*(4)*/ template<class T>
-        static expected<vector<T>, error> parse(const string& text, const options& o);
+static expected<vector<row>, error> parse(const string& text) noexcept;             // (1)
+static expected<vector<row>, error> parse(const string& text, const options& o);    // (2)
+template<class T>
+static expected<vector<T>, error> parse(const string& text);                        // (3)
+template<class T>
+static expected<vector<T>, error> parse(const string& text, const options& o);      // (4)
 ```
 
 The records of a text in one call, what a [reader](../csv-reader.md) over it reads to its end; the form of a text

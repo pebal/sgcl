@@ -3,8 +3,8 @@
 # sgcl::async::task\<T\>::result
 
 ```cpp
-/*(1)*/ T& result();
-/*(2)*/ void result();
+T& result();      // (1)
+void result();    // (2)
 ```
 
 The value the coroutine `co_return`ed, or what it threw, rethrown, every time `result()` is called.

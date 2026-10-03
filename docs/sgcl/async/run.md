@@ -6,11 +6,11 @@
 #include "sgcl/async/run.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class T>
-            T run(task<T> t);
-    /*(2)*/ template<class F>
-                requires std::invocable<F&, stop_token>
-            auto run(F&& f);
+    template<class T>
+    T run(task<T> t);                              // (1)
+    template<class F>
+        requires std::invocable<F&, stop_token>
+    auto run(F&& f);                               // (2)
 }
 ```
 

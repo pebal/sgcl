@@ -3,9 +3,9 @@
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::swap
 
 ```cpp
-/*(1)*/ void swap(ordered_set& other)
-            noexcept(std::is_nothrow_swappable_v<hasher> && std::is_nothrow_swappable_v<key_equal>);
-/*(2)*/ friend void swap(ordered_set& lhs, ordered_set& rhs) noexcept(noexcept(lhs.swap(rhs)));
+void swap(ordered_set& other)                                                                   // (1)
+    noexcept(std::is_nothrow_swappable_v<hasher> && std::is_nothrow_swappable_v<key_equal>);
+friend void swap(ordered_set& lhs, ordered_set& rhs) noexcept(noexcept(lhs.swap(rhs)));         // (2)
 ```
 
 1. Exchanges the contents of this set and `other`: the tables, the orders, the counts, the load factors, the

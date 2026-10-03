@@ -3,15 +3,15 @@
 # sgcl::sorted_map\<Key, T, Compare\>::sorted_map
 
 ```cpp
-/*(1)*/ sorted_map() noexcept(std::is_nothrow_default_constructible_v<key_compare>);
-/*(2)*/ explicit sorted_map(const key_compare& comp)
-            noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
-/*(3)*/ template<std::input_iterator InputIt>
-        sorted_map(InputIt first, InputIt last, const key_compare& comp = key_compare());
-/*(4)*/ sorted_map(std::initializer_list<value_type> ilist,
-                   const key_compare& comp = key_compare());
-/*(5)*/ sorted_map(const sorted_map& other);
-/*(6)*/ sorted_map(sorted_map&& other) noexcept(std::is_nothrow_move_constructible_v<key_compare>);
+sorted_map() noexcept(std::is_nothrow_default_constructible_v<key_compare>);                   // (1)
+explicit sorted_map(const key_compare& comp)                                                   // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<key_compare>);
+template<std::input_iterator InputIt>
+sorted_map(InputIt first, InputIt last, const key_compare& comp = key_compare());              // (3)
+sorted_map(std::initializer_list<value_type> ilist,                                            // (4)
+           const key_compare& comp = key_compare());
+sorted_map(const sorted_map& other);                                                           // (5)
+sorted_map(sorted_map&& other) noexcept(std::is_nothrow_move_constructible_v<key_compare>);    // (6)
 ```
 
 Constructs a map from one of the sources below.

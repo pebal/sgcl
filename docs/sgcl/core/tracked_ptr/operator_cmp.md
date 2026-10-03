@@ -3,18 +3,18 @@
 # sgcl::operator==, operator\<=\> (sgcl::tracked_ptr)
 
 ```cpp
-/*(1)*/ template<class T, class U>
-        bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept;
-/*(2)*/ template<class T, class U>
-        std::strong_ordering operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept;
-/*(3)*/ template<class T>
-        bool operator==(const tracked_ptr<T>& l, std::nullptr_t) noexcept;
-/*(4)*/ template<class T>
-        std::strong_ordering operator<=>(const tracked_ptr<T>& l, std::nullptr_t) noexcept;
-/*(5)*/ template<class T>
-        bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexcept;
-/*(6)*/ template<class T>
-        std::strong_ordering operator<=>(std::nullptr_t, const tracked_ptr<T>& r) noexcept;
+template<class T, class U>
+bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept;                     // (1)
+template<class T, class U>
+std::strong_ordering operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept;    // (2)
+template<class T>
+bool operator==(const tracked_ptr<T>& l, std::nullptr_t) noexcept;                              // (3)
+template<class T>
+std::strong_ordering operator<=>(const tracked_ptr<T>& l, std::nullptr_t) noexcept;             // (4)
+template<class T>
+bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexcept;                              // (5)
+template<class T>
+std::strong_ordering operator<=>(std::nullptr_t, const tracked_ptr<T>& r) noexcept;             // (6)
 ```
 
 Compare the addresses, as with raw pointers: all six relational operators, `!=`, `<`, `<=`, `>` and `>=` rewritten

@@ -3,13 +3,13 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::ends_with
 
 ```cpp
-/*(1)*/ bool ends_with(view_type s) const noexcept;
-/*(2)*/ bool ends_with(CharT c) const noexcept;
-/*(3)*/ template<size_t N> bool ends_with(const CharT (&s)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool ends_with(P s) const noexcept;
-/*(5)*/ bool ends_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>);
-/*(6)*/ bool ends_with(int) const = delete;
+bool ends_with(view_type s) const noexcept;                                             // (1)
+bool ends_with(CharT c) const noexcept;                                                 // (2)
+template<size_t N> bool ends_with(const CharT (&s)[N]) const noexcept;                  // (3)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+bool ends_with(P s) const noexcept;                                                     // (4)
+bool ends_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>);    // (5)
+bool ends_with(int) const = delete;                                                     // (6)
 ```
 
 Checks whether the text ends with the given suffix.

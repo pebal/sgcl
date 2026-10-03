@@ -3,8 +3,8 @@
 # sgcl::compress::tar::writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> write(const slice<const byte>& data);
-/*(2)*/ async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;
+expected<size_t, io::error> write(const slice<const byte>& data);                         // (1)
+async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;    // (2)
 ```
 
 Writes the current entry's data: all of `data`, or nothing when it goes past the entry's size, which is

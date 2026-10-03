@@ -3,18 +3,18 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::map
 
 ```cpp
-/*(1)*/ map();
-/*(2)*/ explicit map(const Hash& hash, const KeyEqual& equal = KeyEqual());
-/*(3)*/ template<std::input_iterator InputIt>
-        map(InputIt first, InputIt last,
-            const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
-            noexcept(/* see below */);
-/*(4)*/ map(std::initializer_list<value_type> ilist,
-            const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_move_constructible_v<value_type>);
-/*(5)*/ map(const map& other) noexcept;
-/*(6)*/ map(map&& other) noexcept;
+map();                                                                 // (1)
+explicit map(const Hash& hash, const KeyEqual& equal = KeyEqual());    // (2)
+template<std::input_iterator InputIt>
+map(InputIt first, InputIt last,                                       // (3)
+    const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+    noexcept(/* see below */);
+map(std::initializer_list<value_type> ilist,                           // (4)
+    const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_move_constructible_v<value_type>);
+map(const map& other) noexcept;                                        // (5)
+map(map&& other) noexcept;                                             // (6)
 ```
 
 Constructs a map from one of the sources below.

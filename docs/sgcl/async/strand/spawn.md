@@ -3,10 +3,10 @@
 # sgcl::async::strand::spawn
 
 ```cpp
-/*(1)*/ template<class T>
-        [[nodiscard]] task<T> spawn(task<T> t);
-/*(2)*/ template<class F>
-        [[nodiscard]] auto spawn(F f);
+template<class T>
+[[nodiscard]] task<T> spawn(task<T> t);    // (1)
+template<class F>
+[[nodiscard]] auto spawn(F f);             // (2)
 ```
 
 Starts a task on this strand: it is queued behind the strand's other tasks and run by a worker in its turn, never at

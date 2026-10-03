@@ -3,10 +3,10 @@
 # sgcl::crypto::rsa::public_key::verify_pss
 
 ```cpp
-/*(1)*/ [[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message,
-                                  const slice<const byte>& signature) const;
-/*(2)*/ [[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message,
-                                  const slice<const byte>& signature, size_t salt_length) const;
+[[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message,                 // (1)
+                          const slice<const byte>& signature) const;
+[[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message,                 // (2)
+                          const slice<const byte>& signature, size_t salt_length) const;
 ```
 
 Checks that `signature` is a PSS signature (RFC 8017 §8.1, JWS's PS256) of `message` under this key, the message

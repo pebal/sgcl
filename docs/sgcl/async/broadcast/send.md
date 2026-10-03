@@ -3,8 +3,8 @@
 # sgcl::async::broadcast\<T\>::send
 
 ```cpp
-/*(1)*/ bool send(const T& value);
-/*(2)*/ bool send(T&& value);
+bool send(const T& value);    // (1)
+bool send(T&& value);         // (2)
 ```
 
 Sends a value to every subscription alive, without waiting. The value goes into a node of its own, the node into the

@@ -3,14 +3,14 @@
 # sgcl::net::connection::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> write(const slice<const byte>& data) const;
-/*(2)*/ expected<size_t, io::error> write(const string& text) const;
-/*(3)*/ template<class T>
-        expected<size_t, io::error> write(const T& text) const;
-/*(4)*/ async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const noexcept;
-/*(5)*/ async::task<expected<size_t, io::error>> async_write(const string& text) const noexcept;
-/*(6)*/ template<class T>
-        async::task<expected<size_t, io::error>> async_write(const T& text) const noexcept;
+expected<size_t, io::error> write(const slice<const byte>& data) const;                                // (1)
+expected<size_t, io::error> write(const string& text) const;                                           // (2)
+template<class T>
+expected<size_t, io::error> write(const T& text) const;                                                // (3)
+async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const noexcept;    // (4)
+async::task<expected<size_t, io::error>> async_write(const string& text) const noexcept;               // (5)
+template<class T>
+async::task<expected<size_t, io::error>> async_write(const T& text) const noexcept;                    // (6)
 ```
 
 Writes all of the data to the connection, or fails: Go's `Conn.Write`. Two writes at once are taken one after the

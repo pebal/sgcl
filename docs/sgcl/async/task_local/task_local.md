@@ -3,8 +3,8 @@
 # sgcl::async::task_local\<T\>::task_local
 
 ```cpp
-/*(1)*/ task_local() noexcept = default;
-/*(2)*/ task_local(const task_local&) = delete;
+task_local() noexcept = default;           // (1)
+task_local(const task_local&) = delete;    // (2)
 ```
 
 1. Constructs the key. The object holds nothing: its address is the key, and the values are in the nodes the tasks'

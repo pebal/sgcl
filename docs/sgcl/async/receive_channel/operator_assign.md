@@ -3,8 +3,8 @@
 # sgcl::async::receive_channel\<T\>::operator=
 
 ```cpp
-/*(1)*/ receive_channel& operator=(const receive_channel&) noexcept = default;
-/*(2)*/ receive_channel& operator=(receive_channel&&) noexcept = default;
+receive_channel& operator=(const receive_channel&) noexcept = default;    // (1)
+receive_channel& operator=(receive_channel&&) noexcept = default;         // (2)
 ```
 
 Makes the handle one of the channel another handle refers to. The channel this handle referred to before is not

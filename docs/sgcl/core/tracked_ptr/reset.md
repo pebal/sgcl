@@ -3,8 +3,8 @@
 # sgcl::tracked_ptr\<T\>::reset
 
 ```cpp
-/*(1)*/ void reset() noexcept;
-/*(2)*/ void reset(element_type* p) noexcept;
+void reset() noexcept;                   // (1)
+void reset(element_type* p) noexcept;    // (2)
 ```
 
 Replaces the pointer.

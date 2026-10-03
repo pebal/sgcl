@@ -3,13 +3,13 @@
 # sgcl::concurrent::priority_queue\<T, Compare\>::push
 
 ```cpp
-/*(1)*/ void push(const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_move_assignable_v<T>);
-/*(2)*/ void push(T&& value)
-            noexcept(std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_move_assignable_v<T>);
+void push(const T& value)                                  // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_move_assignable_v<T>);
+void push(T&& value)                                       // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_move_assignable_v<T>);
 ```
 
 Inserts an element.

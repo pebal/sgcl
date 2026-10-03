@@ -3,19 +3,19 @@
 # sgcl::math::rational::rational
 
 ```cpp
-/*(1)*/ rational() noexcept;
-/*(2)*/ template<std::integral T>
-        requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        rational(T value) noexcept;
-/*(3)*/ rational(big_integer value) noexcept;
-/*(4)*/ rational(big_integer numerator, big_integer denominator);
-/*(5)*/ explicit rational(double value);
-/*(6)*/ template<std::same_as<bool> B>
-        rational(B) = delete;
-/*(7)*/ explicit rational(long double) = delete;
-/*(8)*/ explicit rational(const string& text);
-/*(9)*/ rational(const rational&) noexcept = default;
-/*(10)*/ rational(rational&& other) noexcept;
+rational() noexcept;                                         // (1)
+template<std::integral T>
+requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
+rational(T value) noexcept;                                  // (2)
+rational(big_integer value) noexcept;                        // (3)
+rational(big_integer numerator, big_integer denominator);    // (4)
+explicit rational(double value);                             // (5)
+template<std::same_as<bool> B>
+rational(B) = delete;                                        // (6)
+explicit rational(long double) = delete;                     // (7)
+explicit rational(const string& text);                       // (8)
+rational(const rational&) noexcept = default;                // (9)
+rational(rational&& other) noexcept;                         // (10)
 ```
 
 Constructs a fraction.

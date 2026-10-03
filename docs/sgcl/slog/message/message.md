@@ -3,19 +3,19 @@
 # sgcl::slog::message::message
 
 ```cpp
-/*(1)*/ template<class C>
-        requires std::same_as<C, const char*> || std::same_as<C, char*>
-        message(C text,
-                std::source_location where = std::source_location::current()) noexcept;
-/*(2)*/ template<size_t N>
-        message(const char (&text)[N],
-                std::source_location where = std::source_location::current()) noexcept;
-/*(3)*/ message(const string& text,
-                std::source_location where = std::source_location::current()) noexcept;
-/*(4)*/ message(const std::string& text,
-                std::source_location where = std::source_location::current()) noexcept;
-/*(5)*/ message(const slice<const char>& text,
-                std::source_location where = std::source_location::current()) noexcept;
+template<class C>
+requires std::same_as<C, const char*> || std::same_as<C, char*>
+message(C text,                                                                    // (1)
+        std::source_location where = std::source_location::current()) noexcept;
+template<size_t N>
+message(const char (&text)[N],                                                     // (2)
+        std::source_location where = std::source_location::current()) noexcept;
+message(const string& text,                                                        // (3)
+        std::source_location where = std::source_location::current()) noexcept;
+message(const std::string& text,                                                   // (4)
+        std::source_location where = std::source_location::current()) noexcept;
+message(const slice<const char>& text,                                             // (5)
+        std::source_location where = std::source_location::current()) noexcept;
 ```
 
 Constructs a message that refers to `text`, at the place `where`. Not explicit: a verb's first argument converts.

@@ -3,9 +3,9 @@
 # sgcl::string::trim_prefix
 
 ```cpp
-/*(1)*/ basic_string trim_prefix(view_type prefix) const noexcept;
-/*(2)*/ template<size_t N>
-        basic_string trim_prefix(const CharT (&prefix)[N]) const noexcept;
+basic_string trim_prefix(view_type prefix) const noexcept;            // (1)
+template<size_t N>
+basic_string trim_prefix(const CharT (&prefix)[N]) const noexcept;    // (2)
 ```
 
 Returns the string without `prefix` at its start when it begins with it, and the same object when it does not, as

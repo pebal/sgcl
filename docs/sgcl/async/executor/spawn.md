@@ -3,10 +3,10 @@
 # sgcl::async::executor::spawn
 
 ```cpp
-/*(1)*/ template<class T>
-        [[nodiscard]] task<T> spawn(task<T> t);
-/*(2)*/ template<class F>
-        [[nodiscard]] auto spawn(F f);
+template<class T>
+[[nodiscard]] task<T> spawn(task<T> t);    // (1)
+template<class F>
+[[nodiscard]] auto spawn(F f);             // (2)
 ```
 
 Starts a task on this executor: it is queued here, and runs when the thread that runs the executor comes to it. The

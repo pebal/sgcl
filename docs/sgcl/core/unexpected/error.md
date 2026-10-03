@@ -3,10 +3,10 @@
 # sgcl::unexpected\<E\>::error
 
 ```cpp
-/*(1)*/ const E& error() const& noexcept;
-/*(2)*/ E& error() & noexcept;
-/*(3)*/ const E&& error() const&& noexcept;
-/*(4)*/ E&& error() && noexcept;
+const E& error() const& noexcept;      // (1)
+E& error() & noexcept;                 // (2)
+const E&& error() const&& noexcept;    // (3)
+E&& error() && noexcept;               // (4)
 ```
 
 The error the `unexpected` holds.

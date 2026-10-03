@@ -3,8 +3,8 @@
 # sgcl::txt::percent_set::operator|, operator-
 
 ```cpp
-/*(1)*/ constexpr percent_set operator|(const percent_set& other) const noexcept;
-/*(2)*/ constexpr percent_set operator-(const percent_set& other) const noexcept;
+constexpr percent_set operator|(const percent_set& other) const noexcept;    // (1)
+constexpr percent_set operator-(const percent_set& other) const noexcept;    // (2)
 ```
 
 1. The union: the characters of either set. RFC 3986 builds its sets up this way: `path` is

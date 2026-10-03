@@ -3,9 +3,9 @@
 # sgcl::async::mutex::mutex
 
 ```cpp
-/*(1)*/ mutex() noexcept;
-/*(2)*/ mutex(const mutex&) noexcept = default;
-/*(3)*/ mutex(mutex&&) noexcept = default;
+mutex() noexcept;                          // (1)
+mutex(const mutex&) noexcept = default;    // (2)
+mutex(mutex&&) noexcept = default;         // (3)
 ```
 
 1. A new mutex, unlocked: its state, a channel of one signal with the signal in it, made on the managed heap.

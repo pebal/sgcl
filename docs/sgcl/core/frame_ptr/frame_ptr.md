@@ -3,10 +3,10 @@
 # sgcl::frame_ptr\<Promise\>::frame_ptr
 
 ```cpp
-/*(1)*/ frame_ptr() noexcept = default;
-/*(2)*/ explicit frame_ptr(handle_type h) noexcept;
-/*(3)*/ frame_ptr(frame_ptr&& o) noexcept;
-/*(4)*/ frame_ptr(const frame_ptr&) = delete;
+frame_ptr() noexcept = default;                // (1)
+explicit frame_ptr(handle_type h) noexcept;    // (2)
+frame_ptr(frame_ptr&& o) noexcept;             // (3)
+frame_ptr(const frame_ptr&) = delete;          // (4)
 ```
 
 1. An empty `frame_ptr`: `false`, `done()`.

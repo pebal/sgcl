@@ -3,10 +3,10 @@
 # sgcl::expected\<T, E\>::or_else
 
 ```cpp
-/*(1)*/ template<class F> auto or_else(F&& f) & noexcept(/* see below */);
-/*(2)*/ template<class F> auto or_else(F&& f) const& noexcept(/* see below */);
-/*(3)*/ template<class F> auto or_else(F&& f) && noexcept(/* see below */);
-/*(4)*/ template<class F> auto or_else(F&& f) const&& noexcept(/* see below */);
+template<class F> auto or_else(F&& f) & noexcept(/* see below */);          // (1)
+template<class F> auto or_else(F&& f) const& noexcept(/* see below */);     // (2)
+template<class F> auto or_else(F&& f) && noexcept(/* see below */);         // (3)
+template<class F> auto or_else(F&& f) const&& noexcept(/* see below */);    // (4)
 ```
 
 The recovery from an error: when there is an error, the result of `f` called with it (through `std::invoke`), which

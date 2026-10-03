@@ -3,10 +3,10 @@
 # sgcl::sorted_multiset\<Key, Compare\>::swap
 
 ```cpp
-/*(1)*/ void swap(sorted_multiset& other) noexcept(std::is_nothrow_swappable_v<key_compare>);
-/*(2)*/ template<class Key, class Compare>
-        void swap(sorted_multiset<Key, Compare>& lhs, sorted_multiset<Key, Compare>& rhs)
-            noexcept(noexcept(lhs.swap(rhs)));
+void swap(sorted_multiset& other) noexcept(std::is_nothrow_swappable_v<key_compare>);    // (1)
+template<class Key, class Compare>
+void swap(sorted_multiset<Key, Compare>& lhs, sorted_multiset<Key, Compare>& rhs)        // (2)
+    noexcept(noexcept(lhs.swap(rhs)));
 ```
 
 Exchanges the contents of two multisets: their trees, their counts and their comparisons. No element is copied,

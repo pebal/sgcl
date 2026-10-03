@@ -6,11 +6,11 @@
 #include "sgcl/txt/format.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ template<class... A>
-            string format(const format_pattern<std::type_identity_t<A>...>& pattern,
-                          const A&... args);
-    /*(2)*/ template<class... A>
-            optional<string> format(const runtime_pattern& pattern, const A&... args);
+    template<class... A>
+    string format(const format_pattern<std::type_identity_t<A>...>& pattern,      // (1)
+                  const A&... args);
+    template<class... A>
+    optional<string> format(const runtime_pattern& pattern, const A&... args);    // (2)
 }
 ```
 

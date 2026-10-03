@@ -3,8 +3,8 @@
 # sgcl::encoding::csv::reader::read_header, async_read_header
 
 ```cpp
-/*(1)*/ optional<row> read_header();
-/*(2)*/ async::task<optional<row>> async_read_header() noexcept;
+optional<row> read_header();                                // (1)
+async::task<optional<row>> async_read_header() noexcept;    // (2)
 ```
 
 Reads the next record, as [next](next.md) does, and takes it as the header: its fields are the names of the

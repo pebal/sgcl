@@ -3,9 +3,9 @@
 # sgcl::async::shared_mutex::shared_guard::shared_guard
 
 ```cpp
-/*(1)*/ explicit shared_guard(shared_mutex& m) noexcept;
-/*(2)*/ shared_guard(shared_guard&& o) noexcept;
-/*(3)*/ shared_guard(const shared_guard&) = delete;
+explicit shared_guard(shared_mutex& m) noexcept;    // (1)
+shared_guard(shared_guard&& o) noexcept;            // (2)
+shared_guard(const shared_guard&) = delete;         // (3)
 ```
 
 1. Takes over a reader's lock of `m` that the caller holds: the guard locks nothing, and gives the lock back when

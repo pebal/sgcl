@@ -3,8 +3,8 @@
 # sgcl::crypto::chacha20::operator=
 
 ```cpp
-/*(1)*/ chacha20& operator=(chacha20&& other) noexcept;
-/*(2)*/ chacha20& operator=(const chacha20&) = delete;
+chacha20& operator=(chacha20&& other) noexcept;    // (1)
+chacha20& operator=(const chacha20&) = delete;     // (2)
 ```
 
 1. Takes the state of `other` over, its place in the keystream with it, written over the state this object held;

@@ -3,9 +3,9 @@
 # sgcl::crypto::hkdf\<H\>::expand
 
 ```cpp
-/*(1)*/ static secret_bytes expand(const prk& key, const slice<const byte>& info, size_t n);
-/*(2)*/ static secret_bytes expand(const slice<const byte>& key, const slice<const byte>& info,
-                                   size_t n);
+static secret_bytes expand(const prk& key, const slice<const byte>& info, size_t n);       // (1)
+static secret_bytes expand(const slice<const byte>& key, const slice<const byte>& info,    // (2)
+                           size_t n);
 ```
 
 `n` bytes of output keying material from a pseudorandom key, bound to `info`, the second step of RFC 5869:

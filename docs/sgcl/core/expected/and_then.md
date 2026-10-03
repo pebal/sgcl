@@ -3,10 +3,10 @@
 # sgcl::expected\<T, E\>::and_then
 
 ```cpp
-/*(1)*/ template<class F> auto and_then(F&& f) & noexcept(/* see below */);
-/*(2)*/ template<class F> auto and_then(F&& f) const& noexcept(/* see below */);
-/*(3)*/ template<class F> auto and_then(F&& f) && noexcept(/* see below */);
-/*(4)*/ template<class F> auto and_then(F&& f) const&& noexcept(/* see below */);
+template<class F> auto and_then(F&& f) & noexcept(/* see below */);          // (1)
+template<class F> auto and_then(F&& f) const& noexcept(/* see below */);     // (2)
+template<class F> auto and_then(F&& f) && noexcept(/* see below */);         // (3)
+template<class F> auto and_then(F&& f) const&& noexcept(/* see below */);    // (4)
 ```
 
 The next step of a computation that may fail: when there is a value, the result of `f` called with it (through

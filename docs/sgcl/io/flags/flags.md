@@ -3,8 +3,8 @@
 # sgcl::io::flags::flags
 
 ```cpp
-/*(1)*/ flags() noexcept = default;
-/*(2)*/ explicit flags(const string& description) noexcept;
+flags() noexcept = default;                            // (1)
+explicit flags(const string& description) noexcept;    // (2)
 ```
 
 Makes a description of a command line with no flags.

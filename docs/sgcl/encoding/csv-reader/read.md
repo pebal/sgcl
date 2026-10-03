@@ -3,10 +3,10 @@
 # sgcl::encoding::csv::reader::read\<T\>, async_read\<T\>
 
 ```cpp
-/*(1)*/ template<class T>
-        optional<T> read();
-/*(2)*/ template<class T>
-        async::task<optional<T>> async_read() noexcept;
+template<class T>
+optional<T> read();                                // (1)
+template<class T>
+async::task<optional<T>> async_read() noexcept;    // (2)
 ```
 
 The next record as a value of `T`, a type with `describe(field_list&)` ([field_list](../field_list.md)) and a

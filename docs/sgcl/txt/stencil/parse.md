@@ -3,9 +3,9 @@
 # sgcl::txt::stencil::parse
 
 ```cpp
-/*(1)*/ static expected<stencil, stencil_error> parse(const string& source) noexcept;
-/*(2)*/ static expected<stencil, stencil_error> parse(const string& source,
-                                                      const stencil_functions& functions);
+static expected<stencil, stencil_error> parse(const string& source) noexcept;         // (1)
+static expected<stencil, stencil_error> parse(const string& source,                   // (2)
+                                              const stencil_functions& functions);
 ```
 
 Reads `source` into a template, in one pass, left to right: the runs of literal text, the fields, the blocks and

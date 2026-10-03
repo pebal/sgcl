@@ -3,10 +3,10 @@
 # sgcl::sorted_set\<Key, Compare\>::merge
 
 ```cpp
-/*(1)*/ template<class C2> void merge(sorted_set<Key, C2>& source) noexcept;
-/*(2)*/ template<class C2> void merge(sorted_set<Key, C2>&& source) noexcept;
-/*(3)*/ template<class C2> void merge(sorted_multiset<Key, C2>& source) noexcept;
-/*(4)*/ template<class C2> void merge(sorted_multiset<Key, C2>&& source) noexcept;
+template<class C2> void merge(sorted_set<Key, C2>& source) noexcept;          // (1)
+template<class C2> void merge(sorted_set<Key, C2>&& source) noexcept;         // (2)
+template<class C2> void merge(sorted_multiset<Key, C2>& source) noexcept;     // (3)
+template<class C2> void merge(sorted_multiset<Key, C2>&& source) noexcept;    // (4)
 ```
 
 Moves into this set the nodes of `source` whose keys are not here yet, in the order of `source`. A node is

@@ -3,8 +3,8 @@
 # sgcl::io::multi_writer::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, error> write(const slice<const byte>& data);
-/*(2)*/ async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept;
+expected<size_t, error> write(const slice<const byte>& data);                         // (1)
+async::task<expected<size_t, error>> async_write(slice<const byte> data) noexcept;    // (2)
 ```
 
 Writes `data` to every writer, in their order. The first error stops it: it is returned as it is, the writers

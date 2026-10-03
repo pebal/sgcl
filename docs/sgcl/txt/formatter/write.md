@@ -3,9 +3,9 @@
 # sgcl::txt::formatter\<T\>::write
 
 ```cpp
-/*(1)*/ static void write(format_sink& out, const T& value, const format_spec& spec);
-/*(2)*/ static void write(format_sink& out, const T& value, const format_spec& spec,
-                          std::string_view nested);
+static void write(format_sink& out, const T& value, const format_spec& spec);    // (1)
+static void write(format_sink& out, const T& value, const format_spec& spec,     // (2)
+                  std::string_view nested);
 ```
 
 Writes `value` into `out` as `spec` says. The specification has been checked by [takes](takes.md) and

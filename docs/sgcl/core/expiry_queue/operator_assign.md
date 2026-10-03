@@ -3,8 +3,8 @@
 # sgcl::expiry_queue\<T\>::operator=
 
 ```cpp
-/*(1)*/ expiry_queue& operator=(expiry_queue&& other) noexcept;
-/*(2)*/ expiry_queue& operator=(const expiry_queue&) = delete;
+expiry_queue& operator=(expiry_queue&& other) noexcept;    // (1)
+expiry_queue& operator=(const expiry_queue&) = delete;     // (2)
 ```
 
 1. Drops the entries this queue held, as `clear()` does: without a call, and the objects they kept are no longer

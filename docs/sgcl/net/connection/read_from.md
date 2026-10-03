@@ -3,8 +3,8 @@
 # sgcl::net::connection::read_from, async_read_from
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> read_from(const io::file& f) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_read_from(io::file f) const noexcept;
+expected<size_t, io::error> read_from(const io::file& f) const;                         // (1)
+async::task<expected<size_t, io::error>> async_read_from(io::file f) const noexcept;    // (2)
 ```
 
 Writes the file `f` from its position to its end to the connection, as one write: Go's `ReaderFrom` of a

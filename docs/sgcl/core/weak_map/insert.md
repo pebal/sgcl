@@ -3,10 +3,10 @@
 # sgcl::weak_map\<Key, T\>::insert
 
 ```cpp
-/*(1)*/ pair<iterator, bool> insert(const key_pointer& object, const T& value)
-            noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ pair<iterator, bool> insert(const key_pointer& object, T&& value)
-            noexcept(std::is_nothrow_move_constructible_v<T>);
+pair<iterator, bool> insert(const key_pointer& object, const T& value)    // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T>);
+pair<iterator, bool> insert(const key_pointer& object, T&& value)         // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T>);
 ```
 
 Inserts a value for `object`, unless the object has an entry.

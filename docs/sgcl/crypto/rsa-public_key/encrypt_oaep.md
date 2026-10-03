@@ -3,11 +3,11 @@
 # sgcl::crypto::rsa::public_key::encrypt_oaep
 
 ```cpp
-/*(1)*/ vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message) const;
-/*(2)*/ vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message,
-                                const slice<const byte>& label) const;
-/*(3)*/ vector<byte> encrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& message,
-                                const slice<const byte>& label) const;
+vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message) const;           // (1)
+vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message,                  // (2)
+                        const slice<const byte>& label) const;
+vector<byte> encrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& message,    // (3)
+                        const slice<const byte>& label) const;
 ```
 
 Encrypts `message` with RSAES-OAEP (RFC 8017 §7.1) for the holder of the private key, with a fresh random seed: a

@@ -3,10 +3,10 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::insert
 
 ```cpp
-/*(1)*/ set insert(const Key& key) const noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ set insert(Key&& key) const
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_move_constructible_v<value_type>);
+set insert(const Key& key) const noexcept(std::is_nothrow_copy_constructible_v<value_type>);    // (1)
+set insert(Key&& key) const                                                                     // (2)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_move_constructible_v<value_type>);
 ```
 
 Returns the set with `key` added when no equal element is there, and this same set, sharing everything, when one

@@ -3,8 +3,8 @@
 # sgcl::math::big_integer::to_bytes
 
 ```cpp
-/*(1)*/ vector<byte> to_bytes() const noexcept;
-/*(2)*/ vector<byte> to_bytes(size_t length) const;
+vector<byte> to_bytes() const noexcept;        // (1)
+vector<byte> to_bytes(size_t length) const;    // (2)
 ```
 
 1. The magnitude as bytes, most significant first, as short as it goes, as Go's `Bytes`: no bytes for 0.

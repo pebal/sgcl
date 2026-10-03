@@ -3,8 +3,8 @@
 # sgcl::atomic_ref\<H\>::atomic_ref
 
 ```cpp
-/*(1)*/ explicit atomic_ref(H& h) noexcept;
-/*(2)*/ atomic_ref(const atomic_ref& a) noexcept;
+explicit atomic_ref(H& h) noexcept;          // (1)
+atomic_ref(const atomic_ref& a) noexcept;    // (2)
 ```
 
 1. A view of `h`: the operations act on its word.

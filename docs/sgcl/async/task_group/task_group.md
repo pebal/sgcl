@@ -3,8 +3,8 @@
 # sgcl::async::task_group::task_group
 
 ```cpp
-/*(1)*/ explicit task_group(const stop_token& parent = stop_token());
-/*(2)*/ task_group(const task_group&) = delete;
+explicit task_group(const stop_token& parent = stop_token());    // (1)
+task_group(const task_group&) = delete;                          // (2)
 ```
 
 1. A scope under `parent`: its own [stop_source](../stop_source.md) is made a child of the source the token belongs

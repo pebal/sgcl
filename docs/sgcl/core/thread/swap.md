@@ -3,8 +3,8 @@
 # sgcl::thread::swap, sgcl::swap (sgcl::thread)
 
 ```cpp
-/*(1)*/ void swap(thread& o) noexcept;
-/*(2)*/ void swap(thread& a, thread& b) noexcept;  // in namespace sgcl
+void swap(thread& o) noexcept;               // (1)
+void swap(thread& a, thread& b) noexcept;    // (2), in namespace sgcl
 ```
 
 1. Swaps the threads this object and `o` stand for.

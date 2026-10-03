@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::builder::try_get
 
 ```cpp
-/*(1)*/ const T* try_get(const Key& key) const noexcept;
-/*(2)*/ template<class K> const T* try_get(const K& key) const noexcept(/* see below */);
+const T* try_get(const Key& key) const noexcept;                                     // (1)
+template<class K> const T* try_get(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns a pointer to the value under `key`, or null when the key is absent: the read of `try_get` of a map, on

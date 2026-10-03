@@ -3,8 +3,8 @@
 # sgcl::vector\<T\>::data
 
 ```cpp
-/*(1)*/ T* data() noexcept;
-/*(2)*/ const T* data() const noexcept;
+T* data() noexcept;                // (1)
+const T* data() const noexcept;    // (2)
 ```
 
 Returns a plain pointer to the first element of the buffer. The elements lie contiguously from it,

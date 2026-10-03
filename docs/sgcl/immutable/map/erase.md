@@ -3,8 +3,8 @@
 # sgcl::immutable::map\<Key, T, Hash, KeyEqual\>::erase
 
 ```cpp
-/*(1)*/ map erase(const Key& key) const noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ template<class K> map erase(const K& key) const noexcept(/* see below */);
+map erase(const Key& key) const noexcept(std::is_nothrow_copy_constructible_v<value_type>);    // (1)
+template<class K> map erase(const K& key) const noexcept(/* see below */);                     // (2)
 ```
 
 Returns the map without the element under `key`. This map is unchanged. The path to the element is copied, a node

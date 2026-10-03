@@ -3,10 +3,10 @@
 # sgcl::compress::zip::archive::open, async_open
 
 ```cpp
-/*(1)*/ static expected<archive, error> open(const string& path) noexcept;
-/*(2)*/ static async::task<expected<archive, error>> async_open(string path) noexcept;
-/*(3)*/ static expected<archive, error> open(const io::file& file) noexcept;
-/*(4)*/ static async::task<expected<archive, error>> async_open(io::file file) noexcept;
+static expected<archive, error> open(const string& path) noexcept;                  // (1)
+static async::task<expected<archive, error>> async_open(string path) noexcept;      // (2)
+static expected<archive, error> open(const io::file& file) noexcept;                // (3)
+static async::task<expected<archive, error>> async_open(io::file file) noexcept;    // (4)
 ```
 
 Opens an archive: finds the end record at the end of the file, and reads the central directory, where the archive

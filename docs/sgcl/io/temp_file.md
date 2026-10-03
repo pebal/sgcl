@@ -6,10 +6,10 @@
 #include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<file, error> temp_file(const string& dir = {}, const string& pattern = "*");
-    /*(2)*/ async::task<expected<file, error>> async_temp_file(const string& dir = {},
-                                                               const string& pattern = "*")
-                noexcept;
+    expected<file, error> temp_file(const string& dir = {}, const string& pattern = "*");    // (1)
+    async::task<expected<file, error>> async_temp_file(const string& dir = {},               // (2)
+                                                       const string& pattern = "*")
+        noexcept;
 }
 ```
 

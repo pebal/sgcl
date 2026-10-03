@@ -3,8 +3,8 @@
 # sgcl::async::channel\<T\>::receive
 
 ```cpp
-/*(1)*/ auto receive() const noexcept;
-/*(2)*/ auto receive() const noexcept;  // channel<void>
+auto receive() const noexcept;    // (1)
+auto receive() const noexcept;    // (2), channel<void>
 ```
 
 Receives the next element, waiting for one. The call makes an [operation](../operation.md) that does nothing yet;

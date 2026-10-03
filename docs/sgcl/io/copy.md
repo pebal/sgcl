@@ -6,10 +6,10 @@
 #include "sgcl/io/functions.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<req::writer W, req::reader R>
-            expected<size_t, error> copy(W&& w, R&& r) noexcept(/* see below */);
-    /*(2)*/ template<req::async_writer W, req::async_reader R>
-            async::task<expected<size_t, error>> async_copy(W&& w, R&& r) noexcept(/* see below */);
+    template<req::writer W, req::reader R>
+    expected<size_t, error> copy(W&& w, R&& r) noexcept(/* see below */);                       // (1)
+    template<req::async_writer W, req::async_reader R>
+    async::task<expected<size_t, error>> async_copy(W&& w, R&& r) noexcept(/* see below */);    // (2)
 }
 ```
 

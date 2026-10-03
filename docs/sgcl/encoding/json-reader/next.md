@@ -3,8 +3,8 @@
 # sgcl::encoding::json::reader::next, async_next
 
 ```cpp
-/*(1)*/ optional<token> next();
-/*(2)*/ async::task<optional<token>> async_next() noexcept;
+optional<token> next();                                // (1)
+async::task<optional<token>> async_next() noexcept;    // (2)
 ```
 
 The next [token](../json-token.md) of the input: a bracket that opens or closes an array or an object, a key, a

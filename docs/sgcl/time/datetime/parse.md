@@ -3,9 +3,9 @@
 # sgcl::time::datetime::parse
 
 ```cpp
-/*(1)*/ static expected<datetime, error> parse(const string& text, layout format) noexcept;
-/*(2)*/ static expected<datetime, error> parse(const string& text, const string& pattern,
-                                               const time::zone& z = time::zone::utc()) noexcept;
+static expected<datetime, error> parse(const string& text, layout format) noexcept;          // (1)
+static expected<datetime, error> parse(const string& text, const string& pattern,            // (2)
+                                       const time::zone& z = time::zone::utc()) noexcept;
 ```
 
 Reads a datetime from a text that may not be one (from a person, a file, the network), Go's `time.Parse` and

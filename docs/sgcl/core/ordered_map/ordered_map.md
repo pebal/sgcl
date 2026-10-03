@@ -3,22 +3,22 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::ordered_map
 
 ```cpp
-/*(1)*/ ordered_map()
-            noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                     std::is_nothrow_default_constructible_v<key_equal>);
-/*(2)*/ explicit ordered_map(size_type bucket_count, const hasher& hash = hasher(),
-                             const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        ordered_map(InputIt first, InputIt last, size_type bucket_count = 0,
-                    const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(4)*/ ordered_map(std::initializer_list<value_type> ilist, size_type bucket_count = 0,
-                    const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ ordered_map(const ordered_map& other);
-/*(6)*/ ordered_map(ordered_map&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal>);
+ordered_map()                                                                        // (1)
+    noexcept(std::is_nothrow_default_constructible_v<hasher> &&
+             std::is_nothrow_default_constructible_v<key_equal>);
+explicit ordered_map(size_type bucket_count, const hasher& hash = hasher(),          // (2)
+                     const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+ordered_map(InputIt first, InputIt last, size_type bucket_count = 0,                 // (3)
+            const hasher& hash = hasher(), const key_equal& equal = key_equal());
+ordered_map(std::initializer_list<value_type> ilist, size_type bucket_count = 0,     // (4)
+            const hasher& hash = hasher(), const key_equal& equal = key_equal());
+ordered_map(const ordered_map& other);                                               // (5)
+ordered_map(ordered_map&& other)                                                     // (6)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal>);
 ```
 
 Constructs a map from one of the sources below.

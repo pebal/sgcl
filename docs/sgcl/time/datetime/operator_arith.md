@@ -3,12 +3,12 @@
 # sgcl::time::datetime::operator+=, operator-=, sgcl::time::operator+, operator- (sgcl::time::datetime)
 
 ```cpp
-/*(1)*/ friend datetime operator+(const datetime& t, duration d) noexcept;
-/*(2)*/ friend datetime operator+(duration d, const datetime& t) noexcept;
-/*(3)*/ friend datetime operator-(const datetime& t, duration d) noexcept;
-/*(4)*/ friend duration operator-(const datetime& a, const datetime& b) noexcept;
-/*(5)*/ datetime& operator+=(duration d) noexcept;
-/*(6)*/ datetime& operator-=(duration d) noexcept;
+friend datetime operator+(const datetime& t, duration d) noexcept;           // (1)
+friend datetime operator+(duration d, const datetime& t) noexcept;           // (2)
+friend datetime operator-(const datetime& t, duration d) noexcept;           // (3)
+friend duration operator-(const datetime& a, const datetime& b) noexcept;    // (4)
+datetime& operator+=(duration d) noexcept;                                   // (5)
+datetime& operator-=(duration d) noexcept;                                   // (6)
 ```
 
 The exact arithmetic of instants, Go's `t.Add(d)` and `t.Sub(u)`: an hour later is 3600 seconds later, whatever the

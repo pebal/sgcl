@@ -3,12 +3,12 @@
 # sgcl::codec::error::error
 
 ```cpp
-/*(1)*/ error() noexcept = default;
-/*(2)*/ error(errc code, uint64_t offset) noexcept;
-/*(3)*/ error(errc code, uint64_t offset, const string& detail) noexcept;
-/*(4)*/ error(const io::error& e, uint64_t offset) noexcept;
-/*(5)*/ error(const error& other) noexcept;
-/*(6)*/ error(error&& other) noexcept;
+error() noexcept = default;                                          // (1)
+error(errc code, uint64_t offset) noexcept;                          // (2)
+error(errc code, uint64_t offset, const string& detail) noexcept;    // (3)
+error(const io::error& e, uint64_t offset) noexcept;                 // (4)
+error(const error& other) noexcept;                                  // (5)
+error(error&& other) noexcept;                                       // (6)
 ```
 
 Constructs an error. The library makes the errors of its decoders and encoders; a program makes one for a reading of

@@ -3,9 +3,9 @@
 # sgcl::slice\<T\>::trim
 
 ```cpp
-/*(1)*/ slice trim() const noexcept;
-/*(2)*/ slice trim(std::basic_string_view<CharT> chars) const noexcept;
-/*(3)*/ slice trim(std::u32string_view set) const noexcept;
+slice trim() const noexcept;                                       // (1)
+slice trim(std::basic_string_view<CharT> chars) const noexcept;    // (2)
+slice trim(std::u32string_view set) const noexcept;                // (3)
 ```
 
 The text without the given characters at both ends, a slice of the same owner, nothing copied. `CharT` is the

@@ -6,13 +6,13 @@
 #include "sgcl/txt/format.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ template<class... A>
-            size_t format_to(const slice<char>& buffer,
-                             const format_pattern<std::type_identity_t<A>...>& pattern,
-                             const A&... args) noexcept(/* see below */);
-    /*(2)*/ template<class... A>
-            optional<size_t> format_to(const slice<char>& buffer, const runtime_pattern& pattern,
-                                       const A&... args) noexcept(/* see below */);
+    template<class... A>
+    size_t format_to(const slice<char>& buffer,                                              // (1)
+                     const format_pattern<std::type_identity_t<A>...>& pattern,
+                     const A&... args) noexcept(/* see below */);
+    template<class... A>
+    optional<size_t> format_to(const slice<char>& buffer, const runtime_pattern& pattern,    // (2)
+                               const A&... args) noexcept(/* see below */);
 }
 ```
 

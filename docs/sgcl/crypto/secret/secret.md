@@ -3,8 +3,8 @@
 # sgcl::crypto::secret\<N\>::secret
 
 ```cpp
-/*(1)*/ secret(secret&& other) noexcept;
-/*(2)*/ secret(const secret&) = delete;
+secret(secret&& other) noexcept;    // (1)
+secret(const secret&) = delete;     // (2)
 ```
 
 1. Takes the bytes of `other` over and zeroes them in `other`, with stores the compiler cannot drop: the bytes stay

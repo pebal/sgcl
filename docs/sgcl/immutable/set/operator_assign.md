@@ -3,8 +3,8 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ set& operator=(const set& other) noexcept;
-/*(2)*/ set& operator=(set&& other) noexcept;
+set& operator=(const set& other) noexcept;    // (1)
+set& operator=(set&& other) noexcept;         // (2)
 ```
 
 Makes this variable hold the version `other` holds.

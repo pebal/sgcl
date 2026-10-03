@@ -3,9 +3,9 @@
 # sgcl::encoding::xml::writer::writer
 
 ```cpp
-/*(1)*/ explicit writer(const io::writer& out, const style& s = compact) noexcept;
-/*(2)*/ writer(writer&& other) noexcept = default;
-/*(3)*/ writer(const writer&) = delete;
+explicit writer(const io::writer& out, const style& s = compact) noexcept;    // (1)
+writer(writer&& other) noexcept = default;                                    // (2)
+writer(const writer&) = delete;                                               // (3)
 ```
 
 Constructs a writer.

@@ -3,12 +3,12 @@
 # sgcl::immutable::vector\<T\>::vector
 
 ```cpp
-/*(1)*/ vector() noexcept;
-/*(2)*/ template<std::input_iterator InputIt> vector(InputIt first, InputIt last)
-            noexcept(/* see below */);
-/*(3)*/ vector(std::initializer_list<T> ilist) noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(4)*/ vector(const vector& other) noexcept;
-/*(5)*/ vector(vector&& other) noexcept;
+vector() noexcept;                                                                           // (1)
+template<std::input_iterator InputIt> vector(InputIt first, InputIt last)                    // (2)
+    noexcept(/* see below */);
+vector(std::initializer_list<T> ilist) noexcept(std::is_nothrow_copy_constructible_v<T>);    // (3)
+vector(const vector& other) noexcept;                                                        // (4)
+vector(vector&& other) noexcept;                                                             // (5)
 ```
 
 Constructs a vector from one of the sources below.

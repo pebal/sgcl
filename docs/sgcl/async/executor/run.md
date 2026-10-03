@@ -3,10 +3,10 @@
 # sgcl::async::executor::run
 
 ```cpp
-/*(1)*/ void run() noexcept;
-/*(2)*/ template<class T>
-        T run(task<T> t);
-/*(3)*/ void run(task<> t);
+void run() noexcept;    // (1)
+template<class T>
+T run(task<T> t);       // (2)
+void run(task<> t);     // (3)
 ```
 
 Runs the executor on the calling thread: the frames queued run, each to its next suspension; an empty queue parks

@@ -3,10 +3,10 @@
 # sgcl::sorted_map\<Key, T, Compare\>::operator=
 
 ```cpp
-/*(1)*/ sorted_map& operator=(const sorted_map& other);
-/*(2)*/ sorted_map& operator=(sorted_map&& other)
-            noexcept(std::is_nothrow_move_assignable_v<key_compare>);
-/*(3)*/ sorted_map& operator=(std::initializer_list<value_type> ilist);
+sorted_map& operator=(const sorted_map& other);                    // (1)
+sorted_map& operator=(sorted_map&& other)                          // (2)
+    noexcept(std::is_nothrow_move_assignable_v<key_compare>);
+sorted_map& operator=(std::initializer_list<value_type> ilist);    // (3)
 ```
 
 Replaces the contents of the map. The elements the map held are destroyed at once, before the new ones come.

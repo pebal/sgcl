@@ -3,8 +3,8 @@
 # sgcl::array\<T, N\>::back
 
 ```cpp
-/*(1)*/ constexpr reference back() noexcept;
-/*(2)*/ constexpr const_reference back() const noexcept;
+constexpr reference back() noexcept;                // (1)
+constexpr const_reference back() const noexcept;    // (2)
 ```
 
 Returns a reference to the last element, `(*this)[N - 1]`. `array<T, 0>` has no `back`: an array without elements

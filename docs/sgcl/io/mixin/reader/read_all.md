@@ -3,10 +3,10 @@
 # sgcl::io::mixin::reader\<Derived\>::read_all, async_read_all
 
 ```cpp
-/*(1)*/ expected<vector<byte>, error> read_all()
-            noexcept(noexcept(io::read_all(std::declval<Derived&>())));
-/*(2)*/ async::task<expected<vector<byte>, error>> async_read_all() noexcept
-            requires req::async_reader<Derived&>;
+expected<vector<byte>, error> read_all()                                // (1)
+    noexcept(noexcept(io::read_all(std::declval<Derived&>())));
+async::task<expected<vector<byte>, error>> async_read_all() noexcept    // (2)
+    requires req::async_reader<Derived&>;
 ```
 
 Reads this stream to its end and returns its bytes. It is [io::read_all](../../read_all.md) over this stream:

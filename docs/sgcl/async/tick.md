@@ -6,8 +6,8 @@
 #include "sgcl/async/timer.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ channel<void> tick(duration d);
-    /*(2)*/ channel<void> tick(duration d, time_point first);
+    channel<void> tick(duration d);                      // (1)
+    channel<void> tick(duration d, time_point first);    // (2)
 }
 ```
 

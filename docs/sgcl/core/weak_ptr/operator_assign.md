@@ -3,13 +3,13 @@
 # sgcl::weak_ptr\<T\>::operator=
 
 ```cpp
-/*(1)*/ weak_ptr& operator=(const weak_ptr&) noexcept = default;
-/*(2)*/ weak_ptr& operator=(weak_ptr&&) noexcept = default;
-/*(3)*/ template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
-        weak_ptr& operator=(const weak_ptr<U>& w) noexcept;
-/*(4)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr& operator=(const tracked_ptr<U>& p) noexcept;
-/*(5)*/ weak_ptr& operator=(std::nullptr_t) noexcept;
+weak_ptr& operator=(const weak_ptr&) noexcept = default;                                                                                   // (1)
+weak_ptr& operator=(weak_ptr&&) noexcept = default;                                                                                        // (2)
+template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
+weak_ptr& operator=(const weak_ptr<U>& w) noexcept;                                                                                        // (3)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+weak_ptr& operator=(const tracked_ptr<U>& p) noexcept;                                                                                     // (4)
+weak_ptr& operator=(std::nullptr_t) noexcept;                                                                                              // (5)
 ```
 
 Replaces the cell this pointer refers to.

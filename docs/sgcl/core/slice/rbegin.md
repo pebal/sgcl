@@ -3,8 +3,8 @@
 # sgcl::slice\<T\>::rbegin, crbegin
 
 ```cpp
-/*(1)*/ reverse_iterator rbegin() const noexcept;
-/*(2)*/ const_reverse_iterator crbegin() const noexcept;
+reverse_iterator rbegin() const noexcept;           // (1)
+const_reverse_iterator crbegin() const noexcept;    // (2)
 ```
 
 A reverse iterator to the last element, `std::reverse_iterator` over the slice's pointers.

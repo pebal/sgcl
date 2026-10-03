@@ -3,8 +3,8 @@
 # sgcl::encoding::xml::reader::next, async_next
 
 ```cpp
-/*(1)*/ optional<token> next();
-/*(2)*/ async::task<optional<token>> async_next() noexcept;
+optional<token> next();                                // (1)
+async::task<optional<token>> async_next() noexcept;    // (2)
 ```
 
 The next [token](../xml-token.md) of the document, every one: the XML declaration, the DOCTYPE, the comments

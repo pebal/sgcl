@@ -3,25 +3,25 @@
 # sgcl::string::join
 
 ```cpp
-/*(1)*/ template<std::ranges::input_range R>
-        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-        static basic_string join(R&& parts, view_type sep);
-/*(2)*/ template<std::ranges::input_range R>
-        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-        static basic_string join(R&& parts, CharT sep);
-/*(3)*/ template<std::ranges::input_range R, size_t N>
-        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-        static basic_string join(R&& parts, const CharT (&sep)[N]);
-/*(4)*/ template<std::ranges::input_range R, class P>
-        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-              && (std::same_as<P, const CharT*> || std::same_as<P, CharT*>)
-        static basic_string join(R&& parts, P sep);
-/*(5)*/ template<std::ranges::input_range R>
-        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-              && (!std::same_as<CharT, char32_t>)
-        static basic_string join(R&& parts, char32_t sep);
-/*(6)*/ template<std::ranges::input_range R>
-        static basic_string join(R&&, int) = delete;
+template<std::ranges::input_range R>
+requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
+static basic_string join(R&& parts, view_type sep);                             // (1)
+template<std::ranges::input_range R>
+requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
+static basic_string join(R&& parts, CharT sep);                                 // (2)
+template<std::ranges::input_range R, size_t N>
+requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
+static basic_string join(R&& parts, const CharT (&sep)[N]);                     // (3)
+template<std::ranges::input_range R, class P>
+requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
+      && (std::same_as<P, const CharT*> || std::same_as<P, CharT*>)
+static basic_string join(R&& parts, P sep);                                     // (4)
+template<std::ranges::input_range R>
+requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
+      && (!std::same_as<CharT, char32_t>)
+static basic_string join(R&& parts, char32_t sep);                              // (5)
+template<std::ranges::input_range R>
+static basic_string join(R&&, int) = delete;                                    // (6)
 ```
 
 Makes one string of the parts, in order, with `sep` between each two. A static function: `string::join(names, ", ")`.

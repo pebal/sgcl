@@ -3,8 +3,8 @@
 # sgcl::encoding::json::token::as_uint
 
 ```cpp
-/*(1)*/ optional<uint64_t> as_uint() const noexcept;
-/*(2)*/ uint64_t as_uint(uint64_t fallback) const noexcept;
+optional<uint64_t> as_uint() const noexcept;           // (1)
+uint64_t as_uint(uint64_t fallback) const noexcept;    // (2)
 ```
 
 A number token as an `uint64_t`, when the value of its literal is an integer that an `uint64_t` holds exactly,

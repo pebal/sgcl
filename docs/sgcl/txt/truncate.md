@@ -6,8 +6,8 @@
 #include "sgcl/txt/segment.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ string truncate(const string& text, size_t width, const string& ellipsis);
-    /*(2)*/ string truncate(const string& text, size_t width);
+    string truncate(const string& text, size_t width, const string& ellipsis);    // (1)
+    string truncate(const string& text, size_t width);                            // (2)
 }
 ```
 

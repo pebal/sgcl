@@ -3,16 +3,16 @@
 # sgcl::mixin::text\<Derived, CharT, Traits\>::compare
 
 ```cpp
-/*(1)*/ int compare(view_type s) const noexcept;
-/*(2)*/ int compare(size_type pos, size_type n, view_type s) const;
-/*(3)*/ int compare(size_type pos, size_type n, view_type s, size_type pos2, size_type n2) const;
-/*(4)*/ template<size_t N> int compare(size_type pos, size_type n, const CharT (&s)[N]) const;
-/*(5)*/ template<size_t N>
-        int compare(size_type pos, size_type n, const CharT (&s)[N], size_type pos2,
-                    size_type n2) const;
-/*(6)*/ template<size_t N> int compare(const CharT (&s)[N]) const noexcept;
-/*(7)*/ template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        int compare(P s) const noexcept;
+int compare(view_type s) const noexcept;                                                     // (1)
+int compare(size_type pos, size_type n, view_type s) const;                                  // (2)
+int compare(size_type pos, size_type n, view_type s, size_type pos2, size_type n2) const;    // (3)
+template<size_t N> int compare(size_type pos, size_type n, const CharT (&s)[N]) const;       // (4)
+template<size_t N>
+int compare(size_type pos, size_type n, const CharT (&s)[N], size_type pos2,                 // (5)
+            size_type n2) const;
+template<size_t N> int compare(const CharT (&s)[N]) const noexcept;                          // (6)
+template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+int compare(P s) const noexcept;                                                             // (7)
 ```
 
 Compares the text, or its part `[pos, pos + n)`, with another text, as `std::basic_string_view::compare` does: by

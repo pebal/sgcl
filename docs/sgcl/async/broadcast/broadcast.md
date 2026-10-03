@@ -3,8 +3,8 @@
 # sgcl::async::broadcast\<T\>::broadcast
 
 ```cpp
-/*(1)*/ explicit broadcast(size_type capacity);
-/*(2)*/ broadcast(const broadcast&) = delete;
+explicit broadcast(size_type capacity);    // (1)
+broadcast(const broadcast&) = delete;      // (2)
 ```
 
 1. Makes a broadcast with a ring of `capacity` values, rounded up to a power of two; a `capacity` of 0 is a ring of

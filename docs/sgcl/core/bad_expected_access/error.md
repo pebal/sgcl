@@ -3,10 +3,10 @@
 # sgcl::bad_expected_access\<E\>::error
 
 ```cpp
-/*(1)*/ const E& error() const& noexcept;
-/*(2)*/ E& error() & noexcept;
-/*(3)*/ const E&& error() const&& noexcept;
-/*(4)*/ E&& error() && noexcept;
+const E& error() const& noexcept;      // (1)
+E& error() & noexcept;                 // (2)
+const E&& error() const&& noexcept;    // (3)
+E&& error() && noexcept;               // (4)
 ```
 
 The error the exception carries: a reference into the managed object that holds it, alive for as long as the

@@ -3,12 +3,12 @@
 # sgcl::concurrent::cache\<Key, T, Hash, KeyEqual\>::cache
 
 ```cpp
-/*(1)*/ explicit cache(size_type capacity, duration ttl = duration::zero(),
-                       unsigned sample = DefaultSample, const Hash& hash = Hash(),
-                       const KeyEqual& equal = KeyEqual())
-            noexcept(std::is_nothrow_copy_constructible_v<Hash> &&
-                     std::is_nothrow_copy_constructible_v<KeyEqual>);
-/*(2)*/ cache(const cache&) = delete;
+explicit cache(size_type capacity, duration ttl = duration::zero(),           // (1)
+               unsigned sample = DefaultSample, const Hash& hash = Hash(),
+               const KeyEqual& equal = KeyEqual())
+    noexcept(std::is_nothrow_copy_constructible_v<Hash> &&
+             std::is_nothrow_copy_constructible_v<KeyEqual>);
+cache(const cache&) = delete;                                                 // (2)
 ```
 
 1. An empty cache that keeps `capacity` entries, none older than `ttl` (no time to live when `ttl` is zero),

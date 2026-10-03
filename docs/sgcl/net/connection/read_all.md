@@ -3,8 +3,8 @@
 # sgcl::net::connection::read_all, async_read_all
 
 ```cpp
-/*(1)*/ expected<vector<byte>, io::error> read_all() const;
-/*(2)*/ async::task<expected<vector<byte>, io::error>> async_read_all() const noexcept;
+expected<vector<byte>, io::error> read_all() const;                                // (1)
+async::task<expected<vector<byte>, io::error>> async_read_all() const noexcept;    // (2)
 ```
 
 Reads everything to the end of the stream, until the peer closes its writing half: Go's `io.ReadAll(c)`. It is

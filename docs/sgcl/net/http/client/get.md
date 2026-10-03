@@ -3,8 +3,8 @@
 # sgcl::net::http::client::get, async_get
 
 ```cpp
-/*(1)*/ expected<response, io::error> get(const string& url) const;
-/*(2)*/ async::task<expected<response, io::error>> async_get(const string& url) const noexcept;
+expected<response, io::error> get(const string& url) const;                                // (1)
+async::task<expected<response, io::error>> async_get(const string& url) const noexcept;    // (2)
 ```
 
 Sends a GET of `url` with no fields of the program's and no body, Go's `http.Get` and `Client.Get`: [send](send.md) of

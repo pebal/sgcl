@@ -3,8 +3,8 @@
 # sgcl::async::channel\<T\>::try_receive
 
 ```cpp
-/*(1)*/ optional<T> try_receive() const;
-/*(2)*/ bool try_receive() const;  // channel<void>
+optional<T> try_receive() const;    // (1)
+bool try_receive() const;           // (2), channel<void>
 ```
 
 Receives an element if one is there, without waiting: the first element of the buffer, with the first waiting

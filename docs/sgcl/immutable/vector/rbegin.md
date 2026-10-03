@@ -3,8 +3,8 @@
 # sgcl::immutable::vector\<T\>::rbegin, crbegin
 
 ```cpp
-/*(1)*/ const_reverse_iterator rbegin() const noexcept;
-/*(2)*/ const_reverse_iterator crbegin() const noexcept;
+const_reverse_iterator rbegin() const noexcept;     // (1)
+const_reverse_iterator crbegin() const noexcept;    // (2)
 ```
 
 Returns a reverse iterator to the last element, the first of the vector read backwards; on an empty vector it is

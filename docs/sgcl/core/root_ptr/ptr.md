@@ -3,10 +3,10 @@
 # sgcl::root_ptr\<T\>::ptr, operator tracked_ptr\<T\>&
 
 ```cpp
-/*(1)*/ tracked_ptr<T>& ptr() noexcept;
-/*(2)*/ const tracked_ptr<T>& ptr() const noexcept;
-/*(3)*/ operator tracked_ptr<T>&() noexcept;
-/*(4)*/ operator const tracked_ptr<T>&() const noexcept;
+tracked_ptr<T>& ptr() noexcept;                     // (1)
+const tracked_ptr<T>& ptr() const noexcept;         // (2)
+operator tracked_ptr<T>&() noexcept;                // (3)
+operator const tracked_ptr<T>&() const noexcept;    // (4)
 ```
 
 The `tracked_ptr` the root holds its object by: the cell's word, inside a managed object, where a `tracked_ptr`

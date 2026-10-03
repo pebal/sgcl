@@ -3,10 +3,10 @@
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::upper_bound
 
 ```cpp
-/*(1)*/ iterator upper_bound(const Key& key) noexcept;
-/*(2)*/ const_iterator upper_bound(const Key& key) const noexcept;
-/*(3)*/ template<class K> iterator upper_bound(const K& key) noexcept;
-/*(4)*/ template<class K> const_iterator upper_bound(const K& key) const noexcept;
+iterator upper_bound(const Key& key) noexcept;                                // (1)
+const_iterator upper_bound(const Key& key) const noexcept;                    // (2)
+template<class K> iterator upper_bound(const K& key) noexcept;                // (3)
+template<class K> const_iterator upper_bound(const K& key) const noexcept;    // (4)
 ```
 
 Returns an iterator to the first element whose key is greater than `key`: the node the search of

@@ -3,8 +3,8 @@
 # sgcl::compress::lzma::reader::reader
 
 ```cpp
-/*(1)*/ explicit reader(const io::reader& in) noexcept;
-/*(2)*/ reader(const io::reader& in, const limits& l) noexcept;
+explicit reader(const io::reader& in) noexcept;            // (1)
+reader(const io::reader& in, const limits& l) noexcept;    // (2)
 ```
 
 Constructs a reader of what the data read from `in` decompresses to. Nothing is read yet: the first read reads the

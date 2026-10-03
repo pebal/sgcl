@@ -3,9 +3,9 @@
 # sgcl::async::receive_channel\<T\>::receive_channel
 
 ```cpp
-/*(1)*/ receive_channel(const channel<T>& ch) noexcept;
-/*(2)*/ receive_channel(const receive_channel&) noexcept = default;
-/*(3)*/ receive_channel(receive_channel&&) noexcept = default;
+receive_channel(const channel<T>& ch) noexcept;                // (1)
+receive_channel(const receive_channel&) noexcept = default;    // (2)
+receive_channel(receive_channel&&) noexcept = default;         // (3)
 ```
 
 Makes the receiving end of a channel, or another handle of one.

@@ -3,14 +3,14 @@
 # sgcl::compress::gzip::compress
 
 ```cpp
-/*(1)*/ static vector<byte> compress(const slice<const byte>& data) noexcept;
-/*(2)*/ static vector<byte> compress(const slice<const byte>& data, const options& o);
-/*(3)*/ static vector<byte> compress(const string& text) noexcept;
-/*(4)*/ static vector<byte> compress(const string& text, const options& o);
-/*(5)*/ template<class T>
-        static vector<byte> compress(const T& text) noexcept;
-/*(6)*/ template<class T>
-        static vector<byte> compress(const T& text, const options& o);
+static vector<byte> compress(const slice<const byte>& data) noexcept;             // (1)
+static vector<byte> compress(const slice<const byte>& data, const options& o);    // (2)
+static vector<byte> compress(const string& text) noexcept;                        // (3)
+static vector<byte> compress(const string& text, const options& o);               // (4)
+template<class T>
+static vector<byte> compress(const T& text) noexcept;                             // (5)
+template<class T>
+static vector<byte> compress(const T& text, const options& o);                    // (6)
 ```
 
 Compresses the whole of the data at once into one gzip member: the header of the options, the DEFLATE data, the CRC-32

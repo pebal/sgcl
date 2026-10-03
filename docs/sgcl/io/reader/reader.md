@@ -3,11 +3,11 @@
 # sgcl::io::reader::reader
 
 ```cpp
-/*(1)*/ reader() noexcept = default;
-/*(2)*/ template<class R>
-        requires (!std::same_as<std::remove_cvref_t<R>, reader>) &&
-                 (req::reader<R> || req::async_reader<R>)
-        reader(R&& r) noexcept(/* see below */);
+reader() noexcept = default;                                   // (1)
+template<class R>
+requires (!std::same_as<std::remove_cvref_t<R>, reader>) &&
+         (req::reader<R> || req::async_reader<R>)
+reader(R&& r) noexcept(/* see below */);                       // (2)
 ```
 
 Constructs a reader.

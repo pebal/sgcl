@@ -3,8 +3,8 @@
 # sgcl::async::blocking_task\<T\>::operator=
 
 ```cpp
-/*(1)*/ blocking_task& operator=(blocking_task&& other) noexcept = default;
-/*(2)*/ blocking_task& operator=(const blocking_task&) = delete;
+blocking_task& operator=(blocking_task&& other) noexcept = default;    // (1)
+blocking_task& operator=(const blocking_task&) = delete;               // (2)
 ```
 
 1. Takes over the job of `other`, which is left empty. The job this handle held before is let go of: it runs on all

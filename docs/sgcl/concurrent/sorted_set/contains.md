@@ -3,8 +3,8 @@
 # sgcl::concurrent::sorted_set\<Key, Compare\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const Key& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept;
+bool contains(const Key& key) const noexcept;                    // (1)
+template<class K> bool contains(const K& key) const noexcept;    // (2)
 ```
 
 Checks whether the set holds a key equivalent to `key`, with the search of [find](find.md).

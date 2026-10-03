@@ -3,8 +3,8 @@
 # sgcl::io::command::wait, async_wait
 
 ```cpp
-/*(1)*/ expected<void, error> wait();
-/*(2)*/ async::task<expected<void, error>> async_wait() noexcept;
+expected<void, error> wait();                                // (1)
+async::task<expected<void, error>> async_wait() noexcept;    // (2)
 ```
 
 Waits for the child to end, Go's `Cmd.Wait`. How it ended is kept in `state`; the tasks that copy to and from its

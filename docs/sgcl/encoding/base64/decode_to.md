@@ -3,11 +3,11 @@
 # sgcl::encoding::base64::decode_to
 
 ```cpp
-/*(1)*/ expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const;
-/*(2)*/ expected<size_t, error> decode_to(const slice<byte>& out,
-                                          const slice<const char>& text) const;
-/*(3)*/ template<class T>
-        expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const;
+expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const;    // (1)
+expected<size_t, error> decode_to(const slice<byte>& out,                               // (2)
+                                  const slice<const char>& text) const;
+template<class T>
+expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const;         // (3)
 ```
 
 The bytes of a text written into the caller's buffer, nothing allocated: Go's `Decode`. The text is read as

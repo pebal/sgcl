@@ -3,9 +3,9 @@
 # sgcl::io::mixin::reader\<Derived\>::read_all_text, async_read_all_text
 
 ```cpp
-/*(1)*/ expected<string, error> read_all_text();
-/*(2)*/ async::task<expected<string, error>> async_read_all_text() noexcept
-            requires req::async_reader<Derived&>;
+expected<string, error> read_all_text();                               // (1)
+async::task<expected<string, error>> async_read_all_text() noexcept    // (2)
+    requires req::async_reader<Derived&>;
 ```
 
 Reads this stream to its end and returns its bytes as a [string](../../../core/string.md), taken as they are. It is

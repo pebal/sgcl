@@ -3,9 +3,9 @@
 # sgcl::mixin::enumerable\<Derived\>::max
 
 ```cpp
-/*(1)*/ constexpr decltype(auto) max() const noexcept(/* see below */);
-/*(2)*/ template<class Compare>
-        constexpr decltype(auto) max(Compare cmp) const noexcept(/* see below */);
+constexpr decltype(auto) max() const noexcept(/* see below */);               // (1)
+template<class Compare>
+constexpr decltype(auto) max(Compare cmp) const noexcept(/* see below */);    // (2)
 ```
 
 Finds the largest element, walking the whole range; of several equal largest, the first.

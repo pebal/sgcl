@@ -3,8 +3,8 @@
 # sgcl::net::udp::socket::receive, async_receive
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> receive(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_receive(const slice<byte>& buffer) const noexcept;
+expected<size_t, io::error> receive(const slice<byte>& buffer) const;                                // (1)
+async::task<expected<size_t, io::error>> async_receive(const slice<byte>& buffer) const noexcept;    // (2)
 ```
 
 Receives the next datagram into `buffer`, waiting until one comes: the `Read` of the `net.Conn` Go's

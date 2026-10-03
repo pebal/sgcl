@@ -3,8 +3,8 @@
 # sgcl::crypto::x509::certificate::permitted_uri_domains, excluded_uri_domains
 
 ```cpp
-/*(1)*/ const vector<string>& permitted_uri_domains() const noexcept;
-/*(2)*/ const vector<string>& excluded_uri_domains() const noexcept;
+const vector<string>& permitted_uri_domains() const noexcept;    // (1)
+const vector<string>& excluded_uri_domains() const noexcept;     // (2)
 ```
 
 Return the URI subtrees of the nameConstraints:

@@ -3,14 +3,14 @@
 # sgcl::function\<R(Args...)\>::operator=
 
 ```cpp
-/*(1)*/ function& operator=(const function& o);
-/*(2)*/ function& operator=(function&& o) noexcept;
-/*(3)*/ function& operator=(std::nullptr_t) noexcept;
-/*(4)*/ template<class F, class VF = std::decay_t<F>>
-        requires std::is_copy_constructible_v<VF>
-        function& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>);
-/*(5)*/ template<class F>
-        function& operator=(std::reference_wrapper<F> f) noexcept;
+function& operator=(const function& o);                                         // (1)
+function& operator=(function&& o) noexcept;                                     // (2)
+function& operator=(std::nullptr_t) noexcept;                                   // (3)
+template<class F, class VF = std::decay_t<F>>
+requires std::is_copy_constructible_v<VF>
+function& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>);    // (4)
+template<class F>
+function& operator=(std::reference_wrapper<F> f) noexcept;                      // (5)
 ```
 
 Replaces the callable held.

@@ -3,18 +3,18 @@
 # sgcl::net::tcp::connect, async_connect
 
 ```cpp
-/*(1)*/ static expected<net::connection, io::error> connect(const string& address);
-/*(2)*/ static expected<net::connection, io::error> connect(const string& address,
-                                                            async::stop_token stop);
-/*(3)*/ static expected<net::connection, io::error> connect(const string& address,
-                                                            duration timeout);
-/*(4)*/ static expected<net::connection, io::error> connect(const net::endpoint& to);
-/*(5)*/ static async::task<expected<net::connection, io::error>> async_connect(const string& address) noexcept;
-/*(6)*/ static async::task<expected<net::connection, io::error>> async_connect(const string& address,
-                                                                              async::stop_token stop) noexcept;
-/*(7)*/ static async::task<expected<net::connection, io::error>> async_connect(const string& address,
-                                                                              duration timeout) noexcept;
-/*(8)*/ static async::task<expected<net::connection, io::error>> async_connect(const net::endpoint& to) noexcept;
+static expected<net::connection, io::error> connect(const string& address);                                  // (1)
+static expected<net::connection, io::error> connect(const string& address,                                   // (2)
+                                                    async::stop_token stop);
+static expected<net::connection, io::error> connect(const string& address,                                   // (3)
+                                                    duration timeout);
+static expected<net::connection, io::error> connect(const net::endpoint& to);                                // (4)
+static async::task<expected<net::connection, io::error>> async_connect(const string& address) noexcept;      // (5)
+static async::task<expected<net::connection, io::error>> async_connect(const string& address,                // (6)
+                                                                      async::stop_token stop) noexcept;
+static async::task<expected<net::connection, io::error>> async_connect(const string& address,                // (7)
+                                                                      duration timeout) noexcept;
+static async::task<expected<net::connection, io::error>> async_connect(const net::endpoint& to) noexcept;    // (8)
 ```
 
 Connects to `address` over TCP: Go's `net.Dial("tcp", address)`, `DialContext` with a stop token, `DialTimeout`

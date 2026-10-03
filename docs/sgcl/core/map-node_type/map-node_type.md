@@ -3,8 +3,8 @@
 # sgcl::map\<Key, T, Hash, KeyEqual\>::node_type::node_type
 
 ```cpp
-/*(1)*/ node_type() noexcept;
-/*(2)*/ node_type(node_type&& other) noexcept;
+node_type() noexcept;                     // (1)
+node_type(node_type&& other) noexcept;    // (2)
 ```
 
 Constructs a node handle.

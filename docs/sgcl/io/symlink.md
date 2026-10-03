@@ -6,9 +6,9 @@
 #include "sgcl/io/fs.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<void, error> symlink(const string& target, const string& link) noexcept;
-    /*(2)*/ async::task<expected<void, error>> async_symlink(const string& target,
-                                                           const string& link) noexcept;
+    expected<void, error> symlink(const string& target, const string& link) noexcept;    // (1)
+    async::task<expected<void, error>> async_symlink(const string& target,               // (2)
+                                                   const string& link) noexcept;
 }
 ```
 

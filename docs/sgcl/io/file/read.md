@@ -3,8 +3,8 @@
 # sgcl::io::file::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, error> read(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept;
+expected<size_t, error> read(const slice<byte>& buffer) const;                                // (1)
+async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept;    // (2)
 ```
 
 Reads what is available at the position into `buffer`, at most its size, and moves the position past it: the

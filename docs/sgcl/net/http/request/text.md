@@ -3,8 +3,8 @@
 # sgcl::net::http::request::text, async_text
 
 ```cpp
-/*(1)*/ expected<string, io::error> text() const;
-/*(2)*/ async::task<expected<string, io::error>> async_text() const noexcept;
+expected<string, io::error> text() const;                                // (1)
+async::task<expected<string, io::error>> async_text() const noexcept;    // (2)
 ```
 
 Reads the whole body of a received request as text, Go's `io.ReadAll(r.Body)`, straight into the string it returns.

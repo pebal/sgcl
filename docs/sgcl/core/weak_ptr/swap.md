@@ -3,9 +3,9 @@
 # sgcl::weak_ptr\<T\>::swap
 
 ```cpp
-/*(1)*/ void swap(weak_ptr& w) noexcept;
-/*(2)*/ template<class T>
-        void swap(weak_ptr<T>& l, weak_ptr<T>& r) noexcept;
+void swap(weak_ptr& w) noexcept;                       // (1)
+template<class T>
+void swap(weak_ptr<T>& l, weak_ptr<T>& r) noexcept;    // (2)
 ```
 
 Exchanges the cells of two pointers.

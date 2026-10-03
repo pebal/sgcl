@@ -3,8 +3,8 @@
 # sgcl::io::tee_reader::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, error> read(const slice<byte>& buffer);
-/*(2)*/ async::task<expected<size_t, error>> async_read(slice<byte> buffer) noexcept;
+expected<size_t, error> read(const slice<byte>& buffer);                         // (1)
+async::task<expected<size_t, error>> async_read(slice<byte> buffer) noexcept;    // (2)
 ```
 
 Reads from the source into `buffer`, then writes the bytes read to the writer, before the read returns. An error of

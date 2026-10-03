@@ -3,8 +3,8 @@
 # sgcl::sorted_set\<Key, Compare\>::count
 
 ```cpp
-/*(1)*/ size_type count(const key_type& key) const noexcept;
-/*(2)*/ template<class K> size_type count(const K& key) const noexcept(/* see below */);
+size_type count(const key_type& key) const noexcept;                                // (1)
+template<class K> size_type count(const K& key) const noexcept(/* see below */);    // (2)
 ```
 
 Returns the number of elements equivalent to `key`: 1 or 0, the keys of a set being unique.

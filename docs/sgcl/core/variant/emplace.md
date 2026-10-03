@@ -3,20 +3,20 @@
 # sgcl::variant\<Ts...\>::emplace
 
 ```cpp
-/*(1)*/ template<class T, class... A>
-        requires std::is_constructible_v<T, A...>
-        T& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>);
-/*(2)*/ template<class T, class U, class... A>
-        requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        T& emplace(std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>);
-/*(3)*/ template<size_t I, class... A>
-        requires std::is_constructible_v<T_I, A...>
-        T_I& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T_I, A...>);
-/*(4)*/ template<size_t I, class U, class... A>
-        requires std::is_constructible_v<T_I, std::initializer_list<U>&, A...>
-        T_I& emplace(std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T_I, std::initializer_list<U>&, A...>);
+template<class T, class... A>
+requires std::is_constructible_v<T, A...>
+T& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>);                // (1)
+template<class T, class U, class... A>
+requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
+T& emplace(std::initializer_list<U> il, A&&... a)                                       // (2)
+    noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>);
+template<size_t I, class... A>
+requires std::is_constructible_v<T_I, A...>
+T_I& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T_I, A...>);            // (3)
+template<size_t I, class U, class... A>
+requires std::is_constructible_v<T_I, std::initializer_list<U>&, A...>
+T_I& emplace(std::initializer_list<U> il, A&&... a)                                     // (4)
+    noexcept(std::is_nothrow_constructible_v<T_I, std::initializer_list<U>&, A...>);
 ```
 
 Destroys the alternative held, if any, and constructs a new one in its place. `T_I` is the alternative at index

@@ -3,11 +3,11 @@
 # sgcl::codec::jpeg::encode
 
 ```cpp
-/*(1)*/ static expected<vector<byte>, error> encode(const image& im) noexcept;
-/*(2)*/ static expected<vector<byte>, error> encode(const image& im, const options& o);
-/*(3)*/ static expected<void, error> encode(const image& im, const io::writer& out);
-/*(4)*/ static expected<void, error> encode(const image& im, const io::writer& out,
-                                            const options& o);
+static expected<vector<byte>, error> encode(const image& im) noexcept;             // (1)
+static expected<vector<byte>, error> encode(const image& im, const options& o);    // (2)
+static expected<void, error> encode(const image& im, const io::writer& out);       // (3)
+static expected<void, error> encode(const image& im, const io::writer& out,        // (4)
+                                    const options& o);
 ```
 
 Encodes an image as a baseline JPEG file, byte for byte what libjpeg-turbo's `cjpeg -dct int -baseline` writes

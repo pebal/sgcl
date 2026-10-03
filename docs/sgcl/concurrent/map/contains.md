@@ -3,8 +3,8 @@
 # sgcl::concurrent::map\<Key, T, Hash, KeyEqual\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const Key& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept;
+bool contains(const Key& key) const noexcept;                    // (1)
+template<class K> bool contains(const K& key) const noexcept;    // (2)
 ```
 
 Checks whether the map holds an element under `key`: the search of [find](find.md), without an iterator.

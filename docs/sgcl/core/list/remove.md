@@ -3,10 +3,10 @@
 # sgcl::list\<T\>::remove, remove_if
 
 ```cpp
-/*(1)*/ size_type remove(const T& value) noexcept(/* see below */);
-/*(2)*/ template<class UnaryPredicate>
-        size_type remove_if(UnaryPredicate pred)
-            noexcept(std::is_nothrow_invocable_v<UnaryPredicate&, T&>);
+size_type remove(const T& value) noexcept(/* see below */);        // (1)
+template<class UnaryPredicate>
+size_type remove_if(UnaryPredicate pred)                           // (2)
+    noexcept(std::is_nothrow_invocable_v<UnaryPredicate&, T&>);
 ```
 
 Erases elements, walking the list once from the first to the last; the others keep their order and their nodes.

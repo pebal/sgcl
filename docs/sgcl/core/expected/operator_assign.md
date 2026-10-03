@@ -3,37 +3,37 @@
 # sgcl::expected\<T, E\>::operator=
 
 ```cpp
-/*(1)*/ expected& operator=(const expected& o)
-            noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                     std::is_nothrow_copy_assignable_v<T> &&
-                     std::is_nothrow_copy_constructible_v<E> &&
-                     std::is_nothrow_copy_assignable_v<E>)
-            requires std::is_copy_constructible_v<T> && std::is_copy_assignable_v<T> &&
-                     std::is_copy_constructible_v<E> && std::is_copy_assignable_v<E> &&
-                     (std::is_nothrow_move_constructible_v<T> ||
-                      std::is_nothrow_move_constructible_v<E>);
-/*(2)*/ expected& operator=(expected&& o)
-            noexcept(std::is_nothrow_move_constructible_v<T> &&
-                     std::is_nothrow_move_assignable_v<T> &&
-                     std::is_nothrow_move_constructible_v<E> &&
-                     std::is_nothrow_move_assignable_v<E>)
-            requires std::is_move_constructible_v<T> && std::is_move_assignable_v<T> &&
-                     std::is_move_constructible_v<E> && std::is_move_assignable_v<E> &&
-                     (std::is_nothrow_move_constructible_v<T> ||
-                      std::is_nothrow_move_constructible_v<E>);
-/*(3)*/ template<class U = T>
-        requires std::is_constructible_v<T, U> && std::is_assignable_v<T&, U>
-        expected& operator=(U&& v)
-            noexcept(std::is_nothrow_constructible_v<T, U> && std::is_nothrow_assignable_v<T&, U>);
-/*(4)*/ template<class G>
-        requires std::is_constructible_v<E, const G&> && std::is_assignable_v<E&, const G&>
-        expected& operator=(const unexpected<G>& u)
-            noexcept(std::is_nothrow_constructible_v<E, const G&> &&
-                     std::is_nothrow_assignable_v<E&, const G&>);
-/*(5)*/ template<class G>
-        requires std::is_constructible_v<E, G> && std::is_assignable_v<E&, G>
-        expected& operator=(unexpected<G>&& u)
-            noexcept(std::is_nothrow_constructible_v<E, G> && std::is_nothrow_assignable_v<E&, G>);
+expected& operator=(const expected& o)                                                         // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<T> &&
+             std::is_nothrow_copy_assignable_v<T> &&
+             std::is_nothrow_copy_constructible_v<E> &&
+             std::is_nothrow_copy_assignable_v<E>)
+    requires std::is_copy_constructible_v<T> && std::is_copy_assignable_v<T> &&
+             std::is_copy_constructible_v<E> && std::is_copy_assignable_v<E> &&
+             (std::is_nothrow_move_constructible_v<T> ||
+              std::is_nothrow_move_constructible_v<E>);
+expected& operator=(expected&& o)                                                              // (2)
+    noexcept(std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_move_assignable_v<T> &&
+             std::is_nothrow_move_constructible_v<E> &&
+             std::is_nothrow_move_assignable_v<E>)
+    requires std::is_move_constructible_v<T> && std::is_move_assignable_v<T> &&
+             std::is_move_constructible_v<E> && std::is_move_assignable_v<E> &&
+             (std::is_nothrow_move_constructible_v<T> ||
+              std::is_nothrow_move_constructible_v<E>);
+template<class U = T>
+requires std::is_constructible_v<T, U> && std::is_assignable_v<T&, U>
+expected& operator=(U&& v)                                                                     // (3)
+    noexcept(std::is_nothrow_constructible_v<T, U> && std::is_nothrow_assignable_v<T&, U>);
+template<class G>
+requires std::is_constructible_v<E, const G&> && std::is_assignable_v<E&, const G&>
+expected& operator=(const unexpected<G>& u)                                                    // (4)
+    noexcept(std::is_nothrow_constructible_v<E, const G&> &&
+             std::is_nothrow_assignable_v<E&, const G&>);
+template<class G>
+requires std::is_constructible_v<E, G> && std::is_assignable_v<E&, G>
+expected& operator=(unexpected<G>&& u)                                                         // (5)
+    noexcept(std::is_nothrow_constructible_v<E, G> && std::is_nothrow_assignable_v<E&, G>);
 ```
 
 Replaces the value or the error, as `std::expected`'s assignments do: the one held is assigned when the new one is

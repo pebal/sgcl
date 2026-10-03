@@ -3,8 +3,8 @@
 # sgcl::encoding::json::token::as_double
 
 ```cpp
-/*(1)*/ optional<double> as_double() const noexcept;
-/*(2)*/ double as_double(double fallback) const noexcept;
+optional<double> as_double() const noexcept;         // (1)
+double as_double(double fallback) const noexcept;    // (2)
 ```
 
 A number token as the nearest `double`, rounded once from the decimal literal: `0.1` is the `double` nearest to

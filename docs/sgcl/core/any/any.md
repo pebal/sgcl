@@ -3,20 +3,20 @@
 # sgcl::any::any
 
 ```cpp
-/*(1)*/ any() noexcept = default;
-/*(2)*/ any(const any& o) = default;
-/*(3)*/ any(any&& o) noexcept = default;
-/*(4)*/ template<class T, class VT = std::decay_t<T>>
-        any(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>);
-/*(5)*/ template<class T, class... A, class VT = std::decay_t<T>>
-        requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
-        explicit any(std::in_place_type_t<T>, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<VT, A...>);
-/*(6)*/ template<class T, class U, class... A, class VT = std::decay_t<T>>
-        requires std::is_constructible_v<VT, std::initializer_list<U>&, A...>
-                 && std::is_copy_constructible_v<VT>
-        explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>);
+any() noexcept = default;                                                              // (1)
+any(const any& o) = default;                                                           // (2)
+any(any&& o) noexcept = default;                                                       // (3)
+template<class T, class VT = std::decay_t<T>>
+any(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>);                       // (4)
+template<class T, class... A, class VT = std::decay_t<T>>
+requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
+explicit any(std::in_place_type_t<T>, A&&... a)                                        // (5)
+    noexcept(std::is_nothrow_constructible_v<VT, A...>);
+template<class T, class U, class... A, class VT = std::decay_t<T>>
+requires std::is_constructible_v<VT, std::initializer_list<U>&, A...>
+         && std::is_copy_constructible_v<VT>
+explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a)           // (6)
+    noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>);
 ```
 
 Constructs an `any`.

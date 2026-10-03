@@ -3,9 +3,9 @@
 # sgcl::codec::png::decode
 
 ```cpp
-/*(1)*/ static expected<image, error> decode(const slice<const byte>& data,
-                                             const decode_options& o = {}) noexcept;
-/*(2)*/ static expected<image, error> decode(const io::reader& in, const decode_options& o = {});
+static expected<image, error> decode(const slice<const byte>& data,                          // (1)
+                                     const decode_options& o = {}) noexcept;
+static expected<image, error> decode(const io::reader& in, const decode_options& o = {});    // (2)
 ```
 
 Decodes a PNG file: its chunks in order, each one's CRC-32 checked, the image data through one zlib stream as it

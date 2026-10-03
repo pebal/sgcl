@@ -3,11 +3,11 @@
 # sgcl::txt::match::group
 
 ```cpp
-/*(1)*/ optional<slice<const char>> group(size_t n) const noexcept;
-/*(2)*/ optional<slice<const char>> group(const string& name) const noexcept;
-/*(3)*/ template<size_t N> optional<slice<const char>> group(const char (&name)[N]) const noexcept;
-/*(4)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        optional<slice<const char>> group(P name) const noexcept;
+optional<slice<const char>> group(size_t n) const noexcept;                                    // (1)
+optional<slice<const char>> group(const string& name) const noexcept;                          // (2)
+template<size_t N> optional<slice<const char>> group(const char (&name)[N]) const noexcept;    // (3)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+optional<slice<const char>> group(P name) const noexcept;                                      // (4)
 ```
 
 Returns what a group matched, as a slice of the text. A group that took no part in the match is nothing, which an

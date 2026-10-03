@@ -3,10 +3,10 @@
 # sgcl::async::receive_channel\<T\>::on_receive
 
 ```cpp
-/*(1)*/ template<class F>
-        auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>);
-/*(2)*/ template<class F>  // receive_channel<void>
-        auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>);
+template<class F>
+auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>);    // (1)
+template<class F>  // receive_channel<void>
+auto on_receive(F f) const noexcept(std::is_nothrow_move_constructible_v<F>);    // (2)
 ```
 
 A receive as a case of a [select](../select.md): the channel's [on_receive](../channel/on_receive.md), the same

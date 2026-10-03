@@ -3,14 +3,14 @@
 # sgcl::txt::regex::replace
 
 ```cpp
-/*(1)*/ string replace(const slice<const char>& text, const slice<const char>& with) const;
-/*(2)*/ string replace(const string& text, const string& with) const;
-/*(3)*/ template<size_t N, size_t M>
-        string replace(const char (&text)[N], const char (&with)[M]) const;
-/*(4)*/ template<class P, class Q>
-        requires (std::same_as<P, const char*> || std::same_as<P, char*>)
-              && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
-        string replace(const P& text, const Q& with) const;
+string replace(const slice<const char>& text, const slice<const char>& with) const;    // (1)
+string replace(const string& text, const string& with) const;                          // (2)
+template<size_t N, size_t M>
+string replace(const char (&text)[N], const char (&with)[M]) const;                    // (3)
+template<class P, class Q>
+requires (std::same_as<P, const char*> || std::same_as<P, char*>)
+      && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
+string replace(const P& text, const Q& with) const;                                    // (4)
 ```
 
 Returns the text with every match of the pattern replaced, the matches never overlapping. In the replacement:

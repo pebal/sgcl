@@ -3,15 +3,15 @@
 # sgcl::root_ptr\<T\>::operator=
 
 ```cpp
-/*(1)*/ root_ptr& operator=(const root_ptr& o) noexcept;
-/*(2)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename root_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr& operator=(const root_ptr<U>& o) noexcept;
-/*(3)*/ root_ptr& operator=(root_ptr&& o) noexcept;
-/*(4)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr& operator=(const tracked_ptr<U>& p) noexcept;
-/*(5)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr& operator=(unique_ptr<U>&& u) noexcept;
-/*(6)*/ root_ptr& operator=(std::nullptr_t) noexcept;
+root_ptr& operator=(const root_ptr& o) noexcept;                                                                              // (1)
+template<class U, std::enable_if_t<std::is_convertible_v<typename root_ptr<U>::element_type*, element_type*>, int> = 0>
+root_ptr& operator=(const root_ptr<U>& o) noexcept;                                                                           // (2)
+root_ptr& operator=(root_ptr&& o) noexcept;                                                                                   // (3)
+template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+root_ptr& operator=(const tracked_ptr<U>& p) noexcept;                                                                        // (4)
+template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+root_ptr& operator=(unique_ptr<U>&& u) noexcept;                                                                              // (5)
+root_ptr& operator=(std::nullptr_t) noexcept;                                                                                 // (6)
 ```
 
 Stores another pointer in this root's cell: a store into the cell's `tracked_ptr`, with its barrier. The cell stays;

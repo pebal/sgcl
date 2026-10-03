@@ -3,9 +3,9 @@
 # sgcl::encoding::json::operator[]
 
 ```cpp
-/*(1)*/ const json& operator[](const string& key) const noexcept;
-/*(2)*/ template<size_t N> const json& operator[](const char (&key)[N]) const noexcept;
-/*(3)*/ const json& operator[](size_t index) const noexcept;
+const json& operator[](const string& key) const noexcept;                          // (1)
+template<size_t N> const json& operator[](const char (&key)[N]) const noexcept;    // (2)
+const json& operator[](size_t index) const noexcept;                               // (3)
 ```
 
 A member or an element, read only, and null when there is none: a key that is not there, an index past the end, a

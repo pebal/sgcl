@@ -3,8 +3,8 @@
 # sgcl::async::mutex::operator=
 
 ```cpp
-/*(1)*/ mutex& operator=(const mutex&) noexcept = default;
-/*(2)*/ mutex& operator=(mutex&&) noexcept = default;
+mutex& operator=(const mutex&) noexcept = default;    // (1)
+mutex& operator=(mutex&&) noexcept = default;         // (2)
 ```
 
 Makes this handle one of the mutex the other stands for.

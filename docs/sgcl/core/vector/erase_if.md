@@ -6,8 +6,8 @@
 #include "sgcl/core/vector.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T, class U> size_t erase(vector<T>& v, const U& value);
-    /*(2)*/ template<class T, class Pred> size_t erase_if(vector<T>& v, Pred pred);
+    template<class T, class U> size_t erase(vector<T>& v, const U& value);     // (1)
+    template<class T, class Pred> size_t erase_if(vector<T>& v, Pred pred);    // (2)
 }
 
 namespace std {

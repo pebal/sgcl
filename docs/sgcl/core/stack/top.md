@@ -3,8 +3,8 @@
 # sgcl::stack\<T, Container\>::top
 
 ```cpp
-/*(1)*/ reference top() noexcept(noexcept(c.back()));
-/*(2)*/ const_reference top() const noexcept(noexcept(c.back()));
+reference top() noexcept(noexcept(c.back()));                // (1)
+const_reference top() const noexcept(noexcept(c.back()));    // (2)
 ```
 
 Returns a reference to the top element, the last one pushed: `c.back()`. The stack must not be empty.

@@ -3,8 +3,8 @@
 # sgcl::operator==, operator\<=\> (sgcl::list)
 
 ```cpp
-/*(1)*/ friend constexpr bool operator==(const list& a, const list& b);
-/*(2)*/ friend constexpr auto operator<=>(const list& a, const list& b);
+friend constexpr bool operator==(const list& a, const list& b);     // (1)
+friend constexpr auto operator<=>(const list& a, const list& b);    // (2)
 ```
 
 Compare two lists by their elements, as `std::list`'s operators do. Both are hidden friends of

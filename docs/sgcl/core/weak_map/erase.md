@@ -3,8 +3,8 @@
 # sgcl::weak_map\<Key, T\>::erase
 
 ```cpp
-/*(1)*/ size_type erase(const key_pointer& object) noexcept;
-/*(2)*/ iterator erase(iterator pos) noexcept;
+size_type erase(const key_pointer& object) noexcept;    // (1)
+iterator erase(iterator pos) noexcept;                  // (2)
 ```
 
 Erases an entry and destroys its value at once.

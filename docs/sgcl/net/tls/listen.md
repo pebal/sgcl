@@ -6,9 +6,9 @@
 #include "sgcl/net/tls.h"
 
 namespace sgcl::net::tls {
-    /*(1)*/ expected<net::listener, io::error> listen(const string& address, const config& c);
-    /*(2)*/ async::task<expected<net::listener, io::error>> async_listen(string address,
-                                                                         config c) noexcept;
+    expected<net::listener, io::error> listen(const string& address, const config& c);    // (1)
+    async::task<expected<net::listener, io::error>> async_listen(string address,          // (2)
+                                                                 config c) noexcept;
 }
 ```
 

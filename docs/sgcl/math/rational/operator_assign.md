@@ -3,8 +3,8 @@
 # sgcl::math::rational::operator=
 
 ```cpp
-/*(1)*/ rational& operator=(const rational&) noexcept = default;
-/*(2)*/ rational& operator=(rational&& other) noexcept;
+rational& operator=(const rational&) noexcept = default;    // (1)
+rational& operator=(rational&& other) noexcept;             // (2)
 ```
 
 Replaces the fraction.

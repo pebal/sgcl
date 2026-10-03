@@ -3,8 +3,8 @@
 # sgcl::crypto::rsa::public_key::operator=
 
 ```cpp
-/*(1)*/ public_key& operator=(const public_key& other) noexcept;
-/*(2)*/ public_key& operator=(public_key&& other) noexcept;
+public_key& operator=(const public_key& other) noexcept;    // (1)
+public_key& operator=(public_key&& other) noexcept;         // (2)
 ```
 
 Makes this key another one.

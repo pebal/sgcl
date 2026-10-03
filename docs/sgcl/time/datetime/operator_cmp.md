@@ -3,8 +3,8 @@
 # sgcl::time::operator==, operator\<=\> (sgcl::time::datetime)
 
 ```cpp
-/*(1)*/ friend bool operator==(const datetime& a, const datetime& b) noexcept;
-/*(2)*/ friend std::strong_ordering operator<=>(const datetime& a, const datetime& b) noexcept;
+friend bool operator==(const datetime& a, const datetime& b) noexcept;                     // (1)
+friend std::strong_ordering operator<=>(const datetime& a, const datetime& b) noexcept;    // (2)
 ```
 
 Compare two instants, whatever the zones they are seen in: the same moment in Warsaw and in UTC is equal. `!=`, `<`,

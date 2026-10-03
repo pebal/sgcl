@@ -3,13 +3,13 @@
 # sgcl::crypto::mixin::aead\<Derived\>::open_to
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<size_t, error> open_to(const slice<byte>& out,
-                                                      const slice<const byte>& nonce,
-                                                      const slice<const byte>& sealed) const;
-/*(2)*/ [[nodiscard]] expected<size_t, error> open_to(const slice<byte>& out,
-                                                      const slice<const byte>& nonce,
-                                                      const slice<const byte>& sealed,
-                                                      const slice<const byte>& aad) const;
+[[nodiscard]] expected<size_t, error> open_to(const slice<byte>& out,                    // (1)
+                                              const slice<const byte>& nonce,
+                                              const slice<const byte>& sealed) const;
+[[nodiscard]] expected<size_t, error> open_to(const slice<byte>& out,                    // (2)
+                                              const slice<const byte>& nonce,
+                                              const slice<const byte>& sealed,
+                                              const slice<const byte>& aad) const;
 ```
 
 Opens as [open](open.md) does, into a buffer the caller gives, with nothing allocated: the plaintext is written to

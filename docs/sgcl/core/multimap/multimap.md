@@ -3,20 +3,20 @@
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::multimap
 
 ```cpp
-/*(1)*/ multimap() noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                            std::is_nothrow_default_constructible_v<key_equal>);
-/*(2)*/ explicit multimap(size_type bucket_count, const hasher& hash = hasher(),
-                          const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        multimap(InputIt first, InputIt last, size_type bucket_count = 0,
-                 const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(4)*/ multimap(std::initializer_list<value_type> ilist, size_type bucket_count = 0,
-                 const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ multimap(const multimap& other);
-/*(6)*/ multimap(multimap&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                                            std::is_nothrow_move_constructible_v<key_equal>);
+multimap() noexcept(std::is_nothrow_default_constructible_v<hasher> &&                   // (1)
+                    std::is_nothrow_default_constructible_v<key_equal>);
+explicit multimap(size_type bucket_count, const hasher& hash = hasher(),                 // (2)
+                  const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+multimap(InputIt first, InputIt last, size_type bucket_count = 0,                        // (3)
+         const hasher& hash = hasher(), const key_equal& equal = key_equal());
+multimap(std::initializer_list<value_type> ilist, size_type bucket_count = 0,            // (4)
+         const hasher& hash = hasher(), const key_equal& equal = key_equal());
+multimap(const multimap& other);                                                         // (5)
+multimap(multimap&& other) noexcept(std::is_nothrow_move_constructible_v<hasher> &&      // (6)
+                                    std::is_nothrow_move_constructible_v<key_equal>);
 ```
 
 Constructs a multimap from one of the sources below.

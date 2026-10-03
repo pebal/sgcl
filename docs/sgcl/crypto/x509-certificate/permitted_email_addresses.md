@@ -3,8 +3,8 @@
 # sgcl::crypto::x509::certificate::permitted_email_addresses, excluded_email_addresses
 
 ```cpp
-/*(1)*/ const vector<string>& permitted_email_addresses() const noexcept;
-/*(2)*/ const vector<string>& excluded_email_addresses() const noexcept;
+const vector<string>& permitted_email_addresses() const noexcept;    // (1)
+const vector<string>& excluded_email_addresses() const noexcept;     // (2)
 ```
 
 Return the email subtrees of the nameConstraints:

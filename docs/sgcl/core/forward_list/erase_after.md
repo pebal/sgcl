@@ -3,8 +3,8 @@
 # sgcl::forward_list\<T\>::erase_after
 
 ```cpp
-/*(1)*/ iterator erase_after(const_iterator pos) noexcept;
-/*(2)*/ iterator erase_after(const_iterator first, const_iterator last) noexcept;
+iterator erase_after(const_iterator pos) noexcept;                           // (1)
+iterator erase_after(const_iterator first, const_iterator last) noexcept;    // (2)
 ```
 
 Erases elements: destroys them and unlinks their nodes.

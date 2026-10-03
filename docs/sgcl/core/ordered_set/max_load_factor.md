@@ -3,8 +3,8 @@
 # sgcl::ordered_set\<Key, Hash, KeyEqual\>::max_load_factor
 
 ```cpp
-/*(1)*/ float max_load_factor() const noexcept;
-/*(2)*/ void max_load_factor(float z) noexcept;
+float max_load_factor() const noexcept;    // (1)
+void max_load_factor(float z) noexcept;    // (2)
 ```
 
 1. Returns the load factor at which the table grows: an insertion that finds the size at

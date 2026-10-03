@@ -3,9 +3,9 @@
 # sgcl::txt::growing_sink::growing_sink
 
 ```cpp
-/*(1)*/ growing_sink(char* room, size_t n) noexcept;
-/*(2)*/ growing_sink(lent_t, char* room, size_t n) noexcept;
-/*(3)*/ growing_sink(const growing_sink&) = delete;
+growing_sink(char* room, size_t n) noexcept;            // (1)
+growing_sink(lent_t, char* room, size_t n) noexcept;    // (2)
+growing_sink(const growing_sink&) = delete;             // (3)
 ```
 
 1. Puts the sink over `n` characters of the caller's at `room`, which more can be added to: the capacity is `n`,

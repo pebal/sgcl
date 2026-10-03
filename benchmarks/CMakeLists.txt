@@ -28,16 +28,6 @@ if(SGCL_IMMER_INCLUDE)
     target_include_directories(bench_immutable PRIVATE ${SGCL_IMMER_INCLUDE})
 endif()
 
-# bench_parallel_for compares async::parallel_for with SNS-HDR's parallel_for_
-# when SNS-HDR's Core directory is given: -DSGCL_SNS_HDR_CORE=<SNS-HDR>/Core
-# (Parallel.cpp needs nothing but the standard library)
-set(SGCL_SNS_HDR_CORE "" CACHE PATH "SNS-HDR's Core directory, for bench_parallel_for's snshdr variant")
-if(SGCL_SNS_HDR_CORE AND EXISTS "${SGCL_SNS_HDR_CORE}/Parallel.cpp")
-    target_sources(bench_parallel_for PRIVATE "${SGCL_SNS_HDR_CORE}/Parallel.cpp")
-    target_include_directories(bench_parallel_for PRIVATE ${SGCL_SNS_HDR_CORE})
-    target_compile_definitions(bench_parallel_for PRIVATE SGCL_BENCH_SNS_HDR=1)
-endif()
-
 # bench_heap_io_net counts the objects a call leaves to the collector from the
 # collector's own log of each cycle (heap/heap_parse.py sums it)
 target_compile_definitions(bench_heap_io_net PRIVATE SGCL_LOG_PRINT_LEVEL=2)

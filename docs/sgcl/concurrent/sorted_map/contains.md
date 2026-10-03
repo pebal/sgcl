@@ -3,8 +3,8 @@
 # sgcl::concurrent::sorted_map\<Key, T, Compare\>::contains
 
 ```cpp
-/*(1)*/ bool contains(const Key& key) const noexcept;
-/*(2)*/ template<class K> bool contains(const K& key) const noexcept;
+bool contains(const Key& key) const noexcept;                    // (1)
+template<class K> bool contains(const K& key) const noexcept;    // (2)
 ```
 
 Checks whether the map holds an element whose key is equivalent to `key`, with the search of [find](find.md).

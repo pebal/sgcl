@@ -3,30 +3,30 @@
 # sgcl::variant\<Ts...\>::variant
 
 ```cpp
-/*(1)*/ variant() noexcept(std::is_nothrow_default_constructible_v<T_0>)
-            requires std::is_default_constructible_v<T_0>;
-/*(2)*/ variant(const variant& o) noexcept((std::is_nothrow_copy_constructible_v<Ts> && ...))
-            requires (std::is_copy_constructible_v<Ts> && ...);
-/*(3)*/ variant(variant&& o) noexcept((std::is_nothrow_move_constructible_v<Ts> && ...))
-            requires (std::is_move_constructible_v<Ts> && ...);
-/*(4)*/ template<class U>
-        variant(U&& u) noexcept(std::is_nothrow_constructible_v<T_j, U>);
-/*(5)*/ template<class T, class... A>
-        requires std::is_constructible_v<T, A...>
-        explicit variant(std::in_place_type_t<T>, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T, A...>);
-/*(6)*/ template<class T, class U, class... A>
-        requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        explicit variant(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>);
-/*(7)*/ template<size_t I, class... A>
-        requires std::is_constructible_v<T_I, A...>
-        explicit variant(std::in_place_index_t<I>, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T_I, A...>);
-/*(8)*/ template<size_t I, class U, class... A>
-        requires std::is_constructible_v<T_I, std::initializer_list<U>&, A...>
-        explicit variant(std::in_place_index_t<I>, std::initializer_list<U> il, A&&... a)
-            noexcept(std::is_nothrow_constructible_v<T_I, std::initializer_list<U>&, A...>);
+variant() noexcept(std::is_nothrow_default_constructible_v<T_0>)                         // (1)
+    requires std::is_default_constructible_v<T_0>;
+variant(const variant& o) noexcept((std::is_nothrow_copy_constructible_v<Ts> && ...))    // (2)
+    requires (std::is_copy_constructible_v<Ts> && ...);
+variant(variant&& o) noexcept((std::is_nothrow_move_constructible_v<Ts> && ...))         // (3)
+    requires (std::is_move_constructible_v<Ts> && ...);
+template<class U>
+variant(U&& u) noexcept(std::is_nothrow_constructible_v<T_j, U>);                        // (4)
+template<class T, class... A>
+requires std::is_constructible_v<T, A...>
+explicit variant(std::in_place_type_t<T>, A&&... a)                                      // (5)
+    noexcept(std::is_nothrow_constructible_v<T, A...>);
+template<class T, class U, class... A>
+requires std::is_constructible_v<T, std::initializer_list<U>&, A...>
+explicit variant(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a)         // (6)
+    noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>);
+template<size_t I, class... A>
+requires std::is_constructible_v<T_I, A...>
+explicit variant(std::in_place_index_t<I>, A&&... a)                                     // (7)
+    noexcept(std::is_nothrow_constructible_v<T_I, A...>);
+template<size_t I, class U, class... A>
+requires std::is_constructible_v<T_I, std::initializer_list<U>&, A...>
+explicit variant(std::in_place_index_t<I>, std::initializer_list<U> il, A&&... a)        // (8)
+    noexcept(std::is_nothrow_constructible_v<T_I, std::initializer_list<U>&, A...>);
 ```
 
 Constructs a variant. `T_I` is the alternative at index `I`, `variant_alternative_t<I, variant>`.

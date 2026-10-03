@@ -8,21 +8,21 @@
 namespace sgcl::txt {
     inline constexpr /* unspecified */ columns {};   // called as columns(c) or columns(text)
 
-    /*(1)*/ constexpr size_t operator()(char32_t c) const noexcept;
-    /*(2)*/ size_t operator()(const slice<const char>& text) const noexcept;
-    /*(3)*/ size_t operator()(const string& text) const noexcept;
-    /*(4)*/ template<size_t N>
-            constexpr size_t operator()(const char (&text)[N]) const noexcept;
-    /*(5)*/ template<class P>
-            requires std::same_as<P, const char*> || std::same_as<P, char*>
-            constexpr size_t operator()(P text) const noexcept;
-    /*(6)*/ size_t operator()(std::string_view) const = delete;
-    /*(7)*/ template<class T>
-            requires (!std::same_as<std::remove_cvref_t<T>, char32_t>
-                      && !std::convertible_to<T, slice<const char>>
-                      && !std::convertible_to<T, const string&>
-                      && !std::convertible_to<T, const char*>)
-            size_t operator()(T) const = delete;
+    constexpr size_t operator()(char32_t c) const noexcept;               // (1)
+    size_t operator()(const slice<const char>& text) const noexcept;      // (2)
+    size_t operator()(const string& text) const noexcept;                 // (3)
+    template<size_t N>
+    constexpr size_t operator()(const char (&text)[N]) const noexcept;    // (4)
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    constexpr size_t operator()(P text) const noexcept;                   // (5)
+    size_t operator()(std::string_view) const = delete;                   // (6)
+    template<class T>
+    requires (!std::same_as<std::remove_cvref_t<T>, char32_t>
+              && !std::convertible_to<T, slice<const char>>
+              && !std::convertible_to<T, const string&>
+              && !std::convertible_to<T, const char*>)
+    size_t operator()(T) const = delete;                                  // (7)
 }
 ```
 

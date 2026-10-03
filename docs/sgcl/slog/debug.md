@@ -6,14 +6,14 @@
 #include "sgcl/slog/logger.h"   // or "sgcl/slog.h"
 
 namespace sgcl::slog {
-    /*(1)*/ template<class... A>
-            void debug(message m, const A&... kv);
-    /*(2)*/ template<class... A>
-            void info(message m, const A&... kv);
-    /*(3)*/ template<class... A>
-            void warn(message m, const A&... kv);
-    /*(4)*/ template<class... A>
-            void error(message m, const A&... kv);
+    template<class... A>
+    void debug(message m, const A&... kv);    // (1)
+    template<class... A>
+    void info(message m, const A&... kv);     // (2)
+    template<class... A>
+    void warn(message m, const A&... kv);     // (3)
+    template<class... A>
+    void error(message m, const A&... kv);    // (4)
 }
 ```
 

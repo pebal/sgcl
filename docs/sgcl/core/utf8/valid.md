@@ -3,8 +3,8 @@
 # sgcl::utf8::valid
 
 ```cpp
-/*(1)*/ static constexpr bool valid(char32_t c) noexcept;
-/*(2)*/ static constexpr bool valid(std::string_view s) noexcept;
+static constexpr bool valid(char32_t c) noexcept;            // (1)
+static constexpr bool valid(std::string_view s) noexcept;    // (2)
 ```
 
 1. Checks whether `c` is a Unicode scalar value: not a surrogate (U+D800 to U+DFFF) and not past U+10FFFF.

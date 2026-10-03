@@ -6,14 +6,14 @@
 #include "sgcl/time/date.h"   // or "sgcl/time.h"
 
 namespace sgcl::time {
-    /*(1)*/ string to_string(month m) noexcept;
-    /*(2)*/ string to_string(weekday d) noexcept;
-    /*(3)*/ template<class CharT, class Traits>
-            std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,
-                                                          month m);
-    /*(4)*/ template<class CharT, class Traits>
-            std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,
-                                                          weekday d);
+    string to_string(month m) noexcept;                                                     // (1)
+    string to_string(weekday d) noexcept;                                                   // (2)
+    template<class CharT, class Traits>
+    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,    // (3)
+                                                  month m);
+    template<class CharT, class Traits>
+    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,    // (4)
+                                                  weekday d);
 }
 ```
 

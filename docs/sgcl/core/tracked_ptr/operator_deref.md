@@ -3,10 +3,10 @@
 # sgcl::tracked_ptr\<T\>::operator\*, operator-\>
 
 ```cpp
-/*(1)*/ template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
-        U& operator*() const noexcept;
-/*(2)*/ template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
-        U* operator->() const noexcept;
+template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
+U& operator*() const noexcept;                                                     // (1)
+template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
+U* operator->() const noexcept;                                                    // (2)
 ```
 
 Access the object the pointer points at.

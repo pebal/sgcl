@@ -3,8 +3,8 @@
 # sgcl::compress::gzip::reader::header, async_header
 
 ```cpp
-/*(1)*/ expected<gzip::header, error> header();
-/*(2)*/ async::task<expected<gzip::header, error>> async_header() noexcept;
+expected<gzip::header, error> header();                                // (1)
+async::task<expected<gzip::header, error>> async_header() noexcept;    // (2)
 ```
 
 Returns the [header](../gzip_header.md) of the member being read, reading it now if it was not read yet (the first

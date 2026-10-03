@@ -3,8 +3,8 @@
 # sgcl::slice\<T\>::end, cend
 
 ```cpp
-/*(1)*/ iterator end() const noexcept;
-/*(2)*/ const_iterator cend() const noexcept;
+iterator end() const noexcept;           // (1)
+const_iterator cend() const noexcept;    // (2)
 ```
 
 An iterator past the last element: a plain pointer, `T*` (1) or `const T*` (2).

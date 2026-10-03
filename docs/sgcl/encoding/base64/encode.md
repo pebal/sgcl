@@ -3,10 +3,10 @@
 # sgcl::encoding::base64::encode
 
 ```cpp
-/*(1)*/ string encode(const slice<const byte>& data) const;
-/*(2)*/ string encode(const string& text) const;
-/*(3)*/ template<class T>
-        string encode(const T& text) const;
+string encode(const slice<const byte>& data) const;    // (1)
+string encode(const string& text) const;               // (2)
+template<class T>
+string encode(const T& text) const;                    // (3)
 ```
 
 The text of bytes in the codec's alphabet, the last group padded when the codec is

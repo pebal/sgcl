@@ -3,12 +3,12 @@
 # sgcl::txt::folded_text::folded_text
 
 ```cpp
-/*(1)*/ folded_text() noexcept;
-/*(2)*/ explicit folded_text(const string& text) noexcept;
-/*(3)*/ explicit folded_text(const slice<const char>& text) noexcept;
-/*(4)*/ template<size_t N> explicit folded_text(const char (&text)[N]);
-/*(5)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit folded_text(P text);
+folded_text() noexcept;                                                              // (1)
+explicit folded_text(const string& text) noexcept;                                   // (2)
+explicit folded_text(const slice<const char>& text) noexcept;                        // (3)
+template<size_t N> explicit folded_text(const char (&text)[N]);                      // (4)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+explicit folded_text(P text);                                                        // (5)
 ```
 
 Maps a text once: a `folded_text` folds it by the full folding, a `normalized_text` decomposes it and puts its

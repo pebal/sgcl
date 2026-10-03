@@ -6,10 +6,10 @@
 #include "sgcl/async/when.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class... T>
-            task<size_t> when_any(task<T>... ts);
-    /*(2)*/ template<class T>
-            task<size_t> when_any(vector<task<T>> ts);
+    template<class... T>
+    task<size_t> when_any(task<T>... ts);         // (1)
+    template<class T>
+    task<size_t> when_any(vector<task<T>> ts);    // (2)
 }
 ```
 

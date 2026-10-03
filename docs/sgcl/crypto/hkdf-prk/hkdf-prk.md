@@ -3,8 +3,8 @@
 # sgcl::crypto::hkdf\<H\>::prk::prk
 
 ```cpp
-/*(1)*/ prk(prk&& other) noexcept;
-/*(2)*/ prk(const prk&) = delete;
+prk(prk&& other) noexcept;    // (1)
+prk(const prk&) = delete;     // (2)
 ```
 
 1. Takes the key's bytes from `other` and zeroes them there. The object moved from holds zeros, a key of no use.

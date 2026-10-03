@@ -3,21 +3,21 @@
 # sgcl::concurrent::set\<Key, Hash, KeyEqual\>::set
 
 ```cpp
-/*(1)*/ set()
-            noexcept(std::is_nothrow_default_constructible_v<hasher> &&
-                     std::is_nothrow_default_constructible_v<key_equal> &&
-                     std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(2)*/ explicit set(size_type buckets, const hasher& hash = hasher(),
-                     const key_equal& equal = key_equal())
-            noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
-                     std::is_nothrow_copy_constructible_v<key_equal>);
-/*(3)*/ template<std::input_iterator InputIt>
-        set(InputIt first, InputIt last, size_type buckets = 16, const hasher& hash = hasher(),
-            const key_equal& equal = key_equal());
-/*(4)*/ set(std::initializer_list<value_type> ilist, size_type buckets = 16,
-            const hasher& hash = hasher(), const key_equal& equal = key_equal());
-/*(5)*/ set(const set&) = delete;
+set()                                                                                      // (1)
+    noexcept(std::is_nothrow_default_constructible_v<hasher> &&
+             std::is_nothrow_default_constructible_v<key_equal> &&
+             std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+explicit set(size_type buckets, const hasher& hash = hasher(),                             // (2)
+             const key_equal& equal = key_equal())
+    noexcept(std::is_nothrow_copy_constructible_v<hasher> &&
+             std::is_nothrow_copy_constructible_v<key_equal>);
+template<std::input_iterator InputIt>
+set(InputIt first, InputIt last, size_type buckets = 16, const hasher& hash = hasher(),    // (3)
+    const key_equal& equal = key_equal());
+set(std::initializer_list<value_type> ilist, size_type buckets = 16,                       // (4)
+    const hasher& hash = hasher(), const key_equal& equal = key_equal());
+set(const set&) = delete;                                                                  // (5)
 ```
 
 Constructs a set from one of the sources below.

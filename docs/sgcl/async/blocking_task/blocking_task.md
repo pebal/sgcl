@@ -3,9 +3,9 @@
 # sgcl::async::blocking_task\<T\>::blocking_task
 
 ```cpp
-/*(1)*/ blocking_task() noexcept = default;
-/*(2)*/ blocking_task(blocking_task&& other) noexcept = default;
-/*(3)*/ blocking_task(const blocking_task&) = delete;
+blocking_task() noexcept = default;                         // (1)
+blocking_task(blocking_task&& other) noexcept = default;    // (2)
+blocking_task(const blocking_task&) = delete;               // (3)
 ```
 
 1. An empty handle, holding no job: [done](done.md) says `false`, and nothing else may be called on it until a job

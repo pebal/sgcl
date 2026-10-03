@@ -3,14 +3,14 @@
 # sgcl::crypto::rsa::private_key::decrypt_oaep
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<vector<byte>, error>
-        decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const;
-/*(2)*/ [[nodiscard]] expected<vector<byte>, error>
-        decrypt_oaep(hash_id id, const slice<const byte>& ciphertext,
-                     const slice<const byte>& label) const;
-/*(3)*/ [[nodiscard]] expected<vector<byte>, error>
-        decrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& ciphertext,
-                     const slice<const byte>& label) const;
+[[nodiscard]] expected<vector<byte>, error>
+decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const;           // (1)
+[[nodiscard]] expected<vector<byte>, error>
+decrypt_oaep(hash_id id, const slice<const byte>& ciphertext,                  // (2)
+             const slice<const byte>& label) const;
+[[nodiscard]] expected<vector<byte>, error>
+decrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& ciphertext,    // (3)
+             const slice<const byte>& label) const;
 ```
 
 Returns the message of an RSAES-OAEP ciphertext (RFC 8017 §7.1.2) that

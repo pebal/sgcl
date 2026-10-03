@@ -6,11 +6,11 @@
 #include "sgcl/core/slice.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T>
-            slice<const byte> as_bytes(const slice<T>& s) noexcept;
-    /*(2)*/ template<class T>
-            requires (!std::is_const_v<T>)
-            slice<byte> as_writable_bytes(const slice<T>& s) noexcept;
+    template<class T>
+    slice<const byte> as_bytes(const slice<T>& s) noexcept;       // (1)
+    template<class T>
+    requires (!std::is_const_v<T>)
+    slice<byte> as_writable_bytes(const slice<T>& s) noexcept;    // (2)
 }
 ```
 

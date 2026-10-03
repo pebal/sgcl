@@ -6,9 +6,9 @@
 #include "sgcl/codec/files.h"   // or "sgcl/codec.h"
 
 namespace sgcl::codec {
-    /*(1)*/ expected<image, error> load(const string& path, const decode_options& o = {});
-    /*(2)*/ async::task<expected<image, error>> async_load(const string& path,
-                                                           const decode_options& o = {}) noexcept;
+    expected<image, error> load(const string& path, const decode_options& o = {});            // (1)
+    async::task<expected<image, error>> async_load(const string& path,                        // (2)
+                                                   const decode_options& o = {}) noexcept;
 }
 ```
 

@@ -3,8 +3,8 @@
 # sgcl::net::unix_domain::listen, async_listen
 
 ```cpp
-/*(1)*/ static expected<net::listener, io::error> listen(const string& path) noexcept;
-/*(2)*/ static async::task<expected<net::listener, io::error>> async_listen(const string& path) noexcept;
+static expected<net::listener, io::error> listen(const string& path) noexcept;                       // (1)
+static async::task<expected<net::listener, io::error>> async_listen(const string& path) noexcept;    // (2)
 ```
 
 Creates a unix socket at `path` and listens on it with the system's backlog: Go's `net.Listen("unix", path)`. The

@@ -3,10 +3,10 @@
 # sgcl::net::udp::socket::send_to, async_send_to
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> send_to(const slice<const byte>& data,
-                                            const endpoint& to) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_send_to(const slice<const byte>& data,
-                                                              const endpoint& to) const noexcept;
+expected<size_t, io::error> send_to(const slice<const byte>& data,                           // (1)
+                                    const endpoint& to) const;
+async::task<expected<size_t, io::error>> async_send_to(const slice<const byte>& data,        // (2)
+                                                      const endpoint& to) const noexcept;
 ```
 
 Sends `data` as one datagram to `to`: Go's `PacketConn.WriteTo`. A datagram is sent whole or not at all. An IPv4

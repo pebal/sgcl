@@ -3,9 +3,9 @@
 # sgcl::io::file::read_at, async_read_at
 
 ```cpp
-/*(1)*/ expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) const noexcept;
-/*(2)*/ async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer,
-                                                           uint64_t offset) const noexcept;
+expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) const noexcept;    // (1)
+async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer,                  // (2)
+                                                   uint64_t offset) const noexcept;
 ```
 
 Reads into `buffer`, at most its size, from `offset` bytes from the beginning of the file: the `pread(2)` of the

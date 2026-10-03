@@ -3,12 +3,12 @@
 # sgcl::time::date::at
 
 ```cpp
-/*(1)*/ datetime at(int hour, int minute, const zone& z) const noexcept;
-/*(2)*/ datetime at(int hour, int minute, int second, const zone& z) const noexcept;
-/*(3)*/ datetime at(int hour, int minute, const zone& z, earlier_t) const noexcept;
-/*(4)*/ datetime at(int hour, int minute, int second, const zone& z, earlier_t) const noexcept;
-/*(5)*/ datetime at(int hour, int minute, const zone& z, later_t) const noexcept;
-/*(6)*/ datetime at(int hour, int minute, int second, const zone& z, later_t) const noexcept;
+datetime at(int hour, int minute, const zone& z) const noexcept;                           // (1)
+datetime at(int hour, int minute, int second, const zone& z) const noexcept;               // (2)
+datetime at(int hour, int minute, const zone& z, earlier_t) const noexcept;                // (3)
+datetime at(int hour, int minute, int second, const zone& z, earlier_t) const noexcept;    // (4)
+datetime at(int hour, int minute, const zone& z, later_t) const noexcept;                  // (5)
+datetime at(int hour, int minute, int second, const zone& z, later_t) const noexcept;      // (6)
 ```
 
 The instant at which the clock of zone `z` shows this date and that time: Go's `time.Date`. A change of the clock

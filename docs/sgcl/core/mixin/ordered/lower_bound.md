@@ -3,12 +3,12 @@
 # sgcl::mixin::ordered\<Derived\>::lower_bound
 
 ```cpp
-/*(1)*/ constexpr auto lower_bound(const auto& value) noexcept(/* see below */);
-/*(2)*/ constexpr auto lower_bound(const auto& value) const noexcept(/* see below */);
-/*(3)*/ template<class Compare>
-        constexpr auto lower_bound(const auto& value, Compare cmp) noexcept(/* see below */);
-/*(4)*/ template<class Compare>
-        constexpr auto lower_bound(const auto& value, Compare cmp) const noexcept(/* see below */);
+constexpr auto lower_bound(const auto& value) noexcept(/* see below */);                       // (1)
+constexpr auto lower_bound(const auto& value) const noexcept(/* see below */);                 // (2)
+template<class Compare>
+constexpr auto lower_bound(const auto& value, Compare cmp) noexcept(/* see below */);          // (3)
+template<class Compare>
+constexpr auto lower_bound(const auto& value, Compare cmp) const noexcept(/* see below */);    // (4)
 ```
 
 Finds, in a sorted range, the first element that does not go before `value`: where `value` would be inserted to

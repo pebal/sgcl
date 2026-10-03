@@ -3,8 +3,8 @@
 # sgcl::io::standard_stream::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, error> read(const slice<byte>& buffer);
-/*(2)*/ async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) noexcept;
+expected<size_t, error> read(const slice<byte>& buffer);                                // (1)
+async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) noexcept;    // (2)
 ```
 
 Reads what is available into `buffer`, at most its size, through the [file](../file.md) over the descriptor: the

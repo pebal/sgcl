@@ -6,11 +6,11 @@
 #include "sgcl/io/file.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ expected<string, error> make_temp_dir(const string& dir = {},
-                                                  const string& pattern = "*");
-    /*(2)*/ async::task<expected<string, error>> async_make_temp_dir(const string& dir = {},
-                                                                     const string& pattern = "*")
-                noexcept;
+    expected<string, error> make_temp_dir(const string& dir = {},                            // (1)
+                                          const string& pattern = "*");
+    async::task<expected<string, error>> async_make_temp_dir(const string& dir = {},         // (2)
+                                                             const string& pattern = "*")
+        noexcept;
 }
 ```
 

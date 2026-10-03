@@ -3,12 +3,12 @@
 # sgcl::static_pointer_cast, const_pointer_cast, dynamic_pointer_cast (sgcl::tracked_ptr)
 
 ```cpp
-/*(1)*/ template<class T, class U>
-        tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& p) noexcept;
-/*(2)*/ template<class T, class U>
-        tracked_ptr<T> const_pointer_cast(const tracked_ptr<U>& p) noexcept;
-/*(3)*/ template<class T, class U>
-        tracked_ptr<T> dynamic_pointer_cast(const tracked_ptr<U>& p) noexcept;
+template<class T, class U>
+tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& p) noexcept;     // (1)
+template<class T, class U>
+tracked_ptr<T> const_pointer_cast(const tracked_ptr<U>& p) noexcept;      // (2)
+template<class T, class U>
+tracked_ptr<T> dynamic_pointer_cast(const tracked_ptr<U>& p) noexcept;    // (3)
 ```
 
 The casts of `std::shared_ptr`: a `tracked_ptr<T>` to the result of the cast of the raw pointer.

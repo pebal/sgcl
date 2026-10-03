@@ -3,13 +3,13 @@
 # sgcl::multimap\<Key, T, Hash, KeyEqual\>::operator=
 
 ```cpp
-/*(1)*/ multimap& operator=(const multimap& other);
-/*(2)*/ multimap& operator=(multimap&& other)
-            noexcept(std::is_nothrow_move_constructible_v<hasher> &&
-                     std::is_nothrow_move_constructible_v<key_equal> &&
-                     std::is_nothrow_move_assignable_v<hasher> &&
-                     std::is_nothrow_move_assignable_v<key_equal>);
-/*(3)*/ multimap& operator=(std::initializer_list<value_type> ilist);
+multimap& operator=(const multimap& other);                        // (1)
+multimap& operator=(multimap&& other)                              // (2)
+    noexcept(std::is_nothrow_move_constructible_v<hasher> &&
+             std::is_nothrow_move_constructible_v<key_equal> &&
+             std::is_nothrow_move_assignable_v<hasher> &&
+             std::is_nothrow_move_assignable_v<key_equal>);
+multimap& operator=(std::initializer_list<value_type> ilist);      // (3)
 ```
 
 Replaces the elements of the multimap.

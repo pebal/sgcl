@@ -3,8 +3,8 @@
 # sgcl::string::size, length
 
 ```cpp
-/*(1)*/ size_type size() const noexcept;
-/*(2)*/ size_type length() const noexcept;
+size_type size() const noexcept;      // (1)
+size_type length() const noexcept;    // (2)
 ```
 
 Returns the number of characters, `CharT`s, without the terminator. In a `string`, whose text is UTF-8, that is the

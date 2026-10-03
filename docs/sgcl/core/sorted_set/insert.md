@@ -3,19 +3,19 @@
 # sgcl::sorted_set\<Key, Compare\>::insert
 
 ```cpp
-/*(1)*/ pair<iterator, bool> insert(const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(2)*/ pair<iterator, bool> insert(value_type&& value)
-            noexcept(std::is_nothrow_move_constructible_v<value_type>);
-/*(3)*/ iterator insert(const_iterator hint, const value_type& value)
-            noexcept(std::is_nothrow_copy_constructible_v<value_type>);
-/*(4)*/ iterator insert(const_iterator hint, value_type&& value)
-            noexcept(std::is_nothrow_move_constructible_v<value_type>);
-/*(5)*/ template<std::input_iterator InputIt>
-        void insert(InputIt first, InputIt last);
-/*(6)*/ void insert(std::initializer_list<value_type> ilist);
-/*(7)*/ insert_return_type insert(node_type&& nh) noexcept;
-/*(8)*/ iterator insert(const_iterator hint, node_type&& nh) noexcept;
+pair<iterator, bool> insert(const value_type& value)               // (1)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type>);
+pair<iterator, bool> insert(value_type&& value)                    // (2)
+    noexcept(std::is_nothrow_move_constructible_v<value_type>);
+iterator insert(const_iterator hint, const value_type& value)      // (3)
+    noexcept(std::is_nothrow_copy_constructible_v<value_type>);
+iterator insert(const_iterator hint, value_type&& value)           // (4)
+    noexcept(std::is_nothrow_move_constructible_v<value_type>);
+template<std::input_iterator InputIt>
+void insert(InputIt first, InputIt last);                          // (5)
+void insert(std::initializer_list<value_type> ilist);              // (6)
+insert_return_type insert(node_type&& nh) noexcept;                // (7)
+iterator insert(const_iterator hint, node_type&& nh) noexcept;     // (8)
 ```
 
 Inserts elements whose keys are not in the set yet, as `std::set::insert` does.

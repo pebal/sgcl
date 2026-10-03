@@ -3,10 +3,10 @@
 # sgcl::codec::webp::frames
 
 ```cpp
-/*(1)*/ static expected<codec::frames, error> frames(const slice<const byte>& data,
-                                                     const decode_options& o = {}) noexcept;
-/*(2)*/ static expected<codec::frames, error> frames(const io::reader& in,
-                                                     const decode_options& o = {});
+static expected<codec::frames, error> frames(const slice<const byte>& data,             // (1)
+                                             const decode_options& o = {}) noexcept;
+static expected<codec::frames, error> frames(const io::reader& in,                      // (2)
+                                             const decode_options& o = {});
 ```
 
 Opens a WebP as an animation: reads the RIFF header and VP8X, or the simple format's image header, and returns the

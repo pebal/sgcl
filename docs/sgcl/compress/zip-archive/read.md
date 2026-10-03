@@ -3,12 +3,12 @@
 # sgcl::compress::zip::archive::read, async_read
 
 ```cpp
-/*(1)*/ expected<vector<byte>, error> read(const entry& e) const noexcept;
-/*(2)*/ expected<vector<byte>, error> read(const entry& e, const limits& l) const;
-/*(3)*/ expected<vector<byte>, error> read(const string& name) const noexcept;
-/*(4)*/ expected<vector<byte>, error> read(const string& name, const limits& l) const;
-/*(5)*/ async::task<expected<vector<byte>, error>> async_read(const entry& e) const noexcept;
-/*(6)*/ async::task<expected<vector<byte>, error>> async_read(entry e, limits l) const noexcept;
+expected<vector<byte>, error> read(const entry& e) const noexcept;                          // (1)
+expected<vector<byte>, error> read(const entry& e, const limits& l) const;                  // (2)
+expected<vector<byte>, error> read(const string& name) const noexcept;                      // (3)
+expected<vector<byte>, error> read(const string& name, const limits& l) const;              // (4)
+async::task<expected<vector<byte>, error>> async_read(const entry& e) const noexcept;       // (5)
+async::task<expected<vector<byte>, error>> async_read(entry e, limits l) const noexcept;    // (6)
 ```
 
 Reads an entry's data whole, decompressed and checked as its [reader](reader.md) checks it. The entry's size, as

@@ -3,8 +3,8 @@
 # sgcl::slice\<T\>::operator=
 
 ```cpp
-/*(1)*/ slice& operator=(const slice& o) noexcept;
-/*(2)*/ slice& operator=(slice&& o) noexcept;
+slice& operator=(const slice& o) noexcept;    // (1)
+slice& operator=(slice&& o) noexcept;         // (2)
 ```
 
 Makes the slice view the elements of `o`, with its owner.

@@ -3,8 +3,8 @@
 # sgcl::encoding::base32::encoder::encoder
 
 ```cpp
-/*(1)*/ encoder() noexcept;
-/*(2)*/ encoder(const encoder& other) noexcept;
+encoder() noexcept;                        // (1)
+encoder(const encoder& other) noexcept;    // (2)
 ```
 
 1. An encoder that holds no stream: `!e` is `true`, and any other operation on it is a contract violation,

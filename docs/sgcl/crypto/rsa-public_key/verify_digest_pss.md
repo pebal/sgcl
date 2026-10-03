@@ -3,11 +3,11 @@
 # sgcl::crypto::rsa::public_key::verify_digest_pss
 
 ```cpp
-/*(1)*/ [[nodiscard]] bool verify_digest_pss(hash_id id, const slice<const byte>& digest,
-                                         const slice<const byte>& signature) const;
-/*(2)*/ [[nodiscard]] bool verify_digest_pss(hash_id id, const slice<const byte>& digest,
-                                         const slice<const byte>& signature,
-                                         size_t salt_length) const;
+[[nodiscard]] bool verify_digest_pss(hash_id id, const slice<const byte>& digest,    // (1)
+                                 const slice<const byte>& signature) const;
+[[nodiscard]] bool verify_digest_pss(hash_id id, const slice<const byte>& digest,    // (2)
+                                 const slice<const byte>& signature,
+                                 size_t salt_length) const;
 ```
 
 Checks that `signature` is a PSS signature (RFC 8017 §8.1, JWS's PS256) of `digest` under this key, MGF1 over the same

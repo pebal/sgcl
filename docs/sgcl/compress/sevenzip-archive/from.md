@@ -3,11 +3,11 @@
 # sgcl::compress::sevenzip::archive::from
 
 ```cpp
-/*(1)*/ static expected<archive, error> from(const slice<const byte>& data) noexcept;
-/*(2)*/ static expected<archive, error> from(const slice<const byte>& data,
-                                             const limits& l) noexcept;
-/*(3)*/ static expected<archive, error> from(const slice<const byte>& data,
-                                             const options& o) noexcept;
+static expected<archive, error> from(const slice<const byte>& data) noexcept;    // (1)
+static expected<archive, error> from(const slice<const byte>& data,              // (2)
+                                     const limits& l) noexcept;
+static expected<archive, error> from(const slice<const byte>& data,              // (3)
+                                     const options& o) noexcept;
 ```
 
 Opens an archive in memory, as [open](open.md) opens one of a file. A slice of a managed buffer (a `vector<byte>`,

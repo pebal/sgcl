@@ -3,8 +3,8 @@
 # sgcl::crypto::aes::operator=
 
 ```cpp
-/*(1)*/ aes& operator=(aes&& other) noexcept;
-/*(2)*/ aes& operator=(const aes&) = delete;
+aes& operator=(aes&& other) noexcept;    // (1)
+aes& operator=(const aes&) = delete;     // (2)
 ```
 
 1. Takes the key schedule of `other` over, written over the one this object held; `other` is overwritten with

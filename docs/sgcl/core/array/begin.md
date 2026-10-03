@@ -3,9 +3,9 @@
 # sgcl::array\<T, N\>::begin, cbegin
 
 ```cpp
-/*(1)*/ constexpr iterator begin() noexcept;
-/*(2)*/ constexpr const_iterator begin() const noexcept;
-/*(3)*/ constexpr const_iterator cbegin() const noexcept;
+constexpr iterator begin() noexcept;                 // (1)
+constexpr const_iterator begin() const noexcept;     // (2)
+constexpr const_iterator cbegin() const noexcept;    // (3)
 ```
 
 Returns an iterator to the first element; for `array<T, 0>` it is equal to [end()](end.md).

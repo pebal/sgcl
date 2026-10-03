@@ -3,18 +3,18 @@
 # sgcl::immutable::set\<Key, Hash, KeyEqual\>::set
 
 ```cpp
-/*(1)*/ set();
-/*(2)*/ explicit set(const Hash& hash, const KeyEqual& equal = KeyEqual());
-/*(3)*/ template<std::input_iterator InputIt>
-        set(InputIt first, InputIt last,
-            const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
-            noexcept(/* see below */);
-/*(4)*/ set(std::initializer_list<value_type> ilist,
-            const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
-            noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-                     std::is_nothrow_move_constructible_v<value_type>);
-/*(5)*/ set(const set& other) noexcept;
-/*(6)*/ set(set&& other) noexcept;
+set();                                                                 // (1)
+explicit set(const Hash& hash, const KeyEqual& equal = KeyEqual());    // (2)
+template<std::input_iterator InputIt>
+set(InputIt first, InputIt last,                                       // (3)
+    const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+    noexcept(/* see below */);
+set(std::initializer_list<value_type> ilist,                           // (4)
+    const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual())
+    noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
+             std::is_nothrow_move_constructible_v<value_type>);
+set(const set& other) noexcept;                                        // (5)
+set(set&& other) noexcept;                                             // (6)
 ```
 
 Constructs a set from one of the sources below.

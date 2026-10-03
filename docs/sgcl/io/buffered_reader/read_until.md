@@ -3,9 +3,9 @@
 # sgcl::io::buffered_reader::read_until, async_read_until
 
 ```cpp
-/*(1)*/ expected<optional<slice<const char>>, error> read_until(char delimiter) const;
-/*(2)*/ async::task<expected<optional<slice<const char>>, error>>
-        async_read_until(char delimiter) const noexcept;
+expected<optional<slice<const char>>, error> read_until(char delimiter) const;    // (1)
+async::task<expected<optional<slice<const char>>, error>>
+async_read_until(char delimiter) const noexcept;                                  // (2)
 ```
 
 Reads up to and including the next `delimiter` and returns the token as a slice of the reader's block. The token

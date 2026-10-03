@@ -6,10 +6,10 @@
 #include "sgcl/core/variant.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class F, class... Vs>
-            decltype(auto) visit(F&& f, Vs&&... vs);
-    /*(2)*/ template<class R, class F, class... Vs>
-            R visit(F&& f, Vs&&... vs);
+    template<class F, class... Vs>
+    decltype(auto) visit(F&& f, Vs&&... vs);    // (1)
+    template<class R, class F, class... Vs>
+    R visit(F&& f, Vs&&... vs);                 // (2)
 }
 ```
 

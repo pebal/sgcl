@@ -6,18 +6,18 @@
 #include "sgcl/io/print.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<class... A>
-            void println(const txt::format_pattern<std::type_identity_t<A>...>& pattern,
-                         const A&... args);
-    /*(2)*/ void println();
-    /*(3)*/ template<class T>
-            void println(const T& value);
-    /*(4)*/ template<class... A>
-            void println(const io::writer& to,
-                         const txt::format_pattern<std::type_identity_t<A>...>& pattern,
-                         const A&... args);
-    /*(5)*/ template<class... A>
-            bool println(const txt::runtime_pattern& pattern, const A&... args);
+    template<class... A>
+    void println(const txt::format_pattern<std::type_identity_t<A>...>& pattern,    // (1)
+                 const A&... args);
+    void println();                                                                 // (2)
+    template<class T>
+    void println(const T& value);                                                   // (3)
+    template<class... A>
+    void println(const io::writer& to,                                              // (4)
+                 const txt::format_pattern<std::type_identity_t<A>...>& pattern,
+                 const A&... args);
+    template<class... A>
+    bool println(const txt::runtime_pattern& pattern, const A&... args);            // (5)
 }
 
 namespace sgcl {

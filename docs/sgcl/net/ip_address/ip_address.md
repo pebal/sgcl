@@ -3,8 +3,8 @@
 # sgcl::net::ip_address::ip_address
 
 ```cpp
-/*(1)*/ ip_address() noexcept = default;
-/*(2)*/ explicit ip_address(const string& text);
+ip_address() noexcept = default;            // (1)
+explicit ip_address(const string& text);    // (2)
 ```
 
 Constructs an address.

@@ -3,14 +3,14 @@
 # sgcl::forward_list\<T\>::merge
 
 ```cpp
-/*(1)*/ void merge(forward_list& other) noexcept(/* see below */);
-/*(2)*/ void merge(forward_list&& other) noexcept(/* see below */);
-/*(3)*/ template<class Compare>
-        void merge(forward_list& other, Compare comp)
-            noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>);
-/*(4)*/ template<class Compare>
-        void merge(forward_list&& other, Compare comp)
-            noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>);
+void merge(forward_list& other) noexcept(/* see below */);      // (1)
+void merge(forward_list&& other) noexcept(/* see below */);     // (2)
+template<class Compare>
+void merge(forward_list& other, Compare comp)                   // (3)
+    noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>);
+template<class Compare>
+void merge(forward_list&& other, Compare comp)                  // (4)
+    noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>);
 ```
 
 Merges the sorted list `other` into this sorted list, which stays sorted; `other` is empty after.

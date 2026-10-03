@@ -6,11 +6,11 @@
 #include "sgcl/core/any.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T, class... A>
-            any make_any(A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, A...>);
-    /*(2)*/ template<class T, class U, class... A>
-            any make_any(std::initializer_list<U> il, A&&... a) noexcept(
-                std::is_nothrow_constructible_v<std::decay_t<T>, std::initializer_list<U>&, A...>);
+    template<class T, class... A>
+    any make_any(A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, A...>);    // (1)
+    template<class T, class U, class... A>
+    any make_any(std::initializer_list<U> il, A&&... a) noexcept(                               // (2)
+        std::is_nothrow_constructible_v<std::decay_t<T>, std::initializer_list<U>&, A...>);
 }
 ```
 

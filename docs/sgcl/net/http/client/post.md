@@ -3,11 +3,11 @@
 # sgcl::net::http::client::post, async_post
 
 ```cpp
-/*(1)*/ expected<response, io::error> post(const string& url, const string& content_type,
-                                           const string& body) const;
-/*(2)*/ async::task<expected<response, io::error>> async_post(const string& url,
-                                                              const string& content_type,
-                                                              const string& body) const noexcept;
+expected<response, io::error> post(const string& url, const string& content_type,            // (1)
+                                   const string& body) const;
+async::task<expected<response, io::error>> async_post(const string& url,                     // (2)
+                                                      const string& content_type,
+                                                      const string& body) const noexcept;
 ```
 
 Sends a POST of `body` to `url` with `Content-Type: content_type`, Go's `http.Post`: [send](send.md) of a request

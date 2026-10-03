@@ -3,14 +3,14 @@
 # sgcl::vector\<T\>::vector
 
 ```cpp
-/*(1)*/ vector() noexcept;
-/*(2)*/ explicit vector(size_type count);
-/*(3)*/ vector(size_type count, const T& value);
-/*(4)*/ template<std::input_iterator InputIt> vector(InputIt first, InputIt last);
-/*(5)*/ template<std::ranges::input_range R> explicit vector(R&& r);
-/*(6)*/ vector(std::initializer_list<T> ilist);
-/*(7)*/ vector(const vector& other);
-/*(8)*/ vector(vector&& other) noexcept;
+vector() noexcept;                                                            // (1)
+explicit vector(size_type count);                                             // (2)
+vector(size_type count, const T& value);                                      // (3)
+template<std::input_iterator InputIt> vector(InputIt first, InputIt last);    // (4)
+template<std::ranges::input_range R> explicit vector(R&& r);                  // (5)
+vector(std::initializer_list<T> ilist);                                       // (6)
+vector(const vector& other);                                                  // (7)
+vector(vector&& other) noexcept;                                              // (8)
 ```
 
 Constructs a vector from one of the sources below.

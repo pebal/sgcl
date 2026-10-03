@@ -3,8 +3,8 @@
 # sgcl::codec::image::row
 
 ```cpp
-/*(1)*/ slice<byte> row(uint32_t y);
-/*(2)*/ slice<const byte> row(uint32_t y) const;
+slice<byte> row(uint32_t y);                // (1)
+slice<const byte> row(uint32_t y) const;    // (2)
 ```
 
 Row `y` of the image, counted from the top: the [stride](stride.md) bytes of its pixels, starting `y` × `stride()`

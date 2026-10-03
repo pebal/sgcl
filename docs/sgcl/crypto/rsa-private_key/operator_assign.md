@@ -3,8 +3,8 @@
 # sgcl::crypto::rsa::private_key::operator=
 
 ```cpp
-/*(1)*/ private_key& operator=(private_key&& other) noexcept;
-/*(2)*/ private_key& operator=(const private_key& other) = delete;
+private_key& operator=(private_key&& other) noexcept;         // (1)
+private_key& operator=(const private_key& other) = delete;    // (2)
 ```
 
 1. Takes the numbers of `other` over and leaves `other` empty; the numbers this key held are zeroed and freed. A

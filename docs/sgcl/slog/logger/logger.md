@@ -3,10 +3,10 @@
 # sgcl::slog::logger::logger
 
 ```cpp
-/*(1)*/ logger() noexcept;
-/*(2)*/ explicit logger(const options& o) noexcept;
-/*(3)*/ explicit logger(const io::writer& out, slog::level l = slog::level::info) noexcept;
-/*(4)*/ explicit logger(const slog::handler& h, slog::level l = slog::level::info) noexcept;
+logger() noexcept;                                                                      // (1)
+explicit logger(const options& o) noexcept;                                             // (2)
+explicit logger(const io::writer& out, slog::level l = slog::level::info) noexcept;     // (3)
+explicit logger(const slog::handler& h, slog::level l = slog::level::info) noexcept;    // (4)
 ```
 
 Constructs a logger with an output of its own.

@@ -3,10 +3,10 @@
 # sgcl::encoding::json::reader::read, async_read
 
 ```cpp
-/*(1)*/ optional<json> read();
-/*(2)*/ async::task<optional<json>> async_read() noexcept;
-/*(3)*/ template<class T> optional<T> read();
-/*(4)*/ template<class T> async::task<optional<T>> async_read() noexcept;
+optional<json> read();                                               // (1)
+async::task<optional<json>> async_read() noexcept;                   // (2)
+template<class T> optional<T> read();                                // (3)
+template<class T> async::task<optional<T>> async_read() noexcept;    // (4)
 ```
 
 Reads the next value whole. The value is gathered in the block first, its end found by counting its brackets

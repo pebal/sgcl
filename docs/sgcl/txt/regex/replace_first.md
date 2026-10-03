@@ -3,14 +3,14 @@
 # sgcl::txt::regex::replace_first
 
 ```cpp
-/*(1)*/ string replace_first(const string& text, const string& with) const;
-/*(2)*/ string replace_first(const slice<const char>& text, const slice<const char>& with) const;
-/*(3)*/ template<size_t N, size_t M>
-        string replace_first(const char (&text)[N], const char (&with)[M]) const;
-/*(4)*/ template<class P, class Q>
-        requires (std::same_as<P, const char*> || std::same_as<P, char*>)
-              && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
-        string replace_first(const P& text, const Q& with) const;
+string replace_first(const string& text, const string& with) const;                          // (1)
+string replace_first(const slice<const char>& text, const slice<const char>& with) const;    // (2)
+template<size_t N, size_t M>
+string replace_first(const char (&text)[N], const char (&with)[M]) const;                    // (3)
+template<class P, class Q>
+requires (std::same_as<P, const char*> || std::same_as<P, char*>)
+      && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
+string replace_first(const P& text, const Q& with) const;                                    // (4)
 ```
 
 Returns the text with the first match of the pattern replaced and the rest as it was. The replacement is read as

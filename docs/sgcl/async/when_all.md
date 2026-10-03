@@ -6,14 +6,14 @@
 #include "sgcl/async/when.h"   // or "sgcl/async.h"
 
 namespace sgcl::async {
-    /*(1)*/ template<class... T>
-            task<tuple<T...>> when_all(task<T>... ts);
-    /*(2)*/ template<class... Void>
-                requires (std::is_void_v<Void> && ...)
-            task<> when_all(task<Void>... ts);
-    /*(3)*/ template<class T>
-            task<vector<T>> when_all(vector<task<T>> ts);
-    /*(4)*/ task<> when_all(vector<task<>> ts);
+    template<class... T>
+    task<tuple<T...>> when_all(task<T>... ts);       // (1)
+    template<class... Void>
+        requires (std::is_void_v<Void> && ...)
+    task<> when_all(task<Void>... ts);               // (2)
+    template<class T>
+    task<vector<T>> when_all(vector<task<T>> ts);    // (3)
+    task<> when_all(vector<task<>> ts);              // (4)
 }
 ```
 

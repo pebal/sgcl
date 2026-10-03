@@ -3,8 +3,8 @@
 # sgcl::mixin::ordered\<Derived\>::stable_sort
 
 ```cpp
-/*(1)*/ void stable_sort() noexcept(/* see below */);
-/*(2)*/ template<class Compare> void stable_sort(Compare cmp) noexcept(/* see below */);
+void stable_sort() noexcept(/* see below */);                                       // (1)
+template<class Compare> void stable_sort(Compare cmp) noexcept(/* see below */);    // (2)
 ```
 
 Sorts the elements in place, in ascending order, keeping the order of equivalent elements: of two that neither

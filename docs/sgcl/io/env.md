@@ -6,12 +6,12 @@
 #include "sgcl/io/os.h"   // or "sgcl/io.h"
 
 namespace sgcl::io {
-    /*(1)*/ template<class T>
-                requires(!std::is_convertible_v<const T&, string>)
-            T env(const string& name, const T& fallback);
-    /*(2)*/ template<class Rep, class Period>
-            duration env(const string& name, std::chrono::duration<Rep, Period> fallback);
-    /*(3)*/ string env(const string& name, const string& fallback) noexcept;
+    template<class T>
+        requires(!std::is_convertible_v<const T&, string>)
+    T env(const string& name, const T& fallback);                                     // (1)
+    template<class Rep, class Period>
+    duration env(const string& name, std::chrono::duration<Rep, Period> fallback);    // (2)
+    string env(const string& name, const string& fallback) noexcept;                  // (3)
 }
 ```
 

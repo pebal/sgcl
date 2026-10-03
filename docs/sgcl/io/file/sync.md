@@ -3,8 +3,8 @@
 # sgcl::io::file::sync, async_sync
 
 ```cpp
-/*(1)*/ expected<void, error> sync() const noexcept;
-/*(2)*/ async::task<expected<void, error>> async_sync() const noexcept;
+expected<void, error> sync() const noexcept;                       // (1)
+async::task<expected<void, error>> async_sync() const noexcept;    // (2)
 ```
 
 Waits until what was written to the file reaches the disk: the `fsync(2)` of the descriptor. A write returns once

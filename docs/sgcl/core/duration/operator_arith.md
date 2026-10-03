@@ -3,39 +3,39 @@
 # sgcl::duration::operator+=, operator-=, operator\*=, operator/=, operator%=, sgcl::operator+, operator-, operator\*, operator/, operator% (sgcl::duration)
 
 ```cpp
-/*(1)*/ friend constexpr duration operator+(duration a, duration b) noexcept;
-/*(2)*/ friend constexpr duration operator-(duration a, duration b) noexcept;
-/*(3)*/ friend constexpr duration operator-(duration a) noexcept;
-/*(4)*/ friend constexpr duration operator+(duration a) noexcept;
-/*(5)*/ template<std::integral I>
-        requires (!std::is_same_v<I, bool>)
-        friend constexpr duration operator*(duration d, I n) noexcept;
-/*(6)*/ template<std::integral I>
-        requires (!std::is_same_v<I, bool>)
-        friend constexpr duration operator*(I n, duration d) noexcept;
-/*(7)*/ template<std::integral I>
-        requires (!std::is_same_v<I, bool>)
-        friend constexpr duration operator/(duration d, I n) noexcept;
-/*(8)*/ friend constexpr int64_t operator/(duration a, duration b) noexcept;
-/*(9)*/ friend constexpr duration operator%(duration a, duration b) noexcept;
-/*(10)*/ constexpr duration& operator+=(duration d) noexcept;
-/*(11)*/ constexpr duration& operator-=(duration d) noexcept;
-/*(12)*/ template<std::integral I>
-         requires (!std::is_same_v<I, bool>)
-         constexpr duration& operator*=(I n) noexcept;
-/*(13)*/ template<std::integral I>
-         requires (!std::is_same_v<I, bool>)
-         constexpr duration& operator/=(I n) noexcept;
-/*(14)*/ constexpr duration& operator%=(duration d) noexcept;
-/*(15)*/ template<class Clock, class D>
-         friend constexpr auto operator+(const std::chrono::time_point<Clock, D>& t, duration d)
-             noexcept(std::is_arithmetic_v<typename D::rep>);
-/*(16)*/ template<class Clock, class D>
-         friend constexpr auto operator+(duration d, const std::chrono::time_point<Clock, D>& t)
-             noexcept(std::is_arithmetic_v<typename D::rep>);
-/*(17)*/ template<class Clock, class D>
-         friend constexpr auto operator-(const std::chrono::time_point<Clock, D>& t, duration d)
-             noexcept(std::is_arithmetic_v<typename D::rep>);
+friend constexpr duration operator+(duration a, duration b) noexcept;                      // (1)
+friend constexpr duration operator-(duration a, duration b) noexcept;                      // (2)
+friend constexpr duration operator-(duration a) noexcept;                                  // (3)
+friend constexpr duration operator+(duration a) noexcept;                                  // (4)
+template<std::integral I>
+requires (!std::is_same_v<I, bool>)
+friend constexpr duration operator*(duration d, I n) noexcept;                             // (5)
+template<std::integral I>
+requires (!std::is_same_v<I, bool>)
+friend constexpr duration operator*(I n, duration d) noexcept;                             // (6)
+template<std::integral I>
+requires (!std::is_same_v<I, bool>)
+friend constexpr duration operator/(duration d, I n) noexcept;                             // (7)
+friend constexpr int64_t operator/(duration a, duration b) noexcept;                       // (8)
+friend constexpr duration operator%(duration a, duration b) noexcept;                      // (9)
+constexpr duration& operator+=(duration d) noexcept;                                       // (10)
+constexpr duration& operator-=(duration d) noexcept;                                       // (11)
+template<std::integral I>
+requires (!std::is_same_v<I, bool>)
+constexpr duration& operator*=(I n) noexcept;                                              // (12)
+template<std::integral I>
+requires (!std::is_same_v<I, bool>)
+constexpr duration& operator/=(I n) noexcept;                                              // (13)
+constexpr duration& operator%=(duration d) noexcept;                                       // (14)
+template<class Clock, class D>
+friend constexpr auto operator+(const std::chrono::time_point<Clock, D>& t, duration d)    // (15)
+    noexcept(std::is_arithmetic_v<typename D::rep>);
+template<class Clock, class D>
+friend constexpr auto operator+(duration d, const std::chrono::time_point<Clock, D>& t)    // (16)
+    noexcept(std::is_arithmetic_v<typename D::rep>);
+template<class Clock, class D>
+friend constexpr auto operator-(const std::chrono::time_point<Clock, D>& t, duration d)    // (17)
+    noexcept(std::is_arithmetic_v<typename D::rep>);
 ```
 
 The arithmetic of durations, saturated at the ends of the range instead of wrapping: a result that would not fit is

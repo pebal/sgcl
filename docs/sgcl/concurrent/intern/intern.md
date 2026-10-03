@@ -3,8 +3,8 @@
 # sgcl::concurrent::intern\<T, Hash, KeyEqual\>::intern
 
 ```cpp
-/*(1)*/ intern();
-/*(2)*/ intern(const intern&) = delete;
+intern();                          // (1)
+intern(const intern&) = delete;    // (2)
 ```
 
 1. An empty pool of its own: for the values of one subsystem, or when the lifetime of the default pool,

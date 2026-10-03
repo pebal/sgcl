@@ -3,17 +3,17 @@
 # sgcl::crypto::rsa::private_key::decrypt_oaep_to
 
 ```cpp
-/*(1)*/ [[nodiscard]] expected<size_t, error>
-        decrypt_oaep_to(const slice<byte>& out, hash_id id,
-                        const slice<const byte>& ciphertext) const;
-/*(2)*/ [[nodiscard]] expected<size_t, error>
-        decrypt_oaep_to(const slice<byte>& out, hash_id id,
-                        const slice<const byte>& ciphertext,
-                        const slice<const byte>& label) const;
-/*(3)*/ [[nodiscard]] expected<size_t, error>
-        decrypt_oaep_to(const slice<byte>& out, hash_id id, hash_id mgf1,
-                        const slice<const byte>& ciphertext,
-                        const slice<const byte>& label) const;
+[[nodiscard]] expected<size_t, error>
+decrypt_oaep_to(const slice<byte>& out, hash_id id,                  // (1)
+                const slice<const byte>& ciphertext) const;
+[[nodiscard]] expected<size_t, error>
+decrypt_oaep_to(const slice<byte>& out, hash_id id,                  // (2)
+                const slice<const byte>& ciphertext,
+                const slice<const byte>& label) const;
+[[nodiscard]] expected<size_t, error>
+decrypt_oaep_to(const slice<byte>& out, hash_id id, hash_id mgf1,    // (3)
+                const slice<const byte>& ciphertext,
+                const slice<const byte>& label) const;
 ```
 
 Writes the message of an OAEP ciphertext into `out`, the program's own buffer, which it clears with

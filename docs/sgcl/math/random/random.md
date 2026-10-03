@@ -3,8 +3,8 @@
 # sgcl::math::random::random
 
 ```cpp
-/*(1)*/ random();
-/*(2)*/ explicit random(uint64_t seed) noexcept;
+random();                                   // (1)
+explicit random(uint64_t seed) noexcept;    // (2)
 ```
 
 Constructs a generator.

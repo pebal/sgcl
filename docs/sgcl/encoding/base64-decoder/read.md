@@ -3,9 +3,9 @@
 # sgcl::encoding::base64::decoder::read, async_read
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> read(const slice<byte>& buffer) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const
-            noexcept;
+expected<size_t, io::error> read(const slice<byte>& buffer) const;                      // (1)
+async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const    // (2)
+    noexcept;
 ```
 
 Reads the next bytes of the decoding into `buffer`: the groups the text read so far holds, decoded straight into

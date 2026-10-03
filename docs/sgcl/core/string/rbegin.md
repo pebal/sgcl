@@ -3,8 +3,8 @@
 # sgcl::string::rbegin, crbegin
 
 ```cpp
-/*(1)*/ const_reverse_iterator rbegin() const noexcept;
-/*(2)*/ const_reverse_iterator crbegin() const noexcept;
+const_reverse_iterator rbegin() const noexcept;     // (1)
+const_reverse_iterator crbegin() const noexcept;    // (2)
 ```
 
 Returns a reverse iterator to the last character: `std::reverse_iterator` over [end()](end.md), read only. (2) is (1)

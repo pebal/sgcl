@@ -3,8 +3,8 @@
 # sgcl::net::http::request::bytes, async_bytes
 
 ```cpp
-/*(1)*/ expected<vector<byte>, io::error> bytes() const;
-/*(2)*/ async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept;
+expected<vector<byte>, io::error> bytes() const;                                // (1)
+async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept;    // (2)
 ```
 
 Reads the whole body of a received request as bytes, Go's `io.ReadAll(r.Body)`: into a vector of its declared length

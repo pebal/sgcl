@@ -3,13 +3,13 @@
 # sgcl::txt::fold_matches::fold_matches
 
 ```cpp
-/*(1)*/ fold_matches() noexcept;
-/*(2)*/ fold_matches(const string& text, const string& pattern) noexcept;
-/*(3)*/ fold_matches(const string& text, searcher_type pattern) noexcept;
-/*(4)*/ fold_matches(const slice<const char>& text, searcher_type pattern);
-/*(5)*/ template<size_t N> fold_matches(const char (&text)[N], searcher_type pattern);
-/*(6)*/ template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
-        fold_matches(P text, searcher_type pattern);
+fold_matches() noexcept;                                                             // (1)
+fold_matches(const string& text, const string& pattern) noexcept;                    // (2)
+fold_matches(const string& text, searcher_type pattern) noexcept;                    // (3)
+fold_matches(const slice<const char>& text, searcher_type pattern);                  // (4)
+template<size_t N> fold_matches(const char (&text)[N], searcher_type pattern);       // (5)
+template<class P> requires std::same_as<P, const char*> || std::same_as<P, char*>
+fold_matches(P text, searcher_type pattern);                                         // (6)
 ```
 
 Constructs the range of the occurrences of a pattern in a text: maps the text once — folds it for `fold_matches`,

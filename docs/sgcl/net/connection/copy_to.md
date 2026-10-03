@@ -3,8 +3,8 @@
 # sgcl::net::connection::copy_to, async_copy_to
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> copy_to(const connection& other) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_copy_to(const connection& other) const noexcept;
+expected<size_t, io::error> copy_to(const connection& other) const;                                // (1)
+async::task<expected<size_t, io::error>> async_copy_to(const connection& other) const noexcept;    // (2)
 ```
 
 Reads this connection to the end of its stream and writes everything to `other`: Go's `io.Copy(other, c)`. An echo

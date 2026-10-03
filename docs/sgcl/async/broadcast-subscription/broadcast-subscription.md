@@ -3,9 +3,9 @@
 # sgcl::async::broadcast\<T\>::subscription::subscription
 
 ```cpp
-/*(1)*/ subscription() noexcept;
-/*(2)*/ subscription(subscription&& other) noexcept;
-/*(3)*/ subscription(const subscription&) = delete;
+subscription() noexcept;                        // (1)
+subscription(subscription&& other) noexcept;    // (2)
+subscription(const subscription&) = delete;     // (3)
 ```
 
 1. An empty subscription, of no broadcast: one to assign a subscription to later. A subscription of a broadcast is

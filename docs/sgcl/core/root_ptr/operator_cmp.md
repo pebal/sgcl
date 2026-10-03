@@ -3,16 +3,16 @@
 # sgcl::operator==, operator\<=\> (sgcl::root_ptr)
 
 ```cpp
-/*(1)*/ template<class T, class U>
-        bool operator==(const root_ptr<T>& l, const root_ptr<U>& r) noexcept;
-/*(2)*/ template<class T, class U>
-        bool operator==(const root_ptr<T>& l, const tracked_ptr<U>& r) noexcept;
-/*(3)*/ template<class T, class U>
-        bool operator==(const tracked_ptr<T>& l, const root_ptr<U>& r) noexcept;
-/*(4)*/ template<class T>
-        bool operator==(const root_ptr<T>& l, std::nullptr_t) noexcept;
-/*(5)*/ template<class T, class U>
-        std::strong_ordering operator<=>(const root_ptr<T>& l, const root_ptr<U>& r) noexcept;
+template<class T, class U>
+bool operator==(const root_ptr<T>& l, const root_ptr<U>& r) noexcept;                     // (1)
+template<class T, class U>
+bool operator==(const root_ptr<T>& l, const tracked_ptr<U>& r) noexcept;                  // (2)
+template<class T, class U>
+bool operator==(const tracked_ptr<T>& l, const root_ptr<U>& r) noexcept;                  // (3)
+template<class T>
+bool operator==(const root_ptr<T>& l, std::nullptr_t) noexcept;                           // (4)
+template<class T, class U>
+std::strong_ordering operator<=>(const root_ptr<T>& l, const root_ptr<U>& r) noexcept;    // (5)
 ```
 
 Compare the objects pointed at, by their addresses; `!=` and the comparisons with the operands swapped are rewritten

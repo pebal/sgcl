@@ -3,29 +3,29 @@
 # sgcl::txt::value::value
 
 ```cpp
-/*(1)*/ value() noexcept = default;
-/*(2)*/ value(std::nullptr_t) noexcept;
-/*(3)*/ value(bool v) noexcept;
-/*(4)*/ template<class T>
-        requires std::integral<T> && (!std::same_as<std::remove_cv_t<T>, bool>)
-                 && (!std::same_as<std::remove_cv_t<T>, char>)
-                 && (!std::same_as<std::remove_cv_t<T>, char32_t>)
-        value(T v) noexcept;
-/*(5)*/ template<class T>
-        requires std::floating_point<T>
-        value(T v) noexcept;
-/*(6)*/ value(const string& v) noexcept;
-/*(7)*/ value(string&& v) noexcept;
-/*(8)*/ template<size_t N>
-        value(const char (&v)[N]);
-/*(9)*/ template<class P>
-        requires std::same_as<P, const char*> || std::same_as<P, char*>
-        value(P v);
-/*(10)*/ value(const slice<const char>& v);
-/*(11)*/ value(std::initializer_list<value> items) noexcept;
-/*(12)*/ value(const vector<value>& items) noexcept;
-/*(13)*/ value(char) = delete;
-/*(14)*/ value(char32_t) = delete;
+value() noexcept = default;                                                // (1)
+value(std::nullptr_t) noexcept;                                            // (2)
+value(bool v) noexcept;                                                    // (3)
+template<class T>
+requires std::integral<T> && (!std::same_as<std::remove_cv_t<T>, bool>)
+         && (!std::same_as<std::remove_cv_t<T>, char>)
+         && (!std::same_as<std::remove_cv_t<T>, char32_t>)
+value(T v) noexcept;                                                       // (4)
+template<class T>
+requires std::floating_point<T>
+value(T v) noexcept;                                                       // (5)
+value(const string& v) noexcept;                                           // (6)
+value(string&& v) noexcept;                                                // (7)
+template<size_t N>
+value(const char (&v)[N]);                                                 // (8)
+template<class P>
+requires std::same_as<P, const char*> || std::same_as<P, char*>
+value(P v);                                                                // (9)
+value(const slice<const char>& v);                                         // (10)
+value(std::initializer_list<value> items) noexcept;                        // (11)
+value(const vector<value>& items) noexcept;                                // (12)
+value(char) = delete;                                                      // (13)
+value(char32_t) = delete;                                                  // (14)
 ```
 
 Makes a value. None of them is explicit, so a value is written as the thing it holds wherever one is wanted.

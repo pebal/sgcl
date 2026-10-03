@@ -3,9 +3,9 @@
 # sgcl::encoding::base64::encoder::write, async_write
 
 ```cpp
-/*(1)*/ expected<size_t, io::error> write(const slice<const byte>& data) const;
-/*(2)*/ async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const
-            noexcept;
+expected<size_t, io::error> write(const slice<const byte>& data) const;                      // (1)
+async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const    // (2)
+    noexcept;
 ```
 
 Encodes `data` into the writer under the encoder: the whole groups of three bytes go out at once, through the

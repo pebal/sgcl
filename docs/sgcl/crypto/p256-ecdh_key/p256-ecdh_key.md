@@ -3,8 +3,8 @@
 # sgcl::crypto::p256::ecdh_key::ecdh_key
 
 ```cpp
-/*(1)*/ ecdh_key(ecdh_key&& other) noexcept;
-/*(2)*/ ecdh_key(const ecdh_key&) = delete;
+ecdh_key(ecdh_key&& other) noexcept;    // (1)
+ecdh_key(const ecdh_key&) = delete;     // (2)
 ```
 
 1. Takes the key of `other` over: the scalar and the public point are copied into the new object, and `other` is

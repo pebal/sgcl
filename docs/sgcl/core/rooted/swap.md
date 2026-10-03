@@ -3,9 +3,9 @@
 # sgcl::rooted\<T\>::swap
 
 ```cpp
-/*(1)*/ void swap(rooted& o) noexcept;
-/*(2)*/ template<class T>
-        void swap(rooted<T>& a, rooted<T>& b) noexcept;
+void swap(rooted& o) noexcept;                     // (1)
+template<class T>
+void swap(rooted<T>& a, rooted<T>& b) noexcept;    // (2)
 ```
 
 Exchanges the values of two `rooted`s; the cells stay with their `rooted`s.

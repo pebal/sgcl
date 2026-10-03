@@ -3,8 +3,8 @@
 # sgcl::immutable::list\<T\>::push_front
 
 ```cpp
-/*(1)*/ list push_front(const T& value) const noexcept(std::is_nothrow_copy_constructible_v<T>);
-/*(2)*/ list push_front(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>);
+list push_front(const T& value) const noexcept(std::is_nothrow_copy_constructible_v<T>);    // (1)
+list push_front(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>);         // (2)
 ```
 
 Returns the list with one more element in front: one new cell, linked to the first cell of this list, whose chain

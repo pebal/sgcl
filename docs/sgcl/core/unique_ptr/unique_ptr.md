@@ -3,11 +3,11 @@
 # sgcl::unique_ptr\<T\>::unique_ptr
 
 ```cpp
-/*(1)*/ unique_ptr() = default;
-/*(2)*/ unique_ptr(unique_ptr&&) noexcept = default;
-/*(3)*/ constexpr unique_ptr(std::nullptr_t) noexcept;
-/*(4)*/ template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        unique_ptr(std::unique_ptr<U, deleter_type>&& p) noexcept;
+unique_ptr() = default;                                                                                                      // (1)
+unique_ptr(unique_ptr&&) noexcept = default;                                                                                 // (2)
+constexpr unique_ptr(std::nullptr_t) noexcept;                                                                               // (3)
+template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+unique_ptr(std::unique_ptr<U, deleter_type>&& p) noexcept;                                                                   // (4)
 ```
 
 Constructs the owner.

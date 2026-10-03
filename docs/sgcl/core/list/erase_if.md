@@ -6,10 +6,10 @@
 #include "sgcl/core/list.h"   // or "sgcl/core.h"
 
 namespace sgcl {
-    /*(1)*/ template<class T, class U>
-            typename list<T>::size_type erase(list<T>& c, const U& value) noexcept(/* see below */);
-    /*(2)*/ template<class T, class Pred>
-            typename list<T>::size_type erase_if(list<T>& c, Pred pred) noexcept(/* see below */);
+    template<class T, class U>
+    typename list<T>::size_type erase(list<T>& c, const U& value) noexcept(/* see below */);    // (1)
+    template<class T, class Pred>
+    typename list<T>::size_type erase_if(list<T>& c, Pred pred) noexcept(/* see below */);      // (2)
 }
 
 namespace std {

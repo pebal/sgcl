@@ -3,8 +3,8 @@
 # sgcl::compress::zip::writer::add, async_add
 
 ```cpp
-/*(1)*/ expected<void, error> add(const string& name, const slice<const byte>& data);
-/*(2)*/ async::task<expected<void, error>> async_add(string name, slice<const byte> data) noexcept;
+expected<void, error> add(const string& name, const slice<const byte>& data);                  // (1)
+async::task<expected<void, error>> async_add(string name, slice<const byte> data) noexcept;    // (2)
 ```
 
 Writes a whole entry: a [create](create.md) of the name (deflated, modified now; a name ending in `/` a directory),

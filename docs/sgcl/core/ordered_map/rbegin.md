@@ -3,9 +3,9 @@
 # sgcl::ordered_map\<Key, T, Hash, KeyEqual\>::rbegin, crbegin
 
 ```cpp
-/*(1)*/ reverse_iterator rbegin() noexcept;
-/*(2)*/ const_reverse_iterator rbegin() const noexcept;
-/*(3)*/ const_reverse_iterator crbegin() const noexcept;
+reverse_iterator rbegin() noexcept;                 // (1)
+const_reverse_iterator rbegin() const noexcept;     // (2)
+const_reverse_iterator crbegin() const noexcept;    // (3)
 ```
 
 Returns a reverse iterator to the newest element: the order of insertion walked backwards, from the newest

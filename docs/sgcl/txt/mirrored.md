@@ -6,9 +6,9 @@
 #include "sgcl/txt/bidi.h"   // or "sgcl/txt.h"
 
 namespace sgcl::txt {
-    /*(1)*/ string mirrored(const string& text,
-                            direction paragraph = direction::automatic) noexcept;
-    /*(2)*/ string mirrored(const string& text, const vector<uint8_t>& levels) noexcept;
+    string mirrored(const string& text,                                             // (1)
+                    direction paragraph = direction::automatic) noexcept;
+    string mirrored(const string& text, const vector<uint8_t>& levels) noexcept;    // (2)
 }
 ```
 
