@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/os.h"
 #include "../core/aliases.h"
 
 #include <cassert>
@@ -59,7 +60,7 @@ namespace sgcl::async {
         template<class F>
         struct MadeBy {
             F& f;
-            operator std::invoke_result_t<F&, awaited_t>() noexcept(std::is_nothrow_invocable_v<F&, awaited_t>) {
+            SGCL_INLINE_HOT operator std::invoke_result_t<F&, awaited_t>() noexcept(std::is_nothrow_invocable_v<F&, awaited_t>) {
                 return f(awaited);
             }
         };
@@ -99,7 +100,7 @@ namespace sgcl::async {
             && (!Owned || (detail::nothrow_awaiter_of<Awaitable>() && std::is_nothrow_constructible_v<Awaiter, AwaiterRef>));
 
     public:
-        operation(operation&& o) noexcept(std::is_nothrow_move_constructible_v<F>)
+        SGCL_INLINE_HOT operation(operation&& o) noexcept(std::is_nothrow_move_constructible_v<F>)
         : _f(std::move(o._f))
 #ifndef NDEBUG
         , _pending(std::exchange(o._pending, false))
@@ -113,19 +114,19 @@ namespace sgcl::async {
         // An operation made and never carried out did nothing: a debug
         // build says so where it is dropped. A (void) cast silences
         // nodiscard, and `(void)f->close();` then closes nothing
-        ~operation() {
+        SGCL_INLINE_HOT ~operation() {
             assert(!_pending && "an operation made and never carried out: co_await it in a task or call .wait() on a thread");
         }
 
         // The thread's way: blocks until the operation is done, and returns
         // its result
-        decltype(auto) wait() && noexcept(std::is_nothrow_invocable_v<F&, detail::blocking_t>) {
+        SGCL_INLINE_HOT decltype(auto) wait() && noexcept(std::is_nothrow_invocable_v<F&, detail::blocking_t>) {
             _carried_out();
             return _f(detail::blocking);
         }
 
         // The coroutine's way (co_await): the awaitable made now, in place
-        bool await_ready() noexcept(NothrowMade && noexcept(std::declval<Awaiter&>().await_ready())) {
+        SGCL_INLINE_HOT bool await_ready() noexcept(NothrowMade && noexcept(std::declval<Awaiter&>().await_ready())) {
             _carried_out();
             _awaitable.emplace(detail::MadeBy<F>{_f});
             if constexpr (Owned) {
@@ -135,11 +136,11 @@ namespace sgcl::async {
         }
 
         template<class H>
-        decltype(auto) await_suspend(H h) noexcept(noexcept(std::declval<Awaiter&>().await_suspend(h))) {
+        SGCL_INLINE_HOT decltype(auto) await_suspend(H h) noexcept(noexcept(std::declval<Awaiter&>().await_suspend(h))) {
             return _get().await_suspend(h);
         }
 
-        decltype(auto) await_resume() noexcept(noexcept(std::declval<Awaiter&>().await_resume())) {
+        SGCL_INLINE_HOT decltype(auto) await_resume() noexcept(noexcept(std::declval<Awaiter&>().await_resume())) {
             return _get().await_resume();
         }
 
@@ -147,17 +148,17 @@ namespace sgcl::async {
         template<class G>
         friend operation<G> detail::make_operation(G f) noexcept(std::is_nothrow_move_constructible_v<G>);
 
-        explicit operation(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+        SGCL_INLINE_HOT explicit operation(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
         : _f(std::move(f)) {
         }
 
-        void _carried_out() noexcept {
+        SGCL_INLINE_HOT void _carried_out() noexcept {
 #ifndef NDEBUG
             _pending = false;
 #endif
         }
 
-        Awaiter& _get() noexcept(Owned || detail::nothrow_awaiter_of<Awaitable>()) {
+        SGCL_INLINE_HOT Awaiter& _get() noexcept(Owned || detail::nothrow_awaiter_of<Awaitable>()) {
             if constexpr (Owned) {
                 return *_awaiter;
             } else {
@@ -178,14 +179,14 @@ namespace sgcl::async {
 
 namespace sgcl::async::detail {
     template<class F>
-    operation<F> make_operation(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+    SGCL_INLINE_HOT operation<F> make_operation(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
         return operation<F>(std::move(f));
     }
 
     // An operation of two forms: co() the awaitable, block() the blocking
     // call; each captures what it needs
     template<class Co, class Block>
-    auto either(Co co, Block block) noexcept(std::is_nothrow_move_constructible_v<Co> && std::is_nothrow_move_constructible_v<Block>) {
+    SGCL_INLINE_HOT auto either(Co co, Block block) noexcept(std::is_nothrow_move_constructible_v<Co> && std::is_nothrow_move_constructible_v<Block>) {
         return make_operation([co = std::move(co), block = std::move(block)](auto how) mutable -> decltype(auto) {
             if constexpr (std::is_same_v<decltype(how), awaited_t>) {
                 return co();

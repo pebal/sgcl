@@ -41,24 +41,24 @@ namespace sgcl {
 
         atomic_ref& operator=(const atomic_ref&) = delete;
 
-        explicit atomic_ref(value_type& p) noexcept
+        SGCL_INLINE_HOT explicit atomic_ref(value_type& p) noexcept
         : ref(p) {
         }
 
-        atomic_ref(const atomic_ref& a) noexcept
+        SGCL_INLINE_HOT atomic_ref(const atomic_ref& a) noexcept
         : ref(a.ref) {
         }
 
-        std::nullptr_t operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT std::nullptr_t operator=(std::nullptr_t) noexcept {
             this->store(nullptr);
             return nullptr;
         }
 
-        void operator=(unique_ptr<T>&& p) noexcept {
+        SGCL_INLINE_HOT void operator=(unique_ptr<T>&& p) noexcept {
             this->store(std::move(p));
         }
 
-        value_type operator=(value_type p) noexcept {
+        SGCL_INLINE_HOT value_type operator=(value_type p) noexcept {
             this->store(p);
             return p;
         }
@@ -68,11 +68,11 @@ namespace sgcl {
     private:
         friend detail::AtomicWord<atomic_ref, T>;
 
-        detail::Pointer& _ptr() noexcept {
+        SGCL_INLINE_HOT detail::Pointer& _ptr() noexcept {
             return *ref._ptr();
         }
 
-        const detail::Pointer& _ptr() const noexcept {
+        SGCL_INLINE_HOT const detail::Pointer& _ptr() const noexcept {
             return *ref._ptr();
         }
     };
@@ -100,36 +100,36 @@ namespace sgcl {
 
         atomic_ref& operator=(const atomic_ref&) = delete;
 
-        explicit atomic_ref(H& h) noexcept
+        SGCL_INLINE_HOT explicit atomic_ref(H& h) noexcept
         : ref(h) {
         }
 
-        atomic_ref(const atomic_ref& a) noexcept
+        SGCL_INLINE_HOT atomic_ref(const atomic_ref& a) noexcept
         : ref(a.ref) {
         }
 
-        H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
             return _handle(Base::load(m));
         }
 
-        operator H() const noexcept {
+        SGCL_INLINE_HOT operator H() const noexcept {
             return load();
         }
 
-        void store(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT void store(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             Base::store(_word(h), m);
         }
 
-        H operator=(const H& h) noexcept {
+        SGCL_INLINE_HOT H operator=(const H& h) noexcept {
             store(h);
             return h;
         }
 
-        H exchange(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT H exchange(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             return _handle(Base::exchange(_word(h), m));
         }
 
-        bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_strong(e, _word(desired), m);
             if (!done) {
@@ -138,7 +138,7 @@ namespace sgcl {
             return done;
         }
 
-        bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_strong(e, _word(desired), s, f);
             if (!done) {
@@ -147,7 +147,7 @@ namespace sgcl {
             return done;
         }
 
-        bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_weak(e, _word(desired), m);
             if (!done) {
@@ -156,7 +156,7 @@ namespace sgcl {
             return done;
         }
 
-        bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_weak(e, _word(desired), s, f);
             if (!done) {
@@ -165,7 +165,7 @@ namespace sgcl {
             return done;
         }
 
-        void wait(const H& h, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT void wait(const H& h, std::memory_order m = std::memory_order_seq_cst) const noexcept {
             Base::wait(_word(h), m);
         }
 
@@ -174,19 +174,19 @@ namespace sgcl {
     private:
         friend Base;
 
-        static Word _word(const H& h) noexcept {
+        SGCL_INLINE_HOT static Word _word(const H& h) noexcept {
             return const_pointer_cast<State>(detail::HandleWord::word(h));
         }
 
-        static H _handle(const Word& w) noexcept {
+        SGCL_INLINE_HOT static H _handle(const Word& w) noexcept {
             return detail::HandleWord::make<H>(detail::HandleWordOf<H>(w));
         }
 
-        detail::Pointer& _ptr() noexcept {
+        SGCL_INLINE_HOT detail::Pointer& _ptr() noexcept {
             return *detail::HandleWord::word(ref)._ptr();
         }
 
-        const detail::Pointer& _ptr() const noexcept {
+        SGCL_INLINE_HOT const detail::Pointer& _ptr() const noexcept {
             return *detail::HandleWord::word(ref)._ptr();
         }
     };

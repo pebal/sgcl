@@ -38,63 +38,63 @@ namespace sgcl {
 
         counting_iterator() = default;
 
-        explicit counting_iterator(T value) noexcept
+        SGCL_INLINE_HOT explicit counting_iterator(T value) noexcept
         : _value(value) {
         }
 
-        T operator*() const noexcept {
+        SGCL_INLINE_HOT T operator*() const noexcept {
             return _value;
         }
 
-        T operator[](difference_type n) const noexcept {
+        SGCL_INLINE_HOT T operator[](difference_type n) const noexcept {
             return (T)((Wide)_value + (Wide)n);
         }
 
-        counting_iterator& operator++() noexcept {
+        SGCL_INLINE_HOT counting_iterator& operator++() noexcept {
             ++_value;
             return *this;
         }
 
-        counting_iterator operator++(int) noexcept {
+        SGCL_INLINE_HOT counting_iterator operator++(int) noexcept {
             counting_iterator c = *this;
             ++_value;
             return c;
         }
 
-        counting_iterator& operator--() noexcept {
+        SGCL_INLINE_HOT counting_iterator& operator--() noexcept {
             --_value;
             return *this;
         }
 
-        counting_iterator operator--(int) noexcept {
+        SGCL_INLINE_HOT counting_iterator operator--(int) noexcept {
             counting_iterator c = *this;
             --_value;
             return c;
         }
 
-        counting_iterator& operator+=(difference_type n) noexcept {
+        SGCL_INLINE_HOT counting_iterator& operator+=(difference_type n) noexcept {
             _value = (T)((Wide)_value + (Wide)n);
             return *this;
         }
 
-        counting_iterator& operator-=(difference_type n) noexcept {
+        SGCL_INLINE_HOT counting_iterator& operator-=(difference_type n) noexcept {
             _value = (T)((Wide)_value - (Wide)n);
             return *this;
         }
 
-        friend counting_iterator operator+(counting_iterator c, difference_type n) noexcept {
+        SGCL_INLINE_HOT friend counting_iterator operator+(counting_iterator c, difference_type n) noexcept {
             return c += n;
         }
 
-        friend counting_iterator operator+(difference_type n, counting_iterator c) noexcept {
+        SGCL_INLINE_HOT friend counting_iterator operator+(difference_type n, counting_iterator c) noexcept {
             return c += n;
         }
 
-        friend counting_iterator operator-(counting_iterator c, difference_type n) noexcept {
+        SGCL_INLINE_HOT friend counting_iterator operator-(counting_iterator c, difference_type n) noexcept {
             return c -= n;
         }
 
-        friend difference_type operator-(counting_iterator a, counting_iterator b) noexcept {
+        SGCL_INLINE_HOT friend difference_type operator-(counting_iterator a, counting_iterator b) noexcept {
             return (difference_type)((Wide)a._value - (Wide)b._value);
         }
 
@@ -135,7 +135,7 @@ namespace sgcl {
 
         range() = default;
 
-        range(It first, It last) noexcept
+        SGCL_INLINE_HOT range(It first, It last) noexcept
         : _first(first)
         , _last(last) {
         }
@@ -143,7 +143,7 @@ namespace sgcl {
         // From what equal_range hands back
         template<class Pair>
         requires requires(Pair p) { It(p.first); It(p.second); }
-        range(Pair p) noexcept
+        SGCL_INLINE_HOT range(Pair p) noexcept
         : _first(p.first)
         , _last(p.second) {
         }
@@ -152,37 +152,37 @@ namespace sgcl {
         // empty (the counting forms, through the deduction guides below)
         template<std::integral T>
         requires std::same_as<It, counting_iterator<T>>
-        explicit range(T last) noexcept
+        SGCL_INLINE_HOT explicit range(T last) noexcept
         : _first(T(0))
         , _last(last < T(0) ? T(0) : last) {
         }
 
         template<std::integral T>
         requires std::same_as<It, counting_iterator<T>>
-        range(T first, T last) noexcept
+        SGCL_INLINE_HOT range(T first, T last) noexcept
         : _first(first)
         , _last(last < first ? first : last) {
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _first == _last;
         }
 
         // A subtraction for a random-access iterator (by the C++20 concept:
         // the counting iterator's category says input), a walk for a forward one
-        size_t size() const noexcept(_nothrow_distance()) {
+        SGCL_INLINE_HOT size_t size() const noexcept(_nothrow_distance()) {
             return (size_t)std::ranges::distance(_first, _last);
         }
 
-        decltype(auto) front() const noexcept {
+        SGCL_INLINE_HOT decltype(auto) front() const noexcept {
             return *_first;
         }
 
-        It begin() const noexcept {
+        SGCL_INLINE_HOT It begin() const noexcept {
             return _first;
         }
 
-        It end() const noexcept {
+        SGCL_INLINE_HOT It end() const noexcept {
             return _last;
         }
 

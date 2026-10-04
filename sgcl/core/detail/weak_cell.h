@@ -40,7 +40,7 @@ namespace sgcl::detail {
             Drained = 4    // the queue has run its function: no longer kept
         };
 
-        explicit WeakCell(void* p, unsigned f = 0) noexcept
+        SGCL_INLINE_HOT explicit WeakCell(void* p, unsigned f = 0) noexcept
         : target(p)
         , flags(f) {
         }

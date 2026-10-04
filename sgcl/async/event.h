@@ -37,7 +37,7 @@ namespace sgcl::async {
         using State = detail::ChannelState<void>;
 
     public:
-        event() noexcept
+        SGCL_INLINE_HOT event() noexcept
         : _s(detail::make_linked_state<void>()) {
         }
 
@@ -46,11 +46,11 @@ namespace sgcl::async {
         event& operator=(const event&) noexcept = default;
         event& operator=(event&&) noexcept = default;
 
-        void set() const {
+        SGCL_INLINE_HOT void set() const {
             _s->close();
         }
 
-        bool is_set() const noexcept {
+        SGCL_INLINE_HOT bool is_set() const noexcept {
             return _s->closed();
         }
 
@@ -59,7 +59,7 @@ namespace sgcl::async {
         // by itself)
         // noexcept: nobody sends on the channel, the set closes it, so the
         // receive wakes no sender (mutex.h: MutexState::lock)
-        void wait() const noexcept {
+        SGCL_INLINE_HOT void wait() const noexcept {
             assert(!detail::on_worker() && "wait() blocks the worker: co_await the event from a task");
             (void)_s->receive().wait();
         }
@@ -70,23 +70,23 @@ namespace sgcl::async {
         // The awaiter of `co_await e`: the task resumed by the set
         class wait_op {
         public:
-            bool await_ready() {
+            SGCL_INLINE_HOT bool await_ready() {
                 return _op.await_ready();
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                 return _op.await_suspend(h);
             }
 
-            void await_resume() {
+            SGCL_INLINE_HOT void await_resume() {
                 _op.await_resume();
             }
 
         private:
             friend class event;
 
-            explicit wait_op(State& ch) noexcept
+            SGCL_INLINE_HOT explicit wait_op(State& ch) noexcept
             : _op(ch.receive()) {
             }
 
@@ -94,41 +94,41 @@ namespace sgcl::async {
         };
 
         template<class F>
-        auto on_set(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_set(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_receive(std::move(f));
         }
 
         // The same event: the same state
-        friend bool operator==(const event& a, const event& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const event& a, const event& b) noexcept {
             return a._s == b._s;
         }
 
     private:
         friend struct detail::EventAccess;
 
-        explicit event(tracked_ptr<State> s) noexcept
+        SGCL_INLINE_HOT explicit event(tracked_ptr<State> s) noexcept
         : _s(std::move(s)) {
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        event(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        SGCL_INLINE_HOT event(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<State>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<State>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<State>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _handle_word() const noexcept {
             return _s;
         }
 
         tracked_ptr<State> _s;
     };
 
-    inline event::wait_op event::operator co_await() const noexcept {
+    SGCL_INLINE_HOT event::wait_op event::operator co_await() const noexcept {
         return wait_op(*_s);
     }
 
@@ -136,18 +136,18 @@ namespace sgcl::async {
         // An event over a channel of signals the library made (the
         // reactor's, a timer's), and the channel under an event
         struct EventAccess {
-            static event make(tracked_ptr<ChannelState<void>> s) noexcept {
+            SGCL_INLINE_HOT static event make(tracked_ptr<ChannelState<void>> s) noexcept {
                 return event(std::move(s));
             }
 
-            static const tracked_ptr<ChannelState<void>>& state(const event& e) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<ChannelState<void>>& state(const event& e) noexcept {
                 return e._s;
             }
 
             // A reactor's event set because its source was ready, not
             // ended with nothing (ChannelState<void>::closed_ready: the bit
             // read after the close is seen)
-            static bool ready(const event& e) noexcept {
+            SGCL_INLINE_HOT static bool ready(const event& e) noexcept {
                 return e._s->closed_ready();
             }
         };

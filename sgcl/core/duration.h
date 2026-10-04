@@ -24,16 +24,16 @@ namespace sgcl {
     // two words and costs nothing to make or to copy.
     class duration_error {
     public:
-        constexpr duration_error(const char* reason, size_t offset) noexcept
+        SGCL_INLINE_HOT constexpr duration_error(const char* reason, size_t offset) noexcept
         : _reason(reason)
         , _offset(offset) {
         }
 
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return string(_reason);
         }
 
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _offset;
         }
 
@@ -76,7 +76,7 @@ namespace sgcl {
         // a whole number of nanoseconds: 1h, 30min, 500ms, 7ns
         template<class Rep, class Period>
         requires std::is_integral_v<Rep> && (std::ratio_divide<Period, std::nano>::den == 1)
-        constexpr duration(std::chrono::duration<Rep, Period> d) noexcept
+        SGCL_INLINE_HOT constexpr duration(std::chrono::duration<Rep, Period> d) noexcept
         : _ns(_scaled(d.count(), std::ratio_divide<Period, std::nano>::num)) {
         }
 
@@ -84,29 +84,29 @@ namespace sgcl {
         // carry a part of a nanosecond: truncated toward zero, a NaN zero
         template<class Rep, class Period>
         requires std::is_floating_point_v<Rep>
-        explicit constexpr duration(std::chrono::duration<Rep, Period> d) noexcept
+        SGCL_INLINE_HOT explicit constexpr duration(std::chrono::duration<Rep, Period> d) noexcept
         : _ns(_truncated(std::chrono::duration<long double, std::nano>(d).count())) {
         }
 
         // Into the standard's nanoseconds: what a std::chrono function
         // taking a duration of that type receives without a cast
-        constexpr operator std::chrono::nanoseconds() const noexcept {
+        SGCL_INLINE_HOT constexpr operator std::chrono::nanoseconds() const noexcept {
             return std::chrono::nanoseconds(_ns);
         }
 
         // The zero duration, as std::chrono has it (the same as duration())
-        static constexpr duration zero() noexcept {
+        SGCL_INLINE_HOT static constexpr duration zero() noexcept {
             return duration();
         }
 
         // The largest and the smallest duration, some 292 years either
         // way: "never" for a timer (a point this far ahead saturates at
         // its clock's max(), which the timers of async never fire)
-        static constexpr duration max() noexcept {
+        SGCL_INLINE_HOT static constexpr duration max() noexcept {
             return _max();
         }
 
-        static constexpr duration min() noexcept {
+        SGCL_INLINE_HOT static constexpr duration min() noexcept {
             return _min();
         }
 
@@ -123,48 +123,48 @@ namespace sgcl {
         // bad_expected_access<duration_error> with parse's message. Input
         // is parsed; a text the program itself wrote is constructed
         // (DESIGN 234)
-        explicit duration(const string& text)
+        SGCL_INLINE_HOT explicit duration(const string& text)
         : duration(parse(text).value()) {
         }
 
         // The whole nanoseconds, microseconds and milliseconds, the last
         // two truncated toward zero
-        constexpr int64_t nanoseconds() const noexcept {
+        SGCL_INLINE_HOT constexpr int64_t nanoseconds() const noexcept {
             return _ns;
         }
 
-        constexpr int64_t microseconds() const noexcept {
+        SGCL_INLINE_HOT constexpr int64_t microseconds() const noexcept {
             return _ns / 1000;
         }
 
-        constexpr int64_t milliseconds() const noexcept {
+        SGCL_INLINE_HOT constexpr int64_t milliseconds() const noexcept {
             return _ns / 1000000;
         }
 
         // The seconds, minutes and hours with a fraction: 1.5, 0.025. The
         // whole units and the rest are converted apart, so that a long
         // duration keeps its nanoseconds as far as a double can
-        constexpr double seconds() const noexcept {
+        SGCL_INLINE_HOT constexpr double seconds() const noexcept {
             return _in(Second);
         }
 
-        constexpr double minutes() const noexcept {
+        SGCL_INLINE_HOT constexpr double minutes() const noexcept {
             return _in(Minute);
         }
 
-        constexpr double hours() const noexcept {
+        SGCL_INLINE_HOT constexpr double hours() const noexcept {
             return _in(Hour);
         }
 
         // The absolute value; the smallest duration, which has no
         // positive counterpart, gives the largest
-        constexpr duration abs() const noexcept {
+        SGCL_INLINE_HOT constexpr duration abs() const noexcept {
             return _ns < 0 ? -*this : *this;
         }
 
         // Toward zero to a multiple of step; a step of zero or less
         // leaves the duration as it is
-        constexpr duration truncate(duration step) const noexcept {
+        SGCL_INLINE_HOT constexpr duration truncate(duration step) const noexcept {
             if (step._ns <= 0) {
                 return *this;
             }
@@ -195,7 +195,7 @@ namespace sgcl {
         string to_string() const noexcept;
 
         // The arithmetic, saturated at the ends of the range
-        friend constexpr duration operator+(duration a, duration b) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator+(duration a, duration b) noexcept {
             int64_t r = static_cast<int64_t>(static_cast<uint64_t>(a._ns) + static_cast<uint64_t>(b._ns));
             if ((a._ns >= 0) == (b._ns >= 0) && (r >= 0) != (a._ns >= 0)) {
                 return a._ns >= 0 ? _max() : _min();
@@ -203,7 +203,7 @@ namespace sgcl {
             return _raw(r);
         }
 
-        friend constexpr duration operator-(duration a, duration b) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator-(duration a, duration b) noexcept {
             int64_t r = static_cast<int64_t>(static_cast<uint64_t>(a._ns) - static_cast<uint64_t>(b._ns));
             if ((a._ns >= 0) != (b._ns >= 0) && (r >= 0) != (a._ns >= 0)) {
                 return a._ns >= 0 ? _max() : _min();
@@ -211,36 +211,36 @@ namespace sgcl {
             return _raw(r);
         }
 
-        friend constexpr duration operator-(duration a) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator-(duration a) noexcept {
             return a._ns == std::numeric_limits<int64_t>::min() ? _max() : _raw(-a._ns);
         }
 
-        friend constexpr duration operator+(duration a) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator+(duration a) noexcept {
             return a;
         }
 
         template<std::integral I>
         requires (!std::is_same_v<I, bool>)
-        friend constexpr duration operator*(duration d, I n) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator*(duration d, I n) noexcept {
             return _raw(_scaled(n, d._ns));
         }
 
         template<std::integral I>
         requires (!std::is_same_v<I, bool>)
-        friend constexpr duration operator*(I n, duration d) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator*(I n, duration d) noexcept {
             return _raw(_scaled(n, d._ns));
         }
 
         // Toward zero, as an int's division
         template<std::integral I>
         requires (!std::is_same_v<I, bool>)
-        friend constexpr duration operator/(duration d, I n) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator/(duration d, I n) noexcept {
             bool negative = (d._ns < 0) != _negative(n);
             return _signed(_magnitude(d._ns) / _magnitude(n), negative);
         }
 
         // How many whole times b fits in a, toward zero
-        friend constexpr int64_t operator/(duration a, duration b) noexcept {
+        SGCL_INLINE_HOT friend constexpr int64_t operator/(duration a, duration b) noexcept {
             if (b._ns == -1 && a._ns == std::numeric_limits<int64_t>::min()) {
                 return std::numeric_limits<int64_t>::max();
             }
@@ -248,31 +248,31 @@ namespace sgcl {
         }
 
         // What is left of a after the whole bs, with the sign of a
-        friend constexpr duration operator%(duration a, duration b) noexcept {
+        SGCL_INLINE_HOT friend constexpr duration operator%(duration a, duration b) noexcept {
             return b._ns == -1 ? duration() : _raw(a._ns % b._ns);
         }
 
-        constexpr duration& operator+=(duration d) noexcept {
+        SGCL_INLINE_HOT constexpr duration& operator+=(duration d) noexcept {
             return *this = *this + d;
         }
 
-        constexpr duration& operator-=(duration d) noexcept {
+        SGCL_INLINE_HOT constexpr duration& operator-=(duration d) noexcept {
             return *this = *this - d;
         }
 
         template<std::integral I>
         requires (!std::is_same_v<I, bool>)
-        constexpr duration& operator*=(I n) noexcept {
+        SGCL_INLINE_HOT constexpr duration& operator*=(I n) noexcept {
             return *this = *this * n;
         }
 
         template<std::integral I>
         requires (!std::is_same_v<I, bool>)
-        constexpr duration& operator/=(I n) noexcept {
+        SGCL_INLINE_HOT constexpr duration& operator/=(I n) noexcept {
             return *this = *this / n;
         }
 
-        constexpr duration& operator%=(duration d) noexcept {
+        SGCL_INLINE_HOT constexpr duration& operator%=(duration d) noexcept {
             return *this = *this % d;
         }
 
@@ -287,23 +287,23 @@ namespace sgcl {
         // of async read as never, where chrono's own + would overflow
         // into the past and fire at once
         template<class Clock, class D>
-        friend constexpr auto operator+(const std::chrono::time_point<Clock, D>& t, duration d) noexcept(std::is_arithmetic_v<typename D::rep>) {
+        SGCL_INLINE_HOT friend constexpr auto operator+(const std::chrono::time_point<Clock, D>& t, duration d) noexcept(std::is_arithmetic_v<typename D::rep>) {
             return _moved(t, d, false);
         }
 
         template<class Clock, class D>
-        friend constexpr auto operator+(duration d, const std::chrono::time_point<Clock, D>& t) noexcept(std::is_arithmetic_v<typename D::rep>) {
+        SGCL_INLINE_HOT friend constexpr auto operator+(duration d, const std::chrono::time_point<Clock, D>& t) noexcept(std::is_arithmetic_v<typename D::rep>) {
             return _moved(t, d, false);
         }
 
         template<class Clock, class D>
-        friend constexpr auto operator-(const std::chrono::time_point<Clock, D>& t, duration d) noexcept(std::is_arithmetic_v<typename D::rep>) {
+        SGCL_INLINE_HOT friend constexpr auto operator-(const std::chrono::time_point<Clock, D>& t, duration d) noexcept(std::is_arithmetic_v<typename D::rep>) {
             return _moved(t, d, true);
         }
 
         // Written as to_string() writes it
         template<class CharT, class Traits>
-        friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, duration d) {
+        SGCL_INLINE_HOT friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, duration d) {
             return os << d.to_string();
         }
 
@@ -314,22 +314,22 @@ namespace sgcl {
         static constexpr int64_t Minute = 60 * Second;
         static constexpr int64_t Hour = 60 * Minute;
 
-        static constexpr duration _raw(int64_t ns) noexcept {
+        SGCL_INLINE_HOT static constexpr duration _raw(int64_t ns) noexcept {
             duration d;
             d._ns = ns;
             return d;
         }
 
-        static constexpr duration _max() noexcept {
+        SGCL_INLINE_HOT static constexpr duration _max() noexcept {
             return _raw(std::numeric_limits<int64_t>::max());
         }
 
-        static constexpr duration _min() noexcept {
+        SGCL_INLINE_HOT static constexpr duration _min() noexcept {
             return _raw(std::numeric_limits<int64_t>::min());
         }
 
         template<std::integral I>
-        static constexpr bool _negative(I v) noexcept {
+        SGCL_INLINE_HOT static constexpr bool _negative(I v) noexcept {
             if constexpr (std::is_signed_v<I>) {
                 return v < 0;
             } else {
@@ -340,7 +340,7 @@ namespace sgcl {
         // |v| in 64 bits: exact for every value of every integral type up
         // to 64 bits, the smallest int64 included
         template<std::integral I>
-        static constexpr uint64_t _magnitude(I v) noexcept {
+        SGCL_INLINE_HOT static constexpr uint64_t _magnitude(I v) noexcept {
             if constexpr (std::is_signed_v<I>) {
                 return v < 0 ? 0 - static_cast<uint64_t>(v) : static_cast<uint64_t>(v);
             } else {
@@ -350,7 +350,7 @@ namespace sgcl {
 
         // A magnitude with a sign as an int64, saturated: up to 2^63 - 1
         // positive, up to 2^63 negative
-        static constexpr duration _signed(uint64_t u, bool negative) noexcept {
+        SGCL_INLINE_HOT static constexpr duration _signed(uint64_t u, bool negative) noexcept {
             constexpr uint64_t Limit = uint64_t(1) << 63;
             if (negative) {
                 return u >= Limit ? _min() : _raw(-static_cast<int64_t>(u));
@@ -360,7 +360,7 @@ namespace sgcl {
 
         // a * b as an int64, saturated
         template<std::integral A, std::integral B>
-        static constexpr int64_t _scaled(A a, B b) noexcept {
+        SGCL_INLINE_HOT static constexpr int64_t _scaled(A a, B b) noexcept {
             uint64_t ua = _magnitude(a);
             uint64_t ub = _magnitude(b);
             bool negative = _negative(a) != _negative(b);
@@ -389,7 +389,7 @@ namespace sgcl {
             }
         }
 
-        static constexpr int64_t _truncated(long double ns) noexcept {
+        SGCL_INLINE_HOT static constexpr int64_t _truncated(long double ns) noexcept {
             if (ns != ns) {
                 return 0;
             }
@@ -402,7 +402,7 @@ namespace sgcl {
             return static_cast<int64_t>(ns);
         }
 
-        constexpr double _in(int64_t unit) const noexcept {
+        SGCL_INLINE_HOT constexpr double _in(int64_t unit) const noexcept {
             return static_cast<double>(_ns / unit) + static_cast<double>(_ns % unit) / static_cast<double>(unit);
         }
 

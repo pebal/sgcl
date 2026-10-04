@@ -35,43 +35,43 @@ namespace sgcl::encoding::detail {
     public:
         using Block = array<byte, config::io_buffer_size>;
 
-        char* data() noexcept {
+        SGCL_INLINE_HOT char* data() noexcept {
             return _data;
         }
 
-        const char* data() const noexcept {
+        SGCL_INLINE_HOT const char* data() const noexcept {
             return _data;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _size;
         }
 
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _capacity;
         }
 
-        const tracked_ptr<const void>& owner() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<const void>& owner() const noexcept {
             return _owner;
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _size = 0;
         }
 
         // The size set by the caller that wrote into [size(), capacity())
-        void resize(size_t n) noexcept {
+        SGCL_INLINE_HOT void resize(size_t n) noexcept {
             _size = n;
         }
 
-        void push_back(char c) noexcept {
+        SGCL_INLINE_HOT void push_back(char c) noexcept {
             if (_size == _capacity) {
                 reserve(_size + 1);
             }
             _data[_size++] = c;
         }
 
-        void append(const char* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void append(const char* p, size_t n) noexcept {
             if (n > _capacity - _size) {
                 reserve(_size + n);
             }
@@ -79,7 +79,7 @@ namespace sgcl::encoding::detail {
             _size += n;
         }
 
-        void append(std::string_view s) noexcept {
+        SGCL_INLINE_HOT void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
@@ -106,7 +106,7 @@ namespace sgcl::encoding::detail {
         }
 
         // The characters [from, size()) moved to the front
-        void drop_front(size_t from) noexcept {
+        SGCL_INLINE_HOT void drop_front(size_t from) noexcept {
             if (from) {
                 // memmove (note 313): the two runs may overlap, and
                 // move_bytes inlined here grew the XML scanner's twin of
@@ -116,7 +116,7 @@ namespace sgcl::encoding::detail {
             }
         }
 
-        slice<const char> view(size_t from, size_t n) const noexcept {
+        SGCL_INLINE_HOT slice<const char> view(size_t from, size_t n) const noexcept {
             return slice<const char>(_owner, _data + from, n);
         }
 

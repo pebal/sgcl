@@ -7,6 +7,8 @@
 
 #if defined(__APPLE__)
 
+#include "../../core/detail/os.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -158,19 +160,19 @@ namespace sgcl::codec::detail::apple {
     public:
         Owned() noexcept = default;
 
-        explicit Owned(Ref r) noexcept
+        SGCL_INLINE_HOT explicit Owned(Ref r) noexcept
         : _r(r) {
         }
 
         Owned(const Owned&) = delete;
         Owned& operator=(const Owned&) = delete;
 
-        Owned(Owned&& o) noexcept
+        SGCL_INLINE_HOT Owned(Owned&& o) noexcept
         : _r(o._r) {
             o._r = nullptr;
         }
 
-        Owned& operator=(Owned&& o) noexcept {
+        SGCL_INLINE_HOT Owned& operator=(Owned&& o) noexcept {
             if (this != &o) {
                 if (_r) {
                     release(_r);
@@ -181,17 +183,17 @@ namespace sgcl::codec::detail::apple {
             return *this;
         }
 
-        ~Owned() {
+        SGCL_INLINE_HOT ~Owned() {
             if (_r) {
                 release(_r);
             }
         }
 
-        Ref get() const noexcept {
+        SGCL_INLINE_HOT Ref get() const noexcept {
             return _r;
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _r != nullptr;
         }
 
@@ -200,12 +202,12 @@ namespace sgcl::codec::detail::apple {
     };
 
     // A dictionary of CoreFoundation keys and values (retained by it)
-    inline Ref dictionary(const Ref* keys, const Ref* values, Index n) noexcept {
+    SGCL_INLINE_HOT Ref dictionary(const Ref* keys, const Ref* values, Index n) noexcept {
         return dictionary_create(nullptr, keys, values, n, dictionary_key_callbacks, dictionary_value_callbacks);
     }
 
     // An int of a dictionary's CFNumber, fallback when there is none
-    inline long long number_of(Ref dict, Ref key, long long fallback) noexcept {
+    SGCL_INLINE_HOT long long number_of(Ref dict, Ref key, long long fallback) noexcept {
         if (!dict) {
             return fallback;
         }

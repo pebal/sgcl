@@ -34,7 +34,7 @@
 
 namespace sgcl::codec::detail {
     // A chunk's type as the number its four bytes make, big-endian
-    constexpr uint32_t png_tag(const char (&s)[5]) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t png_tag(const char (&s)[5]) noexcept {
         return uint32_t(uint8_t(s[0])) << 24 | uint32_t(uint8_t(s[1])) << 16 | uint32_t(uint8_t(s[2])) << 8 | uint8_t(s[3]);
     }
 
@@ -151,15 +151,15 @@ namespace sgcl::codec::detail {
 
         static constexpr size_t Window = compress::detail::WindowSize;   // the history of DEFLATE
 
-        static uint32_t be32(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT static uint32_t be32(const uint8_t* p) noexcept {
             return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3];
         }
 
-        static uint16_t be16(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT static uint16_t be16(const uint8_t* p) noexcept {
             return static_cast<uint16_t>(p[0] << 8 | p[1]);
         }
 
-        static void put16(uint8_t* p, uint16_t v) noexcept {
+        SGCL_INLINE_HOT static void put16(uint8_t* p, uint16_t v) noexcept {
             std::memcpy(p, &v, 2);
         }
 
@@ -364,7 +364,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _exif_chunk(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _exif_chunk(uint32_t length, uint64_t at) noexcept(NothrowInput<Input>) {
             if (!_o.metadata || !_exif.empty()) {
                 return _skip(length);
             }
@@ -623,7 +623,7 @@ namespace sgcl::codec::detail {
 
         // The history the next back reference may reach and the row not yet
         // complete moved to the front of the window
-        void _slide() noexcept {
+        SGCL_INLINE_HOT void _slide() noexcept {
             size_t from = _window_pos > Window ? _window_pos - Window : 0;
             from = std::min(from, _window_read);
             // the bytes kept overlap where they go when fewer are dropped
@@ -711,7 +711,7 @@ namespace sgcl::codec::detail {
         }
 
         // A sample of `depth` bits (1, 2, 4, 8), the x-th of the row
-        static unsigned _sample(const uint8_t* s, uint32_t x, unsigned depth) noexcept {
+        SGCL_INLINE_HOT static unsigned _sample(const uint8_t* s, uint32_t x, unsigned depth) noexcept {
             if (depth == 8) {
                 return s[x];
             }

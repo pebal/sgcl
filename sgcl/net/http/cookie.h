@@ -50,13 +50,13 @@ namespace sgcl::net::http {
 
         cookie() noexcept = default;
 
-        cookie(const string& name, const string& value) noexcept
+        SGCL_INLINE_HOT cookie(const string& name, const string& value) noexcept
         : name(name), value(value) {
         }
 
         // The cookie a Set-Cookie literal in the program spells: parse's
         // value or its bad_expected_access<io::error> (DESIGN 234)
-        explicit cookie(const string& field)
+        SGCL_INLINE_HOT explicit cookie(const string& field)
         : cookie(parse(field).value()) {
         }
 
@@ -74,7 +74,7 @@ namespace sgcl::net::http {
 
     namespace detail {
         // cookie-octet of RFC 6265 §4.1.1
-        inline constexpr bool cookie_octet(uint8_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool cookie_octet(uint8_t c) noexcept {
             return c == 0x21 || (c >= 0x23 && c <= 0x2B) || (c >= 0x2D && c <= 0x3A) || (c >= 0x3C && c <= 0x5B) || (c >= 0x5D && c <= 0x7E);
         }
 
@@ -181,7 +181,7 @@ namespace sgcl::net::http {
             return time::datetime::from_unix(secs, time::zone::utc());
         }
 
-        inline std::string_view cookie_unquote(std::string_view v) noexcept {
+        SGCL_INLINE_HOT std::string_view cookie_unquote(std::string_view v) noexcept {
             if (v.size() >= 2 && v.front() == '"' && v.back() == '"') {
                 v.remove_prefix(1);
                 v.remove_suffix(1);
@@ -315,7 +315,7 @@ namespace sgcl::net::http {
         });
     }
 
-    inline expected<cookie, io::error> cookie::parse(const string& field) noexcept {
+    SGCL_INLINE_HOT expected<cookie, io::error> cookie::parse(const string& field) noexcept {
         if (auto c = detail::parse_cookie(field)) {
             return std::move(*c);
         }

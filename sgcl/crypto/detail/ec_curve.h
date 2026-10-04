@@ -104,20 +104,20 @@ namespace sgcl::crypto::detail {
         static constexpr fe gx = F::to_mont(C::gx);
         static constexpr fe gy = F::to_mont(C::gy);
 
-        static point identity() noexcept {
+        SGCL_INLINE_HOT static point identity() noexcept {
             return point{fe{}, F::one(), fe{}};
         }
 
-        static point generator() noexcept {
+        SGCL_INLINE_HOT static point generator() noexcept {
             return point{gx, gy, F::one()};
         }
 
         // All ones when p is the identity (Z = 0)
-        static uint64_t identity_mask(const point& p) noexcept {
+        SGCL_INLINE_HOT static uint64_t identity_mask(const point& p) noexcept {
             return limbs_zero_mask(p.z);
         }
 
-        static void select(point& r, uint64_t mask, const point& a, const point& other) noexcept {
+        SGCL_INLINE_HOT static void select(point& r, uint64_t mask, const point& a, const point& other) noexcept {
             limbs_select(r.x, mask, a.x, other.x);
             limbs_select(r.y, mask, a.y, other.y);
             limbs_select(r.z, mask, a.z, other.z);
@@ -265,7 +265,7 @@ namespace sgcl::crypto::detail {
         // The affine coordinates of p (Montgomery form), through one
         // inversion of Z; the identity gives (0, 0), which is on no curve
         // here (b is not 0), and identity_mask says which it was
-        static affine to_affine(const point& p) noexcept {
+        SGCL_INLINE_HOT static affine to_affine(const point& p) noexcept {
             fe zi = F::inverse(p.z);
             affine a;
             F::mul(a.x, p.x, zi);
@@ -319,7 +319,7 @@ namespace sgcl::crypto::detail {
         };
 
         // (X:Y:Z) projective is (XZ : YZ^2 : Z) Jacobian
-        static void to_jacobian(jacobian& j, const point& p) noexcept {
+        SGCL_INLINE_HOT static void to_jacobian(jacobian& j, const point& p) noexcept {
             fe z2;
             F::sqr(z2, p.z);
             F::mul(j.x, p.x, p.z);
@@ -329,7 +329,7 @@ namespace sgcl::crypto::detail {
 
         // (X:Y:Z) Jacobian is (XZ : Y : Z^3) projective; Z = 0 (the
         // identity, whatever X and Y became) is made (0:1:0) through a mask
-        static void from_jacobian(point& p, const jacobian& j) noexcept {
+        SGCL_INLINE_HOT static void from_jacobian(point& p, const jacobian& j) noexcept {
             fe z2;
             F::sqr(z2, j.z);
             F::mul(p.z, z2, j.z);
@@ -387,7 +387,7 @@ namespace sgcl::crypto::detail {
         // digit, its sign and its size are secret, and made with no branch
         static constexpr size_t booth_windows = 8 * size / 5 + 1;
 
-        static unsigned bit(const unsigned char* k, size_t pos) noexcept {
+        SGCL_INLINE_HOT static unsigned bit(const unsigned char* k, size_t pos) noexcept {
             return pos < 8 * size ? (k[size - 1 - pos / 8] >> (pos % 8)) & 1u : 0u;
         }
 

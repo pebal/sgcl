@@ -25,12 +25,12 @@ namespace sgcl::crypto {
         // in place, never passed through a copy on the way
         struct SecretAccess {
             template<size_t N>
-            static secret<N> make() noexcept {
+            SGCL_INLINE_HOT static secret<N> make() noexcept {
                 return secret<N>();
             }
 
             template<size_t N>
-            static unsigned char* data(secret<N>& s) noexcept {
+            SGCL_INLINE_HOT static unsigned char* data(secret<N>& s) noexcept {
                 return reinterpret_cast<unsigned char*>(s._bytes);
             }
         };
@@ -56,12 +56,12 @@ namespace sgcl::crypto {
         secret(const secret&) = delete;
         secret& operator=(const secret&) = delete;
 
-        secret(secret&& other) noexcept {
+        SGCL_INLINE_HOT secret(secret&& other) noexcept {
             std::memcpy(_bytes, other._bytes, N);
             other._wipe();
         }
 
-        secret& operator=(secret&& other) noexcept {
+        SGCL_INLINE_HOT secret& operator=(secret&& other) noexcept {
             if (this != &other) {
                 std::memcpy(_bytes, other._bytes, N);
                 other._wipe();
@@ -69,26 +69,26 @@ namespace sgcl::crypto {
             return *this;
         }
 
-        ~secret() {
+        SGCL_INLINE_HOT ~secret() {
             _wipe();
         }
 
-        secret clone() const noexcept {
+        SGCL_INLINE_HOT secret clone() const noexcept {
             secret s;
             std::memcpy(s._bytes, _bytes, N);
             return s;
         }
 
-        slice<const byte> bytes() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes() const noexcept {
             return slice<const byte>(_bytes, N);
         }
 
-        operator slice<const byte>() const noexcept {
+        SGCL_INLINE_HOT operator slice<const byte>() const noexcept {
             return bytes();
         }
 
         // The same bytes, compared in constant time
-        friend bool operator==(const secret& a, const secret& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const secret& a, const secret& b) noexcept {
             return constant_time::equal(a.bytes(), b.bytes());
         }
 
@@ -97,7 +97,7 @@ namespace sgcl::crypto {
 
         secret() noexcept = default;
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero(_bytes, N);
         }
     };
@@ -130,7 +130,7 @@ namespace sgcl::crypto {
         secret_bytes() noexcept = default;
 
         // n bytes, all zero
-        explicit secret_bytes(size_t n) noexcept
+        SGCL_INLINE_HOT explicit secret_bytes(size_t n) noexcept
         : _bytes(n) {
         }
 
@@ -140,22 +140,22 @@ namespace sgcl::crypto {
         secret_bytes(secret_bytes&&) noexcept = default;
         secret_bytes& operator=(secret_bytes&&) noexcept = default;
 
-        secret_bytes clone() const noexcept {
+        SGCL_INLINE_HOT secret_bytes clone() const noexcept {
             secret_bytes s(size());
             sgcl::detail::copy_bytes(s._bytes.data(), _bytes.data(), size());
             return s;
         }
 
-        slice<const byte> as_slice() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_slice() const noexcept {
             return slice<const byte>(_bytes.data(), _bytes.size());
         }
 
-        slice<byte> as_slice() noexcept {
+        SGCL_INLINE_HOT slice<byte> as_slice() noexcept {
             return slice<byte>(_bytes.data(), _bytes.size());
         }
 
         // As secret<N>: where the module takes bytes, a secret_bytes is taken
-        operator slice<const byte>() const noexcept {
+        SGCL_INLINE_HOT operator slice<const byte>() const noexcept {
             return as_slice();
         }
 
@@ -163,15 +163,15 @@ namespace sgcl::crypto {
         // decrypt_oaep_to, random::fill), a secret_bytes the program may
         // change is taken as the output. Only an lvalue: the bytes written
         // into one about to go would be read by no one
-        operator slice<byte>() & noexcept {
+        SGCL_INLINE_HOT operator slice<byte>() & noexcept {
             return as_slice();
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _bytes.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _bytes.empty();
         }
 
@@ -179,13 +179,13 @@ namespace sgcl::crypto {
         // capacity a new block of exactly n (the old one, or the inline
         // bytes, zeroed); a shrink zeroes the bytes it drops and keeps the
         // room
-        void resize(size_t n) noexcept {
+        SGCL_INLINE_HOT void resize(size_t n) noexcept {
             _bytes.resize(n);
         }
 
         // The same bytes, compared in constant time (the lengths are not
         // secret: of different lengths, unequal at once)
-        friend bool operator==(const secret_bytes& a, const secret_bytes& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const secret_bytes& a, const secret_bytes& b) noexcept {
             return a.size() == b.size() && constant_time::equal(a.as_slice(), b.as_slice());
         }
 

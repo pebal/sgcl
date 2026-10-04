@@ -34,13 +34,13 @@ namespace sgcl::detail {
             T value;
         };
 
-        Slot() noexcept {
+        SGCL_INLINE_HOT Slot() noexcept {
         }
 
         Slot(const Slot&) = delete;
         Slot& operator=(const Slot&) = delete;
 
-        ~Slot() {
+        SGCL_INLINE_HOT ~Slot() {
             if (Page::state_of(this) != State::Destroyed) {
                 value.~T();
             }
@@ -58,7 +58,7 @@ namespace sgcl::detail {
             return value;
         }
 
-        void destroy() noexcept {
+        SGCL_INLINE_HOT void destroy() noexcept {
             assert(Page::state_of(this) != State::Destroyed);
             value.~T();
             Page::set_state<State::Destroyed>(this);
@@ -74,19 +74,19 @@ namespace sgcl::detail {
             T value;
         };
 
-        Slot() noexcept {
+        SGCL_INLINE_HOT Slot() noexcept {
         }
 
         Slot(const Slot&) = delete;
         Slot& operator=(const Slot&) = delete;
 
         template<class... A>
-        T& construct(A&&... a) {
+        SGCL_INLINE_HOT T& construct(A&&... a) {
             ::new (static_cast<void*>(&value)) T(std::forward<A>(a)...);
             return value;
         }
 
-        void destroy() noexcept {
+        SGCL_INLINE_HOT void destroy() noexcept {
         }
     };
 }

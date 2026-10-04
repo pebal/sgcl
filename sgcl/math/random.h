@@ -110,7 +110,7 @@ namespace sgcl::math {
     class random {
     public:
         // Unpredictable: a new stream, keyed from the thread's generator
-        random() {
+        SGCL_INLINE_HOT random() {
             uint64_t key[4];
             detail::fresh_key(key);
             _state.init(key);
@@ -119,7 +119,7 @@ namespace sgcl::math {
         // Repeatable: the same numbers in every run and on every platform,
         // the stream of Go's ChaCha8 whose key is the seed little-endian
         // followed by 24 zero bytes
-        explicit random(uint64_t seed) noexcept {
+        SGCL_INLINE_HOT explicit random(uint64_t seed) noexcept {
             const uint64_t key[4] = {seed, 0, 0, 0};
             _state.init(key);
         }
@@ -128,7 +128,7 @@ namespace sgcl::math {
         // Lemire's multiplication with the rejection that makes it exact,
         // a mask for a power of two — what Go's Int64N does, so from the
         // same stream the same numbers
-        int64_t next_int(int64_t bound) {
+        SGCL_INLINE_HOT int64_t next_int(int64_t bound) {
             if (bound <= 0) {
                 throw domain_error("sgcl::math::random::next_int: a bound of zero or below");
             }
@@ -138,7 +138,7 @@ namespace sgcl::math {
         // [first, last), as range(first, last): a die is next_int(1, 7);
         // an empty range is domain_error. Any two int64_t, the span
         // between them up to 2^64 - 1.
-        int64_t next_int(int64_t first, int64_t last) {
+        SGCL_INLINE_HOT int64_t next_int(int64_t first, int64_t last) {
             if (first >= last) {
                 throw domain_error("sgcl::math::random::next_int: an empty range");
             }
@@ -154,23 +154,23 @@ namespace sgcl::math {
         big_integer next_int(const big_integer& bound);
 
         // All 64 bits
-        uint64_t next_uint64() noexcept {
+        SGCL_INLINE_HOT uint64_t next_uint64() noexcept {
             return _state.take();
         }
 
         // [0, 1) in steps of 2^-53, as Go's Float64: the low 53 bits of a
         // draw over 2^53
-        double next_double() noexcept {
+        SGCL_INLINE_HOT double next_double() noexcept {
             return double(_state.take() << 11 >> 11) * 0x1p-53;
         }
 
-        bool next_bool() noexcept {
+        SGCL_INLINE_HOT bool next_bool() noexcept {
             return (_state.take() >> 63) != 0;
         }
 
         // A normal variate of the mean and the standard deviation; a
         // negative or NaN deviation is domain_error
-        double next_normal(double mean = 0, double stddev = 1) {
+        SGCL_INLINE_HOT double next_normal(double mean = 0, double stddev = 1) {
             if (!(stddev >= 0)) {
                 throw domain_error("sgcl::math::random::next_normal: a negative standard deviation");
             }
@@ -179,7 +179,7 @@ namespace sgcl::math {
 
         // An exponential variate of the rate (the mean is 1 / rate); a
         // rate of zero, below or NaN is domain_error
-        double next_exponential(double rate = 1) {
+        SGCL_INLINE_HOT double next_exponential(double rate = 1) {
             if (!(rate > 0)) {
                 throw domain_error("sgcl::math::random::next_exponential: a rate of zero or below");
             }
@@ -225,7 +225,7 @@ namespace sgcl::math {
         // outlives the call, which is why a temporary is not taken.
         template<std::ranges::random_access_range R>
         requires std::is_lvalue_reference_v<std::ranges::range_reference_t<R>>
-        decltype(auto) pick(R& range) {
+        SGCL_INLINE_HOT decltype(auto) pick(R& range) {
             auto n = std::ranges::distance(range);
             if (n <= 0) {
                 throw out_of_range("sgcl::math::random::pick: an empty range");
@@ -254,15 +254,15 @@ namespace sgcl::math {
         // take a random as they take mt19937_64
         using result_type = uint64_t;
 
-        static constexpr result_type min() noexcept {
+        SGCL_INLINE_HOT static constexpr result_type min() noexcept {
             return 0;
         }
 
-        static constexpr result_type max() noexcept {
+        SGCL_INLINE_HOT static constexpr result_type max() noexcept {
             return std::numeric_limits<result_type>::max();
         }
 
-        result_type operator()() noexcept {
+        SGCL_INLINE_HOT result_type operator()() noexcept {
             return _state.take();
         }
 
@@ -284,7 +284,7 @@ namespace sgcl::math {
         }
 
         // (0, 1), never zero, for the logarithms of the slow paths
-        double _open_unit() noexcept {
+        SGCL_INLINE_HOT double _open_unit() noexcept {
             return (double(_state.take() >> 11) + 0.5) * 0x1p-53;
         }
 
@@ -352,7 +352,7 @@ namespace sgcl::math {
         // A random over a key of 32 bytes, for the tests that check the
         // stream against the specification's vectors and against Go
         struct RandomAccess {
-            static random from_key(const unsigned char (&key)[32]) noexcept {
+            SGCL_INLINE_HOT static random from_key(const unsigned char (&key)[32]) noexcept {
                 random r(0);
                 r._state.init(key);
                 return r;

@@ -53,11 +53,11 @@ namespace sgcl::net::tls::detail {
         time::datetime (*now)(void* context) = &Clock::system_now;
         void* context = nullptr;
 
-        time::datetime operator()() const noexcept {
+        SGCL_INLINE_HOT time::datetime operator()() const noexcept {
             return now(context);
         }
 
-        static time::datetime system_now(void*) noexcept {
+        SGCL_INLINE_HOT static time::datetime system_now(void*) noexcept {
             return time::now();
         }
     };
@@ -98,7 +98,7 @@ namespace sgcl::net::tls::detail {
 
         // (a constructor, not an aggregate: the actions name only what
         // they carry, the rest its default)
-        explicit Action(Kind k, Epoch e = Epoch::initial, Cipher c = Cipher::aes_128_gcm_sha256) noexcept
+        SGCL_INLINE_HOT explicit Action(Kind k, Epoch e = Epoch::initial, Cipher c = Cipher::aes_128_gcm_sha256) noexcept
         : kind(k), epoch(e), cipher(c) {
         }
 
@@ -117,11 +117,11 @@ namespace sgcl::net::tls::detail {
         std::vector<Action> actions;
         std::vector<byte> out;      // the bytes of the send actions
 
-        Bytes bytes(const Action& a) const noexcept {
+        SGCL_INLINE_HOT Bytes bytes(const Action& a) const noexcept {
             return Bytes(out.data() + a.offset, a.size);
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             actions.clear();   // each Secret zeroes itself
             crypto::detail::secure_zero(out.data(), out.size());
             out.clear();
@@ -141,7 +141,7 @@ namespace sgcl::net::tls::detail {
 
     class ClientHandshake {
     public:
-        ClientHandshake(const ClientSettings& settings, const Entropy& entropy = Entropy(), const Clock& clock = Clock()) noexcept
+        SGCL_INLINE_HOT ClientHandshake(const ClientSettings& settings, const Entropy& entropy = Entropy(), const Clock& clock = Clock()) noexcept
         : _settings(settings), _entropy(entropy), _clock(clock), _s(std::make_unique<Secrets>()) {
         }
 
@@ -151,7 +151,7 @@ namespace sgcl::net::tls::detail {
         // The first flight: the ClientHello (not noexcept: settings whose
         // key_shares name a group twice, or more than four, are
         // ClientShares::add's std::logic_error)
-        const Step& start() {
+        SGCL_INLINE_HOT const Step& start() {
             _s->step.clear();
             if (_state != State::start) {
                 return _fail(Alert{AlertDescription::internal_error, 0, "start() twice"});
@@ -165,7 +165,7 @@ namespace sgcl::net::tls::detail {
         // A whole handshake message from the server (header included); not
         // noexcept: a chain verified against the system's roots reads them
         // through io::read_file
-        const Step& feed(const Bytes& message) {
+        SGCL_INLINE_HOT const Step& feed(const Bytes& message) {
             _s->step.clear();
             if (_state == State::failed) {
                 return _s->step;
@@ -178,7 +178,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // An alert record from the server: the handshake is over
-        void on_record_alert(const Alert& a) noexcept {
+        SGCL_INLINE_HOT void on_record_alert(const Alert& a) noexcept {
             _peer_alert = a;
             _state = State::failed;
             _wipe();
@@ -196,25 +196,25 @@ namespace sgcl::net::tls::detail {
             return _fail(a);
         }
 
-        bool established() const noexcept {
+        SGCL_INLINE_HOT bool established() const noexcept {
             return _state == State::connected;
         }
 
-        bool failed() const noexcept {
+        SGCL_INLINE_HOT bool failed() const noexcept {
             return _state == State::failed;
         }
 
-        const ClientResult& result() const noexcept {
+        SGCL_INLINE_HOT const ClientResult& result() const noexcept {
             return _result;
         }
 
-        const optional<Alert>& peer_alert() const noexcept {
+        SGCL_INLINE_HOT const optional<Alert>& peer_alert() const noexcept {
             return _peer_alert;
         }
 
         // Why the server's chain did not verify, when that ended the
         // handshake (reason::none otherwise)
-        crypto::x509::reason verify_reason() const noexcept {
+        SGCL_INLINE_HOT crypto::x509::reason verify_reason() const noexcept {
             return _verify_reason;
         }
 
@@ -243,7 +243,7 @@ namespace sgcl::net::tls::detail {
             std::vector<byte> cookie;
             Step step;
 
-            ~Secrets() {
+            SGCL_INLINE_HOT ~Secrets() {
                 crypto::detail::secure_zero(random, sizeof random);
                 crypto::detail::secure_zero(cookie.data(), cookie.size());
             }
@@ -821,11 +821,11 @@ namespace sgcl::net::tls::detail {
             return false;
         }
 
-        Transcript& _transcript() noexcept {
+        SGCL_INLINE_HOT Transcript& _transcript() noexcept {
             return _hash == Hash::sha384 ? _s->t384 : _s->t256;
         }
 
-        void _hash_update(const Bytes& m) noexcept {
+        SGCL_INLINE_HOT void _hash_update(const Bytes& m) noexcept {
             if (_hash_known) {
                 _transcript().update(m);
             } else {
@@ -834,7 +834,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        void _choose_hash(Hash h) noexcept {
+        SGCL_INLINE_HOT void _choose_hash(Hash h) noexcept {
             if (!_hash_known) {
                 _hash = h;
                 _hash_known = true;
@@ -842,19 +842,19 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        void _push_send(Epoch e, size_t offset, size_t size) noexcept {
+        SGCL_INLINE_HOT void _push_send(Epoch e, size_t offset, size_t size) noexcept {
             Action a{Action::Kind::send, e};
             a.offset = offset;
             a.size = size;
             _s->step.actions.push_back(std::move(a));
         }
 
-        void _push_ccs() noexcept {
+        SGCL_INLINE_HOT void _push_ccs() noexcept {
             _s->step.actions.push_back(Action{Action::Kind::change_cipher_spec, Epoch::initial});
             _ccs_sent = true;
         }
 
-        void _push_install(Action::Kind kind, Epoch e, const Secret& s) noexcept {
+        SGCL_INLINE_HOT void _push_install(Action::Kind kind, Epoch e, const Secret& s) noexcept {
             Action a{kind, e, _result.cipher};
             std::memcpy(a.secret.bytes, s.bytes, sizeof s.bytes);
             a.secret.size = s.size;
@@ -888,7 +888,7 @@ namespace sgcl::net::tls::detail {
         // The secrets the handshake no longer needs: the private keys and
         // the schedule's (the traffic secrets the step carries stay until
         // the next call)
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             _s->shares.clear();
             if (_s->schedule) {
                 _s->schedule->finish_handshake();

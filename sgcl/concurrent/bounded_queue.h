@@ -70,10 +70,10 @@ namespace sgcl::concurrent {
         // element may hold tracked pointers, and the queue constructs the
         // element and destroys it in place.
         struct Cell {
-            Cell() noexcept {
+            SGCL_INLINE_HOT Cell() noexcept {
             }
 
-            ~Cell() {
+            SGCL_INLINE_HOT ~Cell() {
             }
 
             atomic<size_t> sequence;
@@ -129,17 +129,17 @@ namespace sgcl::concurrent {
 
         // The element appended, or false when the queue is full at the
         // moment of the exchange
-        bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return try_emplace(value);
         }
 
-        bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return try_emplace(std::move(value));
         }
 
         // The element constructed from the arguments in its cell
         template<class... A>
-        bool try_emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT bool try_emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             size_type pos, seq;
             return _try_push(pos, seq, std::forward<A>(a)...);
         }
@@ -147,17 +147,17 @@ namespace sgcl::concurrent {
         // The element appended, waiting for room while the queue is
         // full: on the sequence of the cell at the enqueue position,
         // which the consumer releasing it notifies
-        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             _push(value);
         }
 
-        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             _push(std::move(value));
         }
 
         // The first element, or nothing when the queue is empty at the
         // moment of the look
-        optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             size_type pos, seq;
             return _try_pop(pos, seq);
         }
@@ -177,25 +177,25 @@ namespace sgcl::concurrent {
 
         // The number of cells: the capacity asked for, rounded up to a
         // power of two
-        size_type capacity() const noexcept {
+        SGCL_INLINE_HOT size_type capacity() const noexcept {
             return _mask + 1;
         }
 
         // The number of elements at some moment: the enqueue position
         // less the dequeue one, a cell reserved by a push or a pop in
         // progress counted with the side that reserved it
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             auto head = _dequeue_pos.load(std::memory_order_acquire);
             auto tail = _enqueue_pos.load(std::memory_order_acquire);
             auto n = tail - head;
             return n < capacity() ? n : capacity();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
-        bool full() const noexcept {
+        SGCL_INLINE_HOT bool full() const noexcept {
             return size() == capacity();
         }
 
@@ -212,7 +212,7 @@ namespace sgcl::concurrent {
         // cell that the other side is already waiting for.
         static constexpr unsigned BackoffMax = 1024;
 
-        Cell& _cell(size_type pos) const noexcept {
+        SGCL_INLINE_HOT Cell& _cell(size_type pos) const noexcept {
             return _cells.get()[pos & _mask];   // the pointer no thread writes after construction: a relaxed load
         }
 
@@ -320,7 +320,7 @@ namespace sgcl::concurrent {
         // sees the waiter (a store followed by a load on each side: the
         // pattern only that order makes safe). On arm64 the store is the
         // release store it would be anyway.
-        void _publish(Cell& cell, size_t seq) noexcept {
+        SGCL_INLINE_HOT void _publish(Cell& cell, size_t seq) noexcept {
             cell.sequence.store(seq, std::memory_order_seq_cst);
             if (_waiters.load(std::memory_order_seq_cst)) {
                 cell.sequence.notify_all();

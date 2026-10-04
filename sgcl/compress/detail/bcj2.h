@@ -117,7 +117,7 @@ namespace sgcl::compress::detail {
         }
 
         // The four streams whole, in memory
-        void init(const uint8_t* main, size_t main_size, const uint8_t* call, size_t call_size, const uint8_t* jump, size_t jump_size,
+        SGCL_INLINE_HOT void init(const uint8_t* main, size_t main_size, const uint8_t* call, size_t call_size, const uint8_t* jump, size_t jump_size,
                   const uint8_t* rc, size_t rc_size, uint64_t out_size) noexcept {
             init(out_size);
             feed(Main, main, main_size, true);
@@ -127,25 +127,25 @@ namespace sgcl::compress::detail {
         }
 
         // The bytes of stream k at hand from now on
-        void feed(int k, const uint8_t* p, size_t n, bool ended) noexcept {
+        SGCL_INLINE_HOT void feed(int k, const uint8_t* p, size_t n, bool ended) noexcept {
             _in[k] = {p, p + n, ended};
         }
 
         // Of the bytes fed to stream k, those not yet taken
-        size_t left(int k) const noexcept {
+        SGCL_INLINE_HOT size_t left(int k) const noexcept {
             return size_t(_in[k].end - _in[k].at);
         }
 
         // The stream the last decode() stopped for, or -1
-        int need() const noexcept {
+        SGCL_INLINE_HOT int need() const noexcept {
             return _need;
         }
 
-        bool failed() const noexcept {
+        SGCL_INLINE_HOT bool failed() const noexcept {
             return _failed;
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return !_failed && _out == _size && _held == 0 && _state == State::plain;
         }
 

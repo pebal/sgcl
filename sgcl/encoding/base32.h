@@ -47,34 +47,34 @@ namespace sgcl::encoding {
 
         // An alphabet of 32 characters, all different, no '\r' or '\n' and
         // not the padding; the padding, or nullopt for none
-        constexpr base32(const char (&alphabet)[33], optional<char> padding = '=')
+        SGCL_INLINE_HOT constexpr base32(const char (&alphabet)[33], optional<char> padding = '=')
         : _radix("base32", alphabet, padding ? int(uint8_t(*padding)) : -1) {
         }
 
-        constexpr base32 without_padding() const noexcept {
+        SGCL_INLINE_HOT constexpr base32 without_padding() const noexcept {
             return base32(_radix.without_padding());
         }
 
         // A decoding that skips '\r' and '\n' anywhere and takes any bits
         // past the data in the last character
-        constexpr base32 lenient() const noexcept {
+        SGCL_INLINE_HOT constexpr base32 lenient() const noexcept {
             return base32(_radix.lenient());
         }
 
-        constexpr bool padded() const noexcept {
+        SGCL_INLINE_HOT constexpr bool padded() const noexcept {
             return _radix.padded();
         }
 
-        constexpr bool is_lenient() const noexcept {
+        SGCL_INLINE_HOT constexpr bool is_lenient() const noexcept {
             return _radix.is_lenient();
         }
 
-        string encode(const slice<const byte>& data) const {
+        SGCL_INLINE_HOT string encode(const slice<const byte>& data) const {
             return detail::encode_text(_radix, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
         // The bytes of a text
-        string encode(const string& text) const {
+        SGCL_INLINE_HOT string encode(const string& text) const {
             return detail::encode_text(_radix, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
@@ -82,21 +82,21 @@ namespace sgcl::encoding {
         // string's overload (an exact match, else the conversions to a
         // string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        string encode(const T& text) const {
+        SGCL_INLINE_HOT string encode(const T& text) const {
             return encode(slice<const byte>(text));
         }
 
-        expected<vector<byte>, error> decode(const string& text) const noexcept {
+        SGCL_INLINE_HOT expected<vector<byte>, error> decode(const string& text) const noexcept {
             return detail::decode_text(_radix, text);
         }
 
         // The characters n bytes take (SIZE_MAX when no size_t holds them),
         // and the most bytes n characters decode to
-        constexpr size_t encoded_size(size_t n) const noexcept {
+        SGCL_INLINE_HOT constexpr size_t encoded_size(size_t n) const noexcept {
             return _radix.encoded_size(n);
         }
 
-        constexpr size_t max_decoded_size(size_t n) const noexcept {
+        SGCL_INLINE_HOT constexpr size_t max_decoded_size(size_t n) const noexcept {
             return _radix.max_decoded_size(n);
         }
 
@@ -104,17 +104,17 @@ namespace sgcl::encoding {
         // encoded_size(data.size()) characters, or max_decoded_size of the
         // text's size bytes — a smaller one is length_error. The
         // characters or the bytes written.
-        size_t encode_to(const slice<char>& out, const slice<const byte>& data) const {
+        SGCL_INLINE_HOT size_t encode_to(const slice<char>& out, const slice<const byte>& data) const {
             return detail::encode_into(_radix, out, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
-        expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const {
+        SGCL_INLINE_HOT expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const {
             return detail::decode_to(_radix, out, text);
         }
 
         // The same from characters read where they lie, no string made: a
         // file's bytes, a secret's, as base64's
-        expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) const {
+        SGCL_INLINE_HOT expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) const {
             return detail::decode_to(_radix, out, text.data(), text.size());
         }
 
@@ -122,7 +122,7 @@ namespace sgcl::encoding {
         // lies (an exact match, else the conversions to a string and to a
         // slice tie)
         template<sgcl::detail::TextArgument T>
-        expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const {
+        SGCL_INLINE_HOT expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const {
             const std::string_view v(text);   // a literal to its first NUL, not past it
             return decode_to(out, slice<const char>(v.data(), v.size()));
         }
@@ -134,7 +134,7 @@ namespace sgcl::encoding {
         decoder decoder_from(const io::reader& in) const noexcept;
 
     private:
-        constexpr explicit base32(const detail::Radix<5>& r) noexcept
+        SGCL_INLINE_HOT constexpr explicit base32(const detail::Radix<5>& r) noexcept
         : _radix(r) {
         }
 
@@ -158,11 +158,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline base32::encoder base32::encoder_to(const io::writer& out) const noexcept {
+    SGCL_INLINE_HOT base32::encoder base32::encoder_to(const io::writer& out) const noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<5>>>(_radix, out));
     }
 
-    inline base32::decoder base32::decoder_from(const io::reader& in) const noexcept {
+    SGCL_INLINE_HOT base32::decoder base32::decoder_from(const io::reader& in) const noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<5>>>(_radix, in));
     }
 }

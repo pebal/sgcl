@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -57,7 +59,7 @@ namespace sgcl::codec::detail {
         return n;
     }
 
-    inline unsigned exif_orientation(const uint8_t* p, size_t n) noexcept {
+    SGCL_INLINE_HOT unsigned exif_orientation(const uint8_t* p, size_t n) noexcept {
         bool little = false;
         const size_t at = exif_orientation_at(p, n, little);
         if (at == n) {

@@ -118,44 +118,44 @@ namespace sgcl::encoding {
         // The code at the offset; the detail, when given, is what
         // message() says in place of the code's own words ("invalid
         // character '*'", "expected a number, found a string")
-        error(errc code, uint64_t offset, const string& detail = {}) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset, const string& detail = {}) noexcept
         : _code(code), _offset(offset), _detail(detail) {
         }
 
         // The source or the sink failed at the offset
-        error(const io::error& e, uint64_t offset) noexcept
+        SGCL_INLINE_HOT error(const io::error& e, uint64_t offset) noexcept
         : _code(errc::io), _offset(offset), _io(e) {
         }
 
-        errc code() const noexcept {
+        SGCL_INLINE_HOT errc code() const noexcept {
             return _code;
         }
 
         // Bytes from the start of the input; 0 when the error did not come
         // from an input text
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _offset;
         }
 
         // From 1; 0 when the format has no lines (base64) or the input
         // was not text in memory
-        uint32_t line() const noexcept {
+        SGCL_INLINE_HOT uint32_t line() const noexcept {
             return _line;
         }
 
         // From 1, in code points: the column a reader counts, not the
         // byte (which offset() gives)
-        uint32_t column() const noexcept {
+        SGCL_INLINE_HOT uint32_t column() const noexcept {
             return _column;
         }
 
         // Where in the structure: "/users/3/age" (a JSON Pointer),
         // "/catalog/book[2]/@id" (XML); empty where it does not apply
-        const string& path() const noexcept {
+        SGCL_INLINE_HOT const string& path() const noexcept {
             return _path;
         }
 
-        const optional<io::error>& io_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& io_error() const noexcept {
             return _io;
         }
 
@@ -197,27 +197,27 @@ namespace sgcl::encoding {
 
         // The line and the column of offset() in the text the input was:
         // counted now, on the error's path, and never on the good one
-        error& locate(const string& text) noexcept {
+        SGCL_INLINE_HOT error& locate(const string& text) noexcept {
             auto p = detail::position_of(text.view(), _offset);
             _line = p.line;
             _column = p.column;
             return *this;
         }
 
-        error& set_position(uint32_t line, uint32_t column) noexcept {
+        SGCL_INLINE_HOT error& set_position(uint32_t line, uint32_t column) noexcept {
             _line = line;
             _column = column;
             return *this;
         }
 
-        error& set_path(const string& path) noexcept {
+        SGCL_INLINE_HOT error& set_path(const string& path) noexcept {
             _path = path;
             return *this;
         }
 
         // Everything it says: the code, the place, the words and the
         // stream's error (by its code, as io::error compares)
-        friend bool operator==(const error& a, const error& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const error& a, const error& b) noexcept {
             return a._code == b._code && a._no_place == b._no_place && a._offset == b._offset && a._line == b._line
                 && a._column == b._column && a._path == b._path && a._detail == b._detail && a._io == b._io;
         }
@@ -240,7 +240,7 @@ namespace sgcl::encoding {
         struct ErrorAccess {
             // An error that did not come from an input text: no offset,
             // line or column, none in its message
-            static error& without_place(error& e) noexcept {
+            SGCL_INLINE_HOT static error& without_place(error& e) noexcept {
                 e._no_place = true;
                 e._offset = 0;
                 e._line = 0;

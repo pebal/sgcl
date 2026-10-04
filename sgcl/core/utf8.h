@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/os.h"
 #include "aliases.h"
 
 #include <cstddef>
@@ -39,7 +40,7 @@ namespace sgcl {
         static constexpr char32_t max_code_point = U'\U0010FFFF';
 
         // Whether c is a Unicode scalar value: not a surrogate, not past the last code point
-        static constexpr bool valid(char32_t c) noexcept {
+        SGCL_INLINE_HOT static constexpr bool valid(char32_t c) noexcept {
             return c <= max_code_point && (c < 0xD800 || c > 0xDFFF);
         }
 
@@ -60,13 +61,13 @@ namespace sgcl {
         }
 
         // The bytes the encoding of c takes, 1 to 4; 0 when c is not a scalar value
-        static constexpr size_t width(char32_t c) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t width(char32_t c) noexcept {
             return !valid(c) ? 0 : c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
         }
 
         // Whether b begins a sequence: an ASCII byte or a leading byte,
         // not a continuation byte (10xxxxxx)
-        static constexpr bool starts_rune(char b) noexcept {
+        SGCL_INLINE_HOT static constexpr bool starts_rune(char b) noexcept {
             return (static_cast<unsigned char>(b) & 0xC0) != 0x80;
         }
 
@@ -118,7 +119,7 @@ namespace sgcl {
     public:
         // The code point at s[i] and the bytes it takes; {replacement, 1}
         // for a byte that is not the start of a valid sequence
-        static constexpr pair<char32_t, size_t> decode(std::string_view s, size_t i = 0) noexcept {
+        SGCL_INLINE_HOT static constexpr pair<char32_t, size_t> decode(std::string_view s, size_t i = 0) noexcept {
             return _decode<false>(s, i);
         }
 
@@ -223,7 +224,7 @@ namespace sgcl {
             return i - at;
         }
 
-        static constexpr bool all_ascii(std::string_view s) noexcept {
+        SGCL_INLINE_HOT static constexpr bool all_ascii(std::string_view s) noexcept {
             return ascii_run(s) == s.size();
         }
 
@@ -233,15 +234,15 @@ namespace sgcl {
             char bytes[max_width] = {};
             size_t size = 0;
 
-            constexpr encoded(char32_t c) noexcept
+            SGCL_INLINE_HOT constexpr encoded(char32_t c) noexcept
             : size(encode(c, bytes)) {
             }
 
-            constexpr std::string_view view() const noexcept {
+            SGCL_INLINE_HOT constexpr std::string_view view() const noexcept {
                 return std::string_view(bytes, size);
             }
 
-            constexpr operator std::string_view() const noexcept {
+            SGCL_INLINE_HOT constexpr operator std::string_view() const noexcept {
                 return view();
             }
         };
@@ -252,7 +253,7 @@ namespace sgcl {
 
         // Whether the bytes at i are U+FFFD itself, which decodes as the
         // replacement while being valid
-        static constexpr bool _is_encoded_replacement(std::string_view s, size_t i) noexcept {
+        SGCL_INLINE_HOT static constexpr bool _is_encoded_replacement(std::string_view s, size_t i) noexcept {
             return i + 3 <= s.size() && s[i] == char(0xEF) && s[i + 1] == char(0xBF) && s[i + 2] == char(0xBD);
         }
     };

@@ -17,17 +17,17 @@ namespace sgcl::detail {
     // The default memory of a SmallVector past its inline part: plain
     // memory from ::operator new, nothing zeroed
     struct PlainPolicy {
-        static void* allocate(size_t bytes) {
+        SGCL_INLINE_HOT static void* allocate(size_t bytes) {
             return ::operator new(bytes);
         }
 
-        static void deallocate(void* p, size_t bytes) noexcept {
+        SGCL_INLINE_HOT static void deallocate(void* p, size_t bytes) noexcept {
             ::operator delete(p, bytes);
         }
 
         // Bytes let go of (a truncation, a move's source, the inline part
         // a growth leaves): nothing to do, and nothing compiled
-        static void wipe(void*, size_t) noexcept {
+        SGCL_INLINE_HOT static void wipe(void*, size_t) noexcept {
         }
     };
 
@@ -82,32 +82,32 @@ namespace sgcl::detail {
 
         // Empty, the inline part untouched (a constructor of its own, so
         // that a value-initialisation does not zero it either)
-        SmallVector() noexcept {
+        SGCL_INLINE_HOT SmallVector() noexcept {
         }
 
         // n value-initialised elements (zero bytes)
-        explicit SmallVector(size_t n) {
+        SGCL_INLINE_HOT explicit SmallVector(size_t n) {
             resize(n);
         }
 
-        SmallVector(const SmallVector& other) {
+        SGCL_INLINE_HOT SmallVector(const SmallVector& other) {
             _copy(other);
         }
 
         // Another's block taken as it is, or its inline elements copied and
         // wiped there; it is left empty
-        SmallVector(SmallVector&& other) noexcept {
+        SGCL_INLINE_HOT SmallVector(SmallVector&& other) noexcept {
             _take(other);
         }
 
-        SmallVector& operator=(const SmallVector& other) {
+        SGCL_INLINE_HOT SmallVector& operator=(const SmallVector& other) {
             if (this != &other) {
                 _copy(other);
             }
             return *this;
         }
 
-        SmallVector& operator=(SmallVector&& other) noexcept {
+        SGCL_INLINE_HOT SmallVector& operator=(SmallVector&& other) noexcept {
             if (this != &other) {
                 _release();
                 _take(other);
@@ -115,59 +115,59 @@ namespace sgcl::detail {
             return *this;
         }
 
-        ~SmallVector() {
+        SGCL_INLINE_HOT ~SmallVector() {
             _release();
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _size;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _capacity;
         }
 
-        T* data() noexcept {
+        SGCL_INLINE_HOT T* data() noexcept {
             return _heap;
         }
 
-        const T* data() const noexcept {
+        SGCL_INLINE_HOT const T* data() const noexcept {
             return _heap;
         }
 
-        T& operator[](size_t i) noexcept {
+        SGCL_INLINE_HOT T& operator[](size_t i) noexcept {
             assert(i < _size);
             return data()[i];
         }
 
-        const T& operator[](size_t i) const noexcept {
+        SGCL_INLINE_HOT const T& operator[](size_t i) const noexcept {
             assert(i < _size);
             return data()[i];
         }
 
-        T* begin() noexcept {
+        SGCL_INLINE_HOT T* begin() noexcept {
             return data();
         }
 
-        T* end() noexcept {
+        SGCL_INLINE_HOT T* end() noexcept {
             return data() + _size;
         }
 
-        const T* begin() const noexcept {
+        SGCL_INLINE_HOT const T* begin() const noexcept {
             return data();
         }
 
-        const T* end() const noexcept {
+        SGCL_INLINE_HOT const T* end() const noexcept {
             return data() + _size;
         }
 
         // Past the capacity a block of twice it (twice N the first time).
         // An element that fits costs one compare, the growth out of line
-        void push_back(const T& x) {
+        SGCL_INLINE_HOT void push_back(const T& x) {
             if (_size < _capacity) [[likely]] {
                 _heap[_size++] = x;
                 return;
@@ -177,7 +177,7 @@ namespace sgcl::detail {
 
         // n elements from p, which is not inside this vector; past the
         // capacity a block of the larger of twice it and what is needed
-        void append(const T* p, size_t n) {
+        SGCL_INLINE_HOT void append(const T* p, size_t n) {
             if (n > capacity() - _size) {
                 size_t need = _size + n;
                 size_t twice = 2 * capacity();
@@ -208,20 +208,20 @@ namespace sgcl::detail {
         }
 
         // Room for n elements: a block of exactly n when past the capacity
-        void reserve(size_t n) {
+        SGCL_INLINE_HOT void reserve(size_t n) {
             if (n > capacity()) {
                 _reallocate(n, _size);
             }
         }
 
         // Empty, the elements wiped, the block kept
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             Policy::wipe(data(), _size * sizeof(T));
             _size = 0;
         }
 
         // The first n elements dropped, the rest moved down
-        void erase_front(size_t n) noexcept {
+        SGCL_INLINE_HOT void erase_front(size_t n) noexcept {
             assert(n <= _size);
             T* d = data();
             detail::move_bytes(d, d + n, (_size - n) * sizeof(T));   // the two runs overlap when n < size() - n
@@ -242,7 +242,7 @@ namespace sgcl::detail {
         size_t _capacity = N;
         size_t _size = 0;
 
-        bool _on_heap() const noexcept {
+        SGCL_INLINE_HOT bool _on_heap() const noexcept {
             return _heap != _inline;
         }
 
@@ -265,7 +265,7 @@ namespace sgcl::detail {
 
         // Another's elements, as many as it has written: in place when
         // they fit, else in a block of exactly their number
-        void _copy(const SmallVector& other) {
+        SGCL_INLINE_HOT void _copy(const SmallVector& other) {
             if (other._size > capacity()) {
                 _reallocate(other._size, 0);
             } else if (_size > other._size) {
@@ -299,7 +299,7 @@ namespace sgcl::detail {
 
         // What it holds let go of: the block deallocated, else the inline
         // elements wiped; empty after
-        void _release() noexcept {
+        SGCL_INLINE_HOT void _release() noexcept {
             if (_on_heap()) {
                 Policy::deallocate(_heap, _capacity * sizeof(T));
                 _heap = _inline;

@@ -51,7 +51,7 @@ namespace sgcl {
         using time_point = sgcl::time_point;
         static constexpr bool is_steady = true;
 
-        static time_point now() noexcept {
+        SGCL_INLINE_HOT static time_point now() noexcept {
             if (detail::manual_clock_installed.load(std::memory_order_relaxed)) [[unlikely]] {
                 return time_point(duration(detail::manual_clock_now.load(std::memory_order_acquire)));
             }

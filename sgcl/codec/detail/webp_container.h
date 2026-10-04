@@ -88,7 +88,7 @@ namespace sgcl::codec::detail {
     public:
         enum class Step : uint8_t { frame, end, failed };
 
-        WebpReader(Input& in, const decode_options& o) noexcept
+        SGCL_INLINE_HOT WebpReader(Input& in, const decode_options& o) noexcept
         : _in(in), _o(o) {
         }
 
@@ -273,23 +273,23 @@ namespace sgcl::codec::detail {
 
         // The VP8 decoder of the last lossy frame: its planes (the tests
         // hold them against the reference decoders' YUV)
-        const vp8::Decoder& lossy_decoder() const noexcept {
+        SGCL_INLINE_HOT const vp8::Decoder& lossy_decoder() const noexcept {
             return _vp8;
         }
 
         // Why the last frame was refused, when its data is invalid where
         // libwebp decodes it anyway (WebpDamage); none otherwise
-        WebpDamage damage() const noexcept {
+        SGCL_INLINE_HOT WebpDamage damage() const noexcept {
             return _damage;
         }
 
         // The frame's bitstream passed over, not decoded
-        bool skip(const WebpFrame& f) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool skip(const WebpFrame& f) noexcept(NothrowInput<Input>) {
             (void)f;
             return _after_frame();
         }
 
-        const uint32_t* pixels() const noexcept {
+        SGCL_INLINE_HOT const uint32_t* pixels() const noexcept {
             return _lossy ? _argb.data() : _vp8l.pixels();
         }
 
@@ -297,61 +297,61 @@ namespace sgcl::codec::detail {
         // `stride` apart) as rgb8 or rgba8, not into the ARGB words; a
         // lossless frame ignores it. direct_done() says whether the last
         // decode() wrote there (pixels() then holds nothing of it)
-        void direct(uint8_t* dst, size_t stride, bool rgba) noexcept {
+        SGCL_INLINE_HOT void direct(uint8_t* dst, size_t stride, bool rgba) noexcept {
             _direct = dst;
             _direct_stride = stride;
             _direct_rgba = rgba;
         }
 
-        bool direct_done() const noexcept {
+        SGCL_INLINE_HOT bool direct_done() const noexcept {
             return _direct_done;
         }
 
-        uint32_t canvas_width() const noexcept {
+        SGCL_INLINE_HOT uint32_t canvas_width() const noexcept {
             return _canvas_width;
         }
 
-        uint32_t canvas_height() const noexcept {
+        SGCL_INLINE_HOT uint32_t canvas_height() const noexcept {
             return _canvas_height;
         }
 
-        bool animated() const noexcept {
+        SGCL_INLINE_HOT bool animated() const noexcept {
             return _animated;
         }
 
         // Whether the file says it has alpha (VP8X's flag, or VP8L's
         // alpha_is_used in the simple format)
-        bool alpha() const noexcept {
+        SGCL_INLINE_HOT bool alpha() const noexcept {
             return _alpha;
         }
 
         // The plays of the animation: 0 forever
-        uint32_t loops() const noexcept {
+        SGCL_INLINE_HOT uint32_t loops() const noexcept {
             return _loops;
         }
 
-        const optional<error>& failure() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& failure() const noexcept {
             return _err;
         }
 
-        vector<byte>& icc() noexcept {
+        SGCL_INLINE_HOT vector<byte>& icc() noexcept {
             return _icc;
         }
 
-        vector<byte>& exif() noexcept {
+        SGCL_INLINE_HOT vector<byte>& exif() noexcept {
             return _exif;
         }
 
     private:
-        static uint32_t le32(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT static uint32_t le32(const uint8_t* p) noexcept {
             return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24;
         }
 
-        static uint32_t le24(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT static uint32_t le24(const uint8_t* p) noexcept {
             return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16;
         }
 
-        static bool tag(const uint8_t* c, const char* t) noexcept {
+        SGCL_INLINE_HOT static bool tag(const uint8_t* c, const char* t) noexcept {
             return std::memcmp(c, t, 4) == 0;
         }
 
@@ -374,7 +374,7 @@ namespace sgcl::codec::detail {
         }
 
         // Memory knows where its data ends; a stream finds out as it reads
-        bool _have(uint64_t end) noexcept {
+        SGCL_INLINE_HOT bool _have(uint64_t end) noexcept {
             if constexpr (requires { _in.end; }) {
                 return uint64_t(_in.end - _in.begin) >= end;
             } else {
@@ -383,7 +383,7 @@ namespace sgcl::codec::detail {
             }
         }
 
-        uint64_t _data_end() const noexcept {
+        SGCL_INLINE_HOT uint64_t _data_end() const noexcept {
             if constexpr (requires { _in.end; }) {
                 return uint64_t(_in.end - _in.begin);
             } else {
@@ -456,18 +456,18 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _skip_to(uint64_t offset) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _skip_to(uint64_t offset) noexcept(NothrowInput<Input>) {
             return offset <= _in.offset() || _skip(offset - _in.offset());
         }
 
         // The rest of a chunk of `size` bytes, `read` of them taken, and
         // its padding byte
-        bool _skip_padded(uint32_t size, uint32_t read = 0) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _skip_padded(uint32_t size, uint32_t read = 0) noexcept(NothrowInput<Input>) {
             return _skip(uint64_t(size) - read + (size & 1));
         }
 
         // A chunk's header, inside the RIFF size
-        bool _chunk_header(uint8_t* c) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _chunk_header(uint8_t* c) noexcept(NothrowInput<Input>) {
             if (_riff_end - _in.offset() < 8) {
                 return _fail(errc::corrupt, _in.offset(), "webp: a chunk header past the RIFF size");
             }
@@ -893,7 +893,7 @@ namespace sgcl::codec::detail {
             return _skip_to(_frame_end);
         }
 
-        bool _metadata(vector<byte>& out, uint64_t at, uint32_t size) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _metadata(vector<byte>& out, uint64_t at, uint32_t size) noexcept(NothrowInput<Input>) {
             if (size > _o.limits.max_metadata) {
                 return _fail(errc::too_large, at, "webp: metadata past limits.max_metadata");
             }
@@ -905,7 +905,7 @@ namespace sgcl::codec::detail {
         }
 
         // The end of the RIFF data: an image was there
-        bool _end() noexcept {
+        SGCL_INLINE_HOT bool _end() noexcept {
             if (_images == 0) {
                 return _fail(errc::corrupt, _in.offset(), "webp: no image");
             }
@@ -964,7 +964,7 @@ namespace sgcl::codec::detail {
     // written over it replacing its rectangle.
     class WebpCanvas {
     public:
-        void reset(uint32_t width, uint32_t height) noexcept {
+        SGCL_INLINE_HOT void reset(uint32_t width, uint32_t height) noexcept {
             _width = width;
             _height = height;
             _pixels.assign(size_t(width) * height, 0);
@@ -992,7 +992,7 @@ namespace sgcl::codec::detail {
             _has_prev = true;
         }
 
-        const uint32_t* pixels() const noexcept {
+        SGCL_INLINE_HOT const uint32_t* pixels() const noexcept {
             return _pixels.data();
         }
 
@@ -1054,7 +1054,7 @@ namespace sgcl::codec::detail {
 
     // The metadata read, onto the image: EXIF without the "Exif\0\0" some
     // writers put before its TIFF header, and its orientation
-    inline void webp_metadata(image& im, vector<byte>& icc, vector<byte>& exif) noexcept {
+    SGCL_INLINE_HOT void webp_metadata(image& im, vector<byte>& icc, vector<byte>& exif) noexcept {
         auto& s = ImageAccess::state(im);
         if (!exif.empty()) {
             if (exif.size() >= 6 && std::memcmp(exif.data(), "Exif\0\0", 6) == 0) {
@@ -1137,7 +1137,7 @@ namespace sgcl::codec::detail {
         bool reading = false;   // in a read of the stream; still set after one that threw
 
         template<class Source>
-        WebpFrames(const slice<const byte>& d, const Source& source, const decode_options& o) noexcept
+        SGCL_INLINE_HOT WebpFrames(const slice<const byte>& d, const Source& source, const decode_options& o) noexcept
         : data(d), input(source), options(o), reader(input, options) {
         }
 

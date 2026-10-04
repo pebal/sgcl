@@ -26,67 +26,67 @@ namespace sgcl {
         using reference = typename Container::reference;
         using const_reference = typename Container::const_reference;
 
-        stack() noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_move_constructible_v<Container>)
+        SGCL_INLINE_HOT stack() noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_move_constructible_v<Container>)
         : stack(Container()) {
         }
 
-        explicit stack(const Container& cont) noexcept(std::is_nothrow_copy_constructible_v<Container>)
+        SGCL_INLINE_HOT explicit stack(const Container& cont) noexcept(std::is_nothrow_copy_constructible_v<Container>)
         : c(cont) {
         }
 
-        explicit stack(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>)
+        SGCL_INLINE_HOT explicit stack(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>)
         : c(std::move(cont)) {
         }
 
         template<std::input_iterator InputIt>
-        stack(InputIt first, InputIt last)
+        SGCL_INLINE_HOT stack(InputIt first, InputIt last)
         : c(first, last) {
         }
 
-        reference top() noexcept(noexcept(c.back())) {
+        SGCL_INLINE_HOT reference top() noexcept(noexcept(c.back())) {
             return c.back();
         }
 
-        const_reference top() const noexcept(noexcept(c.back())) {
+        SGCL_INLINE_HOT const_reference top() const noexcept(noexcept(c.back())) {
             return c.back();
         }
 
-        bool empty() const noexcept(noexcept(c.empty())) {
+        SGCL_INLINE_HOT bool empty() const noexcept(noexcept(c.empty())) {
             return c.empty();
         }
 
-        size_type size() const noexcept(noexcept(c.size())) {
+        SGCL_INLINE_HOT size_type size() const noexcept(noexcept(c.size())) {
             return c.size();
         }
 
-        void push(const value_type& value) noexcept(noexcept(c.push_back(value))) {
+        SGCL_INLINE_HOT void push(const value_type& value) noexcept(noexcept(c.push_back(value))) {
             c.push_back(value);
         }
 
-        void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value)))) {
+        SGCL_INLINE_HOT void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value)))) {
             c.push_back(std::move(value));
         }
 
         template<class... A>
-        decltype(auto) emplace(A&&... a) noexcept(noexcept(c.emplace_back(std::forward<A>(a)...))) {
+        SGCL_INLINE_HOT decltype(auto) emplace(A&&... a) noexcept(noexcept(c.emplace_back(std::forward<A>(a)...))) {
             return c.emplace_back(std::forward<A>(a)...);
         }
 
-        void pop() noexcept(noexcept(c.pop_back())) {
+        SGCL_INLINE_HOT void pop() noexcept(noexcept(c.pop_back())) {
             c.pop_back();
         }
 
-        void swap(stack& other) noexcept(std::is_nothrow_swappable_v<Container>) {
+        SGCL_INLINE_HOT void swap(stack& other) noexcept(std::is_nothrow_swappable_v<Container>) {
             using std::swap;
             swap(c, other.c);
         }
 
         // As the container compares, and only where it does
-        friend bool operator==(const stack& lhs, const stack& rhs) requires std::equality_comparable<Container> {
+        SGCL_INLINE_HOT friend bool operator==(const stack& lhs, const stack& rhs) requires std::equality_comparable<Container> {
             return lhs.c == rhs.c;
         }
 
-        friend auto operator<=>(const stack& lhs, const stack& rhs) requires std::three_way_comparable<Container> {
+        SGCL_INLINE_HOT friend auto operator<=>(const stack& lhs, const stack& rhs) requires std::three_way_comparable<Container> {
             return lhs.c <=> rhs.c;
         }
 
@@ -95,7 +95,7 @@ namespace sgcl {
     };
 
     template<class T, class Container>
-    inline void swap(stack<T, Container>& lhs, stack<T, Container>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    SGCL_INLINE_HOT void swap(stack<T, Container>& lhs, stack<T, Container>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 

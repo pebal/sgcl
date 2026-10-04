@@ -132,10 +132,10 @@ namespace sgcl::encoding {
 
         json() noexcept = default;
 
-        json(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT json(std::nullptr_t) noexcept {
         }
 
-        json(bool b) noexcept
+        SGCL_INLINE_HOT json(bool b) noexcept
         : _bits(b), _tag(Tag::boolean) {
         }
 
@@ -156,7 +156,7 @@ namespace sgcl::encoding {
 
         // NaN and the infinities are not JSON numbers: an assertion in a
         // debug build, null in a release one (as JSON.stringify writes them)
-        json(double d) noexcept {
+        SGCL_INLINE_HOT json(double d) noexcept {
             assert(std::isfinite(d) && "NaN and the infinities are not JSON numbers");
             if (std::isfinite(d)) {
                 _bits = std::bit_cast<uint64_t>(d);
@@ -166,19 +166,19 @@ namespace sgcl::encoding {
 
         // A float is the number its shortest digits are: json(0.1f) is
         // 0.1, written "0.1" as a float field is, not the double it widens to
-        json(float f) noexcept
+        SGCL_INLINE_HOT json(float f) noexcept
         : json(std::isfinite(f) ? detail::float_as_written(f) : double(f)) {
         }
 
-        json(const string& s) noexcept
+        SGCL_INLINE_HOT json(const string& s) noexcept
         : _ptr(s.as_slice().owner()), _tag(Tag::string) {
         }
 
-        json(const char* s) noexcept
+        SGCL_INLINE_HOT json(const char* s) noexcept
         : json(string(s)) {
         }
 
-        json(const slice<const char>& s) noexcept
+        SGCL_INLINE_HOT json(const slice<const char>& s) noexcept
         : json(string(s)) {
         }
 
@@ -288,38 +288,38 @@ namespace sgcl::encoding {
             return kind::null;
         }
 
-        bool is_null() const noexcept {
+        SGCL_INLINE_HOT bool is_null() const noexcept {
             return _tag == Tag::null;
         }
 
-        bool is_bool() const noexcept {
+        SGCL_INLINE_HOT bool is_bool() const noexcept {
             return _tag == Tag::boolean;
         }
 
-        bool is_number() const noexcept {
+        SGCL_INLINE_HOT bool is_number() const noexcept {
             return type() == kind::number;
         }
 
         // A number whose value is an integer an int64 or an uint64 holds
-        bool is_integer() const noexcept {
+        SGCL_INLINE_HOT bool is_integer() const noexcept {
             return as_int() || as_uint();
         }
 
-        bool is_string() const noexcept {
+        SGCL_INLINE_HOT bool is_string() const noexcept {
             return _tag == Tag::string;
         }
 
-        bool is_array() const noexcept {
+        SGCL_INLINE_HOT bool is_array() const noexcept {
             return _tag == Tag::array;
         }
 
-        bool is_object() const noexcept {
+        SGCL_INLINE_HOT bool is_object() const noexcept {
             return _tag == Tag::object || _tag == Tag::large_object;
         }
 
         // --- the value: nullopt when the kind differs or the value does not fit exactly ---
 
-        optional<bool> as_bool() const noexcept {
+        SGCL_INLINE_HOT optional<bool> as_bool() const noexcept {
             if (_tag != Tag::boolean) {
                 return nullopt;
             }
@@ -334,7 +334,7 @@ namespace sgcl::encoding {
         // kept as text that is out of a double's range
         optional<double> as_double() const noexcept;
 
-        optional<string> as_string() const noexcept {
+        SGCL_INLINE_HOT optional<string> as_string() const noexcept {
             if (_tag != Tag::string) {
                 return nullopt;
             }
@@ -342,30 +342,30 @@ namespace sgcl::encoding {
         }
 
         // The same with a value for when there is none: j["name"].as_string("?")
-        bool as_bool(bool fallback) const noexcept {
+        SGCL_INLINE_HOT bool as_bool(bool fallback) const noexcept {
             return as_bool().value_or(fallback);
         }
 
-        int64_t as_int(int64_t fallback) const noexcept {
+        SGCL_INLINE_HOT int64_t as_int(int64_t fallback) const noexcept {
             return as_int().value_or(fallback);
         }
 
-        uint64_t as_uint(uint64_t fallback) const noexcept {
+        SGCL_INLINE_HOT uint64_t as_uint(uint64_t fallback) const noexcept {
             return as_uint().value_or(fallback);
         }
 
-        double as_double(double fallback) const noexcept {
+        SGCL_INLINE_HOT double as_double(double fallback) const noexcept {
             return as_double().value_or(fallback);
         }
 
-        string as_string(const string& fallback) const noexcept {
+        SGCL_INLINE_HOT string as_string(const string& fallback) const noexcept {
             auto s = as_string();
             return s ? *s : fallback;
         }
 
         // The literal of a number kept as its text (an integer past uint64,
         // any with keep_number_text); nullopt for any other value
-        optional<string> number_text() const noexcept {
+        SGCL_INLINE_HOT optional<string> number_text() const noexcept {
             if (_tag != Tag::number_text) {
                 return nullopt;
             }
@@ -375,38 +375,38 @@ namespace sgcl::encoding {
         // --- what is inside ---
 
         // The member's value, or null when there is none (or this is not an object)
-        const json& operator[](const string& key) const noexcept {
+        SGCL_INLINE_HOT const json& operator[](const string& key) const noexcept {
             return _find(key.view(), key.empty() ? string::hash_of({}) : key.hash());
         }
 
         template<size_t N>
-        const json& operator[](const char (&key)[N]) const noexcept {
+        SGCL_INLINE_HOT const json& operator[](const char (&key)[N]) const noexcept {
             std::string_view k(key, std::char_traits<char>::length(key));
             return _find(k, string::hash_of(k));
         }
 
         // The element, or null past the end (or when this is not an array)
-        const json& operator[](size_t index) const noexcept {
+        SGCL_INLINE_HOT const json& operator[](size_t index) const noexcept {
             if (_tag != Tag::array || index >= _bits) {
                 return _null();
             }
             return _elements()[index];
         }
 
-        bool contains(const string& key) const noexcept {
+        SGCL_INLINE_HOT bool contains(const string& key) const noexcept {
             return _find_index(key.view(), key.empty() ? string::hash_of({}) : key.hash()) != NotFound;
         }
 
         // The elements or the members; 0 for anything else
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return is_array() || is_object() ? size_t(_bits) : 0;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
-        slice<const json> elements() const noexcept {
+        SGCL_INLINE_HOT slice<const json> elements() const noexcept {
             if (_tag != Tag::array || _bits == 0) {
                 return {};
             }
@@ -451,7 +451,7 @@ namespace sgcl::encoding {
         // text by its digits and with anything else as the rest compare.
         // Objects as sets of members: the order does not matter, as it
         // does not in JSON.
-        friend bool operator==(const json& a, const json& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const json& a, const json& b) noexcept {
             return a._equals(b);
         }
 
@@ -476,17 +476,17 @@ namespace sgcl::encoding {
 
         static constexpr size_t NotFound = size_t(-1);
 
-        string _string() const noexcept {
+        SGCL_INLINE_HOT string _string() const noexcept {
             return StringAccessOf::over(_ptr);
         }
 
         struct StringAccessOf {
-            static string over(const tracked_ptr<const void>& word) noexcept {
+            SGCL_INLINE_HOT static string over(const tracked_ptr<const void>& word) noexcept {
                 return sgcl::detail::StringAccess::over<string>(word);
             }
         };
 
-        const json* _elements() const noexcept {
+        SGCL_INLINE_HOT const json* _elements() const noexcept {
             return static_cast<const json*>(_ptr.get());
         }
 
@@ -532,11 +532,11 @@ namespace sgcl::encoding {
             std::unique_ptr<uint32_t[]> slots;
             uint32_t mask = 0;
 
-            const json::member* member_data() const noexcept {
+            SGCL_INLINE_HOT const json::member* member_data() const noexcept {
                 return static_cast<const json::member*>(members.get());
             }
 
-            const uint32_t* slot_data() const noexcept {
+            SGCL_INLINE_HOT const uint32_t* slot_data() const noexcept {
                 return slots.get();
             }
         };
@@ -544,7 +544,7 @@ namespace sgcl::encoding {
         // A managed buffer of n T's, constructed by the caller; the
         // buffer's owner goes to owner
         template<class T>
-        T* json_buffer(size_t n, tracked_ptr<const void>& owner) noexcept {
+        SGCL_INLINE_HOT T* json_buffer(size_t n, tracked_ptr<const void>& owner) noexcept {
             auto u = unique_ptr<T>(Maker<T[]>::make_tracked_data(n));
             T* p = u.get();
             owner = tracked_ptr<const void>(std::move(u));
@@ -553,14 +553,14 @@ namespace sgcl::encoding {
 
         // What the parser, the builder and the typed walk make values with
         struct JsonAccess {
-            static json number_text(const string& literal) noexcept {
+            SGCL_INLINE_HOT static json number_text(const string& literal) noexcept {
                 json j;
                 j._ptr = literal.as_slice().owner();
                 j._tag = json::Tag::number_text;
                 return j;
             }
 
-            static json uint(uint64_t v) noexcept {
+            SGCL_INLINE_HOT static json uint(uint64_t v) noexcept {
                 return json(v);
             }
 
@@ -691,15 +691,15 @@ namespace sgcl::encoding {
 
             static constexpr size_t NotFoundIndex = size_t(-1);
 
-            static const tracked_ptr<const void>& pointer(const json& j) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<const void>& pointer(const json& j) noexcept {
                 return j._ptr;
             }
 
-            static const json* raw_elements(const json& j) noexcept {
+            SGCL_INLINE_HOT static const json* raw_elements(const json& j) noexcept {
                 return j._elements();
             }
 
-            static const json::member* raw_members(const json& j) noexcept {
+            SGCL_INLINE_HOT static const json::member* raw_members(const json& j) noexcept {
                 return j._members();
             }
 
@@ -788,7 +788,7 @@ namespace sgcl::encoding {
             return r;
         }
 
-        inline size_t mix(size_t h) noexcept {
+        SGCL_INLINE_HOT size_t mix(size_t h) noexcept {
             h ^= h >> 33;
             h *= 0xff51afd7ed558ccdull;
             h ^= h >> 33;
@@ -798,7 +798,7 @@ namespace sgcl::encoding {
 
     // --- json: the members defined out of the class ---
 
-    inline json json::array(std::initializer_list<json> elements) noexcept {
+    SGCL_INLINE_HOT json json::array(std::initializer_list<json> elements) noexcept {
         vector<json> v(elements.begin(), elements.end());
         return detail::JsonAccess::array_of(v.data(), v.size());
     }
@@ -813,20 +813,20 @@ namespace sgcl::encoding {
         return detail::JsonAccess::array_of(v.data(), v.size());
     }
 
-    inline json json::object(std::initializer_list<member> members) noexcept {
+    SGCL_INLINE_HOT json json::object(std::initializer_list<member> members) noexcept {
         vector<member> v(members.begin(), members.end());
         detail::JsonAccess::distinct(v, 0, true);
         return detail::JsonAccess::object_of(v.data(), v.size());
     }
 
-    inline const json::member* json::_members() const noexcept {
+    SGCL_INLINE_HOT const json::member* json::_members() const noexcept {
         if (_tag == Tag::large_object) {
             return static_cast<const detail::JsonLargeObject*>(_ptr.get())->member_data();
         }
         return static_cast<const member*>(_ptr.get());
     }
 
-    inline slice<const json::member> json::members() const noexcept {
+    SGCL_INLINE_HOT slice<const json::member> json::members() const noexcept {
         if (!is_object() || _bits == 0) {
             return {};
         }
@@ -866,7 +866,7 @@ namespace sgcl::encoding {
         return NotFound;
     }
 
-    inline const json& json::_find(std::string_view key, size_t hash) const noexcept {
+    SGCL_INLINE_HOT const json& json::_find(std::string_view key, size_t hash) const noexcept {
         size_t i = _find_index(key, hash);
         return i == NotFound ? _null() : _members()[i].value;
     }
@@ -1092,7 +1092,7 @@ namespace sgcl::encoding {
     namespace detail {
         // The error of a text in memory at a byte of it: the detail's words,
         // the offset counted from the start of the whole input
-        inline std::string char_name(const char* p, const char* end) noexcept {
+        SGCL_INLINE_HOT std::string char_name(const char* p, const char* end) noexcept {
             if (p == end) {
                 return "the end of the input";
             }
@@ -1105,7 +1105,7 @@ namespace sgcl::encoding {
         // value and the typed read walk the text with it.
         class JsonCursor {
         public:
-            JsonCursor(const char* begin, const char* end, uint64_t base, const json::options& o) noexcept
+            SGCL_INLINE_HOT JsonCursor(const char* begin, const char* end, uint64_t base, const json::options& o) noexcept
             : p(begin), end(end), begin(begin), base(base), options(o) {
             }
 
@@ -1124,11 +1124,11 @@ namespace sgcl::encoding {
                 return false;
             }
 
-            void space() noexcept {
+            SGCL_INLINE_HOT void space() noexcept {
                 p = skip_space(p, end);
             }
 
-            bool at_end() const noexcept {
+            SGCL_INLINE_HOT bool at_end() const noexcept {
                 return p == end;
             }
 
@@ -1179,7 +1179,7 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            bool word(std::string_view w) noexcept {
+            SGCL_INLINE_HOT bool word(std::string_view w) noexcept {
                 if (scan_word(p, end, true, w) != ScanStatus::done) {
                     if (p == end) {
                         return fail(errc::unexpected_end, p, "unexpected end of input inside the literal " + std::string(w));
@@ -1262,7 +1262,7 @@ namespace sgcl::encoding {
             JsonScratchLease(const JsonScratchLease&) = delete;
             JsonScratchLease& operator=(const JsonScratchLease&) = delete;
 
-            ~JsonScratchLease() {
+            SGCL_INLINE_HOT ~JsonScratchLease() {
                 if (!_slot) {
                     return;
                 }
@@ -1271,13 +1271,13 @@ namespace sgcl::encoding {
                 _slot->busy = false;
             }
 
-            JsonScratch& operator*() const noexcept {
+            SGCL_INLINE_HOT JsonScratch& operator*() const noexcept {
                 return *_scratch;
             }
 
         private:
             template<class T>
-            static void _release(vector<T>& stack) noexcept {
+            SGCL_INLINE_HOT static void _release(vector<T>& stack) noexcept {
                 if (stack.capacity() * sizeof(T) > JsonScratchKeep) {
                     stack = vector<T>();
                 } else {
@@ -1299,7 +1299,7 @@ namespace sgcl::encoding {
         // of the keys seen last and not made again.
         class JsonParser {
         public:
-            explicit JsonParser(const json::options& o) noexcept
+            SGCL_INLINE_HOT explicit JsonParser(const json::options& o) noexcept
             : _options(o) {
             }
 
@@ -1539,11 +1539,11 @@ namespace sgcl::encoding {
         };
     }
 
-    inline expected<json, json::error> json::parse(const string& text) noexcept {
+    SGCL_INLINE_HOT expected<json, json::error> json::parse(const string& text) noexcept {
         return parse(text, options());
     }
 
-    inline expected<json, json::error> json::parse(const string& text, const options& o) noexcept {
+    SGCL_INLINE_HOT expected<json, json::error> json::parse(const string& text, const options& o) noexcept {
         detail::JsonParser parser(o);
         auto r = parser.parse(text.data(), text.data() + text.size(), 0, o.max_depth);
         if (!r) {
@@ -1738,7 +1738,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::object_of(ms.data(), ms.size());
     }
 
-    inline json json::set(size_t index, const json& value) const noexcept {
+    SGCL_INLINE_HOT json json::set(size_t index, const json& value) const noexcept {
         if (!is_array() || index >= _bits) {
             return *this;
         }
@@ -1747,7 +1747,7 @@ namespace sgcl::encoding {
         return detail::JsonAccess::array_of(es.data(), es.size());
     }
 
-    inline json json::push_back(const json& value) const noexcept {
+    SGCL_INLINE_HOT json json::push_back(const json& value) const noexcept {
         vector<json> es;
         if (is_array()) {
             es.reserve(_bits + 1);
@@ -1837,12 +1837,12 @@ namespace sgcl::encoding {
 
         // The builder moved from is empty, as build() leaves it: its kind
         // goes with its elements, and either kind may begin it again
-        builder(builder&& other) noexcept
+        SGCL_INLINE_HOT builder(builder&& other) noexcept
         : _elements(std::move(other._elements)), _members(std::move(other._members)), _mode(other._mode) {
             other._empty();
         }
 
-        builder& operator=(builder&& other) noexcept {
+        SGCL_INLINE_HOT builder& operator=(builder&& other) noexcept {
             if (this != &other) {
                 _elements = std::move(other._elements);
                 _members = std::move(other._members);
@@ -1852,7 +1852,7 @@ namespace sgcl::encoding {
             return *this;
         }
 
-        builder& push_back(const json& value) {
+        SGCL_INLINE_HOT builder& push_back(const json& value) {
             if (_mode == Mode::object) {
                 throw logic_error("sgcl: json::builder: push_back on a builder of an object");
             }
@@ -1861,7 +1861,7 @@ namespace sgcl::encoding {
             return *this;
         }
 
-        builder& set(const string& key, const json& value) {
+        SGCL_INLINE_HOT builder& set(const string& key, const json& value) {
             if (_mode == Mode::array) {
                 throw logic_error("sgcl: json::builder: set on a builder of an array");
             }
@@ -1871,7 +1871,7 @@ namespace sgcl::encoding {
         }
 
         // The elements or the members so far (a key set twice counts twice)
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _mode == Mode::object ? _members.size() : _elements.size();
         }
 
@@ -1888,7 +1888,7 @@ namespace sgcl::encoding {
         }
 
     private:
-        void _empty() noexcept {
+        SGCL_INLINE_HOT void _empty() noexcept {
             _elements.clear();
             _members.clear();
             _mode = Mode::none;
@@ -1928,15 +1928,15 @@ namespace sgcl::encoding {
 
         token() noexcept = default;
 
-        kind type() const noexcept {
+        SGCL_INLINE_HOT kind type() const noexcept {
             return _kind;
         }
 
-        const slice<const char>& text() const noexcept {
+        SGCL_INLINE_HOT const slice<const char>& text() const noexcept {
             return _text;
         }
 
-        optional<bool> as_bool() const noexcept {
+        SGCL_INLINE_HOT optional<bool> as_bool() const noexcept {
             if (_kind != kind::boolean) {
                 return nullopt;
             }
@@ -1944,14 +1944,14 @@ namespace sgcl::encoding {
         }
 
         // A number whose value is an integer the type holds exactly (1e2 is 100)
-        optional<int64_t> as_int() const noexcept {
+        SGCL_INLINE_HOT optional<int64_t> as_int() const noexcept {
             if (_kind != kind::number) {
                 return nullopt;
             }
             return detail::exact_integer<int64_t>(_text.view());
         }
 
-        optional<uint64_t> as_uint() const noexcept {
+        SGCL_INLINE_HOT optional<uint64_t> as_uint() const noexcept {
             if (_kind != kind::number) {
                 return nullopt;
             }
@@ -1959,7 +1959,7 @@ namespace sgcl::encoding {
         }
 
         // A number rounded to the nearest double; nullopt past its range
-        optional<double> as_double() const noexcept {
+        SGCL_INLINE_HOT optional<double> as_double() const noexcept {
             if (_kind != kind::number) {
                 return nullopt;
             }
@@ -1967,19 +1967,19 @@ namespace sgcl::encoding {
         }
 
         // The same with a value for when there is none
-        bool as_bool(bool fallback) const noexcept {
+        SGCL_INLINE_HOT bool as_bool(bool fallback) const noexcept {
             return as_bool().value_or(fallback);
         }
 
-        int64_t as_int(int64_t fallback) const noexcept {
+        SGCL_INLINE_HOT int64_t as_int(int64_t fallback) const noexcept {
             return as_int().value_or(fallback);
         }
 
-        uint64_t as_uint(uint64_t fallback) const noexcept {
+        SGCL_INLINE_HOT uint64_t as_uint(uint64_t fallback) const noexcept {
             return as_uint().value_or(fallback);
         }
 
-        double as_double(double fallback) const noexcept {
+        SGCL_INLINE_HOT double as_double(double fallback) const noexcept {
             return as_double().value_or(fallback);
         }
 
@@ -1999,17 +1999,17 @@ namespace sgcl::encoding {
         };
 
     public:
-        token(Made, kind k, const tracked_ptr<const void>& owner, const char* p, size_t n) noexcept
+        SGCL_INLINE_HOT token(Made, kind k, const tracked_ptr<const void>& owner, const char* p, size_t n) noexcept
         : _kind(k), _text(owner, p, n) {
         }
 
-        token(Made, kind k) noexcept
+        SGCL_INLINE_HOT token(Made, kind k) noexcept
         : _kind(k) {
         }
 
     private:
 
-        token(kind k, const slice<const char>& text) noexcept
+        SGCL_INLINE_HOT token(kind k, const slice<const char>& text) noexcept
         : _kind(k), _text(text) {
         }
 
@@ -2026,11 +2026,11 @@ namespace sgcl::encoding {
         // copied into a byte buffer.
         class KeySeen {
         public:
-            void open() noexcept {
+            SGCL_INLINE_HOT void open() noexcept {
                 _levels.push_back(Level{_entries.size(), _bytes.size(), {}});
             }
 
-            void close() noexcept {
+            SGCL_INLINE_HOT void close() noexcept {
                 auto& l = _levels.back();
                 _entries.resize(l.first);
                 _bytes.truncate(l.bytes);
@@ -2090,7 +2090,7 @@ namespace sgcl::encoding {
                 std::vector<uint32_t> table;
             };
 
-            std::string_view _key(size_t i) const noexcept {
+            SGCL_INLINE_HOT std::string_view _key(size_t i) const noexcept {
                 return _bytes.view().substr(_entries[i].offset, _entries[i].size);
             }
 
@@ -2137,39 +2137,39 @@ namespace sgcl::encoding {
     // block that is too small grows).
     class json::reader {
     public:
-        explicit reader(const string& text) noexcept
+        SGCL_INLINE_HOT explicit reader(const string& text) noexcept
         : reader(text, options()) {
         }
 
-        reader(const string& text, const options& o) noexcept
+        SGCL_INLINE_HOT reader(const string& text, const options& o) noexcept
         : _text(text), _options(o), _eof(true) {
             _owner = text.as_slice().owner();
             _d = text.data();
             _n = text.size();
         }
 
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : reader(in, options()) {
         }
 
-        reader(const io::reader& in, const options& o) noexcept
+        SGCL_INLINE_HOT reader(const io::reader& in, const options& o) noexcept
         : _in(in), _options(o) {
         }
 
         reader(const reader&) = delete;
         reader& operator=(const reader&) = delete;
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
         // The byte of the input where the next token starts (or its white space)
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _base + _pos;
         }
 
         // The arrays and objects open
-        uint32_t depth() const noexcept {
+        SGCL_INLINE_HOT uint32_t depth() const noexcept {
             return uint32_t(_stack.size());
         }
 
@@ -2307,7 +2307,7 @@ namespace sgcl::encoding {
             }
         }
 
-        void _begin(Pending p) noexcept {
+        SGCL_INLINE_HOT void _begin(Pending p) noexcept {
             _pending = p;
             _tok_pos = _pos + (p == Pending::string || p == Pending::key ? 1 : 0);
             _sscan = {};
@@ -2315,14 +2315,14 @@ namespace sgcl::encoding {
             _plain = true;
         }
 
-        void _token(token::kind k, size_t from, size_t n, bool scratch = false) noexcept {
+        SGCL_INLINE_HOT void _token(token::kind k, size_t from, size_t n, bool scratch = false) noexcept {
             _kind = k;
             _text_from = from;
             _text_size = n;
             _text_scratch = scratch;
         }
 
-        void _value_done() noexcept {
+        SGCL_INLINE_HOT void _value_done() noexcept {
             _expect = _stack.empty() ? Expect::top : Expect::after_value;
         }
 
@@ -2533,13 +2533,13 @@ namespace sgcl::encoding {
             _refresh();
         }
 
-        void _refresh() noexcept {
+        SGCL_INLINE_HOT void _refresh() noexcept {
             _owner = _block.owner();
             _d = _block.data();
             _n = _block.size();
         }
 
-        bool _fill() {
+        SGCL_INLINE_HOT bool _fill() {
             auto room = _room();
             _received(_in.read(room));
             return !_error;
@@ -2921,11 +2921,11 @@ namespace sgcl::encoding {
 
         // skip: whether the tokens so far make a value whole (a key alone
         // does not, nor an array still open)
-        bool _skipped(size_t depth) const noexcept {
+        SGCL_INLINE_HOT bool _skipped(size_t depth) const noexcept {
             return _stack.size() == depth && _kind != token::kind::key;
         }
 
-        bool _skip_start(Step s, size_t& depth) noexcept {
+        SGCL_INLINE_HOT bool _skip_start(Step s, size_t& depth) noexcept {
             // the first token of the value: an end of an array or an object is not one
             if (_kind == token::kind::end_array || _kind == token::kind::end_object) {
                 _fail(errc::syntax, _pos - 1, "skip() where an array or an object ends");
@@ -2976,7 +2976,7 @@ namespace sgcl::encoding {
         optional<error> _error;
     };
 
-    inline expected<json, json::error> json::parse(const io::reader& in, const options& o) {
+    SGCL_INLINE_HOT expected<json, json::error> json::parse(const io::reader& in, const options& o) {
         reader r(in, o);
         auto v = r.read();
         if (v && !r.more() && !r.last_error()) {
@@ -2985,7 +2985,7 @@ namespace sgcl::encoding {
         return unexpected<error>(r._whole_error(bool(v)));
     }
 
-    inline expected<json, json::error> json::parse(const io::reader& in) {
+    SGCL_INLINE_HOT expected<json, json::error> json::parse(const io::reader& in) {
         return parse(in, options());
     }
 
@@ -2999,7 +2999,7 @@ namespace sgcl::encoding {
         co_return unexpected<error>(r._whole_error(bool(v)));
     }
 
-    inline async::task<expected<json, json::error>> json::async_parse(const io::reader& in) noexcept {
+    SGCL_INLINE_HOT async::task<expected<json, json::error>> json::async_parse(const io::reader& in) noexcept {
         return async_parse(in, options());
     }
 
@@ -3016,54 +3016,54 @@ namespace sgcl::encoding {
     // is held in memory.
     class json::writer {
     public:
-        explicit writer(const io::writer& out) noexcept
+        SGCL_INLINE_HOT explicit writer(const io::writer& out) noexcept
         : writer(out, compact) {
         }
 
-        writer(const io::writer& out, const style& s) noexcept
+        SGCL_INLINE_HOT writer(const io::writer& out, const style& s) noexcept
         : _out(s.indent, s.escape_html, true), _sink(out), _style(s) {
         }
 
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
 
-        writer& begin_object() noexcept {
+        SGCL_INLINE_HOT writer& begin_object() noexcept {
             _out.begin(true);
             return *this;
         }
 
-        writer& end_object() noexcept {
+        SGCL_INLINE_HOT writer& end_object() noexcept {
             _out.end(true);
             return *this;
         }
 
-        writer& begin_array() noexcept {
+        SGCL_INLINE_HOT writer& begin_array() noexcept {
             _out.begin(false);
             return *this;
         }
 
-        writer& end_array() noexcept {
+        SGCL_INLINE_HOT writer& end_array() noexcept {
             _out.end(false);
             return *this;
         }
 
-        writer& key(const string& name) noexcept {
+        SGCL_INLINE_HOT writer& key(const string& name) noexcept {
             _out.key(name.view());
             return *this;
         }
 
         template<size_t N>
-        writer& key(const char (&name)[N]) noexcept {
+        SGCL_INLINE_HOT writer& key(const char (&name)[N]) noexcept {
             _out.key(std::string_view(name, std::char_traits<char>::length(name)));
             return *this;
         }
 
-        writer& value(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT writer& value(std::nullptr_t) noexcept {
             _out.null();
             return *this;
         }
 
-        writer& value(const char* text) noexcept {
+        SGCL_INLINE_HOT writer& value(const char* text) noexcept {
             _out.quoted(std::string_view(text));
             return *this;
         }
@@ -3111,7 +3111,7 @@ namespace sgcl::encoding {
         }
 
     private:
-        optional<io::error> _check() noexcept {
+        SGCL_INLINE_HOT optional<io::error> _check() noexcept {
             if (_error) {
                 return _error;
             }
@@ -3131,7 +3131,7 @@ namespace sgcl::encoding {
             (void)_out.text().give_back(capacity);
         }
 
-        slice<const byte> _pending() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> _pending() const noexcept {
             auto& t = const_cast<detail::JsonOut&>(_out).text();
             return slice<const byte>(reinterpret_cast<const byte*>(t.data()), t.size());
         }
@@ -3184,7 +3184,7 @@ namespace sgcl::encoding {
 
         template<class T>
         struct JsonValueWriter {
-            static void write(json::writer& w, const T& v) noexcept(JsonScalar<T>::value) {
+            SGCL_INLINE_HOT static void write(json::writer& w, const T& v) noexcept(JsonScalar<T>::value) {
                 if constexpr (JsonScalar<T>::value) {
                     write_scalar_value(w._out, v);
                 } else {
@@ -3195,7 +3195,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    json::writer& json::writer::value(const T& v) noexcept(detail::JsonScalar<T>::value) {
+    SGCL_INLINE_HOT json::writer& json::writer::value(const T& v) noexcept(detail::JsonScalar<T>::value) {
         detail::JsonValueWriter<T>::write(*this, v);
         return *this;
     }
@@ -3204,7 +3204,7 @@ namespace sgcl::encoding {
 
     namespace detail {
         template<class T>
-        json JsonHooks<T>::to_json(const void* p) noexcept(std::is_same_v<T, json>) {
+        SGCL_INLINE_HOT json JsonHooks<T>::to_json(const void* p) noexcept(std::is_same_v<T, json>) {
             if constexpr (std::is_same_v<T, json>) {
                 return *static_cast<const json*>(p);
             } else {
@@ -3234,23 +3234,23 @@ namespace sgcl::encoding {
             const field_list* list = nullptr;
             const FieldInfo* info = nullptr;
 
-            bool as_string() const noexcept {
+            SGCL_INLINE_HOT bool as_string() const noexcept {
                 return info && (info->flags & AsString);
             }
 
-            size_t name_count() const noexcept {
+            SGCL_INLINE_HOT size_t name_count() const noexcept {
                 return info ? info->names_count : 0;
             }
 
-            std::string_view name(size_t i) const noexcept {
+            SGCL_INLINE_HOT std::string_view name(size_t i) const noexcept {
                 return FieldAccess::name(*list, *info, i);
             }
 
-            size_t index_of(std::string_view n) const noexcept {
+            SGCL_INLINE_HOT size_t index_of(std::string_view n) const noexcept {
                 return FieldAccess::index_of(*list, *info, n);
             }
 
-            const char* tag() const noexcept {
+            SGCL_INLINE_HOT const char* tag() const noexcept {
                 return info ? info->tag : nullptr;
             }
         };
@@ -3273,7 +3273,7 @@ namespace sgcl::encoding {
                 _segments.push_back(std::move(e));
             }
 
-            void index(size_t i) noexcept {
+            SGCL_INLINE_HOT void index(size_t i) noexcept {
                 _segments.push_back(std::to_string(i));
             }
 
@@ -3415,7 +3415,7 @@ namespace sgcl::encoding {
         // deep as the input nests its values, which max_depth bounds
         class JsonTypedReader {
         public:
-            JsonTypedReader(JsonCursor& c, uint32_t max_depth) noexcept
+            SGCL_INLINE_HOT JsonTypedReader(JsonCursor& c, uint32_t max_depth) noexcept
             : _c(c), _max(max_depth) {
             }
 
@@ -3503,7 +3503,7 @@ namespace sgcl::encoding {
                 bool unique = true;
                 bool done = false;
 
-                const FieldInfo& info() const noexcept {
+                SGCL_INLINE_HOT const FieldInfo& info() const noexcept {
                     return FieldAccess::fields(fields)[field];
                 }
             };
@@ -3684,14 +3684,14 @@ namespace sgcl::encoding {
                 return _c.fail(errc::type_mismatch, _c.p, std::string("expected ") + ops->name + ", found " + found_kind(_c.p, _c.end));
             }
 
-            bool _open(uint32_t depth) noexcept {
+            SGCL_INLINE_HOT bool _open(uint32_t depth) noexcept {
                 if (depth >= _max) {
                     return _c.fail(errc::depth_limit, _c.p, "nesting deeper than " + std::to_string(_max));
                 }
                 return true;
             }
 
-            bool _colon() noexcept {
+            SGCL_INLINE_HOT bool _colon() noexcept {
                 _c.space();
                 if (_c.at_end()) {
                     return _c.fail_end("':'");
@@ -4031,7 +4031,7 @@ namespace sgcl::encoding {
         // A typed value written into the text through its operations
         class JsonTypedWriter {
         public:
-            JsonTypedWriter(JsonOut& out, const json::style& s, uint32_t max_depth) noexcept
+            SGCL_INLINE_HOT JsonTypedWriter(JsonOut& out, const json::style& s, uint32_t max_depth) noexcept
             : _out(out), _style(s), _max(max_depth) {
             }
 
@@ -4219,7 +4219,7 @@ namespace sgcl::encoding {
                 return false;
             }
 
-            bool _open(uint32_t depth) noexcept {
+            SGCL_INLINE_HOT bool _open(uint32_t depth) noexcept {
                 if (depth >= _max) {
                     return _fail(errc::unsupported_value, "nesting deeper than " + std::to_string(_max) + " (a cycle?)");
                 }
@@ -4323,7 +4323,7 @@ namespace sgcl::encoding {
         // tree (json::as)
         class JsonDomReader {
         public:
-            explicit JsonDomReader(uint32_t max_depth) noexcept
+            SGCL_INLINE_HOT explicit JsonDomReader(uint32_t max_depth) noexcept
             : _max(max_depth) {
             }
 
@@ -4555,7 +4555,7 @@ namespace sgcl::encoding {
                 return _fail(errc::type_mismatch, std::string("expected ") + ops->name + ", found " + Kinds[size_t(j.type())]);
             }
 
-            bool _open(uint32_t depth) noexcept {
+            SGCL_INLINE_HOT bool _open(uint32_t depth) noexcept {
                 if (depth >= _max) {
                     return _fail(errc::depth_limit, "nesting deeper than " + std::to_string(_max));
                 }
@@ -4623,7 +4623,7 @@ namespace sgcl::encoding {
 
         // A typed value into the text; the path of a failure into path
         template<class T>
-        bool write_typed(JsonOut& out, const T& v, const json::style& s, string* path) {
+        SGCL_INLINE_HOT bool write_typed(JsonOut& out, const T& v, const json::style& s, string* path) {
             JsonTypedWriter w(out, s, 512);
             if (!w.value(std::addressof(v), value_ops<T>(), FieldOptions{}, 0)) {
                 *path = w.path.text();
@@ -4634,7 +4634,7 @@ namespace sgcl::encoding {
 
         // For json::writer: the path goes into the words of the mistake
         template<class T>
-        bool write_typed(JsonOut& out, const T& v, const json::style& s) {
+        SGCL_INLINE_HOT bool write_typed(JsonOut& out, const T& v, const json::style& s) {
             string path;
             if (!write_typed(out, v, s, &path)) {
                 if (!path.empty()) {
@@ -4647,12 +4647,12 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<T, json::error> json::parse(const string& text) {
+    SGCL_INLINE_HOT expected<T, json::error> json::parse(const string& text) {
         return parse<T>(text, options());
     }
 
     template<class T>
-    expected<T, json::error> json::parse(const string& text, const options& o) {
+    SGCL_INLINE_HOT expected<T, json::error> json::parse(const string& text, const options& o) {
         auto r = detail::parse_typed<T>(text.data(), text.data() + text.size(), 0, o, o.max_depth, true);
         if (!r) {
             r.error().locate(text);
@@ -4661,12 +4661,12 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<T, json::error> json::parse(const io::reader& in) {
+    SGCL_INLINE_HOT expected<T, json::error> json::parse(const io::reader& in) {
         return parse<T>(in, options());
     }
 
     template<class T>
-    expected<T, json::error> json::parse(const io::reader& in, const options& o) {
+    SGCL_INLINE_HOT expected<T, json::error> json::parse(const io::reader& in, const options& o) {
         reader r(in, o);
         auto v = r.read<T>();
         if (v && !r.more() && !r.last_error()) {
@@ -4676,7 +4676,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    async::task<expected<T, json::error>> json::async_parse(const io::reader& in) noexcept {
+    SGCL_INLINE_HOT async::task<expected<T, json::error>> json::async_parse(const io::reader& in) noexcept {
         return async_parse<T>(in, options());
     }
 
@@ -4692,12 +4692,12 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<string, json::error> json::stringify(const T& value) {
+    SGCL_INLINE_HOT expected<string, json::error> json::stringify(const T& value) {
         return stringify(value, compact);
     }
 
     template<class T>
-    expected<json, json::error> json::from(const T& value) {
+    SGCL_INLINE_HOT expected<json, json::error> json::from(const T& value) {
         auto text = stringify(value, compact);
         if (!text) {
             return unexpected<error>(std::move(text.error()));
@@ -4728,7 +4728,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<T, json::error> json::as() const {
+    SGCL_INLINE_HOT expected<T, json::error> json::as() const {
         return as<T>(options());
     }
 
@@ -4839,12 +4839,12 @@ namespace sgcl::encoding {
         }
     }
 
-    inline expected<json, json::error> json::load(const string& path) {
+    SGCL_INLINE_HOT expected<json, json::error> json::load(const string& path) {
         return detail::with_file(path, [](const io::reader& in) { return json::parse(in); });
     }
 
     template<class T>
-    expected<T, json::error> json::load(const string& path) {
+    SGCL_INLINE_HOT expected<T, json::error> json::load(const string& path) {
         return detail::with_file(path, [](const io::reader& in) { return json::parse<T>(in); });
     }
 
@@ -4858,7 +4858,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<void, json::error> json::save(const string& path, const T& value) {
+    SGCL_INLINE_HOT expected<void, json::error> json::save(const string& path, const T& value) {
         auto text = stringify(value);
         if (!text) {
             return unexpected(text.error());
@@ -4871,11 +4871,11 @@ namespace sgcl::encoding {
         co_return co_await async::spawn_blocking([path, value] { return json::save(path, value); });
     }
 
-    inline expected<void, json::error> json::save(const string& path) const {
+    SGCL_INLINE_HOT expected<void, json::error> json::save(const string& path) const {
         return detail::save_text(path, to_string());
     }
 
-    inline async::task<expected<void, json::error>> json::async_save(string path) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, json::error>> json::async_save(string path) const noexcept {
         return detail::json_save_task(std::move(path), *this);
     }
 }

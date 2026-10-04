@@ -57,11 +57,11 @@ namespace sgcl {
 
         // The sentinel is never passed here: every node behind a link that
         // is not the sentinel's own is a Node with a constructed element.
-        static detail::Slot<T>& _slot(NodeBase* node) noexcept {
+        SGCL_INLINE_HOT static detail::Slot<T>& _slot(NodeBase* node) noexcept {
             return static_cast<Node*>(node)->slot;
         }
 
-        static T& _value(NodeBase* node) noexcept {
+        SGCL_INLINE_HOT static T& _value(NodeBase* node) noexcept {
             return static_cast<Node*>(node)->slot.value;
         }
 
@@ -79,37 +79,37 @@ namespace sgcl {
 
             Iterator() noexcept = default;
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 return _value(_node);
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return &_value(_node);
             }
 
-            Iterator& operator++() noexcept {
+            SGCL_INLINE_HOT Iterator& operator++() noexcept {
                 _node = _node->next.get();
                 return *this;
             }
 
-            Iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT Iterator operator++(int) noexcept {
                 Iterator tmp = *this;
                 _node = _node->next.get();
                 return tmp;
             }
 
-            operator Iterator<const value_type>() const noexcept {
+            SGCL_INLINE_HOT operator Iterator<const value_type>() const noexcept {
                 return Iterator<const value_type>(_node);
             }
 
         private:
-            explicit Iterator(NodeBase* node) noexcept
+            SGCL_INLINE_HOT explicit Iterator(NodeBase* node) noexcept
             : _node(node) {
             }
 
             NodeBase* _node = nullptr;
 
-            friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
                 return lhs._node == rhs._node;
             }
 
@@ -132,18 +132,18 @@ namespace sgcl {
 
         // A throw leaves nothing: the chain is linked only once complete
         // (_emplace_chain_after), and the list is empty before it
-        explicit forward_list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>) requires std::default_initializable<T>
+        SGCL_INLINE_HOT explicit forward_list(size_type count) noexcept(std::is_nothrow_default_constructible_v<T>) requires std::default_initializable<T>
         : forward_list() {
             resize(count);
         }
 
-        forward_list(size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+        SGCL_INLINE_HOT forward_list(size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
         : forward_list() {
             insert_after(before_begin(), count, value);
         }
 
         template<std::input_iterator InputIt>
-        forward_list(InputIt first, InputIt last)
+        SGCL_INLINE_HOT forward_list(InputIt first, InputIt last)
         : forward_list() {
             insert_after(before_begin(), first, last);
         }
@@ -153,20 +153,20 @@ namespace sgcl {
         // container is copied by its own constructor, not this one
         template<std::ranges::input_range R>
         requires (!std::is_same_v<std::remove_cvref_t<R>, forward_list>) && std::is_constructible_v<T, std::ranges::range_reference_t<R>>
-        explicit forward_list(R&& r)
+        SGCL_INLINE_HOT explicit forward_list(R&& r)
         : forward_list(std::ranges::begin(r), std::ranges::end(r)) {
         }
 
-        forward_list(std::initializer_list<T> ilist)
+        SGCL_INLINE_HOT forward_list(std::initializer_list<T> ilist)
         : forward_list(ilist.begin(), ilist.end()) {
         }
 
-        forward_list(const forward_list& other)
+        SGCL_INLINE_HOT forward_list(const forward_list& other)
         : forward_list(other.begin(), other.end()) {
         }
 
         // Takes the chain of `other`, which keeps its sentinel and is empty.
-        forward_list(forward_list&& other) noexcept {
+        SGCL_INLINE_HOT forward_list(forward_list&& other) noexcept {
             _head.next = other._head.next;
             other._head.next = nullptr;
         }
@@ -174,20 +174,20 @@ namespace sgcl {
         // The elements are destroyed here, unless the list dies in a sweep:
         // its nodes are garbage of the same sweep, possibly destroyed
         // already, and destroy the elements they still hold themselves.
-        ~forward_list() {
+        SGCL_INLINE_HOT ~forward_list() {
             if (!detail::sweeping) {
                 _release(_head.next.get(), nullptr);
             }
         }
 
-        forward_list& operator=(const forward_list& other) {
+        SGCL_INLINE_HOT forward_list& operator=(const forward_list& other) {
             if (this != &other) {
                 assign(other.begin(), other.end());
             }
             return *this;
         }
 
-        forward_list& operator=(forward_list&& other) noexcept {
+        SGCL_INLINE_HOT forward_list& operator=(forward_list&& other) noexcept {
             if (this != &other) {
                 clear();
                 _head.next = other._head.next;
@@ -196,7 +196,7 @@ namespace sgcl {
             return *this;
         }
 
-        forward_list& operator=(std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT forward_list& operator=(std::initializer_list<T> ilist) {
             assign(ilist);
             return *this;
         }
@@ -228,91 +228,91 @@ namespace sgcl {
             }
         }
 
-        void assign(std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT void assign(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
         }
 
-        reference front() noexcept {
+        SGCL_INLINE_HOT reference front() noexcept {
             assert(!empty());
             return _value(_head.next.get());
         }
 
-        const_reference front() const noexcept {
+        SGCL_INLINE_HOT const_reference front() const noexcept {
             assert(!empty());
             return _value(_head.next.get());
         }
 
-        iterator before_begin() noexcept {
+        SGCL_INLINE_HOT iterator before_begin() noexcept {
             return iterator(_sentinel());
         }
 
-        const_iterator before_begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator before_begin() const noexcept {
             return const_iterator(_sentinel());
         }
 
-        const_iterator cbefore_begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbefore_begin() const noexcept {
             return before_begin();
         }
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_head.next.get());
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_head.next.get());
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator();
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return !_head.next;
         }
 
-        size_type max_size() const noexcept {
+        SGCL_INLINE_HOT size_type max_size() const noexcept {
             return std::numeric_limits<difference_type>::max();
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _erase_after(_sentinel(), nullptr);
         }
 
-        iterator insert_after(const_iterator pos, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT iterator insert_after(const_iterator pos, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return emplace_after(pos, value);
         }
 
-        iterator insert_after(const_iterator pos, T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT iterator insert_after(const_iterator pos, T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return emplace_after(pos, std::move(value));
         }
 
-        iterator insert_after(const_iterator pos, size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT iterator insert_after(const_iterator pos, size_type count, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return _emplace_chain_after(pos._node, [&] { return count-- > 0; }, [&](detail::Slot<T>& slot) { slot.construct(value); });
         }
 
         template<std::input_iterator InputIt>
-        iterator insert_after(const_iterator pos, InputIt first, InputIt last) {
+        SGCL_INLINE_HOT iterator insert_after(const_iterator pos, InputIt first, InputIt last) {
             return _emplace_chain_after(pos._node, [&] { return first != last; }, [&](detail::Slot<T>& slot) { slot.construct(*first); ++first; });
         }
 
-        iterator insert_after(const_iterator pos, std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT iterator insert_after(const_iterator pos, std::initializer_list<T> ilist) {
             return insert_after(pos, ilist.begin(), ilist.end());
         }
 
         template<class... A>
-        iterator emplace_after(const_iterator pos, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT iterator emplace_after(const_iterator pos, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             Link node;
             _make_node(node, std::forward<A>(a)...);
             node->next = pos._node->next;
@@ -320,7 +320,7 @@ namespace sgcl {
             return iterator(node.get());
         }
 
-        iterator erase_after(const_iterator pos) noexcept {
+        SGCL_INLINE_HOT iterator erase_after(const_iterator pos) noexcept {
             NodeBase* prev = pos._node;
             if (!prev->next) {
                 return end();
@@ -329,25 +329,25 @@ namespace sgcl {
             return iterator(prev->next.get());
         }
 
-        iterator erase_after(const_iterator first, const_iterator last) noexcept {
+        SGCL_INLINE_HOT iterator erase_after(const_iterator first, const_iterator last) noexcept {
             _erase_after(first._node, last._node);
             return iterator(last._node);
         }
 
-        void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_front(value);
         }
 
-        void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_front(std::move(value));
         }
 
         template<class... A>
-        reference emplace_front(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT reference emplace_front(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             return *emplace_after(before_begin(), std::forward<A>(a)...);
         }
 
-        void pop_front() noexcept {
+        SGCL_INLINE_HOT void pop_front() noexcept {
             assert(!empty());
             _erase_one_after(_sentinel());
         }
@@ -376,27 +376,27 @@ namespace sgcl {
             }
         }
 
-        void swap(forward_list& other) noexcept {
+        SGCL_INLINE_HOT void swap(forward_list& other) noexcept {
             _head.next.swap(other._head.next);
         }
 
-        void merge(forward_list& other) noexcept(detail::nothrow_less<T>) {
+        SGCL_INLINE_HOT void merge(forward_list& other) noexcept(detail::nothrow_less<T>) {
             std::less<T> comp;
             _merge(other, comp);
         }
 
-        void merge(forward_list&& other) noexcept(detail::nothrow_less<T>) {
+        SGCL_INLINE_HOT void merge(forward_list&& other) noexcept(detail::nothrow_less<T>) {
             std::less<T> comp;
             _merge(other, comp);
         }
 
         template<class Compare>
-        void merge(forward_list& other, Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
+        SGCL_INLINE_HOT void merge(forward_list& other, Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
             _merge(other, comp);
         }
 
         template<class Compare>
-        void merge(forward_list&& other, Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
+        SGCL_INLINE_HOT void merge(forward_list&& other, Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
             _merge(other, comp);
         }
 
@@ -415,7 +415,7 @@ namespace sgcl {
             other._head.next = nullptr;
         }
 
-        void splice_after(const_iterator pos, forward_list&& other) noexcept {
+        SGCL_INLINE_HOT void splice_after(const_iterator pos, forward_list&& other) noexcept {
             splice_after(pos, other);
         }
 
@@ -433,7 +433,7 @@ namespace sgcl {
             p->next = node;
         }
 
-        void splice_after(const_iterator pos, forward_list&& other, const_iterator it) noexcept {
+        SGCL_INLINE_HOT void splice_after(const_iterator pos, forward_list&& other, const_iterator it) noexcept {
             splice_after(pos, other, it);
         }
 
@@ -455,7 +455,7 @@ namespace sgcl {
             p->next = chain;
         }
 
-        void splice_after(const_iterator pos, forward_list&& other, const_iterator first, const_iterator last) noexcept {
+        SGCL_INLINE_HOT void splice_after(const_iterator pos, forward_list&& other, const_iterator first, const_iterator last) noexcept {
             splice_after(pos, other, first, last);
         }
 
@@ -502,7 +502,7 @@ namespace sgcl {
             return removed;
         }
 
-        size_type unique() noexcept(detail::nothrow_equal<T>) {
+        SGCL_INLINE_HOT size_type unique() noexcept(detail::nothrow_equal<T>) {
             return unique(std::equal_to<T>());
         }
 
@@ -538,13 +538,13 @@ namespace sgcl {
             head->next = done;
         }
 
-        void sort() noexcept(detail::nothrow_less<T>) {
+        SGCL_INLINE_HOT void sort() noexcept(detail::nothrow_less<T>) {
             std::less<T> comp;
             _sort(comp);
         }
 
         template<class Compare>
-        void sort(Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
+        SGCL_INLINE_HOT void sort(Compare comp) noexcept(std::is_nothrow_invocable_v<Compare&, T&, T&>) {
             _sort(comp);
         }
 
@@ -554,7 +554,7 @@ namespace sgcl {
         // The sentinel as the nodes are walked: a raw pointer, as an
         // iterator holds one (never made into a tracked_ptr: it is not an
         // object of the managed heap)
-        NodeBase* _sentinel() const noexcept {
+        SGCL_INLINE_HOT NodeBase* _sentinel() const noexcept {
             return const_cast<NodeBase*>(&_head);
         }
 
@@ -563,7 +563,7 @@ namespace sgcl {
         // throws, the slot marks the node Destroyed (the sweep then frees
         // it without a destructor) and the holder just drops it.
         template<class... A>
-        static void _make_node(Link& node, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT static void _make_node(Link& node, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             node = make_tracked<Node>();
             _slot(node.get()).construct(std::forward<A>(a)...);
         }
@@ -606,7 +606,7 @@ namespace sgcl {
         // latter, so a thread whose stack was scanned before the anchor was
         // set has no root of the node past that store, and a sweep may free
         // the slot.
-        static void _erase_one_after(NodeBase* prev) noexcept {
+        SGCL_INLINE_HOT static void _erase_one_after(NodeBase* prev) noexcept {
             NodeBase* node = prev->next.get();
             detail::Anchor keep(node);
             prev->next = node->next;
@@ -618,7 +618,7 @@ namespace sgcl {
         // empty range, (prev, prev) included, is a no-op. The first node is
         // rooted before the range leaves the list; `last` is still linked
         // from the range when prev takes it.
-        void _erase_after(NodeBase* prev, NodeBase* last) noexcept {
+        SGCL_INLINE_HOT void _erase_after(NodeBase* prev, NodeBase* last) noexcept {
             if (prev == last) {
                 return;
             }
@@ -667,7 +667,7 @@ namespace sgcl {
         // between two; pos is not one of them. Every link is copied from a
         // link that already holds the target, but for the one temporary that
         // breaks the cycle of three stores.
-        static void _transfer_after(NodeBase* pos, NodeBase* before, NodeBase* last) noexcept {
+        SGCL_INLINE_HOT static void _transfer_after(NodeBase* pos, NodeBase* before, NodeBase* last) noexcept {
             Link rest = last->next;
             last->next = pos->next;
             pos->next = before->next;
@@ -768,12 +768,12 @@ namespace sgcl {
     };
 
     template<class T>
-    inline void swap(forward_list<T>& lhs, forward_list<T>& rhs) noexcept {
+    SGCL_INLINE_HOT void swap(forward_list<T>& lhs, forward_list<T>& rhs) noexcept {
         lhs.swap(rhs);
     }
 
     template<class T, class Pred>
-    inline typename forward_list<T>::size_type erase_if(forward_list<T>& c, Pred pred) noexcept(noexcept(c.remove_if(pred))) {
+    SGCL_INLINE_HOT typename forward_list<T>::size_type erase_if(forward_list<T>& c, Pred pred) noexcept(noexcept(c.remove_if(pred))) {
         return c.remove_if(pred);
     }
 
@@ -781,7 +781,7 @@ namespace sgcl {
     // element the value refers to last, after the comparisons that read it
     // (erase(l, l.front()))
     template<class T, class U>
-    inline typename forward_list<T>::size_type erase(forward_list<T>& c, const U& value) noexcept(detail::nothrow_equal<T, U>) {
+    SGCL_INLINE_HOT typename forward_list<T>::size_type erase(forward_list<T>& c, const U& value) noexcept(detail::nothrow_equal<T, U>) {
         if constexpr(std::is_same_v<std::remove_cv_t<U>, T>) {
             return c.remove(value);
         } else {

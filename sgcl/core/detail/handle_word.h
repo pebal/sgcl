@@ -30,12 +30,12 @@ namespace sgcl {
         // that handle's type.
         struct HandleWord {
             template<class H>
-            static auto word(H& h) noexcept -> decltype(h._handle_word()) {
+            SGCL_INLINE_HOT static auto word(H& h) noexcept -> decltype(h._handle_word()) {
                 return h._handle_word();
             }
 
             template<class H, class W>
-            static auto make(const W& w) noexcept -> decltype(H(FromWord{}, w)) {
+            SGCL_INLINE_HOT static auto make(const W& w) noexcept -> decltype(H(FromWord{}, w)) {
                 return H(FromWord{}, w);
             }
         };

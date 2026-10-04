@@ -45,11 +45,11 @@ namespace sgcl::crypto::mixin {
     public:
         // Go's Seal with a nil dst: the ciphertext followed by the tag,
         // plaintext.size() + tag_size bytes
-        vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext) const {
+        SGCL_INLINE_HOT vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext) const {
             return seal(nonce, plaintext, slice<const byte>());
         }
 
-        vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext, const slice<const byte>& aad) const {
+        SGCL_INLINE_HOT vector<byte> seal(const slice<const byte>& nonce, const slice<const byte>& plaintext, const slice<const byte>& aad) const {
             _check_seal(nonce, plaintext.size());
             vector<byte> out(plaintext.size() + Derived::tag_size);
             _self()._seal(detail::bytes(nonce.data()), detail::bytes(plaintext.data()), plaintext.size(), detail::bytes(aad.data()), aad.size(), detail::bytes(out.data()));
@@ -62,7 +62,7 @@ namespace sgcl::crypto::mixin {
         // material: a vector<byte>, as seal gives the ciphertext; open_to
         // writes into the caller's own buffer (for a key unwrapped, which
         // the caller then clears).
-        [[nodiscard]] expected<vector<byte>, error> open(const slice<const byte>& nonce, const slice<const byte>& sealed) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<vector<byte>, error> open(const slice<const byte>& nonce, const slice<const byte>& sealed) const {
             return open(nonce, sealed, slice<const byte>());
         }
 
@@ -82,7 +82,7 @@ namespace sgcl::crypto::mixin {
         // Into the caller's buffer, nothing allocated: out holds at least
         // plaintext.size() + tag_size bytes and may be the plaintext itself
         // (sealed in place). The bytes written.
-        size_t seal_to(const slice<byte>& out, const slice<const byte>& nonce, const slice<const byte>& plaintext) const {
+        SGCL_INLINE_HOT size_t seal_to(const slice<byte>& out, const slice<const byte>& nonce, const slice<const byte>& plaintext) const {
             return seal_to(out, nonce, plaintext, slice<const byte>());
         }
 
@@ -103,7 +103,7 @@ namespace sgcl::crypto::mixin {
         // tag_size bytes and may be the sealed data itself (opened in
         // place). The plaintext's length, or errc::authentication with
         // those bytes of out zeroed.
-        [[nodiscard]] expected<size_t, error> open_to(const slice<byte>& out, const slice<const byte>& nonce, const slice<const byte>& sealed) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<size_t, error> open_to(const slice<byte>& out, const slice<const byte>& nonce, const slice<const byte>& sealed) const {
             return open_to(out, nonce, sealed, slice<const byte>());
         }
 
@@ -126,25 +126,25 @@ namespace sgcl::crypto::mixin {
         }
 
     private:
-        const Derived& _self() const noexcept {
+        SGCL_INLINE_HOT const Derived& _self() const noexcept {
             return static_cast<const Derived&>(*this);
         }
 
-        void _check_nonce(const slice<const byte>& nonce) const {
+        SGCL_INLINE_HOT void _check_nonce(const slice<const byte>& nonce) const {
             _self()._check();
             if (nonce.size() != Derived::nonce_size) {
                 throw invalid_argument(std::string(Derived::_name) + ": a nonce of " + std::to_string(nonce.size()) + " bytes, not " + std::to_string(Derived::nonce_size));
             }
         }
 
-        void _check_seal(const slice<const byte>& nonce, size_t size) const {
+        SGCL_INLINE_HOT void _check_seal(const slice<const byte>& nonce, size_t size) const {
             _check_nonce(nonce);
             if (uint64_t(size) > Derived::max_plaintext_size) {
                 throw length_error(std::string(Derived::_name) + ": a plaintext longer than the cipher can seal under one nonce");
             }
         }
 
-        void _check_open(const slice<const byte>& nonce) const {
+        SGCL_INLINE_HOT void _check_open(const slice<const byte>& nonce) const {
             _check_nonce(nonce);
         }
     };

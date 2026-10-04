@@ -65,7 +65,7 @@ namespace sgcl::async {
     // came first
     class timed_out {
     public:
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return "timed out";
         }
 
@@ -74,7 +74,7 @@ namespace sgcl::async {
 
     class stopped {
     public:
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return "stopped";
         }
 
@@ -90,7 +90,7 @@ namespace sgcl::async {
             optional<T> value;
             std::exception_ptr error;
 
-            T take() {
+            SGCL_INLINE_HOT T take() {
                 if (error) {
                     std::rethrow_exception(error);
                 }
@@ -113,7 +113,7 @@ namespace sgcl::async {
             detail::ChannelState<void> done;
             std::exception_ptr error;
 
-            void take() {
+            SGCL_INLINE_HOT void take() {
                 if (error) {
                     std::rethrow_exception(error);
                 }
@@ -172,7 +172,7 @@ namespace sgcl::async {
         struct TimeoutRace : Continuation {
             enum : int { Racing, TaskWon, DeadlineWon };
 
-            explicit TimeoutRace(task<T> t) noexcept
+            SGCL_INLINE_HOT explicit TimeoutRace(task<T> t) noexcept
             : Continuation{&on_done}
             , t(std::move(t)) {
             }
@@ -182,11 +182,11 @@ namespace sgcl::async {
             tracked_ptr<Timer> timer;
             atomic<int> state = {Racing};
 
-            static void on_done(Continuation* c) noexcept {
+            SGCL_INLINE_HOT static void on_done(Continuation* c) noexcept {
                 static_cast<TimeoutRace*>(c)->_finish(TaskWon, true);
             }
 
-            static void on_time(void* r) noexcept {
+            SGCL_INLINE_HOT static void on_time(void* r) noexcept {
                 static_cast<TimeoutRace*>(r)->_finish(DeadlineWon, false);
             }
 
@@ -194,7 +194,7 @@ namespace sgcl::async {
             // exception, is nobody's (as a when_any loser's), never
             // on_unhandled's when the race is collected. Only the task
             // object reads the flag, in its destructor, after the task's end
-            void lost() noexcept {
+            SGCL_INLINE_HOT void lost() noexcept {
                 t._frame.promise().error_taken = true;
             }
 
@@ -225,7 +225,7 @@ namespace sgcl::async {
                 tracked_ptr<TimeoutRace> race;
                 time_point when;   // the deadline: a point of the module's clock
 
-                bool await_ready() const noexcept {
+                SGCL_INLINE_HOT bool await_ready() const noexcept {
                     return race->t.done();
                 }
 
@@ -234,7 +234,7 @@ namespace sgcl::async {
                     tracked_ptr<TimeoutRace> r = race;   // this awaiter lives in the frame: a copy of its own
                     auto frame = frame_of(h);
                     r->waiter = frame;
-                    r->t._start(frame_header(frame.get()).executor);
+                    r->t._start(frame_header(frame.get()).executor, true);   // next on this worker: this one suspends below (coroutine.h: _start)
                     r->timer = add_timer(when, r, &on_time);
                     if (r->t._frame.promise().await(r.get(), r)) {
                         return true;
@@ -249,7 +249,7 @@ namespace sgcl::async {
                     return true;
                 }
 
-                bool await_resume() const noexcept {   // whether the task is done: a result that came with the deadline is a result
+                SGCL_INLINE_HOT bool await_resume() const noexcept {   // whether the task is done: a result that came with the deadline is a result
                     return race->t.done();
                 }
             };
@@ -263,7 +263,7 @@ namespace sgcl::async {
         // (expected's converting constructors take no expected as a value,
         // core/expected.h)
         template<class E, class T>
-        expected<T, E> race_won(task<T>& t) {
+        SGCL_INLINE_HOT expected<T, E> race_won(task<T>& t) {
             if constexpr (std::is_void_v<T>) {
                 t.result();
                 return expected<void, E>();
@@ -273,7 +273,7 @@ namespace sgcl::async {
         }
 
         template<class E, class T>
-        expected<T, E> race_won(TimeoutSlot<T>& slot) {
+        SGCL_INLINE_HOT expected<T, E> race_won(TimeoutSlot<T>& slot) {
             if constexpr (std::is_void_v<T>) {
                 slot.take();
                 return expected<void, E>();
@@ -313,12 +313,12 @@ namespace sgcl::async {
     // `co_await with_timeout(t, d)`: the result of t, or timed_out when d
     // passed first
     template<class T>
-    task<expected<T, timed_out>> with_timeout(task<T> t, duration d) {
+    SGCL_INLINE_HOT task<expected<T, timed_out>> with_timeout(task<T> t, duration d) {
         return with_deadline(std::move(t), clock::now() + d);
     }
 
     template<class T>
-    task<expected<T, timed_out>> with_timeout(task<T> t, duration d, stop_source loser) {
+    SGCL_INLINE_HOT task<expected<T, timed_out>> with_timeout(task<T> t, duration d, stop_source loser) {
         return with_deadline(std::move(t), clock::now() + d, std::move(loser));
     }
 

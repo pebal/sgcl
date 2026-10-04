@@ -40,18 +40,18 @@ namespace sgcl::async {
         template<class T>
         class await_into {
         public:
-            await_into(task<T>& t, optional<T>& out, std::exception_ptr& error) noexcept
+            SGCL_INLINE_HOT await_into(task<T>& t, optional<T>& out, std::exception_ptr& error) noexcept
             : _a(t.operator co_await())
             , _out(out)
             , _error(error) {
             }
 
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return _a.await_ready();
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {   // the task's own: its start may throw (coroutine.h: task::awaiter)
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {   // the task's own: its start may throw (coroutine.h: task::awaiter)
                 return _a.await_suspend(h);
             }
 
@@ -73,17 +73,17 @@ namespace sgcl::async {
 
         class await_into_void {
         public:
-            await_into_void(task<>& t, std::exception_ptr& error) noexcept
+            SGCL_INLINE_HOT await_into_void(task<>& t, std::exception_ptr& error) noexcept
             : _a(t.operator co_await())
             , _error(error) {
             }
 
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return _a.await_ready();
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {   // the task's own: its start may throw (coroutine.h: task::awaiter)
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {   // the task's own: its start may throw (coroutine.h: task::awaiter)
                 return _a.await_suspend(h);
             }
 
@@ -185,7 +185,7 @@ namespace sgcl::async {
     // The index of the first task to finish, or what it threw; the others
     // let go of
     template<class... T>
-    task<size_t> when_any(task<T>... ts) {
+    SGCL_INLINE_HOT task<size_t> when_any(task<T>... ts) {
         static_assert(sizeof...(T) > 0, "when_any of nothing");
         tracked_ptr<detail::ChannelState<detail::Finished>> done = make_tracked<detail::ChannelState<detail::Finished>>(sizeof...(T));
         size_t i = 0;

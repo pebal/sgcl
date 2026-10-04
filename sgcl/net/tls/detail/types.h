@@ -25,15 +25,15 @@ namespace sgcl::net::tls::detail {
         chacha20_poly1305_sha256 = 0x1303,
     };
 
-    constexpr Hash hash_of(Cipher c) noexcept {
+    SGCL_INLINE_HOT constexpr Hash hash_of(Cipher c) noexcept {
         return c == Cipher::aes_256_gcm_sha384 ? Hash::sha384 : Hash::sha256;
     }
 
-    constexpr size_t key_size(Cipher c) noexcept {
+    SGCL_INLINE_HOT constexpr size_t key_size(Cipher c) noexcept {
         return c == Cipher::aes_128_gcm_sha256 ? 16 : 32;
     }
 
-    constexpr bool known(Cipher c) noexcept {
+    SGCL_INLINE_HOT constexpr bool known(Cipher c) noexcept {
         return c == Cipher::aes_128_gcm_sha256 || c == Cipher::aes_256_gcm_sha384 || c == Cipher::chacha20_poly1305_sha256;
     }
 

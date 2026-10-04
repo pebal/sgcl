@@ -36,13 +36,13 @@ namespace sgcl::encoding {
             static constexpr size_t MaxGroupChars = 5;
             static constexpr size_t MaxGroupBytes = 4;
 
-            const char* name() const noexcept {
+            SGCL_INLINE_HOT const char* name() const noexcept {
                 return "ascii85";
             }
 
             // Every group five characters, the last n + 1: the bound, which
             // a 'z' only makes smaller. SIZE_MAX when no size_t holds it.
-            constexpr size_t encode_bound(size_t n) const noexcept {
+            SGCL_INLINE_HOT constexpr size_t encode_bound(size_t n) const noexcept {
                 size_t groups = n / 4;
                 size_t tail = n % 4 ? n % 4 + 1 : 0;
                 if (groups > (SIZE_MAX - tail) / 5) {
@@ -54,7 +54,7 @@ namespace sgcl::encoding {
             // A 'z' is four bytes from one character, every other
             // character at most four fifths of a byte, a short group
             // included (k characters: k - 1 bytes)
-            size_t decode_bound(const char* p, size_t n) const noexcept {
+            SGCL_INLINE_HOT size_t decode_bound(const char* p, size_t n) const noexcept {
                 size_t z = size_t(std::count(p, p + n, 'z'));
                 return (n - z) / 5 * 4 + (n - z) % 5 + z * 4;
             }
@@ -212,12 +212,12 @@ namespace sgcl::encoding {
         class encoder;
         class decoder;
 
-        static string encode(const slice<const byte>& data) {
+        SGCL_INLINE_HOT static string encode(const slice<const byte>& data) {
             return detail::encode_text(detail::Ascii85{}, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
         // The bytes of a text
-        static string encode(const string& text) {
+        SGCL_INLINE_HOT static string encode(const string& text) {
             return detail::encode_text(detail::Ascii85{}, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
@@ -225,22 +225,22 @@ namespace sgcl::encoding {
         // string's overload (an exact match, else the conversions to a
         // string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        static string encode(const T& text) {
+        SGCL_INLINE_HOT static string encode(const T& text) {
             return encode(slice<const byte>(text));
         }
 
-        static expected<vector<byte>, error> decode(const string& text) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decode(const string& text) noexcept {
             return detail::decode_text(detail::Ascii85{}, text);
         }
 
         // The most characters n bytes take (a 'z' makes it fewer) and the
         // most bytes n characters decode to (every one a 'z'): bounds, as
         // base64's sizes are for its padding-free forms
-        static constexpr size_t max_encoded_size(size_t n) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t max_encoded_size(size_t n) noexcept {
             return detail::Ascii85{}.encode_bound(n);
         }
 
-        static constexpr size_t max_decoded_size(size_t n) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t max_decoded_size(size_t n) noexcept {
             return n > SIZE_MAX / 4 ? SIZE_MAX : n * 4;
         }
 
@@ -249,17 +249,17 @@ namespace sgcl::encoding {
         // the text's size bytes (the bound of the text itself suffices) —
         // a smaller one is length_error. The characters or the bytes
         // written.
-        static size_t encode_to(const slice<char>& out, const slice<const byte>& data) {
+        SGCL_INLINE_HOT static size_t encode_to(const slice<char>& out, const slice<const byte>& data) {
             return detail::encode_into(detail::Ascii85{}, out, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
-        static expected<size_t, error> decode_to(const slice<byte>& out, const string& text) {
+        SGCL_INLINE_HOT static expected<size_t, error> decode_to(const slice<byte>& out, const string& text) {
             return detail::decode_to(detail::Ascii85{}, out, text);
         }
 
         // The same from characters read where they lie, no string made, as
         // base64's
-        static expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) {
+        SGCL_INLINE_HOT static expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) {
             return detail::decode_to(detail::Ascii85{}, out, text.data(), text.size());
         }
 
@@ -267,7 +267,7 @@ namespace sgcl::encoding {
         // lies (an exact match, else the conversions to a string and to a
         // slice tie)
         template<sgcl::detail::TextArgument T>
-        static expected<size_t, error> decode_to(const slice<byte>& out, const T& text) {
+        SGCL_INLINE_HOT static expected<size_t, error> decode_to(const slice<byte>& out, const T& text) {
             const std::string_view v(text);   // a literal to its first NUL, not past it
             return decode_to(out, slice<const char>(v.data(), v.size()));
         }
@@ -293,11 +293,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline ascii85::encoder ascii85::encoder_to(const io::writer& out) noexcept {
+    SGCL_INLINE_HOT ascii85::encoder ascii85::encoder_to(const io::writer& out) noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Ascii85>>(detail::Ascii85{}, out));
     }
 
-    inline ascii85::decoder ascii85::decoder_from(const io::reader& in) noexcept {
+    SGCL_INLINE_HOT ascii85::decoder ascii85::decoder_from(const io::reader& in) noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Ascii85>>(detail::Ascii85{}, in));
     }
 }

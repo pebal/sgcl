@@ -30,7 +30,7 @@ namespace sgcl::hash::detail {
     }
 
     // Four bytes as a little-endian word, the same way
-    inline uint32_t load_le32(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT uint32_t load_le32(const unsigned char* p) noexcept {
         uint32_t w;
         if constexpr (std::endian::native == std::endian::little) {
             std::memcpy(&w, p, 4);
@@ -42,18 +42,18 @@ namespace sgcl::hash::detail {
 
     // A word's bytes in the other order: written out, which compilers turn
     // into the one instruction (rev, bswap) and MSVC compiles as it is
-    inline uint64_t swap64(uint64_t v) noexcept {
+    SGCL_INLINE_HOT uint64_t swap64(uint64_t v) noexcept {
         v = (v & 0x00ff00ff00ff00ffull) << 8 | (v >> 8 & 0x00ff00ff00ff00ffull);
         v = (v & 0x0000ffff0000ffffull) << 16 | (v >> 16 & 0x0000ffff0000ffffull);
         return v << 32 | v >> 32;
     }
 
-    inline uint32_t swap32(uint32_t v) noexcept {
+    SGCL_INLINE_HOT uint32_t swap32(uint32_t v) noexcept {
         v = (v & 0x00ff00ffu) << 8 | (v >> 8 & 0x00ff00ffu);
         return v << 16 | v >> 16;
     }
 
-    inline const unsigned char* bytes(const byte* p) noexcept {
+    SGCL_INLINE_HOT const unsigned char* bytes(const byte* p) noexcept {
         return reinterpret_cast<const unsigned char*>(p);
     }
 

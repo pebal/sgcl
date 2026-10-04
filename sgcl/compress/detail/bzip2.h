@@ -115,7 +115,7 @@ namespace sgcl::compress::detail {
 
         // The byte of the input where the decoder stands (for an error,
         // where it was found)
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _pulled - _count / 8;
         }
 
@@ -636,12 +636,12 @@ namespace sgcl::compress::detail {
             return _count >= k;
         }
 
-        uint32_t _get(uint32_t k) noexcept {
+        SGCL_INLINE_HOT uint32_t _get(uint32_t k) noexcept {
             _count -= k;
             return uint32_t(_bits >> _count) & uint32_t((uint64_t(1) << k) - 1);
         }
 
-        Bzip2Status _starve(bool final) noexcept {
+        SGCL_INLINE_HOT Bzip2Status _starve(bool final) noexcept {
             if (final) {
                 return _fail(errc::unexpected_end, "bzip2: unexpected end of the compressed data");
             }

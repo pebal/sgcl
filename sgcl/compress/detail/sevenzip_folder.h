@@ -85,7 +85,7 @@ namespace sgcl::compress::detail {
         // A coder's output, pulled; never past its size
         class Node {
         public:
-            Node(Context& c, uint64_t size) noexcept
+            SGCL_INLINE_HOT Node(Context& c, uint64_t size) noexcept
             : _ctx(c), _size(size) {
             }
 
@@ -124,7 +124,7 @@ namespace sgcl::compress::detail {
             }
 
             // Whether the output was read to its size
-            bool complete() const noexcept {
+            SGCL_INLINE_HOT bool complete() const noexcept {
                 return _done == _size;
             }
 
@@ -160,11 +160,11 @@ namespace sgcl::compress::detail {
             size_t end = 0;
             bool ended = false;
 
-            const uint8_t* data() const noexcept {
+            SGCL_INLINE_HOT const uint8_t* data() const noexcept {
                 return buffer.data() + begin;
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return end - begin;
             }
 
@@ -189,7 +189,7 @@ namespace sgcl::compress::detail {
 
         class PackNode final : public Node {
         public:
-            PackNode(Context& c, uint64_t offset, uint64_t size) noexcept
+            SGCL_INLINE_HOT PackNode(Context& c, uint64_t offset, uint64_t size) noexcept
             : Node(c, size), _offset(offset) {
             }
 
@@ -208,7 +208,7 @@ namespace sgcl::compress::detail {
 
         class CopyNode final : public Node {
         public:
-            CopyNode(Context& c, uint64_t size, Node* in) noexcept
+            SGCL_INLINE_HOT CopyNode(Context& c, uint64_t size, Node* in) noexcept
             : Node(c, size), _in(in) {
             }
 
@@ -225,7 +225,7 @@ namespace sgcl::compress::detail {
         template<class Decoder>
         class WindowNode final : public Node {
         public:
-            WindowNode(Context& c, uint64_t size, Node* in, size_t window) noexcept
+            SGCL_INLINE_HOT WindowNode(Context& c, uint64_t size, Node* in, size_t window) noexcept
             : Node(c, size), _window_size(std::max<size_t>(window, 1)) {
                 _feed.node = in;
             }
@@ -303,7 +303,7 @@ namespace sgcl::compress::detail {
 
         class PpmdNode final : public Node {
         public:
-            PpmdNode(Context& c, uint64_t size, Node* in, uint32_t order, uint32_t memory) noexcept
+            SGCL_INLINE_HOT PpmdNode(Context& c, uint64_t size, Node* in, uint32_t order, uint32_t memory) noexcept
             : Node(c, size) {
                 _feed.node = in;
                 _decoder = std::make_unique<Ppmd7Decoder>();
@@ -341,7 +341,7 @@ namespace sgcl::compress::detail {
         // BCJ and Delta over the node under them
         class FilterNode final : public Node {
         public:
-            FilterNode(Context& c, uint64_t size, Node* in, const SimpleFilter& f) noexcept
+            SGCL_INLINE_HOT FilterNode(Context& c, uint64_t size, Node* in, const SimpleFilter& f) noexcept
             : Node(c, size), _in(in) {
                 _chain.add(f);
             }
@@ -442,7 +442,7 @@ namespace sgcl::compress::detail {
         // long as the header says (the padding of the last block dropped)
         class AesNode final : public Node {
         public:
-            AesNode(Context& c, uint64_t size, Node* in, const crypto::secret<32>& key, const uint8_t* iv) noexcept
+            SGCL_INLINE_HOT AesNode(Context& c, uint64_t size, Node* in, const crypto::secret<32>& key, const uint8_t* iv) noexcept
             : Node(c, size), _cbc(key, iv), _plain(Feed::Capacity) {
                 _feed.node = in;
             }
@@ -489,7 +489,7 @@ namespace sgcl::compress::detail {
         // reach (32 KB, Deflate64's 64 KB), the output handed out from it
         class DeflateNode final : public Node {
         public:
-            DeflateNode(Context& c, uint64_t size, Node* in, bool wide) noexcept
+            SGCL_INLINE_HOT DeflateNode(Context& c, uint64_t size, Node* in, bool wide) noexcept
             : Node(c, size)
             , _state(std::make_unique<InflateState>())
             , _history(wide ? Window64Size : WindowSize)
@@ -500,12 +500,12 @@ namespace sgcl::compress::detail {
             }
 
         private:
-            InflateStatus _inflate(const uint8_t*& in, size_t capacity) noexcept {
+            SGCL_INLINE_HOT InflateStatus _inflate(const uint8_t*& in, size_t capacity) noexcept {
                 const uint8_t* end = in + _feed.size();
                 return _wide ? inflate64(*_state, in, end, _window.data(), _pos, capacity) : inflate(*_state, in, end, _window.data(), _pos, capacity);
             }
 
-            void _slide() noexcept {
+            SGCL_INLINE_HOT void _slide() noexcept {
                 // everything handed out: the last of the history stays
                 size_t keep = std::min<size_t>(_pos, _history);
                 sgcl::detail::move_bytes(_window.data(), _window.data() + _pos - keep, keep);
@@ -586,7 +586,7 @@ namespace sgcl::compress::detail {
         // out only when the whole of it has been read)
         class Bzip2Node final : public Node {
         public:
-            Bzip2Node(Context& c, uint64_t size, Node* in) noexcept
+            SGCL_INLINE_HOT Bzip2Node(Context& c, uint64_t size, Node* in) noexcept
             : Node(c, size)
             , _decoder(std::make_unique<Bzip2Decoder>()) {
                 _feed.node = in;
@@ -806,15 +806,15 @@ namespace sgcl::compress::detail {
                 _check = f.has_crc;
             }
 
-            const std::optional<Failure>& failure() const noexcept {
+            SGCL_INLINE_HOT const std::optional<Failure>& failure() const noexcept {
                 return _ctx.failure;
             }
 
-            uint64_t size() const noexcept {
+            SGCL_INLINE_HOT uint64_t size() const noexcept {
                 return _folder.size();
             }
 
-            uint64_t done() const noexcept {
+            SGCL_INLINE_HOT uint64_t done() const noexcept {
                 return _done;
             }
 
@@ -859,7 +859,7 @@ namespace sgcl::compress::detail {
 
         private:
             template<class N, class... A>
-            N* _make(A&&... a) noexcept {
+            SGCL_INLINE_HOT N* _make(A&&... a) noexcept {
                 auto n = std::make_unique<N>(std::forward<A>(a)...);
                 N* p = n.get();
                 _nodes.push_back(std::move(n));

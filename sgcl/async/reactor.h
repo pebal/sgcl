@@ -152,7 +152,7 @@ namespace sgcl::async {
 
         // A coroutine made ready: gathered into the reactor's batch, or
         // enqueued at once by a waker that has none
-        inline void poll_wake(tracked_ptr<FrameWord> frame, WakeBatch* batch) {
+        SGCL_INLINE_HOT void poll_wake(tracked_ptr<FrameWord> frame, WakeBatch* batch) {
             if (batch) {
                 batch->add(std::move(frame));
             } else {
@@ -244,15 +244,15 @@ namespace sgcl::async {
             PollRoots* roots = nullptr;            // rooted by the chunk
             unsigned index = 0;
 
-            tracked_ptr<FrameWord>& frame(int dir) noexcept {
+            SGCL_INLINE_HOT tracked_ptr<FrameWord>& frame(int dir) noexcept {
                 return roots->frame[index][dir];
             }
 
-            tracked_ptr<PollWaiter>& waiter(int dir) noexcept {
+            SGCL_INLINE_HOT tracked_ptr<PollWaiter>& waiter(int dir) noexcept {
                 return roots->waiter[index][dir];
             }
 
-            tracked_ptr<PollWaiter>& overflow(int dir) noexcept {
+            SGCL_INLINE_HOT tracked_ptr<PollWaiter>& overflow(int dir) noexcept {
                 return roots->overflow[index][dir];
             }
 
@@ -427,7 +427,7 @@ namespace sgcl::async {
             // dropped; nothing registered, so that the next descriptor with
             // the number registers again; no readiness kept. No waiter is
             // there: the close is made by the last operation.
-            void clear() noexcept {
+            SGCL_INLINE_HOT void clear() noexcept {
                 gen.fetch_add(1, std::memory_order_acq_rel);
                 armed.store(0, std::memory_order_release);
                 state[0].store(0, std::memory_order_release);
@@ -435,7 +435,7 @@ namespace sgcl::async {
             }
 
         private:
-            void _clear_record(int dir) noexcept {
+            SGCL_INLINE_HOT void _clear_record(int dir) noexcept {
                 if (frame(dir)) {
                     frame(dir) = nullptr;
                 }
@@ -489,7 +489,7 @@ namespace sgcl::async {
                 }
             }
 
-            void _unlock() noexcept {
+            SGCL_INLINE_HOT void _unlock() noexcept {
                 lock.store(0, std::memory_order_release);
             }
         };
@@ -511,13 +511,13 @@ namespace sgcl::async {
 
         class Reactor {
         public:
-            Reactor() {
+            SGCL_INLINE_HOT Reactor() {
                 scheduler_instance();   // made after the scheduler, so destroyed before it (timer.h: Timers)
             }
 
             // The chunks are kept (PollChunk): a descriptor destroyed by the
             // collector at the end of the program may still look at its slot
-            ~Reactor() {
+            SGCL_INLINE_HOT ~Reactor() {
                 stop();
             }
 
@@ -606,7 +606,7 @@ namespace sgcl::async {
             }
 
             // The slot if its chunk is made, else null
-            PollSlot* find(int fd) const noexcept {
+            SGCL_INLINE_HOT PollSlot* find(int fd) const noexcept {
                 if (fd < 0 || unsigned(fd) >= PollChunkSize * PollChunkCount) {
                     return nullptr;
                 }
@@ -619,7 +619,7 @@ namespace sgcl::async {
             // joined). Every start is a new incarnation: a registration
             // made in an older one is made again (arm), and a wait parked
             // in an older one ended by the stop sees the number moved.
-            uint64_t running() {
+            SGCL_INLINE_HOT uint64_t running() {
                 uint64_t inc = _live.load(std::memory_order_acquire);
                 if (inc) [[likely]] {
                     return inc;
@@ -631,7 +631,7 @@ namespace sgcl::async {
             // The incarnation now, 0 when stopped: a waiter's look after its
             // publication (sequentially consistent, with the store of the
             // stop before its sweep)
-            uint64_t live() const noexcept {
+            SGCL_INLINE_HOT uint64_t live() const noexcept {
                 return _live.load(std::memory_order_seq_cst);
             }
 
@@ -677,7 +677,7 @@ namespace sgcl::async {
             // An owned descriptor's number given back to the kernel: called
             // right before its ::close, with no wait on it (the slot says
             // why: PollSlot::clear)
-            void release(int fd) noexcept {
+            SGCL_INLINE_HOT void release(int fd) noexcept {
                 if (auto s = find(fd)) {
 #if SGCL_REACTOR_EPOLL
                     // epoll keeps an entry while any descriptor refers to the
@@ -729,13 +729,13 @@ namespace sgcl::async {
 
             // The kernel's udata of a slot's registration: the tag, the
             // slot's generation, the number
-            static uint64_t _udata(int fd, const PollSlot& s) noexcept {
+            SGCL_INLINE_HOT static uint64_t _udata(int fd, const PollSlot& s) noexcept {
                 return PollTag | (uint64_t(s.gen.load(std::memory_order_relaxed) & 0x7fffffff) << 32) | uint32_t(fd);
             }
 
             // An event of a slot's registration, on the reactor's thread: the
             // slot fired when its generation is still the event's
-            void _dispatch(uint64_t u, int dir, WakeBatch& batch) {
+            SGCL_INLINE_HOT void _dispatch(uint64_t u, int dir, WakeBatch& batch) {
                 int fd = int(uint32_t(u));
                 uint32_t g = uint32_t(u >> 32) & 0x7fffffff;
                 if (auto s = find(fd); s && (s->gen.load(std::memory_order_acquire) & 0x7fffffff) == g) {
@@ -779,13 +779,13 @@ namespace sgcl::async {
             using Waits = std::vector<root_ptr<IoWait>>;
 
             // 0, or the errno of the registration
-            int _register(int fd, PollSlot& s, int dir) noexcept {
+            SGCL_INLINE_HOT int _register(int fd, PollSlot& s, int dir) noexcept {
                 struct kevent ev;
                 EV_SET(&ev, fd, dir ? EVFILT_WRITE : EVFILT_READ, EV_ADD | EV_CLEAR, 0, 0, (void*)(uintptr_t)_udata(fd, s));
                 return ::kevent(_queue.load(std::memory_order_acquire), &ev, 1, nullptr, 0, nullptr) == 0 ? 0 : errno;
             }
 
-            void _wake_thread() noexcept {
+            SGCL_INLINE_HOT void _wake_thread() noexcept {
                 if (_kq >= 0) {
                     struct kevent ev;
                     EV_SET(&ev, 1, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
@@ -848,7 +848,7 @@ namespace sgcl::async {
             // count reaches twice what was left the time before. The
             // registration then holds at most about twice the waits still
             // open, at a constant cost per wait.
-            static void _join(IoNode& node, root_ptr<IoWait> wait) noexcept {
+            SGCL_INLINE_HOT static void _join(IoNode& node, root_ptr<IoWait> wait) noexcept {
                 if (node.waits.size() >= node.sweep_at) {
                     std::erase_if(node.waits, [](const root_ptr<IoWait>& w) { return w->ch->closed(); });
                     node.sweep_at = std::max<size_t>(8, 2 * node.waits.size());
@@ -875,7 +875,7 @@ namespace sgcl::async {
             }
 
             struct KeyHash {
-                size_t operator()(const Key& k) const noexcept {
+                SGCL_INLINE_HOT size_t operator()(const Key& k) const noexcept {
                     return std::hash<long>()((long(k.first) << 16) ^ k.second);
                 }
             };
@@ -1027,7 +1027,7 @@ namespace sgcl::async {
                 return ::epoll_ctl(q, EPOLL_CTL_MOD, fd, &ev) == 0 ? 0 : errno;
             }
 
-            void _wake_thread() noexcept {
+            SGCL_INLINE_HOT void _wake_thread() noexcept {
                 if (_wake_fd >= 0) {
                     uint64_t one = 1;
                     (void)!::write(_wake_fd, &one, sizeof(one));
@@ -1216,14 +1216,14 @@ namespace sgcl::async {
     // lost to a timeout) is ended by setting the event: the reactor holds
     // it until fd is ready, and drops a set one at a later wait on the
     // descriptor.
-    inline event readable(int fd) {
+    SGCL_INLINE_HOT event readable(int fd) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::reactor_instance().watch(fd, false, ch, ch.get());
         return detail::EventAccess::make(std::move(ch));
     }
 
     // The same for a write
-    inline event writable(int fd) {
+    SGCL_INLINE_HOT event writable(int fd) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::reactor_instance().watch(fd, true, ch, ch.get());
         return detail::EventAccess::make(std::move(ch));
@@ -1231,7 +1231,7 @@ namespace sgcl::async {
 
     // The waits on fd ended with nothing: what a close of the descriptor
     // calls, before the number can be another descriptor's
-    inline void cancel_waits(int fd) {
+    SGCL_INLINE_HOT void cancel_waits(int fd) {
         detail::reactor_instance().cancel(fd);
     }
 
@@ -1240,7 +1240,7 @@ namespace sgcl::async {
     // after it does not block (its status says how the child ended). A
     // process that has ended already, or that does not exist, sets it at
     // once.
-    inline event exited(int pid) {
+    SGCL_INLINE_HOT event exited(int pid) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::reactor_instance().watch_exit(pid, ch, ch.get());
         return detail::EventAccess::make(std::move(ch));

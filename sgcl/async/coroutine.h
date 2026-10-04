@@ -55,11 +55,11 @@ namespace sgcl::async::detail {
     : tracked_ptr<FrameWord> {
         using tracked_ptr<FrameWord>::operator=;
 
-        FrameWord* load(std::memory_order m) const noexcept {
+        SGCL_INLINE_HOT FrameWord* load(std::memory_order m) const noexcept {
             return (FrameWord*)_ptr()->load(m);
         }
 
-        void store(FrameWord* frame, std::memory_order m) noexcept {
+        SGCL_INLINE_HOT void store(FrameWord* frame, std::memory_order m) noexcept {
             _ptr()->store(frame, m);
         }
     };
@@ -99,7 +99,7 @@ namespace sgcl::async::detail {
         FrameLink next;
         FrameWord unused;
 
-        FrameHeader& operator=(const FrameHeader& h) noexcept {
+        SGCL_INLINE_HOT FrameHeader& operator=(const FrameHeader& h) noexcept {
             executor = h.executor;
             locals = h.locals;
             return *this;
@@ -111,7 +111,7 @@ namespace sgcl::async::detail {
 
     // The header of a frame named by its buffer's address (the promise's
     // `self`, every queue's and waiter's word; core/coroutine.h: handle_of)
-    inline FrameHeader& frame_header(void* frame) noexcept {
+    SGCL_INLINE_HOT FrameHeader& frame_header(void* frame) noexcept {
         return *(FrameHeader*)frame;
     }
 
@@ -271,7 +271,7 @@ namespace sgcl::async {
 
             // A task let go of ends, or one ended is let go of: its
             // exception, if nobody took it, to on_unhandled's handler
-            void report_unhandled() noexcept {
+            SGCL_INLINE_HOT void report_unhandled() noexcept {
                 if (error && !error_taken) {
                     unhandled_handler.load(std::memory_order_acquire)(error);
                 }
@@ -279,7 +279,7 @@ namespace sgcl::async {
 
             // The awaiter of the final suspension: done, and everyone told
             struct final_awaiter {
-                bool await_ready() noexcept {
+                SGCL_INLINE_HOT bool await_ready() noexcept {
                     return false;
                 }
 
@@ -308,19 +308,19 @@ namespace sgcl::async {
                     }
                 }
 
-                void await_resume() noexcept {
+                SGCL_INLINE_HOT void await_resume() noexcept {
                 }
             };
 
-            final_awaiter final_suspend() noexcept {
+            SGCL_INLINE_HOT final_awaiter final_suspend() noexcept {
                 return {};
             }
 
-            void unhandled_exception() noexcept {
+            SGCL_INLINE_HOT void unhandled_exception() noexcept {
                 error = std::current_exception();
             }
 
-            bool done() const noexcept {
+            SGCL_INLINE_HOT bool done() const noexcept {
                 return state.load(std::memory_order_acquire) == Done;
             }
 
@@ -390,15 +390,15 @@ namespace sgcl::async {
         struct promise_type : detail::TaskPromiseBase {
             optional<T> value;
 
-            task get_return_object() noexcept {
+            SGCL_INLINE_HOT task get_return_object() noexcept {
                 return task(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
-            std::suspend_always initial_suspend() noexcept {
+            SGCL_INLINE_HOT std::suspend_always initial_suspend() noexcept {
                 return {};
             }
 
-            void return_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
+            SGCL_INLINE_HOT void return_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 value.emplace(std::move(v));
             }
         };
@@ -407,7 +407,7 @@ namespace sgcl::async {
         // until the task is done (not at all when it is), then its result
         class awaiter {
         public:
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return _task.done();
             }
 
@@ -417,20 +417,20 @@ namespace sgcl::async {
             // co_await, in the awaiting task; the task started is queued
             // already, and runs, let go of, at the next start
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                 auto frame = detail::frame_of(h);
-                _task._start(detail::frame_header(frame.get()).executor);   // a task nobody started yet: on the scheduler now, where this one runs
+                _task._start(detail::frame_header(frame.get()).executor, true);   // a task nobody started yet: on the scheduler now, where this one runs, next (this one suspends)
                 return _task._frame.promise().await(h, std::move(frame));
             }
 
-            T await_resume() {
+            SGCL_INLINE_HOT T await_resume() {
                 return std::move(_task.result());
             }
 
         private:
             friend class task;
 
-            explicit awaiter(task& t) noexcept
+            SGCL_INLINE_HOT explicit awaiter(task& t) noexcept
             : _task(t) {
             }
 
@@ -447,7 +447,7 @@ namespace sgcl::async {
         // and nothing it waits for resumes a destroyed coroutine; one that
         // never started is destroyed with its frame. Cancellation is the
         // task's own, through its stop_token
-        task& operator=(task&& o) noexcept {
+        SGCL_INLINE_HOT task& operator=(task&& o) noexcept {
             if (this != &o) {
                 _let_go();
                 _frame = std::move(o._frame);
@@ -455,7 +455,7 @@ namespace sgcl::async {
             return *this;
         }
 
-        ~task() {
+        SGCL_INLINE_HOT ~task() {
             _let_go();
         }
 
@@ -463,7 +463,7 @@ namespace sgcl::async {
         // Nodiscard: a handle dropped is a result nobody reads (the task
         // runs on, let go of: DESIGN 302); keep it, or go() the task
         // instead
-        [[nodiscard]] task& spawn() {
+        [[nodiscard]] SGCL_INLINE_HOT task& spawn() {
             assert(_frame && !_frame.done() && "a task is spawned once, before it runs");
             [[maybe_unused]] bool first = _start();
             assert(first && "a task is spawned once");
@@ -485,21 +485,21 @@ namespace sgcl::async {
             detail::current_frame = running;
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return !_frame || _frame.promise().done();   // an empty task is done, as the page says: nothing is left to run
         }
 
         // Waits for the task, on this thread, and gives its result, or
         // rethrows what it threw (as std::this_thread::sync_wait gives a
         // sender's). Not from a task on a worker (co_await it there)
-        T& wait() {
+        SGCL_INLINE_HOT T& wait() {
             _wait();
             return result();
         }
 
         // The result of the task, or what it threw: waited for first, on
         // this thread, when the task is not done yet
-        T& result() {
+        SGCL_INLINE_HOT T& result() {
             if (!done()) {
                 _wait();
             }
@@ -511,7 +511,7 @@ namespace sgcl::async {
             return *p.value;
         }
 
-        awaiter operator co_await() noexcept {
+        SGCL_INLINE_HOT awaiter operator co_await() noexcept {
             return awaiter(*this);
         }
 
@@ -519,7 +519,7 @@ namespace sgcl::async {
         // destroys its frame when it is done (its locals and parameters
         // with it), the memory the collector's from then on; a task that
         // never runs leaves its frame to the collector as it is
-        void detach() noexcept {
+        SGCL_INLINE_HOT void detach() noexcept {
             if (_frame.promise().released.exchange(true, std::memory_order_acq_rel)) {
                 _frame.promise().report_unhandled();   // done already, what it threw unread
                 _frame.destroy();   // done already: destroyed now
@@ -530,13 +530,13 @@ namespace sgcl::async {
 
         // Destroys the coroutine now, its locals and promise with it: for
         // a task that never ran or is done
-        void destroy() noexcept {
+        SGCL_INLINE_HOT void destroy() noexcept {
             _frame.destroy();
         }
 
     private:
         // What the object's end and a move-assignment over it do (above)
-        void _let_go() noexcept {
+        SGCL_INLINE_HOT void _let_go() noexcept {
             if (_frame && _frame.promise().started.load(std::memory_order_acquire)) {
                 detach();
             }
@@ -544,7 +544,7 @@ namespace sgcl::async {
 
         // The wait of wait() and result(): the task started if nobody
         // started it, this thread blocked until its end
-        void _wait() {
+        SGCL_INLINE_HOT void _wait() {
             assert(!detail::on_worker() && "wait() blocks the worker: co_await the task from a task");
             _start();   // a task nobody started yet: on the scheduler now
             _frame.promise().wait();
@@ -559,8 +559,14 @@ namespace sgcl::async {
         // given (executor.h: the awaiting task's, so that a task awaited
         // runs where its awaiter does, as a call would; an executor's
         // spawn). Its task-locals are the starting task's (the frame this
-        // thread runs, if any): inherited by the copy of the chain's head
-        bool _start(tracked_ptr<detail::ExecutorQueue> executor = nullptr) {
+        // thread runs, if any): inherited by the copy of the chain's head.
+        // `next`: a start by an awaiter that suspends right after it (the
+        // co_await, a timeout's race), so the task runs next on this
+        // worker, as a call would; from the end of the ring a looking
+        // worker could take it in the moment before the suspension, and
+        // the awaiter, resumed where the task ends, went with it: its
+        // whole chain moved to the thief and back (DESIGN 453)
+        bool _start(tracked_ptr<detail::ExecutorQueue> executor = nullptr, bool next = false) {
             auto& p = _frame.promise();
             if (p.started.exchange(true, std::memory_order_acq_rel)) {
                 return false;
@@ -572,17 +578,17 @@ namespace sgcl::async {
             if (auto parent = detail::current_frame) {
                 header.locals = detail::frame_header(parent).locals;
             }
-            detail::enqueue(p.self, false);
+            detail::enqueue(p.self, next);
             return true;
         }
 
         // The promise, for an awaiter of the task's end that leaves the
         // result where it is (executor.h: run_until)
-        detail::TaskPromiseBase& _promise() const noexcept {
+        SGCL_INLINE_HOT detail::TaskPromiseBase& _promise() const noexcept {
             return _frame.promise();
         }
 
-        explicit task(std::coroutine_handle<promise_type> h) noexcept
+        SGCL_INLINE_HOT explicit task(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 
@@ -593,21 +599,21 @@ namespace sgcl::async {
     class task<void> {
     public:
         struct promise_type : detail::TaskPromiseBase {
-            task get_return_object() noexcept {
+            SGCL_INLINE_HOT task get_return_object() noexcept {
                 return task(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
-            std::suspend_always initial_suspend() noexcept {
+            SGCL_INLINE_HOT std::suspend_always initial_suspend() noexcept {
                 return {};
             }
 
-            void return_void() noexcept {
+            SGCL_INLINE_HOT void return_void() noexcept {
             }
         };
 
         class awaiter {
         public:
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return _task.done();
             }
 
@@ -617,20 +623,20 @@ namespace sgcl::async {
             // co_await, in the awaiting task; the task started is queued
             // already, and runs, let go of, at the next start
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                 auto frame = detail::frame_of(h);
-                _task._start(detail::frame_header(frame.get()).executor);   // a task nobody started yet: on the scheduler now, where this one runs
+                _task._start(detail::frame_header(frame.get()).executor, true);   // a task nobody started yet: on the scheduler now, where this one runs, next (this one suspends)
                 return _task._frame.promise().await(h, std::move(frame));
             }
 
-            void await_resume() {
+            SGCL_INLINE_HOT void await_resume() {
                 _task.result();
             }
 
         private:
             friend class task;
 
-            explicit awaiter(task& t) noexcept
+            SGCL_INLINE_HOT explicit awaiter(task& t) noexcept
             : _task(t) {
             }
 
@@ -647,7 +653,7 @@ namespace sgcl::async {
         // and nothing it waits for resumes a destroyed coroutine; one that
         // never started is destroyed with its frame. Cancellation is the
         // task's own, through its stop_token
-        task& operator=(task&& o) noexcept {
+        SGCL_INLINE_HOT task& operator=(task&& o) noexcept {
             if (this != &o) {
                 _let_go();
                 _frame = std::move(o._frame);
@@ -655,11 +661,11 @@ namespace sgcl::async {
             return *this;
         }
 
-        ~task() {
+        SGCL_INLINE_HOT ~task() {
             _let_go();
         }
 
-        [[nodiscard]] task& spawn() {
+        [[nodiscard]] SGCL_INLINE_HOT task& spawn() {
             assert(_frame && !_frame.done() && "a task is spawned once, before it runs");
             [[maybe_unused]] bool first = _start();
             assert(first && "a task is spawned once");
@@ -679,20 +685,20 @@ namespace sgcl::async {
             detail::current_frame = running;
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return !_frame || _frame.promise().done();   // an empty task is done, as the page says: nothing is left to run
         }
 
         // Waits for the task, on this thread, and rethrows what it threw.
         // Not from a task on a worker (co_await it there)
-        void wait() {
+        SGCL_INLINE_HOT void wait() {
             _wait();
             result();
         }
 
         // Rethrows what the coroutine threw, if anything: waited for
         // first, on this thread, when the task is not done yet
-        void result() {
+        SGCL_INLINE_HOT void result() {
             if (!done()) {
                 _wait();
             }
@@ -702,11 +708,11 @@ namespace sgcl::async {
             }
         }
 
-        awaiter operator co_await() noexcept {
+        SGCL_INLINE_HOT awaiter operator co_await() noexcept {
             return awaiter(*this);
         }
 
-        void detach() noexcept {
+        SGCL_INLINE_HOT void detach() noexcept {
             if (_frame.promise().released.exchange(true, std::memory_order_acq_rel)) {
                 _frame.promise().report_unhandled();   // done already, what it threw unread
                 _frame.destroy();   // done already: destroyed now
@@ -715,13 +721,13 @@ namespace sgcl::async {
             }
         }
 
-        void destroy() noexcept {
+        SGCL_INLINE_HOT void destroy() noexcept {
             _frame.destroy();
         }
 
     private:
         // What the object's end and a move-assignment over it do (task<T>)
-        void _let_go() noexcept {
+        SGCL_INLINE_HOT void _let_go() noexcept {
             if (_frame && _frame.promise().started.load(std::memory_order_acquire)) {
                 detach();
             }
@@ -736,8 +742,14 @@ namespace sgcl::async {
         // given (executor.h: the awaiting task's, so that a task awaited
         // runs where its awaiter does, as a call would; an executor's
         // spawn). Its task-locals are the starting task's (the frame this
-        // thread runs, if any): inherited by the copy of the chain's head
-        bool _start(tracked_ptr<detail::ExecutorQueue> executor = nullptr) {
+        // thread runs, if any): inherited by the copy of the chain's head.
+        // `next`: a start by an awaiter that suspends right after it (the
+        // co_await, a timeout's race), so the task runs next on this
+        // worker, as a call would; from the end of the ring a looking
+        // worker could take it in the moment before the suspension, and
+        // the awaiter, resumed where the task ends, went with it: its
+        // whole chain moved to the thief and back (DESIGN 453)
+        bool _start(tracked_ptr<detail::ExecutorQueue> executor = nullptr, bool next = false) {
             auto& p = _frame.promise();
             if (p.started.exchange(true, std::memory_order_acq_rel)) {
                 return false;
@@ -749,25 +761,25 @@ namespace sgcl::async {
             if (auto parent = detail::current_frame) {
                 header.locals = detail::frame_header(parent).locals;
             }
-            detail::enqueue(p.self, false);
+            detail::enqueue(p.self, next);
             return true;
         }
 
         // The promise, for an awaiter of the task's end that leaves the
         // result where it is (executor.h: run_until)
-        detail::TaskPromiseBase& _promise() const noexcept {
+        SGCL_INLINE_HOT detail::TaskPromiseBase& _promise() const noexcept {
             return _frame.promise();
         }
 
         // The wait of wait() and result(): the task started if nobody
         // started it, this thread blocked until its end
-        void _wait() {
+        SGCL_INLINE_HOT void _wait() {
             assert(!detail::on_worker() && "wait() blocks the worker: co_await the task from a task");
             _start();   // a task nobody started yet: on the scheduler now
             _frame.promise().wait();
         }
 
-        explicit task(std::coroutine_handle<promise_type> h) noexcept
+        SGCL_INLINE_HOT explicit task(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 
@@ -777,7 +789,7 @@ namespace sgcl::async {
     // The task put on the scheduler, for `auto t = spawn(f());`; nodiscard
     // as the member (a task object dropped lets the task run on unread)
     template<class T>
-    [[nodiscard]] task<T> spawn(task<T> t) {
+    [[nodiscard]] SGCL_INLINE_HOT task<T> spawn(task<T> t) {
         (void)t.spawn();
         return t;
     }
@@ -799,7 +811,7 @@ namespace sgcl::async {
     // The task put on the scheduler and let go of: it runs, nobody waits
     // for it, its frame is the collector's once it is done. Go's `go f()`
     template<class T>
-    void go(task<T> t) {
+    SGCL_INLINE_HOT void go(task<T> t) {
         t.spawn().detach();
     }
 
@@ -834,12 +846,12 @@ namespace sgcl::async {
     // without captures, or a named coroutine with parameters, may be
     // called and its task passed; one with captures is passed itself.
     template<detail::TaskFactory F>
-    [[nodiscard]] auto spawn(F f) {
+    [[nodiscard]] SGCL_INLINE_HOT auto spawn(F f) {
         return spawn(detail::task_of(std::move(f)));
     }
 
     template<detail::TaskFactory F>
-    void go(F f) {
+    SGCL_INLINE_HOT void go(F f) {
         go(detail::task_of(std::move(f)));
     }
 }

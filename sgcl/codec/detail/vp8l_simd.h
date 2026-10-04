@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "../../core/detail/os.h"
 #include "simd.h"
 
 // The kernels of WebP lossless (VP8L) over rows of ARGB words (0xAARRGGBB):
@@ -20,19 +21,19 @@
 
 namespace sgcl::codec::detail::vp8l {
     // Each channel of a and b added, modulo 256
-    inline uint32_t add_pixels(uint32_t a, uint32_t b) noexcept {
+    SGCL_INLINE_HOT uint32_t add_pixels(uint32_t a, uint32_t b) noexcept {
         const uint32_t ag = (a & 0xff00ff00u) + (b & 0xff00ff00u);
         const uint32_t rb = (a & 0x00ff00ffu) + (b & 0x00ff00ffu);
         return (ag & 0xff00ff00u) | (rb & 0x00ff00ffu);
     }
 
     // RFC 9649's Average2 on each channel: (a + b) / 2, rounded down
-    inline uint32_t average2(uint32_t a, uint32_t b) noexcept {
+    SGCL_INLINE_HOT uint32_t average2(uint32_t a, uint32_t b) noexcept {
         return (((a ^ b) & 0xfefefefeu) >> 1) + (a & b);
     }
 
     // ColorTransformDelta: the 3.5 fixed-point product of two signed bytes
-    inline int color_delta(int8_t t, int8_t c) noexcept {
+    SGCL_INLINE_HOT int color_delta(int8_t t, int8_t c) noexcept {
         return (int(t) * int(c)) >> 5;
     }
 
@@ -232,11 +233,11 @@ namespace sgcl::codec::detail::vp8l {
     // sum is of the row above alone. ClampAddSubtractFull is clamp(L + T −
     // TL); ClampAddSubtractHalf is clamp(a + (a − TL) / 2) with a =
     // Average2(L, T), the division C's (toward zero).
-    inline int channel_of(uint32_t v, unsigned shift) noexcept {
+    SGCL_INLINE_HOT int channel_of(uint32_t v, unsigned shift) noexcept {
         return int((v >> shift) & 0xff);
     }
 
-    inline uint32_t clamp_channel(int v) noexcept {
+    SGCL_INLINE_HOT uint32_t clamp_channel(int v) noexcept {
         return uint32_t(v < 0 ? 0 : v > 255 ? 255 : v);
     }
 
@@ -313,11 +314,11 @@ namespace sgcl::codec::detail::vp8l {
             }
         }
 
-        inline uint8x8_t px(uint32_t v) noexcept {
+        SGCL_INLINE_HOT uint8x8_t px(uint32_t v) noexcept {
             return vreinterpret_u8_u32(vdup_n_u32(v));
         }
 
-        inline uint32_t word(uint8x8_t v) noexcept {
+        SGCL_INLINE_HOT uint32_t word(uint8x8_t v) noexcept {
             return vget_lane_u32(vreinterpret_u32_u8(v), 0);
         }
 

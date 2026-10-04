@@ -39,19 +39,19 @@ namespace sgcl::detail {
         using reference = Reference;
         struct pointer {
             Reference ref;
-            const Reference* operator->() const noexcept { return &ref; }
+            SGCL_INLINE_HOT const Reference* operator->() const noexcept { return &ref; }
         };
 
         WeakIterator() = default;
 
-        WeakIterator(Inner at, Inner end) noexcept
+        SGCL_INLINE_HOT WeakIterator(Inner at, Inner end) noexcept
         : _at(at)
         , _end(end) {
             _settle();
         }
 
         // An iterator of a run, from its first entry up to its bound
-        WeakIterator(Inner at, Inner end, bool run) noexcept requires Runs
+        SGCL_INLINE_HOT WeakIterator(Inner at, Inner end, bool run) noexcept requires Runs
         : _at(at)
         , _end(end)
         , _run(run) {
@@ -60,7 +60,7 @@ namespace sgcl::detail {
 
         // The iterator at `at`, the next node after an erasure through
         // `from`: with from's bound, and for a run, from's object
-        WeakIterator(Inner at, const WeakIterator& from) noexcept
+        SGCL_INLINE_HOT WeakIterator(Inner at, const WeakIterator& from) noexcept
         : _at(at)
         , _end(from._end)
         , _object(from._object)
@@ -72,14 +72,14 @@ namespace sgcl::detail {
         // the same place, the same object held
         template<class I2, class R2>
         requires (!std::is_same_v<I2, Inner> && std::is_convertible_v<I2, Inner>)
-        WeakIterator(const WeakIterator<I2, Key, R2, Runs>& o) noexcept
+        SGCL_INLINE_HOT WeakIterator(const WeakIterator<I2, Key, R2, Runs>& o) noexcept
         : _at(o._at)
         , _end(o._end)
         , _object(o._object)
         , _run(o._run) {
         }
 
-        reference operator*() const noexcept {
+        SGCL_INLINE_HOT reference operator*() const noexcept {
             if constexpr(std::is_same_v<Reference, tracked_ptr<Key>>) {
                 return _object;
             } else {
@@ -87,33 +87,33 @@ namespace sgcl::detail {
             }
         }
 
-        pointer operator->() const noexcept {
+        SGCL_INLINE_HOT pointer operator->() const noexcept {
             return {**this};
         }
 
-        WeakIterator& operator++() noexcept {
+        SGCL_INLINE_HOT WeakIterator& operator++() noexcept {
             ++_at;
             _next();
             return *this;
         }
 
-        WeakIterator operator++(int) noexcept {
+        SGCL_INLINE_HOT WeakIterator operator++(int) noexcept {
             auto it = *this;
             ++*this;
             return it;
         }
 
-        bool operator==(const WeakIterator& o) const noexcept {
+        SGCL_INLINE_HOT bool operator==(const WeakIterator& o) const noexcept {
             return _at == o._at;
         }
 
-        Inner inner() const noexcept {
+        SGCL_INLINE_HOT Inner inner() const noexcept {
             return _at;
         }
 
         // The bound: what an erase through the iterator keeps, so that a
         // walk of an equal_range stops where the range does
-        Inner bound() const noexcept {
+        SGCL_INLINE_HOT Inner bound() const noexcept {
             return _end;
         }
 
@@ -125,7 +125,7 @@ namespace sgcl::detail {
         // one of the object held is first asked whether it is the same
         // object's (live then, and held already: no lock); when it is
         // not, a run is over and the iterator is its bound
-        void _next() noexcept {
+        SGCL_INLINE_HOT void _next() noexcept {
             if constexpr (Runs) {
                 if (_at != _end && _at != Inner() && WeakIdentity::of(key_of(*_at)) == static_cast<const void*>(_object.get())) {
                     return;
@@ -152,7 +152,7 @@ namespace sgcl::detail {
         }
 
         template<class V>
-        static auto& key_of(V& value) noexcept {
+        SGCL_INLINE_HOT static auto& key_of(V& value) noexcept {
             if constexpr(requires { value.first; }) {
                 return value.first;
             } else {

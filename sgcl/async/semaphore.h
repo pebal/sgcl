@@ -32,27 +32,27 @@ namespace sgcl::async {
 
         // Takes a permit, waiting for one: `co_await s.acquire()` in a task,
         // `s.acquire().wait()` on a thread
-        auto acquire() noexcept {
+        SGCL_INLINE_HOT auto acquire() noexcept {
             return _ch.receive();
         }
 
         // noexcept: the receive wakes no sender, since release never
         // waits (mutex.h: MutexState::lock)
-        bool try_acquire() noexcept {
+        SGCL_INLINE_HOT bool try_acquire() noexcept {
             return _ch.try_receive();
         }
 
-        void release() {
+        SGCL_INLINE_HOT void release() {
             _ch.try_send();
         }
 
         template<class F>
-        auto on_acquire(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_acquire(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _ch.on_receive(std::move(f));
         }
 
         // The permits free now
-        size_t available() const noexcept {
+        SGCL_INLINE_HOT size_t available() const noexcept {
             return _ch.size();
         }
 

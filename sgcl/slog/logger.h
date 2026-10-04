@@ -268,7 +268,7 @@ namespace sgcl::slog {
             bool utc = false;
             bool buffered = false;
 
-            bool enabled(slog::level l) const {
+            SGCL_INLINE_HOT bool enabled(slog::level l) const {
                 const int least = var ? int(var->value.load(std::memory_order_relaxed)) : int(min);
                 if (int(l) < least) {
                     return false;
@@ -281,18 +281,18 @@ namespace sgcl::slog {
         // fails, so its records are counted as lost and said once on
         // stderr, as a failed write's are
         struct NoWriter {
-            expected<size_t, io::error> write(const slice<const byte>&) const noexcept {
+            SGCL_INLINE_HOT expected<size_t, io::error> write(const slice<const byte>&) const noexcept {
                 return unexpected(io::error(io::errc::closed, "write to an empty io::writer"));
             }
         };
 
         inline NoWriter no_writer;
 
-        inline tracked_ptr<LoggerState> copy_state(const LoggerState& s) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<LoggerState> copy_state(const LoggerState& s) noexcept {
             return make_tracked<LoggerState>(s);
         }
 
-        inline void set_output(LoggerState& s) noexcept {
+        SGCL_INLINE_HOT void set_output(LoggerState& s) noexcept {
             if (s.format == Format::Custom) {
                 s.out = make_tracked<Output>(s.custom);
             } else {
@@ -300,7 +300,7 @@ namespace sgcl::slog {
             }
         }
 
-        inline tracked_ptr<LoggerState> default_state() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<LoggerState> default_state() noexcept {
             auto s = make_tracked<LoggerState>();
             s->writer = io::writer(io::stderr);
             set_output(*s);
@@ -346,7 +346,7 @@ namespace sgcl::slog {
             Scratch(const Scratch&) = delete;
             Scratch& operator=(const Scratch&) = delete;
 
-            ~Scratch() {
+            SGCL_INLINE_HOT ~Scratch() {
                 scratch_gone() = true;
             }
         };
@@ -472,7 +472,7 @@ namespace sgcl::slog {
 
         // The line of the records a sampler left out, before the first
         // record after their window
-        inline void report_sampled(const LoggerState& st, uint64_t count) {
+        SGCL_INLINE_HOT void report_sampled(const LoggerState& st, uint64_t count) {
             Pack<char[6], uint64_t> pack("count", count);
             message m("records sampled out");
             emit(st, slog::level::warn, m, pack.attrs, 1, false);
@@ -586,7 +586,7 @@ namespace sgcl::slog {
     class logger {
     public:
         // Text lines on io::stderr, level info, the local time
-        logger() noexcept
+        SGCL_INLINE_HOT logger() noexcept
         : _s(detail::default_state()) {
         }
 
@@ -614,19 +614,19 @@ namespace sgcl::slog {
         }
 
         // Text lines on out from level l
-        explicit logger(const io::writer& out, slog::level l = slog::level::info) noexcept
+        SGCL_INLINE_HOT explicit logger(const io::writer& out, slog::level l = slog::level::info) noexcept
         : logger(options{.out = out, .level = l}) {
         }
 
         // The records to a handler of the program, from level l
-        explicit logger(const slog::handler& h, slog::level l = slog::level::info) noexcept
+        SGCL_INLINE_HOT explicit logger(const slog::handler& h, slog::level l = slog::level::info) noexcept
         : logger(options{.handler = h, .level = l}) {
         }
 
         // A logger that writes these attributes in every record (slog's
         // With), rendered once, now
         template<class... A>
-        logger with(const A&... kv) const {
+        SGCL_INLINE_HOT logger with(const A&... kv) const {
             detail::Pack<A...> pack(kv...);
             auto s = detail::copy_state(*_s);
             s->ctx = detail::context_with(_s->ctx.get(), pack.attrs, pack.Count);
@@ -636,7 +636,7 @@ namespace sgcl::slog {
         // A logger whose later attributes, its with()'s and its records',
         // are in a group of this name (slog's WithGroup); an empty name
         // is no group
-        logger group(const char* name) const noexcept {
+        SGCL_INLINE_HOT logger group(const char* name) const noexcept {
             auto s = detail::copy_state(*_s);
             const size_t n = name ? std::strlen(name) : 0;
             if (n) {
@@ -646,44 +646,44 @@ namespace sgcl::slog {
         }
 
         template<class... A>
-        void debug(message m, const A&... kv) const {
+        SGCL_INLINE_HOT void debug(message m, const A&... kv) const {
             _log(slog::level::debug, m, kv...);
         }
 
         template<class... A>
-        void info(message m, const A&... kv) const {
+        SGCL_INLINE_HOT void info(message m, const A&... kv) const {
             _log(slog::level::info, m, kv...);
         }
 
         template<class... A>
-        void warn(message m, const A&... kv) const {
+        SGCL_INLINE_HOT void warn(message m, const A&... kv) const {
             _log(slog::level::warn, m, kv...);
         }
 
         template<class... A>
-        void error(message m, const A&... kv) const {
+        SGCL_INLINE_HOT void error(message m, const A&... kv) const {
             _log(slog::level::error, m, kv...);
         }
 
         template<class... A>
-        void log(slog::level l, message m, const A&... kv) const {
+        SGCL_INLINE_HOT void log(slog::level l, message m, const A&... kv) const {
             _log(l, m, kv...);
         }
 
         // Whether a record of level l is written: for an argument that
         // costs to compute, if (log.enabled(slog::level::debug)) ...
-        bool enabled(slog::level l) const {
+        SGCL_INLINE_HOT bool enabled(slog::level l) const {
             return _s->enabled(l);
         }
 
         // The batches written now (a buffered logger)
-        void flush() const {
+        SGCL_INLINE_HOT void flush() const {
             detail::drain_collector_if_pending();
             _s->out->flush();
         }
 
         // The records whose write failed
-        uint64_t dropped() const noexcept {
+        SGCL_INLINE_HOT uint64_t dropped() const noexcept {
             return _s->out->dropped.load(std::memory_order_relaxed);
         }
 
@@ -692,24 +692,24 @@ namespace sgcl::slog {
         friend struct sgcl::detail::HandleWord;
         friend logger detail::buffered_copy(const logger& l) noexcept;
 
-        explicit logger(tracked_ptr<detail::LoggerState> s) noexcept
+        SGCL_INLINE_HOT explicit logger(tracked_ptr<detail::LoggerState> s) noexcept
         : _s(std::move(s)) {
         }
 
-        logger(sgcl::detail::FromWord, const tracked_ptr<detail::LoggerState>& w) noexcept
+        SGCL_INLINE_HOT logger(sgcl::detail::FromWord, const tracked_ptr<detail::LoggerState>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<detail::LoggerState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::LoggerState>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<detail::LoggerState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::LoggerState>& _handle_word() const noexcept {
             return _s;
         }
 
         template<class... A>
-        void _log(slog::level l, const message& m, const A&... kv) const {
+        SGCL_INLINE_HOT void _log(slog::level l, const message& m, const A&... kv) const {
             const detail::LoggerState& s = *_s;
             if (!s.enabled(l)) {
                 return;
@@ -724,7 +724,7 @@ namespace sgcl::slog {
     namespace detail {
         // The logger as it is, its lines gathered per worker (options::
         // buffered): the server's access log over the default logger
-        inline logger buffered_copy(const logger& l) noexcept {
+        SGCL_INLINE_HOT logger buffered_copy(const logger& l) noexcept {
             auto s = copy_state(*l._s);
             s->buffered = true;
             if (s->format != Format::Custom) {
@@ -745,32 +745,32 @@ namespace sgcl::slog {
 
     // The logger the free functions write through: text on io::stderr at
     // info, until set_default. A copy: it shares its output
-    inline logger default_logger() noexcept {
+    SGCL_INLINE_HOT logger default_logger() noexcept {
         return detail::default_word().load(std::memory_order_acquire);
     }
 
     // The default logger from now on, for every thread; atomic
-    inline void set_default(const logger& l) noexcept {
+    SGCL_INLINE_HOT void set_default(const logger& l) noexcept {
         detail::default_word().store(l, std::memory_order_release);
     }
 
     template<class... A>
-    void debug(message m, const A&... kv) {
+    SGCL_INLINE_HOT void debug(message m, const A&... kv) {
         default_logger().debug(m, kv...);
     }
 
     template<class... A>
-    void info(message m, const A&... kv) {
+    SGCL_INLINE_HOT void info(message m, const A&... kv) {
         default_logger().info(m, kv...);
     }
 
     template<class... A>
-    void warn(message m, const A&... kv) {
+    SGCL_INLINE_HOT void warn(message m, const A&... kv) {
         default_logger().warn(m, kv...);
     }
 
     template<class... A>
-    void error(message m, const A&... kv) {
+    SGCL_INLINE_HOT void error(message m, const A&... kv) {
         default_logger().error(m, kv...);
     }
 }

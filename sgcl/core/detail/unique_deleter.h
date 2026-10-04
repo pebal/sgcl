@@ -13,7 +13,7 @@ namespace sgcl::detail {
     // state Destroyed (collector.h: delete_unique).
     struct UniqueDeleter {
         template<class T>
-        void operator()(T* p) noexcept {
+        SGCL_INLINE_HOT void operator()(T* p) noexcept {
             Collector::delete_unique(p);
         }
     };

@@ -41,26 +41,26 @@ namespace sgcl::io {
         inline constexpr bool NothrowHeld = std::is_nothrow_constructible_v<Held<T>, T&&> && std::is_nothrow_move_constructible_v<Held<T>>;
 
         // The bytes of a text, from where it lies
-        inline slice<const byte> text_bytes(const string& t) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(const string& t) noexcept {
             return bytes_of(t);
         }
 
-        inline slice<const byte> text_bytes(const slice<const char>& t) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(const slice<const char>& t) noexcept {
             return bytes_of(t);
         }
 
-        inline slice<const byte> text_bytes(const slice<char>& t) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(const slice<char>& t) noexcept {
             return bytes_of(slice<const char>(t));
         }
 
-        inline slice<const byte> text_bytes(std::string_view t) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(std::string_view t) noexcept {
             return bytes_of(t);
         }
 
         // A literal or a character array: up to its first NUL, never past
         // its end (an array filled to the brim has none)
         template<size_t N>
-        slice<const byte> text_bytes(const char (&t)[N]) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(const char (&t)[N]) noexcept {
             const char* nul = std::char_traits<char>::find(t, N, '\0');
             return bytes_of(std::string_view(t, nul ? size_t(nul - t) : N));
         }
@@ -68,7 +68,7 @@ namespace sgcl::io {
         // A C string, to its NUL; a null pointer does not compile
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        slice<const byte> text_bytes(P t) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(P t) noexcept {
             return bytes_of(std::string_view(t));
         }
 
@@ -127,27 +127,27 @@ namespace sgcl::io {
             Gathered(const Gathered&) = delete;
             Gathered& operator=(const Gathered&) = delete;
 
-            ~Gathered() {
+            SGCL_INLINE_HOT ~Gathered() {
                 std::free(_data);
             }
 
             // The free bytes behind the ones gathered, made when there are
             // none. Growing cannot throw: a failed realloc ends the program
             // (os::memory_refused)
-            slice<byte> room() noexcept {
+            SGCL_INLINE_HOT slice<byte> room() noexcept {
                 if (_size == _capacity) {
                     _grow();
                 }
                 return slice<byte>(_data + _size, _capacity - _size);
             }
 
-            void added(size_t n) noexcept {
+            SGCL_INLINE_HOT void added(size_t n) noexcept {
                 _size += n;
             }
 
             // (made at its size, then one copy: element by element it is a
             // byte at a time, the vector's count stored at each)
-            vector<byte> take() const noexcept {
+            SGCL_INLINE_HOT vector<byte> take() const noexcept {
                 vector<byte> out(_size);
                 sgcl::detail::copy_bytes(out.data(), _data, _size);
                 return out;
@@ -155,14 +155,14 @@ namespace sgcl::io {
 
             // The same as text: one string of their size, one copy (a
             // vector first and the string made of it was two)
-            string take_text() const {
+            SGCL_INLINE_HOT string take_text() const {
                 return sgcl::detail::StringAccess::filled<string>(_size, [&](char* chars) {
                     sgcl::detail::copy_bytes(chars, _data, _size);
                 });
             }
 
         private:
-            void _grow() noexcept {
+            SGCL_INLINE_HOT void _grow() noexcept {
                 size_t capacity = _capacity ? _capacity * 2 : config::io_buffer_size;
                 auto data = static_cast<byte*>(std::realloc(_data, capacity));
                 if (!data) [[unlikely]] {
@@ -278,7 +278,7 @@ namespace sgcl::io {
         // Whether copy cannot throw: the way of the reader's own, of the
         // writer's own, or the read and the write of the loop
         template<class W, class R>
-        constexpr bool nothrow_copy() noexcept {
+        SGCL_INLINE_HOT constexpr bool nothrow_copy() noexcept {
             if constexpr (WritesTo<R, W>) {
                 return noexcept(expected<size_t, error>(std::declval<R&>().write_to(std::declval<W&>())));
             } else if constexpr (ReadsFrom<W, R>) {
@@ -289,7 +289,7 @@ namespace sgcl::io {
         }
 
         template<class W, class R>
-        expected<size_t, error> copy(W& w, R& r) noexcept(nothrow_copy<W, R>()) {
+        SGCL_INLINE_HOT expected<size_t, error> copy(W& w, R& r) noexcept(nothrow_copy<W, R>()) {
             if constexpr (WritesTo<R, W>) {
                 return r.write_to(w);
             } else if constexpr (ReadsFrom<W, R>) {
@@ -385,7 +385,7 @@ namespace sgcl::io {
     }
 
     template<req::async_reader R>
-    async::task<expected<size_t, error>> async_read_full(R&& r, const slice<byte>& buffer) noexcept(detail::NothrowHeld<R>) {
+    SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read_full(R&& r, const slice<byte>& buffer) noexcept(detail::NothrowHeld<R>) {
         return detail::async_read_full<detail::Held<R>>(std::forward<R>(r), buffer);
     }
 
@@ -396,7 +396,7 @@ namespace sgcl::io {
     }
 
     template<req::async_reader R>
-    async::task<expected<vector<byte>, error>> async_read_all(R&& r) noexcept(detail::NothrowHeld<R>) {
+    SGCL_INLINE_HOT async::task<expected<vector<byte>, error>> async_read_all(R&& r) noexcept(detail::NothrowHeld<R>) {
         return detail::async_read_all<detail::Held<R>>(std::forward<R>(r));
     }
 
@@ -419,7 +419,7 @@ namespace sgcl::io {
     }
 
     template<req::async_reader R>
-    async::task<expected<string, error>> async_read_all_text(R&& r) noexcept(detail::NothrowHeld<R>) {
+    SGCL_INLINE_HOT async::task<expected<string, error>> async_read_all_text(R&& r) noexcept(detail::NothrowHeld<R>) {
         return detail::async_read_all_text<detail::Held<R>>(std::forward<R>(r));
     }
 
@@ -430,7 +430,7 @@ namespace sgcl::io {
     // string made
     template<req::writer W, class D>
     requires detail::Text<D> || std::convertible_to<const D&, slice<const byte>>
-    expected<size_t, error> write(W&& w, const D& data) noexcept(detail::nothrow_write<detail::Target<W>>() && (detail::Text<D> || std::is_nothrow_convertible_v<const D&, slice<const byte>>)) {
+    SGCL_INLINE_HOT expected<size_t, error> write(W&& w, const D& data) noexcept(detail::nothrow_write<detail::Target<W>>() && (detail::Text<D> || std::is_nothrow_convertible_v<const D&, slice<const byte>>)) {
         if constexpr (detail::Text<D>) {
             return detail::call_write(detail::target(w), detail::text_bytes(data));
         } else {
@@ -439,7 +439,7 @@ namespace sgcl::io {
     }
 
     template<req::writer W>
-    expected<size_t, error> write(W&& w, byte b) noexcept(detail::nothrow_write<detail::Target<W>>()) {
+    SGCL_INLINE_HOT expected<size_t, error> write(W&& w, byte b) noexcept(detail::nothrow_write<detail::Target<W>>()) {
         return detail::call_write(detail::target(w), slice<const byte>(&b, 1));
     }
 
@@ -449,7 +449,7 @@ namespace sgcl::io {
     // the task is done
     template<req::async_writer W, class D>
     requires detail::Text<D> || std::convertible_to<const D&, slice<const byte>>
-    async::task<expected<size_t, error>> async_write(W&& w, const D& data) noexcept(detail::NothrowHeld<W> && (detail::Text<D> || std::is_nothrow_convertible_v<const D&, slice<const byte>>)) {
+    SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(W&& w, const D& data) noexcept(detail::NothrowHeld<W> && (detail::Text<D> || std::is_nothrow_convertible_v<const D&, slice<const byte>>)) {
         if constexpr (detail::Text<D>) {
             return detail::async_write_bytes<detail::Held<W>>(std::forward<W>(w), detail::text_bytes(data));
         } else {
@@ -458,7 +458,7 @@ namespace sgcl::io {
     }
 
     template<req::async_writer W>
-    async::task<expected<size_t, error>> async_write(W&& w, byte b) noexcept(detail::NothrowHeld<W>) {
+    SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(W&& w, byte b) noexcept(detail::NothrowHeld<W>) {
         return detail::async_write_byte<detail::Held<W>>(std::forward<W>(w), b);
     }
 
@@ -472,7 +472,7 @@ namespace sgcl::io {
     }
 
     template<req::async_writer W, req::async_reader R>
-    async::task<expected<size_t, error>> async_copy(W&& w, R&& r) noexcept(detail::NothrowHeld<W> && detail::NothrowHeld<R>) {
+    SGCL_INLINE_HOT async::task<expected<size_t, error>> async_copy(W&& w, R&& r) noexcept(detail::NothrowHeld<W> && detail::NothrowHeld<R>) {
         return detail::async_copy<detail::Held<W>, detail::Held<R>>(std::forward<W>(w), std::forward<R>(r));
     }
 }

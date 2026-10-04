@@ -30,7 +30,7 @@ namespace sgcl::crypto::x509::detail {
 
     // "CN=GTS CA 1C3,O=Google Trust Services LLC,C=US", or the serial when
     // the subject is empty: how a message names a certificate
-    inline std::string describe(const CertData& c) noexcept {
+    SGCL_INLINE_HOT std::string describe(const CertData& c) noexcept {
         std::string s(c.subject.to_string().view());
         if (s.empty()) {
             s = "serial:" + hex_text(reinterpret_cast<const unsigned char*>(c.serial.data()), c.serial.size());
@@ -141,7 +141,7 @@ namespace sgcl::crypto::x509::detail {
     }
 
     // The validity of one certificate at a time (seconds since 1970)
-    inline expected<void, error> check_time(const CertData& c, int64_t now) noexcept {
+    SGCL_INLINE_HOT expected<void, error> check_time(const CertData& c, int64_t now) noexcept {
         if (now < c.not_before) {
             return unexpected<error>(reject(reason::not_yet_valid, "the certificate " + describe(c) + " is not valid yet"));
         }
@@ -151,7 +151,7 @@ namespace sgcl::crypto::x509::detail {
         return {};
     }
 
-    inline expected<void, error> check_critical(const CertData& c) noexcept {
+    SGCL_INLINE_HOT expected<void, error> check_critical(const CertData& c) noexcept {
         if (!c.unhandled_critical.empty()) {
             return unexpected<error>(reject(reason::unhandled_critical_extension, "the certificate " + describe(c) + " has a critical extension not handled here (" + std::string(c.unhandled_critical[0].view()) + ")"));
         }
@@ -297,7 +297,7 @@ namespace sgcl::crypto::x509::detail {
     private:
         size_t _count = 0;
 
-        expected<void, error> _tick(const CertData& ca) noexcept {
+        SGCL_INLINE_HOT expected<void, error> _tick(const CertData& ca) noexcept {
             if (++_count > max_comparisons) {
                 return unexpected<error>(reject(reason::too_many_constraints, "the name constraints of " + describe(ca) + " take more than a million comparisons"));
             }
@@ -365,7 +365,7 @@ namespace sgcl::crypto::x509::detail {
         // A mailbox against the email constraints: a constraint with '@'
         // is one mailbox (the local part exact, the domain folded), any
         // other a domain under the rules of DNS names
-        bool _email_match(const string& constraint, const std::string& local, const std::string& domain) noexcept {
+        SGCL_INLINE_HOT bool _email_match(const string& constraint, const std::string& local, const std::string& domain) noexcept {
             std::string_view s = constraint.view();
             if (s.find('@') != std::string_view::npos) {
                 std::string cl, cd;
@@ -454,7 +454,7 @@ namespace sgcl::crypto::x509::detail {
 
     // Whether the certificate is self-issued: its issuer and subject the
     // same bytes (RFC 5280 §6.1: the same name, as the chain compares them)
-    inline bool self_issued(const CertData& c) noexcept {
+    SGCL_INLINE_HOT bool self_issued(const CertData& c) noexcept {
         return c.issuer_size == c.subject_size && std::memcmp(c.bytes_at(c.issuer_at), c.bytes_at(c.subject_at), c.subject_size) == 0;
     }
 

@@ -37,11 +37,11 @@ namespace sgcl::detail {
     // A pointer into the middle of a buffer keeps nothing (README, rule
     // 4), which is why the frame's pointers are the buffer's and the
     // handle is computed, not the other way round
-    inline std::coroutine_handle<> handle_of(void* frame) noexcept {
+    SGCL_INLINE_HOT std::coroutine_handle<> handle_of(void* frame) noexcept {
         return std::coroutine_handle<>::from_address((FrameWord*)frame + FrameHeaderWords);
     }
 
-    inline FrameWord* frame_of_handle(void* address) noexcept {
+    SGCL_INLINE_HOT FrameWord* frame_of_handle(void* address) noexcept {
         return (FrameWord*)address - FrameHeaderWords;
     }
 }
@@ -80,12 +80,12 @@ namespace sgcl {
         // type the library's queues and waiters hold a frame by
         using word = detail::FrameWord;
 
-        static void* operator new(size_t size) noexcept {
+        SGCL_INLINE_HOT static void* operator new(size_t size) noexcept {
             auto words = (size + sizeof(detail::FrameWord) - 1) / sizeof(detail::FrameWord);
             return detail::Maker<detail::FrameWord[]>::make_tracked_data(words + detail::FrameHeaderWords).release() + detail::FrameHeaderWords;
         }
 
-        static void operator delete(void* p, size_t) noexcept {
+        SGCL_INLINE_HOT static void operator delete(void* p, size_t) noexcept {
             auto frame = detail::frame_of_handle(p);
             if (detail::Page::is_unique(frame)) {
                 detail::Collector::delete_unique(frame);
@@ -100,7 +100,7 @@ namespace sgcl {
         // must derive from managed_frame (the rule of every wait: the
         // tracked pointers of the frame are roots only there)
         template<class P>
-        tracked_ptr<FrameWord> frame_of(std::coroutine_handle<P> h) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<FrameWord> frame_of(std::coroutine_handle<P> h) noexcept {
             static_assert(std::is_base_of_v<managed_frame, P>, "a coroutine that waits (on a channel, on a task, on the scheduler) must have a managed frame: derive its promise from sgcl::managed_frame, or use sgcl::async::task");
             return h.promise().self;
         }
@@ -122,18 +122,18 @@ namespace sgcl {
 
         frame_ptr() noexcept = default;
 
-        explicit frame_ptr(handle_type h) noexcept
+        SGCL_INLINE_HOT explicit frame_ptr(handle_type h) noexcept
         : _frame(_take(detail::frame_of_handle(h.address())))
         , _handle(h) {
             h.promise().self = _frame.ptr();
         }
 
-        frame_ptr(frame_ptr&& o) noexcept
+        SGCL_INLINE_HOT frame_ptr(frame_ptr&& o) noexcept
         : _frame(std::move(o._frame))
         , _handle(std::exchange(o._handle, {})) {
         }
 
-        frame_ptr& operator=(frame_ptr&& o) noexcept {
+        SGCL_INLINE_HOT frame_ptr& operator=(frame_ptr&& o) noexcept {
             if (this != &o) {
                 destroy();
                 _frame = std::move(o._frame);
@@ -145,35 +145,35 @@ namespace sgcl {
         frame_ptr(const frame_ptr&) = delete;
         frame_ptr& operator=(const frame_ptr&) = delete;
 
-        ~frame_ptr() noexcept {
+        SGCL_INLINE_HOT ~frame_ptr() noexcept {
             destroy();
         }
 
         // The handle's interface: whether there is a coroutine, its handle
         // and promise, resume() and done()
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_handle;
         }
 
-        handle_type handle() const noexcept {
+        SGCL_INLINE_HOT handle_type handle() const noexcept {
             return _handle;
         }
 
-        Promise& promise() const noexcept {
+        SGCL_INLINE_HOT Promise& promise() const noexcept {
             return _handle.promise();
         }
 
-        void resume() {
+        SGCL_INLINE_HOT void resume() {
             _handle.resume();
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return !_handle || _handle.done();
         }
 
         // Runs the destructors of the coroutine's locals and promise and
         // lets go of the frame
-        void destroy() noexcept {
+        SGCL_INLINE_HOT void destroy() noexcept {
             if (_handle) {
                 _handle.destroy();
                 _handle = {};
@@ -184,7 +184,7 @@ namespace sgcl {
         // Lets go of the frame without destroying the coroutine: it goes
         // on wherever it is (a task detached); the handle given back, as
         // unique_ptr::release gives the pointer, no longer keeps the frame
-        [[nodiscard]] handle_type release() noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT handle_type release() noexcept {
             _frame = nullptr;
             return std::exchange(_handle, {});
         }
@@ -193,7 +193,7 @@ namespace sgcl {
         // The frame, from the state operator new left it in (owned by a
         // unique_ptr) to a tracked one: the same path a container's buffer
         // takes (vector.h: _allocate)
-        static tracked_ptr<detail::FrameWord> _take(detail::FrameWord* frame) noexcept {
+        SGCL_INLINE_HOT static tracked_ptr<detail::FrameWord> _take(detail::FrameWord* frame) noexcept {
             return unique_ptr<detail::FrameWord>(detail::UniquePtr<detail::FrameWord>(frame));
         }
 

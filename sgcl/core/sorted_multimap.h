@@ -44,11 +44,11 @@ namespace sgcl {
         // O(1), in place of mixin::enumerable's walk (hidden, the overloads with
         // a comparator too: the container orders by its own comparator)
 
-        const value_type& min() const noexcept {
+        SGCL_INLINE_HOT const value_type& min() const noexcept {
             return *this->begin();
         }
 
-        const value_type& max() const noexcept {
+        SGCL_INLINE_HOT const value_type& max() const noexcept {
             return *this->rbegin();
         }
         using Base::insert;
@@ -59,18 +59,18 @@ namespace sgcl {
         sorted_multimap& operator=(const sorted_multimap&) = default;
         sorted_multimap& operator=(sorted_multimap&&) = default;
 
-        sorted_multimap& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT sorted_multimap& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
+        SGCL_INLINE_HOT iterator insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->emplace(std::forward<P>(value));
         }
 
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator hint, P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
+        SGCL_INLINE_HOT iterator insert(const_iterator hint, P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->emplace_hint(hint, std::forward<P>(value));
         }
     };
@@ -85,7 +85,7 @@ namespace sgcl {
     sorted_multimap(std::initializer_list<pair<Key, T>>, Compare = Compare()) -> sorted_multimap<Key, T, Compare>;
 
     template<class Key, class T, class Compare>
-    void swap(sorted_multimap<Key, T, Compare>& lhs, sorted_multimap<Key, T, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    SGCL_INLINE_HOT void swap(sorted_multimap<Key, T, Compare>& lhs, sorted_multimap<Key, T, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 

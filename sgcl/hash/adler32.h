@@ -88,27 +88,27 @@ namespace sgcl::hash {
 
         // Going on from the checksum of what came before. A value whose
         // halves are not below 65521 is no checksum; it is taken modulo
-        static adler32 resume(uint32_t value) noexcept {
+        SGCL_INLINE_HOT static adler32 resume(uint32_t value) noexcept {
             adler32 h;
             h._value = ((value >> 16) % detail::AdlerModulus) << 16 | ((value & 0xffff) % detail::AdlerModulus);
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _value = detail::adler_update(_value & 0xffff, _value >> 16, detail::bytes(data.data()), data.size());
         }
 
-        uint32_t value() const noexcept {
+        SGCL_INLINE_HOT uint32_t value() const noexcept {
             return _value;
         }
 
         // The checksum as bytes, the most significant first: what zlib
         // writes at the end of a stream, and Go's Sum
-        array<byte, 4> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 4> digest() const noexcept {
             return detail::big_endian<4>(_value);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _value = 1;
         }
 

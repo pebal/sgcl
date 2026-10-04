@@ -63,7 +63,7 @@ namespace sgcl::slog {
             return **word;
         }
 
-        inline void collector_sink(int level, const char* text, size_t n) noexcept {
+        SGCL_INLINE_HOT void collector_sink(int level, const char* text, size_t n) noexcept {
             {
                 CollectorQueue& q = collector_queue();
                 std::lock_guard<std::mutex> g(q.lock);
@@ -226,7 +226,7 @@ namespace sgcl::slog {
     }
 
     // Through the default logger
-    inline void collector_log() noexcept {
+    SGCL_INLINE_HOT void collector_log() noexcept {
         collector_log(default_logger());
     }
 }

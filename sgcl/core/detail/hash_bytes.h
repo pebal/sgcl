@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -23,7 +25,7 @@ namespace sgcl::detail {
         uint64_t k[4];
     };
 
-    inline uint64_t hash_key_step(uint64_t& x) noexcept {
+    SGCL_INLINE_HOT uint64_t hash_key_step(uint64_t& x) noexcept {
         uint64_t z = (x += 0x9E3779B97F4A7C15ull);
         z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
         z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
@@ -56,18 +58,18 @@ namespace sgcl::detail {
 
     // The product of two words, its halves xored: every bit of both in
     // every bit of the result
-    inline uint64_t hash_mix(uint64_t a, uint64_t b) noexcept {
+    SGCL_INLINE_HOT uint64_t hash_mix(uint64_t a, uint64_t b) noexcept {
         const __uint128_t p = (__uint128_t)a * b;
         return uint64_t(p) ^ uint64_t(p >> 64);
     }
 
-    inline uint64_t hash_load64(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT uint64_t hash_load64(const unsigned char* p) noexcept {
         uint64_t v;
         std::memcpy(&v, p, 8);
         return v;
     }
 
-    inline uint64_t hash_load32(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT uint64_t hash_load32(const unsigned char* p) noexcept {
         uint32_t v;
         std::memcpy(&v, p, 4);
         return v;

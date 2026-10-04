@@ -38,17 +38,17 @@ namespace sgcl {
         // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
-        multimap& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT multimap& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
 
     private:
-        friend bool operator==(const multimap& lhs, const multimap& rhs) {
+        SGCL_INLINE_HOT friend bool operator==(const multimap& lhs, const multimap& rhs) {
             return lhs._equal_to(rhs);
         }
 
-        friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+        SGCL_INLINE_HOT friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs))) {
             lhs.swap(rhs);
         }
 
@@ -68,7 +68,7 @@ namespace sgcl {
         -> multimap<Key, T, Hash, KeyEqual>;
 
     template<class Key, class T, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(multimap<Key, T, Hash, KeyEqual>& c, Pred pred) {
+    SGCL_INLINE_HOT size_t erase_if(multimap<Key, T, Hash, KeyEqual>& c, Pred pred) {
         return c._erase_if(pred);
     }
 }

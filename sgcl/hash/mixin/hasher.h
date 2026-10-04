@@ -32,7 +32,7 @@ namespace sgcl::hash {
         // key can afford. It is sound because every caller below holds the
         // text for the whole call (a const string& keeps the string alive)
         // and no hasher keeps a slice past the call it was given in.
-        inline slice<const byte> text_bytes(const char* data, size_t size) noexcept {
+        SGCL_INLINE_HOT slice<const byte> text_bytes(const char* data, size_t size) noexcept {
             return slice<const byte>(reinterpret_cast<const byte*>(data), size);
         }
 
@@ -41,46 +41,46 @@ namespace sgcl::hash {
         // a class's one-shot. A slice of bytes is passed on as it is, by
         // reference (a form that converts to one, as a std::vector does,
         // lives to the end of the call it was made for)
-        inline const slice<const byte>& as_bytes(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT const slice<const byte>& as_bytes(const slice<const byte>& data) noexcept {
             return data;
         }
 
-        inline slice<const byte> as_bytes(const string& text) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(const string& text) noexcept {
             return text_bytes(text.data(), text.size());
         }
 
-        inline slice<const byte> as_bytes(const slice<const char>& text) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(const slice<const char>& text) noexcept {
             return text_bytes(text.data(), text.size());
         }
 
-        inline slice<const byte> as_bytes(const slice<char>& text) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(const slice<char>& text) noexcept {
             return text_bytes(text.data(), text.size());
         }
 
         template<size_t N>
-        slice<const byte> as_bytes(const char (&text)[N]) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(const char (&text)[N]) noexcept {
             const char* nul = std::char_traits<char>::find(text, N, '\0');
             return text_bytes(text, nul ? size_t(nul - text) : N);
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        slice<const byte> as_bytes(P text) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(P text) noexcept {
             return text_bytes(text, std::strlen(text));
         }
 
-        inline slice<const byte> as_bytes(std::string_view text) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(std::string_view text) noexcept {
             return text_bytes(text.data(), text.size());
         }
 
         template<size_t N>
-        slice<const byte> as_bytes(const array<byte, N>& digest) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(const array<byte, N>& digest) noexcept {
             return slice<const byte>(digest.data(), N);
         }
 
         template<class S>
         requires std::same_as<S, std::span<byte>> || std::same_as<S, std::span<const byte>>
-        slice<const byte> as_bytes(S bytes) noexcept {
+        SGCL_INLINE_HOT slice<const byte> as_bytes(S bytes) noexcept {
             return slice<const byte>(bytes.data(), bytes.size());
         }
     }
@@ -126,41 +126,41 @@ namespace sgcl::hash {
         template<class Derived>
         class hasher {
         public:
-            void update(const string& text) noexcept {
+            SGCL_INLINE_HOT void update(const string& text) noexcept {
                 _self().update(detail::as_bytes(text));
             }
 
-            void update(const slice<const char>& text) noexcept {
+            SGCL_INLINE_HOT void update(const slice<const char>& text) noexcept {
                 _self().update(detail::as_bytes(text));
             }
 
-            void update(const slice<char>& text) noexcept {
+            SGCL_INLINE_HOT void update(const slice<char>& text) noexcept {
                 _self().update(detail::as_bytes(text));
             }
 
             template<size_t N>
-            void update(const char (&text)[N]) noexcept {
+            SGCL_INLINE_HOT void update(const char (&text)[N]) noexcept {
                 _self().update(detail::as_bytes(text));
             }
 
             template<class P>
             requires std::same_as<P, const char*> || std::same_as<P, char*>
-            void update(P text) noexcept {
+            SGCL_INLINE_HOT void update(P text) noexcept {
                 _self().update(detail::as_bytes(text));
             }
 
-            void update(std::string_view text) noexcept {
+            SGCL_INLINE_HOT void update(std::string_view text) noexcept {
                 _self().update(detail::as_bytes(text));
             }
 
             template<size_t N>
-            void update(const array<byte, N>& digest) noexcept {
+            SGCL_INLINE_HOT void update(const array<byte, N>& digest) noexcept {
                 _self().update(detail::as_bytes(digest));
             }
 
             template<class S>
             requires std::same_as<S, std::span<byte>> || std::same_as<S, std::span<const byte>>
-            void update(S bytes) noexcept {
+            SGCL_INLINE_HOT void update(S bytes) noexcept {
                 _self().update(detail::as_bytes(bytes));
             }
 
@@ -175,7 +175,7 @@ namespace sgcl::hash {
             template<class... Args>
             requires (sizeof...(Args) == 0 ? std::default_initializable<Derived>
                                            : requires(const Args&... args) { Derived::_of(std::declval<const slice<const byte>&>(), args...); })
-            static auto of(const slice<const byte>& data, const Args&... args) noexcept {
+            SGCL_INLINE_HOT static auto of(const slice<const byte>& data, const Args&... args) noexcept {
                 if constexpr (requires { Derived::_of(data, args...); }) {
                     return Derived::_of(data, args...);
                 } else {
@@ -196,7 +196,7 @@ namespace sgcl::hash {
             requires (!std::is_same_v<Data, slice<const byte>>)
                   && requires(const Data& data) { detail::as_bytes(data); }
                   && requires(const slice<const byte>& bytes, const Args&... args) { hasher::of(bytes, args...); }
-            static auto of(const Data& data, const Args&... args) noexcept {
+            SGCL_INLINE_HOT static auto of(const Data& data, const Args&... args) noexcept {
                 return hasher::of(detail::as_bytes(data), args...);
             }
 
@@ -206,11 +206,11 @@ namespace sgcl::hash {
             // copy_from, managed for async_copy_from (its reads may run on
             // the pool); the bytes handed to update() straight from it.
             // `copy_from(...)` on this thread, `co_await async_copy_from(...)` in a task
-            expected<size_t, io::error> copy_from(const io::reader& r) {
+            SGCL_INLINE_HOT expected<size_t, io::error> copy_from(const io::reader& r) {
                 return _block_copy_from(r);
             }
 
-            async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) noexcept {
+            SGCL_INLINE_HOT async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r) noexcept {
                 return _co_copy_from(r);
             }
 
@@ -221,11 +221,11 @@ namespace sgcl::hash {
             // or the error of the open or of a read. For a class made
             // without a seed or a key, as of(data) is.
             // `of_file(...)` on this thread, `co_await async_of_file(...)` in a task
-            static auto of_file(const string& path) requires std::default_initializable<Derived> {
+            SGCL_INLINE_HOT static auto of_file(const string& path) requires std::default_initializable<Derived> {
                 return _block_of_file(path);
             }
 
-            static auto async_of_file(const string& path) noexcept requires std::default_initializable<Derived> {
+            SGCL_INLINE_HOT static auto async_of_file(const string& path) noexcept requires std::default_initializable<Derived> {
                 return _co_of_file(path);
             }
 
@@ -234,7 +234,7 @@ namespace sgcl::hash {
             ~hasher() = default;
 
         private:
-            Derived& _self() noexcept {
+            SGCL_INLINE_HOT Derived& _self() noexcept {
                 return static_cast<Derived&>(*this);
             }
 

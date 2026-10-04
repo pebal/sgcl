@@ -29,27 +29,27 @@ namespace sgcl {
             optional<T> value;
             std::exception_ptr error;
 
-            generator get_return_object() noexcept {
+            SGCL_INLINE_HOT generator get_return_object() noexcept {
                 return generator(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
-            std::suspend_always initial_suspend() noexcept {
+            SGCL_INLINE_HOT std::suspend_always initial_suspend() noexcept {
                 return {};
             }
 
-            std::suspend_always final_suspend() noexcept {
+            SGCL_INLINE_HOT std::suspend_always final_suspend() noexcept {
                 return {};
             }
 
-            std::suspend_always yield_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
+            SGCL_INLINE_HOT std::suspend_always yield_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 value.emplace(std::move(v));
                 return {};
             }
 
-            void return_void() noexcept {
+            SGCL_INLINE_HOT void return_void() noexcept {
             }
 
-            void unhandled_exception() noexcept {
+            SGCL_INLINE_HOT void unhandled_exception() noexcept {
                 error = std::current_exception();
             }
         };
@@ -64,35 +64,35 @@ namespace sgcl {
 
             iterator() noexcept = default;
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 return _g->value();
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return &_g->value();
             }
 
-            iterator& operator++() {
+            SGCL_INLINE_HOT iterator& operator++() {
                 if (!_g->next()) {
                     _g = nullptr;
                 }
                 return *this;
             }
 
-            void operator++(int) {
+            SGCL_INLINE_HOT void operator++(int) {
                 ++*this;
             }
 
-            bool operator==(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
                 return _g == o._g;
             }
 
-            bool operator!=(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator!=(const iterator& o) const noexcept {
                 return _g != o._g;
             }
 
         private:
-            explicit iterator(generator* g) noexcept
+            SGCL_INLINE_HOT explicit iterator(generator* g) noexcept
             : _g(g) {
             }
 
@@ -104,7 +104,7 @@ namespace sgcl {
         generator() noexcept = default;
 
         // Runs to the next co_yield: true, or to the end: false
-        bool next() {
+        SGCL_INLINE_HOT bool next() {
             if (_frame.done()) {
                 return false;
             }
@@ -116,24 +116,24 @@ namespace sgcl {
             return !_frame.done();
         }
 
-        T& value() const noexcept {
+        SGCL_INLINE_HOT T& value() const noexcept {
             return *_frame.promise().value;
         }
 
-        iterator begin() {
+        SGCL_INLINE_HOT iterator begin() {
             return next() ? iterator(this) : iterator();
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator();
         }
 
-        void destroy() noexcept {
+        SGCL_INLINE_HOT void destroy() noexcept {
             _frame.destroy();
         }
 
     private:
-        explicit generator(std::coroutine_handle<promise_type> h) noexcept
+        SGCL_INLINE_HOT explicit generator(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 

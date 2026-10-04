@@ -86,12 +86,12 @@ namespace sgcl::txt {
     // from an empty one and write into it with the same code.
     class format_sink {
     public:
-        constexpr format_sink(char* at, size_t room) noexcept
+        SGCL_INLINE_HOT constexpr format_sink(char* at, size_t room) noexcept
         : _at(at)
         , _end(at + room) {
         }
 
-        constexpr void put(char c) noexcept {
+        SGCL_INLINE_HOT constexpr void put(char c) noexcept {
             if (_at < _end) {
                 *_at++ = c;
             }
@@ -116,7 +116,7 @@ namespace sgcl::txt {
             _size += n;
         }
 
-        constexpr void put(std::string_view text) noexcept {
+        SGCL_INLINE_HOT constexpr void put(std::string_view text) noexcept {
             put(text.data(), text.size());
         }
 
@@ -135,7 +135,7 @@ namespace sgcl::txt {
         }
 
         // What the whole text takes, whether or not it fitted
-        constexpr size_t size() const noexcept {
+        SGCL_INLINE_HOT constexpr size_t size() const noexcept {
             return _size;
         }
 
@@ -143,7 +143,7 @@ namespace sgcl::txt {
         // far kept rather than started again. Nobody writing a value
         // calls this: it is for whoever owns the room and can get more of
         // it — growing_sink below, which is the whole reason it is here.
-        constexpr void reseat(char* at, size_t room, size_t counted) noexcept {
+        SGCL_INLINE_HOT constexpr void reseat(char* at, size_t room, size_t counted) noexcept {
             _at = at;
             _end = at + room;
             _size = counted;
@@ -197,7 +197,7 @@ namespace sgcl::txt {
     class growing_sink {
     public:
         // Room of the caller's, which more can be added to
-        growing_sink(char* room, size_t n) noexcept
+        SGCL_INLINE_HOT growing_sink(char* room, size_t n) noexcept
         : _at(room)
         , _cap(n)
         , _room(n)
@@ -217,7 +217,7 @@ namespace sgcl::txt {
         struct lent_t {};
         static constexpr lent_t lent {};
 
-        growing_sink(lent_t, char* room, size_t n) noexcept
+        SGCL_INLINE_HOT growing_sink(lent_t, char* room, size_t n) noexcept
         : _at(room)
         , _cap(size_t(-1))
         , _room(n)
@@ -230,7 +230,7 @@ namespace sgcl::txt {
         // Where the values go. The reference stays good over a growth:
         // the sink is this object's own and is moved over the new room
         // where it stands.
-        format_sink& out() noexcept {
+        SGCL_INLINE_HOT format_sink& out() noexcept {
             return _sink;
         }
 
@@ -242,7 +242,7 @@ namespace sgcl::txt {
         // every call a step makes, because a call might have written it,
         // where a local the compiler can prove nobody else reaches stays
         // in a register across the whole walk.
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _cap;
         }
 
@@ -263,7 +263,7 @@ namespace sgcl::txt {
         // itself the compiler put the growth in line and jumped over it
         // for the common case, and that one taken branch a step came to
         // fourteen per cent of a page of ten rows.
-        size_t take_room(size_t want, size_t mark) noexcept {
+        SGCL_INLINE_HOT size_t take_room(size_t want, size_t mark) noexcept {
             if (_cap == size_t(-1)) {
                 return _cap;        // room that was lent; it cannot grow
             }
@@ -273,7 +273,7 @@ namespace sgcl::txt {
         }
 
         // What the whole page takes, whether or not it fitted
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _sink.size();
         }
 
@@ -290,7 +290,7 @@ namespace sgcl::txt {
         // they are not, and reading size() characters out of a buffer of
         // n was reading whatever stood after the caller's buffer.
         // Nobody called it; it is answered here before somebody does.
-        std::string_view view() const noexcept {
+        SGCL_INLINE_HOT std::string_view view() const noexcept {
             size_t n = _sink.size();
             return std::string_view(_at, n < _room ? n : _room);
         }
@@ -299,7 +299,7 @@ namespace sgcl::txt {
         // and never added to there is no whole page to hand back — what
         // did not fit was dropped — so that road asks size() instead,
         // which is what it came for.
-        string text() const {
+        SGCL_INLINE_HOT string text() const {
             auto whole = view();
             return string(whole.data(), whole.size());
         }
@@ -332,7 +332,7 @@ namespace sgcl::txt {
         // character and a mark that begins a cluster among them. Not
         // columns(), which counts a terminal's columns and gives those
         // none: a field is std::format's, so that the two pad alike.
-        constexpr size_t estimated_width_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr size_t estimated_width_of(char32_t c) noexcept {
             if (c < 0x1100) {
                 return 1;
             }
@@ -400,7 +400,7 @@ namespace sgcl::txt {
             }
         }
 
-        constexpr void pad_with(format_sink& out, char32_t fill, size_t n) noexcept {
+        SGCL_INLINE_HOT constexpr void pad_with(format_sink& out, char32_t fill, size_t n) noexcept {
             if (fill < 0x80) [[likely]] {
                 out.fill(char(fill), n);
             } else {
@@ -419,7 +419,7 @@ namespace sgcl::txt {
             return n * w;
         }
 
-        inline size_t pad_into(char* at, char32_t fill, size_t n) noexcept {
+        SGCL_INLINE_HOT size_t pad_into(char* at, char32_t fill, size_t n) noexcept {
             if (fill < 0x80) [[likely]] {
                 sgcl::detail::fill_bytes(at, (unsigned char)fill, n);
                 return n;
@@ -428,7 +428,7 @@ namespace sgcl::txt {
         }
 
         // The bytes one fill takes
-        constexpr size_t fill_bytes_of(char32_t fill) noexcept {
+        SGCL_INLINE_HOT constexpr size_t fill_bytes_of(char32_t fill) noexcept {
             return fill < 0x80 ? 1 : utf8::width(fill);
         }
 
@@ -486,7 +486,7 @@ namespace sgcl::txt {
         // code it was when the fill was one byte. With both kinds of fill
         // behind one call the fill stopped being inlined into the field,
         // and "{:>12}" and "{:*^40}" read 7% slower.
-        inline void put_in_field(format_sink& out, std::string_view body, const format_spec& spec,
+        SGCL_INLINE_HOT void put_in_field(format_sink& out, std::string_view body, const format_spec& spec,
                                  std::string_view head, char align, size_t body_width) noexcept {
             if (spec.fill >= 0x80) [[unlikely]] {
                 put_in_wide_field(out, body, spec, head, align, body_width);
@@ -500,7 +500,7 @@ namespace sgcl::txt {
         // by far, and then there is nothing to pad: the head, when there
         // is one, and the body. Small enough to be inlined into whoever
         // wrote the value, which is the whole point of the split.
-        constexpr void put_padded(format_sink& out, std::string_view body, const format_spec& spec,
+        SGCL_INLINE_HOT constexpr void put_padded(format_sink& out, std::string_view body, const format_spec& spec,
                                   std::string_view head = {}, char align = '<',
                                   size_t body_width = size_t(-1)) noexcept {
             if (spec.width) {
@@ -549,7 +549,7 @@ namespace sgcl::txt {
             38554705664ull, 38554705664ull, 38554705664ull, 41949672960ull,
             41949672960ull, 41949672960ull, 42949672960ull, 42949672960ull };
 
-        inline unsigned digit_count(uint32_t v) noexcept {
+        SGCL_INLINE_HOT unsigned digit_count(uint32_t v) noexcept {
             return unsigned((v + DigitCounts[31 - __builtin_clz(v | 1)]) >> 32);
         }
 
@@ -585,7 +585,7 @@ namespace sgcl::txt {
 
         // The `n` digits that matter, at `to`, with the rest of the eight
         // left as whatever follows them
-        inline void write_significant(char* to, uint32_t v, unsigned n) noexcept {
+        SGCL_INLINE_HOT void write_significant(char* to, uint32_t v, unsigned n) noexcept {
 #if defined(__ARM_NEON)
             uint8x8_t slide = vadd_u8(vcreate_u8(0x0706050403020100ull), vdup_n_u8(uint8_t(8 - n)));
             vst1_u8((uint8_t*)to, vtbl1_u8(eight_digits(v), slide));
@@ -627,7 +627,7 @@ namespace sgcl::txt {
             return at + 16;
         }
 
-        constexpr int base_of(char type) noexcept {
+        SGCL_INLINE_HOT constexpr int base_of(char type) noexcept {
             return type == 'b' || type == 'B' ? 2 : type == 'o' ? 8
                  : type == 'x' || type == 'X' ? 16 : 10;
         }
@@ -702,12 +702,12 @@ namespace sgcl::txt {
         // one: 2^53 for a double and 2^24 for a float, which is where the
         // significand runs out in each
         template<class F>
-        constexpr F whole_limit() noexcept {
+        SGCL_INLINE_HOT constexpr F whole_limit() noexcept {
             return std::is_same_v<F, float> ? F(16777216) : F(9007199254740992);
         }
 
         template<class F>
-        inline bool is_whole(F magnitude, uint64_t& whole) noexcept {
+        SGCL_INLINE_HOT bool is_whole(F magnitude, uint64_t& whole) noexcept {
             if (!(magnitude < whole_limit<F>()) || magnitude != std::floor(magnitude)) {
                 return false;
             }
@@ -942,7 +942,7 @@ namespace sgcl::txt {
         // by its bytes. A precision cuts it to that width and stops on a
         // grapheme cluster; a width pads it to that many. The measuring is
         // skipped when neither was asked for.
-        constexpr void write_text(format_sink& out, std::string_view text, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT constexpr void write_text(format_sink& out, std::string_view text, const format_spec& spec) noexcept {
             if (spec.precision >= 0) {
                 text = text.substr(0, estimated_prefix(text, size_t(spec.precision)));
             }
@@ -1098,7 +1098,7 @@ namespace sgcl::txt {
 
         // Text written either way, which is the whole of what the text
         // formatters below have to decide
-        inline void write_text_or_debug(format_sink& out, std::string_view text,
+        SGCL_INLINE_HOT void write_text_or_debug(format_sink& out, std::string_view text,
                                         const format_spec& spec) noexcept {
             if (spec.type == '?') {
                 write_debug_text(out, text, spec, '"');
@@ -1119,7 +1119,7 @@ namespace sgcl::txt {
             format_value(out, v, s);
         };
 
-        constexpr bool is_digit(char c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_digit(char c) noexcept {
             return c >= '0' && c <= '9';
         }
 
@@ -1429,7 +1429,7 @@ namespace sgcl::txt {
         // Whether walking a range cannot throw: its begin and end, and the
         // step, the comparison and the read of its iterator
         template<class R>
-        constexpr bool nothrow_walk() noexcept {
+        SGCL_INLINE_HOT constexpr bool nothrow_walk() noexcept {
             using It = decltype(std::declval<const R&>().begin());
             using End = decltype(std::declval<const R&>().end());
             return noexcept(std::declval<const R&>().begin()) && noexcept(std::declval<const R&>().end())
@@ -1489,7 +1489,7 @@ namespace sgcl::txt {
         // another one depends on what the element itself holds, so the
         // same characters are read afresh for each type that meets them.
         template<class E>
-        constexpr bool read_for(std::string_view nested, format_spec& spec,
+        SGCL_INLINE_HOT constexpr bool read_for(std::string_view nested, format_spec& spec,
                                 std::string_view& inner) noexcept {
             if (!nested.data()) {
                 return true;
@@ -1512,7 +1512,7 @@ namespace sgcl::txt {
         constexpr void as_element(format_spec& spec) noexcept;
 
         template<class E>
-        constexpr bool takes_for(std::string_view nested) noexcept {
+        SGCL_INLINE_HOT constexpr bool takes_for(std::string_view nested) noexcept {
             format_spec spec;
             std::string_view inner;
             if (!read_for<E>(nested, spec, inner)) {
@@ -1523,7 +1523,7 @@ namespace sgcl::txt {
         }
 
         template<class E>
-        void write_for(format_sink& out, const E& value, std::string_view nested) noexcept(nothrow_write<E>()) {
+        SGCL_INLINE_HOT void write_for(format_sink& out, const E& value, std::string_view nested) noexcept(nothrow_write<E>()) {
             format_spec spec;
             std::string_view inner;
             read_for<E>(nested, spec, inner);
@@ -1620,7 +1620,7 @@ namespace sgcl::txt {
             // back where it stood
             void _grow(size_t want) noexcept;
 
-            void _release() noexcept {
+            SGCL_INLINE_HOT void _release() noexcept {
                 delete[] _room;
                 _room = nullptr;
                 _cap = 0;
@@ -1636,13 +1636,13 @@ namespace sgcl::txt {
 
         inline thread_local constinit field_arena this_threads_field_arena;
 
-        inline field_arena& field_arena::here() noexcept {
+        SGCL_INLINE_HOT field_arena& field_arena::here() noexcept {
             return this_threads_field_arena;
         }
 
         // What gives the buffer back when the thread ends
         struct field_arena_reaper {
-            ~field_arena_reaper() {
+            SGCL_INLINE_HOT ~field_arena_reaper() {
                 this_threads_field_arena._release();
             }
         };
@@ -1671,7 +1671,7 @@ namespace sgcl::txt {
         // and the sink the body writes into
         class field_arena::level {
         public:
-            explicit level(format_sink& into) noexcept
+            SGCL_INLINE_HOT explicit level(format_sink& into) noexcept
             : _arena(field_arena::here())
             , _under(_arena._open)
             , _into(&into)
@@ -1680,7 +1680,7 @@ namespace sgcl::txt {
                 _arena._open = this;
             }
 
-            ~level() {
+            SGCL_INLINE_HOT ~level() {
                 if (_arena._open == this) {
                     _arena._open = _under;
                 }
@@ -1689,13 +1689,13 @@ namespace sgcl::txt {
             level(const level&) = delete;
             level& operator=(const level&) = delete;
 
-            format_sink& out() noexcept {
+            SGCL_INLINE_HOT format_sink& out() noexcept {
                 return _sink;
             }
 
             // Whether the body ran off the end of what was free, now or
             // at any moment before the arena last grew
-            bool ran_off() const noexcept {
+            SGCL_INLINE_HOT bool ran_off() const noexcept {
                 return _lost || _sink.size() > _arena._cap - _mark;
             }
 
@@ -1703,7 +1703,7 @@ namespace sgcl::txt {
             // The levels under it keep what they have written; only the
             // one that ran off is asked for anything twice, and only
             // until the arena is as big as the page needs.
-            void take_room() noexcept {
+            SGCL_INLINE_HOT void take_room() noexcept {
                 _arena._grow(_mark + _sink.size());
                 _sink.reseat(_arena._room + _mark, _arena._cap - _mark, 0);
                 _lost = false;
@@ -1768,14 +1768,14 @@ namespace sgcl::txt {
 
             // What this level has really put there, which is what it
             // counted unless it ran off the end
-            size_t _written(size_t cap) const noexcept {
+            SGCL_INLINE_HOT size_t _written(size_t cap) const noexcept {
                 size_t n = _sink.size();
                 size_t room = cap - _mark;
                 return n < room ? n : room;
             }
 
             // Room enough to start with, before the sink is built over it
-            char* _open_room() noexcept {
+            SGCL_INLINE_HOT char* _open_room() noexcept {
                 if (_arena._cap < _mark + FieldArenaFirst) {
                     _arena._grow(_mark + FieldArenaFirst);
                 }
@@ -1790,7 +1790,7 @@ namespace sgcl::txt {
             bool _lost = false;
         };
 
-        inline size_t field_arena::_held(size_t cap) const noexcept {
+        SGCL_INLINE_HOT size_t field_arena::_held(size_t cap) const noexcept {
             return _open ? _open->_mark + _open->_written(cap) : 0;
         }
 
@@ -1857,7 +1857,7 @@ namespace sgcl::txt {
         // known until the whole is written, and the whole is not a string
         // anybody has.
         template<class Body>
-        void put_body_in_field(format_sink& out, const format_spec& spec, Body&& body)
+        SGCL_INLINE_HOT void put_body_in_field(format_sink& out, const format_spec& spec, Body&& body)
             noexcept(noexcept(body(std::declval<format_sink&>()))) {
             if (!spec.width) {
                 body(out);
@@ -1875,7 +1875,7 @@ namespace sgcl::txt {
     // spec gets. The text is whatever a std::string_view is made of, as
     // format_sink::put takes it: a string, a slice, a C string, or the
     // characters a type wrote into a buffer of its own, {room, n}
-    constexpr void write_padded(format_sink& out, std::string_view text, const format_spec& spec) noexcept {
+    SGCL_INLINE_HOT constexpr void write_padded(format_sink& out, std::string_view text, const format_spec& spec) noexcept {
         detail::write_text(out, text, spec);
     }
 
@@ -1905,12 +1905,12 @@ namespace sgcl::txt {
         static_assert(sizeof(T) <= sizeof(unsigned long long),
                       "txt::format does not write integers wider than long long "
                       "(__int128 and the like): it would narrow them silently");
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'd' || type == 'b' || type == 'B' || type == 'o'
                 || type == 'x' || type == 'X' || type == 'c';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
@@ -1943,16 +1943,16 @@ namespace sgcl::txt {
 
     template<>
     struct formatter<bool> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 's' || type == 'd' || type == 'b' || type == 'B'
                 || type == 'o' || type == 'x' || type == 'X';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static void write(format_sink& out, bool value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, bool value, const format_spec& spec) noexcept {
             if (!spec.type || spec.type == 's') {
                 detail::write_text(out, value ? "true" : "false", spec);
                 return;
@@ -1963,16 +1963,16 @@ namespace sgcl::txt {
 
     template<>
     struct formatter<char> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'c' || type == 'd' || type == 'b' || type == 'B'
                 || type == 'o' || type == 'x' || type == 'X' || type == '?';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static void write(format_sink& out, char value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, char value, const format_spec& spec) noexcept {
             if (spec.type == '?') {
                 // In single quotes, which is the quote a character has to
                 // have escaped inside it
@@ -1991,12 +1991,12 @@ namespace sgcl::txt {
     // text is UTF-8, so it goes out as the bytes it is written with
     template<>
     struct formatter<char32_t> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'c' || type == 'd' || type == 'x' || type == 'X'
                 || type == 'b' || type == 'B' || type == 'o' || type == '?';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
@@ -2018,16 +2018,16 @@ namespace sgcl::txt {
     template<class T>
     requires std::is_floating_point_v<T>
     struct formatter<T> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'f' || type == 'F' || type == 'e' || type == 'E'
                 || type == 'g' || type == 'G' || type == 'a' || type == 'A';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return true;
         }
 
-        static void write(format_sink& out, T value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, T value, const format_spec& spec) noexcept {
             // long double is written through double, which loses nothing
             // where the two are the same type and is what the standard's
             // own to_chars offers where they are not
@@ -2042,15 +2042,15 @@ namespace sgcl::txt {
     template<class T>
     requires std::is_convertible_v<T, std::string_view>
     struct formatter<T> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 's' || type == '?';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return true;
         }
 
-        static void write(format_sink& out, std::string_view value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, std::string_view value, const format_spec& spec) noexcept {
             detail::write_text_or_debug(out, value, spec);
         }
     };
@@ -2058,30 +2058,30 @@ namespace sgcl::txt {
     // The library's own text, which holds what it points at
     template<>
     struct formatter<string> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 's' || type == '?';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return true;
         }
 
-        static void write(format_sink& out, const string& value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, const string& value, const format_spec& spec) noexcept {
             detail::write_text_or_debug(out, value.view(), spec);
         }
     };
 
     template<>
     struct formatter<slice<const char>> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 's' || type == '?';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return true;
         }
 
-        static void write(format_sink& out, const slice<const char>& value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, const slice<const char>& value, const format_spec& spec) noexcept {
             detail::write_text_or_debug(out, value.view(), spec);
         }
     };
@@ -2091,15 +2091,15 @@ namespace sgcl::txt {
     // time, which it does not need: `txt::format("{}", d)` with txt alone
     template<>
     struct formatter<duration> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 's';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static void write(format_sink& out, duration d, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, duration d, const format_spec& spec) noexcept {
             string text = d.to_string();
             detail::put_padded(out, std::string_view(text), spec);
         }
@@ -2108,15 +2108,15 @@ namespace sgcl::txt {
     template<class T>
     requires std::is_pointer_v<T> && (!std::is_convertible_v<T, std::string_view>)
     struct formatter<T> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'p';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static void write(format_sink& out, const void* value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, const void* value, const format_spec& spec) noexcept {
             format_spec as_hex = spec;
             as_hex.type = 'x';
             as_hex.alternate = true;
@@ -2150,16 +2150,16 @@ namespace sgcl::txt {
     struct formatter<T> {
         using number = std::underlying_type_t<T>;
 
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'd' || type == 'b' || type == 'B' || type == 'o'
                 || type == 'x' || type == 'X';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static void write(format_sink& out, T value, const format_spec& spec) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, T value, const format_spec& spec) noexcept {
             detail::write_integer<number>(out, static_cast<number>(value), spec);
         }
     };
@@ -2192,15 +2192,15 @@ namespace sgcl::txt {
         static constexpr bool paired =
             keyed && detail::has_mapped_type<R> && detail::tuple_like<element>;
 
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'n';
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_nested(std::string_view nested) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_nested(std::string_view nested) noexcept {
             return detail::takes_for<element>(nested);
         }
 
@@ -2249,15 +2249,15 @@ namespace sgcl::txt {
     struct formatter<T> {
         static constexpr size_t count = std::tuple_size<T>::value;
 
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type || type == 'n' || (type == 'm' && count == 2);
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_nested(std::string_view nested) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_nested(std::string_view nested) noexcept {
             return takes_each(nested, std::make_index_sequence<count>{});
         }
 
@@ -2286,7 +2286,7 @@ namespace sgcl::txt {
         // further colon means is the element's own business and the
         // elements of a pair are not of one type
         template<size_t... I>
-        static constexpr bool takes_each(std::string_view nested,
+        SGCL_INLINE_HOT static constexpr bool takes_each(std::string_view nested,
                                          std::index_sequence<I...>) noexcept {
             return (detail::takes_for<std::remove_cvref_t<std::tuple_element_t<I, T>>>(nested)
                     && ...);
@@ -2319,7 +2319,7 @@ namespace sgcl::txt {
     // {:s} takes it back, and a number was never quoted to begin with.
     template<class T>
     struct formatter<optional<T>> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             if constexpr (requires { formatter<T>::takes(type); }) {
                 return formatter<T>::takes(type);
             } else {
@@ -2327,7 +2327,7 @@ namespace sgcl::txt {
             }
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             if constexpr (requires { formatter<T>::takes_precision(); }) {
                 return formatter<T>::takes_precision();
             } else {
@@ -2337,14 +2337,14 @@ namespace sgcl::txt {
 
         // Only where what it holds takes one, so that {::>6} over an
         // optional number still means a colon to pad with
-        static constexpr bool takes_nested(std::string_view nested) noexcept
+        SGCL_INLINE_HOT static constexpr bool takes_nested(std::string_view nested) noexcept
         requires (detail::takes_nested_one<T>()) {
             return formatter<T>::takes_nested(nested);
         }
 
         // And a pattern where what it holds reads one: {:%H:%M} of an
         // optional time
-        static constexpr bool takes_layout(std::string_view layout) noexcept
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view layout) noexcept
         requires (detail::takes_layout_one<T>()) {
             return formatter<T>::takes_layout(layout);
         }
@@ -2418,7 +2418,7 @@ namespace sgcl::txt {
         }
 
         template<class E>
-        constexpr void as_element(format_spec& spec) noexcept {
+        SGCL_INLINE_HOT constexpr void as_element(format_spec& spec) noexcept {
             if constexpr (requires { formatter<E>::takes('?'); }) {
                 if (!spec.type && formatter<E>::takes('?')) {
                     spec.type = '?';
@@ -2458,14 +2458,14 @@ namespace sgcl::txt {
         // pad with. Asked before the specification is read, which is why
         // it cannot simply be part of takes_one.
         template<class A>
-        constexpr bool takes_nested_one() noexcept {
+        SGCL_INLINE_HOT constexpr bool takes_nested_one() noexcept {
             return requires { formatter<A>::takes_nested(std::string_view{}); };
         }
 
         // Whether the type reads the rest of its field as a pattern of
         // its own (a time: read_layout_spec above)
         template<class A>
-        constexpr bool takes_layout_one() noexcept {
+        SGCL_INLINE_HOT constexpr bool takes_layout_one() noexcept {
             return requires { formatter<A>::takes_layout(std::string_view{}); };
         }
 
@@ -2473,12 +2473,12 @@ namespace sgcl::txt {
         // type, as read_spec takes it: 2 a pattern, 1 a specification for
         // what it holds, 0 neither
         template<class A>
-        constexpr int nest_mode() noexcept {
+        SGCL_INLINE_HOT constexpr int nest_mode() noexcept {
             return takes_layout_one<A>() ? 2 : takes_nested_one<A>() ? 1 : 0;
         }
 
         template<class... A>
-        constexpr int takes_nested_spec(size_t n) noexcept {
+        SGCL_INLINE_HOT constexpr int takes_nested_spec(size_t n) noexcept {
             int mode = 0;
             size_t i = 0;
             (void)((i++ == n ? (mode = nest_mode<A>(), true) : false) || ...);
@@ -2488,7 +2488,7 @@ namespace sgcl::txt {
         // Whether the n-th of these types accepts that specification,
         // asked where the program is built
         template<class... A>
-        constexpr bool takes_spec(size_t n, const format_spec& spec,
+        SGCL_INLINE_HOT constexpr bool takes_spec(size_t n, const format_spec& spec,
                                   std::string_view nested) noexcept {
             bool ok = false;
             size_t i = 0;
@@ -2501,7 +2501,7 @@ namespace sgcl::txt {
         inline constexpr bool nothrow_writes = (nothrow_write<A>() && ...);
 
         template<class... A>
-        void write_nth(format_sink& out, size_t n, const format_spec& spec,
+        SGCL_INLINE_HOT void write_nth(format_sink& out, size_t n, const format_spec& spec,
                        std::string_view nested, const A&... args) noexcept(nothrow_writes<A...>) {
             size_t i = 0;
             (void)((i++ == n ? (write_one(out, args, spec, nested), true) : false) || ...);
@@ -2515,7 +2515,7 @@ namespace sgcl::txt {
             && !std::is_same_v<T, char8_t> && !std::is_same_v<T, char16_t> && !std::is_same_v<T, char32_t>;
 
         template<class... A>
-        constexpr bool gives_size_nth(size_t n) noexcept {
+        SGCL_INLINE_HOT constexpr bool gives_size_nth(size_t n) noexcept {
             bool ok = false;
             size_t i = 0;
             (void)((i++ == n ? (ok = gives_size<A>, true) : false) || ...);
@@ -2525,13 +2525,13 @@ namespace sgcl::txt {
         // Whether the values a field's width and precision name may give
         // them, asked where the pattern is read
         template<class... A>
-        constexpr bool takes_dynamic(const DynamicSpec* d) noexcept {
+        SGCL_INLINE_HOT constexpr bool takes_dynamic(const DynamicSpec* d) noexcept {
             return !d || ((d->width == NoArg || gives_size_nth<A...>(d->width))
                           && (d->precision == NoArg || gives_size_nth<A...>(d->precision)));
         }
 
         template<class T>
-        constexpr long long size_of_value(const T& v) noexcept {
+        SGCL_INLINE_HOT constexpr long long size_of_value(const T& v) noexcept {
             if constexpr (!gives_size<T>) {
                 (void)v;
                 return 0;
@@ -2543,7 +2543,7 @@ namespace sgcl::txt {
         }
 
         template<class... A>
-        constexpr long long size_nth(size_t n, const A&... args) noexcept {
+        SGCL_INLINE_HOT constexpr long long size_nth(size_t n, const A&... args) noexcept {
             long long v = 0;
             size_t i = 0;
             (void)((i++ == n ? (v = size_of_value(args), true) : false) || ...);
@@ -2557,7 +2557,7 @@ namespace sgcl::txt {
         // a negative one; a pattern of this library answers rather than
         // throws, the values being the program's and not the pattern's
         template<class... A>
-        constexpr void resolve_dynamic(format_spec& spec, size_t width, size_t precision,
+        SGCL_INLINE_HOT constexpr void resolve_dynamic(format_spec& spec, size_t width, size_t precision,
                                        const A&... args) noexcept {
             if (width != NoArg) {
                 long long w = size_nth(width, args...);
@@ -2571,7 +2571,7 @@ namespace sgcl::txt {
 
         // A field written with what its values give it
         template<class... A>
-        void write_dynamic(format_sink& out, size_t n, format_spec spec, std::string_view nested,
+        SGCL_INLINE_HOT void write_dynamic(format_sink& out, size_t n, format_spec spec, std::string_view nested,
                            size_t width, size_t precision, const A&... args) noexcept(nothrow_writes<A...>) {
             resolve_dynamic(spec, width, precision, args...);
             write_nth(out, n, spec, nested, args...);
@@ -2749,7 +2749,7 @@ namespace sgcl::txt {
         // The reading the compiler does: nothing is written and every
         // field is asked whether the value it names takes it
         template<class... A>
-        constexpr bool fits(std::string_view fmt) noexcept {
+        SGCL_INLINE_HOT constexpr bool fits(std::string_view fmt) noexcept {
             return walk(fmt, sizeof...(A),
                         [](const char*, size_t) noexcept {},
                         [](size_t which, const format_spec& spec, std::string_view nested,
@@ -2842,7 +2842,7 @@ namespace sgcl::txt {
     };
 
     namespace detail {
-        constexpr std::string_view nested_of(const format_part& part, const char* text) noexcept {
+        SGCL_INLINE_HOT constexpr std::string_view nested_of(const format_part& part, const char* text) noexcept {
             if (!(part.flags & 4)) {
                 return {};
             }
@@ -3001,18 +3001,18 @@ namespace sgcl::txt {
             }
         }
 
-        constexpr std::string_view view() const noexcept {
+        SGCL_INLINE_HOT constexpr std::string_view view() const noexcept {
             return _text;
         }
 
         // The steps the pattern was read into, count() of them: none when
         // it has more than four, or a number too large for a step, and is
         // read where it runs
-        constexpr const format_part* parts() const noexcept {
+        SGCL_INLINE_HOT constexpr const format_part* parts() const noexcept {
             return _parts;
         }
 
-        constexpr size_t count() const noexcept {
+        SGCL_INLINE_HOT constexpr size_t count() const noexcept {
             return _count;
         }
 
@@ -3035,15 +3035,15 @@ namespace sgcl::txt {
     // costs a pointer and no characters.
     class runtime_pattern {
     public:
-        explicit runtime_pattern(const string& text) noexcept
+        SGCL_INLINE_HOT explicit runtime_pattern(const string& text) noexcept
         : _text(text) {
         }
 
-        constexpr std::string_view view() const noexcept {
+        SGCL_INLINE_HOT constexpr std::string_view view() const noexcept {
             return _text.view();
         }
 
-        const string& text() const noexcept {
+        SGCL_INLINE_HOT const string& text() const noexcept {
             return _text;
         }
 
@@ -3051,7 +3051,7 @@ namespace sgcl::txt {
         string _text;
     };
 
-    inline runtime_pattern runtime(const string& text) noexcept {
+    SGCL_INLINE_HOT runtime_pattern runtime(const string& text) noexcept {
         return runtime_pattern(text);
     }
 
@@ -3059,7 +3059,7 @@ namespace sgcl::txt {
         // The steps when the pattern had room for them, the characters
         // when it did not
         template<class P, class... A>
-        void write_pattern(format_sink& out, const P& pattern, const A&... args) noexcept(nothrow_writes<A...>) {
+        SGCL_INLINE_HOT void write_pattern(format_sink& out, const P& pattern, const A&... args) noexcept(nothrow_writes<A...>) {
             if (pattern.count()) {
                 run_parts(out, pattern.view().data(), pattern.parts(), pattern.count(), args...);
             } else {
@@ -3098,7 +3098,7 @@ namespace sgcl::txt {
     // whole size comes back, so a caller may ask with an empty buffer
     // and then size one.
     template<class... A>
-    size_t format_to(const slice<char>& buffer, const format_pattern<std::type_identity_t<A>...>& pattern,
+    SGCL_INLINE_HOT size_t format_to(const slice<char>& buffer, const format_pattern<std::type_identity_t<A>...>& pattern,
                      const A&... args) noexcept(detail::nothrow_writes<A...>) {
         format_sink out(buffer.data(), buffer.size());
         detail::write_pattern(out, pattern, args...);
@@ -3148,7 +3148,7 @@ namespace sgcl::txt {
     }
 
     template<class... A>
-    optional<size_t> format_to(const slice<char>& buffer, const runtime_pattern& pattern,
+    SGCL_INLINE_HOT optional<size_t> format_to(const slice<char>& buffer, const runtime_pattern& pattern,
                                const A&... args) noexcept(detail::nothrow_writes<A...>) {
         format_sink out(buffer.data(), buffer.size());
         if (!detail::run_checked(out, pattern.view(), args...)) {
@@ -3164,7 +3164,7 @@ namespace sgcl::txt {
     //     txt::fits<int>(entry)
     // is what the program will pass when it comes to it.
     template<class... A>
-    bool fits(const runtime_pattern& pattern) noexcept {
+    SGCL_INLINE_HOT bool fits(const runtime_pattern& pattern) noexcept {
         return detail::fits<std::decay_t<A>...>(pattern.view());
     }
 }

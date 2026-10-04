@@ -22,7 +22,7 @@ namespace sgcl::immutable {
             using hasher = Hash;
             using key_equal = KeyEqual;
 
-            static const Key& key(const value_type& v) noexcept {
+            SGCL_INLINE_HOT static const Key& key(const value_type& v) noexcept {
                 return v;
             }
         };
@@ -70,16 +70,16 @@ namespace sgcl::immutable {
 
         set() = default;
 
-        explicit set(const Hash& hash, const KeyEqual& equal = KeyEqual())
+        SGCL_INLINE_HOT explicit set(const Hash& hash, const KeyEqual& equal = KeyEqual())
         : _trie(hash, equal) {
         }
 
         template<std::input_iterator InputIt>
-        set(InputIt first, InputIt last, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(Trie::template NothrowBuild<InputIt>)
+        SGCL_INLINE_HOT set(InputIt first, InputIt last, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(Trie::template NothrowBuild<InputIt>)
         : _trie(first, last, hash, equal) {
         }
 
-        set(std::initializer_list<value_type> ilist, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(Trie::template NothrowBuild<const value_type*>)
+        SGCL_INLINE_HOT set(std::initializer_list<value_type> ilist, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(Trie::template NothrowBuild<const value_type*>)
         : set(ilist.begin(), ilist.end(), hash, equal) {
         }
 
@@ -88,35 +88,35 @@ namespace sgcl::immutable {
         set& operator=(const set&) noexcept = default;
         set& operator=(set&&) noexcept = default;
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return _trie.begin();
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return _trie.end();
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return _trie.begin();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return _trie.end();
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _trie.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _trie.empty();
         }
 
-        hasher hash_function() const {
+        SGCL_INLINE_HOT hasher hash_function() const {
             return _trie.hash_function();
         }
 
-        key_equal key_eq() const {
+        SGCL_INLINE_HOT key_equal key_eq() const {
             return _trie.key_eq();
         }
 
@@ -124,52 +124,52 @@ namespace sgcl::immutable {
         // every find of the library. A K other than the key type looks up
         // without building a key when the hash and the equality are
         // transparent.
-        const_iterator find(const Key& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator find(const Key& key) const noexcept {
             return _trie.find_at(key);
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        const_iterator find(const K& key) const noexcept(NothrowLookup<K>) {
+        SGCL_INLINE_HOT const_iterator find(const K& key) const noexcept(NothrowLookup<K>) {
             return _trie.find_at(key);
         }
 
-        bool contains(const Key& key) const noexcept {
+        SGCL_INLINE_HOT bool contains(const Key& key) const noexcept {
             return _trie.contains(key);
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        bool contains(const K& key) const noexcept(NothrowLookup<K>) {
+        SGCL_INLINE_HOT bool contains(const K& key) const noexcept(NothrowLookup<K>) {
             return _trie.contains(key);
         }
 
-        size_type count(const Key& key) const noexcept {
+        SGCL_INLINE_HOT size_type count(const Key& key) const noexcept {
             return _trie.contains(key) ? 1 : 0;
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        size_type count(const K& key) const noexcept(NothrowLookup<K>) {
+        SGCL_INLINE_HOT size_type count(const K& key) const noexcept(NothrowLookup<K>) {
             return _trie.contains(key) ? 1 : 0;
         }
 
         // The set with the key: the path to it copied, the rest shared;
         // the same set when an equal one is there, as every insert keeps
         // what it finds
-        set insert(const Key& key) const noexcept(NothrowInsert<const Key&>) {
+        SGCL_INLINE_HOT set insert(const Key& key) const noexcept(NothrowInsert<const Key&>) {
             return _trie.contains(key) ? *this : set(_trie.insert(key, key));
         }
 
-        set insert(Key&& key) const noexcept(NothrowInsert<Key&&>) {
+        SGCL_INLINE_HOT set insert(Key&& key) const noexcept(NothrowInsert<Key&&>) {
             return _trie.contains(key) ? *this : set(_trie.insert(key, std::move(key)));
         }
 
         // The set without the key: the path copied, a node emptied
         // dropped; the same set when the key is absent
-        set erase(const Key& key) const noexcept(NothrowErase) {
+        SGCL_INLINE_HOT set erase(const Key& key) const noexcept(NothrowErase) {
             return set(_trie.erase(key));
         }
 
         template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-        set erase(const K& key) const noexcept(NothrowLookup<K> && NothrowErase) {
+        SGCL_INLINE_HOT set erase(const K& key) const noexcept(NothrowLookup<K> && NothrowErase) {
             return set(_trie.erase(key));
         }
 
@@ -182,16 +182,16 @@ namespace sgcl::immutable {
         public:
             builder() = default;
 
-            explicit builder(const Hash& hash, const KeyEqual& equal = KeyEqual())
+            SGCL_INLINE_HOT explicit builder(const Hash& hash, const KeyEqual& equal = KeyEqual())
             : _trie(hash, equal) {
             }
 
-            builder(builder&& o) noexcept
+            SGCL_INLINE_HOT builder(builder&& o) noexcept
             : _trie(std::move(o._trie)) {
                 o._trie = Trie(_trie.hash_function(), _trie.key_eq());
             }
 
-            builder& operator=(builder&& o) noexcept {
+            SGCL_INLINE_HOT builder& operator=(builder&& o) noexcept {
                 if (this != &o) {
                     _trie = std::move(o._trie);
                     o._trie = Trie(_trie.hash_function(), _trie.key_eq());
@@ -202,44 +202,44 @@ namespace sgcl::immutable {
             builder(const builder&) = delete;
             builder& operator=(const builder&) = delete;
 
-            size_type size() const noexcept {
+            SGCL_INLINE_HOT size_type size() const noexcept {
                 return _trie.size();
             }
 
-            bool empty() const noexcept {
+            SGCL_INLINE_HOT bool empty() const noexcept {
                 return _trie.empty();
             }
 
-            bool contains(const Key& key) const noexcept {
+            SGCL_INLINE_HOT bool contains(const Key& key) const noexcept {
                 return _trie.contains(key);
             }
 
             template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-            bool contains(const K& key) const noexcept(NothrowLookup<K>) {
+            SGCL_INLINE_HOT bool contains(const K& key) const noexcept(NothrowLookup<K>) {
                 return _trie.contains(key);
             }
 
             // The key added when no equal one is there; true when it was added
-            bool insert(const Key& key) noexcept(NothrowInsert<const Key&>) {
+            SGCL_INLINE_HOT bool insert(const Key& key) noexcept(NothrowInsert<const Key&>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, key);
             }
 
-            bool insert(Key&& key) noexcept(NothrowInsert<Key&&>) {
+            SGCL_INLINE_HOT bool insert(Key&& key) noexcept(NothrowInsert<Key&&>) {
                 return !_trie.contains(key) && _trie.insert_in_place(key, std::move(key));
             }
 
             // The key taken out; false when it was absent
-            bool erase(const Key& key) noexcept(NothrowErase) {
+            SGCL_INLINE_HOT bool erase(const Key& key) noexcept(NothrowErase) {
                 return _trie.erase_in_place(key);
             }
 
             template<class K> requires sgcl::detail::TransparentLookup<Hash, KeyEqual>
-            bool erase(const K& key) noexcept(NothrowLookup<K> && NothrowErase) {
+            SGCL_INLINE_HOT bool erase(const K& key) noexcept(NothrowLookup<K> && NothrowErase) {
                 return _trie.erase_in_place(key);
             }
 
             // The set of what the builder holds now; the builder goes on
-            set freeze() noexcept {
+            SGCL_INLINE_HOT set freeze() noexcept {
                 _trie.disown();
                 return set(_trie);
             }
@@ -247,7 +247,7 @@ namespace sgcl::immutable {
         private:
             friend class set;
 
-            explicit builder(const Trie& trie) noexcept
+            SGCL_INLINE_HOT explicit builder(const Trie& trie) noexcept
             : _trie(trie) {
             }
 
@@ -255,22 +255,22 @@ namespace sgcl::immutable {
         };
 
         // The builder over this set: nothing copied until it changes
-        builder thaw() const noexcept {
+        SGCL_INLINE_HOT builder thaw() const noexcept {
             return builder(_trie);
         }
 
         // The same elements: a lookup per element, by the hash and the
         // equality, which cannot throw
-        friend bool operator==(const set& a, const set& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const set& a, const set& b) noexcept {
             return a._trie.equals(b._trie, [](const value_type&, const value_type&) noexcept { return true; });
         }
 
-        friend bool operator!=(const set& a, const set& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator!=(const set& a, const set& b) noexcept {
             return !(a == b);
         }
 
     private:
-        explicit set(Trie trie) noexcept
+        SGCL_INLINE_HOT explicit set(Trie trie) noexcept
         : _trie(std::move(trie)) {
         }
 

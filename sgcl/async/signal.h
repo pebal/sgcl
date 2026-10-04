@@ -57,7 +57,7 @@ namespace sgcl::async {
 
         class Signals {
         public:
-            ~Signals() {
+            SGCL_INLINE_HOT ~Signals() {
                 stop();
             }
 
@@ -218,7 +218,7 @@ namespace sgcl::async {
                 _pipe.store(_fd[1], std::memory_order_release);   // after the thread: no handler is installed before this returns
             }
 
-            void _save(int n) noexcept {
+            SGCL_INLINE_HOT void _save(int n) noexcept {
                 if (!_saved.contains(n)) {
                     struct sigaction old = {};
                     ::sigaction(n, nullptr, &old);
@@ -228,7 +228,7 @@ namespace sgcl::async {
 
             // The handler: async-signal-safe, the number as one byte on
             // the pipe, errno left as it was
-            static void _handler(int n) noexcept {
+            SGCL_INLINE_HOT static void _handler(int n) noexcept {
                 int saved = errno;
                 int fd = _pipe.load(std::memory_order_relaxed);
                 if (fd >= 0) {
@@ -294,7 +294,7 @@ namespace sgcl::async {
     // A channel that gets the number of every signal of `numbers`
     // delivered to the process from now on; `capacity` elements held
     // for a receiver that is not there yet, the rest dropped
-    inline channel<int> signals(std::initializer_list<int> numbers, size_t capacity = 1) {
+    SGCL_INLINE_HOT channel<int> signals(std::initializer_list<int> numbers, size_t capacity = 1) {
         tracked_ptr<detail::ChannelState<int>> ch = detail::make_linked_state<int>(capacity);
         detail::signals_instance().notify(numbers, ch, ch.get());
         return detail::ChannelAccess::make(std::move(ch));
@@ -303,13 +303,13 @@ namespace sgcl::async {
     // The disposition the numbers had before the first `signals` back,
     // the channels registered for them forgotten; every number, for an
     // empty list
-    inline void reset_signals(std::initializer_list<int> numbers = {}) noexcept {
+    SGCL_INLINE_HOT void reset_signals(std::initializer_list<int> numbers = {}) noexcept {
         detail::signals_instance().reset(numbers);
     }
 
     // The numbers ignored by the process, the channels registered for
     // them forgotten; `reset_signals` undoes it
-    inline void ignore_signals(std::initializer_list<int> numbers) noexcept {
+    SGCL_INLINE_HOT void ignore_signals(std::initializer_list<int> numbers) noexcept {
         detail::signals_instance().ignore(numbers);
     }
 }

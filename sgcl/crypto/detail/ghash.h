@@ -47,7 +47,7 @@
 // column. No table and no branch on H or the data.
 namespace sgcl::crypto::detail {
     // A block's bits reversed within each byte (a word of eight bytes)
-    inline uint64_t reverse_bits_in_bytes(uint64_t w) noexcept {
+    SGCL_INLINE_HOT uint64_t reverse_bits_in_bytes(uint64_t w) noexcept {
         w = ((w >> 1) & 0x5555555555555555ull) | ((w & 0x5555555555555555ull) << 1);
         w = ((w >> 2) & 0x3333333333333333ull) | ((w & 0x3333333333333333ull) << 2);
         w = ((w >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((w & 0x0F0F0F0F0F0F0F0Full) << 4);
@@ -66,7 +66,7 @@ namespace sgcl::crypto::detail {
     }
 
     // 64 by 64 bits carry-less (Karatsuba over the 32-bit halves)
-    inline Wide clmul64(uint64_t a, uint64_t b) noexcept {
+    SGCL_INLINE_HOT Wide clmul64(uint64_t a, uint64_t b) noexcept {
         uint32_t a0 = uint32_t(a), a1 = uint32_t(a >> 32), b0 = uint32_t(b), b1 = uint32_t(b >> 32);
         uint64_t lo = clmul32(a0, b0);
         uint64_t hi = clmul32(a1, b1);
@@ -93,7 +93,7 @@ namespace sgcl::crypto::detail {
         return {p0, p1};
     }
 
-    inline Field load_field(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT Field load_field(const unsigned char* p) noexcept {
         return {reverse_bits_in_bytes(load_le64(p)), reverse_bits_in_bytes(load_le64(p + 8))};
     }
 
@@ -101,7 +101,7 @@ namespace sgcl::crypto::detail {
         Field h;
     };
 
-    inline void ghash_init_portable(GhashPortableKey& k, const unsigned char* h) noexcept {
+    SGCL_INLINE_HOT void ghash_init_portable(GhashPortableKey& k, const unsigned char* h) noexcept {
         k.h = load_field(h);
     }
 
@@ -119,19 +119,19 @@ namespace sgcl::crypto::detail {
     };
 
     // Y as a vector: the field element's words in its two lanes
-    inline uint64x2_t field_vector(const Field& y) noexcept {
+    SGCL_INLINE_HOT uint64x2_t field_vector(const Field& y) noexcept {
         return vcombine_u64(vcreate_u64(y.lo), vcreate_u64(y.hi));
     }
 
-    inline Field field_of(uint64x2_t v) noexcept {
+    SGCL_INLINE_HOT Field field_of(uint64x2_t v) noexcept {
         return {vgetq_lane_u64(v, 0), vgetq_lane_u64(v, 1)};
     }
 
-    inline uint64x2_t to_field(uint8x16_t block) noexcept {
+    SGCL_INLINE_HOT uint64x2_t to_field(uint8x16_t block) noexcept {
         return vreinterpretq_u64_u8(vrbitq_u8(block));
     }
 
-    inline uint8x16_t from_field(uint64x2_t v) noexcept {
+    SGCL_INLINE_HOT uint8x16_t from_field(uint64x2_t v) noexcept {
         return vrbitq_u8(vreinterpretq_u8_u64(v));
     }
 
@@ -181,7 +181,7 @@ namespace sgcl::crypto::detail {
         return veorq_u64(vzip1q_u64(acc.lo, x), u);                         // [p0, p1] ^ it
     }
 
-    inline uint64x2_t swap_halves(uint64x2_t v) noexcept {
+    SGCL_INLINE_HOT uint64x2_t swap_halves(uint64x2_t v) noexcept {
         return vextq_u64(v, v, 1);
     }
 
@@ -378,7 +378,7 @@ namespace sgcl::crypto::detail {
 #endif
         };
 
-        GhashKey() noexcept
+        SGCL_INLINE_HOT GhashKey() noexcept
         : portable() {
         }
     };
@@ -411,11 +411,11 @@ namespace sgcl::crypto::detail {
         ghash_init_portable(k.portable, h);
     }
 
-    inline void ghash_start(GhashState& s) noexcept {
+    SGCL_INLINE_HOT void ghash_start(GhashState& s) noexcept {
         s.y = {0, 0};
     }
 
-    inline void ghash_blocks(const GhashKey& k, GhashState& s, const unsigned char* p, size_t n) noexcept {
+    SGCL_INLINE_HOT void ghash_blocks(const GhashKey& k, GhashState& s, const unsigned char* p, size_t n) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (k.path == AesPath::arm64) {
             ghash_blocks_arm64(k.arm64, s.y, p, n);
@@ -431,7 +431,7 @@ namespace sgcl::crypto::detail {
         ghash_blocks_portable(k.portable, s.y, p, n);
     }
 
-    inline void ghash_finish(const GhashState& s, unsigned char* out) noexcept {
+    SGCL_INLINE_HOT void ghash_finish(const GhashState& s, unsigned char* out) noexcept {
         store_le64(out, reverse_bits_in_bytes(s.y.lo));
         store_le64(out + 8, reverse_bits_in_bytes(s.y.hi));
     }
@@ -451,7 +451,7 @@ namespace sgcl::crypto::detail {
 
     // The last block: the lengths of the AAD and of the ciphertext in bits,
     // each a 64-bit big-endian number
-    inline void ghash_lengths(const GhashKey& k, GhashState& s, uint64_t aad_size, uint64_t text_size) noexcept {
+    SGCL_INLINE_HOT void ghash_lengths(const GhashKey& k, GhashState& s, uint64_t aad_size, uint64_t text_size) noexcept {
         unsigned char block[16];
         store_be64(block, aad_size * 8);
         store_be64(block + 8, text_size * 8);

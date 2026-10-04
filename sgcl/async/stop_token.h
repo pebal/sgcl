@@ -39,13 +39,13 @@ namespace sgcl::async {
             // the channel's lists and the children's queue linked to their
             // first nodes: once, by the code that made the state, right
             // after make_tracked (ChannelState::link)
-            void link() noexcept {
+            SGCL_INLINE_HOT void link() noexcept {
                 signal.link();
                 children.link(children_first);
             }
             atomic<tracked_ptr<StopDeadline>> deadline;  // the earliest deadline armed, if any: cancelled by the stop
 
-            bool stopped() const noexcept {
+            SGCL_INLINE_HOT bool stopped() const noexcept {
                 return signal.closed();
             }
 
@@ -64,7 +64,7 @@ namespace sgcl::async {
             tracked_ptr<Timer> timer;                    // set before the deadline is published in the state
             time_point when;
 
-            static void fire(void* p) {
+            SGCL_INLINE_HOT static void fire(void* p) {
                 auto d = static_cast<StopDeadline*>(p);
                 if (auto s = d->state.load()) {
                     s->stop(d);
@@ -74,7 +74,7 @@ namespace sgcl::async {
             // The timer cancelled (the flag the timer thread looks at, as a
             // won race does in timeout.h: swept with the other cancelled,
             // nothing done on the stop's path but a store), the state let go of
-            void cancel() noexcept {
+            SGCL_INLINE_HOT void cancel() noexcept {
                 state.store(nullptr);
                 timer->cancelled.store(true, std::memory_order_release);
                 timer_cancelled(*timer);
@@ -101,11 +101,11 @@ namespace sgcl::async {
     public:
         stop_token() noexcept = default;
 
-        bool stop_requested() const noexcept {
+        SGCL_INLINE_HOT bool stop_requested() const noexcept {
             return _s && _s->stopped();
         }
 
-        bool stop_possible() const noexcept {
+        SGCL_INLINE_HOT bool stop_possible() const noexcept {
             return (bool)_s;
         }
 
@@ -114,21 +114,21 @@ namespace sgcl::async {
         // stop's state, which it keeps. Receive-only: a close of it would
         // read as a stop that stopped neither the children nor the
         // deadline, and a send would wake a task in stopped() with no stop
-        receive_channel<void> channel() const noexcept {
+        SGCL_INLINE_HOT receive_channel<void> channel() const noexcept {
             assert(_s && "an empty stop_token has no channel: stop_possible() says");
             return detail::ChannelAccess::make(tracked_ptr<detail::ChannelState<void>>(&_s->signal));
         }
 
         // The case of a select served by the stop: `token.on_stop([&] { running = false; })`
         template<class F>
-        auto on_stop(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_stop(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             assert(_s && "an empty stop_token has no case: stop_possible() says");
             return _s->signal.on_receive(std::move(f));
         }
 
         // Waits for the stop, and gives nothing: `co_await token.stopped()`
         // in a task, `token.stopped().wait()` on a thread
-        auto stopped() const noexcept {
+        SGCL_INLINE_HOT auto stopped() const noexcept {
             assert(_s && "an empty stop_token has nothing to await: stop_possible() says");
             return detail::make_operation([s = _s](auto how) -> decltype(auto) {
                 if constexpr (detail::is_awaited<decltype(how)>) {
@@ -145,20 +145,20 @@ namespace sgcl::async {
         // which says nothing here)
         class stop_wait {
         public:
-            explicit stop_wait(detail::ChannelState<void>& ch) noexcept
+            SGCL_INLINE_HOT explicit stop_wait(detail::ChannelState<void>& ch) noexcept
             : _op(ch.receive()) {
             }
 
-            bool await_ready() {
+            SGCL_INLINE_HOT bool await_ready() {
                 return _op.await_ready();
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                 return _op.await_suspend(h);
             }
 
-            void await_resume() {
+            SGCL_INLINE_HOT void await_resume() {
                 (void)_op.await_resume();
             }
 
@@ -168,14 +168,14 @@ namespace sgcl::async {
 
     public:
 
-        friend bool operator==(const stop_token& a, const stop_token& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const stop_token& a, const stop_token& b) noexcept {
             return a._s == b._s;
         }
 
     private:
         friend class stop_source;
 
-        explicit stop_token(const tracked_ptr<detail::StopState>& s) noexcept
+        SGCL_INLINE_HOT explicit stop_token(const tracked_ptr<detail::StopState>& s) noexcept
         : _s(s) {
         }
 
@@ -184,7 +184,7 @@ namespace sgcl::async {
 
     class stop_source {
     public:
-        stop_source() noexcept
+        SGCL_INLINE_HOT stop_source() noexcept
         : _s(make_tracked<detail::StopState>()) {
             _s->link();   // before the state is given to anyone
         }
@@ -217,16 +217,16 @@ namespace sgcl::async {
             }
         }
 
-        stop_token token() const noexcept {
+        SGCL_INLINE_HOT stop_token token() const noexcept {
             return stop_token(_s);
         }
 
-        bool stop_requested() const noexcept {
+        SGCL_INLINE_HOT bool stop_requested() const noexcept {
             return _s->stopped();
         }
 
         // The stop: the token's channel closed, every waiter woken, the children stopped
-        void request_stop() {
+        SGCL_INLINE_HOT void request_stop() {
             _s->stop();
         }
 
@@ -236,12 +236,12 @@ namespace sgcl::async {
         // or by the parent's, cancels the timer; a d that reaches the end
         // of time (duration::max()) arms nothing, and a later deadline
         // beside an earlier one neither: the earliest stops first
-        void stop_after(duration d) {
+        SGCL_INLINE_HOT void stop_after(duration d) {
             _arm(clock::now() + d);   // saturated: a span past the end of time is time_point::max()
         }
 
         // The same at a point of the module's clock
-        void stop_at(time_point when) {
+        SGCL_INLINE_HOT void stop_at(time_point when) {
             _arm(when);
         }
 

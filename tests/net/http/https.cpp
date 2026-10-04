@@ -11,6 +11,7 @@
 // tests/net/tls_testdata (tools/tls_testdata.sh): a test CA and a leaf for
 // localhost, 127.0.0.1 and ::1.
 #include "tests/types.h"
+#include "tests/source_root.h"
 #include "sgcl/net/http/http.h"
 
 #include <cstdio>
@@ -36,7 +37,7 @@ namespace {
     }
 
     std::string testdata(const std::string& name) {
-        return (std::filesystem::path(__FILE__).parent_path().parent_path() / "tls_testdata" / name).string();
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     std::string slurp(const std::string& path) {
@@ -192,7 +193,7 @@ namespace {
             if (std::system("command -v go > /dev/null 2>&1") != 0) {
                 return std::string();
             }
-            auto src = std::filesystem::path(__FILE__).parent_path() / "go_peer" / "main.go";
+            auto src = source_root() / "tests/net/http/go_peer/main.go";
             auto out = std::filesystem::temp_directory_path() / "sgcl_http_go_peer_tls";
             std::string cmd = "go build -o '" + out.string() + "' '" + src.string() + "' 2>&1";
             if (std::system(cmd.c_str()) != 0) {

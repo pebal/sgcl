@@ -23,7 +23,7 @@ namespace sgcl::hash::detail {
     };
 
     template<class T, T Poly>
-    constexpr uint64_t fold_key(unsigned e) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t fold_key(unsigned e) noexcept {
         return uint64_t(crc_xpow<T, Poly>(e)) << (64 - RegisterBits<T>);
     }
 

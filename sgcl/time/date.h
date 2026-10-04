@@ -63,7 +63,7 @@ namespace sgcl::time {
     }
 
     template<class CharT, class Traits>
-    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, month m) {
+    SGCL_INLINE_HOT std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, month m) {
         return os << to_string(m);
     }
 
@@ -87,7 +87,7 @@ namespace sgcl::time {
     }
 
     template<class CharT, class Traits>
-    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, weekday d) {
+    SGCL_INLINE_HOT std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, weekday d) {
         return os << to_string(d);
     }
 
@@ -105,7 +105,7 @@ namespace sgcl::time {
     namespace detail {
         // Floor division and the remainder that goes with it, for the
         // arithmetic of years and months that crosses zero
-        constexpr int64_t floor_div(int64_t a, int64_t b) noexcept {
+        SGCL_INLINE_HOT constexpr int64_t floor_div(int64_t a, int64_t b) noexcept {
             int64_t q = a / b;
             return (a % b != 0 && (a < 0) != (b < 0)) ? q - 1 : q;
         }
@@ -114,7 +114,7 @@ namespace sgcl::time {
         // the year brought into [0, 400) by whole cycles of 146097 days
         // (the Gregorian calendar repeats every 400 years), the calendar
         // of <chrono> asked there
-        constexpr int64_t days_from_civil(int64_t year, unsigned month) noexcept {
+        SGCL_INLINE_HOT constexpr int64_t days_from_civil(int64_t year, unsigned month) noexcept {
             int64_t cycles = floor_div(year, 400);
             auto first = std::chrono::year(static_cast<int>(year - cycles * 400)) / std::chrono::month(month) / std::chrono::day(1);
             return std::chrono::sys_days(first).time_since_epoch().count() + cycles * 146097;
@@ -160,7 +160,7 @@ namespace sgcl::time {
         // The weeks of an ISO year: 53 when it starts on a Thursday, or
         // on a Wednesday in a leap year, 52 otherwise; p(y) is the day of
         // the week of the year's last day (0 for Sunday)
-        constexpr int iso_weeks_in(int64_t year) noexcept {
+        SGCL_INLINE_HOT constexpr int iso_weeks_in(int64_t year) noexcept {
             auto p = [](int64_t y) {
                 int64_t v = y + floor_div(y, 4) - floor_div(y, 100) + floor_div(y, 400);
                 return v - floor_div(v, 7) * 7;
@@ -188,11 +188,11 @@ namespace sgcl::time {
 
         // Carried as above; the time of day, where there is one, is a
         // datetime's (at() below)
-        constexpr date(int year, int month, int day) noexcept
+        SGCL_INLINE_HOT constexpr date(int year, int month, int day) noexcept
         : _days(_clamped(_first_of(int64_t(year), int64_t(month)) + int64_t(day) - 1)) {
         }
 
-        constexpr date(int year, time::month month, int day) noexcept
+        SGCL_INLINE_HOT constexpr date(int year, time::month month, int day) noexcept
         : date(year, int(month), day) {
         }
 
@@ -202,25 +202,25 @@ namespace sgcl::time {
         // either; back to them only explicitly, so that a comparison of a
         // date with one of them has a single way to go. A day beyond its
         // month is carried as above, a point beyond the calendar saturated
-        constexpr date(std::chrono::year_month_day ymd) noexcept
+        SGCL_INLINE_HOT constexpr date(std::chrono::year_month_day ymd) noexcept
         : date(static_cast<int>(ymd.year()), static_cast<int>(static_cast<unsigned>(ymd.month())), static_cast<int>(static_cast<unsigned>(ymd.day()))) {
         }
 
-        constexpr date(std::chrono::sys_days days) noexcept
+        SGCL_INLINE_HOT constexpr date(std::chrono::sys_days days) noexcept
         : _days(_clamped(int64_t(days.time_since_epoch().count()))) {
         }
 
-        constexpr explicit operator std::chrono::year_month_day() const noexcept {
+        SGCL_INLINE_HOT constexpr explicit operator std::chrono::year_month_day() const noexcept {
             return _fields();
         }
 
-        constexpr explicit operator std::chrono::sys_days() const noexcept {
+        SGCL_INLINE_HOT constexpr explicit operator std::chrono::sys_days() const noexcept {
             return _sys();
         }
 
         // Whether the date exists as written: a year in -32767..32767, a
         // month 1..12, a day within the month
-        static constexpr bool is_valid(int year, int month, int day) noexcept {
+        SGCL_INLINE_HOT static constexpr bool is_valid(int year, int month, int day) noexcept {
             if (year < MinYear || year > MaxYear || month < 1 || month > 12 || day < 1) {
                 return false;
             }
@@ -228,7 +228,7 @@ namespace sgcl::time {
             return static_cast<unsigned>(day) <= static_cast<unsigned>(last.day());
         }
 
-        static constexpr bool is_valid(int year, time::month month, int day) noexcept {
+        SGCL_INLINE_HOT static constexpr bool is_valid(int year, time::month month, int day) noexcept {
             return is_valid(year, int(month), day);
         }
 
@@ -251,38 +251,38 @@ namespace sgcl::time {
         // forms: parse's value, or bad_expected_access<time::error> with
         // parse's message. Input is parsed; a text the program itself
         // wrote is constructed (DESIGN 234)
-        explicit date(const string& text)
+        SGCL_INLINE_HOT explicit date(const string& text)
         : date(parse(text).value()) {
         }
 
-        explicit date(const string& text, const string& pattern)
+        SGCL_INLINE_HOT explicit date(const string& text, const string& pattern)
         : date(parse(text, pattern).value()) {
         }
 
-        constexpr int year() const noexcept {
+        SGCL_INLINE_HOT constexpr int year() const noexcept {
             return detail::civil_from_days(_days).year;
         }
 
         // January to December (int(d.month()) is 1 to 12)
-        constexpr time::month month() const noexcept {
+        SGCL_INLINE_HOT constexpr time::month month() const noexcept {
             return time::month(detail::civil_from_days(_days).month);
         }
 
         // 1 to 31
-        constexpr int day() const noexcept {
+        SGCL_INLINE_HOT constexpr int day() const noexcept {
             return int(detail::civil_from_days(_days).day);
         }
 
-        constexpr time::weekday weekday() const noexcept {
+        SGCL_INLINE_HOT constexpr time::weekday weekday() const noexcept {
             return static_cast<time::weekday>(std::chrono::weekday(_sys()).iso_encoding());
         }
 
         // 1 to 366
-        constexpr int year_day() const noexcept {
+        SGCL_INLINE_HOT constexpr int year_day() const noexcept {
             return static_cast<int>(_days - detail::days_from_civil(year(), 1)) + 1;
         }
 
-        constexpr time::iso_week iso_week() const noexcept {
+        SGCL_INLINE_HOT constexpr time::iso_week iso_week() const noexcept {
             int y = year();
             int week = (year_day() - static_cast<int>(weekday()) + 10) / 7;
             if (week < 1) {
@@ -295,17 +295,17 @@ namespace sgcl::time {
         }
 
         // 28 to 31
-        constexpr int days_in_month() const noexcept {
+        SGCL_INLINE_HOT constexpr int days_in_month() const noexcept {
             auto f = _fields();
             return static_cast<int>(static_cast<unsigned>((f.year() / f.month() / std::chrono::last).day()));
         }
 
-        constexpr bool is_leap_year() const noexcept {
+        SGCL_INLINE_HOT constexpr bool is_leap_year() const noexcept {
             return _fields().year().is_leap();
         }
 
         // n days later (earlier for a negative n)
-        constexpr date add_days(int n) const noexcept {
+        SGCL_INLINE_HOT constexpr date add_days(int n) const noexcept {
             return _of(_clamped(int64_t(_days) + n));
         }
 
@@ -313,17 +313,17 @@ namespace sgcl::time {
         // shorter: 2026-01-31 plus one month is 2026-02-28, as "a month
         // from now" is read by Java, .NET, PostgreSQL and a person (Go
         // carries into March instead)
-        constexpr date add_months(int n) const noexcept {
+        SGCL_INLINE_HOT constexpr date add_months(int n) const noexcept {
             return _months_later(int64_t(n));
         }
 
         // The same, by years: 2024-02-29 plus one year is 2025-02-28
-        constexpr date add_years(int n) const noexcept {
+        SGCL_INLINE_HOT constexpr date add_years(int n) const noexcept {
             return _months_later(int64_t(n) * 12);
         }
 
         // other minus this, in days
-        constexpr int days_until(date other) const noexcept {
+        SGCL_INLINE_HOT constexpr int days_until(date other) const noexcept {
             return other._days - _days;
         }
 
@@ -369,34 +369,34 @@ namespace sgcl::time {
 
         // Written as to_string() writes it
         template<class CharT, class Traits>
-        friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, date d) {
+        SGCL_INLINE_HOT friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, date d) {
             return os << d.to_string();
         }
 
         // The day arithmetic in operators, as datetime has it: d + n is
         // add_days, d - n the date n days earlier (in 64 bits: -INT_MIN is
         // no int), a - b the days from b to a (b.days_until(a))
-        friend constexpr date operator+(date d, int n) noexcept {
+        SGCL_INLINE_HOT friend constexpr date operator+(date d, int n) noexcept {
             return d.add_days(n);
         }
 
-        friend constexpr date operator+(int n, date d) noexcept {
+        SGCL_INLINE_HOT friend constexpr date operator+(int n, date d) noexcept {
             return d.add_days(n);
         }
 
-        friend constexpr date operator-(date d, int n) noexcept {
+        SGCL_INLINE_HOT friend constexpr date operator-(date d, int n) noexcept {
             return _of(_clamped(int64_t(d._days) - n));
         }
 
-        friend constexpr int operator-(date a, date b) noexcept {
+        SGCL_INLINE_HOT friend constexpr int operator-(date a, date b) noexcept {
             return b.days_until(a);
         }
 
-        constexpr date& operator+=(int n) noexcept {
+        SGCL_INLINE_HOT constexpr date& operator+=(int n) noexcept {
             return *this = add_days(n);
         }
 
-        constexpr date& operator-=(int n) noexcept {
+        SGCL_INLINE_HOT constexpr date& operator-=(int n) noexcept {
             return *this = *this - n;
         }
 
@@ -409,13 +409,13 @@ namespace sgcl::time {
         static constexpr int64_t MinDays = -12687428;   // -32767-01-01
         static constexpr int64_t MaxDays = 11248737;    // 32767-12-31
 
-        static constexpr date _of(int32_t days) noexcept {
+        SGCL_INLINE_HOT static constexpr date _of(int32_t days) noexcept {
             date d;
             d._days = days;
             return d;
         }
 
-        static constexpr int32_t _clamped(int64_t days) noexcept {
+        SGCL_INLINE_HOT static constexpr int32_t _clamped(int64_t days) noexcept {
             return static_cast<int32_t>(std::clamp(days, MinDays, MaxDays));
         }
 
@@ -423,7 +423,7 @@ namespace sgcl::time {
         // year: exact for every year an int and the carry make (some
         // 800 billion days at most, well inside 64 bits), so that a day
         // carried back into the range lands where it should
-        static constexpr int64_t _first_of(int64_t year, int64_t month) noexcept {
+        SGCL_INLINE_HOT static constexpr int64_t _first_of(int64_t year, int64_t month) noexcept {
             int64_t m = month - 1;
             int64_t y = year + detail::floor_div(m, 12);
             m -= detail::floor_div(m, 12) * 12;
@@ -455,11 +455,11 @@ namespace sgcl::time {
             return j - i;
         }
 
-        constexpr std::chrono::sys_days _sys() const noexcept {
+        SGCL_INLINE_HOT constexpr std::chrono::sys_days _sys() const noexcept {
             return std::chrono::sys_days(std::chrono::days(_days));
         }
 
-        constexpr std::chrono::year_month_day _fields() const noexcept {
+        SGCL_INLINE_HOT constexpr std::chrono::year_month_day _fields() const noexcept {
             auto c = detail::civil_from_days(_days);
             return std::chrono::year_month_day(std::chrono::year(c.year), std::chrono::month(c.month), std::chrono::day(c.day));
         }

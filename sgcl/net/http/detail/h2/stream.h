@@ -121,13 +121,13 @@ namespace sgcl::net::http::detail::h2 {
         tracked_ptr<void> request;          // the server's request (RequestImpl), for a handler that waits its turn
         http::headers trailers;             // set once, with the end
 
-        StreamState(uint32_t id, tracked_ptr<StreamOwner> owner) noexcept
+        SGCL_INLINE_HOT StreamState(uint32_t id, tracked_ptr<StreamOwner> owner) noexcept
         : id(id), owner(std::move(owner)), readable(1), writable(1) {
         }
 
         // --- the connection's side (under its lock) -------------------------
 
-        void add(const uint8_t* p, size_t n, bool end) {
+        SGCL_INLINE_HOT void add(const uint8_t* p, size_t n, bool end) {
             {
                 std::lock_guard<std::mutex> g(_lock);
                 if (n) {
@@ -138,7 +138,7 @@ namespace sgcl::net::http::detail::h2 {
             readable.try_send();
         }
 
-        void end_with(http::headers fields) {
+        SGCL_INLINE_HOT void end_with(http::headers fields) {
             {
                 std::lock_guard<std::mutex> g(_lock);
                 trailers = std::move(fields);
@@ -164,7 +164,7 @@ namespace sgcl::net::http::detail::h2 {
             writable.try_send();
         }
 
-        void window_opened() {
+        SGCL_INLINE_HOT void window_opened() {
             writable.try_send();
         }
 
@@ -231,17 +231,17 @@ namespace sgcl::net::http::detail::h2 {
             return ended;
         }
 
-        bool ended() const noexcept {
+        SGCL_INLINE_HOT bool ended() const noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _ended && _data.empty();
         }
 
-        bool was_reset() const noexcept {
+        SGCL_INLINE_HOT bool was_reset() const noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _reset;
         }
 
-        const http::headers& trailers_ref() const noexcept {
+        SGCL_INLINE_HOT const http::headers& trailers_ref() const noexcept {
             return trailers;
         }
 

@@ -55,7 +55,7 @@ namespace sgcl::detail {
 
     protected:
         template<class T, class ...A>
-        static void _construct(void* p, A&&... a) {
+        SGCL_INLINE_HOT static void _construct(void* p, A&&... a) {
             if constexpr(sizeof...(A)) {
                 new(p) T(std::forward<A>(a)...);
             } else {
@@ -84,12 +84,12 @@ namespace sgcl::detail {
         // whose pointer words are null again), as its last user left it
         // otherwise; without arguments `new T` (MakerBase above).
         template<class ...A>
-        static void construct(void* p, A&&... a) {
+        SGCL_INLINE_HOT static void construct(void* p, A&&... a) {
             _construct<typename TypeInfo<T>::Type>(p, std::forward<A>(a)...);
         }
 
         // The element destroyed in place, by the container that owns it
-        inline static void destroy(T* p) noexcept {
+        SGCL_INLINE_HOT static void destroy(T* p) noexcept {
             if constexpr(!std::is_trivially_destructible_v<T> && std::is_destructible_v<T>) {
                 std::destroy_at(p);
             }
@@ -98,7 +98,7 @@ namespace sgcl::detail {
         // A new object of T, constructed from the arguments; a root through
         // the UniquePtr until it is handed to a tracked_ptr
         template<class ...A>
-        static UniquePtr<T> make_tracked(A&&... a) noexcept(nothrow_constructible<Type, A...>) {
+        SGCL_INLINE_HOT static UniquePtr<T> make_tracked(A&&... a) noexcept(nothrow_constructible<Type, A...>) {
             return _make(std::forward<A>(a)...);
         }
 
@@ -126,7 +126,7 @@ namespace sgcl::detail {
         // offsets and, elsewhere, what its last user left, of this type or
         // of another: MakerBase above)
         template<class ...A>
-        static UniquePtr<T> make_tracked_data() noexcept {
+        SGCL_INLINE_HOT static UniquePtr<T> make_tracked_data() noexcept {
             return _make_data();
         }
 
@@ -152,7 +152,7 @@ namespace sgcl::detail {
         // the publication, which the release store of the state orders
         // before the collector's reads: its page range comes from the heap
         // as it was freed.
-        static void _init(void* p) noexcept {
+        SGCL_INLINE_HOT static void _init(void* p) noexcept {
             if constexpr(Info::MayContainTracked && !Info::Allocator::IsPoolAllocator::value) {
                 std::memset(p, 0, sizeof(T));
             }
@@ -172,7 +172,7 @@ namespace sgcl::detail {
         }
 
         // A slot without a construction (make_tracked_data: raw storage)
-        static UniquePtr<T> _make_data() noexcept {
+        SGCL_INLINE_HOT static UniquePtr<T> _make_data() noexcept {
             auto& thread = current_thread();
             SGCL_TSAN_RELEASE(thread.barrier_word);   // as a barrier's end does (types.h: BarrierRegion)
             auto& allocator = thread.alocator<Type>();
@@ -222,7 +222,7 @@ namespace sgcl::detail {
 
     inline constexpr auto buffer_octave_table = buffer_octave_first();
 
-    constexpr size_t buffer_large_class_index(size_t bytes) noexcept {
+    SGCL_INLINE_HOT constexpr size_t buffer_large_class_index(size_t bytes) noexcept {
         size_t i = buffer_octave_table[std::bit_width(bytes + sizeof(ArrayBase) - 1)];
         return i + (buffer_classes[i] < bytes);
     }
@@ -284,14 +284,14 @@ namespace sgcl::detail {
     // it for every element size used). The type of a class's objects stays
     // Array<class> for the statistics.
     template<size_t Size>
-    constexpr TypeConstants buffer_class_constants_of() noexcept {
+    SGCL_INLINE_HOT constexpr TypeConstants buffer_class_constants_of() noexcept {
         using Info = TypeInfo<Array<Size>>;
         static_assert(Info::Allocator::IsPoolAllocator::value && !Info::MayContainTracked && !Info::get_destroy_function());
         return Metadata::constants_of<Array<Size>>();
     }
 
     template<size_t... I>
-    constexpr std::array<TypeConstants, sizeof...(I)> buffer_class_constants_of(std::index_sequence<I...>) noexcept {
+    SGCL_INLINE_HOT constexpr std::array<TypeConstants, sizeof...(I)> buffer_class_constants_of(std::index_sequence<I...>) noexcept {
         return {buffer_class_constants_of<buffer_classes[I]>()...};
     }
 
@@ -303,7 +303,7 @@ namespace sgcl::detail {
     // sum of _make_array or the range's allocator wraps. A capacity past it
     // is a buffer no memory holds: the program ends as when the heap
     // refuses one (heap.h: out_of_managed_memory).
-    constexpr size_t buffer_max_capacity(size_t object_size) noexcept {
+    SGCL_INLINE_HOT constexpr size_t buffer_max_capacity(size_t object_size) noexcept {
         return (size_t(-1) - sizeof(ArrayBase) - (config::page_size - 1)) / object_size;
     }
 
@@ -335,7 +335,7 @@ namespace sgcl::detail {
             bool zero;
 
             // the allocator's init: the header and the zeroing, before publication
-            void operator()(void* p) const noexcept {
+            SGCL_INLINE_HOT void operator()(void* p) const noexcept {
                 auto array = (Array<>*)p;
                 array->metadata = metadata;
                 array->capacity = capacity;
@@ -369,7 +369,7 @@ namespace sgcl::detail {
         // inline it there (as it did the function of each class: for the
         // smallest buffers a call costs a nanosecond more); the classes of
         // a page call it out of line (_alloc_page_class).
-        static void* _alloc_class(unsigned c, ArrayMetadata* metadata, size_t capacity, size_t object_size, bool zero) noexcept {
+        SGCL_INLINE_HOT static void* _alloc_class(unsigned c, ArrayMetadata* metadata, size_t capacity, size_t object_size, bool zero) noexcept {
             auto& allocator = current_thread().pool_allocator(BufferPools::slots[c], [c]() -> Metadata& {
                 return Metadata::of_pool(BufferPools::metadata[c], buffer_class_constants[c]);
             });
@@ -390,7 +390,7 @@ namespace sgcl::detail {
         // while the map has an offset (collector.h: _mark_array_childs),
         // never reads this buffer's leftovers. One relaxed load per buffer.
         template<bool Zero>
-        static bool _zero(const ArrayMetadata* metadata) noexcept {
+        SGCL_INLINE_HOT static bool _zero(const ArrayMetadata* metadata) noexcept {
             if constexpr(Zero) {
                 return metadata->child_pointers.any.load(std::memory_order_relaxed);
             } else {
@@ -456,7 +456,7 @@ namespace sgcl::detail {
         static_assert(alignof(T) <= alignof(ArrayBase), "array elements aligned beyond 16 bytes are not supported");
     public:
         // A buffer for `capacity` elements of T
-        static UniquePtr<T> make_tracked_data(size_t capacity) noexcept {
+        SGCL_INLINE_HOT static UniquePtr<T> make_tracked_data(size_t capacity) noexcept {
             auto p = _make_array<sizeof(T), Info::MayContainTracked>(capacity, &Info::array_metadata(), false);
             return UniquePtr<T>((T*)p.release());
         }
@@ -464,7 +464,7 @@ namespace sgcl::detail {
         // A buffer for at least `capacity` elements of T, past a page as
         // many as its pages hold: for a container that reads the capacity
         // back from the header and grows from it (vector)
-        static UniquePtr<T> make_tracked_data_in_whole_pages(size_t capacity) noexcept {
+        SGCL_INLINE_HOT static UniquePtr<T> make_tracked_data_in_whole_pages(size_t capacity) noexcept {
             auto p = _make_array<sizeof(T), Info::MayContainTracked>(capacity, &Info::array_metadata(), true);
             return UniquePtr<T>((T*)p.release());
         }

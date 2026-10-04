@@ -83,7 +83,7 @@ namespace sgcl::async {
         // value in it, before the position is reserved: nothing throws
         // between the reservation and the store.
         struct Node {
-            explicit Node(T&& v) noexcept(std::is_nothrow_move_constructible_v<T>)
+            SGCL_INLINE_HOT explicit Node(T&& v) noexcept(std::is_nothrow_move_constructible_v<T>)
             : value(std::in_place, std::move(v)) {
             }
 
@@ -98,7 +98,7 @@ namespace sgcl::async {
 
         // The channel the readers waiting for a position wait on
         struct Round {
-            explicit Round(size_t position) noexcept
+            SGCL_INLINE_HOT explicit Round(size_t position) noexcept
             : position(position) {
             }
 
@@ -127,16 +127,16 @@ namespace sgcl::async {
 
         // The ring and its words, shared by the broadcast and its subscriptions
         struct State {
-            explicit State(size_t capacity)
+            SGCL_INLINE_HOT explicit State(size_t capacity)
             : ring(capacity) {
                 ready.close();
             }
 
-            Slot& slot(size_t pos) noexcept {
+            SGCL_INLINE_HOT Slot& slot(size_t pos) noexcept {
                 return ring[pos & (ring.size() - 1)];
             }
 
-            size_t reserved() const noexcept {
+            SGCL_INLINE_HOT size_t reserved() const noexcept {
                 return word.load(std::memory_order_seq_cst) & PositionMask;
             }
 
@@ -163,7 +163,7 @@ namespace sgcl::async {
         // A capacity past the largest power of two has none to round up
         // to (std::bit_ceil's precondition): the length_error of an array
         // too large, as one below it and past the largest array is
-        static size_t _ring_size(size_t capacity) {
+        SGCL_INLINE_HOT static size_t _ring_size(size_t capacity) {
             if (capacity > (size_t(1) << (std::numeric_limits<size_t>::digits - 1))) [[unlikely]] {
                 throw length_error("sgcl::async::broadcast");
             }
@@ -175,7 +175,7 @@ namespace sgcl::async {
         using size_type = size_t;
 
         // A ring of `capacity` values, rounded up to a power of two (at least 1)
-        explicit broadcast(size_type capacity)
+        SGCL_INLINE_HOT explicit broadcast(size_type capacity)
         : _s(make_tracked<State>(_ring_size(capacity))) {
         }
 
@@ -188,7 +188,7 @@ namespace sgcl::async {
         public:
             subscription() noexcept = default;
 
-            subscription(subscription&& o) noexcept
+            SGCL_INLINE_HOT subscription(subscription&& o) noexcept
             : _s(std::move(o._s))
             , _sub(std::move(o._sub))
             , _cursor(o._cursor)
@@ -216,14 +216,14 @@ namespace sgcl::async {
             subscription& operator=(const subscription&) = delete;
 
             // Counts itself off the values it has not passed
-            ~subscription() {
+            SGCL_INLINE_HOT ~subscription() {
                 _unsubscribe();
             }
 
             // The next value, waiting for one: nothing once the broadcast
             // is closed and drained. `co_await s.receive()` in a task,
             // `s.receive().wait()` on a thread
-            auto receive() noexcept {
+            SGCL_INLINE_HOT auto receive() noexcept {
                 return detail::make_operation([this](auto how) -> decltype(auto) {
                     if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                         return receive_op(*this);
@@ -261,7 +261,7 @@ namespace sgcl::async {
 
         public:
             // The next value if one is there, waiting for nothing
-            optional<T> try_receive() noexcept(NothrowValue) {
+            SGCL_INLINE_HOT optional<T> try_receive() noexcept(NothrowValue) {
                 return _take();
             }
 
@@ -290,12 +290,12 @@ namespace sgcl::async {
                 // suspends for it. Nothing of the frame is touched past
                 // the registration the sender may have claimed.
                 template<class P>
-                bool await_suspend(std::coroutine_handle<P> h) noexcept {
+                SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) noexcept {
                     _sub->_sub->frame = detail::frame_of(h);
                     return !_sub->_register();
                 }
 
-                optional<T> await_resume() noexcept(NothrowValue) {
+                SGCL_INLINE_HOT optional<T> await_resume() noexcept(NothrowValue) {
                     if (_done) {
                         return std::move(_value);
                     }
@@ -308,7 +308,7 @@ namespace sgcl::async {
             private:
                 friend class subscription;
 
-                explicit receive_op(subscription& s) noexcept
+                SGCL_INLINE_HOT explicit receive_op(subscription& s) noexcept
                 : _sub(&s) {
                 }
 
@@ -331,13 +331,13 @@ namespace sgcl::async {
                 using Base = decltype(std::declval<detail::ChannelState<void>&>().on_receive(std::declval<F>()));
 
             public:
-                receive_case(subscription& s, tracked_ptr<Round> round, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+                SGCL_INLINE_HOT receive_case(subscription& s, tracked_ptr<Round> round, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
                 : Base(_channel(s, round.get()).on_receive(std::move(f)))
                 , _keep(std::move(round)) {
                 }
 
             private:
-                static detail::ChannelState<void>& _channel(subscription& s, Round* round) noexcept {   // read only, and may be null
+                SGCL_INLINE_HOT static detail::ChannelState<void>& _channel(subscription& s, Round* round) noexcept {   // read only, and may be null
                     return round ? round->ch : s._s->ready;
                 }
 
@@ -360,22 +360,22 @@ namespace sgcl::async {
 
             // The values lost before the last one received: the ring
             // lapped this subscription by that many
-            size_t lagged() const noexcept {
+            SGCL_INLINE_HOT size_t lagged() const noexcept {
                 return _lagged;
             }
 
-            bool closed() const noexcept {
+            SGCL_INLINE_HOT bool closed() const noexcept {
                 return _s->closed.load(std::memory_order_acquire);
             }
 
-            explicit operator bool() const noexcept {
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return (bool)_s;
             }
 
         private:
             friend class broadcast;
 
-            subscription(tracked_ptr<State> s, tracked_ptr<Sub> sub, size_t cursor) noexcept
+            SGCL_INLINE_HOT subscription(tracked_ptr<State> s, tracked_ptr<Sub> sub, size_t cursor) noexcept
             : _s(std::move(s))
             , _sub(std::move(sub))
             , _cursor(cursor) {
@@ -581,32 +581,32 @@ namespace sgcl::async {
         // The value to every subscription alive, without waiting: true;
         // false when the broadcast is closed. A value nobody subscribes
         // to is dropped.
-        bool send(const T& value) {
+        SGCL_INLINE_HOT bool send(const T& value) {
             return _send(T(value));
         }
 
-        bool send(T&& value) {
+        SGCL_INLINE_HOT bool send(T&& value) {
             return _send(T(std::move(value)));
         }
 
         // No more sends: every subscription receives what was sent, then nothing
-        void close() {
+        SGCL_INLINE_HOT void close() {
             if (_s->closed.exchange(true, std::memory_order_seq_cst)) {
                 return;
             }
             _wake(SIZE_MAX);
         }
 
-        bool closed() const noexcept {
+        SGCL_INLINE_HOT bool closed() const noexcept {
             return _s->closed.load(std::memory_order_acquire);
         }
 
-        size_type capacity() const noexcept {
+        SGCL_INLINE_HOT size_type capacity() const noexcept {
             return _s->ring.size();
         }
 
         // The subscriptions alive
-        size_type subscribers() const noexcept {
+        SGCL_INLINE_HOT size_type subscribers() const noexcept {
             return _s->word.load(std::memory_order_acquire) >> PositionBits;
         }
 

@@ -27,7 +27,7 @@ a hundred limbs and more, and divides long numbers by Burnikel and Ziegler's rec
 
 A result nobody else has is written in place by `+=`, `-=` and `*=` by a small value. Measured before that was
 done and after: `sum += x` over numbers of a hundred limbs took 109 ns a step when every sum allocated, and takes
-37 now, where Go's `z.Add(z, x)` takes 35; `f *= k` costs less than Go's.
+35.2 now (4 October 2026, `-O3`, `env -i`), where Go's `z.Add(z, x)` takes 35; `f *= k` costs less than Go's.
 
 The thresholds between the algorithms of the multiplication, the square, the division and the conversions are
 set by measurement: `bench_math sgcl cross <n> <algorithm>` times the operation at `n` limbs with the threshold

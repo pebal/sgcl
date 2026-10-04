@@ -85,20 +85,20 @@ namespace sgcl::encoding {
         class decoder;
         class dumper;
 
-        static string encode(const slice<const byte>& data) {
+        SGCL_INLINE_HOT static string encode(const slice<const byte>& data) {
             return detail::encode_text(detail::HexLower, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
         // The bytes of a text
-        static string encode(const string& text) {
+        SGCL_INLINE_HOT static string encode(const string& text) {
             return detail::encode_text(detail::HexLower, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
-        static string encode_upper(const slice<const byte>& data) {
+        SGCL_INLINE_HOT static string encode_upper(const slice<const byte>& data) {
             return detail::encode_text(detail::HexUpper, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
-        static string encode_upper(const string& text) {
+        SGCL_INLINE_HOT static string encode_upper(const string& text) {
             return detail::encode_text(detail::HexUpper, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
@@ -106,28 +106,28 @@ namespace sgcl::encoding {
         // string's overload (an exact match, else the conversions to a
         // string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        static string encode(const T& text) {
+        SGCL_INLINE_HOT static string encode(const T& text) {
             return encode(slice<const byte>(text));
         }
 
         template<sgcl::detail::TextArgument T>
-        static string encode_upper(const T& text) {
+        SGCL_INLINE_HOT static string encode_upper(const T& text) {
             return encode_upper(slice<const byte>(text));
         }
 
         // The first character that is not a digit is invalid_character at
         // its offset; an odd length is unexpected_end at the end
-        static expected<vector<byte>, error> decode(const string& text) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decode(const string& text) noexcept {
             return detail::decode_text(detail::HexLower, text);
         }
 
         // The characters n bytes take, and the most bytes n characters
         // decode to, as base64's
-        static constexpr size_t encoded_size(size_t n) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t encoded_size(size_t n) noexcept {
             return detail::HexLower.encoded_size(n);
         }
 
-        static constexpr size_t max_decoded_size(size_t n) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t max_decoded_size(size_t n) noexcept {
             return detail::HexLower.max_decoded_size(n);
         }
 
@@ -135,17 +135,17 @@ namespace sgcl::encoding {
         // encoded_size(data.size()) characters, or max_decoded_size of the
         // text's size bytes — a smaller one is length_error. The
         // characters or the bytes written.
-        static size_t encode_to(const slice<char>& out, const slice<const byte>& data) {
+        SGCL_INLINE_HOT static size_t encode_to(const slice<char>& out, const slice<const byte>& data) {
             return detail::encode_into(detail::HexLower, out, reinterpret_cast<const uint8_t*>(data.data()), data.size());
         }
 
-        static expected<size_t, error> decode_to(const slice<byte>& out, const string& text) {
+        SGCL_INLINE_HOT static expected<size_t, error> decode_to(const slice<byte>& out, const string& text) {
             return detail::decode_to(detail::HexLower, out, text);
         }
 
         // The same from characters read where they lie, no string made, as
         // base64's
-        static expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) {
+        SGCL_INLINE_HOT static expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) {
             return detail::decode_to(detail::HexLower, out, text.data(), text.size());
         }
 
@@ -153,7 +153,7 @@ namespace sgcl::encoding {
         // lies (an exact match, else the conversions to a string and to a
         // slice tie)
         template<sgcl::detail::TextArgument T>
-        static expected<size_t, error> decode_to(const slice<byte>& out, const T& text) {
+        SGCL_INLINE_HOT static expected<size_t, error> decode_to(const slice<byte>& out, const T& text) {
             const std::string_view v(text);   // a literal to its first NUL, not past it
             return decode_to(out, slice<const char>(v.data(), v.size()));
         }
@@ -187,12 +187,12 @@ namespace sgcl::encoding {
         }
 
         // The bytes of a text
-        static string dump(const string& text) {
+        SGCL_INLINE_HOT static string dump(const string& text) {
             return dump(as_bytes(text.as_slice()));
         }
 
         template<sgcl::detail::TextArgument T>
-        static string dump(const T& text) {
+        SGCL_INLINE_HOT static string dump(const T& text) {
             return dump(slice<const byte>(text));
         }
 
@@ -217,11 +217,11 @@ namespace sgcl::encoding {
         using ReaderHandle::ReaderHandle;
     };
 
-    inline hex::encoder hex::encoder_to(const io::writer& out) noexcept {
+    SGCL_INLINE_HOT hex::encoder hex::encoder_to(const io::writer& out) noexcept {
         return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<4>>>(detail::HexLower, out));
     }
 
-    inline hex::decoder hex::decoder_from(const io::reader& in) noexcept {
+    SGCL_INLINE_HOT hex::decoder hex::decoder_from(const io::reader& in) noexcept {
         return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<4>>>(detail::HexLower, in));
     }
 
@@ -234,7 +234,7 @@ namespace sgcl::encoding {
             using io::mixin::writer<HexDumperState>::write;
             using io::mixin::writer<HexDumperState>::async_write;
 
-            explicit HexDumperState(const io::writer& out) noexcept
+            SGCL_INLINE_HOT explicit HexDumperState(const io::writer& out) noexcept
             : _out(out), _block(make_tracked<CodecBlock>()) {
             }
 
@@ -314,16 +314,16 @@ namespace sgcl::encoding {
                 co_return expected<void, io::error>();
             }
 
-            bool is_closed() const noexcept {
+            SGCL_INLINE_HOT bool is_closed() const noexcept {
                 return _closed;
             }
 
         private:
-            char* _chars() const noexcept {
+            SGCL_INLINE_HOT char* _chars() const noexcept {
                 return reinterpret_cast<char*>(_block->data());
             }
 
-            slice<const byte> _chunk(size_t n) const noexcept {
+            SGCL_INLINE_HOT slice<const byte> _chunk(size_t n) const noexcept {
                 return slice<const byte>(_block, _block->data(), n);
             }
 
@@ -346,7 +346,7 @@ namespace sgcl::encoding {
                 return size_t(o - _chars());
             }
 
-            size_t _final() noexcept {
+            SGCL_INLINE_HOT size_t _final() noexcept {
                 if (_n == 0) {
                     return 0;
                 }
@@ -373,7 +373,7 @@ namespace sgcl::encoding {
         using WriterHandle::WriterHandle;
     };
 
-    inline hex::dumper hex::dumper_to(const io::writer& out) noexcept {
+    SGCL_INLINE_HOT hex::dumper hex::dumper_to(const io::writer& out) noexcept {
         return detail::CodecAccess::make<dumper>(make_tracked<detail::HexDumperState>(out));
     }
 }

@@ -59,11 +59,11 @@ namespace sgcl::async {
         static constexpr uint64_t Reader = 2;                       // one reader holding or waiting: bits 1..31
         static constexpr uint64_t Generation = uint64_t(1) << 32;   // one writer more: bits 32..63
 
-        static constexpr uint64_t _readers(uint64_t w) noexcept {
+        SGCL_INLINE_HOT static constexpr uint64_t _readers(uint64_t w) noexcept {
             return (w & 0xffffffff) / Reader;
         }
 
-        static constexpr uint32_t _generation(uint64_t w) noexcept {
+        SGCL_INLINE_HOT static constexpr uint32_t _generation(uint64_t w) noexcept {
             return (uint32_t)(w >> 32);
         }
 
@@ -76,7 +76,7 @@ namespace sgcl::async {
         // leave when one holds or waits
         // noexcept, as lock(): a round's channel has no sender, the writer
         // closes it
-        void lock_shared() noexcept {
+        SGCL_INLINE_HOT void lock_shared() noexcept {
             uint32_t writer;
             if (!_enter_shared(writer)) {
                 _wait_shared(writer);
@@ -95,7 +95,7 @@ namespace sgcl::async {
         }
 
         // Counted out; the last reader a pending writer waits for signals it
-        void unlock_shared() {
+        SGCL_INLINE_HOT void unlock_shared() {
             auto w = _word.fetch_sub(Reader, std::memory_order_seq_cst);
             if ((w & Writer) && _reader_wait.fetch_sub(1, std::memory_order_acq_rel) == 1) {
                 _drained.try_send();
@@ -107,7 +107,7 @@ namespace sgcl::async {
         // noexcept: the writers' mutex and the drained channel have no
         // waiting sender (an unlock_shared's signal is a try_send), so
         // their receives wake nobody (mutex.h: MutexState::lock)
-        void lock() noexcept {
+        SGCL_INLINE_HOT void lock() noexcept {
             _writers.lock();
             if (!_claim()) {
                 (void)_drained.receive().wait();
@@ -129,7 +129,7 @@ namespace sgcl::async {
         }
 
         // The bit cleared, the readers held back woken, the next writer let in
-        void unlock() {
+        SGCL_INLINE_HOT void unlock() {
             _word.fetch_sub(Writer, std::memory_order_seq_cst);
             std::atomic_thread_fence(std::memory_order_seq_cst);   // the word before the look at the round (a reader: the round before its look at the word)
             if (auto round = _round.exchange(nullptr, std::memory_order_acq_rel)) {
@@ -170,14 +170,14 @@ namespace sgcl::async {
             // The mutex held, as mutex::guard::owner(); by its address, a
             // shared mutex being an object and not a handle, and null for
             // an empty guard (moved from or released)
-            shared_mutex* owner() const noexcept {
+            SGCL_INLINE_HOT shared_mutex* owner() const noexcept {
                 return _m;
             }
 
             // The mutex let go of by the guard, still locked: the caller
             // unlocks it (std::unique_lock::release); null for an empty
             // guard
-            shared_mutex* release() noexcept {
+            SGCL_INLINE_HOT shared_mutex* release() noexcept {
                 return std::exchange(_m, nullptr);
             }
 
@@ -187,11 +187,11 @@ namespace sgcl::async {
 
         class guard {
         public:
-            explicit guard(shared_mutex& m) noexcept
+            SGCL_INLINE_HOT explicit guard(shared_mutex& m) noexcept
             : _m(&m) {
             }
 
-            guard(guard&& o) noexcept
+            SGCL_INLINE_HOT guard(guard&& o) noexcept
             : _m(std::exchange(o._m, nullptr)) {
             }
 
@@ -203,7 +203,7 @@ namespace sgcl::async {
             // cannot start the workers throws nothing in a QuietWakes
             // scope, so that every one of them is woken and the writers'
             // mutex let go of; the tasks run at the next start
-            ~guard() {
+            SGCL_INLINE_HOT ~guard() {
                 if (_m) {
                     detail::QuietWakes quiet;
                     _m->unlock();
@@ -213,14 +213,14 @@ namespace sgcl::async {
             // The mutex held, as mutex::guard::owner(); by its address, a
             // shared mutex being an object and not a handle, and null for
             // an empty guard (moved from or released)
-            shared_mutex* owner() const noexcept {
+            SGCL_INLINE_HOT shared_mutex* owner() const noexcept {
                 return _m;
             }
 
             // The mutex let go of by the guard, still locked: the caller
             // unlocks it (std::unique_lock::release); null for an empty
             // guard
-            shared_mutex* release() noexcept {
+            SGCL_INLINE_HOT shared_mutex* release() noexcept {
                 return std::exchange(_m, nullptr);
             }
 
@@ -234,7 +234,7 @@ namespace sgcl::async {
         template<bool Shared, bool Scoped>
         class lock_op {
         public:
-            bool await_ready() noexcept(Shared) {   // the writer's fast path takes the writers' mutex, a channel's receive
+            SGCL_INLINE_HOT bool await_ready() noexcept(Shared) {   // the writer's fast path takes the writers' mutex, a channel's receive
                 if constexpr (Shared) {
                     return _m->_enter_shared(_writer);
                 } else {
@@ -253,7 +253,7 @@ namespace sgcl::async {
                 return _await->await_suspend(h);
             }
 
-            auto await_resume() {
+            SGCL_INLINE_HOT auto await_resume() {
                 if (_await) {
                     _await->await_resume();
                 }
@@ -265,7 +265,7 @@ namespace sgcl::async {
         private:
             friend class shared_mutex;
 
-            explicit lock_op(shared_mutex& m) noexcept
+            SGCL_INLINE_HOT explicit lock_op(shared_mutex& m) noexcept
             : _m(&m) {
             }
 
@@ -280,7 +280,7 @@ namespace sgcl::async {
         // lock_shared() are the standard's, for std::unique_lock and
         // std::shared_lock on a thread): `auto g = co_await m.scoped_lock();`,
         // `co_await m.scoped_lock_shared()`, and `.wait()` on a thread
-        auto scoped_lock_shared() noexcept {
+        SGCL_INLINE_HOT auto scoped_lock_shared() noexcept {
             return detail::make_operation([this](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return lock_op<true, true>(*this);
@@ -291,7 +291,7 @@ namespace sgcl::async {
             });
         }
 
-        auto scoped_lock() noexcept {
+        SGCL_INLINE_HOT auto scoped_lock() noexcept {
             return detail::make_operation([this](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return lock_op<false, true>(*this);
@@ -305,7 +305,7 @@ namespace sgcl::async {
     private:
         // A reader counted in: true when no writer holds or waits; else
         // the generation of the writer to wait for
-        bool _enter_shared(uint32_t& writer) noexcept {
+        SGCL_INLINE_HOT bool _enter_shared(uint32_t& writer) noexcept {
             auto w = _word.fetch_add(Reader, std::memory_order_seq_cst);
             if (!(w & Writer)) {
                 return true;
@@ -316,7 +316,7 @@ namespace sgcl::async {
 
         // Whether the writer of that generation is gone: the bit clear,
         // or another writer's (which counted this reader and waits for it)
-        bool _writer_gone(uint32_t writer) const noexcept {
+        SGCL_INLINE_HOT bool _writer_gone(uint32_t writer) const noexcept {
             auto w = _word.load(std::memory_order_seq_cst);
             return !(w & Writer) || _generation(w) != writer;
         }
@@ -358,7 +358,7 @@ namespace sgcl::async {
         // reader holds the lock; else the readers counted are waited for,
         // through _reader_wait (Go's readerWait: a reader that leaves
         // between the bit and this add has counted itself off already)
-        bool _claim() noexcept {
+        SGCL_INLINE_HOT bool _claim() noexcept {
             auto w = _word.fetch_add(Generation + Writer, std::memory_order_seq_cst);
             auto n = (long)_readers(w);
             return n == 0 || _reader_wait.fetch_add(n, std::memory_order_acq_rel) + n == 0;
@@ -366,7 +366,7 @@ namespace sgcl::async {
 
         // The writer's fast path: the writers' mutex without waiting (stage
         // 1), then the bit and no reader to wait for (true)
-        bool _enter(int& stage) {
+        SGCL_INLINE_HOT bool _enter(int& stage) {
             if (!_writers.try_lock()) {
                 stage = 0;
                 return false;

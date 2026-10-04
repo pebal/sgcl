@@ -53,7 +53,7 @@ namespace sgcl::crypto {
 
         // The key from data: a wrong length is errc::invalid_key (the
         // initial counter is the program's, and a wrong one still throws)
-        static expected<aes_ctr, error> from_key(const slice<const byte>& key, const slice<const byte>& iv) {
+        SGCL_INLINE_HOT static expected<aes_ctr, error> from_key(const slice<const byte>& key, const slice<const byte>& iv) {
             if (!detail::is_aes_key_size(key.size())) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("aes_ctr", key.size()))));
             }
@@ -63,12 +63,12 @@ namespace sgcl::crypto {
         aes_ctr(const aes_ctr&) = delete;
         aes_ctr& operator=(const aes_ctr&) = delete;
 
-        aes_ctr(aes_ctr&& other) noexcept {
+        SGCL_INLINE_HOT aes_ctr(aes_ctr&& other) noexcept {
             _copy(other);
             other._wipe();
         }
 
-        aes_ctr& operator=(aes_ctr&& other) noexcept {
+        SGCL_INLINE_HOT aes_ctr& operator=(aes_ctr&& other) noexcept {
             if (this != &other) {
                 _copy(other);
                 other._wipe();
@@ -76,18 +76,18 @@ namespace sgcl::crypto {
             return *this;
         }
 
-        ~aes_ctr() {
+        SGCL_INLINE_HOT ~aes_ctr() {
             _wipe();
         }
 
-        aes_ctr clone() const {
+        SGCL_INLINE_HOT aes_ctr clone() const {
             _check();
             aes_ctr c;
             c._copy(*this);
             return c;
         }
 
-        size_t key_size() const noexcept {
+        SGCL_INLINE_HOT size_t key_size() const noexcept {
             return _key_size;
         }
 
@@ -129,7 +129,7 @@ namespace sgcl::crypto {
 
         // The keystream from the start of block `block` on: the initial
         // counter plus block, as a 128-bit number
-        void seek(uint64_t block) {
+        SGCL_INLINE_HOT void seek(uint64_t block) {
             _check();
             _counter = detail::counter_add<false>(_iv, block);
             _used = 16;
@@ -155,13 +155,13 @@ namespace sgcl::crypto {
             _key_size = o._key_size;
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             if (_key_size == 0) {
                 detail::moved_from("sgcl::crypto::aes_ctr");
             }
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_key);
             detail::secure_zero(_stream, sizeof _stream);
             _counter = _iv = {0, 0};

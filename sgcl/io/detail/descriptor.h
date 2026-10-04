@@ -100,7 +100,7 @@ namespace sgcl::io::detail {
         };
 
     public:
-        explicit Descriptor(int fd, bool owns = true) noexcept
+        SGCL_INLINE_HOT explicit Descriptor(int fd, bool owns = true) noexcept
         : _fd(fd)
         , _owns(owns) {
         }
@@ -108,7 +108,7 @@ namespace sgcl::io::detail {
         Descriptor(const Descriptor&) = delete;
         Descriptor& operator=(const Descriptor&) = delete;
 
-        ~Descriptor() {
+        SGCL_INLINE_HOT ~Descriptor() {
             _drop_timers();   // an abandoned descriptor's timers: cancelled, swept from the heaps (they held it weakly)
             if (!(_state.load(std::memory_order_acquire) & Closed) && _owns) {
                 sgcl::async::detail::reactor_instance().release(_fd);
@@ -116,7 +116,7 @@ namespace sgcl::io::detail {
             }
         }
 
-        int fd() const noexcept {
+        SGCL_INLINE_HOT int fd() const noexcept {
             return _fd;
         }
 
@@ -132,12 +132,12 @@ namespace sgcl::io::detail {
         }
 
         // The operation ends; the last one after a close closes
-        void release() noexcept {
+        SGCL_INLINE_HOT void release() noexcept {
             (void)_release();
         }
 
         // Whether close() has been called
-        bool closing() const noexcept {
+        SGCL_INLINE_HOT bool closing() const noexcept {
             return (_state.load(std::memory_order_seq_cst) & Closing) != 0;
         }
 
@@ -161,7 +161,7 @@ namespace sgcl::io::detail {
 
         // The deadline of a direction, time_point{} for none; a change
         // wakes the waits in progress, which look at it again
-        void set_deadline(int dir, time_point t) noexcept {
+        SGCL_INLINE_HOT void set_deadline(int dir, time_point t) noexcept {
             _deadline[dir].store(_rep(t), std::memory_order_seq_cst);
             _generation.fetch_add(1, std::memory_order_seq_cst);
             _wake_waits();
@@ -177,12 +177,12 @@ namespace sgcl::io::detail {
             return e ? error_code(e, std::system_category()) : make_error_code(io::errc::unsupported);
         }
 
-        time_point deadline(int dir) const noexcept {
+        SGCL_INLINE_HOT time_point deadline(int dir) const noexcept {
             return _point(_deadline[dir].load(std::memory_order_seq_cst));
         }
 
         // Whether the direction's deadline is set and has passed
-        bool expired(int dir) const noexcept {
+        SGCL_INLINE_HOT bool expired(int dir) const noexcept {
             auto d = _deadline[dir].load(std::memory_order_seq_cst);
             return d != 0 && sgcl::clock::now() >= _point(d);
         }
@@ -190,7 +190,7 @@ namespace sgcl::io::detail {
         // Before every try of a call that may answer EAGAIN: a readiness
         // kept from before the try is dropped, since the try sees it
         // (reactor.h: PollSlot::reset); nothing before the first wait
-        void prepare(int dir) noexcept {
+        SGCL_INLINE_HOT void prepare(int dir) noexcept {
             if (auto s = _slot.load(std::memory_order_relaxed)) {
                 s->reset(dir);
             }
@@ -237,7 +237,7 @@ namespace sgcl::io::detail {
         // worker; what the look after it needs is copied out before.
         class wait_op {
         public:
-            bool await_ready() {
+            SGCL_INLINE_HOT bool await_ready() {
                 if (auto r = _d->_begin(_p.dir, _p, _look)) {
                     _result = *r;
                     return true;
@@ -284,7 +284,7 @@ namespace sgcl::io::detail {
                 return true;
             }
 
-            WaitResult await_resume() noexcept {
+            SGCL_INLINE_HOT WaitResult await_resume() noexcept {
                 if (_suspended) {
                     return _d->_result(_p);
                 }
@@ -294,13 +294,13 @@ namespace sgcl::io::detail {
         private:
             friend class Descriptor;
 
-            wait_op(Descriptor& d, int dir, bool look) noexcept
+            SGCL_INLINE_HOT wait_op(Descriptor& d, int dir, bool look) noexcept
             : _d(&d)
             , _look(look) {
                 _p.dir = dir;
             }
 
-            bool _not_parked(WaitResult r) noexcept {
+            SGCL_INLINE_HOT bool _not_parked(WaitResult r) noexcept {
                 _suspended = false;
                 _result = r;
                 return false;
@@ -313,7 +313,7 @@ namespace sgcl::io::detail {
             bool _suspended = false;
         };
 
-        wait_op async_wait(int dir, bool deadline_looked = false) noexcept {
+        SGCL_INLINE_HOT wait_op async_wait(int dir, bool deadline_looked = false) noexcept {
             return wait_op(*this, dir, !deadline_looked);
         }
 
@@ -367,7 +367,7 @@ namespace sgcl::io::detail {
             return w;
         }
 
-        WaitResult end_wait(Wait& w) noexcept {
+        SGCL_INLINE_HOT WaitResult end_wait(Wait& w) noexcept {
             if (!w.channel->closed()) {
                 (void)_take_back(w);   // not woken (the other case won): taken back, or its wake is on the way and closes a channel nobody reads
             }
@@ -411,7 +411,7 @@ namespace sgcl::io::detail {
         }
 
         // The look after the publication: a cause set since the look before
-        bool _changed(const Parking& p) const noexcept {
+        SGCL_INLINE_HOT bool _changed(const Parking& p) const noexcept {
             return closing() || _generation.load(std::memory_order_seq_cst) != p.generation || sgcl::async::detail::reactor_instance().live() != p.incarnation;
         }
 
@@ -432,7 +432,7 @@ namespace sgcl::io::detail {
             return WaitResult::ready;
         }
 
-        bool _take_back(Wait& w) noexcept {
+        SGCL_INLINE_HOT bool _take_back(Wait& w) noexcept {
             PollSlot& s = *w.parking.slot;
             return w.main ? s.take_back(w.parking.dir) : s.remove(w.parking.dir, w.waiter.get());
         }
@@ -470,7 +470,7 @@ namespace sgcl::io::detail {
         // close is collected, and its number closed by the destructor, as
         // before, not kept until its deadline; the timer then runs out into
         // nothing. The weak pointer made once, at the first arming.
-        void _arm_at(int dir, int64_t dl) {
+        SGCL_INLINE_HOT void _arm_at(int dir, int64_t dl) {
             _drop_timer(dir);
             if (_self.expired()) {
                 _self = tracked_ptr<void>(this);
@@ -480,7 +480,7 @@ namespace sgcl::io::detail {
         }
 
         // Under _timers: the armed timer cancelled and forgotten
-        void _drop_timer(int dir) noexcept {
+        SGCL_INLINE_HOT void _drop_timer(int dir) noexcept {
             if (auto& t = _armed[dir]) {
                 t->cancelled.store(true, std::memory_order_release);
                 sgcl::async::detail::timer_cancelled(*t);
@@ -491,13 +491,13 @@ namespace sgcl::io::detail {
 
         // Both timers cancelled: the close, which ends every wait and
         // every deadline
-        void _drop_timers() noexcept {
+        SGCL_INLINE_HOT void _drop_timers() noexcept {
             std::lock_guard lock(_timers);
             _drop_timer(Read);
             _drop_timer(Write);
         }
 
-        int _release() noexcept {
+        SGCL_INLINE_HOT int _release() noexcept {
             uint64_t s = _state.fetch_sub(1, std::memory_order_seq_cst) - 1;
             if ((s & Closing) && (s & CountMask) == 0) {
                 return _close_now();
@@ -508,7 +508,7 @@ namespace sgcl::io::detail {
         // Once: the slot dropped by the reactor and the number given back
         // to the kernel, in that order (reactor.h: Reactor::release); the
         // slot of a number not owned stays registered with it
-        int _close_now() noexcept {
+        SGCL_INLINE_HOT int _close_now() noexcept {
             if (_state.fetch_or(Closed, std::memory_order_acq_rel) & Closed) {
                 return 0;
             }
@@ -519,7 +519,7 @@ namespace sgcl::io::detail {
             return ::close(_fd) == 0 ? 0 : errno;
         }
 
-        static Wait _early(Wait& w, WaitResult r) noexcept {
+        SGCL_INLINE_HOT static Wait _early(Wait& w, WaitResult r) noexcept {
             w.done = true;
             w.result = r;
             return w;
@@ -527,7 +527,7 @@ namespace sgcl::io::detail {
 
         // The waits in progress woken without readiness, their cause set
         // before this (a close, a deadline changed or passed)
-        void _wake_waits() noexcept {
+        SGCL_INLINE_HOT void _wake_waits() noexcept {
             if (auto s = sgcl::async::detail::reactor_instance().find(_fd)) {
                 s->interrupt(Read);
                 s->interrupt(Write);
@@ -565,19 +565,19 @@ namespace sgcl::io::detail {
             }
         }
 
-        static void _expire_read(void* self) {
+        SGCL_INLINE_HOT static void _expire_read(void* self) {
             static_cast<Descriptor*>(self)->_expire(Read);
         }
 
-        static void _expire_write(void* self) {
+        SGCL_INLINE_HOT static void _expire_write(void* self) {
             static_cast<Descriptor*>(self)->_expire(Write);
         }
 
-        static int64_t _rep(time_point t) noexcept {
+        SGCL_INLINE_HOT static int64_t _rep(time_point t) noexcept {
             return std::chrono::nanoseconds(t.time_since_epoch()).count();
         }
 
-        static time_point _point(int64_t rep) noexcept {
+        SGCL_INLINE_HOT static time_point _point(int64_t rep) noexcept {
             return time_point() + std::chrono::nanoseconds(rep);
         }
 
@@ -598,7 +598,7 @@ namespace sgcl::io::detail {
     // hold) when the descriptor is closing
     class Operation {
     public:
-        explicit Operation(Descriptor& d) noexcept
+        SGCL_INLINE_HOT explicit Operation(Descriptor& d) noexcept
         : _d(&d)
         , _held(d.acquire()) {
         }
@@ -606,13 +606,13 @@ namespace sgcl::io::detail {
         Operation(const Operation&) = delete;
         Operation& operator=(const Operation&) = delete;
 
-        ~Operation() {
+        SGCL_INLINE_HOT ~Operation() {
             if (_held) {
                 _d->release();
             }
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _held;
         }
 

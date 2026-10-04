@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
 #include "simd.h"
 
 #include <cstddef>
@@ -42,7 +43,7 @@ namespace sgcl::codec::detail {
         inline constexpr int64_t C3_072711026 = 25172;
 
         // x / 2^n to the nearest, halves up
-        constexpr int64_t descale(int64_t x, int n) noexcept {
+        SGCL_INLINE_HOT constexpr int64_t descale(int64_t x, int n) noexcept {
             return (x + (int64_t(1) << (n - 1))) >> n;
         }
 
@@ -50,7 +51,7 @@ namespace sgcl::codec::detail {
         // +128, clamped to 0..255 within [-512, 511] and wrapping outside
         // it, as libjpeg's table of 1024 entries does (only corrupt data
         // gets that far)
-        inline uint8_t sample(int64_t x) noexcept {
+        SGCL_INLINE_HOT uint8_t sample(int64_t x) noexcept {
             const unsigned v = unsigned(x) & 1023u;
             if (v < 128) {
                 return uint8_t(v + 128);
@@ -156,7 +157,7 @@ namespace sgcl::codec::detail {
     // transform() gives each of the eight outputs as w << ConstBits. Held
     // equal to idct_islow_plain for every DC and every quantizer of 16 bits
     // (all 2^32 pairs, tools/jpeg_dc_only_proof.cpp) and in the tests.
-    inline uint8_t idct_dc_only(int16_t dc, uint16_t quant) noexcept {
+    SGCL_INLINE_HOT uint8_t idct_dc_only(int16_t dc, uint16_t quant) noexcept {
         using namespace idct;
         const int32_t w = int32_t(int64_t(dc) * quant * (1 << Pass1Bits));
         return sample(descale(int64_t(w) << ConstBits, ConstBits + Pass1Bits + 3));
@@ -305,12 +306,12 @@ namespace sgcl::codec::detail {
     namespace idct {
         // The pair (a, b) repeated: PMADDWD's constants for inputs
         // interleaved as (x, y) pairs, x·a + y·b
-        inline __m128i pair(int16_t a, int16_t b) noexcept {
+        SGCL_INLINE_HOT __m128i pair(int16_t a, int16_t b) noexcept {
             return _mm_set1_epi32(int(uint16_t(a)) | int(uint32_t(uint16_t(b)) << 16));
         }
 
         template<int Shift>
-        inline __m128i round_sse2(__m128i x) noexcept {
+        SGCL_INLINE_HOT __m128i round_sse2(__m128i x) noexcept {
             return _mm_srai_epi32(_mm_add_epi32(x, _mm_set1_epi32(1 << (Shift - 1))), Shift);
         }
 
@@ -413,7 +414,7 @@ namespace sgcl::codec::detail {
     }
 #endif
 
-    inline void idct_islow(const int16_t* coef, const uint16_t* quant, uint8_t* out, size_t stride) noexcept {
+    SGCL_INLINE_HOT void idct_islow(const int16_t* coef, const uint16_t* quant, uint8_t* out, size_t stride) noexcept {
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         if (idct_islow_vector(coef, quant, out, stride)) {
             return;

@@ -38,11 +38,11 @@ namespace sgcl::net::http::detail {
     // connection after a head: what hijack hands over.
     class Wire final : public io::mixin::reader<Wire> {
     public:
-        explicit Wire(const net::connection& c) noexcept
+        SGCL_INLINE_HOT explicit Wire(const net::connection& c) noexcept
         : _c(c), _data(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _cap(config::io_buffer_size) {
         }
 
-        const net::connection& connection() const noexcept {
+        SGCL_INLINE_HOT const net::connection& connection() const noexcept {
             return _c;
         }
 
@@ -59,28 +59,28 @@ namespace sgcl::net::http::detail {
         // stayed for the connection's life); the head's room stays
         static constexpr size_t OutKeep = size_t(64) << 10;
 
-        void trim_out() noexcept {
+        SGCL_INLINE_HOT void trim_out() noexcept {
             if (out.capacity() > OutKeep) {
                 std::string().swap(out);
             }
         }
 
-        size_t buffered() const noexcept {
+        SGCL_INLINE_HOT size_t buffered() const noexcept {
             return _end - _begin;
         }
 
         // Room for at least n bytes buffered (HTTP/2: a frame whole)
-        void reserve(size_t n) noexcept {
+        SGCL_INLINE_HOT void reserve(size_t n) noexcept {
             if (n > _cap) {
                 _grow(n);
             }
         }
 
-        std::string_view view() const noexcept {
+        SGCL_INLINE_HOT std::string_view view() const noexcept {
             return std::string_view(reinterpret_cast<const char*>(_data.get()) + _begin, _end - _begin);
         }
 
-        void consume(size_t n) noexcept {
+        SGCL_INLINE_HOT void consume(size_t n) noexcept {
             _begin += std::min(n, buffered());
             if (_begin == _end) {
                 _begin = _end = 0;
@@ -221,7 +221,7 @@ namespace sgcl::net::http::detail {
         }
 
         // io::reader: the buffered bytes first, then the connection
-        expected<size_t, io::error> read(const slice<byte>& out) {
+        SGCL_INLINE_HOT expected<size_t, io::error> read(const slice<byte>& out) {
             return async_read(out).wait();
         }
 
@@ -239,7 +239,7 @@ namespace sgcl::net::http::detail {
         }
 
     private:
-        void _compact() noexcept {
+        SGCL_INLINE_HOT void _compact() noexcept {
             size_t n = buffered();
             if (_begin && n) {
                 std::memmove(_data.get(), _data.get() + _begin, n);
@@ -276,7 +276,7 @@ namespace sgcl::net::http::detail {
     // handed out by reference (an io::reader of it holds no owner), so
     // that a request without a body makes no object for its body().
     struct NoBody {
-        expected<size_t, io::error> read(const slice<byte>&) const noexcept {
+        SGCL_INLINE_HOT expected<size_t, io::error> read(const slice<byte>&) const noexcept {
             return size_t(0);
         }
 
@@ -301,7 +301,7 @@ namespace sgcl::net::http::detail {
     // no connection to drain.
     class Body : public io::mixin::reader<Body> {
     public:
-        Body(tracked_ptr<Wire> wire, BodyFraming framing, uint64_t limit, bool response) noexcept
+        SGCL_INLINE_HOT Body(tracked_ptr<Wire> wire, BodyFraming framing, uint64_t limit, bool response) noexcept
         : _wire(std::move(wire)), _framing(framing), _limit(limit), _response(response) {
             _remaining = framing.length;
             if (framing.kind == Framing::none) {
@@ -312,12 +312,12 @@ namespace sgcl::net::http::detail {
         // The body of an HTTP/2 stream; its content-length, when the head
         // gave one, lets read_everything read it straight into a vector
         // of its size (as a body of HTTP/1.1 with a length)
-        Body(tracked_ptr<h2::StreamState> stream, uint64_t limit, bool response, optional<uint64_t> length = nullopt) noexcept
+        SGCL_INLINE_HOT Body(tracked_ptr<h2::StreamState> stream, uint64_t limit, bool response, optional<uint64_t> length = nullopt) noexcept
         : _framing{length ? Framing::length : Framing::until_close, length ? *length : 0}, _limit(limit), _response(response), _h2(std::move(stream)) {
             _remaining = _framing.length;
         }
 
-        expected<size_t, io::error> read(const slice<byte>& out) {
+        SGCL_INLINE_HOT expected<size_t, io::error> read(const slice<byte>& out) {
             return async_read(out).wait();
         }
 
@@ -444,40 +444,40 @@ namespace sgcl::net::http::detail {
             }
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return _done;
         }
 
-        bool failed() const noexcept {
+        SGCL_INLINE_HOT bool failed() const noexcept {
             return (bool)_failed;
         }
 
-        int error_status() const noexcept {
+        SGCL_INLINE_HOT int error_status() const noexcept {
             return _error_status;
         }
 
-        uint64_t read_total() const noexcept {
+        SGCL_INLINE_HOT uint64_t read_total() const noexcept {
             return _read_total;
         }
 
-        const headers& trailers() const noexcept {
+        SGCL_INLINE_HOT const headers& trailers() const noexcept {
             if (_h2) {
                 return _done ? _h2->trailers_ref() : _no_trailers;
             }
             return _chunked ? _chunked->trailers() : _no_trailers;
         }
 
-        bool http2() const noexcept {
+        SGCL_INLINE_HOT bool http2() const noexcept {
             return (bool)_h2;
         }
 
         // Called once, before the first read: the server's 100 Continue
-        void set_before_first_read(function<async::task<expected<void, io::error>>()> f) noexcept {
+        SGCL_INLINE_HOT void set_before_first_read(function<async::task<expected<void, io::error>>()> f) noexcept {
             _before = std::move(f);
         }
 
         // Called once at the end: clean when the body was read to its end
-        void set_on_end(function<void(bool)> f) {
+        SGCL_INLINE_HOT void set_on_end(function<void(bool)> f) {
             _on_end = std::move(f);
             if (_done) {
                 _finish(true);
@@ -570,7 +570,7 @@ namespace sgcl::net::http::detail {
             return _done;
         }
 
-        void abandon() {
+        SGCL_INLINE_HOT void abandon() {
             if (_h2 && !_done && !_failed) {
                 _h2->owner->reset(_h2->id, h2::ErrorCode::cancel);
             }
@@ -738,7 +738,7 @@ namespace sgcl::net::http::detail {
             return fail(e);
         }
 
-        void _finish(bool clean) {
+        SGCL_INLINE_HOT void _finish(bool clean) {
             if (_on_end) {
                 auto f = std::move(_on_end);
                 _on_end = {};

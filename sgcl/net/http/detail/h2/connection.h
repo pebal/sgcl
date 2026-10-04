@@ -189,7 +189,7 @@ namespace sgcl::net::http::detail::h2 {
                 }
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return _size;
             }
 
@@ -206,11 +206,11 @@ namespace sgcl::net::http::detail::h2 {
             std::vector<Stream> _slots;
             size_t _size = 0;
 
-            size_t _mask() const noexcept {
+            SGCL_INLINE_HOT size_t _mask() const noexcept {
                 return _slots.size() - 1;
             }
 
-            size_t _home(uint32_t id) const noexcept {
+            SGCL_INLINE_HOT size_t _home(uint32_t id) const noexcept {
                 return size_t(uint64_t(id) * 0x9E3779B97F4A7C15ull >> 32) & _mask();
             }
         };
@@ -222,7 +222,7 @@ namespace sgcl::net::http::detail::h2 {
 
         inline constexpr uint8_t DrainPing[8] = {'s', 'g', 'c', 'l', 'd', 'r', 'a', 'i'};
 
-        inline Limits sane(Limits s) noexcept {
+        SGCL_INLINE_HOT Limits sane(Limits s) noexcept {
             s.initial_window = std::clamp(s.initial_window, DefaultWindow, LargestWindow);
             s.connection_window = std::clamp(s.connection_window, DefaultWindow, LargestWindow);
             s.max_frame_size = std::clamp(s.max_frame_size, DefaultMaxFrameSize, LargestMaxFrameSize);
@@ -328,7 +328,7 @@ namespace sgcl::net::http::detail::h2 {
         // A field block encoded by HPACK for a stream, as HEADERS and as
         // many CONTINUATIONs as the peer's frame size needs; false when the
         // stream is gone or its side already ended
-        bool send_headers(uint32_t id, const uint8_t* block, size_t n, bool end_stream) noexcept {
+        SGCL_INLINE_HOT bool send_headers(uint32_t id, const uint8_t* block, size_t n, bool end_stream) noexcept {
             Stream* s = _streams.find(id);
             if (!s || s->local_closed || _failed) {
                 return false;
@@ -344,7 +344,7 @@ namespace sgcl::net::http::detail::h2 {
         // peer's size; END_STREAM goes with the last byte, when all were
         // taken. The result is the bytes taken; fewer than n: the rest
         // waits for on_window
-        size_t send_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) noexcept {
+        SGCL_INLINE_HOT size_t send_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) noexcept {
             return _send_data(id, n, end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
                 w.data(id, p + at, k, last);
             });
@@ -357,7 +357,7 @@ namespace sgcl::net::http::detail::h2 {
         // unchanged until what take_output gives is written. Only for an
         // owner that takes its output with take_output (output() is then
         // not whole)
-        size_t send_data_in_place(uint32_t id, const slice<const byte>& data, bool end_stream) noexcept {
+        SGCL_INLINE_HOT size_t send_data_in_place(uint32_t id, const slice<const byte>& data, bool end_stream) noexcept {
             return _send_data(id, data.size(), end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
                 w.header(uint32_t(k), FrameType::data, last ? flag::end_stream : 0, id);
                 if (k) {
@@ -432,7 +432,7 @@ namespace sgcl::net::http::detail::h2 {
         // peer by WINDOW_UPDATE once half a window has gathered. A stream
         // ended by both sides is gone from the table: its bytes still go
         // back to the connection's window
-        void consumed(uint32_t id, size_t n) noexcept {
+        SGCL_INLINE_HOT void consumed(uint32_t id, size_t n) noexcept {
             if (_failed || n == 0) {
                 return;
             }
@@ -448,14 +448,14 @@ namespace sgcl::net::http::detail::h2 {
         // The owner resets a stream (a handler that failed, a body it will
         // not read, a request given up); what the stream had received and
         // the owner not taken goes back to the connection's window
-        void reset(uint32_t id, ErrorCode code) noexcept {
+        SGCL_INLINE_HOT void reset(uint32_t id, ErrorCode code) noexcept {
             if (!_failed && _streams.find(id)) {
                 _reset(id, code, false);
             }
         }
 
         // A PING of ours (liveness); its answer comes to on_ping_ack
-        void ping(const uint8_t opaque[8]) noexcept {
+        SGCL_INLINE_HOT void ping(const uint8_t opaque[8]) noexcept {
             if (_failed) {
                 return;
             }
@@ -464,7 +464,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // GOAWAY at once with the last stream of the peer's seen
-        void goaway(ErrorCode code) noexcept {
+        SGCL_INLINE_HOT void goaway(ErrorCode code) noexcept {
             if (_failed || _goaway_sent) {
                 return;
             }
@@ -473,12 +473,12 @@ namespace sgcl::net::http::detail::h2 {
 
         // What is to be sent; written(n) when n bytes of it are gone (an
         // owner that sends DATA in place takes it with take_output instead)
-        slice<const byte> output() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> output() const noexcept {
             assert(_pieces.empty() && "output() is not whole with DATA in place: take_output");
             return slice<const byte>(reinterpret_cast<const byte*>(_out.data()) + _out_at, _out.size() - _out_at);
         }
 
-        void written(size_t n) noexcept {
+        SGCL_INLINE_HOT void written(size_t n) noexcept {
             _out_at += n;
             if (_out_at >= _out.size()) {
                 _out.clear();
@@ -487,50 +487,50 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        const PeerSettings& peer() const noexcept {
+        SGCL_INLINE_HOT const PeerSettings& peer() const noexcept {
             return _peer;
         }
 
-        const Limits& limits() const noexcept {
+        SGCL_INLINE_HOT const Limits& limits() const noexcept {
             return _ours;
         }
 
         // Whether the stream is open for our HEADERS and DATA (open, or
         // half-closed by the peer): a block is encoded only for one that is,
         // the encoder's table being the peer's decoder's
-        bool sendable(uint32_t id) noexcept {
+        SGCL_INLINE_HOT bool sendable(uint32_t id) noexcept {
             Stream* s = _streams.find(id);
             return s && !s->local_closed && !_failed;
         }
 
         // HPACK's encoder of this connection: its table follows the peer's
         // SETTINGS_HEADER_TABLE_SIZE by itself
-        Encoder& encoder() noexcept {
+        SGCL_INLINE_HOT Encoder& encoder() noexcept {
             return _encoder;
         }
 
-        bool peer_settings_received() const noexcept {
+        SGCL_INLINE_HOT bool peer_settings_received() const noexcept {
             return _phase == Phase::frames;
         }
 
-        bool failed() const noexcept {
+        SGCL_INLINE_HOT bool failed() const noexcept {
             return _failed;
         }
 
         // Every stream closed after the last GOAWAY: the transport may close
-        bool finished() const noexcept {
+        SGCL_INLINE_HOT bool finished() const noexcept {
             return _failed || (_goaway_sent && _streams.size() == 0);
         }
 
-        size_t open_streams() const noexcept {
+        SGCL_INLINE_HOT size_t open_streams() const noexcept {
             return _streams.size();
         }
 
-        int64_t connection_send_window() const noexcept {
+        SGCL_INLINE_HOT int64_t connection_send_window() const noexcept {
             return _conn_send;
         }
 
-        int64_t stream_send_window(uint32_t id) noexcept {
+        SGCL_INLINE_HOT int64_t stream_send_window(uint32_t id) noexcept {
             Stream* s = _streams.find(id);
             return s ? s->send : 0;
         }
@@ -570,7 +570,7 @@ namespace sgcl::net::http::detail::h2 {
         bool _hb_self_dependent = false;
 
         // table_streams: the most streams open at once the table holds
-        Endpoint(Events& events, const Limits& limits, uint32_t table_streams) noexcept
+        SGCL_INLINE_HOT Endpoint(Events& events, const Limits& limits, uint32_t table_streams) noexcept
         : _events(&events)
         , _ours(connection_detail::sane(limits))
         , _decoder(_ours.header_table_size)
@@ -594,7 +594,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The entries every role announces, appended to s from n
-        size_t _common_settings(Setting* s, size_t n) const noexcept {
+        SGCL_INLINE_HOT size_t _common_settings(Setting* s, size_t n) const noexcept {
             s[n++] = {uint16_t(SettingId::initial_window_size), _ours.initial_window};
             s[n++] = {uint16_t(SettingId::max_header_list_size), _ours.max_header_list_size};
             if (_ours.max_frame_size != DefaultMaxFrameSize) {
@@ -606,15 +606,15 @@ namespace sgcl::net::http::detail::h2 {
             return n;
         }
 
-        Derived& _role() noexcept {
+        SGCL_INLINE_HOT Derived& _role() noexcept {
             return static_cast<Derived&>(*this);
         }
 
-        const Derived& _role() const noexcept {
+        SGCL_INLINE_HOT const Derived& _role() const noexcept {
             return static_cast<const Derived&>(*this);
         }
 
-        size_t _block_limit() const noexcept {
+        SGCL_INLINE_HOT size_t _block_limit() const noexcept {
             return std::max<size_t>(2 * size_t(_ours.max_header_list_size), 64 * 1024);
         }
 
@@ -633,14 +633,14 @@ namespace sgcl::net::http::detail::h2 {
             return unexpected(e);
         }
 
-        void _final_goaway(ErrorCode code) noexcept {
+        SGCL_INLINE_HOT void _final_goaway(ErrorCode code) noexcept {
             _goaway_last = _role()._last_peer_stream();
             FrameWriter(_out).goaway(_goaway_last, code);
             ++_control;
             _goaway_sent = true;
         }
 
-        expected<void, Error> _check_flood() noexcept {
+        SGCL_INLINE_HOT expected<void, Error> _check_flood() noexcept {
             if (_control > _ours.max_control_frames) {
                 return unexpected(connection_error(ErrorCode::enhance_your_calm, "control frames piling up unread"));
             }
@@ -651,23 +651,23 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // §4.3, §6.10: a field block is a run of frames nothing may cut
-        expected<void, Error> _check_order(const FrameHeader& h) noexcept {
+        SGCL_INLINE_HOT expected<void, Error> _check_order(const FrameHeader& h) noexcept {
             if (_hb_open && (h.type != uint8_t(FrameType::continuation) || h.stream != _hb_stream)) {
                 return unexpected(connection_error(ErrorCode::protocol_error, "a frame inside a field block"));
             }
             return {};
         }
 
-        bool _recently_reset(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT bool _recently_reset(uint32_t id) const noexcept {
             return std::find(_recent.begin(), _recent.end(), id) != _recent.end();
         }
 
-        void _remember_reset(uint32_t id) noexcept {
+        SGCL_INLINE_HOT void _remember_reset(uint32_t id) noexcept {
             _recent[_recent_at] = id;
             _recent_at = (_recent_at + 1) % _recent.size();
         }
 
-        void _give_connection(size_t n) noexcept {
+        SGCL_INLINE_HOT void _give_connection(size_t n) noexcept {
             _conn_unacked += n;
             if (_conn_unacked >= _ours.connection_window / 2) {
                 FrameWriter(_out).window_update(0, uint32_t(_conn_unacked));
@@ -677,7 +677,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void _give_stream(Stream* s, size_t n) noexcept {
+        SGCL_INLINE_HOT void _give_stream(Stream* s, size_t n) noexcept {
             s->unacked += n;
             if (s->unacked >= _ours.initial_window / 2) {
                 FrameWriter(_out).window_update(s->id, uint32_t(s->unacked));
@@ -687,7 +687,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void _end_local(Stream* s) noexcept {
+        SGCL_INLINE_HOT void _end_local(Stream* s) noexcept {
             s->local_closed = true;
             s->blocked_since = 0;
             if (s->remote_closed) {
@@ -695,7 +695,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void _end_remote(Stream* s) noexcept {
+        SGCL_INLINE_HOT void _end_remote(Stream* s) noexcept {
             s->remote_closed = true;
             if (s->local_closed) {
                 _streams.remove(s);
@@ -704,7 +704,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A stream leaving the table reset: what it held unconsumed goes
         // back to the connection's window (its owner will not consume it)
-        void _drop(Stream* s) noexcept {
+        SGCL_INLINE_HOT void _drop(Stream* s) noexcept {
             if (s->buffered) {
                 _give_connection(s->buffered);
             }
@@ -1028,7 +1028,7 @@ namespace sgcl::net::http::detail::h2 {
         uint32_t max_resets = 1000;
         uint32_t resets_per_second = 33;
 
-        ServerSettings() noexcept {
+        SGCL_INLINE_HOT ServerSettings() noexcept {
             initial_window = 1u << 20;      // Go: 1 MB
             connection_window = 1u << 20;   // Go: 1 MB
             max_header_list_size = 32 * 1024;   // the server's max_header_bytes
@@ -1063,7 +1063,7 @@ namespace sgcl::net::http::detail::h2 {
 
         static constexpr bool reads_preface = true;
 
-        ServerConnection(Events& events, const ServerSettings& settings = ServerSettings()) noexcept
+        SGCL_INLINE_HOT ServerConnection(Events& events, const ServerSettings& settings = ServerSettings()) noexcept
         : Base(events, settings, std::max(1u, settings.max_concurrent_streams))
         , _max_streams(std::max(1u, settings.max_concurrent_streams))
         , _waiting(4 * size_t(_max_streams) + 2)
@@ -1114,11 +1114,11 @@ namespace sgcl::net::http::detail::h2 {
             this->_control += 2;
         }
 
-        size_t handlers() const noexcept {
+        SGCL_INLINE_HOT size_t handlers() const noexcept {
             return _handlers;
         }
 
-        uint32_t max_concurrent_streams() const noexcept {
+        SGCL_INLINE_HOT uint32_t max_concurrent_streams() const noexcept {
             return _max_streams;
         }
 
@@ -1137,27 +1137,27 @@ namespace sgcl::net::http::detail::h2 {
 
         // --- the hooks of Endpoint ---
 
-        bool _idle(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT bool _idle(uint32_t id) const noexcept {
             return id > _max_client_id;
         }
 
-        bool _peer_opens(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT bool _peer_opens(uint32_t id) const noexcept {
             return (id & 1) != 0;
         }
 
-        uint32_t _last_peer_stream() const noexcept {
+        SGCL_INLINE_HOT uint32_t _last_peer_stream() const noexcept {
             return _max_client_id;
         }
 
-        bool _accepts_data(const Stream&) const noexcept {
+        SGCL_INLINE_HOT bool _accepts_data(const Stream&) const noexcept {
             return true;
         }
 
-        bool _ignore_closed(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT bool _ignore_closed(uint32_t id) const noexcept {
             return this->_recently_reset(id);
         }
 
-        bool _own_ping(const uint8_t* data) noexcept {
+        SGCL_INLINE_HOT bool _own_ping(const uint8_t* data) noexcept {
             if (_draining && !this->_goaway_sent && std::memcmp(data, connection_detail::DrainPing, 8) == 0) {
                 this->_final_goaway(ErrorCode::no_error);
                 return true;
@@ -1165,7 +1165,7 @@ namespace sgcl::net::http::detail::h2 {
             return false;
         }
 
-        void _peer_goaway(uint32_t last, ErrorCode code) {
+        SGCL_INLINE_HOT void _peer_goaway(uint32_t last, ErrorCode code) {
             this->_events->on_goaway(last, code);
         }
 

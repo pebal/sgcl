@@ -5,7 +5,11 @@
 The setup, the machine and how the timers are read are described with
 [the benchmarks of the engine](../../garbage_collector/benchmarks.md). The cases of the module are in
 `benchmarks/txt/` (`bench_format`, `bench_stencil`, `bench_regex`, `bench_identifier` and the others), Go's in
-`benchmarks/go`, run by `benchmarks/compare.sh`. The times are nanoseconds unless a row says otherwise.
+`benchmarks/go`, run by `benchmarks/compare.sh`. The times are nanoseconds unless a row says otherwise. The tables of
+the programs in the tree (bidi, the identifiers, regex, search, format, stencil) and the collation search were
+measured again on 4 October 2026 at `-O3`, both C++ sides, the best of three, every process in a clean environment
+(`env -i`; the shell of the earlier runs set `MallocNanoZone=0`, which turns macOS's nano allocator off); the tables of a change before and
+after, the figures of probes outside the tree and Go's columns are from when they were taken, not run again.
 
 ## The tables
 
@@ -69,7 +73,7 @@ faster than one wide table, and a third smaller.
 A text that is already in the form comes back as the same object from [normalize](normalize.md), nothing allocated
 and nothing copied, and the quick check properties settle most texts without a decomposition. What
 [without_marks](without_marks.md) costs is measured with the identifiers, below: a text with nothing to take off comes
-back as the same object, 6.1 ns over ASCII, against 197 ns over a Latin name with accents in it
+back as the same object, 4.9 ns over ASCII, against 142 ns over a Latin name with accents in it
 (`bench_identifier marks ascii`).
 
 ## Bidirectional text
@@ -79,8 +83,8 @@ runs the whole algorithm first. On a mixed line of fifty-one bytes:
 
 | Case | Time per call |
 |---|---|
-| `mirrored(text, levels)`, the levels in hand | 199 |
-| `mirrored(text)`, the paragraph worked out | 1464 |
+| `mirrored(text, levels)`, the levels in hand | 180 |
+| `mirrored(text)`, the paragraph worked out | 851 |
 
 ## Identifiers
 
@@ -100,32 +104,32 @@ ligature, circled digits, Greek, Cyrillic and Japanese; `folded` is `latin` alre
 
 | Function | `ascii` | `latin` | `upper` | `compat` | `folded` |
 |---|---|---|---|---|---|
-| [is_identifier](is_identifier.md) | 13.4 | 17.3 | | 31.1 | 17.2 |
-| [is_identifier](is_identifier.md), the profile | 14.4 | 18.1 | | 31.2 | 17.9 |
-| [nfkc_casefold](nfkc_casefold.md) | 14.7 | 101 | 296 | 196 | 19.2 |
-| [fold_case](fold_case.md), for scale | 15.3 | 105 | 104 | 166 | 105 |
-| [is_nfkc_casefolded](is_nfkc_casefolded.md) | 11.2 | 11.1 | | 14.8 | 14.6 |
-| [skeleton](skeleton.md) | 212 | 220 | 219 | 242 | 231 |
-| [is_confusable](is_confusable.md) | 389 | 458 | 452 | 492 | 460 |
-| [is_allowed_identifier](is_allowed_identifier.md) | 8.2 | 10.3 | | 14.3 | 10.2 |
-| [restriction_level_of](restriction_level_of.md) | 9.8 | 29.6 | | 35.7 | 29.8 |
-| [is_single_script](is_single_script.md) | 19.8 | 19.3 | | 30.1 | 19.4 |
-| [without_marks](without_marks.md) | 6.1 | 197 | 198 | 229 | 200 |
+| [is_identifier](is_identifier.md) | 12.4 | 16.5 | | 29.5 | 15.9 |
+| [is_identifier](is_identifier.md), the profile | 15.3 | 17.2 | | 29.9 | 17.1 |
+| [nfkc_casefold](nfkc_casefold.md) | 12.7 | 82.2 | 238 | 162 | 17.6 |
+| [fold_case](fold_case.md), for scale | 12.7 | 76.4 | 76.6 | 103 | 78.1 |
+| [is_nfkc_casefolded](is_nfkc_casefolded.md) | 10.7 | 10.6 | | 13.9 | 13.9 |
+| [skeleton](skeleton.md) | 161 | 175 | 178 | 182 | 180 |
+| [is_confusable](is_confusable.md) | 287 | 348 | 354 | 359 | 354 |
+| [is_allowed_identifier](is_allowed_identifier.md) | 8.1 | 9.5 | | 12.9 | 9.4 |
+| [restriction_level_of](restriction_level_of.md) | 10.7 | 28.9 | | 34.3 | 29.2 |
+| [is_single_script](is_single_script.md) | 18.6 | 18.1 | | 28.3 | 18.2 |
+| [without_marks](without_marks.md) | 4.9 | 142 | 143 | 155 | 143 |
 
 The times are nanoseconds per call.
 
-- **The `fold_case` row is the one to read against.** Over `latin` the two are level, 101 against 105, because the
+- **The `fold_case` row is the one to read against.** Over `latin` the two are close, 82 against 76, because the
   quick check settles two names in three before any folding happens; over `folded`, where `fold_case` still pays its
-  full 105, `nfkc_casefold` costs 19. Over `upper`, where every name changes and the quick check saves nothing, the
-  compatibility decomposition and the composition cost about 190 ns on top of the plain fold. That is the shape of
+  full 78, `nfkc_casefold` costs 18. Over `upper`, where every name changes and the quick check saves nothing, the
+  compatibility decomposition and the composition cost about 160 ns on top of the plain fold. That is the shape of
   the trade: the form is dearer than a folding only when it has work to do, and the names a registry sees mostly do
-  not. The two properties that answer whether a name is in the form already cost 14.4 ns over a name where the fold
-  costs 100.
+  not. The two properties that answer whether a name is in the form already cost 13.9 ns over a name where the fold
+  costs 78.
 - **The scripts of a text are counted into eight words of stack** rather than into a container
   ([is_single_script](is_single_script.md)). The container it replaced was the whole cost of the question:
   `is_single_script` used to take longer over an ASCII name (27.0 ns) than over a Polish one (26.0), which is not the
-  shape of a walk that decodes a code point and reads a table. It is 19.8 and 19.3 now, and `restriction_level_of`
-  over a Polish name fell from 38.0 to 29.6.
+  shape of a walk that decodes a code point and reads a table. It is 18.6 and 18.1 now, and `restriction_level_of`
+  over a Polish name fell from 38.0 to 28.9.
 
 ## Domain names
 
@@ -160,36 +164,36 @@ A pattern that is **not** in a text of four thousand bytes, so the whole of it i
 
 | Op | Pattern | SGCL, ns a byte | `std::regex`, ns a byte |
 |---|---|---|---|
-| `date` | `(\d{4})-(\d{2})-(\d{2})` | 0.039 | 110.1 |
-| `address` | `(\w+)@(\w+)\.(com\|pl)` | 0.039 | 358.1 |
-| `upper` | `[QWX]+` | 0.43 | 76.7 |
-| `class` | `[0-9]+` | 0.44 | 85.3 |
-| `literal` | `zyzykot` | 0.52 | 41.3 |
-| `boundary` | `\bzyzykot\b` | 0.52 | 46.6 |
-| `dotstar` | `zyz.*kot` | 1.11 | 71.0 |
-| `alt` | `kot\|pies\|ryba` | 5.19 | 126.7 |
+| `date` | `(\d{4})-(\d{2})-(\d{2})` | 0.030 | 81.8 |
+| `address` | `(\w+)@(\w+)\.(com\|pl)` | 0.030 | 278.0 |
+| `upper` | `[QWX]+` | 0.39 | 58.0 |
+| `class` | `[0-9]+` | 0.41 | 66.7 |
+| `literal` | `zyzykot` | 0.49 | 33.0 |
+| `boundary` | `\bzyzykot\b` | 0.48 | 36.0 |
+| `dotstar` | `zyz.*kot` | 1.07 | 51.4 |
+| `alt` | `kot\|pies\|ryba` | 5.13 | 105.4 |
 
 The spread in the first column is **what the search may skip**. A run of bytes every match must contain is read off
 the pattern where it is compiled, and where there is one the text is scanned for it — by the same
 Boyer–Moore–Horspool table [searcher](searcher/README.md) uses, or by a `memchr` when the run is a single byte — instead of
 stepping the machine at every position. `(\w+)@(\w+)\.(com|pl)` begins with `\w`, which nearly every byte is, so
 every position used to be a candidate and it cost 24.6 ns a byte; it must contain an `@`, and looking for that costs
-0.039. Where the run is also the *beginning* of every match, as in `zyzykot`, the search jumps straight to the next
+0.030. Where the run is also the *beginning* of every match, as in `zyzykot`, the search jumps straight to the next
 place it stands. Where the pattern gives no such run at all — an alternation, a class — the fall-back is the set of
-bytes a match may begin with, one test a byte, which is the 0.43 those rows show. The second column has no spread
+bytes a match may begin with, one test a byte, which is the 0.4 those rows show. The second column has no spread
 because a backtracking engine pays for the pattern at every position whatever it starts with.
 
 The rest, over the same four kilobytes:
 
 | Op | SGCL | `std::regex` |
 |---|---|---|
-| `hit` — a word that is there, found a third of the way in | 354 ns | 6990 ns |
-| `line` — the address over one line of sixty bytes | 60 ns | 22280 ns |
-| `find` — the address with its three groups | 190 ns | 1427828 ns |
-| `all` — every one of the 842 words | 98 µs, 117 ns a match | 434 µs, 516 ns a match |
-| `replace` — each of them wrapped | 105 µs | 456 µs |
-| `split` — on every word | 93 µs | not the same question |
-| `build` — compiling the date pattern | 3196 ns | 670 ns |
+| `hit` — a word that is there, found a third of the way in | 318 ns | 5646 ns |
+| `line` — the address over one line of sixty bytes | 25 ns | 17367 ns |
+| `find` — the address with its three groups | 120 ns | 1108790 ns |
+| `all` — every one of the 842 words | 92 µs, 109 ns a match | 340 µs, 403 ns a match |
+| `replace` — each of them wrapped | 106 µs | 370 µs |
+| `split` — on every word | 91 µs | not the same question |
+| `build` — compiling the date pattern | 3112 ns | 495 ns |
 
 Building a `regex` is the one row that goes the other way: this engine spells a `{n,m}` out into instructions where
 a backtracking one keeps a counter ([program_size](regex/program_size.md)), and that is the price of not having
@@ -199,7 +203,7 @@ And the case the whole header is about, `(a+)+b` over *n* characters with no `b`
 
 | `n` | SGCL | `std::regex` |
 |---|---|---|
-| 28 | 0.0009 ms | 1.6 ms, and then it gives up |
+| 28 | 0.0008 ms | 1.3 ms, and then it gives up |
 | 1 000 | 0.047 ms | — |
 | 100 000 | 2.9 ms | — |
 | 1 000 000 | 28 ms | — |
@@ -216,12 +220,12 @@ the occurrences maps the text again for each of them and is quadratic; the range
 
 | A text of 64 KB, every occurrence found | A call at a time | A range |
 |---|---|---|
-| `find_fold` / `fold_matches`, 878 of them | 337 ms | **0.41 ms** |
-| `find_normalized` / `normalized_matches`, 1747 | 648 ms | **0.41 ms** |
+| `find_fold` / `fold_matches`, 878 of them | 193 ms | **0.32 ms** |
+| `find_normalized` / `normalized_matches`, 1747 | 524 ms | **0.34 ms** |
 
-At 256 KB, where the shape shows itself properly, it is 4.65 s against 1.51 ms and 9.46 s against 1.54 ms. Four
+At 256 KB, where the shape shows itself properly, it is 3.10 s against 1.29 ms and 8.64 s against 1.41 ms. Four
 times the text costs sixteen times as much one way and four times the other. Over sixty-four kilobytes the mapping
-of a text is some three hundred microseconds and a search through the mapped text some twenty
+of a text is some three hundred microseconds and a search through the mapped text some thirty
 ([folded_text](folded_text/README.md)).
 
 ## Collation
@@ -250,7 +254,7 @@ written.
 
 Weighing the text is the whole cost of a search by collation, so [collator::find](collator/find.md) in a loop
 weighs the text once for every occurrence and is quadratic. Over 64 KB of text with 1902 occurrences in it, one pass
-costs **1.19 s** that way and **1.10 ms** through [collated_matches](collated_matches/README.md), of which 0.63 ms is the
+costs **1.05 s** that way and **0.85 ms** through [collated_matches](collated_matches/README.md), of which 0.57 ms is the
 weighing — a thousandfold, and the same lesson the folded search learned.
 
 [collated_text::ends_with](collated_text/ends_with.md) finds the one element a match at the end can begin at by a
@@ -275,37 +279,35 @@ values**, not one repeated, because half of what writing a number costs is that 
 
 | Operation | `txt::format` | `std::format` |
 |---|---|---|
-| `simple` `"{} left"` | **12.8 ns** | 27.9 |
-| `padded` `"{:>12}"` | **14.9** | 40.6 |
-| `centred` `"{:*^40}"` | **15.4** | 44.4 |
-| `mixed` `"{:>8.3f} {:#x}"` | **50.6** | 87.9 |
-| `whole` `"{}"` of a whole `double` | **15.7** | 59.7 |
-| `text` `"{}"` of a short text | **8.7** | 20.0 |
-| `five` five fields in one pattern | **66.6** | 115.0 |
-| `literal` forty-five characters, no field | **6.5** | 86.0 |
-| `alloc` into a string that is handed back | **22.0** | 34.2 |
-| `runtime` a pattern read where it runs | **16.1** | 28.9 |
+| `simple` `"{} left"` | **12.6 ns** | 26.9 |
+| `padded` `"{:>12}"` | **12.7** | 38.0 |
+| `centred` `"{:*^40}"` | **13.7** | 40.8 |
+| `mixed` `"{:>8.3f} {:#x}"` | **43.7** | 81.6 |
+| `whole` `"{}"` of a whole `double` | **14.5** | 57.4 |
+| `text` `"{}"` of a short text | **8.0** | 19.4 |
+| `five` five fields in one pattern | **60.9** | 106.2 |
+| `literal` forty-five characters, no field | **6.3** | 82.5 |
+| `alloc` into a string that is handed back | **20.5** | 32.7 |
+| `runtime` a pattern read where it runs | **15.7** | 28.0 |
 
 The `literal` row is the only one that flatters this side: `format_to_n` of a literal costs the standard 87.8 ns where
 the unbounded `format_to` costs 48.5, and over a number the two are the same. Everywhere else the bound is free.
 
-Eight rows of this table and three of the next were measured again on 3 October 2026, both sides, after the
-library's copies longer than 32 bytes went out of line and the sink's copy was inlined again; the rows left as they
-were measured within 5 per cent of their numbers.
+This table and the next were measured again on 4 October 2026 at `-O3`, both sides, in a clean environment (`env -i`).
 
 And the ones the standard cannot be asked, C++23 being where it grew them:
 
 | Operation | `txt::format` |
 |---|---|
-| `list` a list of five numbers | 48.9 ns, ten a number |
-| `list100` a hundred of them | 824, eight a number |
-| `elements` `"{::>5}"` | 74.5 |
-| `listwidth` `"{:>40}"` over the list | 75.0 — the one road that goes through room of its own |
-| `words` a list of text, escaped and quoted | 46.1 |
-| `pair` | 26.4 |
+| `list` a list of five numbers | 46.1 ns, nine a number |
+| `list100` a hundred of them | 763, eight a number |
+| `elements` `"{::>5}"` | 61.6 |
+| `listwidth` `"{:>40}"` over the list | 69.6 — the one road that goes through room of its own |
+| `words` a list of text, escaped and quoted | 47.6 |
+| `pair` | 23.9 |
 
-Benchmarks are built at `-O2` whatever the configuration, which is what the numbers above are; the ones below came
-from a harness at `-O3` and are not to be read against these.
+The numbers above are `bench_format`'s, over a stream of values; the ones below came from a harness of their own,
+one value repeated, and are not to be read against these.
 
 Measured against the standard's on the same machine:
 
@@ -394,25 +396,25 @@ the same nest is 0.17 ms; a list of 400 numbers in `{:>2000}` is 3.7 µs through
 
 ## Stencil
 
-Measured on this machine at `-O2`, over a stream of different values
+Measured on this machine at `-O3` (4 October 2026, `env -i`), over a stream of different values
 ([benchmarks/txt/stencil.cpp](../../../benchmarks/txt/stencil.cpp)), in nanoseconds per render:
 
 | Template | Render | Parse |
 |---|---|---|
-| a page of literal text, no action | 27.7 | 45.2 |
-| one value in a line of text | 52.1 | 135.4 |
-| five values | 180.6 | 416.5 |
-| one value with a specification | 74.6 | 136.3 |
-| an `if` with an `else` | 56.3 | 240.0 |
-| a path four names long | 71.2 | 234.3 |
-| a name that is not there | 26.4 | 140.9 |
-| two functions of the pipeline | 144.7 | 286.7 |
-| ten rows of two fields, an `if` in each | 545.0 | 529.7 |
-| a hundred such rows | 5296.6 | — |
-| the same ten rows into a buffer one lends | 524.4 | — |
+| a page of literal text, no action | 24.5 | 48.8 |
+| one value in a line of text | 48.7 | 104.3 |
+| five values | 177.4 | 282.4 |
+| one value with a specification | 67.5 | 120.8 |
+| an `if` with an `else` | 50.4 | 159.9 |
+| a path four names long | 71.9 | 167.7 |
+| a name that is not there | 24.6 | 124.2 |
+| two functions of the pipeline | 129.6 | 226.2 |
+| ten rows of two fields, an `if` in each | 484.2 | 314.8 |
+| a hundred such rows | 4589.2 | — |
+| the same ten rows into a buffer one lends | 465.8 | — |
 
-Reading a source is two to four times writing from it, which is the argument for the compiled form. Of a single
-field's 52.1 ns, about 26 is the [string](../core/string/README.md) handed back and most of the rest is hashing the name in
+Reading a source costs up to five times what writing from it does, which is the argument for the compiled form. Of a single
+field's 48.7 ns, about 26 is the [string](../core/string/README.md) handed back and most of the rest is hashing the name in
 the mapping; `render_to` into a buffer one lends allocates nothing at all.
 
 A render allocates for its own bookkeeping **not at all** while the blocks are shallower than four, which is nearly
@@ -444,19 +446,19 @@ three alternated runs, nanoseconds a page:
 
 | A page | Grown | Written twice |
 |---|---|---|
-| 244 characters, fits the stack room | 517.9 | 514.4 |
-| 1137 characters | 2354.8 | 4559.4 |
-| 2359 characters (the hundred rows above) | 5096.1 | 9890.2 |
-| 9879 characters | 19946.8 | 40592.3 |
-| 98709 characters | 193570.5 | 401917.1 |
+| 244 characters, fits the stack room | 484.2 | 485.8 |
+| 1137 characters | 2165.2 | 4279.7 |
+| 2359 characters (the hundred rows above) | 4555.0 | 8976.0 |
+| 9879 characters | 18847.6 | 36148.1 |
+| 98709 characters | 183503.2 | 360356.3 |
 
-Half, at every size, because the second walk was the whole of the cost and the copying is next to none of it: the
-seven doublings on the way to a hundred kilobytes carry 127 KB of characters, and one grown walk comes to 193.6 µs
-against the 201.0 that half of two walks is. The page that fits pays nothing — the first row is the same number twice,
+About half, at every size, because the second walk was the whole of the cost and the copying is little of it: the
+seven doublings on the way to a hundred kilobytes carry 127 KB of characters, and one grown walk comes to 183.5 µs
+against the 180.2 that half of two walks is. The page that fits pays nothing — the first row is the same number twice,
 and against the commit before the room could grow at all, two binaries alternated in one window and best of three,
 the whole short end is level as well: `empty` 28.9 against 28.7, `simple` 51.2 against 51.9, `five` 178.5 against
 178.1, `branch` 57.1 against 55.9, `rows` 521.8 against 526.2, `render_to` 502.5 against 506.8. These rows were
-measured together and are not comparable to the cent with the table above them, which is from an earlier round.
+measured together and are not comparable to the cent with the table above them, which is from a later run at `-O3`.
 
 The growth takes a plain array of characters (`new char[n]`) and not a `std::string`, which would write n zeros into
 room that is about to be written over — though that is a reason and not a measurement: the two were built and
@@ -471,41 +473,41 @@ string:
 
 | Template | SGCL | Go | Ratio |
 |---|---|---|---|
-| a page of literal text, no action | 29.0 | 63.7 | 2.1× |
-| one value in a line of text | 53.1 | 198.4 | 3.7× |
-| five values | 178.4 | 770.7 | 4.3× |
-| one value with a specification | 73.6 | 572.2 | 7.7× |
-| an `if` with an `else` | 57.2 | 144.8 | 2.5× |
-| two functions of the pipeline | 153.1 | 585.2 | 3.8× |
-| a path four names long | 72.3 | 351.1 | 4.8× |
-| a name that is not there | 26.7 | 135.8 | 5.0× |
-| ten rows of two fields, an `if` in each | 517.4 | 2644.5 | 5.1× |
-| a hundred such rows | 5010.7 | 23809.8 | 4.7× |
-| ten rows into a buffer the caller keeps | 502.9 | 2654.6 | 5.3× |
+| a page of literal text, no action | 24.5 | 63.7 | 2.6× |
+| one value in a line of text | 48.7 | 198.4 | 4.1× |
+| five values | 177.4 | 770.7 | 4.3× |
+| one value with a specification | 67.5 | 572.2 | 8.5× |
+| an `if` with an `else` | 50.4 | 144.8 | 2.9× |
+| two functions of the pipeline | 129.6 | 585.2 | 4.5× |
+| a path four names long | 71.9 | 351.1 | 4.9× |
+| a name that is not there | 24.6 | 135.8 | 5.5× |
+| ten rows of two fields, an `if` in each | 484.2 | 2644.5 | 5.5× |
+| a hundred such rows | 4589.2 | 23809.8 | 5.2× |
+| ten rows into a buffer the caller keeps | 465.8 | 2654.6 | 5.7× |
 
 And reading a source, which each side does once and then keeps:
 
 | Template | SGCL | Go | Ratio |
 |---|---|---|---|
-| one value in a line of text | 127.5 | 1516.7 | 11.9× |
-| five values | 396.8 | 3214.1 | 8.1× |
-| an `if` with an `else` | 234.6 | 2115.9 | 9.0× |
-| ten rows of two fields | 504.5 | 3620.2 | 7.2× |
+| one value in a line of text | 104.3 | 1516.7 | 14.5× |
+| five values | 282.4 | 3214.1 | 11.4× |
+| an `if` with an `else` | 159.9 | 2115.9 | 13.2× |
+| ten rows of two fields | 314.8 | 3620.2 | 11.5× |
 
 **Where the difference comes from, and where it does not.** Not from allocation: keeping one buffer instead of
-building a string helps Go nothing (2654.6 against 2644.5) and helps this nothing either (502.9 against 517.4), so
+building a string helps Go nothing (2654.6 against 2644.5) and this little (465.8 against 484.2), so
 neither side is bound by the writing. It comes from how a name is looked up. Go walks the data with reflection —
 `map[string]any` at every step, an `interface{}` unwrapped, a `reflect.Value` made — where a [value](value/README.md) here is
 a variant of thirty-two bytes and a mapping is an [ordered_map](../core/ordered_map/README.md) of them. That is also why the
 widest gap is the specification: `{{ printf "%8.2f" .d }}` is a function called through reflection over there, and
 `{{ d:>8.2f }}` is [format](format.md)'s own writer here, which is the reason this module has a template at all.
 
-Both columns above were measured in one sitting after the room was made to grow, the two binaries alternated under an
-empty environment, and they are left as they were rather than half refreshed. One row has moved since: a stage of a
-pipeline that takes no arguments no longer builds room for eight of them, so the two functions read about 145 ns here
-and not 153.1, which is 4.0× rather than 3.8×. It wants a fresh sitting of both columns and not a number dropped into
-one of them. The hundred rows were the row that flattered this side least, 2.4×, while a page over a kilobyte was
-still written twice here; it reads 4.7× now, which is where the rest of the table already was. The row that flatters
+The SGCL columns of these two tables are `bench_stencil`'s run of 4 October 2026 at `-O3` under `env -i`, the numbers of the first
+table of this section; the Go columns are from the earlier sitting after the room was made to grow, not run again,
+and the ratios set the one against the other. The two functions of the pipeline read 130 ns since a stage that takes
+no arguments no longer builds room for eight of them (153.1 in that sitting). The hundred rows were the row that
+flattered this side least, 2.4×, while a page over a kilobyte was still written twice here; it reads 5.2× now, which
+is where the rest of the table is. The row that flatters
 this side most is reading a source, where the shapes are small and Go's parser builds a tree of nodes on the heap.
 
 Two shapes are not the same question on both sides and are marked as such rather than quietly counted: a name the

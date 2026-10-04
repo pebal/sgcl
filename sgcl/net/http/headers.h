@@ -23,7 +23,7 @@ namespace sgcl::net::http {
 
         // tchar of RFC 9110 §5.6.2: the characters of a token (a method,
         // a field name, a coding)
-        inline constexpr bool token_char(uint8_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool token_char(uint8_t c) noexcept {
             if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                 return true;
             }
@@ -48,7 +48,7 @@ namespace sgcl::net::http {
             return true;
         }
 
-        inline constexpr char ascii_lower(char c) noexcept {
+        SGCL_INLINE_HOT constexpr char ascii_lower(char c) noexcept {
             return c >= 'A' && c <= 'Z' ? char(c + 32) : c;
         }
 
@@ -79,7 +79,7 @@ namespace sgcl::net::http {
         // character, a space, a tab or obs-text; never CR, LF, NUL or
         // another control, so that a value cannot end its line and start
         // another (request and response splitting, obs-fold)
-        inline constexpr bool field_value_char(uint8_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool field_value_char(uint8_t c) noexcept {
             return c == '\t' || (c >= 0x20 && c != 0x7F);
         }
 
@@ -189,7 +189,7 @@ namespace sgcl::net::http {
         }
 
         // A field at the end
-        headers& add(const string& name, const string& value) noexcept {
+        SGCL_INLINE_HOT headers& add(const string& name, const string& value) noexcept {
             _push(Field(name.as_slice(), value.as_slice()));
             return *this;
         }
@@ -228,15 +228,15 @@ namespace sgcl::net::http {
         }
 
         // The instant as IMF-fixdate, always GMT: "Sun, 06 Nov 1994 08:49:37 GMT"
-        headers& set_date(const string& name, const time::datetime& t) noexcept {
+        SGCL_INLINE_HOT headers& set_date(const string& name, const time::datetime& t) noexcept {
             return set(name, t.format(time::http));
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _fields.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _fields.empty();
         }
 
@@ -250,22 +250,22 @@ namespace sgcl::net::http {
 
             iterator() noexcept = default;
 
-            value_type operator*() const noexcept {
+            SGCL_INLINE_HOT value_type operator*() const noexcept {
                 return value_type(string(_at->first), string(_at->second));
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 ++_at;
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 auto was = *this;
                 ++_at;
                 return was;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._at == b._at;
             }
 
@@ -273,18 +273,18 @@ namespace sgcl::net::http {
             friend class headers;
             using Base = const pair<slice<const char>, slice<const char>>*;
 
-            explicit iterator(Base at) noexcept
+            SGCL_INLINE_HOT explicit iterator(Base at) noexcept
             : _at(at) {
             }
 
             Base _at = nullptr;
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return iterator(_fields.data());
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator(_fields.data() + _fields.size());
         }
 
@@ -294,7 +294,7 @@ namespace sgcl::net::http {
 
         // A field appended: room for eight at the first (a response's
         // fields, set one at a time, grew by 1, 2, 4, 8)
-        void _push(Field f) noexcept {
+        SGCL_INLINE_HOT void _push(Field f) noexcept {
             if (_fields.capacity() == 0) {
                 _fields.reserve(8);
             }
@@ -309,11 +309,11 @@ namespace sgcl::net::http {
         struct HeadersAccess {
             using Field = pair<slice<const char>, slice<const char>>;
 
-            static vector<Field>& fields(headers& h) noexcept {
+            SGCL_INLINE_HOT static vector<Field>& fields(headers& h) noexcept {
                 return h._fields;
             }
 
-            static const vector<Field>& fields(const headers& h) noexcept {
+            SGCL_INLINE_HOT static const vector<Field>& fields(const headers& h) noexcept {
                 return h._fields;
             }
 
@@ -359,7 +359,7 @@ namespace sgcl::net::http {
             }
 
             // A field the library itself adds, its name trusted
-            static void add(headers& h, const slice<const char>& name, const slice<const char>& value) noexcept {
+            SGCL_INLINE_HOT static void add(headers& h, const slice<const char>& name, const slice<const char>& value) noexcept {
                 h._fields.push_back(Field(name, value));
             }
         };

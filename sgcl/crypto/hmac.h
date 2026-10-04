@@ -55,7 +55,7 @@ namespace sgcl::crypto {
         // digest's block is hashed first, a shorter one padded with zeros
         // (RFC 2104 §2). An empty key is allowed, as the standard has it,
         // and is no secret
-        explicit hmac(const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT explicit hmac(const slice<const byte>& key) noexcept {
             _init(key);
         }
 
@@ -64,12 +64,12 @@ namespace sgcl::crypto {
 
         // The states taken over; the object moved from is zeroed and gives
         // no tag of any use until assigned again
-        hmac(hmac&& other) noexcept
+        SGCL_INLINE_HOT hmac(hmac&& other) noexcept
         : _start(other._start), _inner(other._inner), _outer(other._outer) {
             other._wipe();
         }
 
-        hmac& operator=(hmac&& other) noexcept {
+        SGCL_INLINE_HOT hmac& operator=(hmac&& other) noexcept {
             if (this != &other) {
                 _start = other._start;
                 _inner = other._inner;
@@ -79,17 +79,17 @@ namespace sgcl::crypto {
             return *this;
         }
 
-        ~hmac() {
+        SGCL_INLINE_HOT ~hmac() {
             _wipe();
         }
 
         // A second hmac under the same key, at the same point of its
         // message: the copy a hasher makes by value, asked for by name here
-        hmac clone() const noexcept {
+        SGCL_INLINE_HOT hmac clone() const noexcept {
             return hmac(*this, Clone());
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _inner.update(data);
         }
 
@@ -104,12 +104,12 @@ namespace sgcl::crypto {
             return out;
         }
 
-        array<byte, digest_size> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, digest_size> digest() const noexcept {
             return value();
         }
 
         // As just made with the key: the message dropped
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _inner = _start;
         }
 
@@ -117,7 +117,7 @@ namespace sgcl::crypto {
         // constant time (constant_time::equal): what a received tag is
         // checked with, never ==. A tag of another length is false.
         // [[nodiscard]]: a check whose result is dropped was never made
-        [[nodiscard]] bool verify(const slice<const byte>& tag) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify(const slice<const byte>& tag) const noexcept {
             array<byte, digest_size> mine = value();
             bool ok = constant_time::equal(mine, tag);
             detail::secure_zero(mine.data(), mine.size());
@@ -127,7 +127,7 @@ namespace sgcl::crypto {
         // The tag of data under key in one call: the data first and the key
         // after it, as every keyed type of the hash module has it
         // (siphash::of(data, key)); the constructor takes the key alone
-        static array<byte, digest_size> of(const slice<const byte>& data, const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT static array<byte, digest_size> of(const slice<const byte>& data, const slice<const byte>& key) noexcept {
             hmac mac(key);
             mac.update(data);
             return mac.value();
@@ -140,7 +140,7 @@ namespace sgcl::crypto {
         H _inner;   // _start and the message so far
         H _outer;   // the digest after the key XOR opad
 
-        hmac(const hmac& other, Clone) noexcept
+        SGCL_INLINE_HOT hmac(const hmac& other, Clone) noexcept
         : _start(other._start), _inner(other._inner), _outer(other._outer) {
         }
 
@@ -172,7 +172,7 @@ namespace sgcl::crypto {
 
         // The tag from an inner state and a copy of the outer one, both
         // used up in place: H(key ^ opad || H(key ^ ipad || message))
-        static void _tag(H& inner, H& outer, unsigned char* out) noexcept {
+        SGCL_INLINE_HOT static void _tag(H& inner, H& outer, unsigned char* out) noexcept {
             unsigned char d[digest_size];
             detail::HashAccess::finish(inner, d);
             outer.update(slice<const byte>(reinterpret_cast<const byte*>(d), digest_size));
@@ -180,7 +180,7 @@ namespace sgcl::crypto {
             detail::secure_zero(d, sizeof d);
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_start);
             detail::secure_zero_object(_inner);
             detail::secure_zero_object(_outer);

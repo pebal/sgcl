@@ -59,7 +59,7 @@ namespace sgcl::concurrent {
         struct reference {
             key_pointer key;
             T& value;
-            static reference of(const key_pointer& object, typename Table::value_type& entry) noexcept {
+            SGCL_INLINE_HOT static reference of(const key_pointer& object, typename Table::value_type& entry) noexcept {
                 return {object, entry.second};
             }
         };
@@ -69,18 +69,18 @@ namespace sgcl::concurrent {
 
         // The live entries, each once, in the order of the table's list;
         // weakly consistent
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_table.begin(), _table.end());
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(_table.end(), _table.end());
         }
 
         // The entry of the object, or end(); a null pointer has none.
         // Wait-free once the object's bucket has its dummy node; the
         // iterator holds the node and the object.
-        iterator find(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT iterator find(const key_pointer& object) noexcept {
             return object ? iterator(_table.find(object), _table.end()) : end();
         }
 
@@ -90,7 +90,7 @@ namespace sgcl::concurrent {
         // the same object wins or loses at the table's compare-exchange,
         // exactly one returns true. A null pointer is not an object.
         template<class... A>
-        pair<iterator, bool> try_emplace(const key_pointer& object, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT pair<iterator, bool> try_emplace(const key_pointer& object, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             assert(object && "a weak_map has no entry for a null pointer");
             auto [it, inserted] = _table._insert_absent(object, [&] {   // one search: the node, with its weak cell, made only when the object has no entry
                 return _table._make_node(std::piecewise_construct, std::forward_as_tuple(this->_key(object)), std::forward_as_tuple(std::forward<A>(a)...));
@@ -102,21 +102,21 @@ namespace sgcl::concurrent {
         }
 
         template<class... A>
-        pair<iterator, bool> emplace(const key_pointer& object, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT pair<iterator, bool> emplace(const key_pointer& object, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             return try_emplace(object, std::forward<A>(a)...);
         }
 
-        pair<iterator, bool> insert(const key_pointer& object, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(const key_pointer& object, const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return try_emplace(object, value);
         }
 
-        pair<iterator, bool> insert(const key_pointer& object, T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(const key_pointer& object, T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return try_emplace(object, std::move(value));
         }
 
         // The entry the iterator stands on, erased if it is still there:
         // the next live entry
-        iterator erase(iterator pos) noexcept {
+        SGCL_INLINE_HOT iterator erase(iterator pos) noexcept {
             return iterator(_table.erase(pos.inner()), _table.end());
         }
 

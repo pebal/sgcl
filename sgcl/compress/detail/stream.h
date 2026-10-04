@@ -36,11 +36,11 @@
 namespace sgcl::compress::detail {
     using namespace sgcl::detail;
 
-    inline const uint8_t* bytes(const slice<const byte>& s) noexcept {
+    SGCL_INLINE_HOT const uint8_t* bytes(const slice<const byte>& s) noexcept {
         return reinterpret_cast<const uint8_t*>(s.data());
     }
 
-    inline slice<const byte> view(const std::vector<uint8_t>& v) noexcept {
+    SGCL_INLINE_HOT slice<const byte> view(const std::vector<uint8_t>& v) noexcept {
         return slice<const byte>(reinterpret_cast<const byte*>(v.data()), v.size());
     }
 
@@ -69,7 +69,7 @@ namespace sgcl::compress::detail {
         LentOutput(const LentOutput&) = delete;
         LentOutput& operator=(const LentOutput&) = delete;
 
-        ~LentOutput() {
+        SGCL_INLINE_HOT ~LentOutput() {
             if (_slot) {
                 if (_out.capacity() <= KeepBytes) {
                     _out.clear();
@@ -79,7 +79,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        std::vector<uint8_t>& out() noexcept {
+        SGCL_INLINE_HOT std::vector<uint8_t>& out() noexcept {
             return _out;
         }
 
@@ -134,22 +134,22 @@ namespace sgcl::compress::detail {
         LentDeflater(const LentDeflater&) = delete;
         LentDeflater& operator=(const LentDeflater&) = delete;
 
-        ~LentDeflater() {
+        SGCL_INLINE_HOT ~LentDeflater() {
             if (_kept_by) {
                 _kept_by->lent = false;
             }
         }
 
-        Deflater& operator*() const noexcept {
+        SGCL_INLINE_HOT Deflater& operator*() const noexcept {
             return *_deflater;
         }
 
-        Deflater* operator->() const noexcept {
+        SGCL_INLINE_HOT Deflater* operator->() const noexcept {
             return _deflater;
         }
 
         // the thread's own Deflater (not one made because it was out)
-        bool kept() const noexcept {
+        SGCL_INLINE_HOT bool kept() const noexcept {
             return _kept_by != nullptr;
         }
 
@@ -173,7 +173,7 @@ namespace sgcl::compress::detail {
     // object made anew from the other by its move constructor, which
     // leaves the other closed; a move onto itself changes nothing
     template<class T>
-    T& move_into(T& to, T&& from) noexcept {
+    SGCL_INLINE_HOT T& move_into(T& to, T&& from) noexcept {
         static_assert(std::is_final_v<T> && std::is_nothrow_move_constructible_v<T>);
         if (&to != &from) {
             to.~T();
@@ -189,7 +189,7 @@ namespace sgcl::compress::detail {
         return std::move(ErrorAccess::without_place(e));
     }
 
-    inline vector<byte> to_vector(const uint8_t* p, size_t n) noexcept {
+    SGCL_INLINE_HOT vector<byte> to_vector(const uint8_t* p, size_t n) noexcept {
         auto b = reinterpret_cast<const byte*>(p);
         return vector<byte>(b, b + n);
     }
@@ -240,7 +240,7 @@ namespace sgcl::compress::detail {
     // taken as they are and others as ISO 8859-1, so whatever a program
     // writes reads back the same: é is E9, which is not UTF-8; Ã© would be
     // C3 A9, which is (é), so it goes as its UTF-8, C3 83 C2 A9
-    inline std::string gzip_text_bytes(const string& text) noexcept {
+    SGCL_INLINE_HOT std::string gzip_text_bytes(const string& text) noexcept {
         auto latin1 = utf8_to_latin1(text);
         if (latin1 && !utf8::valid(*latin1)) {
             return std::move(*latin1);
@@ -249,7 +249,7 @@ namespace sgcl::compress::detail {
     }
 
     // May throw as latin1_to_utf8 does
-    inline string gzip_text(const uint8_t* p, size_t n) {
+    SGCL_INLINE_HOT string gzip_text(const uint8_t* p, size_t n) {
         std::string_view v(reinterpret_cast<const char*>(p), n);
         if (utf8::valid(v)) {
             return string(v);
@@ -258,22 +258,22 @@ namespace sgcl::compress::detail {
     }
 
     template<class Out>
-    void put_le32(Out& out, uint32_t v) noexcept {
+    SGCL_INLINE_HOT void put_le32(Out& out, uint32_t v) noexcept {
         uint8_t b[4] = {uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16), uint8_t(v >> 24)};
         out.insert(out.end(), b, b + 4);
     }
 
     template<class Out>
-    void put_be32(Out& out, uint32_t v) noexcept {
+    SGCL_INLINE_HOT void put_be32(Out& out, uint32_t v) noexcept {
         uint8_t b[4] = {uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v)};
         out.insert(out.end(), b, b + 4);
     }
 
-    inline uint32_t le32(const uint8_t* p) noexcept {
+    SGCL_INLINE_HOT uint32_t le32(const uint8_t* p) noexcept {
         return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24;
     }
 
-    inline uint32_t be32(const uint8_t* p) noexcept {
+    SGCL_INLINE_HOT uint32_t be32(const uint8_t* p) noexcept {
         return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | uint32_t(p[3]);
     }
 
@@ -284,11 +284,11 @@ namespace sgcl::compress::detail {
         errc code = errc::invalid_header;
         const char* text = nullptr;
 
-        static Parsed need() noexcept {
+        SGCL_INLINE_HOT static Parsed need() noexcept {
             return {};
         }
 
-        static Parsed done(size_t n) noexcept {
+        SGCL_INLINE_HOT static Parsed done(size_t n) noexcept {
             return {ok, n, errc::invalid_header, nullptr};
         }
 
@@ -313,26 +313,26 @@ namespace sgcl::compress::detail {
         static constexpr bool refuses = false;
 
         template<class Out>
-        const char* start(Out&, int) noexcept {
+        SGCL_INLINE_HOT const char* start(Out&, int) noexcept {
             return nullptr;
         }
 
-        void update(const uint8_t*, size_t) noexcept {
+        SGCL_INLINE_HOT void update(const uint8_t*, size_t) noexcept {
         }
 
         template<class Out>
-        void finish(Out&) noexcept {
+        SGCL_INLINE_HOT void finish(Out&) noexcept {
         }
 
-        Parsed header(const uint8_t*, size_t) noexcept {
+        SGCL_INLINE_HOT Parsed header(const uint8_t*, size_t) noexcept {
             return Parsed::done(0);
         }
 
-        Parsed trailer(const uint8_t*, size_t) noexcept {
+        SGCL_INLINE_HOT Parsed trailer(const uint8_t*, size_t) noexcept {
             return Parsed::done(0);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
         }
     };
 
@@ -361,12 +361,12 @@ namespace sgcl::compress::detail {
             return nullptr;
         }
 
-        void update(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void update(const uint8_t* p, size_t n) noexcept {
             sum.update(slice<const byte>(reinterpret_cast<const byte*>(p), n));
         }
 
         template<class Out>
-        void finish(Out& out) noexcept {
+        SGCL_INLINE_HOT void finish(Out& out) noexcept {
             put_be32(out, sum.value());
         }
 
@@ -392,7 +392,7 @@ namespace sgcl::compress::detail {
             return Parsed::done(2);
         }
 
-        Parsed trailer(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT Parsed trailer(const uint8_t* p, size_t n) noexcept {
             if (n < 4) {
                 return Parsed::need();
             }
@@ -402,7 +402,7 @@ namespace sgcl::compress::detail {
             return Parsed::done(4);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             sum = hash::adler32();
         }
     };
@@ -426,7 +426,7 @@ namespace sgcl::compress::detail {
 
     public:
 
-        DeflateWriter(const io::writer& out, int level, const Format& format, const slice<const byte>& dictionary) noexcept
+        SGCL_INLINE_HOT DeflateWriter(const io::writer& out, int level, const Format& format, const slice<const byte>& dictionary) noexcept
         : _out(out)
         , _format(format)
         , _level(level)
@@ -442,7 +442,7 @@ namespace sgcl::compress::detail {
         // its writes give io::errc::closed, its close does nothing, and a
         // reset gives it a new stream. The derived class assigns through
         // move_into.
-        DeflateWriter(DeflateWriter&& o) noexcept
+        SGCL_INLINE_HOT DeflateWriter(DeflateWriter&& o) noexcept
         : _out(std::move(o._out))
         , _format(o._format)
         , _level(o._level)
@@ -502,7 +502,7 @@ namespace sgcl::compress::detail {
             co_return data.size();
         }
 
-        expected<void, io::error> flush() {
+        SGCL_INLINE_HOT expected<void, io::error> flush() {
             if (auto e = _check("flush")) {
                 return io::detail::fail(*e);
             }
@@ -557,7 +557,7 @@ namespace sgcl::compress::detail {
             co_return expected<void, io::error>();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _closed;
         }
 
@@ -566,7 +566,7 @@ namespace sgcl::compress::detail {
         // flush and close after it gives it at once and writes nothing, so
         // a stream may be written freely and checked once, at the close
         // (as buffered_writer, tar::writer and zip::writer)
-        const optional<io::error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& last_error() const noexcept {
             return _error;
         }
 
@@ -587,7 +587,7 @@ namespace sgcl::compress::detail {
         }
 
     protected:
-        Format& _format_ref() noexcept {
+        SGCL_INLINE_HOT Format& _format_ref() noexcept {
             return _format;
         }
 
@@ -667,7 +667,7 @@ namespace sgcl::compress::detail {
 
     public:
 
-        InflateReader(const io::reader& in, const slice<const byte>& dictionary, bool single_member = false) noexcept
+        SGCL_INLINE_HOT InflateReader(const io::reader& in, const slice<const byte>& dictionary, bool single_member = false) noexcept
         : _in(in)
         , _dictionary(bytes(dictionary), bytes(dictionary) + dictionary.size())
         , _state(std::make_unique<InflateState>())
@@ -761,15 +761,15 @@ namespace sgcl::compress::detail {
         }
 
         // Closes in, as buffered_reader's close does
-        expected<void, io::error> close() {
+        SGCL_INLINE_HOT expected<void, io::error> close() {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
@@ -822,11 +822,11 @@ namespace sgcl::compress::detail {
             co_return &_format;
         }
 
-        Format& _format_ref() noexcept {
+        SGCL_INLINE_HOT Format& _format_ref() noexcept {
             return _format;
         }
 
-        const Format& _format_ref() const noexcept {
+        SGCL_INLINE_HOT const Format& _format_ref() const noexcept {
             return _format;
         }
 
@@ -838,7 +838,7 @@ namespace sgcl::compress::detail {
             between   // after a member's trailer: another, or the end
         };
 
-        uint64_t _offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t _offset() const noexcept {
             return _consumed + _in_begin;
         }
 
@@ -847,7 +847,7 @@ namespace sgcl::compress::detail {
         }
 
         // The decoded bytes not yet handed out, into out
-        size_t _hand_out(const slice<byte>& out) noexcept {
+        SGCL_INLINE_HOT size_t _hand_out(const slice<byte>& out) noexcept {
             size_t n = std::min(out.size(), _pos - _from);
             if (n) {
                 copy_out(out.data(), _window.data() + _from, n);
@@ -987,7 +987,7 @@ namespace sgcl::compress::detail {
             return true;
         }
 
-        void _preload() noexcept {
+        SGCL_INLINE_HOT void _preload() noexcept {
             size_t n = std::min<size_t>(_dictionary.size(), WindowSize);
             sgcl::detail::copy_bytes(_window.data(), _dictionary.data() + _dictionary.size() - n, n);
             _pos = _from = n;
@@ -1008,7 +1008,7 @@ namespace sgcl::compress::detail {
             return _input.size() - _in_end;
         }
 
-        optional<io::error> _fill() {
+        SGCL_INLINE_HOT optional<io::error> _fill() {
             size_t room = _make_room();
             auto r = _in.read(_input.room(_in_end, room));
             return _took(r);
@@ -1021,7 +1021,7 @@ namespace sgcl::compress::detail {
             co_return _took(r);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _offset());
                 return r.error();
@@ -1063,7 +1063,7 @@ namespace sgcl::compress::detail {
     // Before the first read: the data is Deflate64 (a zip entry of method
     // 9), its window twice 64 KB
     template<class F>
-    void use_deflate64(InflateReader<F>& r) noexcept {
+    SGCL_INLINE_HOT void use_deflate64(InflateReader<F>& r) noexcept {
         r._wide = true;
         r._history = Window64Size;
         r._window.assign(2 * Window64Size + MaxMatch + 8, 0);
@@ -1073,7 +1073,7 @@ namespace sgcl::compress::detail {
     // compressed size in the block that holds it, when less than 16 KB), so
     // that a small entry's reader makes no more (block.h: managed_bytes)
     template<class F>
-    void size_input(InflateReader<F>& r, size_t n) noexcept {
+    SGCL_INLINE_HOT void size_input(InflateReader<F>& r, size_t n) noexcept {
         r._input.resize(n, 0);
     }
 

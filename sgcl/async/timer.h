@@ -104,11 +104,11 @@ namespace sgcl::async {
         public:
             static constexpr unsigned ShardCount = Scheduler::MaxWorkers;   // the last one every thread that is no worker shares
 
-            Timers() {
+            SGCL_INLINE_HOT Timers() {
                 scheduler_instance();   // made after the scheduler, so destroyed before it: a timer firing at exit finds the scheduler, not a destroyed one
             }
 
-            ~Timers() {
+            SGCL_INLINE_HOT ~Timers() {
                 stop();
             }
 
@@ -152,14 +152,14 @@ namespace sgcl::async {
             }
 
             // A timer cancelled by its owner: counted in its shard, for the sweep in add()
-            void cancelled(const Timer& t) noexcept {
+            SGCL_INLINE_HOT void cancelled(const Timer& t) noexcept {
                 _shards[t.shard].dead.fetch_add(1, std::memory_order_relaxed);
             }
 
             // One cancelled without its timer at hand (a timeout case's
             // channel closed): counted in the calling thread's shard, an
             // estimate; a heap is swept anyway once it doubles (_push)
-            void cancelled() noexcept {
+            SGCL_INLINE_HOT void cancelled() noexcept {
                 _shards[std::min(Scheduler::worker_index(), ShardCount - 1)].dead.fetch_add(1, std::memory_order_relaxed);
             }
 
@@ -214,18 +214,18 @@ namespace sgcl::async {
                 size_t sweep_at = 64;             // the size at which the heap is swept whatever the count says
             };
 
-            static bool _later(const root_ptr<Timer>& a, const root_ptr<Timer>& b) noexcept {
+            SGCL_INLINE_HOT static bool _later(const root_ptr<Timer>& a, const root_ptr<Timer>& b) noexcept {
                 return a->when > b->when;
             }
 
-            static time_point::rep _rep(time_point t) noexcept {
+            SGCL_INLINE_HOT static time_point::rep _rep(time_point t) noexcept {
                 return t.time_since_epoch().count();
             }
 
             // Under the shard's lock: the cancelled swept out once they are
             // half the heap, or once the heap doubled since the last sweep
             // (amortized nothing per add); then the timer in, and the bit set
-            void _push(Shard& sh, unsigned s, root_ptr<Timer> t) noexcept {
+            SGCL_INLINE_HOT void _push(Shard& sh, unsigned s, root_ptr<Timer> t) noexcept {
                 if (sh.heap.size() >= sh.sweep_at || (sh.heap.size() > 64 && sh.dead.load(std::memory_order_relaxed) > sh.heap.size() / 2)) {
                     _sweep(sh);
                 }
@@ -234,7 +234,7 @@ namespace sgcl::async {
                 _nonempty.fetch_or(uint64_t(1) << s, std::memory_order_release);
             }
 
-            static void _sweep(Shard& sh) noexcept {
+            SGCL_INLINE_HOT static void _sweep(Shard& sh) noexcept {
                 std::erase_if(sh.heap, [](const root_ptr<Timer>& t) { return t->cancelled.load(std::memory_order_acquire) || (t->ch && t->ch->closed()); });
                 std::make_heap(sh.heap.begin(), sh.heap.end(), _later);
                 sh.dead.store(0, std::memory_order_relaxed);
@@ -391,11 +391,11 @@ namespace sgcl::async {
             return timers;
         }
 
-        inline void timer_cancelled() noexcept {
+        SGCL_INLINE_HOT void timer_cancelled() noexcept {
             timers_instance().cancelled();
         }
 
-        inline void timer_cancelled(const Timer& t) noexcept {
+        SGCL_INLINE_HOT void timer_cancelled(const Timer& t) noexcept {
             timers_instance().cancelled(t);
         }
 
@@ -411,7 +411,7 @@ namespace sgcl::async {
             timers_instance().add(std::move(t));
         }
 
-        inline void add_timer(duration d, duration period, const tracked_ptr<void>& keep, ChannelState<void>* ch) {
+        SGCL_INLINE_HOT void add_timer(duration d, duration period, const tracked_ptr<void>& keep, ChannelState<void>* ch) {
             add_timer(clock::now() + d, period, keep, ch);
         }
 
@@ -445,12 +445,12 @@ namespace sgcl::async {
             return handle;
         }
 
-        inline tracked_ptr<Timer> add_timer(duration d, const tracked_ptr<void>& keep, void (*fire)(void*)) {
+        SGCL_INLINE_HOT tracked_ptr<Timer> add_timer(duration d, const tracked_ptr<void>& keep, void (*fire)(void*)) {
             return add_timer(clock::now() + d, keep, fire);
         }
 
         // A sleep: the frame resumed at `when`
-        inline void add_sleep(time_point when, const tracked_ptr<FrameWord>& frame) {
+        SGCL_INLINE_HOT void add_sleep(time_point when, const tracked_ptr<FrameWord>& frame) {
             root_ptr<Timer> t = make_tracked<Timer>();
             t->when = when;
             t->frame = frame;
@@ -492,7 +492,7 @@ namespace sgcl::async {
         manual_clock(const manual_clock&) = delete;
         manual_clock& operator=(const manual_clock&) = delete;
 
-        ~manual_clock() {
+        SGCL_INLINE_HOT ~manual_clock() {
             uninstall();
         }
 
@@ -512,7 +512,7 @@ namespace sgcl::async {
         }
 
         // The steady clock the time again
-        void uninstall() noexcept {
+        SGCL_INLINE_HOT void uninstall() noexcept {
             if (_installed) {
                 _installed = false;
                 detail::manual_clock_installed.store(false, std::memory_order_release);
@@ -520,12 +520,12 @@ namespace sgcl::async {
             }
         }
 
-        bool installed() const noexcept {
+        SGCL_INLINE_HOT bool installed() const noexcept {
             return _installed;
         }
 
         // The time as this clock has it
-        time_point now() const noexcept {
+        SGCL_INLINE_HOT time_point now() const noexcept {
             assert(_installed);
             return time_point(time_point::duration(detail::manual_clock_now.load(std::memory_order_acquire)));
         }
@@ -533,7 +533,7 @@ namespace sgcl::async {
         // The time forward by d: the timers due by then fired, the tasks
         // they woke run to their next waits; from a thread that is not a
         // worker, since it waits for the workers to be idle
-        void advance(duration d) noexcept {
+        SGCL_INLINE_HOT void advance(duration d) noexcept {
             advance_to(now() + d);
         }
 
@@ -555,20 +555,20 @@ namespace sgcl::async {
     // `sgcl::async::sleep(d).wait()` blocks the thread, through the clock
     class [[nodiscard]] sleep {
     public:
-        explicit sleep(duration d) noexcept
+        SGCL_INLINE_HOT explicit sleep(duration d) noexcept
         : _d(d) {
         }
 
-        bool await_ready() const noexcept {
+        SGCL_INLINE_HOT bool await_ready() const noexcept {
             return _d <= duration::zero();
         }
 
         template<class P>
-        void await_suspend(std::coroutine_handle<P> h) {
+        SGCL_INLINE_HOT void await_suspend(std::coroutine_handle<P> h) {
             detail::add_sleep(clock::now() + _d, detail::frame_of(h));
         }
 
-        void await_resume() const noexcept {
+        SGCL_INLINE_HOT void await_resume() const noexcept {
         }
 
         void wait() const;
@@ -581,20 +581,20 @@ namespace sgcl::async {
     // of the module's clock; `sgcl::async::sleep_until(t).wait()` blocks the thread
     class [[nodiscard]] sleep_until {
     public:
-        explicit sleep_until(time_point t) noexcept
+        SGCL_INLINE_HOT explicit sleep_until(time_point t) noexcept
         : _t(t) {
         }
 
-        bool await_ready() const noexcept {
+        SGCL_INLINE_HOT bool await_ready() const noexcept {
             return _t <= clock::now();
         }
 
         template<class P>
-        void await_suspend(std::coroutine_handle<P> h) {
+        SGCL_INLINE_HOT void await_suspend(std::coroutine_handle<P> h) {
             detail::add_sleep(_t, detail::frame_of(h));
         }
 
-        void await_resume() const noexcept {
+        SGCL_INLINE_HOT void await_resume() const noexcept {
         }
 
         void wait() const;
@@ -606,13 +606,13 @@ namespace sgcl::async {
     namespace detail {
         // The channels of signals under after, at and tick: one signal (or
         // one per period) and, for a single one, the close
-        inline tracked_ptr<ChannelState<void>> after_state(duration d) {
+        SGCL_INLINE_HOT tracked_ptr<ChannelState<void>> after_state(duration d) {
             tracked_ptr<ChannelState<void>> ch = make_linked_state<void>(1);
             add_timer(d, duration::zero(), ch, ch.get());
             return ch;
         }
 
-        inline tracked_ptr<ChannelState<void>> at_state(time_point t) {
+        SGCL_INLINE_HOT tracked_ptr<ChannelState<void>> at_state(time_point t) {
             tracked_ptr<ChannelState<void>> ch = make_linked_state<void>(1);
             add_timer(t, duration::zero(), ch, ch.get());
             return ch;
@@ -621,12 +621,12 @@ namespace sgcl::async {
 
     // An event set after d (event.h: `co_await async::after(d)`,
     // `async::after(d).wait()`, `.on_set(f)` in a select)
-    inline event after(duration d) {
+    SGCL_INLINE_HOT event after(duration d) {
         return detail::EventAccess::make(detail::after_state(d));
     }
 
     // An event set at t (at once, for a t that has passed)
-    inline event at(time_point t) {
+    SGCL_INLINE_HOT event at(time_point t) {
         return detail::EventAccess::make(detail::at_state(t));
     }
 
@@ -637,7 +637,7 @@ namespace sgcl::async {
     // signal and the close, and one of a negative period would be due
     // again before the time it fired at, the timer thread firing it for
     // good)
-    inline channel<void> tick(duration d) {
+    SGCL_INLINE_HOT channel<void> tick(duration d) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         if (d > duration::zero()) {
             detail::add_timer(d, d, ch, ch.get());
@@ -646,7 +646,7 @@ namespace sgcl::async {
     }
 
     // The same with the first tick at `first` (a whole second, say), then every d
-    inline channel<void> tick(duration d, time_point first) {
+    SGCL_INLINE_HOT channel<void> tick(duration d, time_point first) {
         tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         if (d > duration::zero()) {
             detail::add_timer(first, d, ch, ch.get());
@@ -657,13 +657,13 @@ namespace sgcl::async {
     // A thread's sleep goes through a timer, so that the manual clock
     // serves it as it serves a task's; a d of zero or less, or a point
     // that has passed, does not block
-    inline void sleep::wait() const {
+    SGCL_INLINE_HOT void sleep::wait() const {
         if (_d > duration::zero()) {
             (void)detail::after_state(_d)->receive().wait();
         }
     }
 
-    inline void sleep_until::wait() const {
+    SGCL_INLINE_HOT void sleep_until::wait() const {
         if (_t > clock::now()) {
             (void)detail::at_state(_t)->receive().wait();
         }
@@ -685,7 +685,7 @@ namespace sgcl::async {
     : public decltype(std::declval<detail::ChannelState<void>&>().on_receive(std::declval<F>())) {
         using Base = decltype(std::declval<detail::ChannelState<void>&>().on_receive(std::declval<F>()));
     public:
-        timeout_case(timeout_case&& o) noexcept
+        SGCL_INLINE_HOT timeout_case(timeout_case&& o) noexcept
         : Base(std::move(o))
         , _keep(std::move(o._keep)) {
             o._keep = nullptr;   // a tracked_ptr moved is copied: the source let go of, or its destructor would cancel the timer
@@ -704,7 +704,7 @@ namespace sgcl::async {
         // its one waiter is the select the case was in, which has ended
         // before the case goes (served or cancelled: no claim succeeds);
         // the timer only sends on it
-        ~timeout_case() {
+        SGCL_INLINE_HOT ~timeout_case() {
             if (_keep && !_keep->closed()) {
                 _keep->close();
                 detail::timer_cancelled();
@@ -718,7 +718,7 @@ namespace sgcl::async {
         template<class G>
         friend auto timeout(time_point t, G f);
 
-        timeout_case(tracked_ptr<detail::ChannelState<void>> ch, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+        SGCL_INLINE_HOT timeout_case(tracked_ptr<detail::ChannelState<void>> ch, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
         : Base(ch->on_receive(std::move(f)))
         , _keep(std::move(ch)) {
         }
@@ -727,13 +727,13 @@ namespace sgcl::async {
     };
 
     template<class F>
-    auto timeout(duration d, F f) {
+    SGCL_INLINE_HOT auto timeout(duration d, F f) {
         return timeout_case<F>(detail::after_state(d), std::move(f));
     }
 
     // The same at a point: `timeout(deadline, f)`
     template<class F>
-    auto timeout(time_point t, F f) {
+    SGCL_INLINE_HOT auto timeout(time_point t, F f) {
         return timeout_case<F>(detail::at_state(t), std::move(f));
     }
 }

@@ -28,23 +28,23 @@ namespace sgcl::txt {
     public:
         constexpr locale() noexcept = default;
 
-        explicit locale(const string& tag) noexcept
+        SGCL_INLINE_HOT explicit locale(const string& tag) noexcept
         : _language(_parse(tag.view())) {
         }
 
-        static constexpr locale root() noexcept {
+        SGCL_INLINE_HOT static constexpr locale root() noexcept {
             return locale();
         }
 
-        static constexpr locale turkish() noexcept {
+        SGCL_INLINE_HOT static constexpr locale turkish() noexcept {
             return locale(_packed("tr"));
         }
 
-        static constexpr locale azerbaijani() noexcept {
+        SGCL_INLINE_HOT static constexpr locale azerbaijani() noexcept {
             return locale(_packed("az"));
         }
 
-        static constexpr locale lithuanian() noexcept {
+        SGCL_INLINE_HOT static constexpr locale lithuanian() noexcept {
             return locale(_packed("lt"));
         }
 
@@ -52,23 +52,23 @@ namespace sgcl::txt {
 
         // Whether the language writes an i the Turkish way, which is the
         // one question the case mappings ask
-        constexpr bool dotted_i() const noexcept {
+        SGCL_INLINE_HOT constexpr bool dotted_i() const noexcept {
             return *this == turkish() || *this == azerbaijani();
         }
 
-        constexpr bool keeps_dot() const noexcept {
+        SGCL_INLINE_HOT constexpr bool keeps_dot() const noexcept {
             return *this == lithuanian();
         }
 
         // The language subtag in four bytes, which is what a table keyed
         // by language is looked up with — the collator's tailorings are
         // the one such table in the library
-        constexpr uint32_t subtag() const noexcept {
+        SGCL_INLINE_HOT constexpr uint32_t subtag() const noexcept {
             return _language;
         }
 
     private:
-        explicit constexpr locale(uint32_t language) noexcept
+        SGCL_INLINE_HOT explicit constexpr locale(uint32_t language) noexcept
         : _language(language) {
         }
 
@@ -101,7 +101,7 @@ namespace sgcl::txt {
             return n >= 2 ? out : 0;
         }
 
-        static constexpr uint32_t _parse(std::string_view tag) noexcept {
+        SGCL_INLINE_HOT static constexpr uint32_t _parse(std::string_view tag) noexcept {
             return _packed(tag);
         }
 
@@ -109,21 +109,21 @@ namespace sgcl::txt {
     };
 
     namespace detail {
-        constexpr bool is_cased(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_cased(char32_t c) noexcept {
             return in_set(c, case_tables::Cased);
         }
 
-        constexpr bool is_case_ignorable(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_case_ignorable(char32_t c) noexcept {
             return in_set(c, case_tables::CaseIgnorable);
         }
 
-        constexpr bool is_soft_dotted(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_soft_dotted(char32_t c) noexcept {
             return in_set(c, case_tables::SoftDotted);
         }
 
         // The full mapping of one code point, or nothing when the simple
         // one core has is the whole of it
-        constexpr Decomposition full_of(char32_t c, const DecompTable& table) noexcept {
+        SGCL_INLINE_HOT constexpr Decomposition full_of(char32_t c, const DecompTable& table) noexcept {
             return decomposition_of(c, table);
         }
 
@@ -333,7 +333,7 @@ namespace sgcl::txt {
         }
 
         template<class F>
-        string cased_text(const string& text, F&& each) {
+        SGCL_INLINE_HOT string cased_text(const string& text, F&& each) {
             auto v = text.view();
             lent<code_points> out;
             out->reserve(v.size());
@@ -419,7 +419,7 @@ namespace sgcl::txt {
     // Whether two texts are the same word but for their case. core's
     // equal_fold compares one code point to one, which is enough for most
     // texts and wrong for ß against SS
-    inline bool equal_fold_full(const string& a, const string& b) {
+    SGCL_INLINE_HOT bool equal_fold_full(const string& a, const string& b) {
         return a == b || fold_case(a) == fold_case(b);
     }
 }

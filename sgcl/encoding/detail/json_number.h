@@ -45,7 +45,7 @@ namespace sgcl::encoding::detail {
         exponent_digits
     };
 
-    constexpr bool number_can_end(NumberState s) noexcept {
+    SGCL_INLINE_HOT constexpr bool number_can_end(NumberState s) noexcept {
         return s == NumberState::zero || s == NumberState::integer || s == NumberState::fraction || s == NumberState::exponent_digits;
     }
 
@@ -55,7 +55,7 @@ namespace sgcl::encoding::detail {
         failed      // the byte at p cannot be here
     };
 
-    inline bool is_digit(char c) noexcept {
+    SGCL_INLINE_HOT bool is_digit(char c) noexcept {
         return uint8_t(c - '0') < 10;
     }
 
@@ -476,7 +476,7 @@ namespace sgcl::encoding::detail {
     // The double itself, cast to a float, is the float but for two of
     // them: the digits of ±0x15ae43fd, 7.038531e-26, round to the midpoint
     // after it, which a cast takes to the even neighbour.
-    inline double float_as_written(float f) noexcept {
+    SGCL_INLINE_HOT double float_as_written(float f) noexcept {
         char buf[32];
         // scientific: the plain form writes an integer's every digit
         // (-466428832, where the shortest are -4.6642883e+08)
@@ -585,7 +585,7 @@ namespace sgcl::encoding::detail {
 
     // The text of an integer
     template<class I>
-    size_t integer_text(char* out, I v) noexcept {
+    SGCL_INLINE_HOT size_t integer_text(char* out, I v) noexcept {
         auto r = std::to_chars(out, out + NumberTextSize, v);
         return size_t(r.ptr - out);
     }

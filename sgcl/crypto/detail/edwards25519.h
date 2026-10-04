@@ -73,27 +73,27 @@ namespace sgcl::crypto::detail {
         Fe yplusx, yminusx, xy2d;
     };
 
-    inline GeP3 ge_identity() noexcept {
+    SGCL_INLINE_HOT GeP3 ge_identity() noexcept {
         return GeP3{fe_zero(), fe_one(), fe_one(), fe_zero()};
     }
 
-    inline GeP3 ge_base() noexcept {
+    SGCL_INLINE_HOT GeP3 ge_base() noexcept {
         return GeP3{ed_base_x, ed_base_y, fe_one(), fe_mul(ed_base_x, ed_base_y)};
     }
 
-    inline GeP2 ge_to_p2(const GeP1P1& p) noexcept {
+    SGCL_INLINE_HOT GeP2 ge_to_p2(const GeP1P1& p) noexcept {
         return GeP2{fe_mul(p.X, p.T), fe_mul(p.Y, p.Z), fe_mul(p.Z, p.T)};
     }
 
-    inline GeP3 ge_to_p3(const GeP1P1& p) noexcept {
+    SGCL_INLINE_HOT GeP3 ge_to_p3(const GeP1P1& p) noexcept {
         return GeP3{fe_mul(p.X, p.T), fe_mul(p.Y, p.Z), fe_mul(p.Z, p.T), fe_mul(p.X, p.Y)};
     }
 
-    inline GeP2 ge_to_p2(const GeP3& p) noexcept {
+    SGCL_INLINE_HOT GeP2 ge_to_p2(const GeP3& p) noexcept {
         return GeP2{p.X, p.Y, p.Z};
     }
 
-    inline GeCached ge_to_cached(const GeP3& p) noexcept {
+    SGCL_INLINE_HOT GeCached ge_to_cached(const GeP3& p) noexcept {
         return GeCached{fe_add(p.Y, p.X), fe_sub(p.Y, p.X), p.Z, fe_mul(p.T, ed_d2)};
     }
 
@@ -111,7 +111,7 @@ namespace sgcl::crypto::detail {
         return r;
     }
 
-    inline GeP1P1 ge_double(const GeP3& p) noexcept {
+    SGCL_INLINE_HOT GeP1P1 ge_double(const GeP3& p) noexcept {
         return ge_double(ge_to_p2(p));
     }
 
@@ -136,7 +136,7 @@ namespace sgcl::crypto::detail {
     }
 
     // P + Q for an affine Q (Z = 1)
-    inline GeP1P1 ge_madd(const GeP3& p, const GeNiels& q) noexcept {
+    SGCL_INLINE_HOT GeP1P1 ge_madd(const GeP3& p, const GeNiels& q) noexcept {
         Fe a = fe_mul(fe_sub(p.Y, p.X), q.yminusx);
         Fe b = fe_mul(fe_add(p.Y, p.X), q.yplusx);
         Fe c = fe_mul(p.T, q.xy2d);
@@ -144,7 +144,7 @@ namespace sgcl::crypto::detail {
         return GeP1P1{fe_sub(b, a), fe_add(b, a), fe_add(d, c), fe_sub(d, c)};
     }
 
-    inline GeP1P1 ge_msub(const GeP3& p, const GeNiels& q) noexcept {
+    SGCL_INLINE_HOT GeP1P1 ge_msub(const GeP3& p, const GeNiels& q) noexcept {
         Fe a = fe_mul(fe_sub(p.Y, p.X), q.yplusx);
         Fe b = fe_mul(fe_add(p.Y, p.X), q.yminusx);
         Fe c = fe_mul(p.T, q.xy2d);
@@ -152,13 +152,13 @@ namespace sgcl::crypto::detail {
         return GeP1P1{fe_sub(b, a), fe_add(b, a), fe_sub(d, c), fe_add(d, c)};
     }
 
-    inline GeP3 ge_neg(const GeP3& p) noexcept {
+    SGCL_INLINE_HOT GeP3 ge_neg(const GeP3& p) noexcept {
         return GeP3{fe_neg(p.X), p.Y, p.Z, fe_neg(p.T)};
     }
 
     // The 32 bytes of RFC 8032 §5.1.2: y little-endian, the low bit of x
     // in bit 255. One inversion, constant time
-    inline void ge_encode(unsigned char* s, const GeP2& p) noexcept {
+    SGCL_INLINE_HOT void ge_encode(unsigned char* s, const GeP2& p) noexcept {
         Fe zi = fe_invert(p.Z);
         Fe x = fe_mul(p.X, zi);
         Fe y = fe_mul(p.Y, zi);
@@ -166,7 +166,7 @@ namespace sgcl::crypto::detail {
         s[31] ^= static_cast<unsigned char>(fe_is_negative(x) << 7);
     }
 
-    inline void ge_encode(unsigned char* s, const GeP3& p) noexcept {
+    SGCL_INLINE_HOT void ge_encode(unsigned char* s, const GeP3& p) noexcept {
         ge_encode(s, ge_to_p2(p));
     }
 

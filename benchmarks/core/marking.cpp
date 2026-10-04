@@ -14,7 +14,7 @@
 // -DSGCL_MARK_STATS, which prints every pass to stderr and reads the
 // helper count from SGCL_MARK_WORKERS (0: the collector thread alone, k: k
 // helpers):
-//   clang++ -std=c++20 -O2 -DNDEBUG -I. -DSGCL_MARK_STATS
+//   clang++ -std=c++20 -O3 -DNDEBUG -I. -DSGCL_MARK_STATS
 //       -DSGCL_MARK_OBJECT_THRESHOLD=1024 -DSGCL_HELPERS_GROWTH_THRESHOLD=0
 //       benchmarks/marking.cpp -o marking
 //   SGCL_MARK_WORKERS=4 ./marking 20 4 2>&1 | grep '^\[mark\]'

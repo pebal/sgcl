@@ -59,7 +59,7 @@ namespace sgcl::slog::detail {
 
     // The name of an enum's value, when the field gives names and the
     // value has one
-    inline bool enum_name(const void* p, const ValueOps* ops, const field_list* l, const FieldInfo* f, std::string_view& name) {
+    SGCL_INLINE_HOT bool enum_name(const void* p, const ValueOps* ops, const field_list* l, const FieldInfo* f, std::string_view& name) {
         if (!l || !f || !f->names_count) {
             return false;
         }
@@ -148,17 +148,17 @@ namespace sgcl::slog::detail {
         }
     }
 
-    inline bool is_groupish(const Value& v) noexcept {
+    SGCL_INLINE_HOT bool is_groupish(const Value& v) noexcept {
         return v.kind == Kind::Group || v.kind == Kind::Record;
     }
 
     // Whether a value at depth (the Records above it) is past the limit
-    inline bool too_deep(const Value& v, int depth) noexcept {
+    SGCL_INLINE_HOT bool too_deep(const Value& v, int depth) noexcept {
         return v.kind == Kind::Record && depth > MaxDepth;
     }
 
     // The depth of the attributes of a group at depth
-    inline int child_depth(const Value& v, int depth) noexcept {
+    SGCL_INLINE_HOT int child_depth(const Value& v, int depth) noexcept {
         return depth + (v.kind == Kind::Record);
     }
 

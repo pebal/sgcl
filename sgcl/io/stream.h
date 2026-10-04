@@ -59,7 +59,7 @@ namespace sgcl::io {
         // object, a global such as io::stdout, and an object a unique_ptr
         // owns, which no tracked_ptr may address (its unique_ptr keeps it,
         // as a scope keeps a stack object)
-        inline tracked_ptr<const void> owner_of(const void* p) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<const void> owner_of(const void* p) noexcept {
             if (p && Heap::page_of_checked(p) && Page::is_object(p) && !Page::is_unique(p)) {
                 return tracked_ptr<const void>(p);
             }
@@ -71,7 +71,7 @@ namespace sgcl::io {
         template<class T>
         struct Boxed {
             template<class U>
-            explicit Boxed(U&& u) noexcept(std::is_nothrow_constructible_v<T, U&&>)
+            SGCL_INLINE_HOT explicit Boxed(U&& u) noexcept(std::is_nothrow_constructible_v<T, U&&>)
             : value(std::forward<U>(u)) {
             }
 
@@ -91,7 +91,7 @@ namespace sgcl::io {
         struct HandleAccess {
             // The state of a handle, the word it holds its object by
             template<class H>
-            static decltype(auto) state(const H& h) noexcept {
+            SGCL_INLINE_HOT static decltype(auto) state(const H& h) noexcept {
                 return h._stream_state();
             }
         };
@@ -201,7 +201,7 @@ namespace sgcl::io {
         // The descriptor under a stream that has one (a file, a standard
         // stream, a socket), which a child process can take as it is
         template<class T>
-        int fd_of(void* object) noexcept {
+        SGCL_INLINE_HOT int fd_of(void* object) noexcept {
             if constexpr (requires(T& t) { { t.fd() } -> std::convertible_to<int>; }) {
                 return static_cast<T*>(object)->fd();
             } else {
@@ -238,18 +238,18 @@ namespace sgcl::io {
 
         template<class R>
         requires (!std::same_as<std::remove_cvref_t<R>, reader>) && (req::reader<R> || req::async_reader<R>)
-        reader(R&& r) noexcept(detail::nothrow_bind<R>())
+        SGCL_INLINE_HOT reader(R&& r) noexcept(detail::nothrow_bind<R>())
         : reader(detail::bind(std::forward<R>(r)), &detail::reader_table<detail::Stream<R>>()) {
         }
 
         // const, as a call through a pointer is: the handle is not what a
         // read changes
-        expected<size_t, error> read(const slice<byte>& buffer) const {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& buffer) const {
             assert(_table && "a read of an empty io::reader");
             return _table->read(*this, _object, buffer);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept {
             assert(_table && "a read of an empty io::reader");
             return _table->async_read(*this, _object, buffer);
         }
@@ -257,46 +257,46 @@ namespace sgcl::io {
         // The stream's close; of a stream that has none, nothing closed
         // and success. async_close of a stream that has only close runs it
         // on the blocking pool.
-        expected<void, error> close() const {
+        SGCL_INLINE_HOT expected<void, error> close() const {
             return _table ? _table->close(*this, _object) : expected<void, error>();
         }
 
-        async::task<expected<void, error>> async_close() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_close() const noexcept {
             if (!_table) {
                 return detail::closed_now();
             }
             return _table->async_close(*this, _object);
         }
 
-        bool has_read() const noexcept {
+        SGCL_INLINE_HOT bool has_read() const noexcept {
             return _table && _table->has_read;
         }
 
-        bool has_async_read() const noexcept {
+        SGCL_INLINE_HOT bool has_async_read() const noexcept {
             return _table && _table->has_async_read;
         }
 
-        bool has_close() const noexcept {
+        SGCL_INLINE_HOT bool has_close() const noexcept {
             return _table && _table->has_close;
         }
 
         // The descriptor under the stream, -1 for a stream without one
-        int fd() const noexcept {
+        SGCL_INLINE_HOT int fd() const noexcept {
             return _table ? _table->fd(_object) : -1;
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _table != nullptr;
         }
 
         // The same stream: the same object
-        friend bool operator==(const reader& a, const reader& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const reader& a, const reader& b) noexcept {
             return a._object == b._object;
         }
 
     private:
         // an empty handle, or a null pointer, makes an empty reader
-        reader(detail::Bound b, const detail::ReaderTable* table) noexcept
+        SGCL_INLINE_HOT reader(detail::Bound b, const detail::ReaderTable* table) noexcept
         : _owner(std::move(b.owner)), _object(b.object), _table(b.object ? table : nullptr) {
         }
 
@@ -319,59 +319,59 @@ namespace sgcl::io {
 
         template<class W>
         requires (!std::same_as<std::remove_cvref_t<W>, writer>) && (req::writer<W> || req::async_writer<W>)
-        writer(W&& w) noexcept(detail::nothrow_bind<W>())
+        SGCL_INLINE_HOT writer(W&& w) noexcept(detail::nothrow_bind<W>())
         : writer(detail::bind(std::forward<W>(w)), &detail::writer_table<detail::Stream<W>>()) {
         }
 
-        expected<size_t, error> write(const slice<const byte>& data) const {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& data) const {
             assert(_table && "a write to an empty io::writer");
             return _table->write(*this, _object, data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
             assert(_table && "a write to an empty io::writer");
             return _table->async_write(*this, _object, data);
         }
 
-        expected<void, error> close() const {
+        SGCL_INLINE_HOT expected<void, error> close() const {
             return _table ? _table->close(*this, _object) : expected<void, error>();
         }
 
-        async::task<expected<void, error>> async_close() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_close() const noexcept {
             if (!_table) {
                 return detail::closed_now();
             }
             return _table->async_close(*this, _object);
         }
 
-        bool has_write() const noexcept {
+        SGCL_INLINE_HOT bool has_write() const noexcept {
             return _table && _table->has_write;
         }
 
-        bool has_async_write() const noexcept {
+        SGCL_INLINE_HOT bool has_async_write() const noexcept {
             return _table && _table->has_async_write;
         }
 
-        bool has_close() const noexcept {
+        SGCL_INLINE_HOT bool has_close() const noexcept {
             return _table && _table->has_close;
         }
 
         // The descriptor under the stream, -1 for a stream without one
-        int fd() const noexcept {
+        SGCL_INLINE_HOT int fd() const noexcept {
             return _table ? _table->fd(_object) : -1;
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _table != nullptr;
         }
 
         // The same stream: the same object
-        friend bool operator==(const writer& a, const writer& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const writer& a, const writer& b) noexcept {
             return a._object == b._object;
         }
 
     private:
-        writer(detail::Bound b, const detail::WriterTable* table) noexcept
+        SGCL_INLINE_HOT writer(detail::Bound b, const detail::WriterTable* table) noexcept
         : _owner(std::move(b.owner)), _object(b.object), _table(b.object ? table : nullptr) {
         }
 
@@ -389,7 +389,7 @@ namespace sgcl::io {
         // and the memory with it. Data to write: the slice as it is when it
         // holds its owner (the job holds it too), else a copy in a managed
         // block, made now, while the caller waits
-        inline slice<const byte> owned_for_pool(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT slice<const byte> owned_for_pool(const slice<const byte>& data) noexcept {
             if (data.owner() || data.empty()) {
                 return data;
             }
@@ -541,11 +541,11 @@ namespace sgcl::io {
     // A reader of the first n bytes of r, then the end
     class limit_reader final : public mixin::reader<limit_reader> {
     public:
-        limit_reader(const io::reader& r, uint64_t n) noexcept
+        SGCL_INLINE_HOT limit_reader(const io::reader& r, uint64_t n) noexcept
         : _reader(r), _remaining(n) {
         }
 
-        expected<size_t, error> read(const slice<byte>& buffer) {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& buffer) {
             if (_remaining == 0 || buffer.empty()) {
                 return 0;
             }
@@ -567,7 +567,7 @@ namespace sgcl::io {
             co_return r;
         }
 
-        uint64_t remaining() const noexcept {
+        SGCL_INLINE_HOT uint64_t remaining() const noexcept {
             return _remaining;
         }
 
@@ -580,11 +580,11 @@ namespace sgcl::io {
     // error of the write is the read's error
     class tee_reader final : public mixin::reader<tee_reader> {
     public:
-        tee_reader(const io::reader& r, const io::writer& w) noexcept
+        SGCL_INLINE_HOT tee_reader(const io::reader& r, const io::writer& w) noexcept
         : _reader(r), _writer(w) {
         }
 
-        expected<size_t, error> read(const slice<byte>& buffer) {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& buffer) {
             auto r = _reader.read(buffer);
             if (r && *r) {
                 auto w = _writer.write(buffer.first(*r));
@@ -614,7 +614,7 @@ namespace sgcl::io {
     // The readers one after another, as one stream
     class multi_reader final : public mixin::reader<multi_reader> {
     public:
-        explicit multi_reader(vector<io::reader> readers) noexcept   // by value: a vector's copy copies the elements, its move does not
+        SGCL_INLINE_HOT explicit multi_reader(vector<io::reader> readers) noexcept   // by value: a vector's copy copies the elements, its move does not
         : _readers(std::move(readers)) {
         }
 
@@ -652,7 +652,7 @@ namespace sgcl::io {
         using mixin::writer<multi_writer>::write;
         using mixin::writer<multi_writer>::async_write;
 
-        explicit multi_writer(vector<io::writer> writers) noexcept
+        SGCL_INLINE_HOT explicit multi_writer(vector<io::writer> writers) noexcept
         : _writers(std::move(writers)) {
         }
 
@@ -686,11 +686,11 @@ namespace sgcl::io {
     template<class F>
     class transform_reader final : public mixin::reader<transform_reader<F>> {
     public:
-        transform_reader(const io::reader& r, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+        SGCL_INLINE_HOT transform_reader(const io::reader& r, F f) noexcept(std::is_nothrow_move_constructible_v<F>)
         : _reader(r), _f(std::move(f)) {
         }
 
-        expected<size_t, error> read(const slice<byte>& buffer) {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& buffer) {
             auto r = _reader.read(buffer);
             if (r && *r) {
                 _f(buffer.first(*r));
@@ -721,7 +721,7 @@ namespace sgcl::io {
         using mixin::writer<discard_writer>::write;
         using mixin::writer<discard_writer>::async_write;
 
-        expected<size_t, error> write(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& data) noexcept {
             return data.size();
         }
 
@@ -753,7 +753,7 @@ namespace sgcl::io {
     public:
         BufferState() noexcept = default;
 
-        explicit BufferState(const slice<const byte>& initial) noexcept
+        SGCL_INLINE_HOT explicit BufferState(const slice<const byte>& initial) noexcept
         : _data(initial.begin(), initial.end()) {
         }
 
@@ -783,7 +783,7 @@ namespace sgcl::io {
             co_return read(out);
         }
 
-        expected<size_t, error> write(const slice<const byte>& in) {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& in) {
             if (_at_end) {
                 _data.insert(_data.end(), in.begin(), in.end());
                 return in.size();
@@ -818,7 +818,7 @@ namespace sgcl::io {
         // read takes them (the buffer itself as the writer appends a copy
         // and keeps it, as Go's io.Copy(b, b) does)
         template<class W>
-        expected<size_t, error> write_to(W& w) noexcept(detail::nothrow_write<W>()) {
+        SGCL_INLINE_HOT expected<size_t, error> write_to(W& w) noexcept(detail::nothrow_write<W>()) {
             auto r = detail::call_write(w, data());
             if (r) {
                 _consume(*r);
@@ -837,36 +837,36 @@ namespace sgcl::io {
             co_return r;
         }
 
-        slice<const byte> data() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> data() const noexcept {
             return _data.as_slice(_read);
         }
 
         // What remains, as a string (a copy)
-        string text() const {
+        SGCL_INLINE_HOT string text() const {
             return detail::text_of(data());
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _data.size() - _read;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _data.clear();
             _read = 0;
             _put = 0;
             _at_end = true;
         }
 
-        void reserve(size_t n) {
+        SGCL_INLINE_HOT void reserve(size_t n) {
             _data.reserve(_read + n);
         }
 
         // Takes the bytes out, leaving the buffer empty
-        vector<byte> release() noexcept {
+        SGCL_INLINE_HOT vector<byte> release() noexcept {
             vector<byte> out(_data.begin() + _read, _data.end());
             clear();
             return out;
@@ -936,7 +936,7 @@ namespace sgcl::io {
         using mixin::writer<buffer>::write;
         using mixin::writer<buffer>::async_write;
 
-        buffer() noexcept
+        SGCL_INLINE_HOT buffer() noexcept
         : _state(make_tracked<detail::BufferState>()) {
         }
 
@@ -945,116 +945,116 @@ namespace sgcl::io {
         buffer& operator=(const buffer&) noexcept = default;
         buffer& operator=(buffer&&) noexcept = default;
 
-        explicit buffer(const slice<const byte>& initial) noexcept
+        SGCL_INLINE_HOT explicit buffer(const slice<const byte>& initial) noexcept
         : _state(make_tracked<detail::BufferState>(initial)) {
         }
 
-        explicit buffer(const string& initial) noexcept
+        SGCL_INLINE_HOT explicit buffer(const string& initial) noexcept
         : buffer(detail::bytes_of(initial)) {
         }
 
         // A literal, a character array, a std::string_view: as a string
         // (an exact match, else the conversions to a string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        explicit buffer(const T& initial) noexcept
+        SGCL_INLINE_HOT explicit buffer(const T& initial) noexcept
         : buffer(slice<const byte>(initial)) {
         }
 
         // A read consumes from the front; of an empty buffer, 0
-        expected<size_t, error> read(const slice<byte>& out) const noexcept {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& out) const noexcept {
             return _get()->read(out);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept {
             return _get()->async_read(out);
         }
 
-        expected<size_t, error> write(const slice<const byte>& in) const {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& in) const {
             return _get()->write(in);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& in) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(const slice<const byte>& in) const noexcept {
             return _get()->async_write(in);
         }
 
         // The write position moved: to offset from the first byte held, from
         // the position, or from the end; the new position
-        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const noexcept {
+        SGCL_INLINE_HOT expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const noexcept {
             return _get()->seek(offset, from);
         }
 
         // What io::copy calls with a buffer as the source: what it holds,
         // in one write
         template<class W>
-        expected<size_t, error> write_to(W& w) const noexcept(detail::nothrow_write<W>()) {
+        SGCL_INLINE_HOT expected<size_t, error> write_to(W& w) const noexcept(detail::nothrow_write<W>()) {
             return _get()->write_to(w);
         }
 
         // The same in a task, what io::async_copy calls: the writer is the
         // caller's to keep alive across the wait (async_copy's frame holds it)
         template<class W>
-        async::task<expected<size_t, error>> async_write_to(W& w) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write_to(W& w) const noexcept {
             return _get()->async_write_to(w);
         }
 
         // What remains: a view valid until the next write; as a string (a copy)
-        slice<const byte> data() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> data() const noexcept {
             return _get()->data();
         }
 
-        string text() const {
+        SGCL_INLINE_HOT string text() const {
             return _get()->text();
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _get()->size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
-        void clear() const noexcept {
+        SGCL_INLINE_HOT void clear() const noexcept {
             _get()->clear();
         }
 
-        void reserve(size_t n) const {
+        SGCL_INLINE_HOT void reserve(size_t n) const {
             _get()->reserve(n);
         }
 
         // Takes the bytes out, leaving the buffer empty
-        vector<byte> release() const noexcept {
+        SGCL_INLINE_HOT vector<byte> release() const noexcept {
             return _get()->release();
         }
 
         // The same buffer: the same state
-        friend bool operator==(const buffer& a, const buffer& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const buffer& a, const buffer& b) noexcept {
             return a._state == b._state;
         }
 
     private:
         friend struct detail::HandleAccess;
 
-        detail::BufferState* _get() const noexcept {
+        SGCL_INLINE_HOT detail::BufferState* _get() const noexcept {
             return _state.get();
         }
 
-        const tracked_ptr<detail::BufferState>& _stream_state() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::BufferState>& _stream_state() const noexcept {
             return _state;
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        buffer(sgcl::detail::FromWord, const tracked_ptr<detail::BufferState>& w) noexcept
+        SGCL_INLINE_HOT buffer(sgcl::detail::FromWord, const tracked_ptr<detail::BufferState>& w) noexcept
         : _state(w) {
         }
 
-        tracked_ptr<detail::BufferState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::BufferState>& _handle_word() noexcept {
             return _state;
         }
 
-        const tracked_ptr<detail::BufferState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::BufferState>& _handle_word() const noexcept {
             return _state;
         }
 

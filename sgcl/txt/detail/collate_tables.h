@@ -12,6 +12,7 @@
 // with the code point, an index of 9403 into a pool of 14620
 // elements for the rest, and 964 contractions.
 
+#include "../../core/detail/os.h"
 #include "tables.h"
 
 namespace sgcl::txt::detail {
@@ -77,7 +78,7 @@ namespace sgcl::txt::detail {
         uint16_t tertiary;
     };
 
-    constexpr Element element_of(Weights w) noexcept {
+    SGCL_INLINE_HOT constexpr Element element_of(Weights w) noexcept {
         return {uint32_t(w.primary) << PrimaryShift,
                 uint16_t(w.secondary << SecondaryShift),
                 uint16_t(w.tertiary << TertiaryShift)};

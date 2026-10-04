@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -128,7 +130,7 @@ namespace sgcl::txt::detail {
     }
 
     template<class Index, unsigned Shift>
-    constexpr bool in_set(char32_t c, const Set<Index, Shift>& s) noexcept {
+    SGCL_INLINE_HOT constexpr bool in_set(char32_t c, const Set<Index, Shift>& s) noexcept {
         if (c < 0x10000) {
             size_t block = size_t(s.index[c >> Shift]) << (Shift - 6);
             return (s.blocks[block + ((c >> 6) & ((1u << (Shift - 6)) - 1))] >> (c & 63)) & 1;
@@ -137,7 +139,7 @@ namespace sgcl::txt::detail {
     }
 
     template<class Value, class Index, unsigned Shift, bool Runs>
-    constexpr uint16_t value_of(char32_t c, const Table<Value, Index, Shift, Runs>& t) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t value_of(char32_t c, const Table<Value, Index, Shift, Runs>& t) noexcept {
         if (c < 0x10000) {
             return t.blocks[(size_t(t.index[c >> Shift]) << Shift) | (c & ((1u << Shift) - 1))];
         }
@@ -148,7 +150,7 @@ namespace sgcl::txt::detail {
         return Runs ? uint16_t(r->value + (c - r->lo)) : r->value;
     }
 
-    constexpr Found find(char32_t c, const RangeTable& table) noexcept {
+    SGCL_INLINE_HOT constexpr Found find(char32_t c, const RangeTable& table) noexcept {
         if (c < 0x10000) {
             auto r = find_range(c, table.bmp, table.bmp_size);
             return r ? Found{r->lo, r->value, true} : Found{};
@@ -157,7 +159,7 @@ namespace sgcl::txt::detail {
         return r ? Found{r->lo, r->value, true} : Found{};
     }
 
-    constexpr uint16_t value_of(char32_t c, const RangeTable& table) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t value_of(char32_t c, const RangeTable& table) noexcept {
         return find(c, table).value;
     }
 
@@ -191,7 +193,7 @@ namespace sgcl::txt::detail {
         const char16_t* units = nullptr;
         size_t size = 0;
 
-        constexpr explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT constexpr explicit operator bool() const noexcept {
             return units != nullptr;
         }
     };
@@ -212,7 +214,7 @@ namespace sgcl::txt::detail {
         return nullptr;
     }
 
-    constexpr Decomposition decomposition_of(char32_t c, const DecompTable& table) noexcept {
+    SGCL_INLINE_HOT constexpr Decomposition decomposition_of(char32_t c, const DecompTable& table) noexcept {
         if (c < 0x10000) {
             auto r = find_point(c, table.bmp, table.bmp_size);
             return r ? Decomposition{table.pool + r->at, r->size} : Decomposition{};
@@ -261,7 +263,7 @@ namespace sgcl::txt::detail {
     }
 
     // The code point a and b compose to, or zero when they do not
-    constexpr char32_t composed(char32_t a, char32_t b, const CompositionTable& table) noexcept {
+    SGCL_INLINE_HOT constexpr char32_t composed(char32_t a, char32_t b, const CompositionTable& table) noexcept {
         return a < 0x10000 ? find_pair(a, b, table.bmp, table.bmp_size)
                            : find_pair(a, b, table.high, table.high_size);
     }

@@ -47,7 +47,7 @@ namespace sgcl::compress::detail {
         return no_place(e);
     }
 
-    inline time::datetime datetime_of(io::file_time t) noexcept {
+    SGCL_INLINE_HOT time::datetime datetime_of(io::file_time t) noexcept {
         return time::datetime::from_unix_nano(int64_t(t.time_since_epoch().count()), time::zone::utc());
     }
 
@@ -150,7 +150,7 @@ namespace sgcl::compress::detail {
     // a hard link's target is written by then)
     class TreeWriter {
     public:
-        expected<void, error> start(const string& directory) noexcept {
+        SGCL_INLINE_HOT expected<void, error> start(const string& directory) noexcept {
             _root = std::string(directory.view());
             if (!_root.empty() && _root.back() != '/') {
                 _root += '/';
@@ -168,7 +168,7 @@ namespace sgcl::compress::detail {
             return _root + std::string(name);
         }
 
-        expected<void, error> directory(std::string_view name, io::permissions mode) noexcept {
+        SGCL_INLINE_HOT expected<void, error> directory(std::string_view name, io::permissions mode) noexcept {
             unsigned m = unsigned(mode) & 07777;
             if (auto made = io::mkdir_all(string(path_of(name)), io::permissions(m ? m | 0700 : 0755)); !made) {
                 return unexpected(no_place(made.error()));
@@ -215,12 +215,12 @@ namespace sgcl::compress::detail {
             return {};
         }
 
-        void symlink(std::string_view name, std::string_view target) noexcept {
+        SGCL_INLINE_HOT void symlink(std::string_view name, std::string_view target) noexcept {
             _links.push_back(Link{path_of(name), std::string(target), false});
         }
 
         // A hard link: the name of the archive's entry it is the same file as
-        void hardlink(std::string_view name, std::string_view same_as) noexcept {
+        SGCL_INLINE_HOT void hardlink(std::string_view name, std::string_view same_as) noexcept {
             _links.push_back(Link{path_of(name), path_of(same_as), true});
         }
 

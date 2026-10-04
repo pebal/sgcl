@@ -15,7 +15,7 @@ namespace sgcl::detail {
     // first allocator on.
     class ObjectAllocatorBase {
     public:
-        ObjectAllocatorBase(std::atomic<Page*>& pages)
+        SGCL_INLINE_HOT ObjectAllocatorBase(std::atomic<Page*>& pages)
         : _pages(pages) {
             collector_init();
         }

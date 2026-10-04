@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
 #include "simd.h"
 
 #include <cstddef>
@@ -52,11 +53,11 @@ namespace sgcl::codec::detail::vp8 {
     inline constexpr int KY = 19077, KRV = 26149, KGU = 6419, KGV = 13320, KBU = 33050;
     inline constexpr int OR = -14234, OG = 8708, OB = -17685;
 
-    inline int term(int x, int c) noexcept {
+    SGCL_INLINE_HOT int term(int x, int c) noexcept {
         return (x * c) >> 8;
     }
 
-    inline uint8_t channel(int v) noexcept {
+    SGCL_INLINE_HOT uint8_t channel(int v) noexcept {
         return uint8_t(v < 0 ? 0 : (v >> 6) > 255 ? 255 : v >> 6);
     }
 
@@ -278,11 +279,11 @@ namespace sgcl::codec::detail::vp8 {
         yuv_to_rgba_plain(y + i, u + i, v + i, a ? a + i : nullptr, out + 4 * i, n - i);
     }
 #else
-    inline void yuv_to_rgb(const uint8_t* y, const uint8_t* u, const uint8_t* v, uint8_t* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void yuv_to_rgb(const uint8_t* y, const uint8_t* u, const uint8_t* v, uint8_t* out, size_t n) noexcept {
         yuv_to_rgb_plain(y, u, v, out, n);
     }
 
-    inline void yuv_to_rgba(const uint8_t* y, const uint8_t* u, const uint8_t* v, const uint8_t* a, uint8_t* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void yuv_to_rgba(const uint8_t* y, const uint8_t* u, const uint8_t* v, const uint8_t* a, uint8_t* out, size_t n) noexcept {
         yuv_to_rgba_plain(y, u, v, a, out, n);
     }
 #endif

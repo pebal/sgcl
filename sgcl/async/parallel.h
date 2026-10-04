@@ -60,7 +60,7 @@ namespace sgcl::async {
         concept ParallelBody = std::invocable<const F&, A> || std::invocable<const F&, A, unsigned>;
 
         template<class F, class A>
-        decltype(auto) call_lane(const F& f, A&& a, unsigned lane) {
+        SGCL_INLINE_HOT decltype(auto) call_lane(const F& f, A&& a, unsigned lane) {
             if constexpr (TakesLane<F, A>) {
                 return std::invoke(f, std::forward<A>(a), lane);
             } else {
@@ -126,7 +126,7 @@ namespace sgcl::async {
         // Counted on 64 unsigned bits, where the distance between any two
         // values of T is exact
         template<class T>
-        uint64_t parallel_count(T begin, T end, T step) noexcept {
+        SGCL_INLINE_HOT uint64_t parallel_count(T begin, T end, T step) noexcept {
             if (step > 0) {
                 if (!(begin < end)) {
                     return 0;
@@ -158,7 +158,7 @@ namespace sgcl::async {
         public:
             using Run = void (*)(void* job, uint64_t chunk, uint64_t first, uint64_t last, unsigned lane);
 
-            ParallelState(void* job, Run run, const ParallelSpace& space) noexcept
+            SGCL_INLINE_HOT ParallelState(void* job, Run run, const ParallelSpace& space) noexcept
             : _job(job)
             , _run(run)
             , _count(space.count)
@@ -171,7 +171,7 @@ namespace sgcl::async {
             ParallelState& operator=(const ParallelState&) = delete;
 
             // A lane started on the workers: its chunks, then its count off
-            void lane(unsigned lane) noexcept {
+            SGCL_INLINE_HOT void lane(unsigned lane) noexcept {
                 if (auto done = claim(lane)) {
                     _finish(done);
                 }
@@ -252,7 +252,7 @@ namespace sgcl::async {
             // A lane's chunks counted off; the last one wakes the caller
             // if it sleeps (this object is the lane's frame's, so it is
             // still there after the caller has returned)
-            void _finish(uint64_t done) noexcept {
+            SGCL_INLINE_HOT void _finish(uint64_t done) noexcept {
                 if (_pending.fetch_sub(done, std::memory_order_seq_cst) == done && _sleeping.load(std::memory_order_seq_cst)) {
                     _pending.notify_all();
                 }
@@ -293,7 +293,7 @@ namespace sgcl::async {
         }
 
         template<class Job>
-        void parallel_run_chunk(void* job, uint64_t chunk, uint64_t first, uint64_t last, unsigned lane) {
+        SGCL_INLINE_HOT void parallel_run_chunk(void* job, uint64_t chunk, uint64_t first, uint64_t last, unsigned lane) {
             static_cast<Job*>(job)->run(chunk, first, last, lane);
         }
 
@@ -323,7 +323,7 @@ namespace sgcl::async {
             uint64_t base = 0;
             uint64_t step = 1;
 
-            T operator[](uint64_t k) const noexcept {
+            SGCL_INLINE_HOT T operator[](uint64_t k) const noexcept {
                 if constexpr (Unit) {
                     return static_cast<T>(base + k);
                 } else {
@@ -345,14 +345,14 @@ namespace sgcl::async {
                 }
             }
 
-            void run_alone() const {
+            SGCL_INLINE_HOT void run_alone() const {
                 run(0, 0, count, 0);
             }
 
-            void prepare(uint64_t) noexcept {
+            SGCL_INLINE_HOT void prepare(uint64_t) noexcept {
             }
 
-            void finish() noexcept {
+            SGCL_INLINE_HOT void finish() noexcept {
             }
         };
 
@@ -372,14 +372,14 @@ namespace sgcl::async {
                 }
             }
 
-            void run_alone() const {
+            SGCL_INLINE_HOT void run_alone() const {
                 run(0, 0, count, 0);
             }
 
-            void prepare(uint64_t) noexcept {
+            SGCL_INLINE_HOT void prepare(uint64_t) noexcept {
             }
 
-            void finish() noexcept {
+            SGCL_INLINE_HOT void finish() noexcept {
             }
         };
 
@@ -405,16 +405,16 @@ namespace sgcl::async {
                 return acc;
             }
 
-            void run(uint64_t chunk, uint64_t first, uint64_t last, unsigned lane) const {
+            SGCL_INLINE_HOT void run(uint64_t chunk, uint64_t first, uint64_t last, unsigned lane) const {
                 R acc = call_lane(map, at[first], lane);
                 slots[chunk].emplace(fold(std::move(acc), first + 1, last, lane));
             }
 
-            R run_alone() const {
+            SGCL_INLINE_HOT R run_alone() const {
                 return fold(std::move(init), 0, count, 0);
             }
 
-            void prepare(uint64_t chunks) {
+            SGCL_INLINE_HOT void prepare(uint64_t chunks) {
                 partials = dynamic_array<optional<R>>(chunks);
                 slots = partials.data();
             }
@@ -446,7 +446,7 @@ namespace sgcl::async {
     // of zero or less), on the lanes of the options; returns when done
     template<class T, class F>
         requires detail::ParallelIndex<T> && detail::ParallelBody<F, T>
-    void parallel_for(T count, F f, const parallel_options& options = {}) noexcept(detail::NothrowParallelBody<F, T>) {
+    SGCL_INLINE_HOT void parallel_for(T count, F f, const parallel_options& options = {}) noexcept(detail::NothrowParallelBody<F, T>) {
         const uint64_t n = count > 0 ? uint64_t(count) : 0;
         detail::ForJob<T, true, F> job{f, {0, 1}, n};
         detail::parallel_run(job, options);
@@ -456,7 +456,7 @@ namespace sgcl::async {
     // begin is not below end)
     template<class T, class F>
         requires detail::ParallelIndex<T> && detail::ParallelBody<F, T>
-    void parallel_for(T begin, T end, F f, const parallel_options& options = {}) noexcept(detail::NothrowParallelBody<F, T>) {
+    SGCL_INLINE_HOT void parallel_for(T begin, T end, F f, const parallel_options& options = {}) noexcept(detail::NothrowParallelBody<F, T>) {
         const uint64_t n = detail::parallel_count(begin, end, T(1));
         detail::ForJob<T, true, F> job{f, {uint64_t(begin), 1}, n};
         detail::parallel_run(job, options);
@@ -467,7 +467,7 @@ namespace sgcl::async {
     // invalid_argument, before anything runs
     template<class T, class F>
         requires detail::ParallelIndex<T> && detail::ParallelBody<F, T>
-    void parallel_for(T begin, T end, T step, F f, const parallel_options& options = {}) {
+    SGCL_INLINE_HOT void parallel_for(T begin, T end, T step, F f, const parallel_options& options = {}) {
         if (step == 0) {
             throw invalid_argument("sgcl::async::parallel_for: a step of zero");
         }
@@ -482,7 +482,7 @@ namespace sgcl::async {
     template<class R, class F>
         requires std::ranges::random_access_range<R> && std::ranges::sized_range<R>
               && detail::ParallelBody<F, std::ranges::range_reference_t<R>>
-    void parallel_for_each(R&& range, F f, const parallel_options& options = {}) noexcept(detail::NothrowParallelRange<R, F>) {
+    SGCL_INLINE_HOT void parallel_for_each(R&& range, F f, const parallel_options& options = {}) noexcept(detail::NothrowParallelRange<R, F>) {
         const uint64_t n = uint64_t(std::ranges::size(range));
         detail::ForEachJob<std::remove_reference_t<R>, F> job{range, f, n};
         detail::parallel_run(job, options);
@@ -496,7 +496,7 @@ namespace sgcl::async {
     // map and one of combine are each an R
     template<class T, class R, class Map, class Combine>
         requires detail::ParallelIndex<T> && detail::ParallelBody<Map, T> && std::invocable<const Combine&, R, R>
-    R parallel_reduce(T begin, T end, R init, Map map, Combine combine, const parallel_options& options = {}) {
+    SGCL_INLINE_HOT R parallel_reduce(T begin, T end, R init, Map map, Combine combine, const parallel_options& options = {}) {
         const uint64_t n = detail::parallel_count(begin, end, T(1));
         detail::ReduceJob<T, R, Map, Combine> job{map, combine, init, {uint64_t(begin), 1}, n, {}, nullptr};
         return detail::parallel_run(job, options);
@@ -505,7 +505,7 @@ namespace sgcl::async {
     // The same with combine `a + b`
     template<class T, class R, class Map>
         requires detail::ParallelIndex<T> && detail::ParallelBody<Map, T>
-    R parallel_reduce(T begin, T end, R init, Map map, const parallel_options& options = {}) {
+    SGCL_INLINE_HOT R parallel_reduce(T begin, T end, R init, Map map, const parallel_options& options = {}) {
         return parallel_reduce(begin, end, std::move(init), std::move(map), std::plus<>(), options);
     }
 }

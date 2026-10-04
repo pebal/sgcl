@@ -41,7 +41,7 @@ namespace sgcl::time::detail {
 
     class tzif_reader {
     public:
-        explicit tzif_reader(const slice<const byte>& bytes) noexcept
+        SGCL_INLINE_HOT explicit tzif_reader(const slice<const byte>& bytes) noexcept
         : _p(reinterpret_cast<const unsigned char*>(bytes.data()))
         , _n(bytes.size()) {
         }
@@ -107,17 +107,17 @@ namespace sgcl::time::detail {
 
             // The bytes of the data block that follows, for times of
             // `width` bytes; in 64 bits, the counts being 32-bit each
-            size_t size(size_t width) const noexcept {
+            SGCL_INLINE_HOT size_t size(size_t width) const noexcept {
                 return size_t(timecnt) * width + timecnt + size_t(typecnt) * 6 + charcnt
                      + size_t(leapcnt) * (width + 4) + isstdcnt + isutcnt;
             }
         };
 
-        uint32_t _u32(size_t at) const noexcept {
+        SGCL_INLINE_HOT uint32_t _u32(size_t at) const noexcept {
             return (uint32_t(_p[at]) << 24) | (uint32_t(_p[at + 1]) << 16) | (uint32_t(_p[at + 2]) << 8) | uint32_t(_p[at + 3]);
         }
 
-        int64_t _time(size_t at, size_t width) const noexcept {
+        SGCL_INLINE_HOT int64_t _time(size_t at, size_t width) const noexcept {
             if (width == 4) {
                 return int64_t(int32_t(_u32(at)));
             }
@@ -259,7 +259,7 @@ namespace sgcl::time::detail {
         size_t _i = 0;
     };
 
-    inline expected<tzif_data, error> read_tzif(const slice<const byte>& bytes) noexcept {
+    SGCL_INLINE_HOT expected<tzif_data, error> read_tzif(const slice<const byte>& bytes) noexcept {
         return tzif_reader(bytes).read();
     }
 }

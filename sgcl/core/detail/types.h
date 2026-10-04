@@ -136,7 +136,7 @@ namespace sgcl::detail {
     // own inside it.
     struct BarrierRegion {
         std::atomic<uint32_t>* word;
-        BarrierRegion() noexcept {
+        SGCL_INLINE_HOT BarrierRegion() noexcept {
             auto head = current_thread_ptr;
             if (!head) [[unlikely]] {
                 ensure_thread_registered();
@@ -145,7 +145,7 @@ namespace sgcl::detail {
             word = head->barrier_word;
             word->store(word->load(std::memory_order_relaxed) + 1, std::memory_order_seq_cst);
         }
-        ~BarrierRegion() {
+        SGCL_INLINE_HOT ~BarrierRegion() {
             word->store(word->load(std::memory_order_relaxed) - 1, std::memory_order_release);
             SGCL_TSAN_RELEASE(word);   // the thread's history, for the scan of its stack (collector.h: _mark_stack_roots)
         }

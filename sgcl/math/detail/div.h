@@ -189,7 +189,7 @@ namespace sgcl::math::detail {
     // quotient of at most n: the products' buffers of every level (n + 1
     // at the top, a level that shortens the divisor to the quotient's
     // length and then levels that halve), and the multiplication's own
-    inline size_t div_bz_scratch(size_t n) noexcept {
+    SGCL_INLINE_HOT size_t div_bz_scratch(size_t n) noexcept {
         return 4 * n + 256 + mul_scratch(n);
     }
 
@@ -238,7 +238,7 @@ namespace sgcl::math::detail {
     }
 
     // The division of the same contract by the road the lengths call for
-    inline void divide(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
+    SGCL_INLINE_HOT void divide(Limb* q, Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn) noexcept {
         size_t t = std::max<size_t>(thresholds.burnikel_ziegler, 4);
         if (bn < t || an - bn + 1 < t) {
             div_knuth(q, r, a, an, b, bn);

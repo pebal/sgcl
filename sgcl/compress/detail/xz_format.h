@@ -44,11 +44,11 @@ namespace sgcl::compress::detail {
             return sizes[type & 15];
         }
 
-        inline bool check_supported(uint8_t type) noexcept {
+        SGCL_INLINE_HOT bool check_supported(uint8_t type) noexcept {
             return type == 0 || type == 1 || type == 4 || type == 10;
         }
 
-        inline uint32_t crc32(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT uint32_t crc32(const uint8_t* p, size_t n) noexcept {
             return hash::crc32::of(slice<const byte>(reinterpret_cast<const byte*>(p), n));
         }
 
@@ -81,7 +81,7 @@ namespace sgcl::compress::detail {
             out.push_back(uint8_t(v));
         }
 
-        inline void put_le64(std::vector<uint8_t>& out, uint64_t v) noexcept {
+        SGCL_INLINE_HOT void put_le64(std::vector<uint8_t>& out, uint64_t v) noexcept {
             put_le32(out, uint32_t(v));
             put_le32(out, uint32_t(v >> 32));
         }
@@ -89,14 +89,14 @@ namespace sgcl::compress::detail {
         // The check of a block, over its data decompressed
         class Check {
         public:
-            void reset(uint8_t type) noexcept {
+            SGCL_INLINE_HOT void reset(uint8_t type) noexcept {
                 _type = type;
                 _crc32 = hash::crc32();
                 _crc64 = hash::crc64();
                 _sha256 = crypto::sha256();
             }
 
-            uint8_t type() const noexcept {
+            SGCL_INLINE_HOT uint8_t type() const noexcept {
                 return _type;
             }
 
@@ -274,7 +274,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        inline void stream_header(std::vector<uint8_t>& out, uint8_t check) noexcept {
+        SGCL_INLINE_HOT void stream_header(std::vector<uint8_t>& out, uint8_t check) noexcept {
             out.insert(out.end(), Magic, Magic + 6);
             uint8_t flags[2] = {0, check};
             out.insert(out.end(), flags, flags + 2);
@@ -396,7 +396,7 @@ namespace sgcl::compress::detail {
                 _crc.update(slice<const byte>(reinterpret_cast<const byte*>(&zero), 1));
             }
 
-            uint64_t size() const noexcept {
+            SGCL_INLINE_HOT uint64_t size() const noexcept {
                 return _size;
             }
 

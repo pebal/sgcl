@@ -38,32 +38,32 @@ namespace sgcl::slog {
     public:
         template<class C>
         requires std::same_as<C, const char*> || std::same_as<C, char*>
-        message(C text, std::source_location where = std::source_location::current()) noexcept
+        SGCL_INLINE_HOT message(C text, std::source_location where = std::source_location::current()) noexcept
         : _p(text ? text : ""), _n(text ? std::strlen(text) : 0), _where(where) {
         }
 
         template<size_t N>
-        message(const char (&text)[N], std::source_location where = std::source_location::current()) noexcept
+        SGCL_INLINE_HOT message(const char (&text)[N], std::source_location where = std::source_location::current()) noexcept
         : _p(text), _n(detail::array_length(text)), _where(where) {
         }
 
-        message(const string& text, std::source_location where = std::source_location::current()) noexcept
+        SGCL_INLINE_HOT message(const string& text, std::source_location where = std::source_location::current()) noexcept
         : _p(text.data()), _n(text.size()), _where(where) {
         }
 
-        message(const std::string& text, std::source_location where = std::source_location::current()) noexcept
+        SGCL_INLINE_HOT message(const std::string& text, std::source_location where = std::source_location::current()) noexcept
         : _p(text.data()), _n(text.size()), _where(where) {
         }
 
-        message(const slice<const char>& text, std::source_location where = std::source_location::current()) noexcept
+        SGCL_INLINE_HOT message(const slice<const char>& text, std::source_location where = std::source_location::current()) noexcept
         : _p(text.data()), _n(text.size()), _where(where) {
         }
 
-        slice<const char> text() const noexcept {
+        SGCL_INLINE_HOT slice<const char> text() const noexcept {
             return slice<const char>(_p, _n);
         }
 
-        const std::source_location& where() const noexcept {
+        SGCL_INLINE_HOT const std::source_location& where() const noexcept {
             return _where;
         }
 
@@ -144,40 +144,40 @@ namespace sgcl::slog {
             return kind::null;
         }
 
-        bool as_bool() const {
+        SGCL_INLINE_HOT bool as_bool() const {
             _want(kind::boolean, "as_bool");
             return _v->b;
         }
 
-        int64_t as_int() const {
+        SGCL_INLINE_HOT int64_t as_int() const {
             _want(kind::int64, "as_int");
             return _v->i;
         }
 
-        uint64_t as_uint() const {
+        SGCL_INLINE_HOT uint64_t as_uint() const {
             _want(kind::uint64, "as_uint");
             return _v->u;
         }
 
-        double as_double() const {
+        SGCL_INLINE_HOT double as_double() const {
             _want(kind::float64, "as_double");
             return _v->d;
         }
 
-        sgcl::duration as_duration() const {
+        SGCL_INLINE_HOT sgcl::duration as_duration() const {
             _want(kind::duration, "as_duration");
             return sgcl::duration(std::chrono::nanoseconds(_v->ns));
         }
 
         // The time, in a zone of its offset (UTC for none)
-        time::datetime as_time() const {
+        SGCL_INLINE_HOT time::datetime as_time() const {
             _want(kind::time, "as_time");
             return _v->offset ? time::datetime::from_unix_nano(_v->ns, time::zone::fixed(std::chrono::seconds(_v->offset)))
                               : time::datetime::from_unix_nano(_v->ns, time::zone::utc());
         }
 
         // The text of a string (a value that writes itself, written)
-        string as_string() const {
+        SGCL_INLINE_HOT string as_string() const {
             _want(kind::string, "as_string");
             if (_v->kind == detail::Kind::Formatted) {
                 detail::Buf tmp;
@@ -202,11 +202,11 @@ namespace sgcl::slog {
         friend class attrs;
         friend struct detail::Access;
 
-        value(const detail::Value* v, const detail::Tail& t, const tracked_ptr<const void>& owner) noexcept
+        SGCL_INLINE_HOT value(const detail::Value* v, const detail::Tail& t, const tracked_ptr<const void>& owner) noexcept
         : _v(v), _tail(t), _owner(owner) {
         }
 
-        void _want(kind k, const char* what) const {
+        SGCL_INLINE_HOT void _want(kind k, const char* what) const {
             if (type() != k) {
                 throw std::logic_error(std::string("sgcl::slog::value::") + what + ": a value of another kind");
             }
@@ -222,11 +222,11 @@ namespace sgcl::slog {
     // An attribute of a record (slog.Attr): its key and value
     class attr {
     public:
-        slice<const char> key() const noexcept {
+        SGCL_INLINE_HOT slice<const char> key() const noexcept {
             return slice<const char>(_a->key, _a->key_n);
         }
 
-        slog::value value() const noexcept {
+        SGCL_INLINE_HOT slog::value value() const noexcept {
             return slog::value(&_a->value, _tail, _owner);
         }
 
@@ -234,7 +234,7 @@ namespace sgcl::slog {
         friend class attrs;
         friend struct detail::Access;
 
-        attr(const detail::Attr* a, const detail::Tail& t, const tracked_ptr<const void>& owner) noexcept
+        SGCL_INLINE_HOT attr(const detail::Attr* a, const detail::Tail& t, const tracked_ptr<const void>& owner) noexcept
         : _a(a), _tail(t), _owner(owner) {
         }
 
@@ -260,30 +260,30 @@ namespace sgcl::slog {
 
             iterator() noexcept = default;
 
-            attr operator*() const noexcept {
+            SGCL_INLINE_HOT attr operator*() const noexcept {
                 return attr(_at, _tail, _owner);
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 ++_at;
                 _settle();
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator i = *this;
                 ++*this;
                 return i;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._at == b._at;
             }
 
         private:
             friend class attrs;
 
-            iterator(const detail::Attr* at, const detail::Attr* end, const detail::Tail& tail, bool in_tail,
+            SGCL_INLINE_HOT iterator(const detail::Attr* at, const detail::Attr* end, const detail::Tail& tail, bool in_tail,
                      const tracked_ptr<const void>& owner) noexcept
             : _at(at), _end(end), _tail(tail), _in_tail(in_tail), _owner(owner) {
                 _settle();
@@ -291,7 +291,7 @@ namespace sgcl::slog {
 
             // Past a Splice into the call's attributes, and at their
             // end, to the one end all iterators compare with
-            void _settle() noexcept {
+            SGCL_INLINE_HOT void _settle() noexcept {
                 if (!_in_tail && _at != _end && _at->value.kind == detail::Kind::Splice) {
                     _in_tail = true;
                     _at = _tail.a;
@@ -312,11 +312,11 @@ namespace sgcl::slog {
         // No attributes
         attrs() noexcept = default;
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return iterator(_a, _a + _n, _tail, false, _owner);
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator();
         }
 
@@ -330,7 +330,7 @@ namespace sgcl::slog {
             return k;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return begin() == end();
         }
 
@@ -338,7 +338,7 @@ namespace sgcl::slog {
         friend class value;
         friend class record;
 
-        attrs(const detail::Attr* a, size_t n, const detail::Tail& tail,
+        SGCL_INLINE_HOT attrs(const detail::Attr* a, size_t n, const detail::Tail& tail,
               const tracked_ptr<const void>& owner) noexcept
         : _a(a), _n(n), _tail(tail), _owner(owner) {
         }
@@ -358,19 +358,19 @@ namespace sgcl::slog {
             static const RecordData& data(const record& r) noexcept;
             static record make(const RecordData& d) noexcept;
 
-            static const tracked_ptr<LevelVarState>& state(const level_var& v) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<LevelVarState>& state(const level_var& v) noexcept {
                 return v._s;
             }
 
-            static const Attr* of(const attr& a) noexcept {
+            SGCL_INLINE_HOT static const Attr* of(const attr& a) noexcept {
                 return a._a;
             }
 
-            static const char* text(const message& m) noexcept {
+            SGCL_INLINE_HOT static const char* text(const message& m) noexcept {
                 return m._p;
             }
 
-            static size_t size(const message& m) noexcept {
+            SGCL_INLINE_HOT static size_t size(const message& m) noexcept {
                 return m._n;
             }
         };
@@ -391,7 +391,7 @@ namespace sgcl::slog {
         return attrs();
     }
 
-    inline attrs value::as_group() const {
+    SGCL_INLINE_HOT attrs value::as_group() const {
         _want(kind::group, "as_group");
         return attrs::_group(*_v, _tail, _owner);
     }
@@ -465,42 +465,42 @@ namespace sgcl::slog {
         record() noexcept = default;
 
         // The time, in the logger's zone (local, or UTC with options::utc)
-        time::datetime time() const noexcept {
+        SGCL_INLINE_HOT time::datetime time() const noexcept {
             return _d.utc ? time::datetime::from_unix_nano(_d.ns, time::zone::utc()) : time::datetime::from_unix_nano(_d.ns);
         }
 
-        slog::level level() const noexcept {
+        SGCL_INLINE_HOT slog::level level() const noexcept {
             return _d.lvl;
         }
 
-        slice<const char> message() const noexcept {
+        SGCL_INLINE_HOT slice<const char> message() const noexcept {
             return slice<const char>(_d.msg, _d.msg_n);
         }
 
         // Where the call is; the logger's .source() makes the handlers
         // write it
-        const std::source_location& source() const noexcept {
+        SGCL_INLINE_HOT const std::source_location& source() const noexcept {
             return _d.where;
         }
 
-        bool has_source() const noexcept {
+        SGCL_INLINE_HOT bool has_source() const noexcept {
             return _d.has_source;
         }
 
-        attrs::iterator begin() const noexcept {
+        SGCL_INLINE_HOT attrs::iterator begin() const noexcept {
             return _range().begin();
         }
 
-        attrs::iterator end() const noexcept {
+        SGCL_INLINE_HOT attrs::iterator end() const noexcept {
             return attrs::iterator();
         }
 
         // The attributes at the top of the tree
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _range().size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _range().empty();
         }
 
@@ -534,7 +534,7 @@ namespace sgcl::slog {
     private:
         friend struct detail::Access;
 
-        attrs _range() const noexcept {
+        SGCL_INLINE_HOT attrs _range() const noexcept {
             return attrs(_d.attrs, _d.n, _d.tail, _owner);
         }
 
@@ -543,11 +543,11 @@ namespace sgcl::slog {
     };
 
     namespace detail {
-        inline const RecordData& Access::data(const record& r) noexcept {
+        SGCL_INLINE_HOT const RecordData& Access::data(const record& r) noexcept {
             return r._d;
         }
 
-        inline record Access::make(const RecordData& d) noexcept {
+        SGCL_INLINE_HOT record Access::make(const RecordData& d) noexcept {
             record r;
             r._d = d;
             return r;

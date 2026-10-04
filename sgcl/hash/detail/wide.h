@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <cstdint>
 
 namespace sgcl::hash::detail {
@@ -35,16 +37,16 @@ namespace sgcl::hash::detail {
 
     // The product of two words folded into one, its halves XORed: every bit
     // of both inputs reaches most bits of the result
-    inline uint64_t fold_product(uint64_t a, uint64_t b) noexcept {
+    SGCL_INLINE_HOT uint64_t fold_product(uint64_t a, uint64_t b) noexcept {
         const Wide p = multiply_wide(a, b);
         return p.low ^ p.high;
     }
 
-    inline uint64_t rotate_left(uint64_t v, int s) noexcept {
+    SGCL_INLINE_HOT uint64_t rotate_left(uint64_t v, int s) noexcept {
         return (v << s) | (v >> (64 - s));
     }
 
-    inline uint32_t rotate_left(uint32_t v, int s) noexcept {
+    SGCL_INLINE_HOT uint32_t rotate_left(uint32_t v, int s) noexcept {
         return (v << s) | (v >> (32 - s));
     }
 }

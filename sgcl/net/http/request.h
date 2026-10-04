@@ -95,7 +95,7 @@ namespace sgcl::net::http {
         // A request to send: the method as given ("GET", "POST"), the URL
         // parsed now and its error reported by the send (net::errc::invalid_url,
         // a text past 512 MiB among it: url.h's UrlMaxSize)
-        request(const string& method, const string& url) noexcept
+        SGCL_INLINE_HOT request(const string& method, const string& url) noexcept
         : _impl(make_tracked<detail::RequestImpl>()) {
             _impl->method = method;
             _impl->url_text = url;
@@ -104,13 +104,13 @@ namespace sgcl::net::http {
             }
         }
 
-        string method() const noexcept {
+        SGCL_INLINE_HOT string method() const noexcept {
             return _impl->method;
         }
 
         // The protocol the request came over, as Go's r.Proto: "HTTP/1.1",
         // "HTTP/1.0" or "HTTP/2.0"
-        string proto() const noexcept {
+        SGCL_INLINE_HOT string proto() const noexcept {
             return _impl->h2 ? "HTTP/2.0" : _impl->minor == 0 ? "HTTP/1.0" : "HTTP/1.1";
         }
 
@@ -118,7 +118,7 @@ namespace sgcl::net::http {
         // request was for ("http://" + Host + the target, or the target in
         // absolute form). A client request whose URL did not parse has
         // none: invalid_argument (the send reports it as invalid_url first)
-        net::url url() const {
+        SGCL_INLINE_HOT net::url url() const {
             auto u = _impl->url_of();
             if (!u) {
                 throw invalid_argument("http::request: the URL does not parse");
@@ -127,32 +127,32 @@ namespace sgcl::net::http {
         }
 
         // A field of the head, "" when there is none
-        string header(const string& name) const noexcept {
+        SGCL_INLINE_HOT string header(const string& name) const noexcept {
             return _impl->fields.get(name);
         }
 
-        http::headers& headers() const noexcept {
+        SGCL_INLINE_HOT http::headers& headers() const noexcept {
             return _impl->fields;
         }
 
-        request& set_header(const string& name, const string& value) noexcept {
+        SGCL_INLINE_HOT request& set_header(const string& name, const string& value) noexcept {
             _impl->fields.set(name, value);
             return *this;
         }
 
-        request& add_header(const string& name, const string& value) noexcept {
+        SGCL_INLINE_HOT request& add_header(const string& name, const string& value) noexcept {
             _impl->fields.add(name, value);
             return *this;
         }
 
         // The body to send, with its Content-Length
-        request& set_body(const string& text) noexcept {
+        SGCL_INLINE_HOT request& set_body(const string& text) noexcept {
             _impl->body_kind = detail::RequestImpl::BodyKind::text;
             _impl->text = text;
             return *this;
         }
 
-        request& set_body(vector<byte> bytes) noexcept {   // by value: a vector's copy copies the bytes, its move does not
+        SGCL_INLINE_HOT request& set_body(vector<byte> bytes) noexcept {   // by value: a vector's copy copies the bytes, its move does not
             _impl->body_kind = detail::RequestImpl::BodyKind::bytes;
             _impl->bytes = std::move(bytes);
             return *this;
@@ -161,7 +161,7 @@ namespace sgcl::net::http {
         // A stream, read when the request is sent: with its length given,
         // Content-Length; without, chunked. A stream cannot be sent twice,
         // so a request with one is neither retried nor redirected with 307
-        request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) noexcept {
+        SGCL_INLINE_HOT request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) noexcept {
             _impl->body_kind = detail::RequestImpl::BodyKind::stream;
             _impl->stream = stream;
             detail::set_optional(_impl->stream_length, length);
@@ -183,7 +183,7 @@ namespace sgcl::net::http {
         // decoded (the pairs before it are not made into strings):
         // query_params::first without its limit, which a URL's query is
         // within
-        string query(const string& name) const noexcept {
+        SGCL_INLINE_HOT string query(const string& name) const noexcept {
             auto u = _impl->url_of();
             if (!u || !u->has_query()) {
                 return string();
@@ -192,23 +192,23 @@ namespace sgcl::net::http {
         }
 
         // The value of the first cookie of the name in the Cookie fields
-        string cookie(const string& name) const noexcept {
+        SGCL_INLINE_HOT string cookie(const string& name) const noexcept {
             auto c = detail::request_cookie(_impl->fields, name.view());
             return c ? *c : string();
         }
 
         // Content-Length as the request gave it; nullopt for chunked or none
-        optional<uint64_t> content_length() const noexcept {
+        SGCL_INLINE_HOT optional<uint64_t> content_length() const noexcept {
             return _impl->content_length;
         }
 
-        net::endpoint remote_endpoint() const noexcept {
+        SGCL_INLINE_HOT net::endpoint remote_endpoint() const noexcept {
             return _impl->remote;
         }
 
         // Stopped when the server closes (close(), or the end of a
         // shutdown for this connection) or a write of the response fails
-        async::stop_token stop() const noexcept {
+        SGCL_INLINE_HOT async::stop_token stop() const noexcept {
             return _impl->stop;
         }
 
@@ -216,25 +216,25 @@ namespace sgcl::net::http {
         // text() blocks the thread (the reading runs on the scheduler and
         // the thread waits for it: never from a worker); a handler that is
         // a task writes `co_await req.async_text()`
-        expected<string, io::error> text() const {
+        SGCL_INLINE_HOT expected<string, io::error> text() const {
             return _co_text(_impl).wait();
         }
 
-        async::task<expected<string, io::error>> async_text() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<string, io::error>> async_text() const noexcept {
             return _co_text(_impl);
         }
 
-        expected<vector<byte>, io::error> bytes() const {
+        SGCL_INLINE_HOT expected<vector<byte>, io::error> bytes() const {
             return _co_bytes(_impl).wait();
         }
 
-        async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept {
             return _co_bytes(_impl);
         }
 
         // The body as a stream (reads bounded by max_body_bytes); an empty
         // stream for a request without a body
-        io::reader body() const noexcept {
+        SGCL_INLINE_HOT io::reader body() const noexcept {
             if (!_impl->body) {
                 return io::reader(detail::no_body);
             }
@@ -242,14 +242,14 @@ namespace sgcl::net::http {
         }
 
         // The trailers of a chunked body, once it has been read to its end
-        http::headers trailers() const noexcept {
+        SGCL_INLINE_HOT http::headers trailers() const noexcept {
             return _impl->body ? _impl->body->trailers() : http::headers();
         }
 
     private:
         friend struct detail::RequestAccess;
 
-        explicit request(const tracked_ptr<detail::RequestImpl>& impl) noexcept
+        SGCL_INLINE_HOT explicit request(const tracked_ptr<detail::RequestImpl>& impl) noexcept
         : _impl(impl) {
         }
 
@@ -273,11 +273,11 @@ namespace sgcl::net::http {
 
     namespace detail {
         struct RequestAccess {
-            static request make(const tracked_ptr<RequestImpl>& impl) noexcept {
+            SGCL_INLINE_HOT static request make(const tracked_ptr<RequestImpl>& impl) noexcept {
                 return request(impl);
             }
 
-            static const tracked_ptr<RequestImpl>& impl(const request& r) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<RequestImpl>& impl(const request& r) noexcept {
                 return r._impl;
             }
         };

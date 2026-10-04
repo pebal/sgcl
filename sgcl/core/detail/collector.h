@@ -53,12 +53,12 @@ namespace sgcl::detail {
         // between the two, without the lock, was lost until the sleep's
         // timeout (measured: a stepper made right after another waited
         // for a collector asleep for the long sleep time)
-        void waking_up() noexcept {
+        SGCL_INLINE_HOT void waking_up() noexcept {
             std::lock_guard<std::mutex> lock(_mutex);
             _waking_up_locked();
         }
 
-        void _waking_up_locked() noexcept {
+        SGCL_INLINE_HOT void _waking_up_locked() noexcept {
             sleep_flag.store(false, std::memory_order_release);
             sleep_cv.notify_one();
         }
@@ -141,7 +141,7 @@ namespace sgcl::detail {
             };
         }
 
-        void force_short_sleep() noexcept {
+        SGCL_INLINE_HOT void force_short_sleep() noexcept {
             _short_sleep = true;
         }
 
@@ -151,21 +151,21 @@ namespace sgcl::detail {
             }
         }
 
-        inline static bool terminated() noexcept {
+        SGCL_INLINE_HOT static bool terminated() noexcept {
             return _terminating.load();
         }
 
-        inline static bool created() noexcept {
+        SGCL_INLINE_HOT static bool created() noexcept {
             return _created.load(std::memory_order_acquire);
         }
 
         // Stack scans that ran on the helpers so far (tests, diagnostics).
-        size_t parallel_stack_scans() const noexcept {
+        SGCL_INLINE_HOT size_t parallel_stack_scans() const noexcept {
             return _parallel_stack_scans.load(std::memory_order_relaxed);
         }
 
         // Marking passes that ran on the helpers so far (tests, diagnostics).
-        size_t parallel_mark_runs() const noexcept {
+        SGCL_INLINE_HOT size_t parallel_mark_runs() const noexcept {
             return _parallel_mark_runs.load(std::memory_order_relaxed);
         }
 
@@ -181,7 +181,7 @@ namespace sgcl::detail {
             size_t pages;
         };
 
-        const std::vector<TypeStatistics>& type_statistics() const noexcept {
+        SGCL_INLINE_HOT const std::vector<TypeStatistics>& type_statistics() const noexcept {
             return _type_statistics;
         }
 
@@ -241,7 +241,7 @@ namespace sgcl::detail {
 
         static constexpr int PhaseCount = 8;
 
-        double phase_ms(int i) const noexcept {
+        SGCL_INLINE_HOT double phase_ms(int i) const noexcept {
             return _stats_phase_ms[i].load(std::memory_order_relaxed);
         }
 
@@ -600,7 +600,7 @@ namespace sgcl::detail {
         // objects (expiry_queue) an unmarked target of which is kept alive
         // for the queue, then the cells whose target is unmarked cleared.
         // Kept: the marking goes on (the kept objects are roots now).
-        WeakPhase _weak_phase() noexcept {
+        SGCL_INLINE_HOT WeakPhase _weak_phase() noexcept {
             if (_keep_watched_targets()) {
                 return WeakPhase::Kept;
             }
@@ -682,7 +682,7 @@ namespace sgcl::detail {
         // (what a container holds): a word pointing elsewhere into it, at an
         // element or into the header, is not a root. Pointers into other
         // objects count wherever they point (base subobjects, members).
-        static bool _is_array_start(Page* page, unsigned index, const void* ptr) noexcept {
+        SGCL_INLINE_HOT static bool _is_array_start(Page* page, unsigned index, const void* ptr) noexcept {
             return (uintptr_t)ptr == (uintptr_t)page->pointer_of(index) + sizeof(ArrayBase);
         }
 
@@ -718,11 +718,11 @@ namespace sgcl::detail {
         // (child_pointers.h: the map only loses offsets, so a stale true
         // costs a trace that finds nothing); an array's element type is in
         // its own header, so a buffer is never taken for childless here
-        static bool _childless(const Page* page) noexcept {
+        SGCL_INLINE_HOT static bool _childless(const Page* page) noexcept {
             return !page->is_array && !page->metadata->child_pointers.any.load(std::memory_order_relaxed);
         }
 
-        void _found(Marker& m, void* ptr) noexcept {
+        SGCL_INLINE_HOT void _found(Marker& m, void* ptr) noexcept {
             ++m.live;
             if (_share_live_objects) {
                 m.objects.push_back(ptr);
@@ -930,7 +930,7 @@ namespace sgcl::detail {
             }
         }
 
-        void _scan_words(uintptr_t begin, uintptr_t end) noexcept {
+        SGCL_INLINE_HOT void _scan_words(uintptr_t begin, uintptr_t end) noexcept {
             os::scan_heap_words(begin, end, Heap::base(), Heap::size(), [&](uintptr_t word) {
 #ifdef SGCL_TRACE_STACK
                 if (Heap::page_of_checked((const void*)word)) std::fprintf(stderr, "[stack] -> %p\n", (void*)word);
@@ -944,7 +944,7 @@ namespace sgcl::detail {
         // by the collector thread, outside marking, so a header found here
         // stays valid.
         template<bool Parallel>
-        void _mark_conservative(const void* ptr, Marker& m) noexcept {
+        SGCL_INLINE_HOT void _mark_conservative(const void* ptr, Marker& m) noexcept {
             auto page = Heap::page_of_checked(ptr);
             if (!page) {
                 return;
@@ -1110,7 +1110,7 @@ namespace sgcl::detail {
 #endif
 
         // Slot state of the object a word points at.
-        static bool _is_registered(Page* page, const void* p) noexcept {
+        SGCL_INLINE_HOT static bool _is_registered(Page* page, const void* p) noexcept {
             auto index = page->index_of(p);
             if (index >= page->object_count) {
                 return false;
@@ -1199,7 +1199,7 @@ namespace sgcl::detail {
         // object possibly its only referrer: the page is carded so that the
         // next young cycle traces this object again.
         template<bool Parallel>
-        void _trace(Page* page, void* ptr, bool is_array, Marker& m) noexcept {
+        SGCL_INLINE_HOT void _trace(Page* page, void* ptr, bool is_array, Marker& m) noexcept {
             m.unregistered_hit = false;
             if (is_array) {
                 _mark_array_childs<Parallel>(ptr, m);
@@ -1614,12 +1614,12 @@ namespace sgcl::detail {
             std::vector<Page*> reachable;
             std::vector<Page*> unreachable;
 
-            void push_reachable(Page* page) noexcept {
+            SGCL_INLINE_HOT void push_reachable(Page* page) noexcept {
                 page->reachable = Page::Listed;
                 reachable.push_back(page);
             }
 
-            void push_unreachable(Page* page) noexcept {
+            SGCL_INLINE_HOT void push_unreachable(Page* page) noexcept {
                 page->unreachable = true;
                 unreachable.push_back(page);
             }
@@ -1627,7 +1627,7 @@ namespace sgcl::detail {
 
         // The listing out of line: a push_back inlined into _mark_slot (a
         // call per child pointer) cost the marking 10%.
-        void _list_reachable(Page* page) noexcept {
+        SGCL_INLINE_HOT void _list_reachable(Page* page) noexcept {
             if (!page->reachable) [[unlikely]] {
                 _push_reachable(page);
             }
@@ -1638,7 +1638,7 @@ namespace sgcl::detail {
             _reachable_pages.push_back(page);
         }
 
-        void _list_unreachable(Page* page) noexcept {
+        SGCL_INLINE_HOT void _list_unreachable(Page* page) noexcept {
             if (!page->unreachable) {
                 page->unreachable = true;
                 _unreachable_pages.push_back(page);
@@ -1867,7 +1867,7 @@ namespace sgcl::detail {
         // object is never garbage while owned, its owner destroys it.
         // Buffers have no destroy function (array_base.h): a container
         // destroys its own elements, the collector only frees the pages.
-        inline static void _destroy(Page* page, void* ptr) noexcept {
+        SGCL_INLINE_HOT static void _destroy(Page* page, void* ptr) noexcept {
             auto destroy = page->metadata->destroy;
             if (destroy) {
                 destroy(ptr);
@@ -1978,7 +1978,7 @@ namespace sgcl::detail {
         public:
             // 0 while a pass has little to do; a pass over `pages` pages is
             // worth sharing from config::sweep_page_threshold on
-            unsigned workers_for(size_t pages) {
+            SGCL_INLINE_HOT unsigned workers_for(size_t pages) {
                 return workers(pages, config::sweep_page_threshold);
             }
 
@@ -2003,11 +2003,11 @@ namespace sgcl::detail {
                 return wanted;
             }
 
-            unsigned last_workers() const noexcept {
+            SGCL_INLINE_HOT unsigned last_workers() const noexcept {
                 return _last;
             }
 
-            unsigned size() const noexcept {
+            SGCL_INLINE_HOT unsigned size() const noexcept {
                 return (unsigned)_threads.size();
             }
 
@@ -2041,11 +2041,11 @@ namespace sgcl::detail {
                 }
             }
 
-            bool enabled() const noexcept {
+            SGCL_INLINE_HOT bool enabled() const noexcept {
                 return _enabled;
             }
 
-            void reset_last() noexcept {
+            SGCL_INLINE_HOT void reset_last() noexcept {
                 _last = 0;
             }
 
@@ -2060,7 +2060,7 @@ namespace sgcl::detail {
                 _wake.notify_all();
             }
 
-            void wait() {
+            SGCL_INLINE_HOT void wait() {
                 std::unique_lock<std::mutex> lock(_mutex);
                 _done.wait(lock, [this] { return _pending == 0; });
                 _active = 0;
@@ -2116,7 +2116,7 @@ namespace sgcl::detail {
             // The helpers for every pass regardless of the thresholds, or 0
             // for the policy; for the tests of the parallel paths on a
             // small heap (collector.h: stepper::helpers)
-            void force(unsigned n) noexcept {
+            SGCL_INLINE_HOT void force(unsigned n) noexcept {
                 _forced.store(n, std::memory_order_relaxed);
             }
             int64_t _live_floor = 0;
@@ -2144,7 +2144,7 @@ namespace sgcl::detail {
         // registered thread: its stack is scanned, and while it is parked the
         // dead frames of those destructors would keep whatever they pointed
         // to alive. Zeroed after every task and every cycle.
-        static void _clear_own_stack() noexcept {
+        SGCL_INLINE_HOT static void _clear_own_stack() noexcept {
             if (!thread_registered()) {
                 return;
             }
@@ -2522,14 +2522,14 @@ namespace sgcl::detail {
             }
         };
 
-        static Referrer::Kind _kind_of(Page* page) noexcept {
+        SGCL_INLINE_HOT static Referrer::Kind _kind_of(Page* page) noexcept {
             return page->metadata->is_cell_block ? Referrer::Kind::Cell
                  : page->metadata->is_weak_cell ? Referrer::Kind::Weak
                  : page->metadata->is_array ? Referrer::Kind::Buffer
                  : Referrer::Kind::Object;
         }
 
-        static const std::type_info& _type_of(Page* page, const void* object) noexcept {
+        SGCL_INLINE_HOT static const std::type_info& _type_of(Page* page, const void* object) noexcept {
             if (page->metadata->is_array) {
                 auto metadata = ((const ArrayBase*)object)->metadata;
                 return metadata ? metadata->type_info : page->metadata->type_info;
@@ -2659,13 +2659,13 @@ namespace sgcl::detail {
             _step_cv.wait(lock, [this] { return _step_reached == 0; });
         }
 
-        void step_full(bool full) noexcept {
+        SGCL_INLINE_HOT void step_full(bool full) noexcept {
             std::unique_lock<std::mutex> lock(_step_mutex);
             _step_full = full;
         }
 
         // Read by the collector at the start of a pass: set it while it stands at a gate
-        void step_helpers(unsigned n) noexcept {
+        SGCL_INLINE_HOT void step_helpers(unsigned n) noexcept {
             _pool.force(n);
         }
 
@@ -2693,7 +2693,7 @@ namespace sgcl::detail {
             return Gate(_step_reached % int(Gate::Count));
         }
 
-        Gate step_gate() noexcept {
+        SGCL_INLINE_HOT Gate step_gate() noexcept {
             std::unique_lock<std::mutex> lock(_step_mutex);
             return Gate(_step_reached % int(Gate::Count));
         }
@@ -3098,7 +3098,7 @@ namespace sgcl::detail {
         return collector_instance;
     }
 
-    inline void collector_init() noexcept {
+    SGCL_INLINE_HOT void collector_init() noexcept {
         collector_instance();
     }
 
@@ -3106,11 +3106,11 @@ namespace sgcl::detail {
         Collector::terminate();
     }
 
-    inline void waking_up_collector() noexcept {
+    SGCL_INLINE_HOT void waking_up_collector() noexcept {
         collector_instance().waking_up();
     }
 
-    inline void force_short_sleep() noexcept {
+    SGCL_INLINE_HOT void force_short_sleep() noexcept {
         collector_instance().force_short_sleep();
     }
 
@@ -3119,7 +3119,7 @@ namespace sgcl::detail {
     // run by the sweep that allocates would wait for the cycle it is part
     // of (the collector thread, or a helper the collector waits for), and
     // the program ends there at once (heap.h: out_of_managed_memory).
-    inline void collect_for_allocation() noexcept {
+    SGCL_INLINE_HOT void collect_for_allocation() noexcept {
         if (sweeping) {
             return;
         }

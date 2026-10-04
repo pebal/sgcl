@@ -99,11 +99,11 @@ namespace sgcl::net::http {
         }
     }
 
-    inline expected<response, io::error> client::download(const string& url, const string& path) const {
+    SGCL_INLINE_HOT expected<response, io::error> client::download(const string& url, const string& path) const {
         return async_download(url, path).wait();
     }
 
-    inline async::task<expected<response, io::error>> client::async_download(string url, string path) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<response, io::error>> client::async_download(string url, string path) const noexcept {
         return detail::download(*this, std::move(url), std::move(path));
     }
 
@@ -112,17 +112,17 @@ namespace sgcl::net::http {
     // other than 2xx the error net::errc::http_status and no file; the
     // response, its body read. From a thread; a task writes
     // `co_await net::http::async_download(url, path)`
-    inline expected<response, io::error> download(const string& url, const string& path) {
+    SGCL_INLINE_HOT expected<response, io::error> download(const string& url, const string& path) {
         return detail::default_client_instance().download(url, path);
     }
 
-    inline async::task<expected<response, io::error>> async_download(string url, string path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<response, io::error>> async_download(string url, string path) noexcept {
         return detail::default_client_instance().async_download(std::move(url), std::move(path));
     }
 
     // --- response: the readers that need JSON and files ---
 
-    inline expected<encoding::json, io::error> response::json() const {
+    SGCL_INLINE_HOT expected<encoding::json, io::error> response::json() const {
         return async_json().wait();
     }
 
@@ -139,7 +139,7 @@ namespace sgcl::net::http {
     }
 
     template<class T>
-    expected<T, io::error> response::json() const {
+    SGCL_INLINE_HOT expected<T, io::error> response::json() const {
         return async_json<T>().wait();
     }
 
@@ -156,11 +156,11 @@ namespace sgcl::net::http {
         co_return std::move(*v);
     }
 
-    inline expected<uint64_t, io::error> response::save(const string& path) const {
+    SGCL_INLINE_HOT expected<uint64_t, io::error> response::save(const string& path) const {
         return async_save(path).wait();
     }
 
-    inline async::task<expected<uint64_t, io::error>> response::async_save(string path) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<uint64_t, io::error>> response::async_save(string path) const noexcept {
         return detail::save_body(*this, std::move(path));
     }
 }

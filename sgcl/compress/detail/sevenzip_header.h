@@ -79,7 +79,7 @@ namespace sgcl::compress::detail {
             size_t first_pack = 0;                               // its first packed stream
             uint64_t substreams = 1;
 
-            uint64_t size() const noexcept {
+            SGCL_INLINE_HOT uint64_t size() const noexcept {
                 return sizes[main];
             }
 
@@ -117,19 +117,19 @@ namespace sgcl::compress::detail {
         // A reader of a header's bytes that stops at the first fault
         class HeaderReader {
         public:
-            HeaderReader(const uint8_t* p, size_t n, uint64_t origin, const limits& l) noexcept
+            SGCL_INLINE_HOT HeaderReader(const uint8_t* p, size_t n, uint64_t origin, const limits& l) noexcept
             : _p(p), _n(n), _origin(origin), _limits(l) {
             }
 
-            const optional<error>& failure() const noexcept {
+            SGCL_INLINE_HOT const optional<error>& failure() const noexcept {
                 return _error;
             }
 
-            size_t at() const noexcept {
+            SGCL_INLINE_HOT size_t at() const noexcept {
                 return _at;
             }
 
-            size_t left() const noexcept {
+            SGCL_INLINE_HOT size_t left() const noexcept {
                 return _n - _at;
             }
 
@@ -140,7 +140,7 @@ namespace sgcl::compress::detail {
                 return false;
             }
 
-            bool byte(uint8_t& v) noexcept {
+            SGCL_INLINE_HOT bool byte(uint8_t& v) noexcept {
                 if (_at >= _n) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -172,7 +172,7 @@ namespace sgcl::compress::detail {
             }
 
             // A count of things of at least `each` bytes: no more than the header can hold
-            bool count(uint64_t& v, size_t each, uint64_t max) noexcept {
+            SGCL_INLINE_HOT bool count(uint64_t& v, size_t each, uint64_t max) noexcept {
                 if (!number(v)) {
                     return false;
                 }
@@ -182,7 +182,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool u32(uint32_t& v) noexcept {
+            SGCL_INLINE_HOT bool u32(uint32_t& v) noexcept {
                 if (left() < 4) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -191,7 +191,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool u64(uint64_t& v) noexcept {
+            SGCL_INLINE_HOT bool u64(uint64_t& v) noexcept {
                 uint32_t a, b;
                 if (!u32(a) || !u32(b)) {
                     return false;
@@ -200,7 +200,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool skip(uint64_t n) noexcept {
+            SGCL_INLINE_HOT bool skip(uint64_t n) noexcept {
                 if (n > left()) {
                     return fail(errc::corrupt, "7z: the header ends early");
                 }
@@ -208,7 +208,7 @@ namespace sgcl::compress::detail {
                 return true;
             }
 
-            bool expect(uint8_t id) noexcept {
+            SGCL_INLINE_HOT bool expect(uint8_t id) noexcept {
                 uint8_t b;
                 if (!byte(b)) {
                     return false;
@@ -230,7 +230,7 @@ namespace sgcl::compress::detail {
             }
 
             // A byte saying all are there, or a vector of which are
-            bool defined(size_t n, std::vector<uint8_t>& out) noexcept {
+            SGCL_INLINE_HOT bool defined(size_t n, std::vector<uint8_t>& out) noexcept {
                 uint8_t all;
                 if (!byte(all)) {
                     return false;

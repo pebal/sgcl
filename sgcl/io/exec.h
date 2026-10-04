@@ -74,14 +74,14 @@ namespace sgcl::io {
         // the storage of its empty `state` into a managed object, where
         // the collector's debug check would take a stale word for a
         // pointer
-        process_state(const process_state& o) noexcept
+        SGCL_INLINE_HOT process_state(const process_state& o) noexcept
         : _pid(o._pid)
         , _status(o._status)
         , _user(o._user)
         , _system(o._system) {
         }
 
-        process_state& operator=(const process_state& o) noexcept {
+        SGCL_INLINE_HOT process_state& operator=(const process_state& o) noexcept {
             _pid = o._pid;
             _status = o._status;
             _user = o._user;
@@ -90,40 +90,40 @@ namespace sgcl::io {
         }
 
         // The process id
-        int pid() const noexcept {
+        SGCL_INLINE_HOT int pid() const noexcept {
             return _pid;
         }
 
         // Whether it ended by exiting (not by a signal)
-        bool exited() const noexcept {
+        SGCL_INLINE_HOT bool exited() const noexcept {
             return WIFEXITED(_status);
         }
 
         // The exit code; -1 when it did not exit (ended by a signal)
-        int exit_code() const noexcept {
+        SGCL_INLINE_HOT int exit_code() const noexcept {
             return exited() ? WEXITSTATUS(_status) : -1;
         }
 
         // Exited with 0
-        bool success() const noexcept {
+        SGCL_INLINE_HOT bool success() const noexcept {
             return exited() && WEXITSTATUS(_status) == 0;
         }
 
         // Ended by a signal, and which
-        bool signaled() const noexcept {
+        SGCL_INLINE_HOT bool signaled() const noexcept {
             return WIFSIGNALED(_status);
         }
 
-        int signal() const noexcept {
+        SGCL_INLINE_HOT int signal() const noexcept {
             return signaled() ? WTERMSIG(_status) : 0;
         }
 
         // The CPU time of the process in user and in kernel mode
-        std::chrono::microseconds user_time() const noexcept {
+        SGCL_INLINE_HOT std::chrono::microseconds user_time() const noexcept {
             return _user;
         }
 
-        std::chrono::microseconds system_time() const noexcept {
+        SGCL_INLINE_HOT std::chrono::microseconds system_time() const noexcept {
             return _system;
         }
 
@@ -133,7 +133,7 @@ namespace sgcl::io {
         // small unless the second is a capital too ("EMT trap", "I/O
         // possible", "CPU time limit exceeded"), without the number macOS
         // adds ("Killed: 9"); one the system does not name is "signal 34"
-        string to_string() const noexcept {
+        SGCL_INLINE_HOT string to_string() const noexcept {
             if (exited()) {
                 return string("exit status ") + sgcl::to_string(exit_code());
             }
@@ -169,7 +169,7 @@ namespace sgcl::io {
             return name;
         }
 
-        process_state(int pid, int status, const rusage& usage) noexcept
+        SGCL_INLINE_HOT process_state(int pid, int status, const rusage& usage) noexcept
         : _pid(pid)
         , _status(status)
         , _user(std::chrono::seconds(usage.ru_utime.tv_sec) + std::chrono::microseconds(usage.ru_utime.tv_usec))
@@ -193,18 +193,18 @@ namespace sgcl::io {
     namespace detail {
     class ProcessState final {
     public:
-        explicit ProcessState(int pid) noexcept
+        SGCL_INLINE_HOT explicit ProcessState(int pid) noexcept
         : _pid(pid) {
         }
 
-        int pid() const noexcept {
+        SGCL_INLINE_HOT int pid() const noexcept {
             return _pid;
         }
 
         // A signal to the process: errc::process_done once it was waited
         // for or released (its id may be another process's by then); a
         // signal while a wait is in progress is what ends the wait
-        expected<void, error> signal(int sig) noexcept {
+        SGCL_INLINE_HOT expected<void, error> signal(int sig) noexcept {
             if (_done.load(std::memory_order_acquire)) {
                 return detail::fail(error(errc::process_done, "signal"));
             }
@@ -215,24 +215,24 @@ namespace sgcl::io {
         }
 
         // SIGKILL: the process ends, now
-        expected<void, error> kill() noexcept {
+        SGCL_INLINE_HOT expected<void, error> kill() noexcept {
             return signal(SIGKILL);
         }
 
         // The process's end and how it ended (waitpid); a second wait, or
         // one after release(), is errc::process_done. `p.wait()` on this
         // thread, `co_await p.async_wait()` in a task
-        expected<process_state, error> wait() noexcept {
+        SGCL_INLINE_HOT expected<process_state, error> wait() noexcept {
             return _block_wait();
         }
 
-        async::task<expected<process_state, error>> async_wait() noexcept {
+        SGCL_INLINE_HOT async::task<expected<process_state, error>> async_wait() noexcept {
             return _co_wait();
         }
 
         // The process let go of without a wait: its resources are the
         // system's once it ends, and this object answers nothing more
-        expected<void, error> release() noexcept {
+        SGCL_INLINE_HOT expected<void, error> release() noexcept {
             if (_waited.exchange(true, std::memory_order_acq_rel)) {
                 return detail::fail(error(errc::process_done, "release"));
             }
@@ -261,7 +261,7 @@ namespace sgcl::io {
         std::atomic<bool> _done{false};     // the wait or the release complete: the id is no longer this process's
 
         // the two halves of the operations above: a thread's and a task's
-        expected<process_state, error> _block_wait() noexcept {
+        SGCL_INLINE_HOT expected<process_state, error> _block_wait() noexcept {
             if (_waited.exchange(true, std::memory_order_acq_rel)) {
                 return detail::fail(error(errc::process_done, "wait"));
             }
@@ -294,57 +294,57 @@ namespace sgcl::io {
     public:
         process() noexcept = default;
 
-        int pid() const noexcept {
+        SGCL_INLINE_HOT int pid() const noexcept {
             return _get().pid();
         }
 
         // A signal to the process: errc::process_done once it was waited
         // for or released (its id may be another process's by then); a
         // signal while a wait is in progress is what ends the wait
-        expected<void, error> signal(int sig) const noexcept {
+        SGCL_INLINE_HOT expected<void, error> signal(int sig) const noexcept {
             return _get().signal(sig);
         }
 
         // SIGKILL: the process ends, now
-        expected<void, error> kill() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> kill() const noexcept {
             return _get().kill();
         }
 
         // The process's end and how it ended (waitpid); a second wait, or
         // one after release(), is errc::process_done. `p.wait()` on this
         // thread, `co_await p.async_wait()` in a task
-        expected<process_state, error> wait() const noexcept {
+        SGCL_INLINE_HOT expected<process_state, error> wait() const noexcept {
             return _get().wait();
         }
 
-        async::task<expected<process_state, error>> async_wait() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<process_state, error>> async_wait() const noexcept {
             return _get().async_wait();
         }
 
         // The process let go of without a wait: its resources are the
         // system's once it ends, and this object answers nothing more
-        expected<void, error> release() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> release() const noexcept {
             return _get().release();
         }
 
         // Whether this handle holds a process (command's, after start())
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_state;
         }
 
         // The same process: the same state
-        friend bool operator==(const process& a, const process& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const process& a, const process& b) noexcept {
             return a._state == b._state;
         }
 
     private:
         friend struct detail::ProcessAccess;
 
-        explicit process(tracked_ptr<detail::ProcessState> state) noexcept
+        SGCL_INLINE_HOT explicit process(tracked_ptr<detail::ProcessState> state) noexcept
         : _state(std::move(state)) {
         }
 
-        detail::ProcessState& _get() const noexcept {
+        SGCL_INLINE_HOT detail::ProcessState& _get() const noexcept {
             assert(_state && "an empty io::process");
             return *_state;
         }
@@ -352,15 +352,15 @@ namespace sgcl::io {
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        process(sgcl::detail::FromWord, const tracked_ptr<detail::ProcessState>& w) noexcept
+        SGCL_INLINE_HOT process(sgcl::detail::FromWord, const tracked_ptr<detail::ProcessState>& w) noexcept
         : _state(w) {
         }
 
-        tracked_ptr<detail::ProcessState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::ProcessState>& _handle_word() noexcept {
             return _state;
         }
 
-        const tracked_ptr<detail::ProcessState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::ProcessState>& _handle_word() const noexcept {
             return _state;
         }
 
@@ -370,7 +370,7 @@ namespace sgcl::io {
     namespace detail {
         // The handle over a new child, for command::start
         struct ProcessAccess {
-            static process make(int pid) noexcept {
+            SGCL_INLINE_HOT static process make(int pid) noexcept {
                 return process(make_tracked<ProcessState>(pid));
             }
         };
@@ -430,12 +430,12 @@ namespace sgcl::io {
         // is the result then.
         template<class... Args>
         requires (std::is_convertible_v<const Args&, string> && ...)
-        explicit command(const string& name, const Args&... arguments) noexcept((detail::PlainText<Args> && ...))
+        SGCL_INLINE_HOT explicit command(const string& name, const Args&... arguments) noexcept((detail::PlainText<Args> && ...))
         : path(name)
         , args{string(arguments)...} {
         }
 
-        command(const string& name, vector<string> arguments) noexcept
+        SGCL_INLINE_HOT command(const string& name, vector<string> arguments) noexcept
         : path(name)
         , args(std::move(arguments)) {
         }
@@ -509,21 +509,21 @@ namespace sgcl::io {
         // the pipes closed. A child that ended with a failure status is
         // errc::exit_status (the code in state), as Go's ExitError.
         // `c.wait()` on this thread, `co_await c.async_wait()` in a task
-        expected<void, error> wait() {
+        SGCL_INLINE_HOT expected<void, error> wait() {
             return _block_wait();
         }
 
-        async::task<expected<void, error>> async_wait() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_wait() noexcept {
             return _co_wait();
         }
 
         // start() and wait()
         // `run(...)` on this thread, `co_await async_run(...)` in a task
-        expected<void, error> run() {
+        SGCL_INLINE_HOT expected<void, error> run() {
             return _block_run();
         }
 
-        async::task<expected<void, error>> async_run() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_run() noexcept {
             return _co_run();
         }
 
@@ -531,22 +531,22 @@ namespace sgcl::io {
         // is null, the standard error is captured too, into captured_err,
         // for the message of a failure. out must be null.
         // `output(...)` on this thread, `co_await async_output(...)` in a task
-        expected<string, error> output() {
+        SGCL_INLINE_HOT expected<string, error> output() {
             return _block_output();
         }
 
-        async::task<expected<string, error>> async_output() noexcept {
+        SGCL_INLINE_HOT async::task<expected<string, error>> async_output() noexcept {
             return _co_output();
         }
 
         // run() with the standard output and error captured together, in
         // the order the child wrote them. out and err must be null.
         // `combined_output(...)` on this thread, `co_await async_combined_output(...)` in a task
-        expected<string, error> combined_output() {
+        SGCL_INLINE_HOT expected<string, error> combined_output() {
             return _block_combined_output();
         }
 
-        async::task<expected<string, error>> async_combined_output() noexcept {
+        SGCL_INLINE_HOT async::task<expected<string, error>> async_combined_output() noexcept {
             return _co_combined_output();
         }
 
@@ -608,13 +608,13 @@ namespace sgcl::io {
         friend struct Spawn;
 
         struct Spawn {
-            explicit Spawn(command& c) noexcept
+            SGCL_INLINE_HOT explicit Spawn(command& c) noexcept
             : cmd(c) {
                 ::posix_spawn_file_actions_init(&actions);
                 ::posix_spawnattr_init(&attr);
             }
 
-            ~Spawn() {
+            SGCL_INLINE_HOT ~Spawn() {
                 ::posix_spawn_file_actions_destroy(&actions);
                 ::posix_spawnattr_destroy(&attr);
                 if (null_fd >= 0) {
@@ -698,7 +698,7 @@ namespace sgcl::io {
             vector<async::task<expected<void, error>>> copies;   // the tasks copying between a stream and a pipe
 
         private:
-            int _null() noexcept {
+            SGCL_INLINE_HOT int _null() noexcept {
                 if (null_fd < 0) {
                     null_fd = ::open("/dev/null", O_RDWR | O_CLOEXEC);
                 }
@@ -760,7 +760,7 @@ namespace sgcl::io {
             // The child's working directory: the POSIX-2024 action where
             // the SDK has it (macOS 26), the _np form before it (macOS
             // 10.15, glibc 2.29)
-            int _addchdir(const char* dir) noexcept {
+            SGCL_INLINE_HOT int _addchdir(const char* dir) noexcept {
 #if defined(__APPLE__) && defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 260000
                 return ::posix_spawn_file_actions_addchdir(&actions, dir);
 #elif defined(__APPLE__) || defined(__GLIBC__)
@@ -903,7 +903,7 @@ namespace sgcl::io {
             return captured;
         }
 
-        expected<buffer, error> _capture_combined() noexcept {
+        SGCL_INLINE_HOT expected<buffer, error> _capture_combined() noexcept {
             if (out || err || process) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "combined_output", path));
             }
@@ -913,7 +913,7 @@ namespace sgcl::io {
             return captured;
         }
 
-        expected<string, error> _captured(expected<void, error> r, const buffer& captured) {
+        SGCL_INLINE_HOT expected<string, error> _captured(expected<void, error> r, const buffer& captured) {
             if (_err_capture) {
                 captured_err = _err_capture->text();
                 _err_capture = nullopt;
@@ -929,7 +929,7 @@ namespace sgcl::io {
         // streams (pipe() makes both ends non-blocking for the reactor and
         // free of SIGPIPE; the flags are the end's own, the program's end
         // keeps them)
-        static void _child_end(const file& f) noexcept {
+        SGCL_INLINE_HOT static void _child_end(const file& f) noexcept {
             int flags = ::fcntl(f.fd(), F_GETFL);
             if (flags >= 0) {
                 ::fcntl(f.fd(), F_SETFL, flags & ~O_NONBLOCK);
@@ -946,7 +946,7 @@ namespace sgcl::io {
         optional<buffer> _err_capture;            // output(): the standard error, when not given
 
         // the two halves of the operations above: a thread's and a task's
-        expected<void, error> _block_wait() {
+        SGCL_INLINE_HOT expected<void, error> _block_wait() {
             if (!process) {
                 return detail::fail(error(errc::process_done, "wait", path));
             }
@@ -965,7 +965,7 @@ namespace sgcl::io {
             co_return _finish(std::move(ended), co_await _await_copies());
         }
 
-        expected<void, error> _block_run()  {
+        SGCL_INLINE_HOT expected<void, error> _block_run()  {
             if (auto s = start(); !s) {
                 return s;
             }
@@ -979,7 +979,7 @@ namespace sgcl::io {
             co_return co_await async_wait();
         }
 
-        expected<string, error> _block_output()  {
+        SGCL_INLINE_HOT expected<string, error> _block_output()  {
             auto captured = _capture_output();
             if (!captured) {
                 return detail::fail(captured);
@@ -997,7 +997,7 @@ namespace sgcl::io {
             co_return _captured(std::move(r), *captured);
         }
 
-        expected<string, error> _block_combined_output()  {
+        SGCL_INLINE_HOT expected<string, error> _block_combined_output()  {
             auto captured = _capture_combined();
             if (!captured) {
                 return detail::fail(captured);

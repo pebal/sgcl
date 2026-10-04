@@ -52,7 +52,7 @@ namespace sgcl::codec::detail {
     public:
         enum class Step : uint8_t { frame, end, failed };
 
-        GifDecoder(Input& in, const decode_options& o) noexcept
+        SGCL_INLINE_HOT GifDecoder(Input& in, const decode_options& o) noexcept
         : _in(in), _o(o) {
         }
 
@@ -116,30 +116,30 @@ namespace sgcl::codec::detail {
             }
         }
 
-        uint32_t width() const noexcept {
+        SGCL_INLINE_HOT uint32_t width() const noexcept {
             return _width;
         }
 
-        uint32_t height() const noexcept {
+        SGCL_INLINE_HOT uint32_t height() const noexcept {
             return _height;
         }
 
         // How many times the animation plays: 0 forever; NETSCAPE2.0's
         // count n is n + 1 plays (the first and n more); none: 1
-        uint32_t plays() const noexcept {
+        SGCL_INLINE_HOT uint32_t plays() const noexcept {
             return _plays;
         }
 
         // The delay of the last frame, hundredths of a second
-        unsigned delay() const noexcept {
+        SGCL_INLINE_HOT unsigned delay() const noexcept {
             return _delay;
         }
 
-        const uint8_t* canvas() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* canvas() const noexcept {
             return _canvas.get();
         }
 
-        const optional<error>& failure() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& failure() const noexcept {
             return _err;
         }
 

@@ -73,7 +73,7 @@ namespace sgcl {
         public:
             constexpr ArrayElements() = default;
 
-            constexpr ArrayElements(Same<T, I>... init) noexcept(std::is_nothrow_move_constructible_v<T>)
+            SGCL_INLINE_HOT constexpr ArrayElements(Same<T, I>... init) noexcept(std::is_nothrow_move_constructible_v<T>)
             : elems{std::move(init)...} {
             }
 
@@ -81,7 +81,7 @@ namespace sgcl {
             // value-initialized, as an aggregate's
             template<class... U>
             requires (sizeof...(U) >= 1 && sizeof...(U) < N && (std::convertible_to<U, T> && ...))
-            constexpr ArrayElements(U&&... init) noexcept((std::is_nothrow_constructible_v<T, U&&> && ...) && std::is_nothrow_default_constructible_v<T>)
+            SGCL_INLINE_HOT constexpr ArrayElements(U&&... init) noexcept((std::is_nothrow_constructible_v<T, U&&> && ...) && std::is_nothrow_default_constructible_v<T>)
             : elems{T(std::forward<U>(init))...} {
             }
 
@@ -99,7 +99,7 @@ namespace sgcl {
 
             template<class... U>
             requires (sizeof...(U) >= 1 && sizeof...(U) <= N && (std::convertible_to<U, T> && ...))
-            constexpr ArrayElements(U&&... init) noexcept((std::is_nothrow_constructible_v<T, U&&> && ...) && (sizeof...(U) == N || std::is_nothrow_default_constructible_v<T>))
+            SGCL_INLINE_HOT constexpr ArrayElements(U&&... init) noexcept((std::is_nothrow_constructible_v<T, U&&> && ...) && (sizeof...(U) == N || std::is_nothrow_default_constructible_v<T>))
             : elems{T(std::forward<U>(init))...} {
             }
 
@@ -143,154 +143,154 @@ namespace sgcl {
         // The elements, one argument each: {1, 2, 3}
         using Elements::Elements;
 
-        constexpr reference at(size_type pos) {
+        SGCL_INLINE_HOT constexpr reference at(size_type pos) {
             if (pos >= N) {
                 throw out_of_range("sgcl::array::at");
             }
             return elems[pos];
         }
 
-        constexpr const_reference at(size_type pos) const {
+        SGCL_INLINE_HOT constexpr const_reference at(size_type pos) const {
             if (pos >= N) {
                 throw out_of_range("sgcl::array::at");
             }
             return elems[pos];
         }
 
-        constexpr reference operator[](size_type pos) noexcept {
+        SGCL_INLINE_HOT constexpr reference operator[](size_type pos) noexcept {
             return elems[pos];
         }
 
-        constexpr const_reference operator[](size_type pos) const noexcept {
+        SGCL_INLINE_HOT constexpr const_reference operator[](size_type pos) const noexcept {
             return elems[pos];
         }
 
-        constexpr reference front() noexcept {
+        SGCL_INLINE_HOT constexpr reference front() noexcept {
             return elems[0];
         }
 
-        constexpr const_reference front() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reference front() const noexcept {
             return elems[0];
         }
 
-        constexpr reference back() noexcept {
+        SGCL_INLINE_HOT constexpr reference back() noexcept {
             return elems[N - 1];
         }
 
-        constexpr const_reference back() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reference back() const noexcept {
             return elems[N - 1];
         }
 
-        constexpr T* data() noexcept {
+        SGCL_INLINE_HOT constexpr T* data() noexcept {
             return elems;
         }
 
-        constexpr const T* data() const noexcept {
+        SGCL_INLINE_HOT constexpr const T* data() const noexcept {
             return elems;
         }
 
         // The elements as a slice without an owner (slice.h), as a C array
         // and a std::array give one: the array lives on a stack or inside
         // an object, and whoever holds that keeps the elements
-        slice<T> as_slice() noexcept {
+        SGCL_INLINE_HOT slice<T> as_slice() noexcept {
             return slice<T>(data(), data() + size());
         }
 
-        slice<const T> as_slice() const noexcept {
+        SGCL_INLINE_HOT slice<const T> as_slice() const noexcept {
             return slice<const T>(data(), data() + size());
         }
 
-        slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
+        SGCL_INLINE_HOT slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
             if (pos > size()) {
                 throw out_of_range("sgcl::array::as_slice");
             }
             return as_slice().subslice(pos, n);
         }
 
-        slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
+        SGCL_INLINE_HOT slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
             if (pos > size()) {
                 throw out_of_range("sgcl::array::as_slice");
             }
             return as_slice().subslice(pos, n);
         }
 
-        operator slice<T>() noexcept {
+        SGCL_INLINE_HOT operator slice<T>() noexcept {
             return as_slice();
         }
 
-        operator slice<const T>() const noexcept {
+        SGCL_INLINE_HOT operator slice<const T>() const noexcept {
             return as_slice();
         }
 
-        constexpr iterator begin() noexcept {
+        SGCL_INLINE_HOT constexpr iterator begin() noexcept {
             return iterator(elems);
         }
 
-        constexpr const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator begin() const noexcept {
             return const_iterator(elems);
         }
 
-        constexpr const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        constexpr iterator end() noexcept {
+        SGCL_INLINE_HOT constexpr iterator end() noexcept {
             return iterator(elems + N);
         }
 
-        constexpr const_iterator end() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator end() const noexcept {
             return const_iterator(elems + N);
         }
 
-        constexpr const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator cend() const noexcept {
             return end();
         }
 
-        constexpr reverse_iterator rbegin() noexcept {
+        SGCL_INLINE_HOT constexpr reverse_iterator rbegin() noexcept {
             return reverse_iterator(end());
         }
 
-        constexpr const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(end());
         }
 
-        constexpr const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        constexpr reverse_iterator rend() noexcept {
+        SGCL_INLINE_HOT constexpr reverse_iterator rend() noexcept {
             return reverse_iterator(begin());
         }
 
-        constexpr const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(begin());
         }
 
-        constexpr const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
-        [[nodiscard]] constexpr bool empty() const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT constexpr bool empty() const noexcept {
             return false;
         }
 
-        constexpr size_type size() const noexcept {
+        SGCL_INLINE_HOT constexpr size_type size() const noexcept {
             return N;
         }
 
-        constexpr size_type max_size() const noexcept {
+        SGCL_INLINE_HOT constexpr size_type max_size() const noexcept {
             return N;
         }
 
-        constexpr void fill(const T& value) noexcept(std::is_nothrow_copy_assignable_v<T>) {
+        SGCL_INLINE_HOT constexpr void fill(const T& value) noexcept(std::is_nothrow_copy_assignable_v<T>) {
             std::fill_n(elems, N, value);
         }
 
-        constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<T>) {
+        SGCL_INLINE_HOT constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<T>) {
             std::swap_ranges(elems, elems + N, other.elems);
         }
 
-        friend constexpr void swap(array& l, array& r) noexcept(noexcept(l.swap(r))) {
+        SGCL_INLINE_HOT friend constexpr void swap(array& l, array& r) noexcept(noexcept(l.swap(r))) {
             l.swap(r);
         }
     };
@@ -336,114 +336,114 @@ namespace sgcl {
             throw out_of_range("sgcl::array::at");
         }
 
-        constexpr T* data() noexcept {
+        SGCL_INLINE_HOT constexpr T* data() noexcept {
             return nullptr;
         }
 
-        constexpr const T* data() const noexcept {
+        SGCL_INLINE_HOT constexpr const T* data() const noexcept {
             return nullptr;
         }
 
         // The elements as a slice without an owner (slice.h), as a C array
         // and a std::array give one: the array lives on a stack or inside
         // an object, and whoever holds that keeps the elements
-        slice<T> as_slice() noexcept {
+        SGCL_INLINE_HOT slice<T> as_slice() noexcept {
             return slice<T>(data(), data() + size());
         }
 
-        slice<const T> as_slice() const noexcept {
+        SGCL_INLINE_HOT slice<const T> as_slice() const noexcept {
             return slice<const T>(data(), data() + size());
         }
 
-        slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
+        SGCL_INLINE_HOT slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
             if (pos > size()) {
                 throw out_of_range("sgcl::array::as_slice");
             }
             return as_slice().subslice(pos, n);
         }
 
-        slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
+        SGCL_INLINE_HOT slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
             if (pos > size()) {
                 throw out_of_range("sgcl::array::as_slice");
             }
             return as_slice().subslice(pos, n);
         }
 
-        operator slice<T>() noexcept {
+        SGCL_INLINE_HOT operator slice<T>() noexcept {
             return as_slice();
         }
 
-        operator slice<const T>() const noexcept {
+        SGCL_INLINE_HOT operator slice<const T>() const noexcept {
             return as_slice();
         }
 
-        constexpr iterator begin() noexcept {
+        SGCL_INLINE_HOT constexpr iterator begin() noexcept {
             return iterator();
         }
 
-        constexpr const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator begin() const noexcept {
             return const_iterator();
         }
 
-        constexpr const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator cbegin() const noexcept {
             return const_iterator();
         }
 
-        constexpr iterator end() noexcept {
+        SGCL_INLINE_HOT constexpr iterator end() noexcept {
             return iterator();
         }
 
-        constexpr const_iterator end() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator end() const noexcept {
             return const_iterator();
         }
 
-        constexpr const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT constexpr const_iterator cend() const noexcept {
             return const_iterator();
         }
 
-        constexpr reverse_iterator rbegin() noexcept {
+        SGCL_INLINE_HOT constexpr reverse_iterator rbegin() noexcept {
             return reverse_iterator(end());
         }
 
-        constexpr const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(end());
         }
 
-        constexpr reverse_iterator rend() noexcept {
+        SGCL_INLINE_HOT constexpr reverse_iterator rend() noexcept {
             return reverse_iterator(begin());
         }
 
-        constexpr const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(begin());
         }
 
-        constexpr const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        constexpr const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT constexpr const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
-        [[nodiscard]] constexpr bool empty() const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT constexpr bool empty() const noexcept {
             return true;
         }
 
-        constexpr size_type size() const noexcept {
+        SGCL_INLINE_HOT constexpr size_type size() const noexcept {
             return 0;
         }
 
-        constexpr size_type max_size() const noexcept {
+        SGCL_INLINE_HOT constexpr size_type max_size() const noexcept {
             return 0;
         }
 
-        constexpr void fill(const T&) noexcept {
+        SGCL_INLINE_HOT constexpr void fill(const T&) noexcept {
         }
 
-        constexpr void swap(array&) noexcept {
+        SGCL_INLINE_HOT constexpr void swap(array&) noexcept {
         }
 
-        friend constexpr void swap(array&, array&) noexcept {
+        SGCL_INLINE_HOT friend constexpr void swap(array&, array&) noexcept {
         }
     };
 
@@ -451,32 +451,32 @@ namespace sgcl {
     array(T, U...) -> array<std::enable_if_t<(std::is_same_v<T, U> && ...), T>, 1 + sizeof...(U)>;
 
     template<size_t I, class T, size_t N>
-    constexpr T& get(array<T, N>& a) noexcept {
+    SGCL_INLINE_HOT constexpr T& get(array<T, N>& a) noexcept {
         static_assert(I < N, "index out of range");
         return a.data()[I];
     }
 
     template<size_t I, class T, size_t N>
-    constexpr const T& get(const array<T, N>& a) noexcept {
+    SGCL_INLINE_HOT constexpr const T& get(const array<T, N>& a) noexcept {
         static_assert(I < N, "index out of range");
         return a.data()[I];
     }
 
     template<size_t I, class T, size_t N>
-    constexpr T&& get(array<T, N>&& a) noexcept {
+    SGCL_INLINE_HOT constexpr T&& get(array<T, N>&& a) noexcept {
         static_assert(I < N, "index out of range");
         return std::move(a.data()[I]);
     }
 
     template<class T, size_t N>
-    constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) noexcept(std::is_nothrow_constructible_v<std::remove_cv_t<T>, T&> && std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>) {
+    SGCL_INLINE_HOT constexpr array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) noexcept(std::is_nothrow_constructible_v<std::remove_cv_t<T>, T&> && std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>) {
         return [&]<size_t... I>(std::index_sequence<I...>) {
             return array<std::remove_cv_t<T>, N>{a[I]...};
         }(std::make_index_sequence<N>());
     }
 
     template<class T, size_t N>
-    constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]) noexcept(std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>) {
+    SGCL_INLINE_HOT constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]) noexcept(std::is_nothrow_move_constructible_v<std::remove_cv_t<T>>) {
         return [&]<size_t... I>(std::index_sequence<I...>) {
             return array<std::remove_cv_t<T>, N>{std::move(a[I])...};
         }(std::make_index_sequence<N>());

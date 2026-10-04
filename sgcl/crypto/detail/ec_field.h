@@ -41,7 +41,7 @@ namespace sgcl::crypto::detail {
 
     // A word the optimizer may not reason about (see constant_time.h's
     // barrier): what every mask made from a secret goes through
-    constexpr uint64_t ct_barrier(uint64_t v) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t ct_barrier(uint64_t v) noexcept {
 #if defined(__GNUC__) || defined(__clang__)
         if (!std::is_constant_evaluated()) {
             __asm__("" : "+r"(v));
@@ -51,17 +51,17 @@ namespace sgcl::crypto::detail {
     }
 
     // All ones when x is 0, zero otherwise
-    constexpr uint64_t ct_zero_mask(uint64_t x) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t ct_zero_mask(uint64_t x) noexcept {
         return ct_barrier(((x | (0 - x)) >> 63) - 1);
     }
 
     // All ones when a == b, zero otherwise
-    constexpr uint64_t ct_eq_mask(uint64_t a, uint64_t b) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t ct_eq_mask(uint64_t a, uint64_t b) noexcept {
         return ct_zero_mask(a ^ b);
     }
 
     // All ones when bit is 1 (bit is 0 or 1)
-    constexpr uint64_t ct_bit_mask(uint64_t bit) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t ct_bit_mask(uint64_t bit) noexcept {
         return ct_barrier(0 - bit);
     }
 
@@ -112,7 +112,7 @@ namespace sgcl::crypto::detail {
 
     // All ones when a < b, compared in constant time
     template<size_t N>
-    constexpr uint64_t limbs_less_mask(const limbs<N>& a, const limbs<N>& b) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t limbs_less_mask(const limbs<N>& a, const limbs<N>& b) noexcept {
         limbs<N> t{};
         return ct_bit_mask(limbs_sub(t, a, b));
     }
@@ -223,7 +223,7 @@ namespace sgcl::crypto::detail {
 
         // r = t - m when t (N words and a top word hi, below 2m) is at
         // least m, r = t otherwise
-        static constexpr void reduce_once(element& r, const element& t, uint64_t hi) noexcept {
+        SGCL_INLINE_HOT static constexpr void reduce_once(element& r, const element& t, uint64_t hi) noexcept {
             element u{};
             uint64_t borrow = limbs_sub(u, t, k.m);
             // the whole difference is negative when hi is 0 and a borrow
@@ -232,7 +232,7 @@ namespace sgcl::crypto::detail {
             limbs_select(r, keep, t, u);
         }
 
-        static constexpr void add(element& r, const element& a, const element& b) noexcept {
+        SGCL_INLINE_HOT static constexpr void add(element& r, const element& a, const element& b) noexcept {
             element t{};
             uint64_t carry = limbs_add(t, a, b);
             reduce_once(r, t, carry);
@@ -342,13 +342,13 @@ namespace sgcl::crypto::detail {
         }
 
         // Into the form (a R mod m) and out of it; a below m
-        static constexpr element to_mont(const element& a) noexcept {
+        SGCL_INLINE_HOT static constexpr element to_mont(const element& a) noexcept {
             element r{};
             mul(r, a, k.r2);
             return r;
         }
 
-        static constexpr element from_mont(const element& a) noexcept {
+        SGCL_INLINE_HOT static constexpr element from_mont(const element& a) noexcept {
             element one{};
             one[0] = 1;
             element r{};
@@ -356,7 +356,7 @@ namespace sgcl::crypto::detail {
             return r;
         }
 
-        static constexpr element one() noexcept {
+        SGCL_INLINE_HOT static constexpr element one() noexcept {
             return k.one;
         }
 
@@ -390,7 +390,7 @@ namespace sgcl::crypto::detail {
 
         // a^-1 by Fermat's little theorem (m prime): a^(m-2), with no
         // branch on a; 0 gives 0
-        static element inverse(const element& a) noexcept {
+        SGCL_INLINE_HOT static element inverse(const element& a) noexcept {
             return pow_public(a, k.m_minus_2);
         }
     };

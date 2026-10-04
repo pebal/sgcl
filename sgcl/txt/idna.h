@@ -85,14 +85,14 @@ namespace sgcl::txt {
             return k + uint32_t(((PunyBase - PunyTMin + 1) * delta) / (delta + PunySkew));
         }
 
-        constexpr uint32_t puny_threshold(uint32_t k, uint32_t bias) noexcept {
+        SGCL_INLINE_HOT constexpr uint32_t puny_threshold(uint32_t k, uint32_t bias) noexcept {
             return k <= bias ? PunyTMin : (k >= bias + PunyTMax ? PunyTMax : k - bias);
         }
 
         // The digits are the letters and then the numbers, and a decoder
         // takes either case: a label may have passed through something
         // that upper cased it
-        constexpr int puny_digit(char c) noexcept {
+        SGCL_INLINE_HOT constexpr int puny_digit(char c) noexcept {
             if (c >= 'a' && c <= 'z') {
                 return c - 'a';
             }
@@ -105,7 +105,7 @@ namespace sgcl::txt {
             return -1;
         }
 
-        constexpr char puny_char(uint32_t d) noexcept {
+        SGCL_INLINE_HOT constexpr char puny_char(uint32_t d) noexcept {
             return char(d < 26 ? 'a' + d : '0' + (d - 26));
         }
 
@@ -347,7 +347,7 @@ namespace sgcl::txt {
             return string(out.data(), out.size());
         }
 
-        inline optional<string> decode(const string& label) {
+        SGCL_INLINE_HOT optional<string> decode(const string& label) {
             detail::lent<detail::code_points> points;
             if (!detail::puny_decode(label.view(), *points)) {
                 return nullopt;
@@ -439,14 +439,14 @@ namespace sgcl::txt {
             // for a parser that must not lose a name it cannot read
             bool ignore_invalid_punycode = false;
 
-            static constexpr options standard() noexcept {
+            SGCL_INLINE_HOT static constexpr options standard() noexcept {
                 return options{};
             }
 
             // What the WHATWG URL Standard asks for: the deviations kept,
             // the hyphens and the lengths not checked, the bidirectional
             // and joiner rules still checked
-            static constexpr options whatwg() noexcept {
+            SGCL_INLINE_HOT static constexpr options whatwg() noexcept {
                 options o;
                 o.check_hyphens = false;
                 o.verify_dns_length = false;
@@ -478,7 +478,7 @@ namespace sgcl::txt {
             size_t size = 0;            // and how many bytes of it there were
 
             // Which rule it broke, in words (message_of(rule))
-            string message() const noexcept {
+            SGCL_INLINE_HOT string message() const noexcept {
                 return string(message_of(rule));
             }
         };
@@ -493,18 +493,18 @@ namespace sgcl::txt {
             string text;
             failure reason;
 
-            explicit operator bool() const noexcept {
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return reason.rule == error::none;
             }
         };
     }
 
     namespace detail {
-        constexpr idna_status idna_status_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr idna_status idna_status_of(char32_t c) noexcept {
             return idna_status(value_of(c, idna_tables::IdnaStatus));
         }
 
-        constexpr joining idna_joining_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr joining idna_joining_of(char32_t c) noexcept {
             return joining(value_of(c, idna_tables::JoiningType));
         }
 
@@ -923,7 +923,7 @@ namespace sgcl::txt {
             scratch_vector<size_t> ends;
             idna::failure reason;
 
-            size_t count() const noexcept {
+            SGCL_INLINE_HOT size_t count() const noexcept {
                 return starts.size();
             }
 
@@ -946,7 +946,7 @@ namespace sgcl::txt {
 
         // A name lent by the thread (detail/lent.h) goes back empty
         template<class F>
-        void lent_each(IdnaName& name, F& f) noexcept {
+        SGCL_INLINE_HOT void lent_each(IdnaName& name, F& f) noexcept {
             f(name.points);
             f(name.starts);
             f(name.ends);
@@ -1280,7 +1280,7 @@ namespace sgcl::txt {
         // The two the rest of the library calls. A name that is wrong in
         // any of the ways above is not a name: nothing comes back but the
         // rule it broke, and there is no text to use by mistake.
-        inline expected<string, failure> to_unicode(const string& name, options o = {}) {
+        SGCL_INLINE_HOT expected<string, failure> to_unicode(const string& name, options o = {}) {
             auto made = unicode_form(name, o);
             if (!made) {
                 return unexpected<failure>(made.reason);
@@ -1288,7 +1288,7 @@ namespace sgcl::txt {
             return made.text;
         }
 
-        inline expected<string, failure> to_ascii(const string& name, options o = {}) {
+        SGCL_INLINE_HOT expected<string, failure> to_ascii(const string& name, options o = {}) {
             auto made = ascii_form(name, o);
             if (!made) {
                 return unexpected<failure>(made.reason);

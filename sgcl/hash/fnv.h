@@ -63,7 +63,7 @@ namespace sgcl::hash {
             // 0x13b spread over both words, the high word's product added,
             // and the low word moved up 88 bits, which lands in the high word
             // 24 bits up
-            void multiply() noexcept {
+            SGCL_INLINE_HOT void multiply() noexcept {
                 uint64_t low_product = low * Fnv128PrimeLow;
                 uint64_t carry = ((low >> 32) * Fnv128PrimeLow + ((low & 0xffffffffu) * Fnv128PrimeLow >> 32)) >> 32;
                 high = high * Fnv128PrimeLow + carry + (low << 24);
@@ -105,25 +105,25 @@ namespace sgcl::hash {
 
         // Going on from the value of what came before: the state of an
         // FNV is its value
-        static fnv32 resume(uint32_t value) noexcept {
+        SGCL_INLINE_HOT static fnv32 resume(uint32_t value) noexcept {
             fnv32 h;
             h._h = value;
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _h = detail::fnv1(_h, detail::Fnv32Prime, detail::bytes(data.data()), data.size());
         }
 
-        uint32_t value() const noexcept {
+        SGCL_INLINE_HOT uint32_t value() const noexcept {
             return _h;
         }
 
-        array<byte, 4> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 4> digest() const noexcept {
             return detail::big_endian<4>(_h);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _h = detail::Fnv32Offset;
         }
 
@@ -141,25 +141,25 @@ namespace sgcl::hash {
 
         fnv32a() noexcept = default;
 
-        static fnv32a resume(uint32_t value) noexcept {
+        SGCL_INLINE_HOT static fnv32a resume(uint32_t value) noexcept {
             fnv32a h;
             h._h = value;
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _h = detail::fnv1a(_h, detail::Fnv32Prime, detail::bytes(data.data()), data.size());
         }
 
-        uint32_t value() const noexcept {
+        SGCL_INLINE_HOT uint32_t value() const noexcept {
             return _h;
         }
 
-        array<byte, 4> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 4> digest() const noexcept {
             return detail::big_endian<4>(_h);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _h = detail::Fnv32Offset;
         }
 
@@ -177,25 +177,25 @@ namespace sgcl::hash {
 
         fnv64() noexcept = default;
 
-        static fnv64 resume(uint64_t value) noexcept {
+        SGCL_INLINE_HOT static fnv64 resume(uint64_t value) noexcept {
             fnv64 h;
             h._h = value;
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _h = detail::fnv1(_h, detail::Fnv64Prime, detail::bytes(data.data()), data.size());
         }
 
-        uint64_t value() const noexcept {
+        SGCL_INLINE_HOT uint64_t value() const noexcept {
             return _h;
         }
 
-        array<byte, 8> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 8> digest() const noexcept {
             return detail::big_endian<8>(_h);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _h = detail::Fnv64Offset;
         }
 
@@ -213,25 +213,25 @@ namespace sgcl::hash {
 
         fnv64a() noexcept = default;
 
-        static fnv64a resume(uint64_t value) noexcept {
+        SGCL_INLINE_HOT static fnv64a resume(uint64_t value) noexcept {
             fnv64a h;
             h._h = value;
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _h = detail::fnv1a(_h, detail::Fnv64Prime, detail::bytes(data.data()), data.size());
         }
 
-        uint64_t value() const noexcept {
+        SGCL_INLINE_HOT uint64_t value() const noexcept {
             return _h;
         }
 
-        array<byte, 8> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 8> digest() const noexcept {
             return detail::big_endian<8>(_h);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _h = detail::Fnv64Offset;
         }
 
@@ -251,7 +251,7 @@ namespace sgcl::hash {
 
         fnv128() noexcept = default;
 
-        static fnv128 resume(const array<byte, 16>& value) noexcept {
+        SGCL_INLINE_HOT static fnv128 resume(const array<byte, 16>& value) noexcept {
             fnv128 h;
             h._h = detail::Fnv128::from(value);
             return h;
@@ -265,15 +265,15 @@ namespace sgcl::hash {
             }
         }
 
-        array<byte, 16> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 16> value() const noexcept {
             return _h.bytes();
         }
 
-        array<byte, 16> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 16> digest() const noexcept {
             return _h.bytes();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _h = detail::Fnv128();
         }
 
@@ -291,7 +291,7 @@ namespace sgcl::hash {
 
         fnv128a() noexcept = default;
 
-        static fnv128a resume(const array<byte, 16>& value) noexcept {
+        SGCL_INLINE_HOT static fnv128a resume(const array<byte, 16>& value) noexcept {
             fnv128a h;
             h._h = detail::Fnv128::from(value);
             return h;
@@ -305,15 +305,15 @@ namespace sgcl::hash {
             }
         }
 
-        array<byte, 16> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 16> value() const noexcept {
             return _h.bytes();
         }
 
-        array<byte, 16> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 16> digest() const noexcept {
             return _h.bytes();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _h = detail::Fnv128();
         }
 

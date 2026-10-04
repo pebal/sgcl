@@ -185,7 +185,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // The symbol of the code of `bits` bits at the top of the `have`
         // bits of `acc`, or -1
-        inline int long_symbol(uint64_t acc, int have, int bits) noexcept {
+        SGCL_INLINE_HOT int long_symbol(uint64_t acc, int have, int bits) noexcept {
             const uint32_t code = uint32_t(acc >> (have - bits)) & ((uint32_t(1) << bits) - 1);
             const uint32_t k = code - tables.first_code[size_t(bits)];
             if (code >= tables.first_code[size_t(bits)] && k < tables.count[size_t(bits)]) {
@@ -306,7 +306,7 @@ namespace sgcl::net::http::detail::h2 {
     // allocation. An entry's size is its name, its value and 32 (§4.1).
     class DynamicTable {
     public:
-        explicit DynamicTable(uint32_t max_size) noexcept {
+        SGCL_INLINE_HOT explicit DynamicTable(uint32_t max_size) noexcept {
             reset_capacity(max_size);
         }
 
@@ -336,26 +336,26 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        uint32_t capacity() const noexcept {
+        SGCL_INLINE_HOT uint32_t capacity() const noexcept {
             return _capacity;
         }
 
         // The size the table is held to now (a Dynamic Table Size Update),
         // at most the capacity: entries evicted to fit
-        void set_limit(uint32_t n) noexcept {
+        SGCL_INLINE_HOT void set_limit(uint32_t n) noexcept {
             _limit = n;
             _evict_to(n);
         }
 
-        uint32_t limit() const noexcept {
+        SGCL_INLINE_HOT uint32_t limit() const noexcept {
             return _limit;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _used;
         }
 
-        size_t count() const noexcept {
+        SGCL_INLINE_HOT size_t count() const noexcept {
             return _count;
         }
 
@@ -365,7 +365,7 @@ namespace sgcl::net::http::detail::h2 {
         };
 
         // Entry i, 1 the newest
-        View entry(size_t i) const noexcept {
+        SGCL_INLINE_HOT View entry(size_t i) const noexcept {
             const Slot& s = _entries[(_head + _slots - i) % _slots];
             return View{std::string_view(_bytes.get() + s.at, s.name), std::string_view(_bytes.get() + s.at + s.name, s.value)};
         }
@@ -457,7 +457,7 @@ namespace sgcl::net::http::detail::h2 {
     public:
         // our SETTINGS_HEADER_TABLE_SIZE: the most a Dynamic Table Size
         // Update may ask
-        explicit Decoder(uint32_t max_table_size = 4096) noexcept
+        SGCL_INLINE_HOT explicit Decoder(uint32_t max_table_size = 4096) noexcept
         : _table(max_table_size), _max(max_table_size) {
             _table.set_limit(max_table_size);
         }
@@ -465,7 +465,7 @@ namespace sgcl::net::http::detail::h2 {
         // Our new SETTINGS_HEADER_TABLE_SIZE, once the peer acknowledged
         // it: a lower one must be met by a Dynamic Table Size Update at the
         // start of the next block (§4.2)
-        void set_max_table_size(uint32_t n) noexcept {
+        SGCL_INLINE_HOT void set_max_table_size(uint32_t n) noexcept {
             if (n < _max) {
                 _update_required = true;
             }
@@ -478,7 +478,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        const DynamicTable& table() const noexcept {
+        SGCL_INLINE_HOT const DynamicTable& table() const noexcept {
             return _table;
         }
 
@@ -644,7 +644,7 @@ namespace sgcl::net::http::detail::h2 {
         // A literal decoded at mark: kept, or dropped once the list is past
         // the limit (the scratch given back, so it never holds more than
         // the limit and one field)
-        void _account(size_t mark, size_t name, size_t value, size_t max, size_t& list, bool& truncated) noexcept {
+        SGCL_INLINE_HOT void _account(size_t mark, size_t name, size_t value, size_t max, size_t& list, bool& truncated) noexcept {
             list += name + value + 32;
             if (truncated || list > max) {
                 truncated = true;
@@ -678,7 +678,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // the table we use, at most the peer's SETTINGS_HEADER_TABLE_SIZE
         // (4096 until its SETTINGS say otherwise)
-        explicit Encoder(uint32_t table_size = 4096, Huffman huffman = Huffman::shorter) noexcept
+        SGCL_INLINE_HOT explicit Encoder(uint32_t table_size = 4096, Huffman huffman = Huffman::shorter) noexcept
         : _table(table_size), _want(table_size), _huffman(huffman) {
             _table.set_limit(table_size);
         }
@@ -697,12 +697,12 @@ namespace sgcl::net::http::detail::h2 {
             _table.set_limit(size);
         }
 
-        const DynamicTable& table() const noexcept {
+        SGCL_INLINE_HOT const DynamicTable& table() const noexcept {
             return _table;
         }
 
         // The start of a block: the updates owed
-        void begin_block(std::string& out) noexcept {
+        SGCL_INLINE_HOT void begin_block(std::string& out) noexcept {
             if (!_pending) {
                 return;
             }
@@ -733,7 +733,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
     private:
-        static bool _sensitive(std::string_view name) noexcept {
+        SGCL_INLINE_HOT static bool _sensitive(std::string_view name) noexcept {
             return name == "authorization" || name == "proxy-authorization" || name == "cookie";
         }
 
@@ -764,7 +764,7 @@ namespace sgcl::net::http::detail::h2 {
             return 0;
         }
 
-        void _literal(std::string& out, uint8_t pattern, int prefix, size_t name_index, std::string_view name, std::string_view value) noexcept {
+        SGCL_INLINE_HOT void _literal(std::string& out, uint8_t pattern, int prefix, size_t name_index, std::string_view name, std::string_view value) noexcept {
             put_integer(out, pattern, prefix, name_index);
             if (!name_index) {
                 _string(out, name);

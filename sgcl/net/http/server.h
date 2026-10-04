@@ -373,7 +373,7 @@ namespace sgcl::net::http {
     // ends; the server goes on.
     class server {
     public:
-        server() noexcept
+        SGCL_INLINE_HOT server() noexcept
         : _impl(make_tracked<detail::ServerImpl>()) {
         }
 
@@ -397,7 +397,7 @@ namespace sgcl::net::http {
 
         // What a request no route matches gets; a 404 text/plain by default
         template<class Handler>
-        server& not_found(Handler handler) {
+        SGCL_INLINE_HOT server& not_found(Handler handler) {
             auto h = _handler(std::move(handler));
             std::lock_guard<std::mutex> g(_impl->lock);
             _impl->not_found = std::move(h);
@@ -409,11 +409,11 @@ namespace sgcl::net::http {
         // serve() blocks the thread (main's, as Go's ListenAndServe), the
         // connections served on the scheduler; in a task `co_await
         // s.async_serve(":8080")`
-        expected<void, io::error> serve(const string& address) const {
+        SGCL_INLINE_HOT expected<void, io::error> serve(const string& address) const {
             return async_serve(address).wait();
         }
 
-        async::task<expected<void, io::error>> async_serve(const string& address) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_serve(const string& address) const noexcept {
             return _co_serve_address(_impl, _settings(), address);
         }
 
@@ -426,20 +426,20 @@ namespace sgcl::net::http {
         // client offers), so {"http/1.1"} given stays HTTP/1.1 for a client
         // offering both. A listener of the program's own (serve(listener))
         // keeps the ALPN it was made with.
-        expected<void, io::error> serve_tls(const string& address, const net::tls::config& c) const {
+        SGCL_INLINE_HOT expected<void, io::error> serve_tls(const string& address, const net::tls::config& c) const {
             return async_serve_tls(address, c).wait();
         }
 
-        async::task<expected<void, io::error>> async_serve_tls(const string& address, const net::tls::config& c) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_serve_tls(const string& address, const net::tls::config& c) const noexcept {
             return _co_serve_tls(_impl, _settings(), address, detail::adjusted_alpn(c, http2));
         }
 
         // The connections of a listener the program made
-        expected<void, io::error> serve(const net::listener& l) const {
+        SGCL_INLINE_HOT expected<void, io::error> serve(const net::listener& l) const {
             return async_serve(l).wait();
         }
 
-        async::task<expected<void, io::error>> async_serve(const net::listener& l) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_serve(const net::listener& l) const noexcept {
             return _co_serve(_impl, _settings(), l);
         }
 
@@ -447,11 +447,11 @@ namespace sgcl::net::http {
         // the active ones ending after their current response (which says
         // Connection: close); returns when all of them have. A limit on it
         // is `co_await async::with_timeout(s.async_shutdown(), 10s)`, then close().
-        void shutdown() const {
+        SGCL_INLINE_HOT void shutdown() const {
             async_shutdown().wait();
         }
 
-        async::task<> async_shutdown() const noexcept {
+        SGCL_INLINE_HOT async::task<> async_shutdown() const noexcept {
             return _co_shutdown(_impl);
         }
 
@@ -494,12 +494,12 @@ namespace sgcl::net::http {
         // batch per worker, DESIGN 283); a logger given is used as it is
         // (options::buffered in it for the batches). Read when serve() is called,
         // as the fields are
-        server& access_log(const slog::logger& log) noexcept {
+        SGCL_INLINE_HOT server& access_log(const slog::logger& log) noexcept {
             _access_log.emplace(log);
             return *this;
         }
 
-        server& access_log() {
+        SGCL_INLINE_HOT server& access_log() {
             _access_log.emplace(slog::detail::buffered_copy(slog::default_logger()));
             return *this;
         }

@@ -16,7 +16,7 @@ namespace sgcl::io {
         template<class Derived>
         class seeker {
         public:
-            expected<uint64_t, error> tell() noexcept(_nothrow_seek()) {
+            SGCL_INLINE_HOT expected<uint64_t, error> tell() noexcept(_nothrow_seek()) {
                 return _self().seek(0, seek_from::current);
             }
 
@@ -37,7 +37,7 @@ namespace sgcl::io {
                 return end;
             }
 
-            expected<void, error> rewind() noexcept(_nothrow_seek()) {
+            SGCL_INLINE_HOT expected<void, error> rewind() noexcept(_nothrow_seek()) {
                 auto r = _self().seek(0, seek_from::begin);
                 if (!r) {
                     return detail::fail(r);
@@ -51,11 +51,11 @@ namespace sgcl::io {
 
         private:
             // Whether Derived's seek cannot throw
-            static constexpr bool _nothrow_seek() noexcept {
+            SGCL_INLINE_HOT static constexpr bool _nothrow_seek() noexcept {
                 return noexcept(expected<uint64_t, error>(std::declval<Derived&>().seek(int64_t(0), seek_from::begin)));
             }
 
-            Derived& _self() noexcept {
+            SGCL_INLINE_HOT Derived& _self() noexcept {
                 return static_cast<Derived&>(*this);
             }
         };

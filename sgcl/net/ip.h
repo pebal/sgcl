@@ -71,7 +71,7 @@ namespace sgcl::net {
         // or bad_expected_access<io::error> with parse's message. Input
         // is parsed; a text the program itself wrote is constructed
         // (DESIGN 234).
-        explicit ip_address(const string& text)
+        SGCL_INLINE_HOT explicit ip_address(const string& text)
         : ip_address(parse(text).value()) {
         }
 
@@ -95,46 +95,46 @@ namespace sgcl::net {
             return r;
         }
 
-        static ip_address loopback_v4() noexcept {
+        SGCL_INLINE_HOT static ip_address loopback_v4() noexcept {
             return v4(127, 0, 0, 1);
         }
 
-        static ip_address loopback_v6() noexcept {
+        SGCL_INLINE_HOT static ip_address loopback_v6() noexcept {
             ip_address r;
             r._kind = Kind6;
             r._bytes[15] = 1;
             return r;
         }
 
-        static ip_address any_v4() noexcept {
+        SGCL_INLINE_HOT static ip_address any_v4() noexcept {
             return v4(0, 0, 0, 0);
         }
 
-        static ip_address any_v6() noexcept {
+        SGCL_INLINE_HOT static ip_address any_v6() noexcept {
             ip_address r;
             r._kind = Kind6;
             return r;
         }
 
-        bool is_valid() const noexcept {
+        SGCL_INLINE_HOT bool is_valid() const noexcept {
             return _kind != KindNone;
         }
 
-        bool is_v4() const noexcept {
+        SGCL_INLINE_HOT bool is_v4() const noexcept {
             return _kind == Kind4;
         }
 
-        bool is_v6() const noexcept {
+        SGCL_INLINE_HOT bool is_v6() const noexcept {
             return _kind == Kind6;
         }
 
         // ::ffff:a.b.c.d
-        bool is_v4_mapped() const noexcept {
+        SGCL_INLINE_HOT bool is_v4_mapped() const noexcept {
             return _kind == Kind6 && _mapped_prefix();
         }
 
         // The IPv4 address of an IPv4-mapped one; any other unchanged
-        ip_address unmap() const noexcept {
+        SGCL_INLINE_HOT ip_address unmap() const noexcept {
             if (!is_v4_mapped()) {
                 return *this;
             }
@@ -142,13 +142,13 @@ namespace sgcl::net {
         }
 
         // 127.0.0.0/8, ::1
-        bool is_loopback() const noexcept {
+        SGCL_INLINE_HOT bool is_loopback() const noexcept {
             auto a = unmap();
             return a.is_v4() ? a._bytes[12] == 127 : a.is_v6() && a._is_v6_value(0, 1);
         }
 
         // RFC 1918 (10/8, 172.16/12, 192.168/16) and RFC 4193 (fc00::/7)
-        bool is_private() const noexcept {
+        SGCL_INLINE_HOT bool is_private() const noexcept {
             auto a = unmap();
             if (a.is_v4()) {
                 uint8_t x = a._bytes[12], y = a._bytes[13];
@@ -158,18 +158,18 @@ namespace sgcl::net {
         }
 
         // 0.0.0.0, ::
-        bool is_unspecified() const noexcept {
+        SGCL_INLINE_HOT bool is_unspecified() const noexcept {
             return is_v4() ? _v4_word() == 0 : is_v6() && _is_v6_value(0, 0);
         }
 
         // 224.0.0.0/4, ff00::/8
-        bool is_multicast() const noexcept {
+        SGCL_INLINE_HOT bool is_multicast() const noexcept {
             auto a = unmap();
             return a.is_v4() ? (a._bytes[12] & 0xf0) == 0xe0 : a.is_v6() && a._bytes[0] == 0xff;
         }
 
         // Link-local unicast: 169.254.0.0/16, fe80::/10
-        bool is_link_local() const noexcept {
+        SGCL_INLINE_HOT bool is_link_local() const noexcept {
             auto a = unmap();
             if (a.is_v4()) {
                 return a._bytes[12] == 169 && a._bytes[13] == 254;
@@ -180,7 +180,7 @@ namespace sgcl::net {
         // Neither unspecified, nor loopback, multicast, link-local unicast,
         // nor the IPv4 broadcast address (a private address is global
         // unicast: the name is the RFC's, not a statement about routing)
-        bool is_global_unicast() const noexcept {
+        SGCL_INLINE_HOT bool is_global_unicast() const noexcept {
             auto a = unmap();
             if (!a.is_valid()) {
                 return false;
@@ -206,11 +206,11 @@ namespace sgcl::net {
         }
 
         // "en0" of "fe80::1%en0"; empty for an address without one
-        string zone() const noexcept {
+        SGCL_INLINE_HOT string zone() const noexcept {
             return string(std::string_view(_zone.data(), _zone_size()));
         }
 
-        bool has_zone() const noexcept {
+        SGCL_INLINE_HOT bool has_zone() const noexcept {
             return _zone[0] != 0;
         }
 
@@ -304,12 +304,12 @@ namespace sgcl::net {
             return _bytes[15] == last;
         }
 
-        uint32_t _v4_word() const noexcept {
+        SGCL_INLINE_HOT uint32_t _v4_word() const noexcept {
             return (uint32_t(_bytes[12]) << 24) | (uint32_t(_bytes[13]) << 16) | (uint32_t(_bytes[14]) << 8) | _bytes[15];
         }
 
         // 224.0.0.0/24, ff02::/16
-        bool _is_link_local_multicast() const noexcept {
+        SGCL_INLINE_HOT bool _is_link_local_multicast() const noexcept {
             if (is_v4()) {
                 return _bytes[12] == 224 && _bytes[13] == 0 && _bytes[14] == 0;
             }
@@ -361,7 +361,7 @@ namespace sgcl::net {
                 return i == s.size();
             }
 
-            static int hex_value(char c) noexcept {
+            SGCL_INLINE_HOT static int hex_value(char c) noexcept {
                 if (c >= '0' && c <= '9') {
                     return c - '0';
                 }
@@ -555,13 +555,13 @@ namespace sgcl::net {
                 return size_t(p - out);
             }
 
-            static std::string_view view(const string& s) noexcept {
+            SGCL_INLINE_HOT static std::string_view view(const string& s) noexcept {
                 return std::string_view(s.data(), s.size());
             }
         };
     }
 
-    inline expected<ip_address, io::error> ip_address::parse(const string& text) noexcept {
+    SGCL_INLINE_HOT expected<ip_address, io::error> ip_address::parse(const string& text) noexcept {
         if (auto a = detail::IpText::parse(detail::IpText::view(text))) {
             return *a;
         }
@@ -586,7 +586,7 @@ namespace sgcl::net {
         return n;
     }
 
-    inline string ip_address::to_string() const noexcept {
+    SGCL_INLINE_HOT string ip_address::to_string() const noexcept {
         char buf[MaxText];
         return string(std::string_view(buf, write_text(buf)));
     }
@@ -603,7 +603,7 @@ namespace sgcl::net {
         // bits in 0..32 for IPv4, 0..128 for IPv6, else
         // invalid_argument; the zone of the address dropped; the
         // empty address gives the empty network
-        ip_network(ip_address address, int bits)
+        SGCL_INLINE_HOT ip_network(ip_address address, int bits)
         : _address(address.is_v6() ? address.with_zone(string()) : address)
         , _bits(address.is_valid() ? int16_t(bits) : int16_t(-1)) {
             if (address.is_valid() && (bits < 0 || bits > (address.is_v4() ? 32 : 128))) {
@@ -617,25 +617,25 @@ namespace sgcl::net {
 
         // The network a literal spells: parse's value or its
         // bad_expected_access<io::error> (DESIGN 234)
-        explicit ip_network(const string& text)
+        SGCL_INLINE_HOT explicit ip_network(const string& text)
         : ip_network(parse(text).value()) {
         }
 
-        bool is_valid() const noexcept {
+        SGCL_INLINE_HOT bool is_valid() const noexcept {
             return _address.is_valid() && _bits >= 0;
         }
 
-        ip_address address() const noexcept {
+        SGCL_INLINE_HOT ip_address address() const noexcept {
             return _address;
         }
 
         // The length of the prefix, -1 for the empty network
-        int bits() const noexcept {
+        SGCL_INLINE_HOT int bits() const noexcept {
             return _bits;
         }
 
         // The same network with the bits past the prefix cleared
-        ip_network masked() const noexcept {
+        SGCL_INLINE_HOT ip_network masked() const noexcept {
             if (!is_valid()) {
                 return ip_network();
             }
@@ -647,7 +647,7 @@ namespace sgcl::net {
         // Whether the address lies in the network: the same kind (an
         // IPv4-mapped address is not in an IPv4 network), no zone, the
         // prefix equal
-        bool contains(const ip_address& a) const noexcept {
+        SGCL_INLINE_HOT bool contains(const ip_address& a) const noexcept {
             if (!is_valid() || !a.is_valid() || a.is_v4() != _address.is_v4() || a.has_zone()) {
                 return false;
             }
@@ -655,7 +655,7 @@ namespace sgcl::net {
         }
 
         // Whether the two networks have an address in common
-        bool overlaps(const ip_network& o) const noexcept {
+        SGCL_INLINE_HOT bool overlaps(const ip_network& o) const noexcept {
             if (!is_valid() || !o.is_valid() || _address.is_v4() != o._address.is_v4()) {
                 return false;
             }
@@ -663,7 +663,7 @@ namespace sgcl::net {
         }
 
         // "10.0.0.0/8"; "invalid Prefix" for the empty network (Go's text)
-        string to_string() const noexcept {
+        SGCL_INLINE_HOT string to_string() const noexcept {
             char buf[MaxText];
             return string(std::string_view(buf, write_text(buf)));
         }
@@ -744,7 +744,7 @@ namespace sgcl::net {
     public:
         endpoint() noexcept = default;   // empty: !is_valid()
 
-        endpoint(ip_address address, uint16_t port) noexcept
+        SGCL_INLINE_HOT endpoint(ip_address address, uint16_t port) noexcept
         : _address(address)
         , _port(port) {
         }
@@ -756,24 +756,24 @@ namespace sgcl::net {
 
         // The endpoint a literal spells: parse's value or its
         // bad_expected_access<io::error> (DESIGN 234)
-        explicit endpoint(const string& text)
+        SGCL_INLINE_HOT explicit endpoint(const string& text)
         : endpoint(parse(text).value()) {
         }
 
-        ip_address address() const noexcept {
+        SGCL_INLINE_HOT ip_address address() const noexcept {
             return _address;
         }
 
-        uint16_t port() const noexcept {
+        SGCL_INLINE_HOT uint16_t port() const noexcept {
             return _port;
         }
 
-        bool is_valid() const noexcept {
+        SGCL_INLINE_HOT bool is_valid() const noexcept {
             return _address.is_valid();
         }
 
         // "1.2.3.4:80", "[::1]:80"; "invalid AddrPort" for the empty one
-        string to_string() const noexcept {
+        SGCL_INLINE_HOT string to_string() const noexcept {
             char buf[MaxText];
             return string(std::string_view(buf, write_text(buf)));
         }
@@ -870,7 +870,7 @@ namespace sgcl::net {
         }
     }
 
-    inline expected<endpoint, io::error> endpoint::parse(const string& text) noexcept {
+    SGCL_INLINE_HOT expected<endpoint, io::error> endpoint::parse(const string& text) noexcept {
         if (auto e = detail::parse_endpoint(text)) {
             return *e;
         }
@@ -896,7 +896,7 @@ namespace sgcl::net {
 
 namespace sgcl::net {
     namespace detail { using namespace sgcl::detail; }
-    inline expected<ip_network, io::error> ip_network::parse(const string& text) noexcept {
+    SGCL_INLINE_HOT expected<ip_network, io::error> ip_network::parse(const string& text) noexcept {
         if (auto n = detail::parse_network(text)) {
             return *n;
         }
@@ -933,17 +933,17 @@ namespace sgcl::net {
     // txt::format and println: {} is to_string() ("fe80::1%en0",
     // "10.0.0.0/8", "[::1]:443"), in the field's width, fill and alignment
     // as a string's ({:>40}); written from the bytes, nothing allocated
-    inline void format_value(txt::format_sink& out, const ip_address& address, const txt::format_spec& spec) noexcept {
+    SGCL_INLINE_HOT void format_value(txt::format_sink& out, const ip_address& address, const txt::format_spec& spec) noexcept {
         char buf[ip_address::MaxText];
         txt::write_padded(out, std::string_view(buf, address.write_text(buf)), spec);
     }
 
-    inline void format_value(txt::format_sink& out, const ip_network& network, const txt::format_spec& spec) noexcept {
+    SGCL_INLINE_HOT void format_value(txt::format_sink& out, const ip_network& network, const txt::format_spec& spec) noexcept {
         char buf[ip_network::MaxText];
         txt::write_padded(out, std::string_view(buf, network.write_text(buf)), spec);
     }
 
-    inline void format_value(txt::format_sink& out, const endpoint& e, const txt::format_spec& spec) noexcept {
+    SGCL_INLINE_HOT void format_value(txt::format_sink& out, const endpoint& e, const txt::format_spec& spec) noexcept {
         char buf[endpoint::MaxText];
         txt::write_padded(out, std::string_view(buf, e.write_text(buf)), spec);
     }
@@ -954,33 +954,33 @@ namespace sgcl::net {
 // {:.3} are errors of the compiler); the writing is format_value's, above
 template<>
 struct sgcl::txt::formatter<sgcl::net::ip_address> {
-    static constexpr bool takes(char type) noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
         return !type;
     }
 
-    static constexpr bool takes_precision() noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
         return false;
     }
 };
 
 template<>
 struct sgcl::txt::formatter<sgcl::net::ip_network> {
-    static constexpr bool takes(char type) noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
         return !type;
     }
 
-    static constexpr bool takes_precision() noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
         return false;
     }
 };
 
 template<>
 struct sgcl::txt::formatter<sgcl::net::endpoint> {
-    static constexpr bool takes(char type) noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
         return !type;
     }
 
-    static constexpr bool takes_precision() noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
         return false;
     }
 };
@@ -1002,14 +1002,14 @@ struct std::hash<sgcl::net::ip_address> {
 
 template<>
 struct std::hash<sgcl::net::ip_network> {
-    size_t operator()(const sgcl::net::ip_network& n) const noexcept {
+    SGCL_INLINE_HOT size_t operator()(const sgcl::net::ip_network& n) const noexcept {
         return std::hash<sgcl::net::ip_address>()(n._address) ^ (size_t(uint16_t(n._bits)) * 0x9e3779b97f4a7c15ull);
     }
 };
 
 template<>
 struct std::hash<sgcl::net::endpoint> {
-    size_t operator()(const sgcl::net::endpoint& e) const noexcept {
+    SGCL_INLINE_HOT size_t operator()(const sgcl::net::endpoint& e) const noexcept {
         return std::hash<sgcl::net::ip_address>()(e.address()) ^ (size_t(e.port()) * 0xc2b2ae3d27d4eb4full);
     }
 };

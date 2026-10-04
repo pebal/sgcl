@@ -58,11 +58,11 @@ namespace sgcl::io::detail {
 #if defined(_WIN32)
         using Handle = win::Handle;
 
-        MappedRegion(void* base, size_t mapped, byte* data, size_t size, Handle file, Handle section, bool writable, bool shared, const string& name) noexcept
+        SGCL_INLINE_HOT MappedRegion(void* base, size_t mapped, byte* data, size_t size, Handle file, Handle section, bool writable, bool shared, const string& name) noexcept
         : _base(base), _mapped(mapped), _data(data), _size(size), _file(file), _section(section), _writable(writable), _shared(shared), _name(name) {
         }
 #else
-        MappedRegion(void* base, size_t mapped, byte* data, size_t size, int fd, bool writable, bool shared, const string& name) noexcept
+        SGCL_INLINE_HOT MappedRegion(void* base, size_t mapped, byte* data, size_t size, int fd, bool writable, bool shared, const string& name) noexcept
         : _base(base), _mapped(mapped), _data(data), _size(size), _fd(fd), _writable(writable), _shared(shared), _name(name) {
         }
 #endif
@@ -70,7 +70,7 @@ namespace sgcl::io::detail {
         MappedRegion(const MappedRegion&) = delete;
         MappedRegion& operator=(const MappedRegion&) = delete;
 
-        ~MappedRegion() {
+        SGCL_INLINE_HOT ~MappedRegion() {
 #if defined(_WIN32)
             if (_base) {
                 win::UnmapViewOfFile(_base);
@@ -89,19 +89,19 @@ namespace sgcl::io::detail {
         }
 
         // The range handed out, [begin, begin + size); nothing once closed
-        byte* begin() const noexcept {
+        SGCL_INLINE_HOT byte* begin() const noexcept {
             return _closed.load(std::memory_order_acquire) ? nullptr : _data;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _closed.load(std::memory_order_acquire) ? 0 : _size;
         }
 
-        bool writable() const noexcept {
+        SGCL_INLINE_HOT bool writable() const noexcept {
             return _writable;
         }
 
-        bool closed() const noexcept {
+        SGCL_INLINE_HOT bool closed() const noexcept {
             return _closed.load(std::memory_order_acquire);
         }
 
@@ -159,7 +159,7 @@ namespace sgcl::io::detail {
 
     private:
 #if defined(_WIN32)
-        void _close_handles() noexcept {
+        SGCL_INLINE_HOT void _close_handles() noexcept {
             if (_section) {
                 win::CloseHandle(_section);
             }

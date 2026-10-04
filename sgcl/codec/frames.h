@@ -53,23 +53,23 @@ namespace sgcl::codec {
     public:
         // The next frame; nullopt after the last; an error of the data
         // where it is found (and again on every call after)
-        expected<optional<frame>, error> next() {
+        SGCL_INLINE_HOT expected<optional<frame>, error> next() {
             return _s->next();
         }
 
         // The canvas
-        uint32_t width() const noexcept {
+        SGCL_INLINE_HOT uint32_t width() const noexcept {
             return _s->width;
         }
 
-        uint32_t height() const noexcept {
+        SGCL_INLINE_HOT uint32_t height() const noexcept {
             return _s->height;
         }
 
         // How many times the animation plays: 0 forever, 1 once (a file
         // that says nothing). Known once the file's loop extension is read,
         // which is before the first frame in the files that have one.
-        uint32_t loop_count() const noexcept {
+        SGCL_INLINE_HOT uint32_t loop_count() const noexcept {
             return _s->plays;
         }
 
@@ -77,19 +77,19 @@ namespace sgcl::codec {
         friend struct detail::FramesAccess;
         friend struct sgcl::detail::HandleWord;
 
-        explicit frames(const tracked_ptr<detail::FramesState>& s) noexcept
+        SGCL_INLINE_HOT explicit frames(const tracked_ptr<detail::FramesState>& s) noexcept
         : _s(s) {
         }
 
-        frames(sgcl::detail::FromWord, const tracked_ptr<detail::FramesState>& w) noexcept
+        SGCL_INLINE_HOT frames(sgcl::detail::FromWord, const tracked_ptr<detail::FramesState>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<detail::FramesState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::FramesState>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<detail::FramesState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::FramesState>& _handle_word() const noexcept {
             return _s;
         }
 
@@ -97,7 +97,7 @@ namespace sgcl::codec {
     };
 
     namespace detail {
-        inline frames FramesAccess::make(const tracked_ptr<FramesState>& s) noexcept {
+        SGCL_INLINE_HOT frames FramesAccess::make(const tracked_ptr<FramesState>& s) noexcept {
             return frames(s);
         }
     }

@@ -60,12 +60,12 @@ namespace sgcl::net {
         query_params& operator=(const query_params&) = default;
 
         // A list moved from is empty, the length of its writing with it
-        query_params(query_params&& other) noexcept
+        SGCL_INLINE_HOT query_params(query_params&& other) noexcept
         : _pairs(std::move(other._pairs))
         , _size(std::exchange(other._size, 0)) {
         }
 
-        query_params& operator=(query_params&& other) noexcept {
+        SGCL_INLINE_HOT query_params& operator=(query_params&& other) noexcept {
             if (this != &other) {
                 _pairs = std::move(other._pairs);
                 _size = std::exchange(other._size, 0);
@@ -89,7 +89,7 @@ namespace sgcl::net {
         // The same for a literal in the program (DESIGN 234): parse's
         // value, or bad_expected_access<io::error> with parse's message;
         // parse stays for text from outside
-        explicit query_params(const string& text)
+        SGCL_INLINE_HOT explicit query_params(const string& text)
         : query_params(parse(text).value()) {
         }
 
@@ -136,20 +136,20 @@ namespace sgcl::net {
         // Every pair of the name
         query_params& erase(const string& name) noexcept;
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _pairs.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _pairs.empty();
         }
 
         // The pairs, (name, value), in their order
-        auto begin() const noexcept {
+        SGCL_INLINE_HOT auto begin() const noexcept {
             return _pairs.begin();
         }
 
-        auto end() const noexcept {
+        SGCL_INLINE_HOT auto end() const noexcept {
             return _pairs.end();
         }
 
@@ -238,20 +238,20 @@ namespace sgcl::net {
             bool has_fragment = false;
             std::string fragment;
 
-            bool includes_credentials() const noexcept {
+            SGCL_INLINE_HOT bool includes_credentials() const noexcept {
                 return !username.empty() || !password.empty();
             }
 
             // "cannot have a username/password/port"
-            bool cannot_have_credentials() const noexcept {
+            SGCL_INLINE_HOT bool cannot_have_credentials() const noexcept {
                 return host_kind == HostKind::none || host_kind == HostKind::empty || scheme == "file";
             }
 
-            size_t segments() const noexcept {
+            SGCL_INLINE_HOT size_t segments() const noexcept {
                 return size_t(std::count(path.begin(), path.end(), '/'));
             }
 
-            std::string_view first_segment() const noexcept {
+            SGCL_INLINE_HOT std::string_view first_segment() const noexcept {
                 std::string_view p(path);
                 if (p.empty()) {
                     return p;
@@ -285,14 +285,14 @@ namespace sgcl::net {
             too_long
         };
 
-        inline bool url_special(std::string_view scheme) noexcept {
+        SGCL_INLINE_HOT bool url_special(std::string_view scheme) noexcept {
             return scheme == "http" || scheme == "https" || scheme == "ws" || scheme == "wss"
                 || scheme == "ftp" || scheme == "file";
         }
 
         // The default port of a special scheme, -1 for none (file, and
         // every scheme that is not special)
-        inline int32_t url_default_port(std::string_view scheme) noexcept {
+        SGCL_INLINE_HOT int32_t url_default_port(std::string_view scheme) noexcept {
             if (scheme == "http" || scheme == "ws") {
                 return 80;
             }
@@ -305,15 +305,15 @@ namespace sgcl::net {
             return -1;
         }
 
-        inline bool url_alpha(int c) noexcept {
+        SGCL_INLINE_HOT bool url_alpha(int c) noexcept {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
         }
 
-        inline bool url_digit(int c) noexcept {
+        SGCL_INLINE_HOT bool url_digit(int c) noexcept {
             return c >= '0' && c <= '9';
         }
 
-        inline int url_hex(int c) noexcept {
+        SGCL_INLINE_HOT int url_hex(int c) noexcept {
             if (c >= '0' && c <= '9') {
                 return c - '0';
             }
@@ -326,7 +326,7 @@ namespace sgcl::net {
             return -1;
         }
 
-        inline char url_lower(int c) noexcept {
+        SGCL_INLINE_HOT char url_lower(int c) noexcept {
             return char(c >= 'A' && c <= 'Z' ? c + 32 : c);
         }
 
@@ -428,15 +428,15 @@ namespace sgcl::net {
         }
 
         // A Windows drive letter: "c:" or "c|"; normalized: "c:"
-        inline bool url_drive_letter(std::string_view s) noexcept {
+        SGCL_INLINE_HOT bool url_drive_letter(std::string_view s) noexcept {
             return s.size() == 2 && url_alpha(uint8_t(s[0])) && (s[1] == ':' || s[1] == '|');
         }
 
-        inline bool url_normalized_drive_letter(std::string_view s) noexcept {
+        SGCL_INLINE_HOT bool url_normalized_drive_letter(std::string_view s) noexcept {
             return s.size() == 2 && url_alpha(uint8_t(s[0])) && s[1] == ':';
         }
 
-        inline bool url_starts_with_drive_letter(std::string_view s) noexcept {
+        SGCL_INLINE_HOT bool url_starts_with_drive_letter(std::string_view s) noexcept {
             if (s.size() < 2 || !url_drive_letter(s.substr(0, 2))) {
                 return false;
             }
@@ -455,11 +455,11 @@ namespace sgcl::net {
             return true;
         }
 
-        inline bool url_single_dot(std::string_view s) noexcept {
+        SGCL_INLINE_HOT bool url_single_dot(std::string_view s) noexcept {
             return s == "." || url_ascii_iequal(s, "%2e");
         }
 
-        inline bool url_double_dot(std::string_view s) noexcept {
+        SGCL_INLINE_HOT bool url_double_dot(std::string_view s) noexcept {
             return s == ".." || url_ascii_iequal(s, ".%2e") || url_ascii_iequal(s, "%2e.")
                 || url_ascii_iequal(s, "%2e%2e");
         }
@@ -547,11 +547,11 @@ namespace sgcl::net {
 
         inline constexpr UrlBytes url_bytes{};
 
-        inline bool url_forbidden_host(uint8_t c) noexcept {
+        SGCL_INLINE_HOT bool url_forbidden_host(uint8_t c) noexcept {
             return url_forbidden.host[c];
         }
 
-        inline bool url_forbidden_domain(uint8_t c) noexcept {
+        SGCL_INLINE_HOT bool url_forbidden_domain(uint8_t c) noexcept {
             return url_forbidden.domain[c];
         }
 
@@ -662,7 +662,7 @@ namespace sgcl::net {
             return out;
         }
 
-        inline void url_write_ipv4(uint32_t v, std::string& out) noexcept {
+        SGCL_INLINE_HOT void url_write_ipv4(uint32_t v, std::string& out) noexcept {
             char text[16];
             out.append(text, url_write_ipv4(v, text));
         }
@@ -828,7 +828,7 @@ namespace sgcl::net {
             return out;
         }
 
-        inline void url_write_ipv6(const uint16_t (&address)[8], std::string& out) noexcept {
+        SGCL_INLINE_HOT void url_write_ipv6(const uint16_t (&address)[8], std::string& out) noexcept {
             char text[48];
             out.append(text, url_write_ipv6(address, text));
         }
@@ -924,7 +924,7 @@ namespace sgcl::net {
         // walking the bytes is walking the code points
         class UrlParser {
         public:
-            UrlParser(std::string_view input, const UrlRecord* base, UrlRecord& url) noexcept
+            SGCL_INLINE_HOT UrlParser(std::string_view input, const UrlRecord* base, UrlRecord& url) noexcept
             : _in(input), _base(base), _url(url) {
             }
 
@@ -1403,7 +1403,7 @@ namespace sgcl::net {
                 return ptrdiff_t(q) - 1;
             }
 
-            void _take_authority(const UrlRecord& from) noexcept {
+            SGCL_INLINE_HOT void _take_authority(const UrlRecord& from) noexcept {
                 _url.username = from.username;
                 _url.password = from.password;
                 _url.host = from.host;
@@ -1411,19 +1411,19 @@ namespace sgcl::net {
                 _url.port = from.port;
             }
 
-            void _begin_query() noexcept {
+            SGCL_INLINE_HOT void _begin_query() noexcept {
                 _url.has_query = true;
                 _url.query.clear();
             }
 
-            void _begin_fragment() noexcept {
+            SGCL_INLINE_HOT void _begin_fragment() noexcept {
                 _url.has_fragment = true;
                 _url.fragment.clear();
             }
 
             // "Shorten url's path": the last segment goes, unless the path is
             // a file URL's drive letter alone
-            void _shorten() noexcept {
+            SGCL_INLINE_HOT void _shorten() noexcept {
                 if (_url.scheme == "file" && _url.segments() == 1 && url_normalized_drive_letter(_url.first_segment())) {
                     return;
                 }
@@ -1490,7 +1490,7 @@ namespace sgcl::net {
 
         // url_input, or nullopt for a text past UrlMaxSize as the parser
         // reads it
-        inline optional<std::string_view> url_bounded_input(std::string_view s, bool trim, std::string& storage) noexcept {
+        SGCL_INLINE_HOT optional<std::string_view> url_bounded_input(std::string_view s, bool trim, std::string& storage) noexcept {
             auto input = url_input(s, trim, storage);
             if (input.size() > UrlMaxSize) {
                 return nullopt;
@@ -1613,7 +1613,7 @@ namespace sgcl::net {
         // A URL: "https://user@example.com:8443/a/b?q=1#top"; for anything
         // else, a relative reference among it, net::errc::invalid_url, and
         // for a text past 512 MiB or a URL that would be (UrlMaxSize)
-        static expected<url, io::error> parse(const string& text) noexcept {
+        SGCL_INLINE_HOT static expected<url, io::error> parse(const string& text) noexcept {
             return _parsed(_parse(text, nullptr), text);
         }
 
@@ -1622,32 +1622,32 @@ namespace sgcl::net {
         // parsed; a text the program itself wrote is constructed
         // (DESIGN 234). A reference relative to a base: the constructor
         // below.
-        explicit url(const string& text)
+        SGCL_INLINE_HOT explicit url(const string& text)
         : url(parse(text).value()) {
         }
 
         // A URL or a reference relative to base: "../c", "?q=2", "//host/x"
-        static expected<url, io::error> parse(const string& text, const url& base) noexcept {
+        SGCL_INLINE_HOT static expected<url, io::error> parse(const string& text, const url& base) noexcept {
             auto b = base._record();
             return _parsed(_parse(text, &b), text);
         }
 
         // The same for a literal: parse(text, base)'s value, or its error
         // thrown, as above
-        explicit url(const string& text, const url& base)
+        SGCL_INLINE_HOT explicit url(const string& text, const url& base)
         : url(parse(text, base).value()) {
         }
 
         // "https", without the ':'
-        string scheme() const noexcept {
+        SGCL_INLINE_HOT string scheme() const noexcept {
             return _part(0, _scheme_end);
         }
 
-        string username() const noexcept {
+        SGCL_INLINE_HOT string username() const noexcept {
             return _part(_username_begin(), _username_end);
         }
 
-        string password() const noexcept {
+        SGCL_INLINE_HOT string password() const noexcept {
             return _password_end > _username_end ? _part(_username_end + 1, _password_end) : string();
         }
 
@@ -1655,7 +1655,7 @@ namespace sgcl::net {
         // Go's URL.Host have it: "example.com:8443", "[::1]:8080",
         // "xn--bcher-kva.de", "10.0.0.1"; "" when there is none (and for
         // the empty host of "file:///x"). The name alone is hostname()
-        string host() const noexcept {
+        SGCL_INLINE_HOT string host() const noexcept {
             if (_port < 0) {
                 return _part(_host_begin, _host_end);
             }
@@ -1664,20 +1664,20 @@ namespace sgcl::net {
 
         // The host without the port, and without the brackets of an IPv6
         // address, as Go's Hostname(): "example.com", "::1"
-        string hostname() const noexcept {
+        SGCL_INLINE_HOT string hostname() const noexcept {
             if (_host_kind == detail::HostKind::ipv6) {
                 return _part(_host_begin + 1, _host_end - 1);
             }
             return _part(_host_begin, _host_end);
         }
 
-        bool has_host() const noexcept {
+        SGCL_INLINE_HOT bool has_host() const noexcept {
             return _host_kind != detail::HostKind::none;
         }
 
         // The host when it is an IP address; nullopt for a name, and for
         // the opaque host of a scheme that is not special
-        optional<ip_address> host_address() const noexcept {
+        SGCL_INLINE_HOT optional<ip_address> host_address() const noexcept {
             if (_host_kind != detail::HostKind::ipv4 && _host_kind != detail::HostKind::ipv6) {
                 return nullopt;
             }
@@ -1686,7 +1686,7 @@ namespace sgcl::net {
 
         // The port written; nullopt when none was, and when the one
         // written is the scheme's default ("http://x:80/" has none)
-        optional<uint16_t> port() const noexcept {
+        SGCL_INLINE_HOT optional<uint16_t> port() const noexcept {
             if (_port < 0) {
                 return nullopt;
             }
@@ -1695,7 +1695,7 @@ namespace sgcl::net {
 
         // The port, or the scheme's default: 80 for http and ws, 443 for
         // https and wss, 21 for ftp; 0 for a scheme without one
-        uint16_t effective_port() const noexcept {
+        SGCL_INLINE_HOT uint16_t effective_port() const noexcept {
             if (_port >= 0) {
                 return uint16_t(_port);
             }
@@ -1705,36 +1705,36 @@ namespace sgcl::net {
 
         // "/a/b%20c", escaped; the whole of what follows the ':' for a URL
         // without a hierarchical path ("mailto:x@example.com": "x@example.com")
-        string path() const noexcept {
+        SGCL_INLINE_HOT string path() const noexcept {
             return _part(_path_begin, _path_end());
         }
 
         // The query without its '?', escaped; "" when there is none
-        string query() const noexcept {
+        SGCL_INLINE_HOT string query() const noexcept {
             return has_query() ? _part(_query_begin + 1, _fragment_begin == Npos ? _href.size() : _fragment_begin) : string();
         }
 
         // The fragment without its '#'; "" when there is none
-        string fragment() const noexcept {
+        SGCL_INLINE_HOT string fragment() const noexcept {
             return has_fragment() ? _part(_fragment_begin + 1, _href.size()) : string();
         }
 
-        bool has_query() const noexcept {
+        SGCL_INLINE_HOT bool has_query() const noexcept {
             return _query_begin != Npos;
         }
 
-        bool has_fragment() const noexcept {
+        SGCL_INLINE_HOT bool has_fragment() const noexcept {
             return _fragment_begin != Npos;
         }
 
         // A URL without a hierarchical path: "mailto:x", "data:,x"
-        bool has_opaque_path() const noexcept {
+        SGCL_INLINE_HOT bool has_opaque_path() const noexcept {
             return _opaque_path;
         }
 
         // A scheme the standard gives a meaning of its own: http, https,
         // ws, wss, ftp, file
-        bool is_special() const noexcept {
+        SGCL_INLINE_HOT bool is_special() const noexcept {
             return detail::url_special(_href.view().substr(0, _scheme_end));
         }
 
@@ -1745,14 +1745,14 @@ namespace sgcl::net {
 
         // What goes into the request line of HTTP: the path, and "?" and
         // the query when there is one
-        string request_target() const noexcept {
+        SGCL_INLINE_HOT string request_target() const noexcept {
             return _part(_path_begin, has_fragment() ? _fragment_begin : _href.size());
         }
 
         // The query's pairs (application/x-www-form-urlencoded). Never
         // refused: the query is within the limit, and its pairs, written,
         // at most three times it (query_params)
-        net::query_params query_params() const noexcept {
+        SGCL_INLINE_HOT net::query_params query_params() const noexcept {
             if (!has_query()) {
                 return net::query_params();
             }
@@ -1761,7 +1761,7 @@ namespace sgcl::net {
         }
 
         // The reference resolved against this URL: parse(reference, *this)
-        expected<url, io::error> resolve(const string& reference) const noexcept {
+        SGCL_INLINE_HOT expected<url, io::error> resolve(const string& reference) const noexcept {
             return parse(reference, *this);
         }
 
@@ -1793,15 +1793,15 @@ namespace sgcl::net {
         url without_fragment() const noexcept;
 
         // The serialization, href
-        string to_string() const noexcept {
+        SGCL_INLINE_HOT string to_string() const noexcept {
             return _href;
         }
 
-        friend bool operator==(const url& a, const url& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const url& a, const url& b) noexcept {
             return a._href == b._href;
         }
 
-        friend std::strong_ordering operator<=>(const url& a, const url& b) noexcept {
+        SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const url& a, const url& b) noexcept {
             return a._href.view() <=> b._href.view();
         }
 
@@ -1812,7 +1812,7 @@ namespace sgcl::net {
 
         url() noexcept = default;
 
-        static expected<url, io::error> _parsed(optional<url>&& u, const string& text) noexcept {
+        SGCL_INLINE_HOT static expected<url, io::error> _parsed(optional<url>&& u, const string& text) noexcept {
             if (u) {
                 return std::move(*u);
             }
@@ -1845,21 +1845,21 @@ namespace sgcl::net {
 
         static detail::UrlOnePass _parse_common(std::string_view in, url& u) noexcept;
 
-        string _part(size_t from, size_t to) const noexcept {
+        SGCL_INLINE_HOT string _part(size_t from, size_t to) const noexcept {
             return to > from ? string(_href.view().substr(from, to - from)) : string();
         }
 
-        uint32_t _username_begin() const noexcept {
+        SGCL_INLINE_HOT uint32_t _username_begin() const noexcept {
             return _host_kind == detail::HostKind::none ? _username_end : _scheme_end + 3;
         }
 
-        uint32_t _path_end() const noexcept {
+        SGCL_INLINE_HOT uint32_t _path_end() const noexcept {
             return has_query() ? _query_begin : has_fragment() ? _fragment_begin : uint32_t(_href.size());
         }
 
         // The serializer (§4.5), and where each part landed; nullopt for
         // a URL past UrlMaxSize
-        static optional<url> _from(const detail::UrlRecord& r) noexcept {
+        SGCL_INLINE_HOT static optional<url> _from(const detail::UrlRecord& r) noexcept {
             char port[8];
             size_t port_size;
             const size_t size = _measure(r, port, port_size);
@@ -1871,7 +1871,7 @@ namespace sgcl::net {
 
         // The same without the limit, for without_fragment, which never
         // makes a URL longer
-        static url _from_any(const detail::UrlRecord& r) noexcept {
+        SGCL_INLINE_HOT static url _from_any(const detail::UrlRecord& r) noexcept {
             char port[8];
             size_t port_size;
             const size_t size = _measure(r, port, port_size);
@@ -1899,7 +1899,7 @@ namespace sgcl::net {
 
         // A path without a host whose first segment is empty is written
         // after "/.", so that it does not read as a host
-        static bool _dot(const detail::UrlRecord& r) noexcept {
+        SGCL_INLINE_HOT static bool _dot(const detail::UrlRecord& r) noexcept {
             return r.host_kind == detail::HostKind::none && !r.opaque_path && r.segments() > 1 && r.first_segment().empty();
         }
 
@@ -2019,18 +2019,18 @@ namespace sgcl::net {
             // The host as the URL writes it, the brackets of an IPv6
             // address kept and no port: "[::1]" (WHATWG's hostname), what
             // a dial address and an origin put the port after
-            static string host_as_written(const url& u) noexcept {
+            SGCL_INLINE_HOT static string host_as_written(const url& u) noexcept {
                 return u._part(u._host_begin, u._host_end);
             }
 
             // The parser alone, and the one-pass path alone (nullopt where
             // it leaves the text to the parser): for the test that holds
             // the second to the first's answers
-            static optional<url> parse_by_parser(const string& text) {
+            SGCL_INLINE_HOT static optional<url> parse_by_parser(const string& text) {
                 return url::_parse(text, nullptr, false);
             }
 
-            static optional<url> parse_in_one_pass(const string& text) {
+            SGCL_INLINE_HOT static optional<url> parse_in_one_pass(const string& text) {
                 std::string storage;
                 auto input = url_input(text.view(), true, storage);
                 if (url u; url::_parse_common(input, u) == UrlOnePass::done) {
@@ -2039,34 +2039,34 @@ namespace sgcl::net {
                 return nullopt;
             }
 
-            static UrlRecord record(const url& u) noexcept {
+            SGCL_INLINE_HOT static UrlRecord record(const url& u) noexcept {
                 return u._record();
             }
 
-            static optional<url> make(const UrlRecord& r) noexcept {
+            SGCL_INLINE_HOT static optional<url> make(const UrlRecord& r) noexcept {
                 return url::_from(r);
             }
 
             // The length query_params tracks, for the tests that hold it
             // to its writing
-            static size_t written_size(const query_params& q) noexcept {
+            SGCL_INLINE_HOT static size_t written_size(const query_params& q) noexcept {
                 return q._size;
             }
 
             // query_params::first of a URL's query, within the limit
             // (http::request::query)
-            static string query_first(const url& u, const string& name) noexcept {
+            SGCL_INLINE_HOT static string query_first(const url& u, const string& name) noexcept {
                 const uint32_t end = u._fragment_begin == url::Npos ? uint32_t(u._href.size()) : u._fragment_begin;
                 return query_params::_first(u._href.view().substr(u._query_begin + 1, end - u._query_begin - 1), name.view());
             }
 
-            static UrlSetResult unchanged(const url& u) noexcept {
+            SGCL_INLINE_HOT static UrlSetResult unchanged(const url& u) noexcept {
                 return {u, false};
             }
 
             // The URL of the record, whether the value was taken; the URL
             // as it was, refused, past UrlMaxSize
-            static UrlSetResult made(const url& u, const UrlRecord& r, bool applied) noexcept {
+            SGCL_INLINE_HOT static UrlSetResult made(const url& u, const UrlRecord& r, bool applied) noexcept {
                 char port[8];
                 size_t port_size;
                 const size_t size = url::_measure(r, port, port_size);
@@ -2089,7 +2089,7 @@ namespace sgcl::net {
                 return made(u, r, step == UrlStep::ok);
             }
 
-            static UrlSetResult protocol(const url& u, const string& value) noexcept {
+            SGCL_INLINE_HOT static UrlSetResult protocol(const url& u, const string& value) noexcept {
                 if (value.size() > UrlMaxSize) {
                     return unchanged(u);
                 }
@@ -2110,14 +2110,14 @@ namespace sgcl::net {
                 return made(u, r, true);
             }
 
-            static UrlSetResult host(const url& u, const string& value, bool hostname) noexcept {
+            SGCL_INLINE_HOT static UrlSetResult host(const url& u, const string& value, bool hostname) noexcept {
                 if (u.has_opaque_path()) {
                     return unchanged(u);
                 }
                 return run(u, value, hostname ? UrlState::hostname : UrlState::host);
             }
 
-            static UrlSetResult port(const url& u, const string& value) noexcept {
+            SGCL_INLINE_HOT static UrlSetResult port(const url& u, const string& value) noexcept {
                 auto r = u._record();
                 if (r.cannot_have_credentials()) {
                     return unchanged(u);
@@ -2195,7 +2195,7 @@ namespace sgcl::net {
 
         // A setter's result: the new URL, or invalid_url with what was
         // asked, where the standard leaves the URL as it was
-        inline expected<url, io::error> url_applied(const UrlSetResult& r, const char* op, const string& value) noexcept {
+        SGCL_INLINE_HOT expected<url, io::error> url_applied(const UrlSetResult& r, const char* op, const string& value) noexcept {
             if (!r.applied) {
                 return unexpected(net_error(errc::invalid_url, op, value));
             }
@@ -2460,35 +2460,35 @@ namespace sgcl::net {
         return UrlOnePass::done;
     }
 
-    inline expected<url, io::error> url::with_scheme(const string& scheme) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_scheme(const string& scheme) const noexcept {
         return detail::url_applied(detail::UrlAccess::protocol(*this, scheme), "set URL scheme", scheme);
     }
 
-    inline expected<url, io::error> url::with_username(const string& username) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_username(const string& username) const noexcept {
         return detail::url_applied(detail::UrlAccess::username(*this, username, false), "set URL username", username);
     }
 
-    inline expected<url, io::error> url::with_password(const string& password) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_password(const string& password) const noexcept {
         return detail::url_applied(detail::UrlAccess::username(*this, password, true), "set URL password", string());
     }
 
-    inline expected<url, io::error> url::with_host(const string& host) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_host(const string& host) const noexcept {
         return detail::url_applied(detail::UrlAccess::host(*this, host, false), "set URL host", host);
     }
 
-    inline expected<url, io::error> url::with_hostname(const string& hostname) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_hostname(const string& hostname) const noexcept {
         return detail::url_applied(detail::UrlAccess::host(*this, hostname, true), "set URL hostname", hostname);
     }
 
-    inline expected<url, io::error> url::with_port(optional<uint16_t> port) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_port(optional<uint16_t> port) const noexcept {
         return detail::url_applied(detail::UrlAccess::port(*this, port ? string(std::to_string(*port)) : string()), "set URL port", port ? string(std::to_string(*port)) : string());
     }
 
-    inline expected<url, io::error> url::with_path(const string& path) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_path(const string& path) const noexcept {
         return detail::url_applied(detail::UrlAccess::pathname(*this, path), "set URL path", path);
     }
 
-    inline expected<url, io::error> url::with_query(const string& query) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_query(const string& query) const noexcept {
         return detail::url_applied(detail::UrlAccess::search(*this, query), "set URL query", query);
     }
 
@@ -2506,11 +2506,11 @@ namespace sgcl::net {
         return detail::url_applied(detail::UrlAccess::made(*this, r, true), "set URL query", s);
     }
 
-    inline expected<url, io::error> url::with_fragment(const string& fragment) const noexcept {
+    SGCL_INLINE_HOT expected<url, io::error> url::with_fragment(const string& fragment) const noexcept {
         return detail::url_applied(detail::UrlAccess::hash(*this, fragment), "set URL fragment", fragment);
     }
 
-    inline url url::without_fragment() const noexcept {
+    SGCL_INLINE_HOT url url::without_fragment() const noexcept {
         auto r = _record();
         r.has_fragment = false;
         r.fragment.clear();
@@ -2573,7 +2573,7 @@ namespace sgcl::net {
         }
     }
 
-    inline expected<query_params, io::error> query_params::parse(const string& text) noexcept {
+    SGCL_INLINE_HOT expected<query_params, io::error> query_params::parse(const string& text) noexcept {
         if (text.size() > detail::UrlMaxSize) {
             return unexpected(detail::net_error(errc::invalid_url, "parse query", text));
         }
@@ -2615,7 +2615,7 @@ namespace sgcl::net {
         return out;
     }
 
-    inline expected<string, io::error> query_params::first(const string& text, const string& name) noexcept {
+    SGCL_INLINE_HOT expected<string, io::error> query_params::first(const string& text, const string& name) noexcept {
         if (text.size() > detail::UrlMaxSize) {
             return unexpected(detail::net_error(errc::invalid_url, "parse query", text));
         }
@@ -2666,7 +2666,7 @@ namespace sgcl::net {
         return string();
     }
 
-    inline expected<void, io::error> query_params::add(const string& name, const string& value) noexcept {
+    SGCL_INLINE_HOT expected<void, io::error> query_params::add(const string& name, const string& value) noexcept {
         const size_t size = _size + (_pairs.empty() ? 0 : 1) + detail::url_form_size(name.view()) + 1 + detail::url_form_size(value.view());
         if (size > detail::UrlMaxSize) {
             return unexpected(detail::net_error(errc::invalid_url, "add query pair", name));
@@ -2747,7 +2747,7 @@ namespace sgcl::net {
     // txt::format and println: {} is to_string(), the URL as the standard
     // serializes it, in the field's width, fill and alignment as a
     // string's; nothing allocated
-    inline void format_value(txt::format_sink& out, const url& u, const txt::format_spec& spec) noexcept {
+    SGCL_INLINE_HOT void format_value(txt::format_sink& out, const url& u, const txt::format_spec& spec) noexcept {
         txt::write_padded(out, u.to_string().view(), spec);
     }
 }
@@ -2757,18 +2757,18 @@ namespace sgcl::net {
 // format_value's, above
 template<>
 struct sgcl::txt::formatter<sgcl::net::url> {
-    static constexpr bool takes(char type) noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
         return !type;
     }
 
-    static constexpr bool takes_precision() noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
         return false;
     }
 };
 
 template<>
 struct std::hash<sgcl::net::url> {
-    size_t operator()(const sgcl::net::url& u) const noexcept {
+    SGCL_INLINE_HOT size_t operator()(const sgcl::net::url& u) const noexcept {
         return std::hash<sgcl::string>()(u._href);
     }
 };

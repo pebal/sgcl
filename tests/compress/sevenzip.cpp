@@ -13,6 +13,7 @@
 // tools the tests are skipped. Files go in a directory of their own under
 // the system's temporary directory, removed when the test ends.
 #include "common.h"
+#include "tests/source_root.h"
 
 #include <sys/stat.h>
 
@@ -31,7 +32,7 @@ namespace fs = std::filesystem;
 
 namespace {
     std::string repo_text(size_t limit) {
-        auto root = fs::path(__FILE__).parent_path().parent_path().parent_path() / "sgcl";
+        auto root = source_root() / "sgcl";
         std::vector<fs::path> files;
         for (auto& e : fs::recursive_directory_iterator(root)) {
             if (e.path().extension() == ".h") {

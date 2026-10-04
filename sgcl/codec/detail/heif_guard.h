@@ -49,7 +49,7 @@ namespace sgcl::codec::detail {
         return v;
     }
 
-    constexpr uint32_t heif_fourcc(const char (&s)[5]) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t heif_fourcc(const char (&s)[5]) noexcept {
         return uint32_t(uint8_t(s[0])) << 24 | uint32_t(uint8_t(s[1])) << 16 | uint32_t(uint8_t(s[2])) << 8 | uint8_t(s[3]);
     }
 
@@ -65,7 +65,7 @@ namespace sgcl::codec::detail {
     // does not fit (a size below its header or past the parent)
     class HeifBoxes {
     public:
-        HeifBoxes(const uint8_t* p, size_t at, size_t end) noexcept
+        SGCL_INLINE_HOT HeifBoxes(const uint8_t* p, size_t at, size_t end) noexcept
         : _p(p), _at(at), _end(end) {
         }
 
@@ -105,7 +105,7 @@ namespace sgcl::codec::detail {
     // of the next byte in the NAL unit itself, prevention bytes counted
     class HevcBits {
     public:
-        HevcBits(const uint8_t* nal, size_t size) noexcept
+        SGCL_INLINE_HOT HevcBits(const uint8_t* nal, size_t size) noexcept
         : _p(nal), _n(size), _at(size < 2 ? size : 2) {
         }
 
@@ -148,19 +148,19 @@ namespace sgcl::codec::detail {
             return uint32_t((uint64_t(1) << zeros) - 1 + bits(zeros));
         }
 
-        int32_t se() noexcept {
+        SGCL_INLINE_HOT int32_t se() noexcept {
             const uint32_t k = ue();
             return k & 1 ? int32_t((k >> 1) + 1) : -int32_t(k >> 1);
         }
 
         // byte_alignment(): the rest of the byte the reading stands in
-        void align() noexcept {
+        SGCL_INLINE_HOT void align() noexcept {
             _left = 0;
         }
 
         // The reading went past the end of the unit, or met a code no
         // value of the syntax has
-        bool over() const noexcept {
+        SGCL_INLINE_HOT bool over() const noexcept {
             return _over;
         }
 
@@ -169,11 +169,11 @@ namespace sgcl::codec::detail {
         }
 
         // The offset in the unit of the next byte not yet read
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _at;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n;
         }
 

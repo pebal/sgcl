@@ -21,6 +21,7 @@
 // A test whose program is not on this machine is skipped with the reason.
 // The certificates are tests/net/tls_testdata (tools/tls_testdata.sh).
 #include "tests/types.h"
+#include "tests/source_root.h"
 
 #include "sgcl/io/exec.h"
 #include "sgcl/net/tls.h"
@@ -39,8 +40,7 @@ namespace tls = sgcl::net::tls;
 
 namespace {
     std::string testdata() {
-        std::string f = __FILE__;
-        return f.substr(0, f.rfind('/')) + "/tls_testdata/";
+        return (source_root() / "tests/net/tls_testdata/").string();
     }
 
     std::string slurp(const std::string& path) {
@@ -353,8 +353,7 @@ namespace {
             if (go_path().empty()) {
                 return std::string();
             }
-            std::string src = __FILE__;
-            src = src.substr(0, src.rfind("/tests/")) + "/tools/tls_oracle.go";
+            std::string src = (source_root() / "tools/tls_oracle.go").string();
             std::string bin = scratch() + "/tls_oracle";
             io::command b(sgcl::string(go_path()), sgcl::string("build"), sgcl::string("-o"), sgcl::string(bin), sgcl::string(src));
             auto r = b.combined_output();

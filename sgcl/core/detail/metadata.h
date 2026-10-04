@@ -66,7 +66,7 @@ namespace sgcl::detail {
         // The constants of the type T (its size and count, its destroy and
         // free functions, the kinds the collector treats apart)
         template<class T>
-        static constexpr TypeConstants constants_of() noexcept {
+        SGCL_INLINE_HOT static constexpr TypeConstants constants_of() noexcept {
             using Info = TypeInfo<T>;
             using Type = std::remove_cv_t<T>;
             return {Info::get_destroy_function(), Info::Allocator::free, &typeid(T), Info::ObjectSize, Info::HeaderSize,
@@ -133,7 +133,7 @@ namespace sgcl::detail {
             return *m;
         }
 
-        Metadata(const TypeConstants& c, ChildPointers& cp, HeaderSlab* slab) noexcept
+        SGCL_INLINE_HOT Metadata(const TypeConstants& c, ChildPointers& cp, HeaderSlab* slab) noexcept
         : child_pointers(cp)
         , destroy(c.destroy)
         , free(c.free)

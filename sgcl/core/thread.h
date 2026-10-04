@@ -26,12 +26,12 @@ namespace sgcl {
             std::tuple<Args...> args;
 
             template<class G, class... A>
-            ThreadClosure(G&& g, A&&... a) noexcept(std::is_nothrow_constructible_v<F, G> && std::is_nothrow_constructible_v<std::tuple<Args...>, A...>)
+            SGCL_INLINE_HOT ThreadClosure(G&& g, A&&... a) noexcept(std::is_nothrow_constructible_v<F, G> && std::is_nothrow_constructible_v<std::tuple<Args...>, A...>)
                 : f(std::forward<G>(g))
                 , args(std::forward<A>(a)...) {
             }
 
-            void operator()() noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+            SGCL_INLINE_HOT void operator()() noexcept(std::is_nothrow_invocable_v<F, Args...>) {
                 std::apply([this](Args&... a) { std::invoke(std::move(f), std::move(a)...); }, args);
             }
         };
@@ -72,7 +72,7 @@ namespace sgcl {
 
         thread(thread&& o) noexcept = default;
 
-        thread& operator=(thread&& o) noexcept {
+        SGCL_INLINE_HOT thread& operator=(thread&& o) noexcept {
             _thread = std::move(o._thread);   // ends the program when this one is joinable, as std does
             return *this;
         }
@@ -97,36 +97,36 @@ namespace sgcl {
 
         ~thread() noexcept = default;
 
-        void swap(thread& o) noexcept {
+        SGCL_INLINE_HOT void swap(thread& o) noexcept {
             _thread.swap(o._thread);
         }
 
-        bool joinable() const noexcept {
+        SGCL_INLINE_HOT bool joinable() const noexcept {
             return _thread.joinable();
         }
 
-        void join() {
+        SGCL_INLINE_HOT void join() {
             _thread.join();
         }
 
-        void detach() {
+        SGCL_INLINE_HOT void detach() {
             _thread.detach();
         }
 
-        id get_id() const noexcept {
+        SGCL_INLINE_HOT id get_id() const noexcept {
             return _thread.get_id();
         }
 
-        native_handle_type native_handle() noexcept {
+        SGCL_INLINE_HOT native_handle_type native_handle() noexcept {
             return _thread.native_handle();
         }
 
-        static unsigned hardware_concurrency() noexcept {
+        SGCL_INLINE_HOT static unsigned hardware_concurrency() noexcept {
             return std::thread::hardware_concurrency();
         }
     };
 
-    inline void swap(thread& a, thread& b) noexcept {
+    SGCL_INLINE_HOT void swap(thread& a, thread& b) noexcept {
         a.swap(b);
     }
 }

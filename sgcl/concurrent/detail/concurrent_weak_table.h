@@ -36,7 +36,7 @@ namespace sgcl::concurrent::detail {
         weak_ptr<Key> weak;
         size_t hash;
 
-        tracked_ptr<Key> lock() const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<Key> lock() const noexcept {
             return weak.lock();
         }
     };
@@ -52,15 +52,15 @@ namespace sgcl::concurrent::detail {
     struct ConcurrentWeakHash {
         using is_transparent = void;
 
-        size_t operator()(const WeakKey<Key>& k) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const WeakKey<Key>& k) const noexcept {
             return k.hash;
         }
 
-        size_t operator()(const tracked_ptr<Key>& p) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const tracked_ptr<Key>& p) const noexcept {
             return weak_hash(p.get());
         }
 
-        size_t operator()(const Key* p) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const Key* p) const noexcept {
             return weak_hash(p);
         }
     };
@@ -69,20 +69,20 @@ namespace sgcl::concurrent::detail {
     struct ConcurrentWeakEqual {
         using is_transparent = void;
 
-        static const void* of(const WeakKey<Key>& k) noexcept {
+        SGCL_INLINE_HOT static const void* of(const WeakKey<Key>& k) noexcept {
             return WeakIdentity::of(k.weak);
         }
 
-        static const void* of(const tracked_ptr<Key>& p) noexcept {
+        SGCL_INLINE_HOT static const void* of(const tracked_ptr<Key>& p) noexcept {
             return p.get();
         }
 
-        static const void* of(const Key* p) noexcept {
+        SGCL_INLINE_HOT static const void* of(const Key* p) noexcept {
             return p;
         }
 
         template<class A, class B>
-        bool operator()(const A& a, const B& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const A& a, const B& b) const noexcept {
             auto x = of(a);
             return x && x == of(b);
         }
@@ -120,11 +120,11 @@ namespace sgcl::concurrent::detail {
         // The entries, the dead ones not yet swept included: the sum of
         // the table's stripes, a snapshot under concurrent modification;
         // empty() is exact after a sweep() with the threads quiet
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _table.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _table.empty();
         }
 
@@ -152,7 +152,7 @@ namespace sgcl::concurrent::detail {
         }
 
         // Every entry there is at the time of the walk, dead or alive
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _table.clear();
             _inserted.store(0, std::memory_order_relaxed);
             _threshold.store(16, std::memory_order_relaxed);
@@ -161,22 +161,22 @@ namespace sgcl::concurrent::detail {
         // The entries of the object: none for a null pointer, or an object
         // that is gone; wait-free once the object's bucket has its dummy
         // node
-        size_type count(const key_pointer& object) const noexcept {
+        SGCL_INLINE_HOT size_type count(const key_pointer& object) const noexcept {
             return object ? _table.count(object) : 0;
         }
 
-        bool contains(const key_pointer& object) const noexcept {
+        SGCL_INLINE_HOT bool contains(const key_pointer& object) const noexcept {
             return count(object) != 0;
         }
 
         // The entry of the object, dropped: how many (0 or 1); lock-free
-        size_type erase(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT size_type erase(const key_pointer& object) noexcept {
             return object ? _table.erase(object) : 0;
         }
 
     protected:
         template<class V>
-        static auto& _key_of(V& value) noexcept {
+        SGCL_INLINE_HOT static auto& _key_of(V& value) noexcept {
             if constexpr(requires { value.first; }) {
                 return value.first;
             } else {
@@ -184,13 +184,13 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        static WeakKey<Key> _key(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT static WeakKey<Key> _key(const key_pointer& object) noexcept {
             return {weak_type(object), weak_hash(object.get())};
         }
 
         // One more insertion: the sweep when the count reaches the
         // threshold, by this thread unless another is at it
-        void _inserted_one() noexcept {
+        SGCL_INLINE_HOT void _inserted_one() noexcept {
             if (_inserted.fetch_add(1, std::memory_order_relaxed) + 1 >= _threshold.load(std::memory_order_relaxed)) {
                 sweep();
             }

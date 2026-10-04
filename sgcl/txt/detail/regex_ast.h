@@ -114,7 +114,7 @@ namespace sgcl::txt::detail {
     // pattern asked for cannot exist in an engine of this shape. They get
     // one line of their own where the compiler reports a bad literal,
     // because that is the one a reader needs to be told the reason for.
-    constexpr bool asks_for_backtracking(regex_fault f) noexcept {
+    SGCL_INLINE_HOT constexpr bool asks_for_backtracking(regex_fault f) noexcept {
         return f == regex_fault::backreference || f == regex_fault::lookaround
             || f == regex_fault::atomic_group || f == regex_fault::conditional
             || f == regex_fault::possessive;
@@ -124,7 +124,7 @@ namespace sgcl::txt::detail {
         regex_fault fault = regex_fault::none;
         size_t at = 0;
 
-        constexpr explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT constexpr explicit operator bool() const noexcept {
             return fault != regex_fault::none;
         }
     };
@@ -174,7 +174,7 @@ namespace sgcl::txt::detail {
         return mask;
     }
 
-    constexpr bool is_word_point(char32_t c) noexcept {
+    SGCL_INLINE_HOT constexpr bool is_word_point(char32_t c) noexcept {
         if (c < 0x80) {
             return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z')
                 || (c >= U'0' && c <= U'9') || c == U'_';
@@ -234,7 +234,7 @@ namespace sgcl::txt::detail {
             }
         }
 
-        constexpr bool holds(char32_t c) const noexcept {
+        SGCL_INLINE_HOT constexpr bool holds(char32_t c) const noexcept {
             if (c < 128) {
                 return (ascii[c >> 6] >> (c & 63)) & 1;
             }
@@ -336,7 +336,7 @@ namespace sgcl::txt::detail {
     // compiled.
     class regex_parser {
     public:
-        constexpr explicit regex_parser(std::string_view pattern) noexcept
+        SGCL_INLINE_HOT constexpr explicit regex_parser(std::string_view pattern) noexcept
         : _text(pattern) {
         }
 
@@ -362,7 +362,7 @@ namespace sgcl::txt::detail {
         }
 
     private:
-        constexpr bool _bad() const noexcept {
+        SGCL_INLINE_HOT constexpr bool _bad() const noexcept {
             return _fault != regex_fault::none;
         }
 
@@ -374,20 +374,20 @@ namespace sgcl::txt::detail {
             return {_fault, _fault_at};
         }
 
-        constexpr uint32_t _add(node n) noexcept {
+        SGCL_INLINE_HOT constexpr uint32_t _add(node n) noexcept {
             _nodes.push_back(std::move(n));
             return uint32_t(_nodes.size() - 1);
         }
 
-        constexpr bool _more() const noexcept {
+        SGCL_INLINE_HOT constexpr bool _more() const noexcept {
             return _at < _text.size();
         }
 
-        constexpr char _peek(size_t ahead = 0) const noexcept {
+        SGCL_INLINE_HOT constexpr char _peek(size_t ahead = 0) const noexcept {
             return _at + ahead < _text.size() ? _text[_at + ahead] : '\0';
         }
 
-        constexpr bool _take(char c) noexcept {
+        SGCL_INLINE_HOT constexpr bool _take(char c) noexcept {
             if (_peek() == c) {
                 ++_at;
                 return true;
@@ -742,7 +742,7 @@ namespace sgcl::txt::detail {
             return true;
         }
 
-        static constexpr bool _name_start(char c) noexcept {
+        SGCL_INLINE_HOT static constexpr bool _name_start(char c) noexcept {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
         }
 
@@ -1058,11 +1058,11 @@ namespace sgcl::txt::detail {
             return false;
         }
 
-        static constexpr char _lower(char c) noexcept {
+        SGCL_INLINE_HOT static constexpr char _lower(char c) noexcept {
             return c >= 'A' && c <= 'Z' ? char(c + 32) : c;
         }
 
-        static constexpr char _upper(char c) noexcept {
+        SGCL_INLINE_HOT static constexpr char _upper(char c) noexcept {
             return c >= 'a' && c <= 'z' ? char(c - 32) : c;
         }
 
@@ -1170,7 +1170,7 @@ namespace sgcl::txt::detail {
             return true;
         }
 
-        static constexpr int _hex_digit(char c) noexcept {
+        SGCL_INLINE_HOT static constexpr int _hex_digit(char c) noexcept {
             if (c >= '0' && c <= '9') return c - '0';
             if (c >= 'a' && c <= 'f') return c - 'a' + 10;
             if (c >= 'A' && c <= 'F') return c - 'A' + 10;

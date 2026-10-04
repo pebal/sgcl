@@ -103,7 +103,7 @@ namespace sgcl::concurrent {
         // points to from then on
         struct Box {
             template<class... A>
-            explicit Box(time_point m, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
+            SGCL_INLINE_HOT explicit Box(time_point m, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::forward<A>(a)...)
             , made(m) {
             }
@@ -125,7 +125,7 @@ namespace sgcl::concurrent {
         // puts again, the eraser that sees a fresh box gives the flag back
         struct Entry {
             template<class... A>
-            explicit Entry(uint64_t s, time_point m, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
+            SGCL_INLINE_HOT explicit Entry(uint64_t s, time_point m, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::forward<A>(a)...)
             , made(m)
             , stamp(s) {
@@ -147,7 +147,7 @@ namespace sgcl::concurrent {
         // first of the next sample, so the next pass lets go of it; an
         // entry erased under it by a get or an erase lives on until then.
         struct Cursor {
-            explicit Cursor(iterator it) noexcept
+            SGCL_INLINE_HOT explicit Cursor(iterator it) noexcept
             : pos(it) {
             }
 
@@ -184,7 +184,7 @@ namespace sgcl::concurrent {
         // A cache of `capacity` entries, with no time to live (ttl zero)
         // or one; `sample` entries are looked at per eviction. The map
         // gets its buckets for the capacity up front.
-        explicit cache(size_type capacity, duration ttl = duration::zero(), unsigned sample = DefaultSample, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(std::is_nothrow_copy_constructible_v<Hash> && std::is_nothrow_copy_constructible_v<KeyEqual>)
+        SGCL_INLINE_HOT explicit cache(size_type capacity, duration ttl = duration::zero(), unsigned sample = DefaultSample, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual()) noexcept(std::is_nothrow_copy_constructible_v<Hash> && std::is_nothrow_copy_constructible_v<KeyEqual>)
         : _map(std::max<size_type>(capacity, 16), hash, equal)
         , _counters(make_tracked<Counters>())
         , _capacity(capacity)
@@ -202,22 +202,22 @@ namespace sgcl::concurrent {
         // changed; a stale entry's erasure is lock-free. With a key of another type the
         // hash and the equality take (is_transparent: a string_view for a
         // string), no key is built for the search.
-        optional<T> get(const Key& key) noexcept(NothrowCopyOut) {
+        SGCL_INLINE_HOT optional<T> get(const Key& key) noexcept(NothrowCopyOut) {
             return _get(key);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        optional<T> get(const K& key) noexcept(NothrowCopyOut) {
+        SGCL_INLINE_HOT optional<T> get(const K& key) noexcept(NothrowCopyOut) {
             return _get(key);
         }
 
         // Inserts a copy of the value under the key, or replaces the one
         // there; then, if the size is past the capacity, evicts down to it
-        void put(const Key& key, const T& value) noexcept(NothrowCopyIn) {
+        SGCL_INLINE_HOT void put(const Key& key, const T& value) noexcept(NothrowCopyIn) {
             _put(key, value);
         }
 
-        void put(const Key& key, T&& value) noexcept(NothrowCopyIn && std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void put(const Key& key, T&& value) noexcept(NothrowCopyIn && std::is_nothrow_move_constructible_v<T>) {
             _put(key, std::move(value));
         }
 
@@ -266,12 +266,12 @@ namespace sgcl::concurrent {
 
         // Erases the entry under the key: whether there was one (an entry
         // another thread is erasing at the moment counts as gone)
-        bool erase(const Key& key) noexcept {
+        SGCL_INLINE_HOT bool erase(const Key& key) noexcept {
             return _erase(key);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        bool erase(const K& key) noexcept {
+        SGCL_INLINE_HOT bool erase(const K& key) noexcept {
             return _erase(key);
         }
 
@@ -289,24 +289,24 @@ namespace sgcl::concurrent {
 
         // The number of entries: exact, and at most the capacity once the
         // puts have returned
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             long n = _counters->size.load(std::memory_order_relaxed);
             return n > 0 ? size_type(n) : 0;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _map.empty();
         }
 
-        size_type capacity() const noexcept {
+        SGCL_INLINE_HOT size_type capacity() const noexcept {
             return _capacity;
         }
 
-        duration ttl() const noexcept {
+        SGCL_INLINE_HOT duration ttl() const noexcept {
             return _ttl;
         }
 
-        unsigned sample_size() const noexcept {
+        SGCL_INLINE_HOT unsigned sample_size() const noexcept {
             return _sample;
         }
 
@@ -328,21 +328,21 @@ namespace sgcl::concurrent {
             return n;
         }
 
-        hasher hash_function() const noexcept(std::is_nothrow_copy_constructible_v<Hash>) {
+        SGCL_INLINE_HOT hasher hash_function() const noexcept(std::is_nothrow_copy_constructible_v<Hash>) {
             return _map.hash_function();
         }
 
-        key_equal key_eq() const noexcept(std::is_nothrow_copy_constructible_v<KeyEqual>) {
+        SGCL_INLINE_HOT key_equal key_eq() const noexcept(std::is_nothrow_copy_constructible_v<KeyEqual>) {
             return _map.key_eq();
         }
 
     private:
         // The clock is read only when there is a time to live
-        time_point _now() const noexcept {
+        SGCL_INLINE_HOT time_point _now() const noexcept {
             return _ttl != duration::zero() ? clock::now() : time_point();
         }
 
-        bool _stale(time_point made, time_point now) const noexcept {
+        SGCL_INLINE_HOT bool _stale(time_point made, time_point now) const noexcept {
             return _ttl != duration::zero() && now - made > _ttl;
         }
 
@@ -350,7 +350,7 @@ namespace sgcl::concurrent {
         // the advance is the stamp of what is put, so that an entry put
         // is as recent as the gets just before it and older than any get
         // after it
-        uint64_t _tick() noexcept {
+        SGCL_INLINE_HOT uint64_t _tick() noexcept {
             return _counters->tick.fetch_add(1, std::memory_order_relaxed);
         }
 
@@ -421,12 +421,12 @@ namespace sgcl::concurrent {
         // The count kept: an insertion counted once its node is linked,
         // an erasure once by the one thread that claimed the node (Entry:
         // dead), so the count is the map's, exact
-        long _inserted() noexcept {
+        SGCL_INLINE_HOT long _inserted() noexcept {
             return _counters->size.fetch_add(1, std::memory_order_relaxed) + 1;
         }
 
         // The node claimed and erased: true when this thread erased it
-        bool _erase_node(iterator it) noexcept {
+        SGCL_INLINE_HOT bool _erase_node(iterator it) noexcept {
             if (it->second.dead.exchange(true, std::memory_order_seq_cst)) {
                 return false;
             }
@@ -436,13 +436,13 @@ namespace sgcl::concurrent {
 
         // The node this thread claimed, erased from the map and counted
         // off
-        void _erase_claimed(iterator it) noexcept {
+        SGCL_INLINE_HOT void _erase_claimed(iterator it) noexcept {
             _map.erase(it);
             _counters->size.fetch_sub(1, std::memory_order_relaxed);
         }
 
         template<class K>
-        bool _erase(const K& key) noexcept {
+        SGCL_INLINE_HOT bool _erase(const K& key) noexcept {
             iterator it = _map.find(key);
             return it != _map.end() && _erase_node(it);
         }

@@ -56,7 +56,7 @@ namespace sgcl::async {
     // as `co_await` of a spawned task costs.
     namespace detail {
         struct GroupState {
-            explicit GroupState(const stop_token& parent)
+            SGCL_INLINE_HOT explicit GroupState(const stop_token& parent)
             : source(parent) {
             }
 
@@ -101,7 +101,7 @@ namespace sgcl::async {
         // A scope under the token: its own source is a child of the
         // token's, stopped with it (and at once when it is stopped
         // already); an empty token, the default, is a scope on its own
-        explicit task_group(const stop_token& parent = stop_token())
+        SGCL_INLINE_HOT explicit task_group(const stop_token& parent = stop_token())
         : _s(make_tracked<detail::GroupState>(parent)) {
         }
 
@@ -114,7 +114,7 @@ namespace sgcl::async {
         // token (a list), and a wake that cannot start the workers throws
         // nothing in a QuietWakes scope, so that every child is woken; they
         // run at the next start
-        ~task_group() {
+        SGCL_INLINE_HOT ~task_group() {
             if (_s->running.count() > 0) {
                 detail::QuietWakes quiet;
                 _s->source.request_stop();
@@ -127,7 +127,7 @@ namespace sgcl::async {
         // spawned already. Its result, if it has one, is dropped; its
         // exception is the group's
         template<class T>
-        void go(task<T> t) {
+        SGCL_INLINE_HOT void go(task<T> t) {
             task<> runner = detail::run_in_group(std::move(t), _s);   // made before the count
             _s->running.add();
             runner.resume();   // to its first suspension: the child put on the scheduler, the runner its continuation; the runner takes this task's header first (task::resume), so the child inherits the executor and the task-locals
@@ -136,28 +136,28 @@ namespace sgcl::async {
 
         // The same for a coroutine function with captures (sgcl::async::go)
         template<detail::TaskFactory F>
-        void go(F f) {
+        SGCL_INLINE_HOT void go(F f) {
             go(detail::task_of(std::move(f)));
         }
 
         // The token the children are given: stopped by the first
         // exception, by request_stop(), by the parent, or by the
         // group's end
-        stop_token token() const noexcept {
+        SGCL_INLINE_HOT stop_token token() const noexcept {
             return _s->source.token();
         }
 
         // The stop of the whole scope, by hand
-        void request_stop() {
+        SGCL_INLINE_HOT void request_stop() {
             _s->source.request_stop();
         }
 
-        bool stop_requested() const noexcept {
+        SGCL_INLINE_HOT bool stop_requested() const noexcept {
             return _s->source.stop_requested();
         }
 
         // The children not yet finished
-        size_t count() const noexcept {
+        SGCL_INLINE_HOT size_t count() const noexcept {
             return (size_t)_s->running.count();
         }
 
@@ -171,7 +171,7 @@ namespace sgcl::async {
             _s->rethrow();
         }
 
-        auto operator co_await() noexcept {
+        SGCL_INLINE_HOT auto operator co_await() noexcept {
             return detail::either([this] { return _co_wait(); }, [this] { wait(); });
         }
 
@@ -179,7 +179,7 @@ namespace sgcl::async {
         // exception, if any, is rethrown by the wait that follows
         // (`g.wait()` returns at once then)
         template<class F>
-        auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->running.on_done(std::move(f));
         }
 

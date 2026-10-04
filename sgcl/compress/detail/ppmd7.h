@@ -85,7 +85,7 @@ namespace sgcl::compress::detail {
 
         static_assert(sizeof(State) == 6 && sizeof(Context) == 12 && sizeof(Node) == 12);
 
-        inline uint32_t mean(uint32_t prob) noexcept {
+        SGCL_INLINE_HOT uint32_t mean(uint32_t prob) noexcept {
             return (prob + (uint32_t(1) << (PeriodBits - 2))) >> PeriodBits;
         }
     }
@@ -182,7 +182,7 @@ namespace sgcl::compress::detail {
 
         // The block for a model of `size` bytes (the memory of the
         // properties), kept when a model of the same size had it
-        void allocate(uint32_t size) noexcept {
+        SGCL_INLINE_HOT void allocate(uint32_t size) noexcept {
             if (!_memory || _size != size) {
                 _align = 4 - (size & 3);
                 // the glue's sentinel node lies just past the model's memory
@@ -191,7 +191,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void init(uint32_t order) noexcept {
+        SGCL_INLINE_HOT void init(uint32_t order) noexcept {
             _max_order = order;
             _restart();
             _dummy_see.shift = ppmd::PeriodBits;
@@ -390,61 +390,61 @@ namespace sgcl::compress::detail {
 
         // --- the block and its references
 
-        uint8_t* _base() const noexcept {
+        SGCL_INLINE_HOT uint8_t* _base() const noexcept {
             return _memory.get();
         }
 
-        uint32_t _ref(const void* p) const noexcept {
+        SGCL_INLINE_HOT uint32_t _ref(const void* p) const noexcept {
             return uint32_t(static_cast<const uint8_t*>(p) - _base());
         }
 
-        Context* _ctx(uint32_t ref) const noexcept {
+        SGCL_INLINE_HOT Context* _ctx(uint32_t ref) const noexcept {
             return reinterpret_cast<Context*>(_base() + ref);
         }
 
-        State* _stats(const Context* c) const noexcept {
+        SGCL_INLINE_HOT State* _stats(const Context* c) const noexcept {
             return reinterpret_cast<State*>(_base() + c->stats);
         }
 
         // The state of a context of one symbol lives in the context itself,
         // over its summ_freq and stats
-        static State* _one_state(Context* c) noexcept {
+        SGCL_INLINE_HOT static State* _one_state(Context* c) noexcept {
             return reinterpret_cast<State*>(reinterpret_cast<uint8_t*>(c) + 2);
         }
 
-        static uint32_t _successor(const State* s) noexcept {
+        SGCL_INLINE_HOT static uint32_t _successor(const State* s) noexcept {
             return uint32_t(s->successor_low) | uint32_t(s->successor_high) << 16;
         }
 
-        static void _set_successor(State* s, uint32_t v) noexcept {
+        SGCL_INLINE_HOT static void _set_successor(State* s, uint32_t v) noexcept {
             s->successor_low = uint16_t(v);
             s->successor_high = uint16_t(v >> 16);
         }
 
-        ppmd::Node* _node(uint32_t ref) const noexcept {
+        SGCL_INLINE_HOT ppmd::Node* _node(uint32_t ref) const noexcept {
             return reinterpret_cast<ppmd::Node*>(_base() + ref);
         }
 
         // --- the sub-allocator
 
-        uint32_t _i2u(uint32_t index) const noexcept {
+        SGCL_INLINE_HOT uint32_t _i2u(uint32_t index) const noexcept {
             return _index_units[index];
         }
 
-        uint32_t _u2i(uint32_t units) const noexcept {
+        SGCL_INLINE_HOT uint32_t _u2i(uint32_t units) const noexcept {
             return _units_index[units - 1];
         }
 
-        static uint32_t _u2b(uint32_t units) noexcept {
+        SGCL_INLINE_HOT static uint32_t _u2b(uint32_t units) noexcept {
             return units * ppmd::UnitSize;
         }
 
-        void _insert(void* p, uint32_t index) noexcept {
+        SGCL_INLINE_HOT void _insert(void* p, uint32_t index) noexcept {
             std::memcpy(p, &_free[index], 4);
             _free[index] = _ref(p);
         }
 
-        void* _remove(uint32_t index) noexcept {
+        SGCL_INLINE_HOT void* _remove(uint32_t index) noexcept {
             uint8_t* p = _base() + _free[index];
             std::memcpy(&_free[index], p, 4);
             return p;
@@ -869,20 +869,20 @@ namespace sgcl::compress::detail {
             return &_dummy_see;
         }
 
-        static void _see_update(ppmd::See* see) noexcept {
+        SGCL_INLINE_HOT static void _see_update(ppmd::See* see) noexcept {
             if (see->shift < ppmd::PeriodBits && --see->count == 0) {
                 see->summ = uint16_t(see->summ << 1);
                 see->count = uint8_t(3 << see->shift++);
             }
         }
 
-        uint16_t* _bin_summ() noexcept {
+        SGCL_INLINE_HOT uint16_t* _bin_summ() noexcept {
             State* one = _one_state(_min);
             _hi_bits = _hb_flag[_found->symbol];
             return &_bin[one->freq - 1][_prev_success + _ns_bin[_ctx(_min->suffix)->num_stats - 1] + _hi_bits + 2 * _hb_flag[one->symbol] + ((_run_length >> 26) & 0x20)];
         }
 
-        void _next_context() noexcept {
+        SGCL_INLINE_HOT void _next_context() noexcept {
             uint32_t successor = _successor(_found);
             if (_order_fall == 0 && _base() + successor > _text) {
                 _min = _max = _ctx(successor);
@@ -905,7 +905,7 @@ namespace sgcl::compress::detail {
             _next_context();
         }
 
-        void _update1_0() noexcept {
+        SGCL_INLINE_HOT void _update1_0() noexcept {
             _prev_success = 2u * _found->freq > _min->summ_freq;
             _run_length += int32_t(_prev_success);
             _min->summ_freq = uint16_t(_min->summ_freq + 4);
@@ -915,14 +915,14 @@ namespace sgcl::compress::detail {
             _next_context();
         }
 
-        void _update_bin() noexcept {
+        SGCL_INLINE_HOT void _update_bin() noexcept {
             _found->freq = uint8_t(_found->freq + (_found->freq < 128 ? 1 : 0));
             _prev_success = 1;
             ++_run_length;
             _next_context();
         }
 
-        void _update2() noexcept {
+        SGCL_INLINE_HOT void _update2() noexcept {
             _found->freq = uint8_t(_found->freq + 4);
             _min->summ_freq = uint16_t(_min->summ_freq + 4);
             if (_found->freq > ppmd::MaxFreq) {
@@ -985,17 +985,17 @@ namespace sgcl::compress::detail {
             _rc = Ppmd7RangeDecoder();
         }
 
-        uint64_t taken() const noexcept {
+        SGCL_INLINE_HOT uint64_t taken() const noexcept {
             return _taken;
         }
 
-        const Ppmd7& model() const noexcept {
+        SGCL_INLINE_HOT const Ppmd7& model() const noexcept {
             return _model;
         }
 
         // After the last symbol: the range coder at zero, as the encoder's
         // flush leaves it (7-Zip's check of a stream that ends where it should)
-        bool finished_ok() const noexcept {
+        SGCL_INLINE_HOT bool finished_ok() const noexcept {
             return _rc.code == 0;
         }
 
@@ -1073,18 +1073,18 @@ namespace sgcl::compress::detail {
 
     class Ppmd7Encoder {
     public:
-        explicit Ppmd7Encoder(uint32_t order, uint32_t memory) noexcept
+        SGCL_INLINE_HOT explicit Ppmd7Encoder(uint32_t order, uint32_t memory) noexcept
         : _rc(_sink), _order(order) {
             _model.allocate(memory);
             _model.init(order);
         }
 
-        const Ppmd7& model() const noexcept {
+        SGCL_INLINE_HOT const Ppmd7& model() const noexcept {
             return _model;
         }
 
         // A new stream with the same model's memory
-        void restart() noexcept {
+        SGCL_INLINE_HOT void restart() noexcept {
             _model.init(_order);
             _rc.reset();
         }
@@ -1098,7 +1098,7 @@ namespace sgcl::compress::detail {
 
         // The coder's last bytes, the end marker first when asked (7z
         // knows the size and writes none)
-        void finish(std::vector<uint8_t>& out, bool marker = false) noexcept {
+        SGCL_INLINE_HOT void finish(std::vector<uint8_t>& out, bool marker = false) noexcept {
             _rc.sink(out);
             if (marker) {
                 _model.encode(_rc, -1);

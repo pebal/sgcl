@@ -28,7 +28,7 @@ namespace sgcl::slog {
     // through it.
     class memory {
     public:
-        memory() noexcept
+        SGCL_INLINE_HOT memory() noexcept
         : _s(make_tracked<detail::MemoryState>()) {
         }
 
@@ -43,23 +43,23 @@ namespace sgcl::slog {
             return out;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             std::lock_guard<std::mutex> g(_s->lock);
             return _s->records.size();
         }
 
-        void clear() const noexcept {
+        SGCL_INLINE_HOT void clear() const noexcept {
             std::lock_guard<std::mutex> g(_s->lock);
             _s->records.clear();
         }
 
-        void handle(const record& r) const {
+        SGCL_INLINE_HOT void handle(const record& r) const {
             record copy = r.clone();
             std::lock_guard<std::mutex> g(_s->lock);
             _s->records.push_back(copy);
         }
 
-        bool enabled(slog::level) const noexcept {
+        SGCL_INLINE_HOT bool enabled(slog::level) const noexcept {
             return true;
         }
 

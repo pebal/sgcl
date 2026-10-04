@@ -35,7 +35,7 @@ namespace sgcl::txt {
             return gcb(value_of(c, segment_tables::GraphemeBreak));
         }
 
-        constexpr incb incb_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr incb incb_of(char32_t c) noexcept {
             return c < 0x300 ? incb::other : incb(value_of(c, segment_tables::IndicConjunctBreak));
         }
 
@@ -140,19 +140,19 @@ namespace sgcl::txt {
         // look left and right. The scan therefore carries two streams —
         // the code point immediately before (rules WB3 to WB3d, which see
         // the absorbed ones) and the last two that survived WB4.
-        constexpr bool is_ahletter(wb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_ahletter(wb x) noexcept {
             return x == wb::aletter || x == wb::hebrew_letter;
         }
 
-        constexpr bool is_midnumletq(wb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_midnumletq(wb x) noexcept {
             return x == wb::mid_num_let || x == wb::single_quote;
         }
 
-        constexpr wb wb_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr wb wb_of(char32_t c) noexcept {
             return wb(value_of(c, segment_tables::WordBreak));
         }
 
-        constexpr bool wb_ignored(wb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool wb_ignored(wb x) noexcept {
             return x == wb::extend || x == wb::format || x == wb::zwj;
         }
 
@@ -160,7 +160,7 @@ namespace sgcl::txt {
         // after the one at pos, and nothing when the text ends first
         // A letter of the Latin alphabet, which every rule of this file
         // treats the same way and which most text is made of
-        constexpr bool ascii_letter(std::string_view text, size_t pos) noexcept {
+        SGCL_INLINE_HOT constexpr bool ascii_letter(std::string_view text, size_t pos) noexcept {
             if (pos >= text.size()) {
                 return false;
             }
@@ -342,15 +342,15 @@ namespace sgcl::txt {
         // (STerm | ATerm) Close* Sp* (Sep | CR | LF)? — which the scan
         // keeps as state, because every rule from SB8 on asks where in it
         // the text stands. Rule SB5 absorbs Extend and Format as WB4 does.
-        constexpr sb sb_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr sb sb_of(char32_t c) noexcept {
             return sb(value_of(c, segment_tables::SentenceBreak));
         }
 
-        constexpr bool sb_ignored(sb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool sb_ignored(sb x) noexcept {
             return x == sb::extend || x == sb::format;
         }
 
-        constexpr bool sb_paragraph(sb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool sb_paragraph(sb x) noexcept {
             return x == sb::sep || x == sb::cr || x == sb::lf;
         }
 
@@ -378,7 +378,7 @@ namespace sgcl::txt {
             bool closed = false;   // a Close has passed
             bool spaced = false;   // a Sp has passed
 
-            constexpr bool open() const noexcept {
+            SGCL_INLINE_HOT constexpr bool open() const noexcept {
                 return term == sb::aterm || term == sb::sterm;
             }
 
@@ -459,21 +459,21 @@ namespace sgcl::txt {
         // than between words: right by the rules and not what a reader of
         // them expects. Deliberate, and the day it matters it is a
         // dictionary and a segmentation of its own, not another rule.
-        constexpr lb lb_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr lb lb_of(char32_t c) noexcept {
             return lb(value_of(c, segment_tables::LineBreak));
         }
 
-        constexpr bool lb_east_asian(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_east_asian(char32_t c) noexcept {
             return in_set(c, segment_tables::EastAsian);
         }
 
-        constexpr bool lb_combining(lb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_combining(lb x) noexcept {
             return x == lb::cm || x == lb::zwj;
         }
 
         // Rule LB9 attaches CM and ZWJ to what they follow, unless that
         // is a break of its own (LB10 then makes them AL)
-        constexpr bool lb_attaches(lb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_attaches(lb x) noexcept {
             return x != lb::bk && x != lb::cr && x != lb::lf && x != lb::nl && x != lb::sp && x != lb::zw;
         }
 
@@ -532,27 +532,27 @@ namespace sgcl::txt {
             unsigned ri = 0;           // the regional indicators open (LB30a)
         };
 
-        constexpr bool lb_pi(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_pi(char32_t c) noexcept {
             return category_of_fn(c) == category::initial_punctuation;
         }
 
-        constexpr bool lb_pf(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_pf(char32_t c) noexcept {
             return category_of_fn(c) == category::final_punctuation;
         }
 
-        constexpr bool lb_dotted_circle(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_dotted_circle(char32_t c) noexcept {
             return c == 0x25CC;
         }
 
-        constexpr bool lb_brahmic(lb x, char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_brahmic(lb x, char32_t c) noexcept {
             return x == lb::ak || x == lb::as || lb_dotted_circle(c);
         }
 
-        constexpr bool lb_al_hl(lb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_al_hl(lb x) noexcept {
             return x == lb::al || x == lb::hl;
         }
 
-        constexpr bool lb_hangul(lb x) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_hangul(lb x) noexcept {
             return x == lb::jl || x == lb::jv || x == lb::jt || x == lb::h2 || x == lb::h3;
         }
 
@@ -743,7 +743,7 @@ namespace sgcl::txt {
         // Latin ones no earlier rule can fire — but only while nothing is
         // open that reaches across them: a zero width space, an initial
         // quotation mark, a run of digits, a regional indicator.
-        constexpr bool lb_plain_letter(const line_state& s, std::string_view text, size_t at) noexcept {
+        SGCL_INLINE_HOT constexpr bool lb_plain_letter(const line_state& s, std::string_view text, size_t at) noexcept {
             return ascii_letter(text, at) && s.p == lb::al && !s.sot
                 && !s.zw && !s.qu_pi && !s.nu && !s.nu_close && s.ri == 0;
         }
@@ -846,40 +846,40 @@ namespace sgcl::txt {
 
                 iterator() noexcept = default;
 
-                slice<const char> operator*() const noexcept {
+                SGCL_INLINE_HOT slice<const char> operator*() const noexcept {
                     return _text.subslice(_pos, _end - _pos);
                 }
 
-                iterator& operator++() noexcept {
+                SGCL_INLINE_HOT iterator& operator++() noexcept {
                     _pos = _end;
                     _end = End(_text.view(), _pos);
                     _skip();
                     return *this;
                 }
 
-                iterator operator++(int) noexcept {
+                SGCL_INLINE_HOT iterator operator++(int) noexcept {
                     iterator t = *this;
                     ++*this;
                     return t;
                 }
 
-                friend bool operator==(const iterator& a, const iterator& b) noexcept {
+                SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                     return a._pos == b._pos;
                 }
 
                 // The byte position of the segment in the text, and its size
-                size_t pos() const noexcept {
+                SGCL_INLINE_HOT size_t pos() const noexcept {
                     return _pos;
                 }
 
-                size_t size() const noexcept {
+                SGCL_INLINE_HOT size_t size() const noexcept {
                     return _end - _pos;
                 }
 
             private:
                 friend class segment_range;
 
-                iterator(const slice<const char>& text, size_t pos) noexcept
+                SGCL_INLINE_HOT iterator(const slice<const char>& text, size_t pos) noexcept
                 : _text(text)
                 , _pos(pos)
                 , _end(End(text.view(), pos)) {
@@ -911,12 +911,12 @@ namespace sgcl::txt {
             segment_range(const segment_range&) = default;
             segment_range& operator=(const segment_range&) = default;
 
-            segment_range(segment_range&& other) noexcept
+            SGCL_INLINE_HOT segment_range(segment_range&& other) noexcept
             : _text(other._text) {
                 other._text = slice<const char>();
             }
 
-            segment_range& operator=(segment_range&& other) noexcept {
+            SGCL_INLINE_HOT segment_range& operator=(segment_range&& other) noexcept {
                 if (this != &other) {
                     _text = other._text;
                     other._text = slice<const char>();
@@ -924,11 +924,11 @@ namespace sgcl::txt {
                 return *this;
             }
 
-            explicit segment_range(const slice<const char>& text) noexcept
+            SGCL_INLINE_HOT explicit segment_range(const slice<const char>& text) noexcept
             : _text(text) {
             }
 
-            explicit segment_range(const string& text) noexcept
+            SGCL_INLINE_HOT explicit segment_range(const string& text) noexcept
             : _text(text.as_slice()) {
             }
 
@@ -936,27 +936,27 @@ namespace sgcl::txt {
             // slice would both take — as detail::c_text reads it, copied
             // into a string the range holds
             template<size_t N>
-            explicit segment_range(const char (&text)[N])
+            SGCL_INLINE_HOT explicit segment_range(const char (&text)[N])
             : _text(c_string(text).as_slice()) {
             }
 
             template<class P>
             requires std::same_as<P, const char*> || std::same_as<P, char*>
-            explicit segment_range(P text)
+            SGCL_INLINE_HOT explicit segment_range(P text)
             : _text(c_string(text).as_slice()) {
             }
 
-            iterator begin() const noexcept {
+            SGCL_INLINE_HOT iterator begin() const noexcept {
                 return iterator(_text, 0);
             }
 
-            iterator end() const noexcept {
+            SGCL_INLINE_HOT iterator end() const noexcept {
                 return iterator(_text, _text.size());
             }
 
             // No segment: an empty text, or, where Keep refuses some, none
             // it keeps (" . " has no words)
-            bool empty() const noexcept {
+            SGCL_INLINE_HOT bool empty() const noexcept {
                 if constexpr (Keep != nullptr) {
                     return begin() == end();
                 } else {
@@ -980,7 +980,7 @@ namespace sgcl::txt {
                 return n;
             }
 
-            const slice<const char>& text() const noexcept {
+            SGCL_INLINE_HOT const slice<const char>& text() const noexcept {
                 return _text;
             }
 
@@ -1065,38 +1065,38 @@ namespace sgcl::txt {
 
             iterator() noexcept = default;
 
-            slice<const char> operator*() const noexcept {
+            SGCL_INLINE_HOT slice<const char> operator*() const noexcept {
                 return _text.subslice(_pos, _end - _pos);
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 _pos = _end;
                 _scan();
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._pos == b._pos;
             }
 
-            size_t pos() const noexcept {
+            SGCL_INLINE_HOT size_t pos() const noexcept {
                 return _pos;
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return _end - _pos;
             }
 
         private:
             friend class line_breaks;
 
-            iterator(const slice<const char>& text, size_t pos) noexcept
+            SGCL_INLINE_HOT iterator(const slice<const char>& text, size_t pos) noexcept
             : _text(text)
             , _pos(pos)
             , _end(pos) {
@@ -1153,12 +1153,12 @@ namespace sgcl::txt {
         line_breaks(const line_breaks&) = default;
         line_breaks& operator=(const line_breaks&) = default;
 
-        line_breaks(line_breaks&& other) noexcept
+        SGCL_INLINE_HOT line_breaks(line_breaks&& other) noexcept
         : _text(other._text) {
             other._text = slice<const char>();
         }
 
-        line_breaks& operator=(line_breaks&& other) noexcept {
+        SGCL_INLINE_HOT line_breaks& operator=(line_breaks&& other) noexcept {
             if (this != &other) {
                 _text = other._text;
                 other._text = slice<const char>();
@@ -1166,36 +1166,36 @@ namespace sgcl::txt {
             return *this;
         }
 
-        explicit line_breaks(const slice<const char>& text) noexcept
+        SGCL_INLINE_HOT explicit line_breaks(const slice<const char>& text) noexcept
         : _text(text) {
         }
 
-        explicit line_breaks(const string& text) noexcept
+        SGCL_INLINE_HOT explicit line_breaks(const string& text) noexcept
         : _text(text.as_slice()) {
         }
 
         // A C text, copied into a string the range holds, as for the
         // three ranges above
         template<size_t N>
-        explicit line_breaks(const char (&text)[N])
+        SGCL_INLINE_HOT explicit line_breaks(const char (&text)[N])
         : _text(detail::c_string(text).as_slice()) {
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit line_breaks(P text)
+        SGCL_INLINE_HOT explicit line_breaks(P text)
         : _text(detail::c_string(text).as_slice()) {
         }
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return iterator(_text, 0);
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator(_text, _text.size());
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _text.empty();
         }
 
@@ -1207,7 +1207,7 @@ namespace sgcl::txt {
             return n;
         }
 
-        const slice<const char>& text() const noexcept {
+        SGCL_INLINE_HOT const slice<const char>& text() const noexcept {
             return _text;
         }
 
@@ -1277,7 +1277,7 @@ namespace sgcl::txt {
         return out;
     }
 
-    inline vector<slice<const char>> wrap(const string& text, size_t width) noexcept {
+    SGCL_INLINE_HOT vector<slice<const char>> wrap(const string& text, size_t width) noexcept {
         return wrap(text.as_slice(), width);
     }
 
@@ -1285,13 +1285,13 @@ namespace sgcl::txt {
     // both take — as detail::c_text reads it, copied into a string the
     // lines hold
     template<size_t N>
-    inline vector<slice<const char>> wrap(const char (&text)[N], size_t width) {
+    SGCL_INLINE_HOT vector<slice<const char>> wrap(const char (&text)[N], size_t width) {
         return wrap(detail::c_string(text), width);
     }
 
     template<class P>
     requires std::same_as<P, const char*> || std::same_as<P, char*>
-    inline vector<slice<const char>> wrap(P text, size_t width) {
+    SGCL_INLINE_HOT vector<slice<const char>> wrap(P text, size_t width) {
         return wrap(detail::c_string(text), width);
     }
 
@@ -1327,30 +1327,30 @@ namespace sgcl::txt {
         return text.substr(0, fitting(text, width - mark)) + ellipsis;
     }
 
-    inline string truncate(const string& text, size_t width) {
+    SGCL_INLINE_HOT string truncate(const string& text, size_t width) {
         return truncate(text, width, "…");
     }
 
     // The number of graphemes: what to count when a limit is a number of
     // characters a reader would count, where size() is bytes and
     // rune_count() code points
-    inline size_t grapheme_count(const slice<const char>& text) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_count(const slice<const char>& text) noexcept {
         return graphemes(text).count();
     }
 
-    inline size_t grapheme_count(const string& text) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_count(const string& text) noexcept {
         return graphemes(text).count();
     }
 
     // A C text, read where it lies as detail::c_text reads it
     template<size_t N>
-    inline size_t grapheme_count(const char (&text)[N]) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_count(const char (&text)[N]) noexcept {
         return grapheme_count(detail::c_text(text));
     }
 
     template<class P>
     requires std::same_as<P, const char*> || std::same_as<P, char*>
-    inline size_t grapheme_count(P text) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_count(P text) noexcept {
         return grapheme_count(detail::c_text(text));
     }
 
@@ -1377,7 +1377,7 @@ namespace sgcl::txt {
         return start;
     }
 
-    inline size_t grapheme_next(const slice<const char>& text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_next(const slice<const char>& text, size_t pos) noexcept {
         return detail::cluster_end(text.view(), grapheme_start(text, pos));
     }
 
@@ -1398,50 +1398,50 @@ namespace sgcl::txt {
         return prev;
     }
 
-    inline size_t grapheme_start(const string& text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_start(const string& text, size_t pos) noexcept {
         return grapheme_start(text.as_slice(), pos);
     }
 
-    inline size_t grapheme_next(const string& text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_next(const string& text, size_t pos) noexcept {
         return grapheme_next(text.as_slice(), pos);
     }
 
-    inline size_t grapheme_prev(const string& text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_prev(const string& text, size_t pos) noexcept {
         return grapheme_prev(text.as_slice(), pos);
     }
 
     // The same over a C text, read where it lies as detail::c_text
     // reads it
     template<size_t N>
-    inline size_t grapheme_start(const char (&text)[N], size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_start(const char (&text)[N], size_t pos) noexcept {
         return grapheme_start(detail::c_text(text), pos);
     }
 
     template<class P>
     requires std::same_as<P, const char*> || std::same_as<P, char*>
-    inline size_t grapheme_start(P text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_start(P text, size_t pos) noexcept {
         return grapheme_start(detail::c_text(text), pos);
     }
 
     template<size_t N>
-    inline size_t grapheme_next(const char (&text)[N], size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_next(const char (&text)[N], size_t pos) noexcept {
         return grapheme_next(detail::c_text(text), pos);
     }
 
     template<class P>
     requires std::same_as<P, const char*> || std::same_as<P, char*>
-    inline size_t grapheme_next(P text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_next(P text, size_t pos) noexcept {
         return grapheme_next(detail::c_text(text), pos);
     }
 
     template<size_t N>
-    inline size_t grapheme_prev(const char (&text)[N], size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_prev(const char (&text)[N], size_t pos) noexcept {
         return grapheme_prev(detail::c_text(text), pos);
     }
 
     template<class P>
     requires std::same_as<P, const char*> || std::same_as<P, char*>
-    inline size_t grapheme_prev(P text, size_t pos) noexcept {
+    SGCL_INLINE_HOT size_t grapheme_prev(P text, size_t pos) noexcept {
         return grapheme_prev(detail::c_text(text), pos);
     }
 }

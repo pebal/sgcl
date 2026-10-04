@@ -87,7 +87,7 @@ namespace sgcl::compress::detail {
             return p;
         }
 
-        inline void random_bytes(uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void random_bytes(uint8_t* p, size_t n) noexcept {
             crypto::random::fill(slice<byte>(reinterpret_cast<byte*>(p), n));
         }
 
@@ -132,7 +132,7 @@ namespace sgcl::compress::detail {
             Password(const Password&) = delete;
             Password& operator=(const Password&) = delete;
 
-            Password& operator=(Password&& o) noexcept {
+            SGCL_INLINE_HOT Password& operator=(Password&& o) noexcept {
                 _wipe();
                 _bytes.swap(o._bytes);
                 _set = o._set;
@@ -140,15 +140,15 @@ namespace sgcl::compress::detail {
                 return *this;
             }
 
-            ~Password() {
+            SGCL_INLINE_HOT ~Password() {
                 _wipe();
             }
 
-            bool empty() const noexcept {
+            SGCL_INLINE_HOT bool empty() const noexcept {
                 return !_set;
             }
 
-            const std::vector<uint8_t>& bytes() const noexcept {
+            SGCL_INLINE_HOT const std::vector<uint8_t>& bytes() const noexcept {
                 return _bytes;
             }
 
@@ -167,7 +167,7 @@ namespace sgcl::compress::detail {
                 _bytes.push_back(uint8_t(u >> 8));
             }
 
-            void _wipe() noexcept {
+            SGCL_INLINE_HOT void _wipe() noexcept {
                 if (!_bytes.empty()) {
                     crypto::detail::secure_zero(_bytes.data(), _bytes.size());
                 }
@@ -216,13 +216,13 @@ namespace sgcl::compress::detail {
         // the readers of the archive, from any threads
         class Keys {
         public:
-            explicit Keys(std::string_view password) noexcept
+            SGCL_INLINE_HOT explicit Keys(std::string_view password) noexcept
             : _password(password) {
             }
 
             Keys() = default;
 
-            bool has_password() const noexcept {
+            SGCL_INLINE_HOT bool has_password() const noexcept {
                 return !_password.empty();
             }
 
@@ -257,7 +257,7 @@ namespace sgcl::compress::detail {
         // waits for the one before)
         class Cbc {
         public:
-            Cbc(const crypto::secret<32>& key, const uint8_t* iv) noexcept
+            SGCL_INLINE_HOT Cbc(const crypto::secret<32>& key, const uint8_t* iv) noexcept
             : _aes(key.bytes()) {
                 auto k = key.bytes();
                 crypto::detail::aes_setup(_enc, reinterpret_cast<const unsigned char*>(k.data()), 32);
@@ -268,13 +268,13 @@ namespace sgcl::compress::detail {
             Cbc(const Cbc&) = delete;
             Cbc& operator=(const Cbc&) = delete;
 
-            ~Cbc() {
+            SGCL_INLINE_HOT ~Cbc() {
                 crypto::detail::secure_zero(_chain, sizeof(_chain));
                 crypto::detail::secure_zero(&_enc, sizeof(_enc));
                 crypto::detail::secure_zero(&_dec, sizeof(_dec));
             }
 
-            void decrypt(uint8_t* p, size_t n) noexcept {
+            SGCL_INLINE_HOT void decrypt(uint8_t* p, size_t n) noexcept {
                 crypto::detail::aes_cbc_decrypt(_enc, _dec, _chain, p, p, n / 16);
             }
 

@@ -44,27 +44,27 @@ namespace sgcl::crypto {
             static constexpr size_t digest_size = Size;
             static constexpr size_t block_size = 200 - 2 * Size;
 
-            Sha3() noexcept {
+            SGCL_INLINE_HOT Sha3() noexcept {
                 _state.init();
             }
 
-            void update(const slice<const byte>& data) noexcept {
+            SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
                 _state.absorb(bytes(data.data()), data.size());
             }
 
             // The digest of everything so far; the hasher goes on
-            array<byte, Size> value() const noexcept {
+            SGCL_INLINE_HOT array<byte, Size> value() const noexcept {
                 Sha3 h = *this;
                 array<byte, Size> out;
                 h._finish(bytes(out.data()));
                 return out;
             }
 
-            array<byte, Size> digest() const noexcept {
+            SGCL_INLINE_HOT array<byte, Size> digest() const noexcept {
                 return value();
             }
 
-            void reset() noexcept {
+            SGCL_INLINE_HOT void reset() noexcept {
                 _state.init();
             }
 
@@ -72,7 +72,7 @@ namespace sgcl::crypto {
             KeccakSponge<block_size> _state;
 
             // the domain bits 01 and the padding: the first byte 0x06
-            void _finish(unsigned char* out) noexcept {
+            SGCL_INLINE_HOT void _finish(unsigned char* out) noexcept {
                 _state.pad(0x06);
                 _state.squeeze(out, Size);
             }
@@ -85,13 +85,13 @@ namespace sgcl::crypto {
         public:
             static constexpr size_t block_size = Rate;
 
-            Shake() noexcept {
+            SGCL_INLINE_HOT Shake() noexcept {
                 _state.init();
             }
 
             // Bytes or text, the forms a hasher's update() takes. After the
             // first read the input is closed: std::invalid_argument
-            void update(const slice<const byte>& data) {
+            SGCL_INLINE_HOT void update(const slice<const byte>& data) {
                 if (_reading) {
                     throw invalid_argument("sgcl::crypto::shake: update after read");
                 }
@@ -104,7 +104,7 @@ namespace sgcl::crypto {
             // Taken as a secret (SHAKE derives keys as often as not): up to
             // 64 bytes in the secret_bytes itself; read_to for a buffer of
             // one's own
-            secret_bytes read(size_t n) noexcept {
+            SGCL_INLINE_HOT secret_bytes read(size_t n) noexcept {
                 secret_bytes out(n);
                 read_to(out.as_slice());
                 return out;
@@ -112,7 +112,7 @@ namespace sgcl::crypto {
 
             // The next out.size() bytes of the output into out, no
             // allocation
-            void read_to(const slice<byte>& out) noexcept {
+            SGCL_INLINE_HOT void read_to(const slice<byte>& out) noexcept {
                 if (!_reading) {
                     _state.pad(0x1f);   // the domain bits 1111 and the padding
                     _reading = true;
@@ -121,7 +121,7 @@ namespace sgcl::crypto {
             }
 
             // As new: the input open again
-            void reset() noexcept {
+            SGCL_INLINE_HOT void reset() noexcept {
                 _state.init();
                 _reading = false;
             }
@@ -150,7 +150,7 @@ namespace sgcl::crypto {
     class shake128 : public detail::Shake<168> {
     public:
         // The first n bytes of the output over data, in one call
-        static secret_bytes of(const slice<const byte>& data, size_t n) noexcept {
+        SGCL_INLINE_HOT static secret_bytes of(const slice<const byte>& data, size_t n) noexcept {
             shake128 x;
             x.update(data);
             return x.read(n);
@@ -160,7 +160,7 @@ namespace sgcl::crypto {
     // SHAKE256: 256 bits of security when at least 64 bytes are read
     class shake256 : public detail::Shake<136> {
     public:
-        static secret_bytes of(const slice<const byte>& data, size_t n) noexcept {
+        SGCL_INLINE_HOT static secret_bytes of(const slice<const byte>& data, size_t n) noexcept {
             shake256 x;
             x.update(data);
             return x.read(n);

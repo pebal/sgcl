@@ -73,14 +73,14 @@ namespace sgcl::concurrent {
         // and the arguments only when the key is absent, and linked
         // where that search found its place
         template<class... A>
-        pair<iterator, bool> try_emplace(const Key& key, A&&... a) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT pair<iterator, bool> try_emplace(const Key& key, A&&... a) noexcept(std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
             return this->_insert_absent(key, [&] {
                 return this->_make_node(std::piecewise_construct, forward_as_tuple(key), forward_as_tuple(std::forward<A>(a)...));
             });
         }
 
         template<class... A>
-        pair<iterator, bool> try_emplace(Key&& key, A&&... a) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT pair<iterator, bool> try_emplace(Key&& key, A&&... a) noexcept(std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_constructible_v<T, A...>) {
             return this->_insert_absent(key, [&] {
                 return this->_make_node(std::piecewise_construct, forward_as_tuple(std::move(key)), forward_as_tuple(std::forward<A>(a)...));
             });
@@ -90,13 +90,13 @@ namespace sgcl::concurrent {
         // copy (one word for a tracked value), read as find reads (mixin::lookup's
         // value_or of the other maps);
         // an element erased meanwhile is read as it was when found
-        T value_or(const Key& key, const T& fallback) const noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT T value_or(const Key& key, const T& fallback) const noexcept(std::is_nothrow_copy_constructible_v<T>) {
             auto it = this->find(key);
             return it != this->end() ? it->second : fallback;
         }
 
         template<class K> requires detail::TransparentLookup<typename Base::hasher, typename Base::key_equal>
-        T value_or(const K& key, const T& fallback) const noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT T value_or(const K& key, const T& fallback) const noexcept(std::is_nothrow_copy_constructible_v<T>) {
             auto it = this->find(key);
             return it != this->end() ? it->second : fallback;
         }
@@ -105,7 +105,7 @@ namespace sgcl::concurrent {
         // first, as the element is, and left as it was when the key is
         // taken; a pair of other types is built into the element first
         template<class P> requires std::is_constructible_v<value_type, P&&>
-        pair<iterator, bool> insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             return this->_insert_value(std::forward<P>(value));
         }
     };

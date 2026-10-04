@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
 #include "../../core/aliases.h"
 
 #include <algorithm>
@@ -89,12 +90,12 @@ namespace sgcl::time::detail {
     }
 
     // The error of a read as a sentence: "No such file or directory"
-    inline std::string error_text(int error) noexcept {
+    SGCL_INLINE_HOT std::string error_text(int error) noexcept {
         return std::system_category().message(error);
     }
 
     // What a symbolic link points at, nothing when the path is not one
-    inline optional<std::string> link_target(const std::string& path) noexcept {
+    SGCL_INLINE_HOT optional<std::string> link_target(const std::string& path) noexcept {
         std::error_code ec;
         auto target = std::filesystem::read_symlink(path, ec);
         if (ec) {

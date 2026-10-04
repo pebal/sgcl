@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../detail/os.h"
+
 #include <compare>
 #include <concepts>
 
@@ -14,7 +16,7 @@ namespace sgcl::detail {
     // for every type the standard containers compare.
     struct SynthThreeWay {
         template<class T, class U>
-        constexpr auto operator()(const T& t, const U& u) const
+        SGCL_INLINE_HOT constexpr auto operator()(const T& t, const U& u) const
             requires requires {
                 { t < u } -> std::convertible_to<bool>;
                 { u < t } -> std::convertible_to<bool>;

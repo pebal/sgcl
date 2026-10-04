@@ -18,6 +18,7 @@
 // they lie in ~/Programming/oracles/wycheproof/testvectors_v1 (skipped
 // otherwise).
 #include "rsa_common.h"
+#include "tests/source_root.h"
 
 #include "sgcl/encoding/json.h"
 
@@ -1400,8 +1401,7 @@ namespace {
     // (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:16384),
     // since making one takes a minute or more
     bytes_t largest_key_pem() {
-        std::string f = __FILE__;
-        std::ifstream in(f.substr(0, f.rfind('/')) + "/data/rsa16384.pem", std::ios::binary);
+        std::ifstream in(source_root() / "tests/crypto/data/rsa16384.pem", std::ios::binary);
         return bytes_t(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
     }
 

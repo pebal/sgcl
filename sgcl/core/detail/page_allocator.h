@@ -21,7 +21,7 @@ namespace sgcl::detail {
     public:
         static constexpr unsigned CacheSize = 8;
 
-        ~PageAllocator() noexcept {
+        SGCL_INLINE_HOT ~PageAllocator() noexcept {
             if (_count) {
                 Heap::instance().free_pages(_cache, _count);
             }

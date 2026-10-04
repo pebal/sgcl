@@ -53,12 +53,12 @@ namespace sgcl::crypto {
             prk(const prk&) = delete;
             prk& operator=(const prk&) = delete;
 
-            prk(prk&& other) noexcept {
+            SGCL_INLINE_HOT prk(prk&& other) noexcept {
                 std::memcpy(_key, other._key, size);
                 other._wipe();
             }
 
-            prk& operator=(prk&& other) noexcept {
+            SGCL_INLINE_HOT prk& operator=(prk&& other) noexcept {
                 if (this != &other) {
                     std::memcpy(_key, other._key, size);
                     other._wipe();
@@ -66,11 +66,11 @@ namespace sgcl::crypto {
                 return *this;
             }
 
-            ~prk() {
+            SGCL_INLINE_HOT ~prk() {
                 _wipe();
             }
 
-            prk clone() const noexcept {
+            SGCL_INLINE_HOT prk clone() const noexcept {
                 prk k;
                 std::memcpy(k._key, _key, size);
                 return k;
@@ -79,7 +79,7 @@ namespace sgcl::crypto {
             // The key's bytes, where they lie in this object: valid while
             // it lives, for a protocol that writes the PRK down or feeds it
             // on (TLS 1.3 takes one secret from another)
-            slice<const byte> bytes() const noexcept {
+            SGCL_INLINE_HOT slice<const byte> bytes() const noexcept {
                 return slice<const byte>(_key, size);
             }
 
@@ -88,7 +88,7 @@ namespace sgcl::crypto {
 
             prk() noexcept = default;
 
-            void _wipe() noexcept {
+            SGCL_INLINE_HOT void _wipe() noexcept {
                 detail::secure_zero(_key, size);
             }
         };
@@ -111,7 +111,7 @@ namespace sgcl::crypto {
         // i). n up to max_size, past it std::invalid_argument. A secret:
         // up to 64 bytes in the secret_bytes itself, past that in plain
         // memory zeroed when it goes, never in managed memory
-        static secret_bytes expand(const prk& key, const slice<const byte>& info, size_t n) {
+        SGCL_INLINE_HOT static secret_bytes expand(const prk& key, const slice<const byte>& info, size_t n) {
             secret_bytes out(_checked(n));
             _expand(out.as_slice().data(), n, key.bytes(), info);
             return out;
@@ -120,7 +120,7 @@ namespace sgcl::crypto {
         // The same from a PRK given as bytes (a secret a protocol computed
         // otherwise): RFC 5869 asks for at least the digest's size, which
         // is the caller's to keep
-        static secret_bytes expand(const slice<const byte>& key, const slice<const byte>& info, size_t n) {
+        SGCL_INLINE_HOT static secret_bytes expand(const slice<const byte>& key, const slice<const byte>& info, size_t n) {
             secret_bytes out(_checked(n));
             _expand(out.as_slice().data(), n, key, info);
             return out;
@@ -130,38 +130,38 @@ namespace sgcl::crypto {
         // allocation. info is read again for every block, so an out that
         // overlaps it is std::invalid_argument (the key is read whole
         // before the first byte is written: out may lie over it)
-        static void expand_to(const slice<byte>& out, const prk& key, const slice<const byte>& info) {
+        SGCL_INLINE_HOT static void expand_to(const slice<byte>& out, const prk& key, const slice<const byte>& info) {
             _checked(out, info);
             _expand(out.data(), out.size(), key.bytes(), info);
         }
 
-        static void expand_to(const slice<byte>& out, const slice<const byte>& key, const slice<const byte>& info) {
+        SGCL_INLINE_HOT static void expand_to(const slice<byte>& out, const slice<const byte>& key, const slice<const byte>& info) {
             _checked(out, info);
             _expand(out.data(), out.size(), key, info);
         }
 
         // extract() and expand() in one: n bytes from ikm under salt and info
-        static secret_bytes derive(const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info, size_t n) {
+        SGCL_INLINE_HOT static secret_bytes derive(const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info, size_t n) {
             _checked(n);
             prk k = extract(salt, ikm);
             return expand(k, info, n);
         }
 
-        static void derive_to(const slice<byte>& out, const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info) {
+        SGCL_INLINE_HOT static void derive_to(const slice<byte>& out, const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info) {
             _checked(out, info);
             prk k = extract(salt, ikm);
             expand_to(out, k, info);
         }
 
     private:
-        static size_t _checked(size_t n) {
+        SGCL_INLINE_HOT static size_t _checked(size_t n) {
             if (n > max_size) {
                 throw invalid_argument("sgcl::crypto::hkdf: more than 255 blocks asked of expand");
             }
             return n;
         }
 
-        static void _checked(const slice<byte>& out, const slice<const byte>& info) {
+        SGCL_INLINE_HOT static void _checked(const slice<byte>& out, const slice<const byte>& info) {
             _checked(out.size());
             if (detail::overlap(out.data(), out.size(), info.data(), info.size())) {
                 throw invalid_argument("sgcl::crypto::hkdf: the output overlaps info, which every block reads");

@@ -36,7 +36,7 @@ namespace sgcl::detail {
         // ~850 bytes of code each, 99 KB in a program of 117 managed types;
         // it runs once per page, off the allocation's fast path).
         template<class T>
-        Page(T* data) noexcept
+        SGCL_INLINE_HOT Page(T* data) noexcept
         : Page(&Info<T>::private_metadata(), (uintptr_t)data) {
         }
 
@@ -79,20 +79,20 @@ namespace sgcl::detail {
         // Written by the owning mutator only (owned == true); the collector
         // rebuilds it from the states before handing the page to the
         // per-type buffer.
-        Flag* free_bits() const noexcept {
+        SGCL_INLINE_HOT Flag* free_bits() const noexcept {
             return (Flag*)(flags() + flags_count());
         }
 
         // One bit per Flags word: set when that word has a free slot.
-        uint64_t* summary() const noexcept {
+        SGCL_INLINE_HOT uint64_t* summary() const noexcept {
             return (uint64_t*)(free_bits() + flags_count());
         }
 
-        unsigned summary_count() const noexcept {   // words of the summary
+        SGCL_INLINE_HOT unsigned summary_count() const noexcept {   // words of the summary
             return (flags_count() + 63) / 64;
         }
 
-        ~Page() noexcept {
+        SGCL_INLINE_HOT ~Page() noexcept {
             if constexpr(!std::is_trivially_destructible_v<std::atomic<State>>) {
                 auto states = this->states();
                 std::destroy(states, states + metadata->object_count);
@@ -101,15 +101,15 @@ namespace sgcl::detail {
 
         // What follows the header (page_info.h: HeaderSize): the states, one
         // byte per slot, then the Flags, the free bitmap and its summary
-        std::atomic<State>* states() const noexcept {
+        SGCL_INLINE_HOT std::atomic<State>* states() const noexcept {
             return (std::atomic<State>*)(this + 1);
         }
 
-        Flags* flags() const noexcept {
+        SGCL_INLINE_HOT Flags* flags() const noexcept {
             return flags_ptr;
         }
 
-        unsigned flags_count() const noexcept {
+        SGCL_INLINE_HOT unsigned flags_count() const noexcept {
             return (object_count + FlagBitCount - 1) / FlagBitCount;
         }
 
@@ -146,7 +146,7 @@ namespace sgcl::detail {
         // never clears a stamp, it only advances the epoch: no store from a
         // mutator can be lost to a clear. Pointers held on the stacks need
         // no card: the stacks are scanned every cycle.
-        static void mark_card(const void* location) noexcept {
+        SGCL_INLINE_HOT static void mark_card(const void* location) noexcept {
             if constexpr(!config::generational) {
                 return;
             }
@@ -166,56 +166,56 @@ namespace sgcl::detail {
 
         // The page (or its range) holds a pointer stored during the epoch
         // before `e` or later.
-        bool dirty_since(uint32_t e) const noexcept {
+        SGCL_INLINE_HOT bool dirty_since(uint32_t e) const noexcept {
             return Heap::dirty_since_last((const void*)data, page_count, e);
         }
 
         // The Flags word of slot i, and its bit in the word
-        static constexpr unsigned flag_index_of(unsigned i) noexcept {
+        SGCL_INLINE_HOT static constexpr unsigned flag_index_of(unsigned i) noexcept {
             return i / FlagBitCount;
         }
 
-        static constexpr Flag flag_mask_of(unsigned i) noexcept {
+        SGCL_INLINE_HOT static constexpr Flag flag_mask_of(unsigned i) noexcept {
             return Flag(1) << (i % FlagBitCount);
         }
 
         // The slot of an address in the page (an interior one too): a
         // multiply by the reciprocal of the object size, no division
-        unsigned index_of(const void* p) noexcept {
+        SGCL_INLINE_HOT unsigned index_of(const void* p) noexcept {
             assert(p != nullptr);
             return ((uintptr_t)p - data) * multiplier >> 32;
         }
 
-        void* pointer_of(unsigned index) noexcept {
+        SGCL_INLINE_HOT void* pointer_of(unsigned index) noexcept {
             return (void*)(data + index * object_size);
         }
 
         // The header of the page an address of the heap is in (heap.h)
-        static Page* page_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static Page* page_of(const void* p) noexcept {
             assert(p != nullptr);
             return Heap::page_of(p);
         }
 
         // Headers live in a per-type slab; never `delete` one.
-        static void release(Page* page) noexcept {
+        SGCL_INLINE_HOT static void release(Page* page) noexcept {
             auto slab = page->metadata->header_slab;
             page->~Page();
             slab->free(page);
         }
 
-        size_t data_size() const noexcept {   // the page, or the range of a large object
+        SGCL_INLINE_HOT size_t data_size() const noexcept {   // the page, or the range of a large object
             return page_count * config::page_size;
         }
 
         // The type's metadata, and the object's first byte, of any address
         // into a managed object
-        static Metadata& metadata_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static Metadata& metadata_of(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
             return *page->metadata;
         }
 
-        static void* base_address_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static void* base_address_of(const void* p) noexcept {
             assert(p != nullptr);
             auto page = page_of(p);
             auto index = page->index_of(p);
@@ -273,6 +273,32 @@ namespace sgcl::detail {
             } else {
                 state.store(S, std::memory_order_release);
             }
+        }
+
+        // The tests of the barrier above and of mark_card, without a call
+        // and without a store but the flag's: true when the target's state
+        // is current (or Fresh) and the card of `location` is stamped. For
+        // the constructors of tracked_ptr (pointer.h: the Registering
+        // constructor), which go out of line once for every slow case
+        static bool barrier_current(const void* p, const void* location) noexcept {
+            auto page = Page::page_of(p);
+            auto& state = page->states()[page->index_of(p)];
+            auto wanted = reachable_state();
+            auto old = state.load(std::memory_order_relaxed);
+            if (old != wanted && old != State(wanted | State::Fresh)) [[unlikely]] {
+                return false;
+            }
+            if (!page->state_updated.load(std::memory_order_relaxed)) {
+                page->state_updated.store(true, std::memory_order_release);
+            }
+            if constexpr(config::generational) {
+                char probe;
+                auto distance = (intptr_t)((const char*)location - &probe);
+                if ((uintptr_t)(distance + (intptr_t)config::chunk_size) >= 2 * config::chunk_size) {
+                    return Heap::card_current(location);
+                }
+            }
+            return true;
         }
 
         // The slow path of the barrier above, out of line (inline, its
@@ -362,7 +388,7 @@ namespace sgcl::detail {
         // state of this parity unretired, and a dead object lives one
         // cycle longer, till the parity turns. A seq_cst pair would cost
         // every release from a unique_ptr (make_tracked): not worth it.
-        static void set_state_released(const Release& r) noexcept {
+        SGCL_INLINE_HOT static void set_state_released(const Release& r) noexcept {
             auto wanted = reachable_state();
             r.state->store((r.parity ^ wanted) & State::Parity ? wanted : State(wanted | State::Fresh), std::memory_order_release);
             if (!r.page->state_updated.load(std::memory_order_relaxed)) {
@@ -371,7 +397,7 @@ namespace sgcl::detail {
         }
 
         // The state of the object at p, as it is now
-        static State state_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static State state_of(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
             return page->states()[page->index_of(p)].load(std::memory_order_acquire);
@@ -393,7 +419,7 @@ namespace sgcl::detail {
         // `p` points into a created object of the managed heap (a base
         // subobject, a member, the object itself), not into a buffer: the
         // target a tracked_ptr may be made from a raw pointer (tracked_ptr.h).
-        static bool is_object(const void* p) noexcept {
+        SGCL_INLINE_HOT static bool is_object(const void* p) noexcept {
             auto page = Heap::page_of_checked(p);
             if (!page || page->is_array) {
                 return false;
@@ -404,7 +430,7 @@ namespace sgcl::detail {
 
         // Whether a unique_ptr owns the object at p (the debug assertions:
         // no tracked_ptr or weak_ptr may address it)
-        static bool is_unique(const void* p) noexcept {
+        SGCL_INLINE_HOT static bool is_unique(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
             auto index = page->index_of(p);
@@ -445,13 +471,13 @@ namespace sgcl::detail {
         // which the cycle registers and traces, and harmless for one made
         // after it, whose registration the allocation's parity decides
         // (unique_state, set_state<Reachable>).
-        static State reachable_state() noexcept {
+        SGCL_INLINE_HOT static State reachable_state() noexcept {
             return Heap::globals.current_reachable.load(std::memory_order_relaxed);
         }
 
         // The same inside a barrier's region (types.h: BarrierRegion):
         // seq_cst, the load of the Dekker pair with the region's raise
-        static State reachable_state_in_region() noexcept {
+        SGCL_INLINE_HOT static State reachable_state_in_region() noexcept {
             return Heap::globals.current_reachable.load(std::memory_order_seq_cst);
         }
 
@@ -460,15 +486,15 @@ namespace sgcl::detail {
         // flip (a release) is ordered before everything the object's
         // creator publishes it with, and a thread that got the object from
         // there reads the new epoch in its stores (set_state<Reachable>).
-        static State unique_state() noexcept {
+        SGCL_INLINE_HOT static State unique_state() noexcept {
             return State(State::UniqueLock | (Heap::globals.current_reachable.load(std::memory_order_acquire) & State::Parity));
         }
 
-        static bool is_unique_state(State s) noexcept {   // UniqueLock of either parity
+        SGCL_INLINE_HOT static bool is_unique_state(State s) noexcept {   // UniqueLock of either parity
             return State(s & ~State::Parity) == State::UniqueLock;
         }
 
-        static void flip_epoch(uint32_t e) noexcept {
+        SGCL_INLINE_HOT static void flip_epoch(uint32_t e) noexcept {
             Heap::globals.epoch.store(e, std::memory_order_relaxed);
             Heap::set_epoch(e);
             Heap::globals.current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_release);

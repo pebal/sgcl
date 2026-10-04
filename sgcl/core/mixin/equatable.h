@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../detail/os.h"
 #include "../req.h"
 
 #include <algorithm>
@@ -28,7 +29,7 @@ namespace sgcl::mixin {
         // does not (a list): std::equal compares the distance itself for
         // random access, a walk of two lists would compare the elements
         // up to the end of the shorter
-        constexpr friend bool operator==(const Derived& a, const Derived& b) requires detail::EquatableElements<Derived> {
+        SGCL_INLINE_HOT constexpr friend bool operator==(const Derived& a, const Derived& b) requires detail::EquatableElements<Derived> {
             if constexpr (std::ranges::sized_range<const Derived> && !std::ranges::random_access_range<const Derived>) {
                 if (std::ranges::size(a) != std::ranges::size(b)) {
                     return false;

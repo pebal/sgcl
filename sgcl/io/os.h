@@ -55,7 +55,7 @@ namespace sgcl::io {
 
     // A variable: its value, nullopt when unset (an empty value is a
     // value); set and unset
-    inline optional<string> getenv(const string& name) noexcept {
+    SGCL_INLINE_HOT optional<string> getenv(const string& name) noexcept {
         const char* v = ::getenv(name.c_str());
         if (!v) {
             return nullopt;
@@ -136,12 +136,12 @@ namespace sgcl::io {
     // A span of <chrono> (`5s`, `250ms`) as the fallback: the value a
     // sgcl::duration, read as duration reads Go's text ("1.5s", "2m")
     template<class Rep, class Period>
-    duration env(const string& name, std::chrono::duration<Rep, Period> fallback) {
+    SGCL_INLINE_HOT duration env(const string& name, std::chrono::duration<Rep, Period> fallback) {
         return env<duration>(name, duration(fallback));
     }
 
     // The text form: the variable, or the fallback when it is unset or empty
-    inline string env(const string& name, const string& fallback) noexcept {
+    SGCL_INLINE_HOT string env(const string& name, const string& fallback) noexcept {
         const char* v = ::getenv(name.c_str());
         if (!v || !*v) {
             return fallback;
@@ -149,14 +149,14 @@ namespace sgcl::io {
         return string(v);
     }
 
-    inline expected<void, error> setenv(const string& name, const string& value) noexcept {
+    SGCL_INLINE_HOT expected<void, error> setenv(const string& name, const string& value) noexcept {
         if (::setenv(name.c_str(), value.c_str(), 1) != 0) {
             return detail::fail(last_error("setenv", name));
         }
         return {};
     }
 
-    inline expected<void, error> unsetenv(const string& name) noexcept {
+    SGCL_INLINE_HOT expected<void, error> unsetenv(const string& name) noexcept {
         if (::unsetenv(name.c_str()) != 0) {
             return detail::fail(last_error("unsetenv", name));
         }
@@ -223,7 +223,7 @@ namespace sgcl::io {
         return string(out);
     }
 
-    inline expected<string, error> working_dir() noexcept {
+    SGCL_INLINE_HOT expected<string, error> working_dir() noexcept {
         char buf[4096];
         if (!::getcwd(buf, sizeof buf)) {
             return detail::fail(last_error("getcwd"));
@@ -231,7 +231,7 @@ namespace sgcl::io {
         return string(buf);
     }
 
-    inline expected<void, error> chdir(const string& path) noexcept {
+    SGCL_INLINE_HOT expected<void, error> chdir(const string& path) noexcept {
         if (::chdir(path.c_str()) != 0) {
             return detail::fail(last_error("chdir", path));
         }
@@ -243,7 +243,7 @@ namespace sgcl::io {
     // (~/Library/Caches and ~/Library/Application Support on macOS,
     // $XDG_CACHE_HOME or ~/.cache and $XDG_CONFIG_HOME or ~/.config
     // elsewhere); the temporary directory ($TMPDIR, else /tmp)
-    inline expected<string, error> home_dir() noexcept {
+    SGCL_INLINE_HOT expected<string, error> home_dir() noexcept {
         if (auto h = getenv("HOME"); h && !h->empty()) {
             return *h;
         }
@@ -291,7 +291,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline string temp_dir() noexcept {
+    SGCL_INLINE_HOT string temp_dir() noexcept {
         return detail::temp_root();
     }
 
@@ -318,7 +318,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<string, error> hostname() noexcept {
+    SGCL_INLINE_HOT expected<string, error> hostname() noexcept {
         char buf[256];
         if (::gethostname(buf, sizeof buf) != 0) {
             return detail::fail(last_error("hostname"));
@@ -327,7 +327,7 @@ namespace sgcl::io {
         return string(buf);
     }
 
-    inline int pid() noexcept {
+    SGCL_INLINE_HOT int pid() noexcept {
         return static_cast<int>(::getpid());
     }
 
@@ -375,52 +375,52 @@ namespace sgcl::io {
         using mixin::writer<standard_stream>::write;
         using mixin::writer<standard_stream>::async_write;
 
-        constexpr standard_stream(int fd, const char* name) noexcept
+        SGCL_INLINE_HOT constexpr standard_stream(int fd, const char* name) noexcept
         : _fd(fd), _name(name) {
         }
 
         standard_stream(const standard_stream&) = delete;
         standard_stream& operator=(const standard_stream&) = delete;
 
-        expected<size_t, error> read(const slice<byte>& buffer) {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& buffer) {
             return _get().read(buffer);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) noexcept {
             return _get().async_read(buffer);
         }
 
-        expected<size_t, error> write(const slice<const byte>& data) {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& data) {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(const slice<const byte>& data) noexcept {
             return _get().async_write(data);
         }
 
         // The file over the descriptor, for what takes a file (a child's
         // standard stream shared with the program's: cmd.out = io::stdout.file())
-        io::file file() const noexcept {
+        SGCL_INLINE_HOT io::file file() const noexcept {
             return detail::FileAccess::make(_held().ptr());
         }
 
-        int fd() const noexcept {
+        SGCL_INLINE_HOT int fd() const noexcept {
             return _fd;
         }
 
-        bool is_terminal() const noexcept {
+        SGCL_INLINE_HOT bool is_terminal() const noexcept {
             return ::isatty(_fd) == 1;
         }
 
     private:
-        detail::FileState& _get() const noexcept {
+        SGCL_INLINE_HOT detail::FileState& _get() const noexcept {
             return *_held();
         }
 
         // Made once, on the first use, by whichever thread comes first;
         // never destroyed: a root whose cell outlives the static
         // destructors that may still write to the stream
-        root_ptr<detail::FileState>& _held() const noexcept {
+        SGCL_INLINE_HOT root_ptr<detail::FileState>& _held() const noexcept {
             root_ptr<detail::FileState>* p = _file.load(std::memory_order_acquire);
             if (!p) {
                 auto made = new root_ptr<detail::FileState>(detail::std_stream(_fd, _name));
@@ -443,7 +443,7 @@ namespace sgcl::io {
     inline standard_stream stderr(2, "stderr");
 
     // Whether the descriptor is a terminal
-    inline bool is_terminal(int fd) noexcept {
+    SGCL_INLINE_HOT bool is_terminal(int fd) noexcept {
         return ::isatty(fd) == 1;
     }
 

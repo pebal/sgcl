@@ -55,7 +55,7 @@ namespace sgcl::txt::detail {
         // `stamp` is where the visit marks start counting. Nothing but the
         // test that has to reach the wrap of a 32-bit counter without two
         // billion positions of text ever passes it.
-        matcher(const program& p, std::string_view text, size_t ncap, uint32_t stamp = 0) noexcept
+        SGCL_INLINE_HOT matcher(const program& p, std::string_view text, size_t ncap, uint32_t stamp = 0) noexcept
         : matcher(p, text, ncap, stamp, false) {
         }
 
@@ -65,7 +65,7 @@ namespace sgcl::txt::detail {
         // within one call: the one regex_matches keeps lives in an
         // iterator that may outlast the call or die on another thread,
         // and a lent slot goes back to the thread that took it.
-        matcher(LentBlock, const program& p, std::string_view text, size_t ncap) noexcept
+        SGCL_INLINE_HOT matcher(LentBlock, const program& p, std::string_view text, size_t ncap) noexcept
         : matcher(p, text, ncap, 0, true) {
         }
 
@@ -267,7 +267,7 @@ namespace sgcl::txt::detail {
 
         // How many threads the longer of the two lists has room for. Nothing
         // but the test that holds the lists to what a search reaches asks it.
-        size_t list_rows() const noexcept {
+        SGCL_INLINE_HOT size_t list_rows() const noexcept {
             return _clist.rows > _nlist.rows ? _clist.rows : _nlist.rows;
         }
 
@@ -307,7 +307,7 @@ namespace sgcl::txt::detail {
         // benchmark — the widest of them reaches 16 — and a list can never
         // want more rows than program::listed, so a small program asks for
         // no more than it could use.
-        size_t _start_rows() const noexcept {
+        SGCL_INLINE_HOT size_t _start_rows() const noexcept {
             size_t want = _p.listed < 16 ? size_t(_p.listed) : size_t(16);
             return want ? want : 1;
         }
@@ -363,7 +363,7 @@ namespace sgcl::txt::detail {
         // one costs a compare per position and a sweep of the program once
         // every four billion stamps, which is nothing, and there is then no
         // stamp any mark can collide with.
-        uint32_t _next_stamp() noexcept {
+        SGCL_INLINE_HOT uint32_t _next_stamp() noexcept {
             if (++_stamp == 0) [[unlikely]] {
                 _clear_gen();
                 _stamp = 1;
@@ -457,7 +457,7 @@ namespace sgcl::txt::detail {
         // engine draws it around \w. A \b that held between two commas
         // would surprise every reader of a pattern. The annex is the
         // right answer to words(); this is the right answer to \b.
-        bool _word_edge(size_t pos) const noexcept {
+        SGCL_INLINE_HOT bool _word_edge(size_t pos) const noexcept {
             bool before = pos > 0 && is_word_point(utf8::decode_last(_text, pos).first);
             bool after = pos < _text.size() && is_word_point(utf8::decode(_text, pos).first);
             return before != after;

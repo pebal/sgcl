@@ -32,12 +32,12 @@
 namespace sgcl::crypto {
     namespace random {
         // out filled with random bytes
-        inline void fill(const slice<byte>& out) noexcept {
+        SGCL_INLINE_HOT void fill(const slice<byte>& out) noexcept {
             detail::drbg_fill(reinterpret_cast<unsigned char*>(out.data()), out.size());
         }
 
         // n random bytes, for what is not a secret: a salt, a nonce, an id
-        inline vector<byte> bytes(size_t n) {
+        SGCL_INLINE_HOT vector<byte> bytes(size_t n) {
             vector<byte> out(n);
             fill(out.as_slice());
             return out;
@@ -46,7 +46,7 @@ namespace sgcl::crypto {
         // n random bytes that are a secret: a key, a seed. Up to 64 bytes in
         // the secret_bytes itself, past that in plain memory zeroed when it
         // goes, never in managed memory
-        inline secret_bytes secret(size_t n) noexcept {
+        SGCL_INLINE_HOT secret_bytes secret(size_t n) noexcept {
             secret_bytes out(n);
             fill(out.as_slice());
             return out;

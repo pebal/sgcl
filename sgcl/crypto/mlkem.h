@@ -63,12 +63,12 @@ namespace sgcl::crypto {
         // The tag of the constructors only the library calls
         struct Made {};
 
-        inline const uint8_t* bytes_of(const slice<const byte>& s) noexcept {
+        SGCL_INLINE_HOT const uint8_t* bytes_of(const slice<const byte>& s) noexcept {
             return reinterpret_cast<const uint8_t*>(s.data());
         }
 
         template<class P>
-        inline Encapsulation<P> encapsulation_of(const uint8_t* ek, const Matrix<P>& a, const uint8_t h[32], const uint8_t m[32]) noexcept {
+        SGCL_INLINE_HOT Encapsulation<P> encapsulation_of(const uint8_t* ek, const Matrix<P>& a, const uint8_t h[32], const uint8_t m[32]) noexcept {
             Encapsulation<P> e{SecretAccess::make<32>(), vector<byte>(Sizes<P>::ciphertext)};
             encaps_with_hash<P>(SecretAccess::data(e.shared_key), reinterpret_cast<uint8_t*>(e.ciphertext.data()), ek, a, h, m);
             return e;
@@ -83,12 +83,12 @@ namespace sgcl::crypto {
         struct Access {
             // An encapsulation key of bytes the library has checked
             template<class Ek, class P>
-            static Ek make(const uint8_t* ek, const Matrix<P>& a) noexcept {
+            SGCL_INLINE_HOT static Ek make(const uint8_t* ek, const Matrix<P>& a) noexcept {
                 return Ek(Made{}, ek, a);
             }
 
             template<class P, class Self>
-            static Encapsulation<P> encapsulate_with(const EncapsulationKeyOf<P, Self>& ek, const uint8_t m[32]) noexcept {
+            SGCL_INLINE_HOT static Encapsulation<P> encapsulate_with(const EncapsulationKeyOf<P, Self>& ek, const uint8_t m[32]) noexcept {
                 return encapsulation_of<P>(ek._ek, ek._a, ek._h, m);
             }
         };
@@ -99,21 +99,21 @@ namespace sgcl::crypto {
         public:
             // The key of Sizes<P>::ek bytes; another length, or a
             // coefficient of q or more (§7.2), is errc::invalid_key
-            static expected<Self, error> from_bytes(const slice<const byte>& bytes) noexcept {
+            SGCL_INLINE_HOT static expected<Self, error> from_bytes(const slice<const byte>& bytes) noexcept {
                 if (!encapsulation_key_valid<P>(bytes_of(bytes), bytes.size())) {
                     return unexpected<error>(error(errc::invalid_key, string(P::name) + string(": an encapsulation key of the wrong length or with a coefficient not below q")));
                 }
                 return Self(Made{}, bytes_of(bytes));
             }
 
-            vector<byte> bytes() const noexcept {
+            SGCL_INLINE_HOT vector<byte> bytes() const noexcept {
                 vector<byte> v(Sizes<P>::ek);
                 std::memcpy(v.data(), _ek, Sizes<P>::ek);
                 return v;
             }
 
             // A shared key and its ciphertext, from 32 bytes of crypto::random
-            Encapsulation<P> encapsulate() const noexcept {
+            SGCL_INLINE_HOT Encapsulation<P> encapsulate() const noexcept {
                 uint8_t m[32];
                 random::fill(slice<byte>(reinterpret_cast<byte*>(m), sizeof m));
                 auto e = encapsulation_of<P>(_ek, _a, _h, m);
@@ -121,7 +121,7 @@ namespace sgcl::crypto {
                 return e;
             }
 
-            friend bool operator==(const EncapsulationKeyOf& a, const EncapsulationKeyOf& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const EncapsulationKeyOf& a, const EncapsulationKeyOf& b) noexcept {
                 return std::memcmp(a._ek, b._ek, Sizes<P>::ek) == 0;
             }
 
@@ -131,14 +131,14 @@ namespace sgcl::crypto {
             // Only the library makes a key of bytes it has checked (from_bytes,
             // a decapsulation key's own, Access::make): the constructor is
             // private, and the public type's `using` inherits it private
-            EncapsulationKeyOf(Made, const uint8_t* ek) noexcept {
+            SGCL_INLINE_HOT EncapsulationKeyOf(Made, const uint8_t* ek) noexcept {
                 std::memcpy(_ek, ek, Sizes<P>::ek);
                 sha3_256(_h, _ek, Sizes<P>::ek);
                 expand_matrix<P>(_a, _ek + 384 * P::k);
             }
 
             // A decapsulation key's own, whose matrix is made already
-            EncapsulationKeyOf(Made, const uint8_t* ek, const Matrix<P>& a) noexcept
+            SGCL_INLINE_HOT EncapsulationKeyOf(Made, const uint8_t* ek, const Matrix<P>& a) noexcept
             : _a(a) {
                 std::memcpy(_ek, ek, Sizes<P>::ek);
                 sha3_256(_h, _ek, Sizes<P>::ek);
@@ -155,7 +155,7 @@ namespace sgcl::crypto {
         class DecapsulationKeyOf {
         public:
             // A seed from crypto::random
-            static Self generate() noexcept {
+            SGCL_INLINE_HOT static Self generate() noexcept {
                 Self k(Made{});
                 random::fill(slice<byte>(reinterpret_cast<byte*>(k._seed), sizeof k._seed));
                 k._expand();
@@ -163,7 +163,7 @@ namespace sgcl::crypto {
             }
 
             // The key of its seed d‖z, 64 bytes; another length is invalid_key
-            static expected<Self, error> from_seed(const slice<const byte>& seed) noexcept {
+            SGCL_INLINE_HOT static expected<Self, error> from_seed(const slice<const byte>& seed) noexcept {
                 if (seed.size() != 64) {
                     return unexpected<error>(error(errc::invalid_key, string(P::name) + string(": a seed is 64 bytes")));
                 }
@@ -178,18 +178,18 @@ namespace sgcl::crypto {
 
             // The object moved from is zeroed and is no key of any use
             // until assigned again
-            DecapsulationKeyOf(DecapsulationKeyOf&& other) noexcept {
+            SGCL_INLINE_HOT DecapsulationKeyOf(DecapsulationKeyOf&& other) noexcept {
                 _take(other);
             }
 
-            DecapsulationKeyOf& operator=(DecapsulationKeyOf&& other) noexcept {
+            SGCL_INLINE_HOT DecapsulationKeyOf& operator=(DecapsulationKeyOf&& other) noexcept {
                 if (this != &other) {
                     _take(other);
                 }
                 return *this;
             }
 
-            ~DecapsulationKeyOf() {
+            SGCL_INLINE_HOT ~DecapsulationKeyOf() {
                 _wipe();
             }
 
@@ -205,14 +205,14 @@ namespace sgcl::crypto {
             }
 
             // The seed d‖z, the form the key is kept in, as a secret
-            secret<64> seed() const {
+            SGCL_INLINE_HOT secret<64> seed() const {
                 _check();
                 auto s = SecretAccess::make<64>();
                 std::memcpy(SecretAccess::data(s), _seed, 64);
                 return s;
             }
 
-            Ek encapsulation_key() const {
+            SGCL_INLINE_HOT Ek encapsulation_key() const {
                 _check();
                 return Access::make<Ek>(_dk + Sizes<P>::dk_pke, _a);
             }
@@ -220,7 +220,7 @@ namespace sgcl::crypto {
             // The shared key of a ciphertext: the encapsulated one, or for a
             // ciphertext that is no genuine one a pseudorandom key (§6.3);
             // a ciphertext of another length is errc::malformed
-            expected<secret<32>, error> decapsulate(const slice<const byte>& ciphertext) const {
+            SGCL_INLINE_HOT expected<secret<32>, error> decapsulate(const slice<const byte>& ciphertext) const {
                 _check();
                 if (ciphertext.size() != Sizes<P>::ciphertext) {
                     return unexpected<error>(error(errc::malformed, string(P::name) + string(": a ciphertext of the wrong length")));
@@ -232,7 +232,7 @@ namespace sgcl::crypto {
 
             // The same key, compared in constant time; a key moved from is
             // std::logic_error, as everywhere
-            friend bool operator==(const DecapsulationKeyOf& a, const DecapsulationKeyOf& b) {
+            SGCL_INLINE_HOT friend bool operator==(const DecapsulationKeyOf& a, const DecapsulationKeyOf& b) {
                 a._check();
                 b._check();
                 return equal_bytes(a._seed, b._seed, 64);
@@ -241,7 +241,7 @@ namespace sgcl::crypto {
         private:
             friend struct Access;
 
-            explicit DecapsulationKeyOf(Made) noexcept {
+            SGCL_INLINE_HOT explicit DecapsulationKeyOf(Made) noexcept {
             }
 
             unsigned char _seed[64] = {};
@@ -249,19 +249,19 @@ namespace sgcl::crypto {
             Matrix<P> _a = {};                 // Â of the key's ρ, for the encryption again in decapsulation
             uint8_t _live = 0;                 // 0: moved from (zeroed), no key
 
-            void _expand() noexcept {
+            SGCL_INLINE_HOT void _expand() noexcept {
                 uint8_t ek[Sizes<P>::ek];
                 keygen_internal<P>(ek, _dk, _seed, _seed + 32, _a);
                 _live = 1;
             }
 
-            void _check() const {
+            SGCL_INLINE_HOT void _check() const {
                 if (!_live) {
                     moved_from(P::name);
                 }
             }
 
-            void _take(DecapsulationKeyOf& other) noexcept {
+            SGCL_INLINE_HOT void _take(DecapsulationKeyOf& other) noexcept {
                 std::memcpy(_seed, other._seed, sizeof _seed);
                 std::memcpy(_dk, other._dk, sizeof _dk);
                 _a = other._a;
@@ -271,7 +271,7 @@ namespace sgcl::crypto {
 
             // The whole object, the padding after _live included (the
             // matrix's alignment leaves some): nothing of the key left
-            void _wipe() noexcept {
+            SGCL_INLINE_HOT void _wipe() noexcept {
                 secure_zero(static_cast<void*>(this), sizeof *this);
             }
         };

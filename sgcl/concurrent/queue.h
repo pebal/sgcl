@@ -59,13 +59,13 @@ namespace sgcl::concurrent {
             Node() noexcept = default;
 
             template<class... A>
-            explicit Node(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
+            SGCL_INLINE_HOT explicit Node(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::in_place, std::forward<A>(a)...) {
             }
 
             struct Taken {};
 
-            explicit Node(Taken) noexcept
+            SGCL_INLINE_HOT explicit Node(Taken) noexcept
             : taken(true) {
             }
 
@@ -80,7 +80,7 @@ namespace sgcl::concurrent {
 
         // An empty queue: the head and the tail address one node whose
         // element is taken
-        queue() noexcept
+        SGCL_INLINE_HOT queue() noexcept
         : queue(make_tracked<Node>(typename Node::Taken{})) {
         }
 
@@ -102,10 +102,10 @@ namespace sgcl::concurrent {
             Node _node{typename Node::Taken{}};
         };
 
-        explicit queue(detail::QueueUnlinked) noexcept {
+        SGCL_INLINE_HOT explicit queue(detail::QueueUnlinked) noexcept {
         }
 
-        void link(first_node& first) noexcept {
+        SGCL_INLINE_HOT void link(first_node& first) noexcept {
             assert(!_head.load(std::memory_order_relaxed) && "a queue linked twice");
             assert(sgcl::detail::Heap::contains(&first) && "the first node of a queue in an object off the managed heap");
             tracked_ptr<Node> node(&first._node);
@@ -116,11 +116,11 @@ namespace sgcl::concurrent {
         queue(const queue&) = delete;
         queue& operator=(const queue&) = delete;
 
-        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace(value);
         }
 
-        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace(std::move(value));
         }
 
@@ -239,7 +239,7 @@ namespace sgcl::concurrent {
 
         // The first element, or nothing when the queue is empty at the
         // moment of the walk
-        optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT optional<T> try_pop() noexcept(std::is_nothrow_move_constructible_v<T>) {
             tracked_ptr<Node> last;
             return _pop(last);
         }
@@ -263,7 +263,7 @@ namespace sgcl::concurrent {
             }
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return !_first();
         }
 
@@ -286,7 +286,7 @@ namespace sgcl::concurrent {
         }
 
     private:
-        explicit queue(const tracked_ptr<Node>& first) noexcept
+        SGCL_INLINE_HOT explicit queue(const tracked_ptr<Node>& first) noexcept
         : _head(first)
         , _tail(first) {
         }
@@ -331,7 +331,7 @@ namespace sgcl::concurrent {
 
         // The head swung from h to p, and h linked to itself: off the
         // list, retaining nothing
-        void _update_head(tracked_ptr<Node>& h, tracked_ptr<Node> p) noexcept {
+        SGCL_INLINE_HOT void _update_head(tracked_ptr<Node>& h, tracked_ptr<Node> p) noexcept {
             if (h != p && _head.compare_exchange_strong(h, p, std::memory_order_acq_rel, std::memory_order_relaxed)) {
                 h->next.store(h, std::memory_order_release);
             }
@@ -359,7 +359,7 @@ namespace sgcl::concurrent {
             }
         }
 
-        tracked_ptr<Node> _after(const tracked_ptr<Node>& p) const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<Node> _after(const tracked_ptr<Node>& p) const noexcept {
             tracked_ptr<Node> q = p->next.load(std::memory_order_acquire);
             return q == p ? _first() : q;
         }

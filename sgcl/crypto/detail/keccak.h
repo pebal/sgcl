@@ -169,7 +169,7 @@ namespace sgcl::crypto::detail {
     }
 #endif
 
-    inline void keccak_permute(uint64_t* a) noexcept {
+    SGCL_INLINE_HOT void keccak_permute(uint64_t* a) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (sgcl::detail::cpu::sha3()) {
             keccak_permute_arm64(a);
@@ -180,7 +180,7 @@ namespace sgcl::crypto::detail {
     }
 
     template<size_t Rate>
-    void keccak_absorb(uint64_t* a, const unsigned char* p, size_t blocks) noexcept {
+    SGCL_INLINE_HOT void keccak_absorb(uint64_t* a, const unsigned char* p, size_t blocks) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (sgcl::detail::cpu::sha3()) {
             keccak_absorb_arm64<Rate>(a, p, blocks);
@@ -201,7 +201,7 @@ namespace sgcl::crypto::detail {
         uint64_t a[25];
         uint32_t pos;
 
-        void init() noexcept {
+        SGCL_INLINE_HOT void init() noexcept {
             std::memset(a, 0, sizeof a);
             pos = 0;
         }
@@ -240,7 +240,7 @@ namespace sgcl::crypto::detail {
         // The domain bits and pad10*1 (the suffix 01 of SHA-3 makes the
         // first byte 0x06, the 1111 of SHAKE 0x1F), then the permutation:
         // the first block of output is ready at pos 0
-        void pad(unsigned char first) noexcept {
+        SGCL_INLINE_HOT void pad(unsigned char first) noexcept {
             a[pos / 8] ^= uint64_t(first) << (8 * (pos % 8));
             a[(Rate - 1) / 8] ^= uint64_t(0x80) << (8 * ((Rate - 1) % 8));
             keccak_permute(a);

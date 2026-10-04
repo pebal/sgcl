@@ -31,7 +31,7 @@ namespace sgcl::io::detail {
         range
     };
 
-    constexpr char go_lower(char c) noexcept {
+    SGCL_INLINE_HOT constexpr char go_lower(char c) noexcept {
         return char(c | 0x20);
     }
 
@@ -165,7 +165,7 @@ namespace sgcl::io::detail {
     }
 
     // ParseBool: 1, t, T, TRUE, true, True and their false
-    inline GoNumber go_parse_bool(std::string_view s, bool& out) noexcept {
+    SGCL_INLINE_HOT GoNumber go_parse_bool(std::string_view s, bool& out) noexcept {
         if (s == "1" || s == "t" || s == "T" || s == "TRUE" || s == "true" || s == "True") {
             out = true;
             return GoNumber::ok;
@@ -344,7 +344,7 @@ namespace sgcl::io::detail {
 
     // Go's unicode.IsPrint: the letters, marks, numbers, punctuation and
     // symbols, and the ASCII space
-    inline bool go_is_print(char32_t r) noexcept {
+    SGCL_INLINE_HOT bool go_is_print(char32_t r) noexcept {
         if (r == U' ') {
             return true;
         }

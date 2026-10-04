@@ -52,7 +52,7 @@ namespace sgcl::crypto::x509 {
         array<byte, 16> bytes{};
         uint8_t size = 0;
 
-        friend bool operator==(const ip_address& a, const ip_address& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const ip_address& a, const ip_address& b) noexcept {
             return a.size == b.size && std::memcmp(a.bytes.data(), b.bytes.data(), a.size) == 0;
         }
     };
@@ -91,11 +91,11 @@ namespace sgcl::crypto::x509 {
         decipher_only = 1 << 8
     };
 
-    inline constexpr key_usage operator|(key_usage a, key_usage b) noexcept {
+    SGCL_INLINE_HOT constexpr key_usage operator|(key_usage a, key_usage b) noexcept {
         return key_usage(uint16_t(a) | uint16_t(b));
     }
 
-    inline constexpr key_usage operator&(key_usage a, key_usage b) noexcept {
+    SGCL_INLINE_HOT constexpr key_usage operator&(key_usage a, key_usage b) noexcept {
         return key_usage(uint16_t(a) & uint16_t(b));
     }
 
@@ -165,38 +165,38 @@ namespace sgcl::crypto::x509 {
 
         public_key() = default;
 
-        key_kind kind() const noexcept {
+        SGCL_INLINE_HOT key_kind kind() const noexcept {
             return key_kind(_key.index());
         }
 
-        bool has_value() const noexcept {
+        SGCL_INLINE_HOT bool has_value() const noexcept {
             return _key.index() != 0;
         }
 
-        const crypto::rsa::public_key& rsa() const {
+        SGCL_INLINE_HOT const crypto::rsa::public_key& rsa() const {
             return _get<crypto::rsa::public_key, 1>("an RSA key");
         }
 
-        const crypto::p256::public_key& p256() const {
+        SGCL_INLINE_HOT const crypto::p256::public_key& p256() const {
             return _get<crypto::p256::public_key, 2>("a P-256 key");
         }
 
-        const crypto::p384::public_key& p384() const {
+        SGCL_INLINE_HOT const crypto::p384::public_key& p384() const {
             return _get<crypto::p384::public_key, 3>("a P-384 key");
         }
 
-        const crypto::ed25519::public_key& ed25519() const {
+        SGCL_INLINE_HOT const crypto::ed25519::public_key& ed25519() const {
             return _get<crypto::ed25519::public_key, 4>("an Ed25519 key");
         }
 
         // The key as the variant, for visit
-        const value_type& value() const noexcept {
+        SGCL_INLINE_HOT const value_type& value() const noexcept {
             return _key;
         }
 
         // "1.2.840.113549.1.1.1" (rsaEncryption), "1.2.840.10045.2.1"
         // (id-ecPublicKey), "1.3.101.112" (Ed25519): the SPKI's algorithm
-        const string& algorithm() const noexcept {
+        SGCL_INLINE_HOT const string& algorithm() const noexcept {
             return _algorithm;
         }
 
@@ -207,7 +207,7 @@ namespace sgcl::crypto::x509 {
         string _algorithm;
 
         template<class T, size_t I>
-        const T& _get(const char* what) const {
+        SGCL_INLINE_HOT const T& _get(const char* what) const {
             if (_key.index() != I) {
                 throw logic_error(std::string("sgcl::crypto::x509: the public key is not ") + what);
             }
@@ -265,7 +265,7 @@ namespace sgcl::crypto::x509::detail {
         inline constexpr unsigned char ms_kernel_code_signing[] = {0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x3d, 0x01, 0x01};
 
         template<size_t N>
-        bool is(const DerReader& r, const unsigned char (&o)[N]) noexcept {
+        SGCL_INLINE_HOT bool is(const DerReader& r, const unsigned char (&o)[N]) noexcept {
             return r.size() == N && std::memcmp(r.data(), o, N) == 0;
         }
     }
@@ -310,11 +310,11 @@ namespace sgcl::crypto::x509::detail {
         vector<string> policies;
         vector<string> unhandled_critical;
 
-        slice<const byte> range(size_t at, size_t n) const noexcept {
+        SGCL_INLINE_HOT slice<const byte> range(size_t at, size_t n) const noexcept {
             return raw.as_slice().subslice(at, n);
         }
 
-        const unsigned char* bytes_at(size_t at) const noexcept {
+        SGCL_INLINE_HOT const unsigned char* bytes_at(size_t at) const noexcept {
             return reinterpret_cast<const unsigned char*>(raw.data()) + at;
         }
     };
@@ -327,16 +327,16 @@ namespace sgcl::crypto::x509::detail {
             return error(errc::malformed, uint64_t(at), string(std::string("sgcl::crypto::x509: ") + what));
         }
 
-        static string text(const DerReader& r) noexcept {
+        SGCL_INLINE_HOT static string text(const DerReader& r) noexcept {
             return string(std::string(reinterpret_cast<const char*>(r.data()), r.size()));
         }
 
-        static vector<byte> copy(const unsigned char* p, size_t n) noexcept {
+        SGCL_INLINE_HOT static vector<byte> copy(const unsigned char* p, size_t n) noexcept {
             const byte* b = reinterpret_cast<const byte*>(p);
             return vector<byte>(b, b + n);
         }
 
-        size_t at_of(const DerReader& r) const noexcept {
+        SGCL_INLINE_HOT size_t at_of(const DerReader& r) const noexcept {
             return size_t(r.data() - c.bytes_at(0));
         }
 

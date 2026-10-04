@@ -96,7 +96,7 @@ namespace sgcl::slog::detail {
             } fmt;                 // Formatted
         };
 
-        Value() noexcept
+        SGCL_INLINE_HOT Value() noexcept
         : s{nullptr, 0} {
         }
     };
@@ -109,7 +109,7 @@ namespace sgcl::slog::detail {
 
     // An attribute that writes nothing: no key and no value (Go's
     // Any("", nil)), which both handlers skip
-    inline bool is_empty_attr(const Attr& a) noexcept {
+    SGCL_INLINE_HOT bool is_empty_attr(const Attr& a) noexcept {
         return a.key_n == 0 && a.value.kind == Kind::Null;
     }
 
@@ -280,7 +280,7 @@ namespace sgcl::slog::detail {
     }
 
     template<class T>
-    size_t write_text_of(const void* p, char* out, size_t room) noexcept(noexcept(std::declval<const T&>().write_text(out))) {
+    SGCL_INLINE_HOT size_t write_text_of(const void* p, char* out, size_t room) noexcept(noexcept(std::declval<const T&>().write_text(out))) {
         if (room < T::MaxText) {
             return T::MaxText;
         }
@@ -288,7 +288,7 @@ namespace sgcl::slog::detail {
     }
 
     template<class T>
-    size_t format_value_of(const void* p, char* out, size_t room) noexcept(noexcept(format_value(std::declval<txt::format_sink&>(), std::declval<const T&>(), txt::format_spec{}))) {
+    SGCL_INLINE_HOT size_t format_value_of(const void* p, char* out, size_t room) noexcept(noexcept(format_value(std::declval<txt::format_sink&>(), std::declval<const T&>(), txt::format_spec{}))) {
         txt::format_sink sink(out, room);
         format_value(sink, *static_cast<const T*>(p), txt::format_spec{});
         return sink.size();
@@ -306,7 +306,7 @@ namespace sgcl::slog::detail {
                       "format_value, to_text() or to_string(), or a type with describe()");
     };
 
-    inline void set_string(Value& v, const char* p, size_t n) noexcept {
+    SGCL_INLINE_HOT void set_string(Value& v, const char* p, size_t n) noexcept {
         v.kind = Kind::String;
         v.s.p = p;
         v.s.n = n;
@@ -314,21 +314,21 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Null> {
-        Holder(const T&) noexcept {
+        SGCL_INLINE_HOT Holder(const T&) noexcept {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Null;
         }
     };
 
     template<class T>
     struct Holder<T, Category::Bool> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : value(x) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Bool;
             v.b = value;
         }
@@ -338,11 +338,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Signed> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : value(int64_t(x)) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Int;
             v.i = value;
         }
@@ -352,11 +352,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Unsigned> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : value(uint64_t(x)) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Uint;
             v.u = value;
         }
@@ -366,11 +366,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Float> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : value(double(x)) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Float;
             v.d = value;
         }
@@ -380,11 +380,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::CString> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : p(x ? x : ""), n(x ? std::strlen(x) : 0) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, p, n);
         }
 
@@ -394,11 +394,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::CharArray> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : p(x), n(array_length(x)) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, p, n);
         }
 
@@ -408,11 +408,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Text> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : p(x.data()), n(x.size()) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, p, n);
         }
 
@@ -422,11 +422,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Duration> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : ns(sgcl::duration(x).nanoseconds()) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Duration;
             v.ns = ns;
         }
@@ -436,11 +436,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Time> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : ns(x.unix_nano()), offset(int32_t(x.offset().nanoseconds() / 1000000000)) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Time;
             v.ns = ns;
             v.offset = offset;
@@ -452,11 +452,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::IoError> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : text(io_error_text(x)) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, text.data(), text.size());
         }
 
@@ -465,11 +465,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::ErrorCode> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : text(x.message()) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, text.data(), text.size());
         }
 
@@ -478,11 +478,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Exception> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : null(!x), text(x ? exception_text(x) : std::string()) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             if (null) {
                 v.kind = Kind::Null;
             } else {
@@ -498,13 +498,13 @@ namespace sgcl::slog::detail {
     struct Holder<T, Category::Optional> {
         using Inner = typename T::value_type;
 
-        Holder(const T& x) noexcept(std::is_nothrow_constructible_v<Holder<Inner>, const Inner&>) {
+        SGCL_INLINE_HOT Holder(const T& x) noexcept(std::is_nothrow_constructible_v<Holder<Inner>, const Inner&>) {
             if (x) {
                 inner.emplace(*x);
             }
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             if (inner) {
                 inner->fill(v);
             } else {
@@ -517,11 +517,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::WritesText> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : p(&x) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Formatted;
             v.fmt.p = p;
             v.fmt.fn = &write_text_of<T>;
@@ -532,11 +532,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::FormatsValue> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : p(&x) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Formatted;
             v.fmt.p = p;
             v.fmt.fn = &format_value_of<T>;
@@ -547,11 +547,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::ToText> {
-        Holder(const T& x) noexcept(noexcept(string(std::declval<const T&>().to_text())))
+        SGCL_INLINE_HOT Holder(const T& x) noexcept(noexcept(string(std::declval<const T&>().to_text())))
         : text(x.to_text()) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, text.data(), text.size());
         }
 
@@ -562,11 +562,11 @@ namespace sgcl::slog::detail {
     struct Holder<T, Category::ToString> {
         using Text = std::conditional_t<std::is_same_v<std::remove_cvref_t<decltype(std::declval<const T&>().to_string())>, std::string>, std::string, string>;
 
-        Holder(const T& x) noexcept(noexcept(Text(std::declval<const T&>().to_string())))
+        SGCL_INLINE_HOT Holder(const T& x) noexcept(noexcept(Text(std::declval<const T&>().to_string())))
         : text(x.to_string()) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             set_string(v, text.data(), text.size());
         }
 
@@ -575,11 +575,11 @@ namespace sgcl::slog::detail {
 
     template<class T>
     struct Holder<T, Category::Described> {
-        Holder(const T& x) noexcept
+        SGCL_INLINE_HOT Holder(const T& x) noexcept
         : p(&x) {
         }
 
-        void fill(Value& v) const noexcept {
+        SGCL_INLINE_HOT void fill(Value& v) const noexcept {
             v.kind = Kind::Record;
             v.obj.p = p;
             v.obj.ops = encoding::detail::value_ops<std::remove_cv_t<T>>();
@@ -654,13 +654,13 @@ namespace sgcl::slog::detail {
         // the program says of itself (to_text, to_string) may throw
         static constexpr bool NothrowHolders = (std::is_nothrow_constructible_v<Holder<A>, const A&> && ...);
 
-        explicit Pack(const A&... a) noexcept(NothrowHolders)
+        SGCL_INLINE_HOT explicit Pack(const A&... a) noexcept(NothrowHolders)
         : holders(a...) {
             _fill(std::index_sequence_for<A...>{});
         }
 
         template<class Tuple>
-        explicit Pack(const Tuple& t, int) noexcept(NothrowHolders)
+        SGCL_INLINE_HOT explicit Pack(const Tuple& t, int) noexcept(NothrowHolders)
         : Pack(t, std::index_sequence_for<A...>{}) {
         }
 
@@ -672,13 +672,13 @@ namespace sgcl::slog::detail {
 
     private:
         template<class Tuple, size_t... I>
-        Pack(const Tuple& t, std::index_sequence<I...>) noexcept(NothrowHolders)
+        SGCL_INLINE_HOT Pack(const Tuple& t, std::index_sequence<I...>) noexcept(NothrowHolders)
         : holders(std::get<I>(t)...) {
             _fill(std::index_sequence_for<A...>{});
         }
 
         template<size_t... I>
-        void _fill(std::index_sequence<I...>) noexcept {
+        SGCL_INLINE_HOT void _fill(std::index_sequence<I...>) noexcept {
             (_one<I>(), ...);
         }
 
@@ -707,7 +707,7 @@ namespace sgcl::slog::detail {
     struct Holder<slog::group<B...>, Category::Group> {
         Holder(const slog::group<B...>& g) noexcept(Pack<B...>::NothrowHolders);
 
-        void fill_group(Attr& a) const noexcept {
+        SGCL_INLINE_HOT void fill_group(Attr& a) const noexcept {
             a.key = name;
             a.key_n = name_n;
             a.value.kind = Kind::Group;
@@ -715,7 +715,7 @@ namespace sgcl::slog::detail {
             a.value.count = uint32_t(Pack<B...>::Count);
         }
 
-        void fill(Value&) const noexcept {
+        SGCL_INLINE_HOT void fill(Value&) const noexcept {
         }
 
         const char* name;
@@ -735,7 +735,7 @@ namespace sgcl::slog {
     template<class... A>
     class group {
     public:
-        group(const char* name, const A&... kv) noexcept
+        SGCL_INLINE_HOT group(const char* name, const A&... kv) noexcept
         : _name(name ? name : ""), _name_n(name ? std::strlen(name) : 0), _args(kv...) {
         }
 
@@ -754,7 +754,7 @@ namespace sgcl::slog {
 
 namespace sgcl::slog::detail {
     template<class... B>
-    Holder<slog::group<B...>, Category::Group>::Holder(const slog::group<B...>& g) noexcept(Pack<B...>::NothrowHolders)
+    SGCL_INLINE_HOT Holder<slog::group<B...>, Category::Group>::Holder(const slog::group<B...>& g) noexcept(Pack<B...>::NothrowHolders)
     : name(g._name), name_n(g._name_n), pack(g._args, 0) {
     }
 }

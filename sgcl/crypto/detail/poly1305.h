@@ -52,37 +52,37 @@ namespace sgcl::crypto::detail {
 #if defined(__SIZEOF_INT128__)
         using Column = unsigned __int128;
 
-        static void mac(Column& c, uint64_t a, uint64_t b) noexcept {
+        SGCL_INLINE_HOT static void mac(Column& c, uint64_t a, uint64_t b) noexcept {
             c += Column(a) * b;
         }
 
-        static uint64_t low(Column c) noexcept {
+        SGCL_INLINE_HOT static uint64_t low(Column c) noexcept {
             return uint64_t(c);
         }
 
-        static uint64_t shift(Column c, int n) noexcept {
+        SGCL_INLINE_HOT static uint64_t shift(Column c, int n) noexcept {
             return uint64_t(c >> n);
         }
 
-        static void add(Column& c, uint64_t v) noexcept {
+        SGCL_INLINE_HOT static void add(Column& c, uint64_t v) noexcept {
             c += v;
         }
 #else
         using Column = Wide;
 
-        static void mac(Column& c, uint64_t a, uint64_t b) noexcept {
+        SGCL_INLINE_HOT static void mac(Column& c, uint64_t a, uint64_t b) noexcept {
             add_wide(c, mul64(a, b));
         }
 
-        static uint64_t low(Column c) noexcept {
+        SGCL_INLINE_HOT static uint64_t low(Column c) noexcept {
             return c.lo;
         }
 
-        static uint64_t shift(Column c, int n) noexcept {
+        SGCL_INLINE_HOT static uint64_t shift(Column c, int n) noexcept {
             return shift_right(c, n);
         }
 
-        static void add(Column& c, uint64_t v) noexcept {
+        SGCL_INLINE_HOT static void add(Column& c, uint64_t v) noexcept {
             add_wide(c, {v, 0});
         }
 #endif
@@ -97,7 +97,7 @@ namespace sgcl::crypto::detail {
         unsigned char buffer[16];
         size_t buffered;
 
-        static Power power(const Limbs& a) noexcept {
+        SGCL_INLINE_HOT static Power power(const Limbs& a) noexcept {
             return {a.v0, a.v1, a.v2, a.v1 * 20, a.v2 * 20};
         }
 
@@ -134,7 +134,7 @@ namespace sgcl::crypto::detail {
             return a;
         }
 
-        static Limbs load(const unsigned char* p, uint64_t high) noexcept {
+        SGCL_INLINE_HOT static Limbs load(const unsigned char* p, uint64_t high) noexcept {
             uint64_t t0 = load_le64(p), t1 = load_le64(p + 8);
             return {t0 & mask44, (t0 >> 44 | t1 << 20) & mask44, (t1 >> 24) | high};
         }

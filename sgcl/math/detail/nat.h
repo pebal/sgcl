@@ -308,14 +308,14 @@ namespace sgcl::math::detail {
 
     // r[0..rn) += a[0..an) for an <= rn, the carry going on through r; the
     // carry out of the top returned
-    inline Limb add_in(Limb* r, size_t rn, const Limb* a, size_t an) noexcept {
+    SGCL_INLINE_HOT Limb add_in(Limb* r, size_t rn, const Limb* a, size_t an) noexcept {
         Limb carry = add_n(r, r, a, an);
         return add_1_in(r + an, rn - an, carry);
     }
 
     // r[0..rn) -= a[0..an) for an <= rn, the borrow going on through r;
     // the borrow out of the top returned
-    inline Limb sub_in(Limb* r, size_t rn, const Limb* a, size_t an) noexcept {
+    SGCL_INLINE_HOT Limb sub_in(Limb* r, size_t rn, const Limb* a, size_t an) noexcept {
         Limb borrow = sub_n(r, r, a, an);
         return sub_1_in(r + an, rn - an, borrow);
     }
@@ -407,14 +407,14 @@ namespace sgcl::math::detail {
     // until a sweep.
     class Scratch {
     public:
-        explicit Scratch(size_t n) noexcept
+        SGCL_INLINE_HOT explicit Scratch(size_t n) noexcept
         : _p(n <= Inline ? _inline : (_heap = std::make_unique_for_overwrite<Limb[]>(n)).get()) {
         }
 
         Scratch(const Scratch&) = delete;
         Scratch& operator=(const Scratch&) = delete;
 
-        Limb* get() noexcept {
+        SGCL_INLINE_HOT Limb* get() noexcept {
             return _p;
         }
 

@@ -45,11 +45,11 @@ namespace sgcl::net::tls::detail {
         void (*fill)(void* context, uint8_t* out, size_t n) = &Entropy::system_fill;
         void* context = nullptr;
 
-        void operator()(uint8_t* out, size_t n) const noexcept {
+        SGCL_INLINE_HOT void operator()(uint8_t* out, size_t n) const noexcept {
             fill(context, out, n);
         }
 
-        static void system_fill(void*, uint8_t* out, size_t n) noexcept {
+        SGCL_INLINE_HOT static void system_fill(void*, uint8_t* out, size_t n) noexcept {
             crypto::random::fill(slice<byte>(reinterpret_cast<byte*>(out), n));
         }
     };
@@ -64,11 +64,11 @@ namespace sgcl::net::tls::detail {
         SharedSecret(const SharedSecret&) = delete;
         SharedSecret& operator=(const SharedSecret&) = delete;
 
-        SharedSecret(SharedSecret&& other) noexcept {
+        SGCL_INLINE_HOT SharedSecret(SharedSecret&& other) noexcept {
             *this = std::move(other);
         }
 
-        SharedSecret& operator=(SharedSecret&& other) noexcept {
+        SGCL_INLINE_HOT SharedSecret& operator=(SharedSecret&& other) noexcept {
             if (this != &other) {
                 std::memcpy(bytes, other.bytes, sizeof bytes);
                 size = other.size;
@@ -77,21 +77,21 @@ namespace sgcl::net::tls::detail {
             return *this;
         }
 
-        ~SharedSecret() {
+        SGCL_INLINE_HOT ~SharedSecret() {
             wipe();
         }
 
-        void wipe() noexcept {
+        SGCL_INLINE_HOT void wipe() noexcept {
             crypto::detail::secure_zero(bytes, sizeof bytes);
             size = 0;
         }
 
-        slice<const byte> view() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> view() const noexcept {
             return bytes_of(bytes, size);
         }
     };
 
-    constexpr bool supported(Group g) noexcept {
+    SGCL_INLINE_HOT constexpr bool supported(Group g) noexcept {
         return g == Group::x25519 || g == Group::secp256r1 || g == Group::secp384r1 || g == Group::x25519_mlkem768;
     }
 
@@ -110,7 +110,7 @@ namespace sgcl::net::tls::detail {
         return 0;
     }
 
-    constexpr size_t server_share_size(Group g) noexcept {
+    SGCL_INLINE_HOT constexpr size_t server_share_size(Group g) noexcept {
         return g == Group::x25519_mlkem768 ? crypto::mlkem768::ciphertext_size + 32 : client_share_size(g);
     }
 
@@ -119,11 +119,11 @@ namespace sgcl::net::tls::detail {
             return Alert{AlertDescription::illegal_parameter, 0, what};
         }
 
-        inline const uint8_t* raw(const slice<const byte>& s) noexcept {
+        SGCL_INLINE_HOT const uint8_t* raw(const slice<const byte>& s) noexcept {
             return reinterpret_cast<const uint8_t*>(s.data());
         }
 
-        inline crypto::x25519::private_key x25519_key(const Entropy& entropy) noexcept {
+        SGCL_INLINE_HOT crypto::x25519::private_key x25519_key(const Entropy& entropy) noexcept {
             uint8_t b[32];
             entropy(b, 32);
             auto k = crypto::x25519::private_key::from_bytes(bytes_of(b, 32));
@@ -239,20 +239,20 @@ namespace sgcl::net::tls::detail {
             ++_count;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _count;
         }
 
-        Group group(size_t i) const noexcept {
+        SGCL_INLINE_HOT Group group(size_t i) const noexcept {
             return _shares[i].group;
         }
 
         // The share as it goes into the ClientHello's key_share
-        slice<const byte> public_share(size_t i) const noexcept {
+        SGCL_INLINE_HOT slice<const byte> public_share(size_t i) const noexcept {
             return bytes_of(_shares[i].public_share.data(), _shares[i].public_share.size());
         }
 
-        bool has(Group g) const noexcept {
+        SGCL_INLINE_HOT bool has(Group g) const noexcept {
             return find(g) != nullptr;
         }
 
@@ -318,7 +318,7 @@ namespace sgcl::net::tls::detail {
             optional<crypto::mlkem768::decapsulation_key> mlkem;
             std::vector<uint8_t> public_share;
 
-            void reset() noexcept {
+            SGCL_INLINE_HOT void reset() noexcept {
                 x25519.reset();
                 p256.reset();
                 p384.reset();
@@ -339,7 +339,7 @@ namespace sgcl::net::tls::detail {
             return nullptr;
         }
 
-        static void _append(Share& s, const void* p, size_t n) noexcept {
+        SGCL_INLINE_HOT static void _append(Share& s, const void* p, size_t n) noexcept {
             auto b = static_cast<const uint8_t*>(p);
             s.public_share.insert(s.public_share.end(), b, b + n);
         }

@@ -63,16 +63,16 @@ namespace sgcl::hash {
         static constexpr size_t block_size = 64;
 
         // With the process's seed: every maphash in the process agrees
-        maphash() noexcept
+        SGCL_INLINE_HOT maphash() noexcept
         : _state(detail::maphash_seed().seed) {
         }
 
         // With this seed: the same values in every run
-        explicit maphash(uint64_t seed) noexcept
+        SGCL_INLINE_HOT explicit maphash(uint64_t seed) noexcept
         : _state(seed) {
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
@@ -84,20 +84,20 @@ namespace sgcl::hash {
         // are equal and differ in their bytes)
         template<class T>
         requires std::has_unique_object_representations_v<T>
-        void update_value(const T& value) noexcept {
+        SGCL_INLINE_HOT void update_value(const T& value) noexcept {
             _state.update(reinterpret_cast<const unsigned char*>(std::addressof(value)), sizeof(T));
         }
 
-        uint64_t value() const noexcept {
+        SGCL_INLINE_HOT uint64_t value() const noexcept {
             return _state.value64();
         }
 
-        array<byte, 8> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 8> digest() const noexcept {
             return detail::big_endian<8>(value());
         }
 
         // As new, with the seed it was made with
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.reset();
         }
 
@@ -105,12 +105,12 @@ namespace sgcl::hash {
         detail::Xxh3Stream _state;
 
         // the one-shot form of() calls: `maphash::of(key)`, `maphash::of(key, seed)`
-        static uint64_t _of(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static uint64_t _of(const slice<const byte>& data) noexcept {
             const auto& process = detail::maphash_seed();
             return detail::xxh3_64(detail::bytes(data.data()), data.size(), process.seed, process.secret);
         }
 
-        static uint64_t _of(const slice<const byte>& data, uint64_t seed) noexcept {
+        SGCL_INLINE_HOT static uint64_t _of(const slice<const byte>& data, uint64_t seed) noexcept {
             return detail::xxh3_64(detail::bytes(data.data()), data.size(), seed);
         }
     };

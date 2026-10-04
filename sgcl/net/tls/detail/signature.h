@@ -29,7 +29,7 @@ namespace sgcl::net::tls::detail {
         uint8_t bytes[64 + 33 + 1 + 48];
         size_t size = 0;
 
-        Bytes view() const noexcept {
+        SGCL_INLINE_HOT Bytes view() const noexcept {
             return bytes_of(bytes, size);
         }
     };
@@ -75,7 +75,7 @@ namespace sgcl::net::tls::detail {
     // The signature checked under a key of each kind: a scheme of another
     // kind of key is illegal_parameter, a signature that does not verify
     // decrypt_error (§4.4.3)
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::ed25519::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
+    SGCL_INLINE_HOT expected<void, Alert> verify(uint16_t scheme, const crypto::ed25519::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         if (SignatureScheme(scheme) != SignatureScheme::ed25519) {
             return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than Ed25519"));
         }
@@ -85,7 +85,7 @@ namespace sgcl::net::tls::detail {
         return {};
     }
 
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::p256::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
+    SGCL_INLINE_HOT expected<void, Alert> verify(uint16_t scheme, const crypto::p256::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         if (SignatureScheme(scheme) != SignatureScheme::ecdsa_secp256r1_sha256) {
             return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than P-256"));
         }
@@ -96,7 +96,7 @@ namespace sgcl::net::tls::detail {
         return {};
     }
 
-    inline expected<void, Alert> verify(uint16_t scheme, const crypto::p384::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
+    SGCL_INLINE_HOT expected<void, Alert> verify(uint16_t scheme, const crypto::p384::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
         if (SignatureScheme(scheme) != SignatureScheme::ecdsa_secp384r1_sha384) {
             return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than P-384"));
         }
@@ -163,14 +163,14 @@ namespace sgcl::net::tls::detail {
     // CertificateVerify's signature field wants it (DER for ECDSA). The
     // scheme must fit the key (the machine chooses it so): a mismatch is a
     // mistake of the program
-    inline void sign(Builder& w, uint16_t scheme, const crypto::ed25519::private_key& key, const Bytes& content) noexcept {
+    SGCL_INLINE_HOT void sign(Builder& w, uint16_t scheme, const crypto::ed25519::private_key& key, const Bytes& content) noexcept {
         assert(SignatureScheme(scheme) == SignatureScheme::ed25519);
         (void)scheme;
         auto s = key.sign(content);
         w.bytes(s.data(), s.size());
     }
 
-    inline void sign(Builder& w, uint16_t scheme, const crypto::p256::private_key& key, const Bytes& content) noexcept {
+    SGCL_INLINE_HOT void sign(Builder& w, uint16_t scheme, const crypto::p256::private_key& key, const Bytes& content) noexcept {
         assert(SignatureScheme(scheme) == SignatureScheme::ecdsa_secp256r1_sha256);
         (void)scheme;
         auto d = crypto::sha256::of(content);
@@ -178,7 +178,7 @@ namespace sgcl::net::tls::detail {
         w.bytes(s.data(), s.size());
     }
 
-    inline void sign(Builder& w, uint16_t scheme, const crypto::p384::private_key& key, const Bytes& content) noexcept {
+    SGCL_INLINE_HOT void sign(Builder& w, uint16_t scheme, const crypto::p384::private_key& key, const Bytes& content) noexcept {
         assert(SignatureScheme(scheme) == SignatureScheme::ecdsa_secp384r1_sha384);
         (void)scheme;
         auto d = crypto::sha384::of(content);
@@ -190,7 +190,7 @@ namespace sgcl::net::tls::detail {
     // `bits` (RFC 8017 §9.1.1: an encoding of bits - 1 bits holds the
     // digest, the salt and two bytes); a key of 1024 bits has no room for
     // SHA-512's
-    inline constexpr bool rsa_pss_fits(size_t bits, size_t digest_size) noexcept {
+    SGCL_INLINE_HOT constexpr bool rsa_pss_fits(size_t bits, size_t digest_size) noexcept {
         return bits >= 2 && (bits - 1 + 7) / 8 >= 2 * digest_size + 2;
     }
 

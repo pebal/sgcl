@@ -9,6 +9,7 @@
 // the size known with no marker, not known with the marker, and known with
 // the marker too; damaged data, the limits, the streams sync and async.
 #include "common.h"
+#include "tests/source_root.h"
 
 #include <filesystem>
 
@@ -24,7 +25,7 @@ using compress::lzma;
 
 namespace {
     std::string repo_file(const std::string& name) {
-        auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+        auto root = source_root();
         std::ifstream is(root / name, std::ios::binary);
         std::stringstream ss;
         ss << is.rdbuf();
@@ -33,7 +34,7 @@ namespace {
 
     // Headers of the library one after another: text of a few MB
     std::string repo_text(size_t limit) {
-        auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "sgcl";
+        auto root = source_root() / "sgcl";
         std::vector<std::filesystem::path> files;
         for (auto& e : std::filesystem::recursive_directory_iterator(root)) {
             if (e.path().extension() == ".h") {

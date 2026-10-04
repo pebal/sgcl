@@ -15,6 +15,7 @@
 // does; metadata, limits, negatives of the right code; a stream in pieces as
 // memory; decode_options for every format.
 #include "md5.h"
+#include "tests/source_root.h"
 #include "oracle.h"
 #include "webp_builder.h"
 
@@ -1142,7 +1143,7 @@ TEST(CodecWebp_Tests, TheFuzzersFindsAsLibwebpTakesThem) {
     if (c_oracle().empty()) {
         GTEST_SKIP() << "no libwebp";
     }
-    const std::string here = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/'));
+    const std::string here = (source_root() / "tests/codec").string();
     for (const char* name : {"regress_simple_short_header_after_stop", "regress_lossy_transform_rows_past_16_bits",
                              "regress_lossy_zero_run_is_non_zero", "regress_anmf_area", "regress_anmf_padding"}) {
         const std::string data = read_file(here + "/fuzz/seeds/webp_decode/" + name);
@@ -1216,7 +1217,7 @@ TEST(CodecWebp_Tests, AnmfClaimedAreaAsLibwebpBoundsIt) {
 // segment's level first, as RFC 6386's reference decoder does, differs
 // from libwebp in 3385 to 3539 bytes of the planes
 TEST(CodecWebp_Tests, TheFilterLevelClampedOnceAsLibwebp) {
-    const std::string here = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/'));
+    const std::string here = (source_root() / "tests/codec").string();
     for (const char* name : {"filter_level_past_63.webp", "filter_level_absolute_below_0.webp", "filter_level_below_0_b_pred.webp"}) {
         const std::string path = here + "/fuzz/seeds/webp_decode/" + name;
         const std::string data = read_file(path);
@@ -1243,7 +1244,7 @@ TEST(CodecWebp_Tests, TheFilterLevelClampedOnceAsLibwebp) {
 // small_31x13.webp with its header so rewritten, 609 of 629 bytes of the
 // planes off). The planes against both, the pixels against WebPDecodeRGBA
 TEST(CodecWebp_Tests, SegmentsWithoutDataAsLibwebp) {
-    const std::string here = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/'));
+    const std::string here = (source_root() / "tests/codec").string();
     for (const char* name : {"regress_lossy_segments_without_data", "segments_without_data.webp"}) {
         const std::string path = here + "/fuzz/seeds/webp_decode/" + name;
         const std::string data = read_file(path);
@@ -1274,7 +1275,7 @@ TEST(CodecWebp_Tests, SegmentsWithoutDataAsLibwebp) {
 TEST(CodecWebp_Tests, InvalidDataIsRefusedWithItsReason) {
     using Reader = codec::detail::WebpReader<codec::detail::MemoryInput>;
     using codec::detail::WebpDamage;
-    const std::string here = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/'));
+    const std::string here = (source_root() / "tests/codec").string();
     auto damage_of = [](const std::string& data, bool& refused) {
         codec::detail::MemoryInput in(bytes(data));
         codec::decode_options o;

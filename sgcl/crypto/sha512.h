@@ -36,34 +36,34 @@ namespace sgcl::crypto {
         static constexpr size_t digest_size = 64;
         static constexpr size_t block_size = 128;
 
-        sha512() noexcept {
+        SGCL_INLINE_HOT sha512() noexcept {
             _state.init(detail::sha512_iv);
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
         // The digest of everything so far; the hasher goes on
-        array<byte, 64> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 64> value() const noexcept {
             sha512 h = *this;
             array<byte, 64> out;
             h._finish(detail::bytes(out.data()));
             return out;
         }
 
-        array<byte, 64> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 64> digest() const noexcept {
             return value();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.init(detail::sha512_iv);
         }
 
     private:
         detail::MdStream<detail::Sha512Traits> _state;
 
-        void _finish(unsigned char* out) noexcept {
+        SGCL_INLINE_HOT void _finish(unsigned char* out) noexcept {
             _state.finish(out);
         }
     };
@@ -78,26 +78,26 @@ namespace sgcl::crypto {
         static constexpr size_t digest_size = 48;
         static constexpr size_t block_size = 128;
 
-        sha384() noexcept {
+        SGCL_INLINE_HOT sha384() noexcept {
             _state.init(detail::sha384_iv);
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
-        array<byte, 48> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 48> value() const noexcept {
             sha384 h = *this;
             array<byte, 48> out;
             h._finish(detail::bytes(out.data()));
             return out;
         }
 
-        array<byte, 48> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 48> digest() const noexcept {
             return value();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.init(detail::sha384_iv);
         }
 
@@ -105,7 +105,7 @@ namespace sgcl::crypto {
         detail::MdStream<detail::Sha512Traits> _state;
 
         // the first six of the eight words; the other two do not stay
-        void _finish(unsigned char* out) noexcept {
+        SGCL_INLINE_HOT void _finish(unsigned char* out) noexcept {
             unsigned char full[64];
             _state.finish(full);
             std::memcpy(out, full, 48);
@@ -123,26 +123,26 @@ namespace sgcl::crypto {
         static constexpr size_t digest_size = 32;
         static constexpr size_t block_size = 128;
 
-        sha512_256() noexcept {
+        SGCL_INLINE_HOT sha512_256() noexcept {
             _state.init(detail::sha512_256_iv);
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
-        array<byte, 32> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 32> value() const noexcept {
             sha512_256 h = *this;
             array<byte, 32> out;
             h._finish(detail::bytes(out.data()));
             return out;
         }
 
-        array<byte, 32> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 32> digest() const noexcept {
             return value();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.init(detail::sha512_256_iv);
         }
 
@@ -150,7 +150,7 @@ namespace sgcl::crypto {
         detail::MdStream<detail::Sha512Traits> _state;
 
         // the first four of the eight words; the other four do not stay
-        void _finish(unsigned char* out) noexcept {
+        SGCL_INLINE_HOT void _finish(unsigned char* out) noexcept {
             unsigned char full[64];
             _state.finish(full);
             std::memcpy(out, full, 32);

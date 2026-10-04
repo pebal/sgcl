@@ -18,7 +18,7 @@ namespace sgcl::detail {
     // published), the card (a frame is never carded).
     class Anchor {
     public:
-        explicit Anchor(const void* p) noexcept
+        SGCL_INLINE_HOT explicit Anchor(const void* p) noexcept
         : _p(const_cast<void*>(p)) {
             os::escape(&_p);
             ensure_thread_registered();
@@ -31,14 +31,14 @@ namespace sgcl::detail {
         Anchor& operator=(const Anchor&) = delete;
 
         // The next node of a walk: the same word, the state set anew.
-        void reset(const void* p) noexcept {
+        SGCL_INLINE_HOT void reset(const void* p) noexcept {
             _p = const_cast<void*>(p);
             if (p) {
                 Page::set_state<State::Reachable>(p);
             }
         }
 
-        ~Anchor() noexcept {
+        SGCL_INLINE_HOT ~Anchor() noexcept {
             *(void* volatile*)&_p = nullptr;   // a dead frame keeps nothing
         }
 

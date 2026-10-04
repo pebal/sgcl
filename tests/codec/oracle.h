@@ -12,6 +12,7 @@
 #pragma once
 
 #include "common.h"
+#include "tests/source_root.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,7 +23,7 @@
 
 namespace codec_test {
     inline std::filesystem::path repository_root() {
-        return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+        return source_root();
     }
 
     inline std::string libpng_root() {

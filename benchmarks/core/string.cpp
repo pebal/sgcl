@@ -9,6 +9,11 @@
 //   string <sgcl|std> [op=make|copy|hash1|hashn|sweep] [len=10]
 //   make: 2 M strings made from tokens of a text buffer, each stored in a node
 //   copy: 2 M strings copied from one node to another, in order
+// make and copy store into 2 M old nodes right after a full collection, and
+// the first store into an old object after a collection takes the barrier's
+// slow path (its state and its card): the loop runs four passes, the nodes
+// emptied between them outside the timing, and ns/op is the mean of the
+// last three, the steady state; first_pass is the first, for analysis only.
 //   hash1: 2 M strings each hashed once, as a map key would be
 //   hashn: 2 M strings each hashed eight times in a row (a string used as a key again and again)
 //   sweep: 2 M nodes holding a string dropped: the full collection that frees them
@@ -20,6 +25,29 @@
 #include <string>
 namespace {
     const long count = 2'000'000;
+    const int passes = 4;
+    double first_pass = -1;   // make and copy: the first pass, printed apart
+
+    // passes of `body` over the nodes, `empty` run between them untimed;
+    // returns the mean of every pass after the first (ns per element)
+    template<class Empty, class Body>
+    double steady(Empty empty, Body body) {
+        double sum = 0;
+        for (int p = 0; p < passes; ++p) {
+            if (p > 0) {
+                empty();
+            }
+            auto t0 = bench::Clock::now();
+            body();
+            double ns = bench::seconds_since(t0) / count * 1e9;
+            if (p == 0) {
+                first_pass = ns;
+            } else {
+                sum += ns;
+            }
+        }
+        return sum / (passes - 1);
+    }
 
     template<class S>
     struct Node {
@@ -53,11 +81,15 @@ namespace {
         }
         if (!std::strcmp(op, "make")) {
             sgcl::collector::force_collect(true);
-            auto t0 = bench::Clock::now();
-            for (long i = 0; i < count; ++i) {
-                nodes[i]->s = make<S>(&buffer[i * len], len);
-            }
-            return bench::seconds_since(t0) / count * 1e9;
+            return steady([&] {
+                for (long i = 0; i < count; ++i) {
+                    nodes[i]->s = S();
+                }
+            }, [&] {
+                for (long i = 0; i < count; ++i) {
+                    nodes[i]->s = make<S>(&buffer[i * len], len);
+                }
+            });
         }
         for (long i = 0; i < count; ++i) {
             nodes[i]->s = make<S>(&buffer[i * len], len);
@@ -68,11 +100,15 @@ namespace {
                 targets.push_back(sgcl::make_tracked<Node<S>>());
             }
             sgcl::collector::force_collect(true);
-            auto t0 = bench::Clock::now();
-            for (long i = 0; i < count; ++i) {
-                targets[i]->s = nodes[i]->s;
-            }
-            return bench::seconds_since(t0) / count * 1e9;
+            return steady([&] {
+                for (long i = 0; i < count; ++i) {
+                    targets[i]->s = S();
+                }
+            }, [&] {
+                for (long i = 0; i < count; ++i) {
+                    targets[i]->s = nodes[i]->s;
+                }
+            });
         }
         if (!std::strcmp(op, "hash1") || !std::strcmp(op, "hashn")) {
             std::hash<S> h;
@@ -109,6 +145,8 @@ int main(int argc, char** argv) {
     double v = !std::strcmp(variant, "sgcl") ? run<sgcl::string>(op, len) : run<std::string>(op, len);
     if (!std::strcmp(op, "sweep")) {
         std::printf("%s op=%s len=%zu ms=%.1f\n", variant, op, len, v);
+    } else if (first_pass >= 0) {
+        std::printf("%s op=%s len=%zu ns/op=%.2f first_pass=%.2f\n", variant, op, len, v, first_pass);
     } else {
         std::printf("%s op=%s len=%zu ns/op=%.2f\n", variant, op, len, v);
     }

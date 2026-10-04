@@ -17,7 +17,7 @@
 // as_slice(): the A column is this program built against those headers,
 // the B column against today's, both by the same command:
 //
-//   clang++ -std=c++20 -O2 -DNDEBUG -I<tree> benchmarks/crypto/secret_bytes_ab.cpp -o ab
+//   clang++ -std=c++20 -O3 -DNDEBUG -I<tree> benchmarks/crypto/secret_bytes_ab.cpp -o ab
 //   ./ab <case> [threads] [seconds]
 //
 // It prints one line: "case T threads: X ns/op a thread, Y Mop/s in all, C

@@ -40,7 +40,7 @@ namespace sgcl::crypto {
         // An object's bytes zeroed, the object itself left to its
         // destructor (a trivially destructible state: lanes, a buffer)
         template<class T>
-        void secure_zero_object(T& object) noexcept {
+        SGCL_INLINE_HOT void secure_zero_object(T& object) noexcept {
             secure_zero(static_cast<void*>(&object), sizeof(T));
         }
 
@@ -55,11 +55,11 @@ namespace sgcl::crypto {
         struct WipingPolicy {
             static inline void (*probe)(const void* block, size_t n) noexcept = nullptr;
 
-            static void* allocate(size_t bytes) noexcept {
+            SGCL_INLINE_HOT static void* allocate(size_t bytes) noexcept {
                 return ::operator new(bytes);
             }
 
-            static void deallocate(void* p, size_t bytes) noexcept {
+            SGCL_INLINE_HOT static void deallocate(void* p, size_t bytes) noexcept {
                 secure_zero(p, bytes);
                 if (probe) {
                     probe(p, bytes);
@@ -67,7 +67,7 @@ namespace sgcl::crypto {
                 ::operator delete(p, bytes);
             }
 
-            static void wipe(void* p, size_t bytes) noexcept {
+            SGCL_INLINE_HOT static void wipe(void* p, size_t bytes) noexcept {
                 secure_zero(p, bytes);
             }
         };
@@ -78,7 +78,7 @@ namespace sgcl::crypto {
     // as a store nobody reads. The types of the module that hold a secret
     // do it themselves in their destructors; this is for the program's own
     // buffers: a stack array, a vector<byte>, a std::array.
-    inline void secure_zero(const slice<byte>& bytes) noexcept {
+    SGCL_INLINE_HOT void secure_zero(const slice<byte>& bytes) noexcept {
         detail::secure_zero(bytes.data(), bytes.size());
     }
 }

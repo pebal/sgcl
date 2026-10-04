@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "common.h"
+#include "tests/source_root.h"
 #include "oracle.h"
 
 #include <algorithm>
@@ -483,7 +484,7 @@ TEST(CodecHeif_Tests, EntryPointPastTheSliceRefused) {
         }
         return answer.get();
     };
-    const std::string seeds = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/')) + "/fuzz/seeds/heif_decode/";
+    const std::string seeds = (source_root() / "tests/codec/fuzz/seeds/heif_decode/").string();
     // the fuzzer's two files: the entry point of the one slice past its end
     for (const char* name : {"regress_entry_point_past_slice.heic", "regress_entry_point_past_slice2.heic"}) {
         const std::string file = read_file(seeds + name);

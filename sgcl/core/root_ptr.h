@@ -40,16 +40,16 @@ namespace sgcl {
 
         // Every constructor takes a cell, on a registered thread (the
         // allocator's block is made through the thread's allocators)
-        root_ptr() noexcept
+        SGCL_INLINE_HOT root_ptr() noexcept
         : _cell(_take()) {
         }
 
-        root_ptr(std::nullptr_t) noexcept
+        SGCL_INLINE_HOT root_ptr(std::nullptr_t) noexcept
         : root_ptr() {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr(const tracked_ptr<U>& p) noexcept
+        SGCL_INLINE_HOT root_ptr(const tracked_ptr<U>& p) noexcept
         : root_ptr() {
             ptr() = p;
         }
@@ -57,45 +57,45 @@ namespace sgcl {
         // The object released from its owner: the barrier of the store
         // takes it out of the unique state, as in tracked_ptr
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr(unique_ptr<U>&& u) noexcept
+        SGCL_INLINE_HOT root_ptr(unique_ptr<U>&& u) noexcept
         : root_ptr() {
             ptr() = std::move(u);
         }
 
-        root_ptr(const root_ptr& o) noexcept
+        SGCL_INLINE_HOT root_ptr(const root_ptr& o) noexcept
         : root_ptr() {
             ptr() = o.ptr();
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename root_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr(const root_ptr<U>& o) noexcept
+        SGCL_INLINE_HOT root_ptr(const root_ptr<U>& o) noexcept
         : root_ptr() {
             ptr() = o.ptr();
         }
 
         // The pointer moves into a cell of its own; the source is null
-        root_ptr(root_ptr&& o) noexcept
+        SGCL_INLINE_HOT root_ptr(root_ptr&& o) noexcept
         : root_ptr() {
             ptr() = o.ptr();
             o.ptr() = nullptr;
         }
 
-        ~root_ptr() noexcept {
+        SGCL_INLINE_HOT ~root_ptr() noexcept {
             _free();
         }
 
-        root_ptr& operator=(const root_ptr& o) noexcept {
+        SGCL_INLINE_HOT root_ptr& operator=(const root_ptr& o) noexcept {
             ptr() = o.ptr();
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename root_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr& operator=(const root_ptr<U>& o) noexcept {
+        SGCL_INLINE_HOT root_ptr& operator=(const root_ptr<U>& o) noexcept {
             ptr() = o.ptr();
             return *this;
         }
 
-        root_ptr& operator=(root_ptr&& o) noexcept {
+        SGCL_INLINE_HOT root_ptr& operator=(root_ptr&& o) noexcept {
             if (this != &o) {
                 ptr() = o.ptr();
                 o.ptr() = nullptr;
@@ -104,38 +104,38 @@ namespace sgcl {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr& operator=(const tracked_ptr<U>& p) noexcept {
+        SGCL_INLINE_HOT root_ptr& operator=(const tracked_ptr<U>& p) noexcept {
             ptr() = p;
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        root_ptr& operator=(unique_ptr<U>&& u) noexcept {
+        SGCL_INLINE_HOT root_ptr& operator=(unique_ptr<U>&& u) noexcept {
             ptr() = std::move(u);
             return *this;
         }
 
-        root_ptr& operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT root_ptr& operator=(std::nullptr_t) noexcept {
             ptr() = nullptr;
             return *this;
         }
 
-        element_type* get() const noexcept {
+        SGCL_INLINE_HOT element_type* get() const noexcept {
             return ptr().get();
         }
 
         template<class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
-        U& operator*() const noexcept {
+        SGCL_INLINE_HOT U& operator*() const noexcept {
             assert(get() != nullptr);
             return *get();
         }
 
-        element_type* operator->() const noexcept {
+        SGCL_INLINE_HOT element_type* operator->() const noexcept {
             assert(get() != nullptr);
             return get();
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return get() != nullptr;
         }
 
@@ -143,48 +143,48 @@ namespace sgcl {
         // inside a managed object, where a tracked_ptr lives. A reference,
         // not a copy: for the code that lives where a tracked_ptr may, and
         // for an atomic_ref (atomic_ref.h) over the root
-        tracked_ptr<T>& ptr() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<T>& ptr() noexcept {
             return *reinterpret_cast<tracked_ptr<T>*>(_cell);
         }
 
-        const tracked_ptr<T>& ptr() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<T>& ptr() const noexcept {
             return *reinterpret_cast<const tracked_ptr<T>*>(_cell);
         }
 
-        operator tracked_ptr<T>&() noexcept {
+        SGCL_INLINE_HOT operator tracked_ptr<T>&() noexcept {
             return ptr();
         }
 
-        operator const tracked_ptr<T>&() const noexcept {
+        SGCL_INLINE_HOT operator const tracked_ptr<T>&() const noexcept {
             return ptr();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             ptr() = nullptr;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        void reset(const tracked_ptr<U>& p) noexcept {
+        SGCL_INLINE_HOT void reset(const tracked_ptr<U>& p) noexcept {
             ptr() = p;
         }
 
         // The pointers exchanged; the cells stay with their root_ptrs
-        void swap(root_ptr& o) noexcept {
+        SGCL_INLINE_HOT void swap(root_ptr& o) noexcept {
             ptr().swap(o.ptr());
         }
 
         // The dynamic type of the object, as tracked_ptr has them
-        const std::type_info& type() const noexcept {
+        SGCL_INLINE_HOT const std::type_info& type() const noexcept {
             return ptr().type();
         }
 
         template<class U>
-        bool is() const noexcept {
+        SGCL_INLINE_HOT bool is() const noexcept {
             return ptr().template is<U>();
         }
 
         template<class U>
-        tracked_ptr<U> as() const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<U> as() const noexcept {
             return ptr().template as<U>();
         }
 
@@ -213,29 +213,29 @@ namespace sgcl {
     root_ptr(unique_ptr<T>&&) -> root_ptr<T>;
 
     template<class T>
-    void swap(root_ptr<T>& l, root_ptr<T>& r) noexcept {
+    SGCL_INLINE_HOT void swap(root_ptr<T>& l, root_ptr<T>& r) noexcept {
         l.swap(r);
     }
 
     // The comparisons: by the object pointed at, with a root_ptr, a
     // tracked_ptr, or null
     template<class T, class U>
-    bool operator==(const root_ptr<T>& l, const root_ptr<U>& r) noexcept {
+    SGCL_INLINE_HOT bool operator==(const root_ptr<T>& l, const root_ptr<U>& r) noexcept {
         return l.get() == r.get();
     }
 
     template<class T, class U>
-    bool operator==(const root_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
+    SGCL_INLINE_HOT bool operator==(const root_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
         return l.get() == r.get();
     }
 
     template<class T, class U>
-    bool operator==(const tracked_ptr<T>& l, const root_ptr<U>& r) noexcept {
+    SGCL_INLINE_HOT bool operator==(const tracked_ptr<T>& l, const root_ptr<U>& r) noexcept {
         return l.get() == r.get();
     }
 
     template<class T>
-    bool operator==(const root_ptr<T>& l, std::nullptr_t) noexcept {
+    SGCL_INLINE_HOT bool operator==(const root_ptr<T>& l, std::nullptr_t) noexcept {
         return !l;
     }
 
@@ -243,7 +243,7 @@ namespace sgcl {
     // of a base at an offset orders equal to the root of its object; two
     // types without one as const void*
     template<class T, class U>
-    std::strong_ordering operator<=>(const root_ptr<T>& l, const root_ptr<U>& r) noexcept {
+    SGCL_INLINE_HOT std::strong_ordering operator<=>(const root_ptr<T>& l, const root_ptr<U>& r) noexcept {
         if constexpr (requires { std::compare_three_way()(l.get(), r.get()); }) {
             return std::compare_three_way()(l.get(), r.get());
         } else {
@@ -252,7 +252,7 @@ namespace sgcl {
     }
 
     template<class T>
-    std::ostream& operator<<(std::ostream& s, const root_ptr<T>& p) {
+    SGCL_INLINE_HOT std::ostream& operator<<(std::ostream& s, const root_ptr<T>& p) {
         s << p.get();
         return s;
     }
@@ -261,7 +261,7 @@ namespace sgcl {
 namespace std {
     template<class T>
     struct hash<sgcl::root_ptr<T>> {
-        size_t operator()(const sgcl::root_ptr<T>& p) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const sgcl::root_ptr<T>& p) const noexcept {
             return hash<const void*>()(p.get());
         }
     };

@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/os.h"
 #include "detail/unicode_tables.h"
 
 #include <concepts>
@@ -33,7 +34,7 @@ namespace sgcl {
         // to: the block of c in the index, the delta in the block, and the
         // sum in sixteen bits (no simple mapping leaves the plane) — two
         // loads and no branch
-        constexpr char32_t unicode_plane_mapped(char32_t c, const CaseTable& table) noexcept {
+        SGCL_INLINE_HOT constexpr char32_t unicode_plane_mapped(char32_t c, const CaseTable& table) noexcept {
             constexpr char32_t Within = (char32_t(1) << CaseShift) - 1;
             return char16_t(c + table.deltas[(char32_t(table.index[c >> CaseShift]) << CaseShift) | (c & Within)]);
         }
@@ -42,34 +43,34 @@ namespace sgcl {
         // its two-stage table, the rest (rare: Deseret, Adlam, ...) by a
         // search of the ranges, as is anything past U+10FFFF, which no
         // range holds
-        constexpr char32_t unicode_mapped(char32_t c, const CaseTable& table) noexcept {
+        SGCL_INLINE_HOT constexpr char32_t unicode_mapped(char32_t c, const CaseTable& table) noexcept {
             return c < 0x10000 ? unicode_plane_mapped(c, table) : unicode_searched(c, table.high, table.high_size);
         }
 
         // The bodies behind unicode's names; the names themselves are the
         // objects below, so that a narrow argument can be refused
         struct unicode_fn {
-            static constexpr char32_t to_lower(char32_t c) noexcept {
+            SGCL_INLINE_HOT static constexpr char32_t to_lower(char32_t c) noexcept {
                 return unicode_mapped(c, unicode_tables::ToLower);
             }
 
-            static constexpr char32_t to_upper(char32_t c) noexcept {
+            SGCL_INLINE_HOT static constexpr char32_t to_upper(char32_t c) noexcept {
                 return unicode_mapped(c, unicode_tables::ToUpper);
             }
 
-            static constexpr bool is_upper(char32_t c) noexcept {
+            SGCL_INLINE_HOT static constexpr bool is_upper(char32_t c) noexcept {
                 return to_lower(c) != c;
             }
 
-            static constexpr bool is_lower(char32_t c) noexcept {
+            SGCL_INLINE_HOT static constexpr bool is_lower(char32_t c) noexcept {
                 return to_upper(c) != c;
             }
 
-            static constexpr bool equal_fold(char32_t a, char32_t b) noexcept {
+            SGCL_INLINE_HOT static constexpr bool equal_fold(char32_t a, char32_t b) noexcept {
                 return a == b || to_lower(a) == to_lower(b) || to_upper(a) == to_upper(b);
             }
 
-            static constexpr bool is_space(char32_t c) noexcept {
+            SGCL_INLINE_HOT static constexpr bool is_space(char32_t c) noexcept {
                 if (c < 0x80) {
                     return c == U' ' || (c >= U'\t' && c <= U'\r');
                 }
@@ -87,7 +88,7 @@ namespace sgcl {
         template<auto F>
         struct code_point_fn {
             template<class... T> requires (std::same_as<T, char32_t> && ...)
-            constexpr auto operator()(T... c) const noexcept {
+            SGCL_INLINE_HOT constexpr auto operator()(T... c) const noexcept {
                 return F(c...);
             }
 

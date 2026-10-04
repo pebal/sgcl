@@ -158,7 +158,7 @@ namespace sgcl {
         inline constexpr bool variant_dispatch_nothrow = (noexcept(std::declval<F>()(std::integral_constant<size_t, Is>())) && ...);
 
         template<class F, size_t... Is>
-        decltype(auto) variant_dispatch(size_t index, F&& f, std::index_sequence<Is...>) noexcept(variant_dispatch_nothrow<F, Is...>) {
+        SGCL_INLINE_HOT decltype(auto) variant_dispatch(size_t index, F&& f, std::index_sequence<Is...>) noexcept(variant_dispatch_nothrow<F, Is...>) {
             using R = decltype(std::forward<F>(f)(std::integral_constant<size_t, 0>()));
             constexpr bool Nothrow = variant_dispatch_nothrow<F, Is...>;
             constexpr R (*table[])(F&&) noexcept(Nothrow) = {[](F&& f) noexcept(Nothrow) -> R { return std::forward<F>(f)(std::integral_constant<size_t, Is>()); }...};
@@ -219,17 +219,17 @@ namespace sgcl {
         static constexpr bool may_alias = std::is_lvalue_reference_v<U> && !(std::is_trivially_destructible_v<Ts> && ...);
 
     public:
-        variant() noexcept(std::is_nothrow_default_constructible_v<Alt<0>>)
+        SGCL_INLINE_HOT variant() noexcept(std::is_nothrow_default_constructible_v<Alt<0>>)
         requires std::is_default_constructible_v<Alt<0>> {
             _construct<0>();
         }
 
-        variant(const variant& o) noexcept((std::is_nothrow_copy_constructible_v<Ts> && ...))
+        SGCL_INLINE_HOT variant(const variant& o) noexcept((std::is_nothrow_copy_constructible_v<Ts> && ...))
         requires (std::is_copy_constructible_v<Ts> && ...) {
             _construct_from(o);
         }
 
-        variant(variant&& o) noexcept((std::is_nothrow_move_constructible_v<Ts> && ...))
+        SGCL_INLINE_HOT variant(variant&& o) noexcept((std::is_nothrow_move_constructible_v<Ts> && ...))
         requires (std::is_move_constructible_v<Ts> && ...) {
             _construct_from(std::move(o));
         }
@@ -238,35 +238,35 @@ namespace sgcl {
         // selects for it
         template<class U>
         requires convertible<U> && std::is_constructible_v<Alt<selected<U>>, U>
-        variant(U&& u) noexcept(std::is_nothrow_constructible_v<Alt<selected<U>>, U>) {
+        SGCL_INLINE_HOT variant(U&& u) noexcept(std::is_nothrow_constructible_v<Alt<selected<U>>, U>) {
             _construct<selected<U>>(std::forward<U>(u));
         }
 
         template<class T, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, A...>
-        explicit variant(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT explicit variant(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             _construct<index_of<T>>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        explicit variant(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>) {
+        SGCL_INLINE_HOT explicit variant(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>) {
             _construct<index_of<T>>(il, std::forward<A>(a)...);
         }
 
         template<size_t I, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, A...>
-        explicit variant(std::in_place_index_t<I>, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
+        SGCL_INLINE_HOT explicit variant(std::in_place_index_t<I>, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
             _construct<I>(std::forward<A>(a)...);
         }
 
         template<size_t I, class U, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, std::initializer_list<U>&, A...>
-        explicit variant(std::in_place_index_t<I>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, std::initializer_list<U>&, A...>) {
+        SGCL_INLINE_HOT explicit variant(std::in_place_index_t<I>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, std::initializer_list<U>&, A...>) {
             _construct<I>(il, std::forward<A>(a)...);
         }
 
-        ~variant() noexcept {
+        SGCL_INLINE_HOT ~variant() noexcept {
             _destroy();
         }
 
@@ -312,7 +312,7 @@ namespace sgcl {
 
         template<class U>
         requires convertible<U> && std::is_constructible_v<Alt<selected<U>>, U> && std::is_assignable_v<Alt<selected<U>>&, U>
-        variant& operator=(U&& u) noexcept(std::is_nothrow_constructible_v<Alt<selected<U>>, U> && std::is_nothrow_assignable_v<Alt<selected<U>>&, U>) {
+        SGCL_INLINE_HOT variant& operator=(U&& u) noexcept(std::is_nothrow_constructible_v<Alt<selected<U>>, U> && std::is_nothrow_assignable_v<Alt<selected<U>>&, U>) {
             constexpr size_t J = selected<U>;
             if (_index == J) {
                 _get<J>() = std::forward<U>(u);
@@ -326,35 +326,35 @@ namespace sgcl {
 
         template<class T, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, A...>
-        T& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT T& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             return emplace<index_of<T>>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A>
         requires (index_of<T> != variant_npos) && std::is_constructible_v<T, std::initializer_list<U>&, A...>
-        T& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>) {
+        SGCL_INLINE_HOT T& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<U>&, A...>) {
             return emplace<index_of<T>>(il, std::forward<A>(a)...);
         }
 
         template<size_t I, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, A...>
-        Alt<I>& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
+        SGCL_INLINE_HOT Alt<I>& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
             _destroy();
             return _construct<I>(std::forward<A>(a)...);
         }
 
         template<size_t I, class U, class... A>
         requires (I < N) && std::is_constructible_v<Alt<I>, std::initializer_list<U>&, A...>
-        Alt<I>& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, std::initializer_list<U>&, A...>) {
+        SGCL_INLINE_HOT Alt<I>& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, std::initializer_list<U>&, A...>) {
             _destroy();
             return _construct<I>(il, std::forward<A>(a)...);
         }
 
-        bool valueless_by_exception() const noexcept {
+        SGCL_INLINE_HOT bool valueless_by_exception() const noexcept {
             return _index == Npos;
         }
 
-        size_t index() const noexcept {
+        SGCL_INLINE_HOT size_t index() const noexcept {
             return _index == Npos ? variant_npos : _index;
         }
 
@@ -383,7 +383,7 @@ namespace sgcl {
 
     private:
         template<size_t I>
-        void* _slot() noexcept {
+        SGCL_INLINE_HOT void* _slot() noexcept {
             if constexpr(Layout::regions[I] == detail::Region::Data) {
                 return _data.bytes;
             } else {
@@ -392,24 +392,24 @@ namespace sgcl {
         }
 
         template<size_t I>
-        const void* _slot() const noexcept {
+        SGCL_INLINE_HOT const void* _slot() const noexcept {
             return const_cast<variant*>(this)->_slot<I>();
         }
 
         template<size_t I>
-        Alt<I>& _get() noexcept {
+        SGCL_INLINE_HOT Alt<I>& _get() noexcept {
             return *std::launder(static_cast<Alt<I>*>(_slot<I>()));
         }
 
         template<size_t I>
-        const Alt<I>& _get() const noexcept {
+        SGCL_INLINE_HOT const Alt<I>& _get() const noexcept {
             return *std::launder(static_cast<const Alt<I>*>(_slot<I>()));
         }
 
         // The alternative constructed in its place; valueless while the
         // constructor runs, in case it throws
         template<size_t I, class... A>
-        Alt<I>& _construct(A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
+        SGCL_INLINE_HOT Alt<I>& _construct(A&&... a) noexcept(std::is_nothrow_constructible_v<Alt<I>, A...>) {
             _index = Npos;
             auto p = ::new(_slot<I>()) Alt<I>(std::forward<A>(a)...);
             _index = I;
@@ -419,7 +419,7 @@ namespace sgcl {
         // As noexcept as the copy (from an lvalue) or the move of every
         // alternative
         template<class V>
-        void _construct_from(V&& o) noexcept(std::is_rvalue_reference_v<V&&> ? (std::is_nothrow_move_constructible_v<Ts> && ...) : (std::is_nothrow_copy_constructible_v<Ts> && ...)) {
+        SGCL_INLINE_HOT void _construct_from(V&& o) noexcept(std::is_rvalue_reference_v<V&&> ? (std::is_nothrow_move_constructible_v<Ts> && ...) : (std::is_nothrow_copy_constructible_v<Ts> && ...)) {
             if (o.valueless_by_exception()) {
                 _index = Npos;
                 return;
@@ -434,7 +434,7 @@ namespace sgcl {
         }
 
         // The alternative destroyed: a tracked_ptr leaves null in its word
-        void _destroy() noexcept {
+        SGCL_INLINE_HOT void _destroy() noexcept {
             if (_index != Npos) {
                 detail::variant_dispatch(_index, [&]<size_t I>(std::integral_constant<size_t, I>) {
                     _get<I>().~Alt<I>();
@@ -463,12 +463,12 @@ namespace sgcl {
     // std (a constraint, so that a requires-expression sees it)
     template<class T, class... Ts>
     requires (detail::variant_index_of<T, Ts...> != variant_npos)
-    bool holds_alternative(const variant<Ts...>& v) noexcept {
+    SGCL_INLINE_HOT bool holds_alternative(const variant<Ts...>& v) noexcept {
         return v.index() == detail::variant_index_of<T, Ts...>;
     }
 
     template<size_t I, class... Ts>
-    variant_alternative_t<I, variant<Ts...>>& get(variant<Ts...>& v) {
+    SGCL_INLINE_HOT variant_alternative_t<I, variant<Ts...>>& get(variant<Ts...>& v) {
         static_assert(I < sizeof...(Ts), "the index is out of the variant's alternatives");
         if (v.index() != I) {
             throw bad_variant_access();
@@ -477,7 +477,7 @@ namespace sgcl {
     }
 
     template<size_t I, class... Ts>
-    const variant_alternative_t<I, variant<Ts...>>& get(const variant<Ts...>& v) {
+    SGCL_INLINE_HOT const variant_alternative_t<I, variant<Ts...>>& get(const variant<Ts...>& v) {
         static_assert(I < sizeof...(Ts), "the index is out of the variant's alternatives");
         if (v.index() != I) {
             throw bad_variant_access();
@@ -486,57 +486,57 @@ namespace sgcl {
     }
 
     template<size_t I, class... Ts>
-    variant_alternative_t<I, variant<Ts...>>&& get(variant<Ts...>&& v) {
+    SGCL_INLINE_HOT variant_alternative_t<I, variant<Ts...>>&& get(variant<Ts...>&& v) {
         return std::move(get<I>(v));
     }
 
     template<size_t I, class... Ts>
-    const variant_alternative_t<I, variant<Ts...>>&& get(const variant<Ts...>&& v) {
+    SGCL_INLINE_HOT const variant_alternative_t<I, variant<Ts...>>&& get(const variant<Ts...>&& v) {
         return std::move(get<I>(v));
     }
 
     template<class T, class... Ts>
-    T& get(variant<Ts...>& v) {
+    SGCL_INLINE_HOT T& get(variant<Ts...>& v) {
         static_assert(detail::variant_index_of<T, Ts...> != variant_npos, "the type is not exactly one alternative of the variant");
         return get<detail::variant_index_of<T, Ts...>>(v);
     }
 
     template<class T, class... Ts>
-    const T& get(const variant<Ts...>& v) {
+    SGCL_INLINE_HOT const T& get(const variant<Ts...>& v) {
         static_assert(detail::variant_index_of<T, Ts...> != variant_npos, "the type is not exactly one alternative of the variant");
         return get<detail::variant_index_of<T, Ts...>>(v);
     }
 
     template<class T, class... Ts>
-    T&& get(variant<Ts...>&& v) {
+    SGCL_INLINE_HOT T&& get(variant<Ts...>&& v) {
         return std::move(get<T>(v));
     }
 
     template<class T, class... Ts>
-    const T&& get(const variant<Ts...>&& v) {
+    SGCL_INLINE_HOT const T&& get(const variant<Ts...>&& v) {
         return std::move(get<T>(v));
     }
 
     template<size_t I, class... Ts>
-    std::add_pointer_t<variant_alternative_t<I, variant<Ts...>>> get_if(variant<Ts...>* v) noexcept {
+    SGCL_INLINE_HOT std::add_pointer_t<variant_alternative_t<I, variant<Ts...>>> get_if(variant<Ts...>* v) noexcept {
         static_assert(I < sizeof...(Ts), "the index is out of the variant's alternatives");
         return v && v->index() == I ? &v->template _get<I>() : nullptr;
     }
 
     template<size_t I, class... Ts>
-    std::add_pointer_t<const variant_alternative_t<I, variant<Ts...>>> get_if(const variant<Ts...>* v) noexcept {
+    SGCL_INLINE_HOT std::add_pointer_t<const variant_alternative_t<I, variant<Ts...>>> get_if(const variant<Ts...>* v) noexcept {
         static_assert(I < sizeof...(Ts), "the index is out of the variant's alternatives");
         return v && v->index() == I ? &v->template _get<I>() : nullptr;
     }
 
     template<class T, class... Ts>
-    std::add_pointer_t<T> get_if(variant<Ts...>* v) noexcept {
+    SGCL_INLINE_HOT std::add_pointer_t<T> get_if(variant<Ts...>* v) noexcept {
         static_assert(detail::variant_index_of<T, Ts...> != variant_npos, "the type is not exactly one alternative of the variant");
         return get_if<detail::variant_index_of<T, Ts...>>(v);
     }
 
     template<class T, class... Ts>
-    std::add_pointer_t<const T> get_if(const variant<Ts...>* v) noexcept {
+    SGCL_INLINE_HOT std::add_pointer_t<const T> get_if(const variant<Ts...>* v) noexcept {
         static_assert(detail::variant_index_of<T, Ts...> != variant_npos, "the type is not exactly one alternative of the variant");
         return get_if<detail::variant_index_of<T, Ts...>>(v);
     }
@@ -549,7 +549,7 @@ namespace sgcl {
         // by index (std::invoke: a pointer to member visits as well); over
         // several: the first one, then the rest inside
         template<class R, class F, class V>
-        R variant_visit(F&& f, V&& v) {
+        SGCL_INLINE_HOT R variant_visit(F&& f, V&& v) {
             if (v.valueless_by_exception()) {
                 throw bad_variant_access();
             }
@@ -560,7 +560,7 @@ namespace sgcl {
 
         template<class R, class F, class V, class... Vs>
         requires (sizeof...(Vs) > 0)
-        R variant_visit(F&& f, V&& v, Vs&&... vs) {
+        SGCL_INLINE_HOT R variant_visit(F&& f, V&& v, Vs&&... vs) {
             return variant_visit<R>([&]<class A>(A&& a) -> R {
                 return variant_visit<R>([&]<class... B>(B&&... b) -> R {
                     return std::invoke(std::forward<F>(f), std::forward<A>(a), std::forward<B>(b)...);
@@ -601,7 +601,7 @@ namespace sgcl {
         template<class R, class F, class... A, class V, class... Vs>
         struct VisitUniform<R, F, TypeList<A...>, V, Vs...> {
             template<size_t... Is>
-            static constexpr bool over(std::index_sequence<Is...>) noexcept {
+            SGCL_INLINE_HOT static constexpr bool over(std::index_sequence<Is...>) noexcept {
                 return (VisitUniform<R, F, TypeList<A..., decltype(get<Is>(std::declval<V>()))>, Vs...>::value && ...);
             }
             static constexpr bool value = over(std::make_index_sequence<variant_size_v<VariantOf<V>>>());
@@ -614,19 +614,19 @@ namespace sgcl {
     // result to R instead.
     template<class F, class... Vs>
     requires detail::VisitUniform<typename detail::VisitResult<F, Vs...>::template type<>, F, detail::TypeList<>, Vs...>::value
-    decltype(auto) visit(F&& f, Vs&&... vs) {
+    SGCL_INLINE_HOT decltype(auto) visit(F&& f, Vs&&... vs) {
         using R = typename detail::VisitResult<F, Vs...>::template type<>;
         return detail::variant_visit<R>(std::forward<F>(f), std::forward<Vs>(vs)...);
     }
 
     template<class R, class F, class... Vs>
-    R visit(F&& f, Vs&&... vs) {
+    SGCL_INLINE_HOT R visit(F&& f, Vs&&... vs) {
         return detail::variant_visit<R>(std::forward<F>(f), std::forward<Vs>(vs)...);
     }
 
     template<class... Ts>
     requires ((std::is_move_constructible_v<Ts> && std::is_swappable_v<Ts>) && ...)
-    void swap(variant<Ts...>& l, variant<Ts...>& r) noexcept(noexcept(l.swap(r))) {
+    SGCL_INLINE_HOT void swap(variant<Ts...>& l, variant<Ts...>& r) noexcept(noexcept(l.swap(r))) {
         l.swap(r);
     }
 
@@ -634,7 +634,7 @@ namespace sgcl {
         // The indices equal and the variants not valueless: get<I> finds
         // its alternative and does not throw
         template<class F, class... Ts>
-        bool variant_compare(const variant<Ts...>& l, const variant<Ts...>& r, F&& f) noexcept((noexcept(f(std::declval<const Ts&>(), std::declval<const Ts&>())) && ...)) {
+        SGCL_INLINE_HOT bool variant_compare(const variant<Ts...>& l, const variant<Ts...>& r, F&& f) noexcept((noexcept(f(std::declval<const Ts&>(), std::declval<const Ts&>())) && ...)) {
             return variant_dispatch(l.index(), [&]<size_t I>(std::integral_constant<size_t, I>) {
                 return f(get<I>(l), get<I>(r));
             }, std::make_index_sequence<sizeof...(Ts)>());
@@ -643,7 +643,7 @@ namespace sgcl {
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a == b } -> std::convertible_to<bool>; } && ...)
-    bool operator==(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...)) {
+    SGCL_INLINE_HOT bool operator==(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...)) {
         if (l.index() != r.index()) {
             return false;
         }
@@ -655,13 +655,13 @@ namespace sgcl {
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a == b } -> std::convertible_to<bool>; } && ...)
-    bool operator!=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...)) {
+    SGCL_INLINE_HOT bool operator!=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() == std::declval<const Ts&>())) && ...)) {
         return !(l == r);
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator<(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
+    SGCL_INLINE_HOT bool operator<(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         if (r.valueless_by_exception()) {
             return false;
         }
@@ -676,19 +676,19 @@ namespace sgcl {
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
+    SGCL_INLINE_HOT bool operator>(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         return r < l;
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator<=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
+    SGCL_INLINE_HOT bool operator<=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         return !(r < l);
     }
 
     template<class... Ts>
     requires (requires (const Ts& a, const Ts& b) { { a < b } -> std::convertible_to<bool>; } && ...)
-    bool operator>=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
+    SGCL_INLINE_HOT bool operator>=(const variant<Ts...>& l, const variant<Ts...>& r) noexcept((noexcept(bool(std::declval<const Ts&>() < std::declval<const Ts&>())) && ...)) {
         return !(l < r);
     }
 
@@ -724,7 +724,7 @@ namespace std {
     template<class... Ts>
     requires (is_default_constructible_v<hash<remove_const_t<Ts>>> && ...)
     struct hash<sgcl::variant<Ts...>> {
-        size_t operator()(const sgcl::variant<Ts...>& v) const noexcept((noexcept(hash<remove_const_t<Ts>>()(std::declval<const Ts&>())) && ...)) {
+        SGCL_INLINE_HOT size_t operator()(const sgcl::variant<Ts...>& v) const noexcept((noexcept(hash<remove_const_t<Ts>>()(std::declval<const Ts&>())) && ...)) {
             if (v.valueless_by_exception()) {
                 return 0x9E3779B97F4A7C15ull;
             }

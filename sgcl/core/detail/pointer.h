@@ -28,26 +28,46 @@ namespace sgcl::detail {
     // answered from the page.
     class Pointer {
     public:
-        Pointer() noexcept
+        SGCL_INLINE_HOT Pointer() noexcept
         : _ptr(nullptr) {
         }
 
-        Pointer(std::nullptr_t) noexcept
+        SGCL_INLINE_HOT Pointer(std::nullptr_t) noexcept
         : _ptr(nullptr) {
         }
 
         // One store, then the barrier: the word is never null first.
-        Pointer(const void* p) noexcept
+        SGCL_INLINE_HOT Pointer(const void* p) noexcept
         : _ptr(const_cast<void*>(p)) {
             _update(p);
         }
 
-        Pointer(const Pointer& p) noexcept
+        SGCL_INLINE_HOT Pointer(const Pointer& p) noexcept
         : Pointer(p.load()) {
         }
 
+        // tracked_ptr's constructors with a value: the thread registered
+        // before the store (tracked_ptr.h: _registered), the store, the
+        // barrier. The tests inline and one call out of line for every
+        // slow case (_construct_slow), which keeps the constructor small
+        // enough to be inlined: with a call for the registration and one
+        // for each of the barrier's two slow paths it was not, and a
+        // tracked_ptr made from a copy cost a call and a lookup of the
+        // thread_local every time (2.4 ns against 1.2)
+        struct Registering {};
+        SGCL_INLINE_HOT Pointer(const void* p, Registering) noexcept
+        : Pointer(p, thread_registered(), Registering{}) {
+        }
+
+        SGCL_INLINE_HOT Pointer(const void* p, bool registered, Registering) noexcept
+        : _ptr(registered ? const_cast<void*>(p) : nullptr) {
+            if (!registered || (p && !Page::barrier_current(p, this))) [[unlikely]] {
+                _construct_slow(p);
+            }
+        }
+
         // The word alone, no barrier (tracked_ptr's unshaded copy)
-        Pointer(const void* p, unshaded_t) noexcept
+        SGCL_INLINE_HOT Pointer(const void* p, unshaded_t) noexcept
         : _ptr(const_cast<void*>(p)) {
         }
 
@@ -59,7 +79,7 @@ namespace sgcl::detail {
         // reach; the released state alone holds the object for the cycle,
         // whatever the word says meanwhile.
         struct Released {};
-        Pointer(const void* p, Released) noexcept
+        SGCL_INLINE_HOT Pointer(const void* p, Released) noexcept
         : _ptr(nullptr) {
             if (p) {
                 auto release = Page::set_state_releasing(p);
@@ -69,46 +89,46 @@ namespace sgcl::detail {
             }
         }
 
-        Pointer& operator=(const Pointer& p) noexcept {
+        SGCL_INLINE_HOT Pointer& operator=(const Pointer& p) noexcept {
             store(p.load());
             return *this;
         }
 
-        void* load() const noexcept {   // relaxed: what it reads, its storer's barrier holds
+        SGCL_INLINE_HOT void* load() const noexcept {   // relaxed: what it reads, its storer's barrier holds
             return _ptr.load(std::memory_order_relaxed);
         }
 
         // A plain load, for the thread that owns the word: a container
         // reading the pointer to its own buffer. Unlike the atomic load, the
         // compiler may keep the value in a register across a loop.
-        void* load_plain() const noexcept {
+        SGCL_INLINE_HOT void* load_plain() const noexcept {
             static_assert(sizeof(_ptr) == sizeof(void*));
             return *reinterpret_cast<void* const*>(&_ptr);   // a typed load: no aliasing with the buffer's header
         }
 
-        void* load(const std::memory_order m) const noexcept {
+        SGCL_INLINE_HOT void* load(const std::memory_order m) const noexcept {
             return _ptr.load(m);
         }
 
-        void store(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT void store(std::nullptr_t) noexcept {
             _ptr.store(nullptr, std::memory_order_relaxed);   // a null publishes nothing
         }
 
-        void store(const void* p) noexcept {
+        SGCL_INLINE_HOT void store(const void* p) noexcept {
             store_no_update(p);
             _update(p);
         }
 
-        void store(std::nullptr_t, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT void store(std::nullptr_t, const std::memory_order m) noexcept {
             _ptr.store(nullptr, m);
         }
 
-        void store(const void* p, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT void store(const void* p, const std::memory_order m) noexcept {
             _ptr.store(const_cast<void*>(p), m);
             _update(p);
         }
 
-        void store_released(const void* p) noexcept {
+        SGCL_INLINE_HOT void store_released(const void* p) noexcept {
             if (p) {
                 auto release = Page::set_state_releasing(p);
                 store_no_update(p);
@@ -119,7 +139,7 @@ namespace sgcl::detail {
             }
         }
 
-        void store_released(const void* p, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT void store_released(const void* p, const std::memory_order m) noexcept {
             if (p) {
                 auto release = Page::set_state_releasing(p);
                 _ptr.store(const_cast<void*>(p), m);
@@ -133,22 +153,22 @@ namespace sgcl::detail {
         // The word alone, no barrier: release by default (store_released
         // orders it after the Releasing state); relaxed for the copy of an
         // immutable node (im), whose source is shaded once for all its words
-        void store_no_update(const void* p, const std::memory_order m = std::memory_order_release) noexcept {
+        SGCL_INLINE_HOT void store_no_update(const void* p, const std::memory_order m = std::memory_order_release) noexcept {
             _ptr.store(const_cast<void*>(p), m);
         }
 
         // The barrier for the target, now: as a store of this pointer
         // would, the target reachable in the current cycle (and the card
         // of this word's page stamped)
-        void shade() noexcept {
+        SGCL_INLINE_HOT void shade() noexcept {
             _update(load());
         }
 
-        bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order m) noexcept {
             return _ptr.compare_exchange_strong(o, nullptr, m);
         }
 
-        bool compare_exchange_strong(void*& o, const void* n, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(void*& o, const void* n, const std::memory_order m) noexcept {
             auto res = _ptr.compare_exchange_strong(o, const_cast<void*>(n), m);
             if (res) {
                 _update(n);
@@ -156,11 +176,11 @@ namespace sgcl::detail {
             return res;
         }
 
-        bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
             return _ptr.compare_exchange_strong(o, nullptr, s, f);
         }
 
-        bool compare_exchange_strong(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
             auto res = _ptr.compare_exchange_strong(o, const_cast<void*>(n), s, f);
             if (res) {
                 _update(n);
@@ -168,11 +188,11 @@ namespace sgcl::detail {
             return res;
         }
 
-        bool compare_exchange_weak(void*& o, std::nullptr_t, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(void*& o, std::nullptr_t, const std::memory_order m) noexcept {
             return _ptr.compare_exchange_weak(o, nullptr, m);
         }
 
-        bool compare_exchange_weak(void*& o, const void* n, const std::memory_order m) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(void*& o, const void* n, const std::memory_order m) noexcept {
             auto res = _ptr.compare_exchange_weak(o, const_cast<void*>(n), m);
             if (res) {
                 _update(n);
@@ -180,11 +200,11 @@ namespace sgcl::detail {
             return res;
         }
 
-        bool compare_exchange_weak(void*& o, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(void*& o, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
             return _ptr.compare_exchange_weak(o, nullptr, s, f);
         }
 
-        bool compare_exchange_weak(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
             auto res = _ptr.compare_exchange_weak(o, const_cast<void*>(n), s, f);
             if (res) {
                 _update(n);
@@ -193,41 +213,41 @@ namespace sgcl::detail {
         }
 
         // The rest of std::atomic's interface on the word (atomic.h)
-        bool is_lock_free() const noexcept {
+        SGCL_INLINE_HOT bool is_lock_free() const noexcept {
             return _ptr.is_lock_free();
         }
 
-        void notify_one() noexcept {
+        SGCL_INLINE_HOT void notify_one() noexcept {
             _ptr.notify_one();
         }
 
-        void notify_all() noexcept {
+        SGCL_INLINE_HOT void notify_all() noexcept {
             _ptr.notify_all();
         }
 
-        void wait(const void* p, std::memory_order m) const noexcept {
+        SGCL_INLINE_HOT void wait(const void* p, std::memory_order m) const noexcept {
             _ptr.wait(const_cast<void*>(p), m);
         }
 
         // The managed object (its first byte) an address is into: a base
         // subobject or a member of it, or an element of a buffer
-        inline static void* base_address_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static void* base_address_of(const void* p) noexcept {
             return p ? Page::base_address_of(p) : nullptr;
         }
 
-        void* base_address() const noexcept {
+        SGCL_INLINE_HOT void* base_address() const noexcept {
             auto p = load();
             return p ? base_address_of(p) : nullptr;
         }
 
         // The same, past the header of a buffer: its first element
-        inline static void* data_base_address_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static void* data_base_address_of(const void* p) noexcept {
             auto page = Page::page_of(p);
             auto data = page->pointer_of(page->index_of(p));
             return page->is_array ? ((ArrayBase*)data) + 1 : data;
         }
 
-        void* data_base_address() const noexcept {
+        SGCL_INLINE_HOT void* data_base_address() const noexcept {
             auto p = load();
             return p ? data_base_address_of(p) : nullptr;
         }
@@ -251,7 +271,7 @@ namespace sgcl::detail {
         }
 
         template<class T>
-        const std::type_info& type_info() const noexcept {
+        SGCL_INLINE_HOT const std::type_info& type_info() const noexcept {
             auto p = load();
             return type_info<T>(p);
         }
@@ -260,11 +280,11 @@ namespace sgcl::detail {
         // size of one object or element, the number of elements, and the
         // buffer's capacity word (null for an object): what a container
         // asks about the storage it holds
-        inline static bool is_array(const void* p) noexcept {
+        SGCL_INLINE_HOT static bool is_array(const void* p) noexcept {
             return p ? Page::metadata_of(p).is_array : false;
         }
 
-        bool is_array() const noexcept {
+        SGCL_INLINE_HOT bool is_array() const noexcept {
             auto p = load();
             return is_array(p);
         }
@@ -283,12 +303,12 @@ namespace sgcl::detail {
             return 0;
         }
 
-        size_t object_size() const noexcept {
+        SGCL_INLINE_HOT size_t object_size() const noexcept {
             auto p = load();
             return object_size(p);
         }
 
-        inline static size_t size(const void* p) noexcept {
+        SGCL_INLINE_HOT static size_t size(const void* p) noexcept {
             if (p) {
                 auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
@@ -301,7 +321,7 @@ namespace sgcl::detail {
             return 0;
         }
 
-        inline static size_t capacity(const void* p) noexcept {
+        SGCL_INLINE_HOT static size_t capacity(const void* p) noexcept {
             if (p) {
                 auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
@@ -314,7 +334,7 @@ namespace sgcl::detail {
             return 0;
         }
 
-        inline static const size_t* capacity_ptr(const void* p) noexcept {
+        SGCL_INLINE_HOT static const size_t* capacity_ptr(const void* p) noexcept {
             if (p) {
                 auto& metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
@@ -331,14 +351,23 @@ namespace sgcl::detail {
         // Write barrier: the target becomes Reachable (the collector marks
         // it in this cycle), and the page holding this pointer is carded for
         // the young cycles (page.h: mark_card).
-        void _update(const void* p) noexcept {
+        SGCL_INLINE_HOT void _update(const void* p) noexcept {
             if (p) {
                 Page::set_state<State::Reachable>(p);
                 Page::mark_card(this);
             }
         }
 
-        void _card(const void* p) noexcept {
+        // Every slow case of the Registering constructor: the thread
+        // registered, then the word (stored again when it was), then the
+        // barrier as _update runs it
+        SGCL_NOINLINE void _construct_slow(const void* p) noexcept {
+            ensure_thread_registered();
+            _ptr.store(const_cast<void*>(p), std::memory_order_relaxed);
+            _update(p);
+        }
+
+        SGCL_INLINE_HOT void _card(const void* p) noexcept {
             if (p) {
                 Page::mark_card(this);
             }

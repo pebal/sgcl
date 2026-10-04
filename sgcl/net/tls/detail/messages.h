@@ -53,24 +53,24 @@ namespace sgcl::net::tls::detail {
     // of it is taken
     class Reader {
     public:
-        explicit Reader(const Bytes& in, uint32_t base = 0) noexcept
+        SGCL_INLINE_HOT explicit Reader(const Bytes& in, uint32_t base = 0) noexcept
         : _begin(in.data()), _p(in.data()), _end(in.data() + in.size()), _base(base) {
         }
 
-        size_t remaining() const noexcept {
+        SGCL_INLINE_HOT size_t remaining() const noexcept {
             return size_t(_end - _p);
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _p == _end;
         }
 
         // The offset of the next byte, from the start of the message
-        uint32_t offset() const noexcept {
+        SGCL_INLINE_HOT uint32_t offset() const noexcept {
             return _base + uint32_t(_p - _begin);
         }
 
-        bool u8(uint8_t& v) noexcept {
+        SGCL_INLINE_HOT bool u8(uint8_t& v) noexcept {
             if (!_need(1)) {
                 return false;
             }
@@ -79,7 +79,7 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
-        bool u16(uint16_t& v) noexcept {
+        SGCL_INLINE_HOT bool u16(uint16_t& v) noexcept {
             if (!_need(2)) {
                 return false;
             }
@@ -88,7 +88,7 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
-        bool u24(uint32_t& v) noexcept {
+        SGCL_INLINE_HOT bool u24(uint32_t& v) noexcept {
             if (!_need(3)) {
                 return false;
             }
@@ -97,7 +97,7 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
-        bool u32(uint32_t& v) noexcept {
+        SGCL_INLINE_HOT bool u32(uint32_t& v) noexcept {
             if (!_need(4)) {
                 return false;
             }
@@ -106,7 +106,7 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
-        bool bytes(size_t n, Bytes& out) noexcept {
+        SGCL_INLINE_HOT bool bytes(size_t n, Bytes& out) noexcept {
             if (!_need(n)) {
                 return false;
             }
@@ -117,36 +117,36 @@ namespace sgcl::net::tls::detail {
 
         // A vector with a length of 1, 2 or 3 bytes in front (§3.4), its
         // length within [min, max]
-        bool vec8(Bytes& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool vec8(Bytes& out, size_t min, size_t max) noexcept {
             uint8_t n;
             return u8(n) && _vector(n, min, max, out);
         }
 
-        bool vec16(Bytes& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool vec16(Bytes& out, size_t min, size_t max) noexcept {
             uint16_t n;
             return u16(n) && _vector(n, min, max, out);
         }
 
-        bool vec24(Bytes& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool vec24(Bytes& out, size_t min, size_t max) noexcept {
             uint32_t n;
             return u24(n) && _vector(n, min, max, out);
         }
 
         // The same as a reader of its own, whose offsets go on from this one's
-        bool sub8(Reader& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool sub8(Reader& out, size_t min, size_t max) noexcept {
             return _sub(&Reader::vec8, out, min, max);
         }
 
-        bool sub16(Reader& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool sub16(Reader& out, size_t min, size_t max) noexcept {
             return _sub(&Reader::vec16, out, min, max);
         }
 
-        bool sub24(Reader& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool sub24(Reader& out, size_t min, size_t max) noexcept {
             return _sub(&Reader::vec24, out, min, max);
         }
 
         // Everything read: bytes after the last field are decode_error
-        bool end(const char* what = "bytes past the end of the structure") noexcept {
+        SGCL_INLINE_HOT bool end(const char* what = "bytes past the end of the structure") noexcept {
             return empty() || fail(AlertDescription::decode_error, what);
         }
 
@@ -168,16 +168,16 @@ namespace sgcl::net::tls::detail {
             return false;
         }
 
-        const Alert& failure() const noexcept {
+        SGCL_INLINE_HOT const Alert& failure() const noexcept {
             return _failure;
         }
 
     private:
-        bool _need(size_t n) noexcept {
+        SGCL_INLINE_HOT bool _need(size_t n) noexcept {
             return remaining() >= n || fail(AlertDescription::decode_error, "the data ends inside a field");
         }
 
-        bool _vector(size_t n, size_t min, size_t max, Bytes& out) noexcept {
+        SGCL_INLINE_HOT bool _vector(size_t n, size_t min, size_t max, Bytes& out) noexcept {
             if (n < min || n > max) {
                 return fail(AlertDescription::decode_error, "a vector's length outside its bounds");
             }
@@ -189,7 +189,7 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
-        bool _sub(bool (Reader::*vec)(Bytes&, size_t, size_t), Reader& out, size_t min, size_t max) noexcept {
+        SGCL_INLINE_HOT bool _sub(bool (Reader::*vec)(Bytes&, size_t, size_t), Reader& out, size_t min, size_t max) noexcept {
             uint32_t at = offset();
             Bytes b;
             if (!(this->*vec)(b, min, max)) {
@@ -223,40 +223,40 @@ namespace sgcl::net::tls::detail {
     // closes, at the end of its scope or by close()
     class Builder {
     public:
-        explicit Builder(std::vector<byte>& out) noexcept
+        SGCL_INLINE_HOT explicit Builder(std::vector<byte>& out) noexcept
         : _out(&out) {
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _out->size();
         }
 
-        void u8(uint8_t v) noexcept {
+        SGCL_INLINE_HOT void u8(uint8_t v) noexcept {
             _out->push_back(byte(v));
         }
 
-        void u16(uint16_t v) noexcept {
+        SGCL_INLINE_HOT void u16(uint16_t v) noexcept {
             u8(uint8_t(v >> 8));
             u8(uint8_t(v));
         }
 
-        void u24(uint32_t v) noexcept {
+        SGCL_INLINE_HOT void u24(uint32_t v) noexcept {
             assert(v < (1u << 24));
             u8(uint8_t(v >> 16));
             u8(uint8_t(v >> 8));
             u8(uint8_t(v));
         }
 
-        void u32(uint32_t v) noexcept {
+        SGCL_INLINE_HOT void u32(uint32_t v) noexcept {
             u16(uint16_t(v >> 16));
             u16(uint16_t(v));
         }
 
-        void bytes(const Bytes& b) noexcept {
+        SGCL_INLINE_HOT void bytes(const Bytes& b) noexcept {
             _out->insert(_out->end(), b.begin(), b.end());
         }
 
-        void bytes(const void* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void bytes(const void* p, size_t n) noexcept {
             auto b = static_cast<const byte*>(p);
             _out->insert(_out->end(), b, b + n);
         }
@@ -271,7 +271,7 @@ namespace sgcl::net::tls::detail {
                 }
             }
 
-            Block(Block&& o) noexcept
+            SGCL_INLINE_HOT Block(Block&& o) noexcept
             : _w(std::exchange(o._w, nullptr)), _at(o._at), _width(o._width), _max(o._max) {
             }
 
@@ -279,7 +279,7 @@ namespace sgcl::net::tls::detail {
             Block& operator=(const Block&) = delete;
             Block& operator=(Block&&) = delete;
 
-            ~Block() {
+            SGCL_INLINE_HOT ~Block() {
                 close();
             }
 
@@ -303,31 +303,31 @@ namespace sgcl::net::tls::detail {
             size_t _max;
         };
 
-        [[nodiscard]] Block block8(size_t max = 0xFF) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT Block block8(size_t max = 0xFF) noexcept {
             return Block(*this, 1, max);
         }
 
-        [[nodiscard]] Block block16(size_t max = 0xFFFF) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT Block block16(size_t max = 0xFFFF) noexcept {
             return Block(*this, 2, max);
         }
 
-        [[nodiscard]] Block block24(size_t max = 0xFFFFFF) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT Block block24(size_t max = 0xFFFFFF) noexcept {
             return Block(*this, 3, max);
         }
 
         // A handshake message: the type, then the body in a block of 24 bits (§4)
-        [[nodiscard]] Block message(HandshakeType t) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT Block message(HandshakeType t) noexcept {
             u8(uint8_t(t));
             return block24();
         }
 
         // An extension: the type, then the body in a block of 16 bits (§4.2)
-        [[nodiscard]] Block extension(uint16_t type) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT Block extension(uint16_t type) noexcept {
             u16(type);
             return block16();
         }
 
-        [[nodiscard]] Block extension(ExtensionType type) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT Block extension(ExtensionType type) noexcept {
             return extension(uint16_t(type));
         }
 
@@ -342,11 +342,11 @@ namespace sgcl::net::tls::detail {
     struct U16List {
         Bytes raw;
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return raw.size() / 2;
         }
 
-        uint16_t operator[](size_t i) const noexcept {
+        SGCL_INLINE_HOT uint16_t operator[](size_t i) const noexcept {
             return uint16_t(uint16_t(raw[2 * i]) << 8 | uint16_t(raw[2 * i + 1]));
         }
 
@@ -367,33 +367,33 @@ namespace sgcl::net::tls::detail {
             using reference = uint16_t;
             const U16List* list;
             size_t i;
-            uint16_t operator*() const noexcept {
+            SGCL_INLINE_HOT uint16_t operator*() const noexcept {
                 return (*list)[i];
             }
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 ++i;
                 return *this;
             }
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
-            bool operator==(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
                 return i == o.i;
             }
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return {this, 0};
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return {this, size()};
         }
     };
 
-    inline expected<U16List, Alert> read_u16_list(Reader& r, int width, size_t min, size_t max) noexcept {
+    SGCL_INLINE_HOT expected<U16List, Alert> read_u16_list(Reader& r, int width, size_t min, size_t max) noexcept {
         Bytes b;
         if (!(width == 1 ? r.vec8(b, min, max) : r.vec16(b, min, max))) {
             return failed(r);
@@ -419,11 +419,11 @@ namespace sgcl::net::tls::detail {
         Bytes body;
     };
 
-    inline constexpr uint64_t bit_of(uint16_t type) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t bit_of(uint16_t type) noexcept {
         return type < 64 ? uint64_t(1) << type : 0;
     }
 
-    inline constexpr uint64_t bit_of(ExtensionType type) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t bit_of(ExtensionType type) noexcept {
         return bit_of(uint16_t(type));
     }
 
@@ -442,35 +442,35 @@ namespace sgcl::net::tls::detail {
             using pointer = void;
             using reference = Extension;
             const byte* p;
-            Extension operator*() const noexcept {
+            SGCL_INLINE_HOT Extension operator*() const noexcept {
                 uint16_t type = uint16_t(uint16_t(p[0]) << 8 | uint16_t(p[1]));
                 size_t n = size_t(uint16_t(p[2]) << 8 | uint16_t(p[3]));
                 return Extension{type, Bytes(p + 4, n)};
             }
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 size_t n = size_t(uint16_t(p[2]) << 8 | uint16_t(p[3]));
                 p += 4 + n;
                 return *this;
             }
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
-            bool operator==(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
                 return p == o.p;
             }
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return {raw.data()};
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return {raw.data() + raw.size()};
         }
 
-        bool has(ExtensionType t) const noexcept {
+        SGCL_INLINE_HOT bool has(ExtensionType t) const noexcept {
             return (mask & bit_of(t)) != 0;
         }
 
@@ -487,7 +487,7 @@ namespace sgcl::net::tls::detail {
             return nullopt;
         }
 
-        optional<Bytes> find(ExtensionType t) const noexcept {
+        SGCL_INLINE_HOT optional<Bytes> find(ExtensionType t) const noexcept {
             return find(uint16_t(t));
         }
     };
@@ -549,14 +549,14 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class F>
-    void write_extensions(Builder& w, F&& entries) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
+    SGCL_INLINE_HOT void write_extensions(Builder& w, F&& entries) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         auto b = w.block16();
         entries(w);
     }
 
     // The entries of an extensions vector copied as they are (a message
     // written back from what was read)
-    inline void write_raw(Builder& w, const Extensions& x) noexcept {
+    SGCL_INLINE_HOT void write_raw(Builder& w, const Extensions& x) noexcept {
         w.bytes(x.raw);
     }
 
@@ -624,7 +624,7 @@ namespace sgcl::net::tls::detail {
 
     // An extension whose body is empty (server_name and early_data in a
     // reply, early_data in a ClientHello)
-    inline expected<void, Alert> read_empty(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<void, Alert> read_empty(const Bytes& body) noexcept {
         if (!body.empty()) {
             return failed(AlertDescription::decode_error, 0, "an extension that must be empty is not");
         }
@@ -665,7 +665,7 @@ namespace sgcl::net::tls::detail {
         return *host;
     }
 
-    inline void write_server_name(Builder& w, const Bytes& host) noexcept {
+    SGCL_INLINE_HOT void write_server_name(Builder& w, const Bytes& host) noexcept {
         assert(!host.empty() && host.size() <= 255);
         auto list = w.block16();
         w.u8(0);
@@ -675,7 +675,7 @@ namespace sgcl::net::tls::detail {
 
     // supported_groups (§4.2.7), signature_algorithms and
     // signature_algorithms_cert (§4.2.3)
-    inline expected<U16List, Alert> read_groups(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<U16List, Alert> read_groups(const Bytes& body) noexcept {
         Reader r(body);
         auto l = read_u16_list(r, 2, 2, 0xFFFF);
         if (l && !r.end()) {
@@ -684,7 +684,7 @@ namespace sgcl::net::tls::detail {
         return l;
     }
 
-    inline expected<U16List, Alert> read_signature_schemes(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<U16List, Alert> read_signature_schemes(const Bytes& body) noexcept {
         Reader r(body);
         auto l = read_u16_list(r, 2, 2, 0xFFFE);
         if (l && !r.end()) {
@@ -694,18 +694,18 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_groups(Builder& w, const R& groups) noexcept {
+    SGCL_INLINE_HOT void write_groups(Builder& w, const R& groups) noexcept {
         write_u16_list(w, 2, groups);
     }
 
     template<class R>
-    void write_signature_schemes(Builder& w, const R& schemes) noexcept {
+    SGCL_INLINE_HOT void write_signature_schemes(Builder& w, const R& schemes) noexcept {
         write_u16_list(w, 2, schemes);
     }
 
     // supported_versions (§4.2.1): a list in a ClientHello, one version in
     // a ServerHello or a HelloRetryRequest
-    inline expected<U16List, Alert> read_versions_offered(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<U16List, Alert> read_versions_offered(const Bytes& body) noexcept {
         Reader r(body);
         auto l = read_u16_list(r, 1, 2, 254);
         if (l && !r.end()) {
@@ -714,7 +714,7 @@ namespace sgcl::net::tls::detail {
         return l;
     }
 
-    inline expected<uint16_t, Alert> read_version_selected(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<uint16_t, Alert> read_version_selected(const Bytes& body) noexcept {
         Reader r(body);
         uint16_t v;
         if (!r.u16(v) || !r.end()) {
@@ -724,17 +724,17 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class R>
-    void write_versions_offered(Builder& w, const R& versions) noexcept {
+    SGCL_INLINE_HOT void write_versions_offered(Builder& w, const R& versions) noexcept {
         write_u16_list(w, 1, versions);
     }
 
-    inline void write_version_selected(Builder& w, uint16_t v) noexcept {
+    SGCL_INLINE_HOT void write_version_selected(Builder& w, uint16_t v) noexcept {
         w.u16(v);
     }
 
     // key_share (§4.2.8): the length of a share of a group v1 knows, from
     // the client and from the server; 0 for a group it does not
-    inline constexpr size_t share_size(uint16_t group, bool server) noexcept {
+    SGCL_INLINE_HOT constexpr size_t share_size(uint16_t group, bool server) noexcept {
         switch (Group(group)) {
             case Group::x25519: return 32;
             case Group::secp256r1: return 65;
@@ -776,30 +776,30 @@ namespace sgcl::net::tls::detail {
             using pointer = void;
             using reference = KeyShare;
             const byte* p;
-            KeyShare operator*() const noexcept {
+            SGCL_INLINE_HOT KeyShare operator*() const noexcept {
                 uint16_t g = uint16_t(uint16_t(p[0]) << 8 | uint16_t(p[1]));
                 size_t n = size_t(uint16_t(p[2]) << 8 | uint16_t(p[3]));
                 return KeyShare{g, Bytes(p + 4, n)};
             }
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 p += 4 + (size_t(uint16_t(p[2]) << 8 | uint16_t(p[3])));
                 return *this;
             }
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
-            bool operator==(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
                 return p == o.p;
             }
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return {raw.data()};
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return {raw.data() + raw.size()};
         }
 
@@ -854,7 +854,7 @@ namespace sgcl::net::tls::detail {
     }
 
     // A HelloRetryRequest's: the group alone
-    inline expected<uint16_t, Alert> read_key_share_retry(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<uint16_t, Alert> read_key_share_retry(const Bytes& body) noexcept {
         Reader r(body);
         uint16_t group;
         if (!r.u16(group) || !r.end()) {
@@ -873,13 +873,13 @@ namespace sgcl::net::tls::detail {
         }
     }
 
-    inline void write_key_share_selected(Builder& w, const KeyShare& s) noexcept {
+    SGCL_INLINE_HOT void write_key_share_selected(Builder& w, const KeyShare& s) noexcept {
         w.u16(s.group);
         auto k = w.block16();
         w.bytes(s.key);
     }
 
-    inline void write_key_share_retry(Builder& w, uint16_t group) noexcept {
+    SGCL_INLINE_HOT void write_key_share_retry(Builder& w, uint16_t group) noexcept {
         w.u16(group);
     }
 
@@ -895,28 +895,28 @@ namespace sgcl::net::tls::detail {
             using pointer = void;
             using reference = Bytes;
             const byte* p;
-            Bytes operator*() const noexcept {
+            SGCL_INLINE_HOT Bytes operator*() const noexcept {
                 return Bytes(p + 1, size_t(uint8_t(p[0])));
             }
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 p += 1 + size_t(uint8_t(p[0]));
                 return *this;
             }
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
-            bool operator==(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
                 return p == o.p;
             }
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return {raw.data()};
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return {raw.data() + raw.size()};
         }
     };
@@ -962,7 +962,7 @@ namespace sgcl::net::tls::detail {
     }
 
     // cookie (§4.2.2)
-    inline expected<Bytes, Alert> read_cookie(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<Bytes, Alert> read_cookie(const Bytes& body) noexcept {
         Reader r(body);
         Bytes c;
         if (!r.vec16(c, 1, 0xFFFF) || !r.end()) {
@@ -971,13 +971,13 @@ namespace sgcl::net::tls::detail {
         return c;
     }
 
-    inline void write_cookie(Builder& w, const Bytes& c) noexcept {
+    SGCL_INLINE_HOT void write_cookie(Builder& w, const Bytes& c) noexcept {
         auto b = w.block16();
         w.bytes(c);
     }
 
     // psk_key_exchange_modes (§4.2.9): read for its syntax
-    inline expected<Bytes, Alert> read_psk_modes(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<Bytes, Alert> read_psk_modes(const Bytes& body) noexcept {
         Reader r(body);
         Bytes m;
         if (!r.vec8(m, 1, 0xFF) || !r.end()) {
@@ -986,13 +986,13 @@ namespace sgcl::net::tls::detail {
         return m;
     }
 
-    inline void write_psk_modes(Builder& w, const Bytes& modes) noexcept {
+    SGCL_INLINE_HOT void write_psk_modes(Builder& w, const Bytes& modes) noexcept {
         auto b = w.block8();
         w.bytes(modes);
     }
 
     // early_data in a NewSessionTicket (§4.2.10): max_early_data_size
-    inline expected<uint32_t, Alert> read_early_data_limit(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<uint32_t, Alert> read_early_data_limit(const Bytes& body) noexcept {
         Reader r(body);
         uint32_t n;
         if (!r.u32(n) || !r.end()) {
@@ -1040,12 +1040,12 @@ namespace sgcl::net::tls::detail {
     }
 
     // pre_shared_key in a ServerHello: the identity chosen
-    inline expected<uint16_t, Alert> read_pre_shared_key_selected(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<uint16_t, Alert> read_pre_shared_key_selected(const Bytes& body) noexcept {
         return read_version_selected(body);
     }
 
     // record_size_limit (RFC 8449 §4): read for its syntax, not acted on
-    inline expected<uint16_t, Alert> read_record_size_limit(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<uint16_t, Alert> read_record_size_limit(const Bytes& body) noexcept {
         auto v = read_version_selected(body);
         if (v && *v < 64) {
             return failed(AlertDescription::illegal_parameter, 0, "record_size_limit below 64");
@@ -1141,7 +1141,7 @@ namespace sgcl::net::tls::detail {
         uint16_t cipher_suite = 0;
         Extensions extensions;
 
-        bool is_retry() const noexcept {
+        SGCL_INLINE_HOT bool is_retry() const noexcept {
             return random.size() == 32 && std::memcmp(random.data(), HelloRetryRandom, 32) == 0;
         }
     };
@@ -1192,7 +1192,7 @@ namespace sgcl::net::tls::detail {
     }
 
     // EncryptedExtensions (§4.3.1)
-    inline expected<Extensions, Alert> read_encrypted_extensions(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<Extensions, Alert> read_encrypted_extensions(const Bytes& body) noexcept {
         Reader r(body, 4);
         auto x = read_extensions(r, 0, 0xFFFF);
         if (x && !r.end()) {
@@ -1202,7 +1202,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class F>
-    void write_encrypted_extensions(Builder& w, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
+    SGCL_INLINE_HOT void write_encrypted_extensions(Builder& w, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         auto m = w.message(HandshakeType::encrypted_extensions);
         write_extensions(w, std::forward<F>(extensions));
     }
@@ -1234,7 +1234,7 @@ namespace sgcl::net::tls::detail {
     }
 
     template<class F>
-    void write_certificate_request(Builder& w, const Bytes& context, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
+    SGCL_INLINE_HOT void write_certificate_request(Builder& w, const Bytes& context, F&& extensions) noexcept(std::is_nothrow_invocable_v<F&, Builder&>) {
         auto m = w.message(HandshakeType::certificate_request);
         {
             auto c = w.block8();
@@ -1262,33 +1262,33 @@ namespace sgcl::net::tls::detail {
             using pointer = void;
             using reference = CertificateEntry;
             const byte* p;
-            CertificateEntry operator*() const noexcept {
+            SGCL_INLINE_HOT CertificateEntry operator*() const noexcept {
                 size_t n = size_t(uint32_t(p[0]) << 16 | uint32_t(p[1]) << 8 | uint32_t(p[2]));
                 Reader r(Bytes(p + 3 + n, 2 + (size_t(uint16_t(p[3 + n]) << 8 | uint16_t(p[4 + n])))));
                 auto x = read_extensions(r, 0, 0xFFFF);   // read once already: cannot fail
                 return CertificateEntry{Bytes(p + 3, n), x ? *x : Extensions()};
             }
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 size_t n = size_t(uint32_t(p[0]) << 16 | uint32_t(p[1]) << 8 | uint32_t(p[2]));
                 size_t e = size_t(uint16_t(p[3 + n]) << 8 | uint16_t(p[4 + n]));
                 p += 3 + n + 2 + e;
                 return *this;
             }
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
-            bool operator==(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
                 return p == o.p;
             }
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return {raw.data()};
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return {raw.data() + raw.size()};
         }
     };
@@ -1357,7 +1357,7 @@ namespace sgcl::net::tls::detail {
         Bytes signature;
     };
 
-    inline expected<CertificateVerify, Alert> read_certificate_verify(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<CertificateVerify, Alert> read_certificate_verify(const Bytes& body) noexcept {
         Reader r(body, 4);
         CertificateVerify m;
         if (!r.u16(m.scheme) || !r.vec16(m.signature, 0, 0xFFFF) || !r.end()) {
@@ -1366,7 +1366,7 @@ namespace sgcl::net::tls::detail {
         return m;
     }
 
-    inline void write_certificate_verify(Builder& w, uint16_t scheme, const Bytes& signature) noexcept {
+    SGCL_INLINE_HOT void write_certificate_verify(Builder& w, uint16_t scheme, const Bytes& signature) noexcept {
         auto m = w.message(HandshakeType::certificate_verify);
         w.u16(scheme);
         auto s = w.block16();
@@ -1374,20 +1374,20 @@ namespace sgcl::net::tls::detail {
     }
 
     // Finished (§4.4.4): verify_data of the length of the hash
-    inline expected<Bytes, Alert> read_finished(const Bytes& body, size_t hash_size) noexcept {
+    SGCL_INLINE_HOT expected<Bytes, Alert> read_finished(const Bytes& body, size_t hash_size) noexcept {
         if (body.size() != hash_size) {
             return failed(AlertDescription::decode_error, 4, "Finished of another length than the hash's");
         }
         return body;
     }
 
-    inline void write_finished(Builder& w, const Bytes& verify_data) noexcept {
+    SGCL_INLINE_HOT void write_finished(Builder& w, const Bytes& verify_data) noexcept {
         auto m = w.message(HandshakeType::finished);
         w.bytes(verify_data);
     }
 
     // KeyUpdate (§4.6.3): whether the other side is asked to update too
-    inline expected<bool, Alert> read_key_update(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<bool, Alert> read_key_update(const Bytes& body) noexcept {
         Reader r(body, 4);
         uint8_t request;
         if (!r.u8(request) || !r.end()) {
@@ -1399,7 +1399,7 @@ namespace sgcl::net::tls::detail {
         return request == 1;
     }
 
-    inline void write_key_update(Builder& w, bool request_update) noexcept {
+    SGCL_INLINE_HOT void write_key_update(Builder& w, bool request_update) noexcept {
         auto m = w.message(HandshakeType::key_update);
         w.u8(request_update ? 1 : 0);
     }
@@ -1450,20 +1450,20 @@ namespace sgcl::net::tls::detail {
     }
 
     // EndOfEarlyData (§4.5): empty
-    inline expected<void, Alert> read_end_of_early_data(const Bytes& body) noexcept {
+    SGCL_INLINE_HOT expected<void, Alert> read_end_of_early_data(const Bytes& body) noexcept {
         if (!body.empty()) {
             return failed(AlertDescription::decode_error, 4, "EndOfEarlyData with a body");
         }
         return {};
     }
 
-    inline void write_end_of_early_data(Builder& w) noexcept {
+    SGCL_INLINE_HOT void write_end_of_early_data(Builder& w) noexcept {
         auto m = w.message(HandshakeType::end_of_early_data);
     }
 
     // message_hash (§4.4.1): what the transcript holds in place of the
     // first ClientHello after a HelloRetryRequest
-    inline void write_message_hash(Builder& w, const Bytes& hash) noexcept {
+    SGCL_INLINE_HOT void write_message_hash(Builder& w, const Bytes& hash) noexcept {
         auto m = w.message(HandshakeType::message_hash);
         w.bytes(hash);
     }
@@ -1471,7 +1471,7 @@ namespace sgcl::net::tls::detail {
     // An alert record's two bytes (§6): the level is not read, the kind
     // says what the alert is (every one fatal but close_notify and
     // user_canceled), as Go reads it
-    inline expected<Alert, Alert> read_alert(const Bytes& fragment) noexcept {
+    SGCL_INLINE_HOT expected<Alert, Alert> read_alert(const Bytes& fragment) noexcept {
         Reader r(fragment);
         uint8_t level, description;
         if (!r.u8(level) || !r.u8(description) || !r.end("an alert of more than two bytes")) {
@@ -1480,7 +1480,7 @@ namespace sgcl::net::tls::detail {
         return Alert{AlertDescription(description), 0, nullptr};
     }
 
-    inline void write_alert(Builder& w, AlertDescription d) noexcept {
+    SGCL_INLINE_HOT void write_alert(Builder& w, AlertDescription d) noexcept {
         Alert a{d};
         w.u8(a.fatal() ? 2 : 1);
         w.u8(uint8_t(d));

@@ -22,7 +22,7 @@ namespace sgcl::encoding::detail {
     // its escapes decoded and its UTF-8 checked, in pieces when the text
     // comes in pieces; a string written with the escapes it needs.
 
-    inline bool is_json_space(char c) noexcept {
+    SGCL_INLINE_HOT bool is_json_space(char c) noexcept {
         return c == ' ' || c == '\n' || c == '\r' || c == '\t';
     }
 
@@ -35,7 +35,7 @@ namespace sgcl::encoding::detail {
         return p;
     }
 
-    inline int hex_value(char c) noexcept {
+    SGCL_INLINE_HOT int hex_value(char c) noexcept {
         if (c >= '0' && c <= '9') {
             return c - '0';
         }

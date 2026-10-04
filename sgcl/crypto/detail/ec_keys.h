@@ -70,7 +70,7 @@ namespace sgcl::crypto::detail {
     template<class C>
     class EcdhKey;
 
-    inline slice<const byte> view(const unsigned char* p, size_t n) noexcept {
+    SGCL_INLINE_HOT slice<const byte> view(const unsigned char* p, size_t n) noexcept {
         return slice<const byte>(reinterpret_cast<const byte*>(p), n);
     }
 
@@ -100,7 +100,7 @@ namespace sgcl::crypto::detail {
     public:
         static constexpr size_t hlen = H::digest_size;
 
-        HmacDrbg(const unsigned char* x, const unsigned char* h1, size_t rlen, const unsigned char* extra, size_t elen) noexcept {
+        SGCL_INLINE_HOT HmacDrbg(const unsigned char* x, const unsigned char* h1, size_t rlen, const unsigned char* extra, size_t elen) noexcept {
             std::memset(_v, 0x01, hlen);
             std::memset(_k, 0x00, hlen);
             _seed(0x00, x, h1, rlen, extra, elen);
@@ -110,7 +110,7 @@ namespace sgcl::crypto::detail {
         HmacDrbg(const HmacDrbg&) = delete;
         HmacDrbg& operator=(const HmacDrbg&) = delete;
 
-        ~HmacDrbg() {
+        SGCL_INLINE_HOT ~HmacDrbg() {
             secure_zero(_k, hlen);
             secure_zero(_v, hlen);
         }
@@ -154,13 +154,13 @@ namespace sgcl::crypto::detail {
             _mac_v();
         }
 
-        void _mac_v() noexcept {
+        SGCL_INLINE_HOT void _mac_v() noexcept {
             hmac<H> m(view(_k, hlen));
             m.update(view(_v, hlen));
             _take(m, _v);
         }
 
-        static void _take(const hmac<H>& m, unsigned char* out) noexcept {
+        SGCL_INLINE_HOT static void _take(const hmac<H>& m, unsigned char* out) noexcept {
             auto t = m.value();
             std::memcpy(out, t.data(), hlen);
             secure_zero(t.data(), hlen);
@@ -180,7 +180,7 @@ namespace sgcl::crypto::detail {
         // both curves): the first size bytes of a longer digest, all of a
         // shorter one (FIPS 186-5 §6.4.1 step 4, RFC 6979 §2.3.2); below
         // 2^(8 size), so below 2n
-        static sc bits2int(const unsigned char* digest, size_t len) noexcept {
+        SGCL_INLINE_HOT static sc bits2int(const unsigned char* digest, size_t len) noexcept {
             unsigned char b[size] = {};
             if (len >= size) {
                 std::memcpy(b, digest, size);
@@ -191,7 +191,7 @@ namespace sgcl::crypto::detail {
         }
 
         // a mod n for a below 2n, with no branch
-        static sc reduce_n(const sc& a) noexcept {
+        SGCL_INLINE_HOT static sc reduce_n(const sc& a) noexcept {
             sc r;
             S::reduce_once(r, a, 0);
             return r;
@@ -199,7 +199,7 @@ namespace sgcl::crypto::detail {
 
         // Whether 1 <= k < n, computed in constant time; the answer is
         // public (a candidate rejected, a key refused)
-        static bool in_range(const sc& k) noexcept {
+        SGCL_INLINE_HOT static bool in_range(const sc& k) noexcept {
             uint64_t ok = limbs_less_mask(k, S::k.m) & ~limbs_zero_mask(k);
             return ct_barrier(ok) != 0;
         }
@@ -257,7 +257,7 @@ namespace sgcl::crypto::detail {
         }
 
         // The hedged signature of the public API: k' is size random bytes
-        static void sign_hedged(unsigned char* sig, const sc& d, const unsigned char* digest, size_t dlen) noexcept {
+        SGCL_INLINE_HOT static void sign_hedged(unsigned char* sig, const sc& d, const unsigned char* digest, size_t dlen) noexcept {
             unsigned char extra[size];
             random::fill(slice<byte>(reinterpret_cast<byte*>(extra), size));
             sign<typename EcdsaDrbgHash<C>::type>(sig, d, digest, dlen, extra, size);
@@ -283,7 +283,7 @@ namespace sgcl::crypto::detail {
         // The same with the hash named: SHA-3 and SHA-512/256 share their
         // lengths with SHA-2, and only the hash that made the digest gives
         // the k every other implementation gives
-        static void sign_deterministic(unsigned char* sig, const sc& d, const unsigned char* digest, size_t dlen, hash_id id) {
+        SGCL_INLINE_HOT static void sign_deterministic(unsigned char* sig, const sc& d, const unsigned char* digest, size_t dlen, hash_id id) {
             detail::visit_hash(id, [&](auto t) {
                 sign<typename decltype(t)::type>(sig, d, digest, dlen, nullptr, 0);
             });
@@ -338,7 +338,7 @@ namespace sgcl::crypto::detail {
 
         // r and s of a DER signature, strictly: false for anything else,
         // anything after it included
-        static bool decode_signature(unsigned char* sig, const unsigned char* p, size_t n) noexcept {
+        SGCL_INLINE_HOT static bool decode_signature(unsigned char* sig, const unsigned char* p, size_t n) noexcept {
             DerReader in(p, n);
             DerReader seq;
             return in.read(der::sequence, seq) && in.empty() && seq.read_unsigned(sig, size) && seq.read_unsigned(sig + size, size) && seq.empty();
@@ -363,12 +363,12 @@ namespace sgcl::crypto::detail {
         EcKeyCore(const EcKeyCore&) = delete;
         EcKeyCore& operator=(const EcKeyCore&) = delete;
 
-        EcKeyCore(EcKeyCore&& o) noexcept
+        SGCL_INLINE_HOT EcKeyCore(EcKeyCore&& o) noexcept
         : d(o.d), pub(o.pub) {
             o.wipe();
         }
 
-        EcKeyCore& operator=(EcKeyCore&& o) noexcept {
+        SGCL_INLINE_HOT EcKeyCore& operator=(EcKeyCore&& o) noexcept {
             if (this != &o) {
                 d = o.d;
                 pub = o.pub;
@@ -377,20 +377,20 @@ namespace sgcl::crypto::detail {
             return *this;
         }
 
-        ~EcKeyCore() {
+        SGCL_INLINE_HOT ~EcKeyCore() {
             wipe();
         }
 
         // d and the public point zeroed: a key moved from, whose use is
         // std::logic_error (check), as every key of the module's
-        void wipe() noexcept {
+        SGCL_INLINE_HOT void wipe() noexcept {
             secure_zero(&d, sizeof d);
             pub.fill(0);
         }
 
         // A key's public point starts with 0x04; a key moved from has none.
         // kind is the type the message names, "private_key" or "ecdh_key"
-        void check(const char* kind) const {
+        SGCL_INLINE_HOT void check(const char* kind) const {
             if (pub[0] == 0) {
                 moved(kind);
             }
@@ -402,7 +402,7 @@ namespace sgcl::crypto::detail {
             moved_from((name() + "::" + kind).c_str());
         }
 
-        EcKeyCore clone() const noexcept {
+        SGCL_INLINE_HOT EcKeyCore clone() const noexcept {
             EcKeyCore c;
             c.d = d;
             c.pub = pub;
@@ -424,16 +424,16 @@ namespace sgcl::crypto::detail {
             return true;
         }
 
-        void scalar_bytes(unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT void scalar_bytes(unsigned char* out) const noexcept {
             limbs_to_be(out, d);
         }
 
         // "sgcl::crypto::p256", what every message of the curve starts with
-        static std::string name() noexcept {
+        SGCL_INLINE_HOT static std::string name() noexcept {
             return std::string("sgcl::crypto::") + (C::size == 32 ? "p256" : "p384");
         }
 
-        static std::string prefix() noexcept {
+        SGCL_INLINE_HOT static std::string prefix() noexcept {
             return name() + ": ";
         }
 
@@ -457,7 +457,7 @@ namespace sgcl::crypto::detail {
             return c;
         }
 
-        static expected<EcKeyCore, error> from_bytes(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static expected<EcKeyCore, error> from_bytes(const slice<const byte>& data) noexcept {
             if (data.size() != size) {
                 return unexpected<error>(key_error(errc::invalid_key, C::size == 32 ? "a private key is 32 bytes" : "a private key is 48 bytes"));
             }
@@ -528,7 +528,7 @@ namespace sgcl::crypto::detail {
             return c;
         }
 
-        static expected<EcKeyCore, error> from_sec1_der(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static expected<EcKeyCore, error> from_sec1_der(const slice<const byte>& data) noexcept {
             DerReader in(bytes(data.data()), data.size());
             auto c = read_ec_private_key(in);
             if (c && !in.empty()) {
@@ -636,13 +636,13 @@ namespace sgcl::crypto::detail {
         }
 
         template<size_t Cap>
-        static vector<byte> take(const DerWriter<Cap>& w) noexcept {
+        SGCL_INLINE_HOT static vector<byte> take(const DerWriter<Cap>& w) noexcept {
             const byte* p = reinterpret_cast<const byte*>(w.data());
             return vector<byte>(p, p + w.size());
         }
 
         // The key is checked by the caller (a key moved from is refused)
-        secret_bytes to_sec1_der() const noexcept {
+        SGCL_INLINE_HOT secret_bytes to_sec1_der() const noexcept {
             DerWriter<256> w;
             write_ec_private_key(w, true);
             return take_secret(w);
@@ -752,14 +752,14 @@ namespace sgcl::crypto::detail {
         }
 
         // 04 || X || Y
-        array<byte, size> bytes() const noexcept {
+        SGCL_INLINE_HOT array<byte, size> bytes() const noexcept {
             array<byte, size> out;
             std::memcpy(out.data(), _point.data(), size);
             return out;
         }
 
         // 02 or 03 || X
-        array<byte, compressed_size> bytes_compressed() const noexcept {
+        SGCL_INLINE_HOT array<byte, compressed_size> bytes_compressed() const noexcept {
             array<byte, compressed_size> out;
             out[0] = byte(0x02 | (_point[size - 1] & 1));
             std::memcpy(out.data() + 1, _point.data() + 1, C::size);
@@ -784,7 +784,7 @@ namespace sgcl::crypto::detail {
         // for a signature that is not strict DER, r or s out of [1, n - 1],
         // or one that does not verify; never an exception. [[nodiscard]]: a
         // check whose result is dropped was never made
-        [[nodiscard]] bool verify_digest(const slice<const byte>& digest, const slice<const byte>& signature) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify_digest(const slice<const byte>& digest, const slice<const byte>& signature) const noexcept {
             if (digest.size() == 0) {
                 return false;   // as sign_digest refuses it
             }
@@ -798,14 +798,14 @@ namespace sgcl::crypto::detail {
         // As verify_digest, the signature r || s of signature_size bytes
         // (the IEEE P1363 form of JWS, WebAuthn and PKCS#11); another
         // length is false
-        [[nodiscard]] bool verify_digest_raw(const slice<const byte>& digest, const slice<const byte>& signature) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify_digest_raw(const slice<const byte>& digest, const slice<const byte>& signature) const noexcept {
             if (digest.size() == 0 || signature.size() != signature_size) {
                 return false;
             }
             return _verify(digest, detail::bytes(signature.data()));
         }
 
-        friend bool operator==(const EcPublicKey& a, const EcPublicKey& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const EcPublicKey& a, const EcPublicKey& b) noexcept {
             return a._point == b._point;
         }
 
@@ -814,18 +814,18 @@ namespace sgcl::crypto::detail {
 
         EcPublicKey() noexcept = default;
 
-        explicit EcPublicKey(const std::array<unsigned char, size>& point) noexcept
+        SGCL_INLINE_HOT explicit EcPublicKey(const std::array<unsigned char, size>& point) noexcept
         : _point(point) {
         }
 
-        typename E::affine _affine() const noexcept {
+        SGCL_INLINE_HOT typename E::affine _affine() const noexcept {
             typename E::affine a;
             a.x = F::to_mont(limbs_from_be<C::words>(_point.data() + 1));
             a.y = F::to_mont(limbs_from_be<C::words>(_point.data() + 1 + C::size));
             return a;
         }
 
-        bool _verify(const slice<const byte>& digest, const unsigned char* sig) const noexcept {
+        SGCL_INLINE_HOT bool _verify(const slice<const byte>& digest, const unsigned char* sig) const noexcept {
             return Ecdsa<C>::verify(_affine(), detail::bytes(digest.data()), digest.size(), sig, sig + C::size);
         }
     };
@@ -843,23 +843,23 @@ namespace sgcl::crypto::detail {
         static constexpr size_t max_signature_size = Ecdsa<C>::max_der_size;      // the longest DER signature
 
         // A new key from crypto::random
-        static EcdsaPrivateKey generate() noexcept {
+        SGCL_INLINE_HOT static EcdsaPrivateKey generate() noexcept {
             return EcdsaPrivateKey(Core::generate());
         }
 
         // A key from its scalar: size bytes, big-endian, in [1, n - 1];
         // errc::invalid_key otherwise
-        static expected<EcdsaPrivateKey, error> from_bytes(const slice<const byte>& scalar) noexcept {
+        SGCL_INLINE_HOT static expected<EcdsaPrivateKey, error> from_bytes(const slice<const byte>& scalar) noexcept {
             return _wrap(Core::from_bytes(scalar));
         }
 
         // A PKCS#8 PrivateKeyInfo ("PRIVATE KEY" in PEM) of this curve
-        static expected<EcdsaPrivateKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<EcdsaPrivateKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             return _wrap(Core::from_pkcs8_der(der));
         }
 
         // A SEC 1 ECPrivateKey ("EC PRIVATE KEY" in PEM) of this curve
-        static expected<EcdsaPrivateKey, error> from_sec1_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<EcdsaPrivateKey, error> from_sec1_der(const slice<const byte>& der) noexcept {
             return _wrap(Core::from_sec1_der(der));
         }
 
@@ -869,26 +869,26 @@ namespace sgcl::crypto::detail {
         EcdsaPrivateKey& operator=(const EcdsaPrivateKey&) = delete;
         ~EcdsaPrivateKey() = default;
 
-        EcdsaPrivateKey clone() const {
+        SGCL_INLINE_HOT EcdsaPrivateKey clone() const {
             _check();
             return EcdsaPrivateKey(_core.clone());
         }
 
         // The scalar d, size bytes big-endian: a secret
-        secret<size> bytes() const {
+        SGCL_INLINE_HOT secret<size> bytes() const {
             _check();
             secret<size> s = SecretAccess::make<size>();
             _core.scalar_bytes(SecretAccess::data(s));
             return s;
         }
 
-        EcPublicKey<C> public_key() const {
+        SGCL_INLINE_HOT EcPublicKey<C> public_key() const {
             _check();
             return EcPublicKey<C>(_core.pub);
         }
 
         // The same scalar as an ECDH key
-        EcdhKey<C> to_ecdh() const {
+        SGCL_INLINE_HOT EcdhKey<C> to_ecdh() const {
             _check();
             return EcdhKey<C>(_core.clone());
         }
@@ -903,7 +903,7 @@ namespace sgcl::crypto::detail {
         // for every signature when they are good. An empty digest is
         // std::invalid_argument, as Go refuses it: the signature of nothing
         // is a program's mistake (arguments swapped, a digest never made)
-        vector<byte> sign_digest(const slice<const byte>& digest) const {
+        SGCL_INLINE_HOT vector<byte> sign_digest(const slice<const byte>& digest) const {
             unsigned char sig[signature_size];
             _sign(sig, digest, false);
             return _der(sig);
@@ -914,20 +914,20 @@ namespace sgcl::crypto::detail {
         // the digests were equal, and a fault of the hardware during
         // signing is not masked by fresh random bytes; for test vectors
         // and protocols that ask for it. The hedged form stays the default
-        vector<byte> sign_digest(const slice<const byte>& digest, deterministic_t) const {
+        SGCL_INLINE_HOT vector<byte> sign_digest(const slice<const byte>& digest, deterministic_t) const {
             unsigned char sig[signature_size];
             _sign(sig, digest, true);
             return _der(sig);
         }
 
         // As sign_digest, r || s of signature_size bytes (IEEE P1363)
-        array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest) const {
+        SGCL_INLINE_HOT array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest) const {
             array<byte, signature_size> out;
             _sign(detail::bytes(out.data()), digest, false);
             return out;
         }
 
-        array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest, deterministic_t) const {
+        SGCL_INLINE_HOT array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest, deterministic_t) const {
             array<byte, signature_size> out;
             _sign(detail::bytes(out.data()), digest, true);
             return out;
@@ -937,13 +937,13 @@ namespace sgcl::crypto::detail {
         // named, as RFC 6979 has it: needed for SHA-3 and SHA-512/256,
         // whose lengths the two-argument form reads as SHA-2's. A digest of
         // another length than the hash's is std::invalid_argument
-        vector<byte> sign_digest(const slice<const byte>& digest, deterministic_t, hash_id id) const {
+        SGCL_INLINE_HOT vector<byte> sign_digest(const slice<const byte>& digest, deterministic_t, hash_id id) const {
             unsigned char sig[signature_size];
             _sign(sig, digest, id);
             return _der(sig);
         }
 
-        array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest, deterministic_t, hash_id id) const {
+        SGCL_INLINE_HOT array<byte, signature_size> sign_digest_raw(const slice<const byte>& digest, deterministic_t, hash_id id) const {
             array<byte, signature_size> out;
             _sign(detail::bytes(out.data()), digest, id);
             return out;
@@ -952,14 +952,14 @@ namespace sgcl::crypto::detail {
         // PKCS#8 PrivateKeyInfo, as Go's x509.MarshalPKCS8PrivateKey
         // writes it; the bytes hold the secret scalar: a secret_bytes,
         // never managed memory
-        secret_bytes to_pkcs8_der() const {
+        SGCL_INLINE_HOT secret_bytes to_pkcs8_der() const {
             _check();
             return _core.to_pkcs8_der();
         }
 
         // SEC 1 ECPrivateKey with the curve and the public key, as Go's
         // x509.MarshalECPrivateKey writes it; a secret_bytes too
-        secret_bytes to_sec1_der() const {
+        SGCL_INLINE_HOT secret_bytes to_sec1_der() const {
             _check();
             return _core.to_sec1_der();
         }
@@ -969,7 +969,7 @@ namespace sgcl::crypto::detail {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<EcdsaPrivateKey, error> from_pem(const slice<const byte>& text) noexcept {
+        SGCL_INLINE_HOT static expected<EcdsaPrivateKey, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text, Core::prefix());
             if (!p) {
                 return unexpected<error>(p.error());
@@ -986,7 +986,7 @@ namespace sgcl::crypto::detail {
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
         // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
         // write it: a secret_bytes, never managed memory
-        secret_bytes to_pem() const {
+        SGCL_INLINE_HOT secret_bytes to_pem() const {
             return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
         }
 
@@ -996,15 +996,15 @@ namespace sgcl::crypto::detail {
 
         Core _core;
 
-        explicit EcdsaPrivateKey(Core&& core) noexcept
+        SGCL_INLINE_HOT explicit EcdsaPrivateKey(Core&& core) noexcept
         : _core(std::move(core)) {
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             _core.check("private_key");
         }
 
-        void _sign(unsigned char* sig, const slice<const byte>& digest, bool deterministic) const {
+        SGCL_INLINE_HOT void _sign(unsigned char* sig, const slice<const byte>& digest, bool deterministic) const {
             _check();
             if (digest.size() == 0) {
                 throw invalid_argument("sgcl::crypto::ecdsa: an empty digest");
@@ -1016,7 +1016,7 @@ namespace sgcl::crypto::detail {
             }
         }
 
-        void _sign(unsigned char* sig, const slice<const byte>& digest, hash_id id) const {
+        SGCL_INLINE_HOT void _sign(unsigned char* sig, const slice<const byte>& digest, hash_id id) const {
             _check();
             if (digest.size() != digest_size(id)) {
                 throw invalid_argument("sgcl::crypto::ecdsa: the digest is not of the hash's length");
@@ -1024,14 +1024,14 @@ namespace sgcl::crypto::detail {
             Ecdsa<C>::sign_deterministic(sig, _core.d, detail::bytes(digest.data()), digest.size(), id);
         }
 
-        static vector<byte> _der(const unsigned char* sig) noexcept {
+        SGCL_INLINE_HOT static vector<byte> _der(const unsigned char* sig) noexcept {
             unsigned char der[max_signature_size];
             size_t n = Ecdsa<C>::encode_signature(der, sig);
             const byte* p = reinterpret_cast<const byte*>(der);
             return vector<byte>(p, p + n);
         }
 
-        static expected<EcdsaPrivateKey, error> _wrap(expected<Core, error>&& c) noexcept {
+        SGCL_INLINE_HOT static expected<EcdsaPrivateKey, error> _wrap(expected<Core, error>&& c) noexcept {
             if (!c) {
                 return unexpected<error>(c.error());
             }
@@ -1051,15 +1051,15 @@ namespace sgcl::crypto::detail {
     public:
         static constexpr size_t size = C::size;
 
-        static EcdhKey generate() noexcept {
+        SGCL_INLINE_HOT static EcdhKey generate() noexcept {
             return EcdhKey(Core::generate());
         }
 
-        static expected<EcdhKey, error> from_bytes(const slice<const byte>& scalar) noexcept {
+        SGCL_INLINE_HOT static expected<EcdhKey, error> from_bytes(const slice<const byte>& scalar) noexcept {
             return _wrap(Core::from_bytes(scalar));
         }
 
-        static expected<EcdhKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<EcdhKey, error> from_pkcs8_der(const slice<const byte>& der) noexcept {
             return _wrap(Core::from_pkcs8_der(der));
         }
 
@@ -1069,19 +1069,19 @@ namespace sgcl::crypto::detail {
         EcdhKey& operator=(const EcdhKey&) = delete;
         ~EcdhKey() = default;
 
-        EcdhKey clone() const {
+        SGCL_INLINE_HOT EcdhKey clone() const {
             _check();
             return EcdhKey(_core.clone());
         }
 
-        secret<size> bytes() const {
+        SGCL_INLINE_HOT secret<size> bytes() const {
             _check();
             secret<size> s = SecretAccess::make<size>();
             _core.scalar_bytes(SecretAccess::data(s));
             return s;
         }
 
-        EcPublicKey<C> public_key() const {
+        SGCL_INLINE_HOT EcPublicKey<C> public_key() const {
             _check();
             return EcPublicKey<C>(_core.pub);
         }
@@ -1109,7 +1109,7 @@ namespace sgcl::crypto::detail {
             return s;
         }
 
-        secret_bytes to_pkcs8_der() const {
+        SGCL_INLINE_HOT secret_bytes to_pkcs8_der() const {
             _check();
             return _core.to_pkcs8_der();
         }
@@ -1119,7 +1119,7 @@ namespace sgcl::crypto::detail {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<EcdhKey, error> from_pem(const slice<const byte>& text) noexcept {
+        SGCL_INLINE_HOT static expected<EcdhKey, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text, Core::prefix());
             if (!p) {
                 return unexpected<error>(p.error());
@@ -1133,7 +1133,7 @@ namespace sgcl::crypto::detail {
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
         // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
         // write it: a secret_bytes, never managed memory
-        secret_bytes to_pem() const {
+        SGCL_INLINE_HOT secret_bytes to_pem() const {
             return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
         }
 
@@ -1142,15 +1142,15 @@ namespace sgcl::crypto::detail {
 
         Core _core;
 
-        explicit EcdhKey(Core&& core) noexcept
+        SGCL_INLINE_HOT explicit EcdhKey(Core&& core) noexcept
         : _core(std::move(core)) {
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             _core.check("ecdh_key");
         }
 
-        static expected<EcdhKey, error> _wrap(expected<Core, error>&& c) noexcept {
+        SGCL_INLINE_HOT static expected<EcdhKey, error> _wrap(expected<Core, error>&& c) noexcept {
             if (!c) {
                 return unexpected<error>(c.error());
             }

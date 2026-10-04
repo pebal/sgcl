@@ -54,69 +54,69 @@ namespace sgcl {
 
         template<class T, class VT = std::decay_t<T>>
         requires (!std::is_same_v<VT, any> && !IsInPlace<VT>::value && std::is_copy_constructible_v<VT>)
-        any(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>) {
+        SGCL_INLINE_HOT any(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>) {
             this->template _emplace<VT, true, nullptr>(std::forward<T>(value));
         }
 
         template<class T, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
-        explicit any(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>) {
+        SGCL_INLINE_HOT explicit any(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>) {
             this->template _emplace<VT, true, nullptr>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, std::initializer_list<U>&, A...> && std::is_copy_constructible_v<VT>
-        explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>) {
+        SGCL_INLINE_HOT explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>) {
             this->template _emplace<VT, true, nullptr>(il, std::forward<A>(a)...);
         }
 
         ~any() noexcept = default;
 
-        any& operator=(const any& o) {
+        SGCL_INLINE_HOT any& operator=(const any& o) {
             any(o).swap(*this);
             return *this;
         }
 
-        any& operator=(any&& o) noexcept {
+        SGCL_INLINE_HOT any& operator=(any&& o) noexcept {
             any(std::move(o)).swap(*this);
             return *this;
         }
 
         template<class T, class VT = std::decay_t<T>>
         requires (!std::is_same_v<VT, any> && std::is_copy_constructible_v<VT>)
-        any& operator=(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>) {
+        SGCL_INLINE_HOT any& operator=(T&& value) noexcept(std::is_nothrow_constructible_v<VT, T>) {
             any(std::forward<T>(value)).swap(*this);
             return *this;
         }
 
         template<class T, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, A...> && std::is_copy_constructible_v<VT>
-        VT& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>) {
+        SGCL_INLINE_HOT VT& emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<VT, A...>) {
             reset();
             return this->template _emplace<VT, true, nullptr>(std::forward<A>(a)...);
         }
 
         template<class T, class U, class... A, class VT = std::decay_t<T>>
         requires std::is_constructible_v<VT, std::initializer_list<U>&, A...> && std::is_copy_constructible_v<VT>
-        VT& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>) {
+        SGCL_INLINE_HOT VT& emplace(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VT, std::initializer_list<U>&, A...>) {
             reset();
             return this->template _emplace<VT, true, nullptr>(il, std::forward<A>(a)...);
         }
 
         // The value destroyed now, on this thread, wherever it is
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             this->_reset();
         }
 
-        void swap(any& o) noexcept {
+        SGCL_INLINE_HOT void swap(any& o) noexcept {
             this->_swap(o);
         }
 
-        bool has_value() const noexcept {
+        SGCL_INLINE_HOT bool has_value() const noexcept {
             return this->_manager != nullptr;
         }
 
-        const std::type_info& type() const noexcept {
+        SGCL_INLINE_HOT const std::type_info& type() const noexcept {
             return this->_manager ? this->_manager->type : typeid(void);
         }
 
@@ -127,35 +127,35 @@ namespace sgcl {
         friend T* any_cast(any*) noexcept;
     };
 
-    inline void swap(any& l, any& r) noexcept {
+    SGCL_INLINE_HOT void swap(any& l, any& r) noexcept {
         l.swap(r);
     }
 
     template<class T, class... A>
-    any make_any(A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, A...>) {
+    SGCL_INLINE_HOT any make_any(A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, A...>) {
         return any(std::in_place_type<T>, std::forward<A>(a)...);
     }
 
     template<class T, class U, class... A>
-    any make_any(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, std::initializer_list<U>&, A...>) {
+    SGCL_INLINE_HOT any make_any(std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<std::decay_t<T>, std::initializer_list<U>&, A...>) {
         return any(std::in_place_type<T>, il, std::forward<A>(a)...);
     }
 
     template<class T>
-    const T* any_cast(const any* a) noexcept {
+    SGCL_INLINE_HOT const T* any_cast(const any* a) noexcept {
         static_assert(!std::is_void_v<T>, "any_cast to void");
         return a && a->_manager && a->_manager->type == typeid(T) ? static_cast<const T*>(a->_manager->get(*a)) : nullptr;
     }
 
     template<class T>
-    T* any_cast(any* a) noexcept {
+    SGCL_INLINE_HOT T* any_cast(any* a) noexcept {
         static_assert(!std::is_void_v<T>, "any_cast to void");
         return a && a->_manager && a->_manager->type == typeid(T) ? static_cast<T*>(a->_manager->get(*a)) : nullptr;
     }
 
     template<class T, class U = std::remove_cvref_t<T>>
     requires std::is_constructible_v<T, const U&>
-    T any_cast(const any& a) {
+    SGCL_INLINE_HOT T any_cast(const any& a) {
         auto p = any_cast<U>(&a);
         if (!p) {
             throw bad_any_cast();
@@ -165,7 +165,7 @@ namespace sgcl {
 
     template<class T, class U = std::remove_cvref_t<T>>
     requires std::is_constructible_v<T, U&>
-    T any_cast(any& a) {
+    SGCL_INLINE_HOT T any_cast(any& a) {
         auto p = any_cast<U>(&a);
         if (!p) {
             throw bad_any_cast();
@@ -175,7 +175,7 @@ namespace sgcl {
 
     template<class T, class U = std::remove_cvref_t<T>>
     requires std::is_constructible_v<T, U>
-    T any_cast(any&& a) {
+    SGCL_INLINE_HOT T any_cast(any&& a) {
         auto p = any_cast<U>(&a);
         if (!p) {
             throw bad_any_cast();

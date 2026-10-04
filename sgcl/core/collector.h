@@ -131,7 +131,7 @@ namespace sgcl {
         }
 
         // Bytes of committed managed memory right now.
-        inline static size_t get_committed_memory() noexcept {
+        SGCL_INLINE_HOT static size_t get_committed_memory() noexcept {
             return detail::Heap::instance().committed_bytes();
         }
 
@@ -144,18 +144,18 @@ namespace sgcl {
         // ends the program: one line on stderr ("sgcl: out of managed
         // memory: N bytes committed, limit L"), then std::terminate. 0
         // disables the ceiling. A call here wins over the environment.
-        inline static size_t get_memory_limit() noexcept {
+        SGCL_INLINE_HOT static size_t get_memory_limit() noexcept {
             return detail::Heap::instance().memory_limit();
         }
 
-        inline static void set_memory_limit(size_t bytes) noexcept {
+        SGCL_INLINE_HOT static void set_memory_limit(size_t bytes) noexcept {
             detail::Heap::instance().set_memory_limit(bytes);
         }
 
         // The ceiling as a share of the memory the process may use (the
         // cgroup limit, else the physical memory), 1..100; 0 when the system
         // does not say how much that is
-        inline static void set_memory_limit_percent(unsigned percent) noexcept {
+        SGCL_INLINE_HOT static void set_memory_limit_percent(unsigned percent) noexcept {
             assert(percent >= 1 && percent <= 100);
             detail::Heap::instance().set_memory_limit(detail::os::memory_limit() / 100 * percent);
         }
@@ -256,7 +256,7 @@ namespace sgcl {
     private:
         // A word of the calling thread's stack above the boundary frame
         // (the diagnostic's own frames lie below it)
-        static bool _own_stack(const void* word, uintptr_t boundary) noexcept {
+        SGCL_INLINE_HOT static bool _own_stack(const void* word, uintptr_t boundary) noexcept {
             return (uintptr_t)word >= boundary && detail::thread_stack.holds(word);
         }
 
@@ -298,11 +298,11 @@ namespace sgcl {
         public:
             enum class phase : int { start, flipped, registered, roots, marked, swept, released };
 
-            explicit stepper(bool full = true) noexcept {
+            SGCL_INLINE_HOT explicit stepper(bool full = true) noexcept {
                 detail::collector_instance().step_begin(full);
             }
 
-            ~stepper() noexcept {
+            SGCL_INLINE_HOT ~stepper() noexcept {
                 detail::collector_instance().step_end();
             }
 
@@ -310,7 +310,7 @@ namespace sgcl {
             stepper& operator=(const stepper&) = delete;
 
             // One gate: the phase the collector stands at then
-            phase step() noexcept {
+            SGCL_INLINE_HOT phase step() noexcept {
                 return phase(int(detail::collector_instance().step()));
             }
 
@@ -324,12 +324,12 @@ namespace sgcl {
             }
 
             // The rest of the current cycle, to `released`
-            void finish_cycle() noexcept {
+            SGCL_INLINE_HOT void finish_cycle() noexcept {
                 advance_to(phase::released);
             }
 
             // The kind of the cycles from the next one on
-            void full(bool full) noexcept {
+            SGCL_INLINE_HOT void full(bool full) noexcept {
                 detail::collector_instance().step_full(full);
             }
 
@@ -337,11 +337,11 @@ namespace sgcl {
             // here on, whatever the amount of work: the parallel marking,
             // sweep, stack scan and states pass on a heap of any size; 0
             // is the policy again. Set while the collector stands at a gate.
-            void helpers(unsigned n) noexcept {
+            SGCL_INLINE_HOT void helpers(unsigned n) noexcept {
                 detail::collector_instance().step_helpers(n);
             }
 
-            phase current() const noexcept {
+            SGCL_INLINE_HOT phase current() const noexcept {
                 return phase(int(detail::collector_instance().step_gate()));
             }
         };

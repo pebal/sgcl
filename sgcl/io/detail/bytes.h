@@ -23,33 +23,33 @@ namespace sgcl::io {
     namespace detail {
         // The bytes of a string, as a slice that holds it; of a text
         // slice, the same owner; of a literal, none
-        inline slice<const byte> bytes_of(const string& s) noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes_of(const string& s) noexcept {
             return as_bytes(s.as_slice());
         }
 
-        inline slice<const byte> bytes_of(const slice<const char>& s) noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes_of(const slice<const char>& s) noexcept {
             return as_bytes(s);
         }
 
-        inline slice<const byte> bytes_of(const char* s) noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes_of(const char* s) noexcept {
             return slice<const byte>(reinterpret_cast<const byte*>(s), std::char_traits<char>::length(s));
         }
 
-        inline slice<const byte> bytes_of(std::string_view s) noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes_of(std::string_view s) noexcept {
             return slice<const byte>(reinterpret_cast<const byte*>(s.data()), s.size());
         }
 
         // The bytes as characters: a std view (for the algorithms), a
         // slice of the same owner, a new string
-        inline std::string_view chars_of(const slice<const byte>& b) noexcept {
+        SGCL_INLINE_HOT std::string_view chars_of(const slice<const byte>& b) noexcept {
             return std::string_view(reinterpret_cast<const char*>(b.data()), b.size());
         }
 
-        inline slice<const char> text_slice_of(const slice<const byte>& b) noexcept {
+        SGCL_INLINE_HOT slice<const char> text_slice_of(const slice<const byte>& b) noexcept {
             return slice<const char>(b.owner(), reinterpret_cast<const char*>(b.data()), b.size());
         }
 
-        inline string text_of(const slice<const byte>& b) {
+        SGCL_INLINE_HOT string text_of(const slice<const byte>& b) {
             return string(chars_of(b));
         }
 
@@ -78,7 +78,7 @@ namespace sgcl::io {
         // (done()), a new one made while it may still be read.
         class AsyncStage {
         public:
-            slice<const byte> stage(const slice<const byte>& data) noexcept {
+            SGCL_INLINE_HOT slice<const byte> stage(const slice<const byte>& data) noexcept {
                 const size_t n = data.size();
                 if (_in_flight || _block.size() < n) {
                     _block = _room(n);
@@ -91,12 +91,12 @@ namespace sgcl::io {
             }
 
             // The write of the last stage is over: its block may be used again
-            void done() noexcept {
+            SGCL_INLINE_HOT void done() noexcept {
                 _in_flight = false;
             }
 
             // A managed block of n bytes at least: 8 KB, 32 KB, or a buffer of n
-            static slice<byte> room(size_t n) noexcept {
+            SGCL_INLINE_HOT static slice<byte> room(size_t n) noexcept {
                 return _room(n);
             }
 

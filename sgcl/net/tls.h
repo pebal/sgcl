@@ -194,7 +194,7 @@ namespace sgcl::net::tls {
         }
 
         // The same, a broken one thrown (std::invalid_argument)
-        identity(const string& certificate_chain_pem, const slice<const byte>& key_pem) {
+        SGCL_INLINE_HOT identity(const string& certificate_chain_pem, const slice<const byte>& key_pem) {
             auto r = from_pem(certificate_chain_pem, key_pem);
             if (!r) {
                 throw std::invalid_argument(std::string(r.error().message().view()));
@@ -202,7 +202,7 @@ namespace sgcl::net::tls {
             _s = r->_s;
         }
 
-        const crypto::x509::chain& certificates() const noexcept {
+        SGCL_INLINE_HOT const crypto::x509::chain& certificates() const noexcept {
             return _s->certificates;
         }
 
@@ -210,19 +210,19 @@ namespace sgcl::net::tls {
         friend struct detail::IdentityAccess;
         friend struct sgcl::detail::HandleWord;
 
-        explicit identity(tracked_ptr<detail::IdentityState> s) noexcept
+        SGCL_INLINE_HOT explicit identity(tracked_ptr<detail::IdentityState> s) noexcept
         : _s(std::move(s)) {
         }
 
-        identity(sgcl::detail::FromWord, const tracked_ptr<detail::IdentityState>& w) noexcept
+        SGCL_INLINE_HOT identity(sgcl::detail::FromWord, const tracked_ptr<detail::IdentityState>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<detail::IdentityState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::IdentityState>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<detail::IdentityState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::IdentityState>& _handle_word() const noexcept {
             return _s;
         }
 
@@ -234,11 +234,11 @@ namespace sgcl::net::tls {
     };
 
     namespace detail {
-        inline const IdentityState& IdentityAccess::state(const identity& id) noexcept {
+        SGCL_INLINE_HOT const IdentityState& IdentityAccess::state(const identity& id) noexcept {
             return *id._s;
         }
 
-        inline tracked_ptr<const void> IdentityAccess::word(const identity& id) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<const void> IdentityAccess::word(const identity& id) noexcept {
             return tracked_ptr<const void>(id._s);
         }
     }
@@ -340,7 +340,7 @@ namespace sgcl::net::tls {
         }
 
         // The config with the address's host for a server name when it has none
-        inline expected<config, io::error> for_address(const string& address, const config& c) noexcept {
+        SGCL_INLINE_HOT expected<config, io::error> for_address(const string& address, const config& c) noexcept {
             config out = c;
             if (out.server_name.empty()) {
                 auto t = net::detail::parse_target(address, "dial tls");
@@ -369,11 +369,11 @@ namespace sgcl::net::tls {
     // A new TCP connection to "host:port" and the handshake over it, both
     // within config::handshake_timeout
     // `connect(...)` on this thread, `co_await async_connect(...)` in a task
-    inline expected<net::connection, io::error> connect(const string& address, const config& c = {}) {
+    SGCL_INLINE_HOT expected<net::connection, io::error> connect(const string& address, const config& c = {}) {
         return detail::co_connect(address, c).wait();
     }
 
-    inline async::task<expected<net::connection, io::error>> async_connect(string address, config c = {}) noexcept {
+    SGCL_INLINE_HOT async::task<expected<net::connection, io::error>> async_connect(string address, config c = {}) noexcept {
         return detail::co_connect(std::move(address), std::move(c));
     }
 
@@ -381,11 +381,11 @@ namespace sgcl::net::tls {
     // deadlines are replaced by the handshake's and then removed); the
     // transport is closed when it fails
     // `client(...)` on this thread, `co_await async_client(...)` in a task
-    inline expected<net::connection, io::error> client(const net::connection& transport, const config& c) {
+    SGCL_INLINE_HOT expected<net::connection, io::error> client(const net::connection& transport, const config& c) {
         return detail::block_client(transport, c, sgcl::clock::now() + c.handshake_timeout);
     }
 
-    inline async::task<expected<net::connection, io::error>> async_client(net::connection transport, config c) noexcept {
+    SGCL_INLINE_HOT async::task<expected<net::connection, io::error>> async_client(net::connection transport, config c) noexcept {
         const time_point deadline = sgcl::clock::now() + c.handshake_timeout;
         return detail::co_client(std::move(transport), std::move(c), deadline);
     }
@@ -466,7 +466,7 @@ namespace sgcl::net::tls {
         // handshake that fails is dropped (its connection closed, counted)
         class TlsListenerImpl final : public net::detail::ListenerImpl {
         public:
-            TlsListenerImpl(const net::listener& inner, ServerSetup setup, duration timeout) noexcept
+            SGCL_INLINE_HOT TlsListenerImpl(const net::listener& inner, ServerSetup setup, duration timeout) noexcept
             : _inner(inner)
             , _setup(std::move(setup))
             , _timeout(timeout)
@@ -474,7 +474,7 @@ namespace sgcl::net::tls {
             }
 
             // The accept loop, started by listen() once the object is made
-            static void start(const tracked_ptr<TlsListenerImpl>& self) {
+            SGCL_INLINE_HOT static void start(const tracked_ptr<TlsListenerImpl>& self) {
                 async::go(_loop(self));
             }
 
@@ -522,7 +522,7 @@ namespace sgcl::net::tls {
             }
 
             // The handshakes that failed (timed out, refused, broken)
-            uint64_t failed() const noexcept {
+            SGCL_INLINE_HOT uint64_t failed() const noexcept {
                 return _failed.load(std::memory_order_relaxed);
             }
 
@@ -559,7 +559,7 @@ namespace sgcl::net::tls {
             std::atomic<uint64_t> _failed = 0;
         };
 
-        inline expected<net::listener, io::error> make_listener(const net::listener& inner, const config& c) {
+        SGCL_INLINE_HOT expected<net::listener, io::error> make_listener(const net::listener& inner, const config& c) {
             tracked_ptr<TlsListenerImpl> impl = make_tracked<TlsListenerImpl>(inner, server_setup(c), c.handshake_timeout);
             TlsListenerImpl::start(impl);
             return net::detail::ListenerAccess::make(tracked_ptr<net::detail::ListenerImpl>(std::move(impl)));
@@ -570,7 +570,7 @@ namespace sgcl::net::tls {
     // done: each handshake runs in a task of its own, bounded by
     // config::handshake_timeout, and one that fails is dropped
     // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-    inline expected<net::listener, io::error> listen(const string& address, const config& c) {
+    SGCL_INLINE_HOT expected<net::listener, io::error> listen(const string& address, const config& c) {
         if (auto e = detail::check_server(c)) {
             return unexpected(*e);
         }

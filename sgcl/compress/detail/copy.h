@@ -27,7 +27,7 @@ namespace sgcl::compress::detail {
     // the cache the two are level from a few KB on, so libc costs nothing
     // there. Since DESIGN 394/444 copy_bytes itself hands 4 KB and more to
     // libc, so this is copy_bytes under the module's own name.
-    inline void copy_out(void* to, const void* from, size_t n) noexcept {
+    SGCL_INLINE_HOT void copy_out(void* to, const void* from, size_t n) noexcept {
         if (n < CopyOutLibc) {
             sgcl::detail::copy_bytes(to, from, n);
         } else {

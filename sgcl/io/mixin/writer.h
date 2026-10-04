@@ -29,32 +29,32 @@ namespace sgcl::io::mixin {
     public:
         template<class D>
         requires detail::Text<D>
-        expected<size_t, error> write(const D& text) noexcept(noexcept(io::write(std::declval<Derived&>(), text))) {
+        SGCL_INLINE_HOT expected<size_t, error> write(const D& text) noexcept(noexcept(io::write(std::declval<Derived&>(), text))) {
             return io::write(_self(), text);
         }
 
-        expected<size_t, error> write(byte b) noexcept(noexcept(io::write(std::declval<Derived&>(), b))) {
+        SGCL_INLINE_HOT expected<size_t, error> write(byte b) noexcept(noexcept(io::write(std::declval<Derived&>(), b))) {
             return io::write(_self(), b);
         }
 
         template<class D>
         requires detail::Text<D>
-        async::task<expected<size_t, error>> async_write(const D& text) noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(const D& text) noexcept {
             return io::async_write(_self(), text);
         }
 
-        async::task<expected<size_t, error>> async_write(byte b) noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(byte b) noexcept {
             return io::async_write(_self(), b);
         }
 
         // Everything from r to its end, written here: the bytes copied
         template<req::reader R>
-        expected<size_t, error> copy_from(R&& r) noexcept(noexcept(io::copy(std::declval<Derived&>(), std::forward<R>(r)))) {
+        SGCL_INLINE_HOT expected<size_t, error> copy_from(R&& r) noexcept(noexcept(io::copy(std::declval<Derived&>(), std::forward<R>(r)))) {
             return io::copy(_self(), std::forward<R>(r));
         }
 
         template<req::async_reader R>
-        async::task<expected<size_t, error>> async_copy_from(R&& r) noexcept(detail::NothrowHeld<R>) requires req::async_writer<Derived&> {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_copy_from(R&& r) noexcept(detail::NothrowHeld<R>) requires req::async_writer<Derived&> {
             return io::async_copy(_self(), std::forward<R>(r));
         }
 
@@ -63,7 +63,7 @@ namespace sgcl::io::mixin {
         ~writer() = default;
 
     private:
-        Derived& _self() noexcept {
+        SGCL_INLINE_HOT Derived& _self() noexcept {
             return static_cast<Derived&>(*this);
         }
     };

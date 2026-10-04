@@ -66,40 +66,40 @@ namespace sgcl::crypto::detail {
     public:
         DerReader() noexcept = default;
 
-        DerReader(const unsigned char* p, size_t n, size_t base = 0) noexcept
+        SGCL_INLINE_HOT DerReader(const unsigned char* p, size_t n, size_t base = 0) noexcept
         : _p(p), _n(n), _base(base) {
         }
 
         // The levels this reader lies below the reader over the whole
         // input
-        unsigned depth() const noexcept {
+        SGCL_INLINE_HOT unsigned depth() const noexcept {
             return _depth;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _pos == _n;
         }
 
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _base + _pos;
         }
 
-        const unsigned char* data() const noexcept {
+        SGCL_INLINE_HOT const unsigned char* data() const noexcept {
             return _p + _pos;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n - _pos;
         }
 
-        bool peek(unsigned char tag) const noexcept {
+        SGCL_INLINE_HOT bool peek(unsigned char tag) const noexcept {
             return _pos < _n && _p[_pos] == tag;
         }
 
         // The next element, which must have the tag: its content in
         // content. False for another tag, an indefinite length, a length
         // not in its shortest form, a length past the end
-        bool read(unsigned char tag, DerReader& content) noexcept {
+        SGCL_INLINE_HOT bool read(unsigned char tag, DerReader& content) noexcept {
             if (_pos >= _n || _p[_pos] != tag) {
                 return false;
             }
@@ -169,7 +169,7 @@ namespace sgcl::crypto::detail {
         // An element of the tag if the next one has it: present says
         // whether it did; false only for one that has the tag and is not
         // DER
-        bool read_optional(unsigned char tag, DerReader& content, bool& present) noexcept {
+        SGCL_INLINE_HOT bool read_optional(unsigned char tag, DerReader& content, bool& present) noexcept {
             present = peek(tag);
             return !present || read(tag, content);
         }
@@ -189,7 +189,7 @@ namespace sgcl::crypto::detail {
         // An OBJECT IDENTIFIER, its content in content: at least one byte,
         // every arc in its shortest form (no leading 80), the last byte
         // ending an arc
-        bool read_oid(DerReader& content) noexcept {
+        SGCL_INLINE_HOT bool read_oid(DerReader& content) noexcept {
             size_t pos = _pos;
             if (!read(der::object_identifier, content) || !oid_valid(content._p, content._n)) {
                 _pos = pos;
@@ -311,7 +311,7 @@ namespace sgcl::crypto::detail {
 
         // An element of the tag whose content is exactly the bytes given
         // (a version INTEGER, an OBJECT IDENTIFIER)
-        bool read_exact(unsigned char tag, const unsigned char* bytes, size_t n) noexcept {
+        SGCL_INLINE_HOT bool read_exact(unsigned char tag, const unsigned char* bytes, size_t n) noexcept {
             DerReader c;
             size_t pos = _pos;
             if (!read(tag, c) || c.size() != n || std::memcmp(c.data(), bytes, n) != 0) {
@@ -418,7 +418,7 @@ namespace sgcl::crypto::detail {
             return true;
         }
 
-        static int _two(const unsigned char* p) noexcept {
+        SGCL_INLINE_HOT static int _two(const unsigned char* p) noexcept {
             return (p[0] - '0') * 10 + (p[1] - '0');
         }
     };
@@ -435,25 +435,25 @@ namespace sgcl::crypto::detail {
         DerWriter(const DerWriter&) = delete;
         DerWriter& operator=(const DerWriter&) = delete;
 
-        ~DerWriter() {
+        SGCL_INLINE_HOT ~DerWriter() {
             secure_zero(_buf, Capacity);
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return Capacity - _pos;
         }
 
-        const unsigned char* data() const noexcept {
+        SGCL_INLINE_HOT const unsigned char* data() const noexcept {
             return _buf + _pos;
         }
 
-        void put(const unsigned char* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void put(const unsigned char* p, size_t n) noexcept {
             assert(_pos >= n && "DerWriter: past its capacity");
             _pos -= n;
             sgcl::detail::copy_bytes(_buf + _pos, p, n);
         }
 
-        void put(unsigned char b) noexcept {
+        SGCL_INLINE_HOT void put(unsigned char b) noexcept {
             assert(_pos >= 1 && "DerWriter: past its capacity");
             _buf[--_pos] = b;
         }
@@ -498,7 +498,7 @@ namespace sgcl::crypto::detail {
     // a secret_bytes, never managed memory (the writer zeroes its own
     // buffer when it goes)
     template<class W>
-    secret_bytes take_secret(const W& w) noexcept {
+    SGCL_INLINE_HOT secret_bytes take_secret(const W& w) noexcept {
         secret_bytes out(w.size());
         sgcl::detail::copy_bytes(out.as_slice().data(), w.data(), w.size());
         return out;

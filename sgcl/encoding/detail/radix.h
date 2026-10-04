@@ -86,34 +86,34 @@ namespace sgcl::encoding::detail {
             }
         }
 
-        constexpr Radix without_padding() const noexcept {
+        SGCL_INLINE_HOT constexpr Radix without_padding() const noexcept {
             Radix r = *this;
             r._padding = -1;
             return r;
         }
 
-        constexpr Radix lenient() const noexcept {
+        SGCL_INLINE_HOT constexpr Radix lenient() const noexcept {
             Radix r = *this;
             r._lenient = true;
             return r;
         }
 
-        constexpr bool padded() const noexcept {
+        SGCL_INLINE_HOT constexpr bool padded() const noexcept {
             return _padding >= 0;
         }
 
-        constexpr bool is_lenient() const noexcept {
+        SGCL_INLINE_HOT constexpr bool is_lenient() const noexcept {
             return _lenient;
         }
 
-        constexpr const char* name() const noexcept {
+        SGCL_INLINE_HOT constexpr const char* name() const noexcept {
             return _name;
         }
 
         // The characters of n bytes. A size that no size_t can hold is
         // SIZE_MAX, the size no buffer has: the arithmetic never wraps to
         // a small number, which is how an encoder writes past its buffer
-        constexpr size_t encoded_size(size_t n) const noexcept {
+        SGCL_INLINE_HOT constexpr size_t encoded_size(size_t n) const noexcept {
             size_t groups = n / GroupBytes;
             size_t rest = n % GroupBytes;
             size_t tail = rest == 0 ? 0 : padded() ? GroupChars : (rest * 8 + Bits - 1) / Bits;
@@ -128,18 +128,18 @@ namespace sgcl::encoding::detail {
         // before the error are written), so a decoder given this much room
         // never runs out of it before it has found the error; without, the
         // bits of every character
-        constexpr size_t max_decoded_size(size_t n) const noexcept {
+        SGCL_INLINE_HOT constexpr size_t max_decoded_size(size_t n) const noexcept {
             if (padded()) {
                 return (n / GroupChars + (n % GroupChars != 0)) * GroupBytes;
             }
             return n / GroupChars * GroupBytes + n % GroupChars * Bits / 8;
         }
 
-        size_t encode_bound(size_t n) const noexcept {
+        SGCL_INLINE_HOT size_t encode_bound(size_t n) const noexcept {
             return encoded_size(n);
         }
 
-        size_t decode_bound(const char*, size_t n) const noexcept {
+        SGCL_INLINE_HOT size_t decode_bound(const char*, size_t n) const noexcept {
             return max_decoded_size(n);
         }
 
@@ -368,11 +368,11 @@ namespace sgcl::encoding::detail {
         // Whether a group may end after c characters: the last of them
         // must begin a byte of its own (base64: 2 or 3; base32: 2, 4, 5
         // or 7; hex: none)
-        static constexpr bool _valid_tail(size_t c) noexcept {
+        SGCL_INLINE_HOT static constexpr bool _valid_tail(size_t c) noexcept {
             return c > 0 && c < GroupChars && c * Bits / 8 > (c - 1) * Bits / 8;
         }
 
-        static uint64_t _tail_bits(const decoding& d) noexcept {
+        SGCL_INLINE_HOT static uint64_t _tail_bits(const decoding& d) noexcept {
             size_t bits = d.count * Bits;
             return d.acc & ((uint64_t(1) << (bits - bits / 8 * 8)) - 1);
         }

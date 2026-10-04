@@ -81,7 +81,7 @@ namespace sgcl::codec::detail {
     template<class Input>
     class JpegDecoder {
     public:
-        JpegDecoder(Input& in, const decode_options& o) noexcept
+        SGCL_INLINE_HOT JpegDecoder(Input& in, const decode_options& o) noexcept
         : _in(in), _o(o) {
         }
 
@@ -280,12 +280,12 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _skip_segment(uint64_t at) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _skip_segment(uint64_t at) noexcept(NothrowInput<Input>) {
             size_t n;
             return _length(at, n) && _skip(n);
         }
 
-        bool _segment(uint64_t at, std::vector<uint8_t>& body) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _segment(uint64_t at, std::vector<uint8_t>& body) noexcept(NothrowInput<Input>) {
             size_t n;
             if (!_length(at, n)) {
                 return false;
@@ -394,7 +394,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _dri(uint64_t at) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _dri(uint64_t at) noexcept(NothrowInput<Input>) {
             std::vector<uint8_t> b;
             if (!_segment(at, b)) {
                 return false;
@@ -561,7 +561,7 @@ namespace sgcl::codec::detail {
 
         // The table of that class and number, Annex K's for 0 and 1 when
         // the file defines none (Motion-JPEG), as libjpeg-turbo does
-        bool _table(bool dc, unsigned number) noexcept {
+        SGCL_INLINE_HOT bool _table(bool dc, unsigned number) noexcept {
             HuffmanTable& t = dc ? _dc[number] : _ac[number];
             if (t.defined) {
                 return true;
@@ -645,14 +645,14 @@ namespace sgcl::codec::detail {
         }
 
         // Row r of component k's buffer (r whole, not clamped)
-        uint8_t* _raw_row(Component& k, size_t r) noexcept {
+        SGCL_INLINE_HOT uint8_t* _raw_row(Component& k, size_t r) noexcept {
             const size_t slot = (r / k.rows) % k.slots;
             return k.buffer + (slot * k.rows + r % k.rows) * k.pw;
         }
 
         // Row r clamped to the component's real rows: the edge row
         // again above the first and below the last
-        const uint8_t* _row(Component& k, int64_t r) noexcept {
+        SGCL_INLINE_HOT const uint8_t* _row(Component& k, int64_t r) noexcept {
             if (r < 0) {
                 r = 0;
             }
@@ -730,7 +730,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        uint32_t _get(int n) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT uint32_t _get(int n) noexcept(NothrowInput<Input>) {
             if (_bits < n) {
                 _fill();
             }
@@ -765,7 +765,7 @@ namespace sgcl::codec::detail {
         }
 
         // s bits as a signed value (F.2.2.1, EXTEND)
-        int _receive_extend(int s) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT int _receive_extend(int s) noexcept(NothrowInput<Input>) {
             if (s == 0) {
                 return 0;
             }
@@ -846,7 +846,7 @@ namespace sgcl::codec::detail {
 
         // After an MCU: the data read past its end is an error, of the
         // source's, of an end or of a marker too early
-        bool _check_bits() noexcept {
+        SGCL_INLINE_HOT bool _check_bits() noexcept {
             if (_in_failed) {
                 return _fail_input();
             }
@@ -977,7 +977,7 @@ namespace sgcl::codec::detail {
 
         // DC, first scan (G.1.2.1): the difference as in F.2.2.1, the value
         // scaled up by the point transform
-        bool _dc_first(Component& k, int16_t* block, unsigned al) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _dc_first(Component& k, int16_t* block, unsigned al) noexcept(NothrowInput<Input>) {
             const int s = _decode(_dc[k.td]);
             if (s < 0 || s > 15) {
                 return _data_error("jpeg: a DC code with no symbol");
@@ -988,7 +988,7 @@ namespace sgcl::codec::detail {
         }
 
         // DC, a later scan: the next bit of the value, as it is
-        void _dc_refine(int16_t* block, unsigned al) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT void _dc_refine(int16_t* block, unsigned al) noexcept(NothrowInput<Input>) {
             if (_get(1)) {
                 block[0] = int16_t(block[0] | (1 << al));
             }
@@ -1029,7 +1029,7 @@ namespace sgcl::codec::detail {
 
         // The correction bit of a coefficient already nonzero: its next
         // bit (G.1.2.3 b), added away from zero when set
-        void _correct(int16_t& c, int p1) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT void _correct(int16_t& c, int p1) noexcept(NothrowInput<Input>) {
             if (_get(1) && (c & p1) == 0) {
                 c = int16_t(c >= 0 ? c + p1 : c - p1);
             }
@@ -1099,7 +1099,7 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        bool _progressive_block(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned ah, unsigned al) noexcept(NothrowInput<Input>) {
+        SGCL_INLINE_HOT bool _progressive_block(Component& k, int16_t* block, unsigned ss, unsigned se, unsigned ah, unsigned al) noexcept(NothrowInput<Input>) {
             if (ss == 0) {
                 if (ah == 0) {
                     return _dc_first(k, block, al);

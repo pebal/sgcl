@@ -34,23 +34,23 @@ namespace sgcl::concurrent::detail {
         using object = T;
 
         template<class K>
-        static handle make(const K& value) noexcept(std::is_nothrow_constructible_v<T, const K&>) {
+        SGCL_INLINE_HOT static handle make(const K& value) noexcept(std::is_nothrow_constructible_v<T, const K&>) {
             return make_tracked<T>(value);
         }
 
-        static handle lock(const weak_ptr<object>& w) noexcept {
+        SGCL_INLINE_HOT static handle lock(const weak_ptr<object>& w) noexcept {
             return w.lock();
         }
 
-        static bool alive(const handle& h) noexcept {
+        SGCL_INLINE_HOT static bool alive(const handle& h) noexcept {
             return static_cast<bool>(h);
         }
 
-        static const T& value(const handle& h) noexcept {
+        SGCL_INLINE_HOT static const T& value(const handle& h) noexcept {
             return *h;
         }
 
-        static weak_ptr<object> weak(const handle& h) noexcept {
+        SGCL_INLINE_HOT static weak_ptr<object> weak(const handle& h) noexcept {
             return weak_ptr<object>(const_pointer_cast<object>(h));
         }
     };
@@ -71,16 +71,16 @@ namespace sgcl::concurrent::detail {
         using handle = String;
         using object = void;
 
-        static handle make(const String& s) noexcept {
+        SGCL_INLINE_HOT static handle make(const String& s) noexcept {
             return s;
         }
 
         template<class K>
-        static handle make(const K& value) {
+        SGCL_INLINE_HOT static handle make(const K& value) {
             return String(View(value));
         }
 
-        static handle lock(const weak_ptr<object>& w) noexcept {
+        SGCL_INLINE_HOT static handle lock(const weak_ptr<object>& w) noexcept {
             tracked_ptr<object> p = w.lock();
             if (!p) {
                 return String();
@@ -88,20 +88,20 @@ namespace sgcl::concurrent::detail {
             return detail::StringAccess::over<String>(tracked_ptr<const void>(p));
         }
 
-        static bool alive(const handle& h) noexcept {
+        SGCL_INLINE_HOT static bool alive(const handle& h) noexcept {
             return h.object() != nullptr;
         }
 
-        static const String& value(const handle& h) noexcept {
+        SGCL_INLINE_HOT static const String& value(const handle& h) noexcept {
             return h;
         }
 
-        static weak_ptr<object> weak(const handle& h) noexcept {
+        SGCL_INLINE_HOT static weak_ptr<object> weak(const handle& h) noexcept {
             return weak_ptr<object>(tracked_ptr<object>(const_cast<void*>(h.object())));
         }
 
         template<class K>
-        static bool is_empty(const K& value) noexcept {
+        SGCL_INLINE_HOT static bool is_empty(const K& value) noexcept {
             return View(value).empty();
         }
     };
@@ -125,12 +125,12 @@ namespace sgcl::concurrent::detail {
 
         [[no_unique_address]] Hash hash;
 
-        size_t operator()(const Entry& e) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const Entry& e) const noexcept {
             return e.hash;
         }
 
         template<class K>
-        size_t operator()(const K& value) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const K& value) const noexcept {
             return hash(value) | ~(size_t(-1) >> 1);
         }
     };
@@ -143,7 +143,7 @@ namespace sgcl::concurrent::detail {
 
         [[no_unique_address]] KeyEqual equal;
 
-        bool operator()(const Entry& a, const Entry& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const Entry& a, const Entry& b) const noexcept {
             auto x = Traits::lock(a.weak);
             if (!Traits::alive(x)) {
                 return false;
@@ -153,7 +153,7 @@ namespace sgcl::concurrent::detail {
         }
 
         template<class K>
-        bool operator()(const Entry& a, const K& value) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const Entry& a, const K& value) const noexcept {
             auto x = Traits::lock(a.weak);
             return Traits::alive(x) && equal(Traits::value(x), value);
         }
@@ -214,24 +214,24 @@ namespace sgcl::concurrent {
         // The canonical object of the value: the pool's when one is alive,
         // or a new one made from the value and entered (hash::of's name for
         // what a value maps to; get would read, and this enters). Lock-free.
-        handle of(const T& value) noexcept(NothrowMake<T>) {
+        SGCL_INLINE_HOT handle of(const T& value) noexcept(NothrowMake<T>) {
             return _of(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        handle of(const K& value) noexcept(NothrowMake<K>) {
+        SGCL_INLINE_HOT handle of(const K& value) noexcept(NothrowMake<K>) {
             return _of(value);
         }
 
         // The canonical object of the value when one is alive, or null (the
         // empty string for a pool of strings). Wait-free and writes
         // nothing once the value's bucket has its dummy node (set).
-        handle find(const T& value) const noexcept {
+        SGCL_INLINE_HOT handle find(const T& value) const noexcept {
             return _find(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        handle find(const K& value) const noexcept {
+        SGCL_INLINE_HOT handle find(const K& value) const noexcept {
             return _find(value);
         }
 
@@ -246,7 +246,7 @@ namespace sgcl::concurrent {
 
         // Buckets for at least `count` entries, grown now rather than by
         // the insertions
-        void reserve(size_type count) noexcept {
+        SGCL_INLINE_HOT void reserve(size_type count) noexcept {
             _table.reserve(count);
         }
 
@@ -258,12 +258,12 @@ namespace sgcl::concurrent {
         }
 
         // of on the default pool: Go's unique.Make
-        static handle make(const T& value) noexcept(NothrowMake<T>) {
+        SGCL_INLINE_HOT static handle make(const T& value) noexcept(NothrowMake<T>) {
             return pool().of(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        static handle make(const K& value) noexcept(NothrowMake<K>) {
+        SGCL_INLINE_HOT static handle make(const K& value) noexcept(NothrowMake<K>) {
             return pool().of(value);
         }
 
@@ -300,7 +300,7 @@ namespace sgcl::concurrent {
         }
 
         template<class K>
-        handle _find(const K& value) const noexcept {
+        SGCL_INLINE_HOT handle _find(const K& value) const noexcept {
             auto it = _table.find(value);
             return it != _table.end() ? Traits::lock(it->weak) : handle();
         }
@@ -308,7 +308,7 @@ namespace sgcl::concurrent {
 
     // The string of these characters, interned in the default pool of
     // strings: the one every thread holds for them
-    inline string intern_string(std::string_view s) {
+    SGCL_INLINE_HOT string intern_string(std::string_view s) {
         return intern<string>::make(s);
     }
 }

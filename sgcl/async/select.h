@@ -38,11 +38,11 @@ namespace sgcl::async {
     public:
         static constexpr bool is_otherwise = true;
 
-        explicit otherwise_case(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+        SGCL_INLINE_HOT explicit otherwise_case(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
         : _f(std::move(f)) {
         }
 
-        void run() {
+        SGCL_INLINE_HOT void run() {
             _f();
         }
 
@@ -51,7 +51,7 @@ namespace sgcl::async {
     };
 
     template<class F>
-    otherwise_case<F> otherwise(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+    SGCL_INLINE_HOT otherwise_case<F> otherwise(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
         return otherwise_case<F>(std::move(f));
     }
 
@@ -80,7 +80,7 @@ namespace sgcl::async {
             static_assert(((IsOtherwise<Cases> ? 1 : 0) + ...) <= 1, "one otherwise at most");
 
         public:
-            explicit Select(Cases... cases) noexcept((std::is_nothrow_move_constructible_v<Cases> && ...))
+            SGCL_INLINE_HOT explicit Select(Cases... cases) noexcept((std::is_nothrow_move_constructible_v<Cases> && ...))
             : _cases(std::move(cases)...) {
             }
 
@@ -103,7 +103,7 @@ namespace sgcl::async {
             }
 
             // The awaitable form: co_await gives the index of the case served
-            bool await_ready() {
+            SGCL_INLINE_HOT bool await_ready() {
                 return _try_any();
             }
 
@@ -136,7 +136,7 @@ namespace sgcl::async {
                 }
             }
 
-            size_t await_resume() {
+            SGCL_INLINE_HOT size_t await_resume() {
                 if (_state) {
                     return _finish(_state->winner);
                 }
@@ -151,7 +151,7 @@ namespace sgcl::async {
             // element's own operations, the only throws of the
             // registration and of its taking back
             template<size_t I>
-            static constexpr bool _nothrow_case() noexcept {
+            SGCL_INLINE_HOT static constexpr bool _nothrow_case() noexcept {
                 if constexpr (IsOtherwise<Case<I>>) {
                     return true;
                 } else if constexpr (Case<I>::is_send) {
@@ -162,7 +162,7 @@ namespace sgcl::async {
                 }
             }
 
-            static constexpr bool _nothrow_cases() noexcept {
+            SGCL_INLINE_HOT static constexpr bool _nothrow_cases() noexcept {
                 return []<size_t... Is>(std::index_sequence<Is...>) {
                     return (_nothrow_case<Is>() && ...);
                 }(std::make_index_sequence<N>());
@@ -213,7 +213,7 @@ namespace sgcl::async {
             // (i == 1) ...`, the `|| ...` stopping at the first match. The
             // value of the whole expression is nothing; served is the result.
             template<size_t... Is>
-            bool _try_at(size_t i, std::index_sequence<Is...>) {
+            SGCL_INLINE_HOT bool _try_at(size_t i, std::index_sequence<Is...>) {
                 bool served = false;
                 (void)((i == Is && (served = _try<Is>(), true)) || ...);
                 return served;
@@ -265,17 +265,17 @@ namespace sgcl::async {
             }
 
             template<size_t... Is>
-            auto _prepare(const tracked_ptr<SelectState>& state, std::index_sequence<Is...>) noexcept(_nothrow_cases()) {
+            SGCL_INLINE_HOT auto _prepare(const tracked_ptr<SelectState>& state, std::index_sequence<Is...>) noexcept(_nothrow_cases()) {
                 return std::tuple(_prepare_one<Is>(state)...);
             }
 
-            auto _prepare(const tracked_ptr<SelectState>& state) noexcept(_nothrow_cases()) {
+            SGCL_INLINE_HOT auto _prepare(const tracked_ptr<SelectState>& state) noexcept(_nothrow_cases()) {
                 assert(_one_direction_per_channel() && "a select with a send and a receive on one channel would serve itself: each looks at the other's waiter and neither is taken (Go's blocks)");
                 return _prepare(state, std::make_index_sequence<N>());
             }
 
             template<size_t I, class L>
-            static void _push_one(L& l) noexcept {
+            SGCL_INLINE_HOT static void _push_one(L& l) noexcept {
                 if constexpr (!std::is_same_v<L, NoLocal>) {
                     if constexpr (Case<I>::is_send) {
                         l.ch->_senders.push(l.waiter);
@@ -286,14 +286,14 @@ namespace sgcl::async {
             }
 
             template<class Locals>
-            static void _push(Locals& locals) noexcept {
+            SGCL_INLINE_HOT static void _push(Locals& locals) noexcept {
                 [&]<size_t... Is>(std::index_sequence<Is...>) {
                     (_push_one<Is>(std::get<Is>(locals)), ...);
                 }(std::make_index_sequence<N>());
             }
 
             template<size_t I, class L>
-            static bool _ready_one(const L& l) noexcept {
+            SGCL_INLINE_HOT static bool _ready_one(const L& l) noexcept {
                 if constexpr (std::is_same_v<L, NoLocal>) {
                     return false;
                 } else if constexpr (Case<I>::is_send) {
@@ -304,26 +304,26 @@ namespace sgcl::async {
             }
 
             template<class Locals>
-            static bool _any_ready(const Locals& locals) noexcept {
+            SGCL_INLINE_HOT static bool _any_ready(const Locals& locals) noexcept {
                 return [&]<size_t... Is>(std::index_sequence<Is...>) {
                     return (_ready_one<Is>(std::get<Is>(locals)) || ...);
                 }(std::make_index_sequence<N>());
             }
 
             // The thread's forms: the frame is its own stack, the cases are at hand
-            void _register(const tracked_ptr<SelectState>& state) noexcept(_nothrow_cases()) {
+            SGCL_INLINE_HOT void _register(const tracked_ptr<SelectState>& state) noexcept(_nothrow_cases()) {
                 auto locals = _prepare(state);
                 _push(locals);
             }
 
-            bool _any_ready() const noexcept {
+            SGCL_INLINE_HOT bool _any_ready() const noexcept {
                 return [&]<size_t... Is>(std::index_sequence<Is...>) {
                     return (_ready_case<Is>() || ...);
                 }(std::make_index_sequence<N>());
             }
 
             template<size_t I>
-            bool _ready_case() const noexcept {
+            SGCL_INLINE_HOT bool _ready_case() const noexcept {
                 if constexpr (IsOtherwise<Case<I>>) {
                     return false;
                 } else {
@@ -338,7 +338,7 @@ namespace sgcl::async {
 
             // Debug: no channel with a send case and a receive case at once
             template<size_t I>
-            const void* _channel_of() const noexcept {
+            SGCL_INLINE_HOT const void* _channel_of() const noexcept {
                 if constexpr (IsOtherwise<Case<I>>) {
                     return nullptr;
                 } else {
@@ -347,7 +347,7 @@ namespace sgcl::async {
             }
 
             template<size_t I>
-            static constexpr bool _is_send() noexcept {
+            SGCL_INLINE_HOT static constexpr bool _is_send() noexcept {
                 if constexpr (IsOtherwise<Case<I>>) {
                     return false;
                 } else {
@@ -370,20 +370,20 @@ namespace sgcl::async {
                 }(std::make_index_sequence<N>());
             }
 
-            static bool _cancel(SelectState& state) noexcept {
+            SGCL_INLINE_HOT static bool _cancel(SelectState& state) noexcept {
                 int e = SelectState::Pending;
                 return state.state.compare_exchange_strong(e, SelectState::Cancelled, std::memory_order_acq_rel, std::memory_order_acquire);
             }
 
             // After a cancel: the send cases' elements back from their waiters
-            void _take_back() noexcept(_nothrow_cases()) {
+            SGCL_INLINE_HOT void _take_back() noexcept(_nothrow_cases()) {
                 [&]<size_t... Is>(std::index_sequence<Is...>) {
                     (_take_back_one<Is>(), ...);
                 }(std::make_index_sequence<N>());
             }
 
             template<size_t I>
-            void _take_back_one() noexcept(_nothrow_cases()) {
+            SGCL_INLINE_HOT void _take_back_one() noexcept(_nothrow_cases()) {
                 if constexpr (!IsOtherwise<Case<I>>) {
                     if constexpr (Case<I>::is_send) {
                         auto& c = std::get<I>(_cases);
@@ -394,7 +394,7 @@ namespace sgcl::async {
             }
 
             // The case served while the select waited: its body, its index
-            size_t _finish(size_t winner) {
+            SGCL_INLINE_HOT size_t _finish(size_t winner) {
                 [&]<size_t... Is>(std::index_sequence<Is...>) {
                     (void)((winner == Is && (_finish_one<Is>(), true)) || ...);   // the switch of _try_at
                 }(std::make_index_sequence<N>());
@@ -435,7 +435,7 @@ namespace sgcl::async {
     // result is: a program keeps it in auto, carries it out once and names
     // nothing of it
     template<class... Cases>
-    [[nodiscard]] auto select(Cases... cases) noexcept((std::is_nothrow_move_constructible_v<Cases> && ...)) {
+    [[nodiscard]] SGCL_INLINE_HOT auto select(Cases... cases) noexcept((std::is_nothrow_move_constructible_v<Cases> && ...)) {
         return detail::Select<Cases...>(std::move(cases)...);
     }
 }

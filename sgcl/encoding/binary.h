@@ -29,41 +29,41 @@ namespace sgcl::encoding {
         public:
             // The number at the front of the bytes, which hold at least its
             // size (a precondition, as for operator[]: checked by assert)
-            static uint16_t read_u16(const slice<const byte>& at) noexcept {
+            SGCL_INLINE_HOT static uint16_t read_u16(const slice<const byte>& at) noexcept {
                 return uint16_t(_read(at, 2));
             }
 
-            static uint32_t read_u32(const slice<const byte>& at) noexcept {
+            SGCL_INLINE_HOT static uint32_t read_u32(const slice<const byte>& at) noexcept {
                 return uint32_t(_read(at, 4));
             }
 
-            static uint64_t read_u64(const slice<const byte>& at) noexcept {
+            SGCL_INLINE_HOT static uint64_t read_u64(const slice<const byte>& at) noexcept {
                 return _read(at, 8);
             }
 
             // The number into the front of the bytes, which hold its size
-            static void write_u16(const slice<byte>& at, uint16_t v) noexcept {
+            SGCL_INLINE_HOT static void write_u16(const slice<byte>& at, uint16_t v) noexcept {
                 _write(at, v, 2);
             }
 
-            static void write_u32(const slice<byte>& at, uint32_t v) noexcept {
+            SGCL_INLINE_HOT static void write_u32(const slice<byte>& at, uint32_t v) noexcept {
                 _write(at, v, 4);
             }
 
-            static void write_u64(const slice<byte>& at, uint64_t v) noexcept {
+            SGCL_INLINE_HOT static void write_u64(const slice<byte>& at, uint64_t v) noexcept {
                 _write(at, v, 8);
             }
 
             // The number added at the back of the vector
-            static void append_u16(vector<byte>& out, uint16_t v) noexcept {
+            SGCL_INLINE_HOT static void append_u16(vector<byte>& out, uint16_t v) noexcept {
                 _append(out, v, 2);
             }
 
-            static void append_u32(vector<byte>& out, uint32_t v) noexcept {
+            SGCL_INLINE_HOT static void append_u32(vector<byte>& out, uint32_t v) noexcept {
                 _append(out, v, 4);
             }
 
-            static void append_u64(vector<byte>& out, uint64_t v) noexcept {
+            SGCL_INLINE_HOT static void append_u64(vector<byte>& out, uint64_t v) noexcept {
                 _append(out, v, 8);
             }
 
@@ -87,12 +87,12 @@ namespace sgcl::encoding {
                 }
             }
 
-            static void _write(const slice<byte>& at, uint64_t v, size_t n) noexcept {
+            SGCL_INLINE_HOT static void _write(const slice<byte>& at, uint64_t v, size_t n) noexcept {
                 assert(at.size() >= n);
                 _put(reinterpret_cast<uint8_t*>(at.data()), v, n);
             }
 
-            static void _append(vector<byte>& out, uint64_t v, size_t n) noexcept {
+            SGCL_INLINE_HOT static void _append(vector<byte>& out, uint64_t v, size_t n) noexcept {
                 uint8_t b[8];
                 _put(b, v, n);
                 auto first = reinterpret_cast<const byte*>(b);
@@ -133,14 +133,14 @@ namespace sgcl::encoding {
 
         static constexpr size_t max_size = 10;
 
-        static void append(vector<byte>& out, uint64_t v) noexcept {
+        SGCL_INLINE_HOT static void append(vector<byte>& out, uint64_t v) noexcept {
             uint8_t b[max_size];
             size_t n = _put(b, v);
             auto first = reinterpret_cast<const byte*>(b);
             out.insert(out.end(), first, first + n);
         }
 
-        static void append_signed(vector<byte>& out, int64_t v) noexcept {
+        SGCL_INLINE_HOT static void append_signed(vector<byte>& out, int64_t v) noexcept {
             append(out, _zigzag(v));
         }
 
@@ -157,7 +157,7 @@ namespace sgcl::encoding {
             return n;
         }
 
-        static size_t write_signed(const slice<byte>& at, int64_t v) noexcept {
+        SGCL_INLINE_HOT static size_t write_signed(const slice<byte>& at, int64_t v) noexcept {
             return write(at, _zigzag(v));
         }
 
@@ -179,7 +179,7 @@ namespace sgcl::encoding {
             return unexpected<error>(error(errc::unexpected_end, at.size(), string("the bytes end inside a varint")));
         }
 
-        static expected<pair<int64_t, size_t>, error> read_signed(const slice<const byte>& at) noexcept {
+        SGCL_INLINE_HOT static expected<pair<int64_t, size_t>, error> read_signed(const slice<const byte>& at) noexcept {
             auto r = read(at);
             if (!r) {
                 return unexpected<error>(std::move(r.error()));
@@ -192,31 +192,31 @@ namespace sgcl::encoding {
         // there), io::errc::unexpected_eof when the stream ends inside
         // one, out_of_range of the encoding category past 64 bits
         // `read(...)` on this thread, `co_await async_read(...)` in a task
-        static expected<optional<uint64_t>, io::error> read(const io::buffered_reader& in) {
+        SGCL_INLINE_HOT static expected<optional<uint64_t>, io::error> read(const io::buffered_reader& in) {
             return _block_read(in);
         }
 
         // The reader by value: a handle, the copy the same reader (one
         // position), held by the task for as long as it runs
-        static async::task<expected<optional<uint64_t>, io::error>> async_read(const io::buffered_reader& in) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<optional<uint64_t>, io::error>> async_read(const io::buffered_reader& in) noexcept {
             return _co_read(in);
         }
 
         // `read_signed(...)` on this thread, `co_await async_read_signed(...)` in a task
-        static expected<optional<int64_t>, io::error> read_signed(const io::buffered_reader& in) {
+        SGCL_INLINE_HOT static expected<optional<int64_t>, io::error> read_signed(const io::buffered_reader& in) {
             return _block_read_signed(in);
         }
 
-        static async::task<expected<optional<int64_t>, io::error>> async_read_signed(const io::buffered_reader& in) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<optional<int64_t>, io::error>> async_read_signed(const io::buffered_reader& in) noexcept {
             return _co_read_signed(in);
         }
 
     private:
-        static uint64_t _zigzag(int64_t v) noexcept {
+        SGCL_INLINE_HOT static uint64_t _zigzag(int64_t v) noexcept {
             return uint64_t(v) << 1 ^ uint64_t(v >> 63);
         }
 
-        static int64_t _unzigzag(uint64_t u) noexcept {
+        SGCL_INLINE_HOT static int64_t _unzigzag(uint64_t u) noexcept {
             return int64_t(u >> 1 ^ (0 - (u & 1)));
         }
 
@@ -258,7 +258,7 @@ namespace sgcl::encoding {
             return nullopt;
         }
 
-        static expected<optional<int64_t>, io::error> _signed(const expected<optional<uint64_t>, io::error>& r) noexcept {
+        SGCL_INLINE_HOT static expected<optional<int64_t>, io::error> _signed(const expected<optional<uint64_t>, io::error>& r) noexcept {
             if (!r) {
                 return io::detail::fail(r);
             }
@@ -279,7 +279,7 @@ namespace sgcl::encoding {
             }
         }
 
-        static expected<optional<int64_t>, io::error> _block_read_signed(const io::buffered_reader& in) {
+        SGCL_INLINE_HOT static expected<optional<int64_t>, io::error> _block_read_signed(const io::buffered_reader& in) {
             return _signed(_block_read(in));
         }
 

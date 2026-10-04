@@ -31,7 +31,7 @@ namespace sgcl::net::http::detail::h2 {
     };
 
     // §8.2.2: the fields of a connection, never in HTTP/2
-    inline bool connection_specific(std::string_view n) noexcept {
+    SGCL_INLINE_HOT bool connection_specific(std::string_view n) noexcept {
         return n == "connection" || n == "keep-alive" || n == "proxy-connection" || n == "transfer-encoding" || n == "upgrade";
     }
 
@@ -114,7 +114,7 @@ namespace sgcl::net::http::detail::h2 {
         uint64_t received = 0;
 
         // n bytes more (end: the last); false when the request is malformed
-        bool data(size_t n, bool end) noexcept {
+        SGCL_INLINE_HOT bool data(size_t n, bool end) noexcept {
             received += n;
             if (!declared) {
                 return true;
@@ -123,7 +123,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // the trailers end it: the length must be met
-        bool ended() const noexcept {
+        SGCL_INLINE_HOT bool ended() const noexcept {
             return !declared || received == *declared;
         }
     };

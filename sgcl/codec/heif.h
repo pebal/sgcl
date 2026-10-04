@@ -50,12 +50,12 @@ namespace sgcl::codec {
         };
 
         // The image, the file in memory read in place
-        static expected<image, error> decode(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static expected<image, error> decode(const slice<const byte>& data) noexcept {
             return detail::heif_decode_bytes(data, decode_options());
         }
 
         // The image from a stream
-        static expected<image, error> decode(const io::reader& in) {
+        SGCL_INLINE_HOT static expected<image, error> decode(const io::reader& in) {
             detail::ReaderInput source(in);
             return detail::heif_decode_stream(source, decode_options());
         }
@@ -63,11 +63,11 @@ namespace sgcl::codec {
         // The file as bytes. (The overloads without options stand for a
         // default argument, which a nested struct with member initializers
         // cannot be inside its class.)
-        static expected<vector<byte>, error> encode(const image& im) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const image& im) noexcept {
             return encode(im, options{});
         }
 
-        static expected<vector<byte>, error> encode(const image& im, const options& o) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const image& im, const options& o) noexcept {
 #if defined(__APPLE__)
             return detail::heif_encode(im, o.quality);
 #else
@@ -79,11 +79,11 @@ namespace sgcl::codec {
 
         // The file into a stream: errc::io when the stream fails, at the
         // offset of the bytes written before
-        static expected<void, error> encode(const image& im, const io::writer& out) {
+        SGCL_INLINE_HOT static expected<void, error> encode(const image& im, const io::writer& out) {
             return encode(im, out, options{});
         }
 
-        static expected<void, error> encode(const image& im, const io::writer& out, const options& o) {
+        SGCL_INLINE_HOT static expected<void, error> encode(const image& im, const io::writer& out, const options& o) {
 #if defined(__APPLE__)
             return detail::heif_encode(im, o.quality, out);
 #else

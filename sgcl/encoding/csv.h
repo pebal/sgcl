@@ -122,7 +122,7 @@ namespace sgcl::encoding {
     namespace detail {
         // The options a reader and a writer take alike: a separator and a
         // comment character that can be told from the rest of a text
-        inline void csv_check(const csv::options& o) {
+        SGCL_INLINE_HOT void csv_check(const csv::options& o) {
             char s = o.separator;
             if (s == '"' || s == '\r' || s == '\n' || s == 0 || uint8_t(s) >= 0x80) {
                 throw invalid_argument("sgcl::encoding::csv: the separator is a quote, a line ending, NUL or not ASCII");
@@ -147,17 +147,17 @@ namespace sgcl::encoding {
     public:
         row() noexcept = default;
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return (_text.size() - _text_size) / (3 * sizeof(uint32_t));
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
         // The field; index < size(), as a vector's operator[] asks (a debug
         // build asserts it); at() is the form that checks and throws
-        slice<const char> operator[](size_t index) const noexcept {
+        SGCL_INLINE_HOT slice<const char> operator[](size_t index) const noexcept {
             assert(index < size() && "csv::row: the index past the fields; at() checks");
             uint32_t from = index ? _meta((index - 1) * 3) : 0;
             uint32_t to = _meta(index * 3);
@@ -165,7 +165,7 @@ namespace sgcl::encoding {
         }
 
         // The field, or out_of_range past the fields
-        slice<const char> at(size_t index) const {
+        SGCL_INLINE_HOT slice<const char> at(size_t index) const {
             if (index >= size()) {
                 throw out_of_range("sgcl::encoding::csv::row::at");
             }
@@ -174,7 +174,7 @@ namespace sgcl::encoding {
 
         // The field of the header's column; nullopt when there is no such
         // column (or no header) or the row is shorter
-        optional<slice<const char>> operator[](const string& column) const noexcept {
+        SGCL_INLINE_HOT optional<slice<const char>> operator[](const string& column) const noexcept {
             if (!_header) {
                 return nullopt;
             }
@@ -186,7 +186,7 @@ namespace sgcl::encoding {
         }
 
         template<size_t N>
-        optional<slice<const char>> operator[](const char (&column)[N]) const noexcept {
+        SGCL_INLINE_HOT optional<slice<const char>> operator[](const char (&column)[N]) const noexcept {
             return (*this)[string(column)];
         }
 
@@ -194,19 +194,19 @@ namespace sgcl::encoding {
         // slice operator[] gives, which shares the row's string), or
         // fallback when there is no such column or the row is shorter:
         // row.get("city", "?")
-        string get(const string& column, const string& fallback) const noexcept {
+        SGCL_INLINE_HOT string get(const string& column, const string& fallback) const noexcept {
             auto f = (*this)[column];
             return f ? string(*f) : fallback;
         }
 
         // The line the record starts on (a quoted field may span several)
-        uint32_t line() const noexcept {
+        SGCL_INLINE_HOT uint32_t line() const noexcept {
             return size() == 0 ? 0 : _meta(1);
         }
 
         // The line and the column (in code points) where the field starts
         // (Go's FieldPos)
-        pair<uint32_t, uint32_t> position(size_t index) const noexcept {
+        SGCL_INLINE_HOT pair<uint32_t, uint32_t> position(size_t index) const noexcept {
             if (index >= size()) {
                 return {0, 0};
             }
@@ -222,29 +222,29 @@ namespace sgcl::encoding {
 
             iterator() noexcept = default;
 
-            slice<const char> operator*() const noexcept {
+            SGCL_INLINE_HOT slice<const char> operator*() const noexcept {
                 return (*_row)[_i];
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 ++_i;
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 auto t = *this;
                 ++_i;
                 return t;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._i == b._i;
             }
 
         private:
             friend class row;
 
-            iterator(const row* r, size_t i) noexcept
+            SGCL_INLINE_HOT iterator(const row* r, size_t i) noexcept
             : _row(r), _i(i) {
             }
 
@@ -252,11 +252,11 @@ namespace sgcl::encoding {
             size_t _i = 0;
         };
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return iterator(this, 0);
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator(this, size());
         }
 
@@ -266,7 +266,7 @@ namespace sgcl::encoding {
         // The k-th number of the places, which follow the fields in
         // _text: for each field its end in _text, its line, its column.
         // Read a byte at a time, since nothing aligns them.
-        uint32_t _meta(size_t k) const noexcept {
+        SGCL_INLINE_HOT uint32_t _meta(size_t k) const noexcept {
             uint32_t v;
             std::memcpy(&v, _text.data() + _text_size + k * sizeof(uint32_t), sizeof v);
             return v;
@@ -286,7 +286,7 @@ namespace sgcl::encoding {
         // A byte of white space that trim_leading_space drops at a field's
         // start, as Go's unicode.IsSpace: the ASCII ones here, the others
         // (U+0085, U+00A0, U+1680, U+2000...) by their UTF-8 below
-        inline bool csv_ascii_space(char c) noexcept {
+        SGCL_INLINE_HOT bool csv_ascii_space(char c) noexcept {
             return c == ' ' || c == '\t' || c == '\v' || c == '\f';
         }
 
@@ -329,35 +329,35 @@ namespace sgcl::encoding {
         // fields of the record being read, appended inline
         class CsvChars {
         public:
-            void clear() noexcept {
+            SGCL_INLINE_HOT void clear() noexcept {
                 _size = 0;
             }
 
             // The first n characters kept, the rest dropped (n <= size())
-            void truncate(size_t n) noexcept {
+            SGCL_INLINE_HOT void truncate(size_t n) noexcept {
                 _size = n;
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return _size;
             }
 
-            const char* data() const noexcept {
+            SGCL_INLINE_HOT const char* data() const noexcept {
                 return _data.get();
             }
 
-            std::string_view view() const noexcept {
+            SGCL_INLINE_HOT std::string_view view() const noexcept {
                 return std::string_view(_data.get(), _size);
             }
 
-            void push_back(char c) noexcept {
+            SGCL_INLINE_HOT void push_back(char c) noexcept {
                 if (_size == _capacity) {
                     _grow(_size + 1);
                 }
                 _data[_size++] = c;
             }
 
-            void append(const char* p, size_t n) noexcept {
+            SGCL_INLINE_HOT void append(const char* p, size_t n) noexcept {
                 if (n > _capacity - _size) {
                     _grow(_size + n);
                 }
@@ -366,7 +366,7 @@ namespace sgcl::encoding {
             }
 
         private:
-            void _grow(size_t need) noexcept {
+            SGCL_INLINE_HOT void _grow(size_t need) noexcept {
                 size_t capacity = std::max<size_t>({need, _capacity * 2, 256});
                 auto d = std::make_unique<char[]>(capacity);
                 if (_size) {
@@ -417,11 +417,11 @@ namespace sgcl::encoding {
     // async_ forms: `co_await r.async_next()`.
     class csv::reader {
     public:
-        explicit reader(const string& text) noexcept
+        SGCL_INLINE_HOT explicit reader(const string& text) noexcept
         : reader(text, options()) {
         }
 
-        reader(const string& text, const options& o)
+        SGCL_INLINE_HOT reader(const string& text, const options& o)
         : _text(text), _options(o), _eof(true) {
             _check(o);
             _owner = text.as_slice().owner();
@@ -429,11 +429,11 @@ namespace sgcl::encoding {
             _n = text.size();
         }
 
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : reader(in, options()) {
         }
 
-        reader(const io::reader& in, const options& o)
+        SGCL_INLINE_HOT reader(const io::reader& in, const options& o)
         : _in(in), _options(o), _stream(true) {
             _check(o);
         }
@@ -444,7 +444,7 @@ namespace sgcl::encoding {
         // The next record, which becomes the header: its fields are the
         // names of the columns, which the rows after it are asked by
         // (row[name]) and read<T> fills its fields by
-        optional<row> read_header() {
+        SGCL_INLINE_HOT optional<row> read_header() {
             auto r = next();
             _take_header(r);
             return r;
@@ -502,12 +502,12 @@ namespace sgcl::encoding {
         template<class T>
         async::task<optional<T>> async_read() noexcept;
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
         // The header read, empty when none was
-        slice<const string> header() const noexcept {
+        SGCL_INLINE_HOT slice<const string> header() const noexcept {
             if (!_header) {
                 return {};
             }
@@ -518,7 +518,7 @@ namespace sgcl::encoding {
         // Empty lines and comments before the next record are counted as
         // that record is read, so this is not always the line it starts on
         // (row::line() is)
-        uint32_t line() const noexcept {
+        SGCL_INLINE_HOT uint32_t line() const noexcept {
             return _line;
         }
 
@@ -541,7 +541,7 @@ namespace sgcl::encoding {
             comment         // a comment line, to its end
         };
 
-        static void _check(const options& o) {
+        SGCL_INLINE_HOT static void _check(const options& o) {
             detail::csv_check(o);
         }
 
@@ -562,19 +562,19 @@ namespace sgcl::encoding {
         // --- the record, a byte at a time through the states, the runs of
         // plain bytes found by the search of text_scan.h ---
 
-        void _begin_field() noexcept {
+        SGCL_INLINE_HOT void _begin_field() noexcept {
             _field_line = _line;
             _field_column = _column;
         }
 
-        void _end_field() noexcept {
+        SGCL_INLINE_HOT void _end_field() noexcept {
             _meta.push_back(uint32_t(_text_out.size()));
             _meta.push_back(_field_line);
             _meta.push_back(_field_column);
         }
 
         // consumes [_pos, q) of the data, counting the columns
-        void _advance(size_t q) noexcept {
+        SGCL_INLINE_HOT void _advance(size_t q) noexcept {
             if (q != _pos) {
                 _ended_line = false;
             }
@@ -584,7 +584,7 @@ namespace sgcl::encoding {
 
         // A line ending consumed: the column past it kept, for the place
         // of a quoted field the input ends in
-        void _newline() noexcept {
+        SGCL_INLINE_HOT void _newline() noexcept {
             _last_line_end = _column;
             ++_line;
             _column = 1;
@@ -867,7 +867,7 @@ namespace sgcl::encoding {
         // A record of a stream within options.max_record_size: checked for
         // every record, also one that came whole in one block (_room checks
         // the part gathered when it asks for more, to bound the memory)
-        bool _bounded() noexcept {
+        SGCL_INLINE_HOT bool _bounded() noexcept {
             if (_stream && _text_out.size() > _options.max_record_size) {
                 _error = _too_long();
                 _error->set_position(_record_line, 1);
@@ -936,7 +936,7 @@ namespace sgcl::encoding {
             _refresh();
         }
 
-        void _refresh() noexcept {
+        SGCL_INLINE_HOT void _refresh() noexcept {
             _owner = _block.owner();
             _d = _block.data();
             _n = _block.size();
@@ -986,11 +986,11 @@ namespace sgcl::encoding {
     // the header of its field names first.
     class csv::writer {
     public:
-        explicit writer(const io::writer& out) noexcept
+        SGCL_INLINE_HOT explicit writer(const io::writer& out) noexcept
         : writer(out, options()) {
         }
 
-        writer(const io::writer& out, const options& o)
+        SGCL_INLINE_HOT writer(const io::writer& out, const options& o)
         : _out(out), _options(o) {
             detail::csv_check(o);
         }
@@ -998,7 +998,7 @@ namespace sgcl::encoding {
         writer(const writer&) = delete;
         writer& operator=(const writer&) = delete;
 
-        writer& use_crlf() noexcept {
+        SGCL_INLINE_HOT writer& use_crlf() noexcept {
             _crlf = true;
             return *this;
         }
@@ -1150,7 +1150,7 @@ namespace sgcl::encoding {
         // line, which every reader (Go's too) passes over: the record
         // would be lost between the writing and the reading. Go writes the
         // empty line; RFC 4180 allows the quotes, and Python writes them
-        void _end_record() noexcept {
+        SGCL_INLINE_HOT void _end_record() noexcept {
             if (_fields == 1 && _text.size() == _record_start) {
                 _text += "\"\"";
             }
@@ -1337,7 +1337,7 @@ namespace sgcl::encoding {
 
     template<class T>
     requires detail::HasDescribe<T> || detail::HasFreeDescribe<T>
-    csv::writer& csv::writer::write(const T& record) {
+    SGCL_INLINE_HOT csv::writer& csv::writer::write(const T& record) {
         detail::CsvRecordWriter<T>::write(*this, record);
         return *this;
     }
@@ -1521,7 +1521,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<vector<T>, csv::error> csv::parse(const string& text) {
+    SGCL_INLINE_HOT expected<vector<T>, csv::error> csv::parse(const string& text) {
         return parse<T>(text, options());
     }
 
@@ -1539,7 +1539,7 @@ namespace sgcl::encoding {
     }
 
     template<class R>
-    expected<string, csv::error> csv::stringify(const R& records) {
+    SGCL_INLINE_HOT expected<string, csv::error> csv::stringify(const R& records) {
         return stringify(records, options());
     }
 

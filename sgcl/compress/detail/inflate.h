@@ -48,23 +48,23 @@ namespace sgcl::compress::detail {
         EntryDistance = 5
     };
 
-    constexpr uint32_t make_entry(uint32_t bits, uint32_t kind, uint32_t extra, uint32_t value) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t make_entry(uint32_t bits, uint32_t kind, uint32_t extra, uint32_t value) noexcept {
         return bits | (kind << 5) | (extra << 8) | (value << 16);
     }
 
-    constexpr uint32_t entry_bits(uint32_t e) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t entry_bits(uint32_t e) noexcept {
         return e & 31;
     }
 
-    constexpr uint32_t entry_kind(uint32_t e) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t entry_kind(uint32_t e) noexcept {
         return (e >> 5) & 7;
     }
 
-    constexpr uint32_t entry_extra(uint32_t e) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t entry_extra(uint32_t e) noexcept {
         return (e >> 8) & 31;
     }
 
-    constexpr uint32_t entry_value(uint32_t e) noexcept {
+    SGCL_INLINE_HOT constexpr uint32_t entry_value(uint32_t e) noexcept {
         return e >> 16;
     }
 
@@ -807,12 +807,12 @@ namespace sgcl::compress::detail {
         return status;
     }
 
-    inline InflateStatus inflate(InflateState& s, const uint8_t*& in, const uint8_t* in_end, uint8_t* out, size_t& pos, size_t capacity) noexcept {
+    SGCL_INLINE_HOT InflateStatus inflate(InflateState& s, const uint8_t*& in, const uint8_t* in_end, uint8_t* out, size_t& pos, size_t capacity) noexcept {
         return inflate_blocks<false>(s, in, in_end, out, pos, capacity);
     }
 
     // Deflate64: the history in front of pos must reach 64 KB
-    inline InflateStatus inflate64(InflateState& s, const uint8_t*& in, const uint8_t* in_end, uint8_t* out, size_t& pos, size_t capacity) noexcept {
+    SGCL_INLINE_HOT InflateStatus inflate64(InflateState& s, const uint8_t*& in, const uint8_t* in_end, uint8_t* out, size_t& pos, size_t capacity) noexcept {
         return inflate_blocks<true>(s, in, in_end, out, pos, capacity);
     }
 }

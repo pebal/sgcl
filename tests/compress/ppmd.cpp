@@ -13,6 +13,7 @@
 // codes the file itself and compares with libarchive's stream byte for
 // byte. The rest is our encoder against our decoder.
 #include "common.h"
+#include "tests/source_root.h"
 
 #include "sgcl/compress/detail/ppmd7.h"
 
@@ -24,7 +25,7 @@ namespace cd = sgcl::compress::detail;
 
 namespace {
     std::string repo_text(size_t limit) {
-        auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "sgcl";
+        auto root = source_root() / "sgcl";
         std::vector<std::filesystem::path> files;
         for (auto& e : std::filesystem::recursive_directory_iterator(root)) {
             if (e.path().extension() == ".h") {

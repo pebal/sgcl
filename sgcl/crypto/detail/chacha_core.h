@@ -116,7 +116,7 @@ namespace sgcl::crypto::detail {
     }
 
 #if SGCL_CRYPTO_NEON
-    inline uint32x4_t rotl16_v(uint32x4_t v) noexcept {
+    SGCL_INLINE_HOT uint32x4_t rotl16_v(uint32x4_t v) noexcept {
         return vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32(v)));
     }
 
@@ -126,7 +126,7 @@ namespace sgcl::crypto::detail {
     }
 
     template<int N>
-    inline uint32x4_t rotl_v(uint32x4_t v) noexcept {
+    SGCL_INLINE_HOT uint32x4_t rotl_v(uint32x4_t v) noexcept {
         return vsriq_n_u32(vshlq_n_u32(v, N), v, 32 - N);
     }
 
@@ -253,7 +253,7 @@ namespace sgcl::crypto::detail {
     // says so, word i of blocks 0..3 in the low lane and of 4..7 in the
     // high one. SSE2 rotates by shifts, AVX2 by 16 and 8 with VPSHUFB.
     template<int N>
-    inline __m128i rotl_x(__m128i v) noexcept {
+    SGCL_INLINE_HOT __m128i rotl_x(__m128i v) noexcept {
         return _mm_or_si128(_mm_slli_epi32(v, N), _mm_srli_epi32(v, 32 - N));
     }
 
@@ -450,7 +450,7 @@ namespace sgcl::crypto::detail {
     }
 
     // n whole blocks
-    inline void chacha_xor_blocks(const ChachaState& s, uint32_t counter, const unsigned char* in, unsigned char* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void chacha_xor_blocks(const ChachaState& s, uint32_t counter, const unsigned char* in, unsigned char* out, size_t n) noexcept {
         chacha_xor(s, counter, in, out, n * 64);
     }
 

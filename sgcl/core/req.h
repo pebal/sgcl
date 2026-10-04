@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/os.h"
+
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -127,7 +129,7 @@ namespace sgcl {
         // ask for == too, and a type ordered by < alone is req::comparable)
         struct Less {
             template<class A, class B>
-            constexpr bool operator()(const A& a, const B& b) const noexcept(noexcept(bool(a < b))) {
+            SGCL_INLINE_HOT constexpr bool operator()(const A& a, const B& b) const noexcept(noexcept(bool(a < b))) {
                 return a < b;
             }
         };

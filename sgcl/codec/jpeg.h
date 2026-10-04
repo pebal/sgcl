@@ -52,7 +52,7 @@ namespace sgcl::codec {
         };
 
         // The file in memory, read in place
-        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+        SGCL_INLINE_HOT static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
             detail::MemoryInput in(data);
             return detail::JpegDecoder<detail::MemoryInput>(in, o).run();
         }
@@ -60,7 +60,7 @@ namespace sgcl::codec {
         // The file from a stream, read as it comes: memory is the image and
         // three rows of MCUs (a file of one scan per component: the
         // components whole), not the file
-        static expected<image, error> decode(const io::reader& in, const decode_options& o = {}) {
+        SGCL_INLINE_HOT static expected<image, error> decode(const io::reader& in, const decode_options& o = {}) {
             detail::ReaderInput source(in);
             return detail::JpegDecoder<detail::ReaderInput>(source, o).run();
         }
@@ -72,22 +72,22 @@ namespace sgcl::codec {
         // (The overloads without options stand for a default argument,
         // which a nested struct with member initializers cannot be inside
         // its class.)
-        static expected<vector<byte>, error> encode(const image& im) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const image& im) noexcept {
             return _encode(im, _settings(options{}));
         }
 
-        static expected<vector<byte>, error> encode(const image& im, const options& o) {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const image& im, const options& o) {
             return _encode(im, _settings(o));
         }
 
         // The file into a stream: errc::invalid_argument for a side past
         // 65 535 pixels, nothing written; errc::io when the stream fails, at
         // the offset of the bytes written before
-        static expected<void, error> encode(const image& im, const io::writer& out) {
+        SGCL_INLINE_HOT static expected<void, error> encode(const image& im, const io::writer& out) {
             return encode(im, out, options{});
         }
 
-        static expected<void, error> encode(const image& im, const io::writer& out, const options& o) {
+        SGCL_INLINE_HOT static expected<void, error> encode(const image& im, const io::writer& out, const options& o) {
             detail::WriterSink sink{out, 0, nullopt};
             if (!detail::JpegEncoder<detail::WriterSink>(im, _settings(o), sink).run()) {
                 return unexpected(*sink.failure);
@@ -96,7 +96,7 @@ namespace sgcl::codec {
         }
 
     private:
-        static expected<vector<byte>, error> _encode(const image& im, const detail::JpegEncodeSettings& s) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> _encode(const image& im, const detail::JpegEncodeSettings& s) noexcept {
             vector<byte> out;
             detail::VectorSink sink{out, nullopt};
             if (!detail::JpegEncoder<detail::VectorSink>(im, s, sink).run()) {

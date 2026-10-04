@@ -28,7 +28,7 @@ namespace sgcl::detail {
 
         // The sweep's destroy function for the type, or null when the type
         // needs none (trivially destructible: nothing runs per object)
-        static constexpr auto get_destroy_function() -> void(*)(void*) noexcept {
+        SGCL_INLINE_HOT static constexpr auto get_destroy_function() -> void(*)(void*) noexcept {
             if constexpr (!std::is_trivially_destructible_v<Type> && std::is_destructible_v<Type>) {
                 return &_destroy;
             } else {
@@ -40,7 +40,7 @@ namespace sgcl::detail {
         // the Metadata's. Never destroyed: the collector thread and the
         // exiting threads still return headers while the process runs its
         // static destructors.
-        inline static HeaderSlab& header_slab() {
+        SGCL_INLINE_HOT static HeaderSlab& header_slab() {
             return *private_metadata().header_slab;
         }
 
@@ -60,7 +60,7 @@ namespace sgcl::detail {
         // type's constants (data, no code per type) and never freed: the
         // pages of the type point at it. One function for every type
         // (Metadata::of_type), given the record.
-        inline static Metadata& private_metadata() {
+        SGCL_INLINE_HOT static Metadata& private_metadata() {
             return Metadata::of_type(PageInfo<std::remove_extent_t<Type>>::record);
         }
 
@@ -74,12 +74,12 @@ namespace sgcl::detail {
         // The type's pointer map, made on first use (ChildPointers::of_type,
         // one function for every type) and never freed, like the Metadata
         // that names it
-        inline static ChildPointers& child_pointers() {
+        SGCL_INLINE_HOT static ChildPointers& child_pointers() {
             return ChildPointers::of_type(record);
         }
 
     private:
-        static void _destroy(void* p) noexcept {
+        SGCL_INLINE_HOT static void _destroy(void* p) noexcept {
             std::destroy_at((T*)p);
         }
     };

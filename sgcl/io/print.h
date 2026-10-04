@@ -33,7 +33,7 @@
 // `using namespace sgcl;` is all a program needs for println.
 namespace sgcl::io {
     namespace detail {
-        inline void print_text(const io::writer& w, const string& text) {
+        SGCL_INLINE_HOT void print_text(const io::writer& w, const string& text) {
             (void)w.write(io::detail::bytes_of(text));
         }
 
@@ -86,65 +86,65 @@ namespace sgcl::io {
 
     // The text of the pattern and its values on io::stdout
     template<class... A>
-    void print(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
+    SGCL_INLINE_HOT void print(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
         detail::print_text(io::stdout, txt::format(pattern, args...));
     }
 
     // The same and a new line
     template<class... A>
-    void println(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
+    SGCL_INLINE_HOT void println(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
         detail::print_text(io::stdout, detail::line_of(pattern, args...));
     }
 
     // A new line alone
-    inline void println() {
+    SGCL_INLINE_HOT void println() {
         detail::print_text(io::stdout, "\n");
     }
 
     // One value, as "{}" formats it: println(n), print(when)
     template<detail::Printable T>
-    void print(const T& value) {
+    SGCL_INLINE_HOT void print(const T& value) {
         print("{}", value);
     }
 
     template<detail::Printable T>
-    void println(const T& value) {
+    SGCL_INLINE_HOT void println(const T& value) {
         println("{}", value);
     }
 
     // On io::stderr
     template<class... A>
-    void eprint(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
+    SGCL_INLINE_HOT void eprint(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
         detail::print_text(io::stderr, txt::format(pattern, args...));
     }
 
     template<class... A>
-    void eprintln(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
+    SGCL_INLINE_HOT void eprintln(const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
         detail::print_text(io::stderr, detail::line_of(pattern, args...));
     }
 
-    inline void eprintln() {
+    SGCL_INLINE_HOT void eprintln() {
         detail::print_text(io::stderr, "\n");
     }
 
     template<detail::Printable T>
-    void eprint(const T& value) {
+    SGCL_INLINE_HOT void eprint(const T& value) {
         eprint("{}", value);
     }
 
     template<detail::Printable T>
-    void eprintln(const T& value) {
+    SGCL_INLINE_HOT void eprintln(const T& value) {
         eprintln("{}", value);
     }
 
     // On any stream: a file, a connection, a buffer, a buffered writer
     template<class... A>
-    void print(const io::writer& to, const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
+    SGCL_INLINE_HOT void print(const io::writer& to, const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
         detail::print_text(to, txt::format(pattern, args...));
     }
 
     template<class... A>
-    void println(const io::writer& to, const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
+    SGCL_INLINE_HOT void println(const io::writer& to, const txt::format_pattern<std::type_identity_t<A>...>& pattern, const A&... args) {
         detail::print_text(to, detail::line_of(pattern, args...));
     }
 
@@ -152,7 +152,7 @@ namespace sgcl::io {
     // it fits its values, nothing when it does not; which one, the result
     // says
     template<class... A>
-    bool print(const txt::runtime_pattern& pattern, const A&... args) {
+    SGCL_INLINE_HOT bool print(const txt::runtime_pattern& pattern, const A&... args) {
         auto text = txt::format(pattern, args...);
         if (text) {
             detail::print_text(io::stdout, *text);
@@ -161,7 +161,7 @@ namespace sgcl::io {
     }
 
     template<class... A>
-    bool println(const txt::runtime_pattern& pattern, const A&... args) {
+    SGCL_INLINE_HOT bool println(const txt::runtime_pattern& pattern, const A&... args) {
         auto text = detail::line_of(pattern, args...);
         if (text) {
             detail::print_text(io::stdout, *text);

@@ -14,6 +14,7 @@
 // body nobody reads beside one that flows. Every request has a timeout:
 // nothing here waits unbounded.
 #include "tests/types.h"
+#include "tests/source_root.h"
 #include "sgcl/net/http/http.h"
 
 #include <arpa/inet.h>
@@ -41,7 +42,7 @@ namespace {
     }
 
     std::string testdata(const std::string& name) {
-        return (std::filesystem::path(__FILE__).parent_path().parent_path() / "tls_testdata" / name).string();
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     std::string slurp(const std::string& path) {
@@ -56,7 +57,7 @@ namespace {
             if (std::system("command -v go > /dev/null 2>&1") != 0) {
                 return std::string();
             }
-            auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path();
+            auto root = source_root();
             auto src = root / "tools" / "h2_oracle.go";
             auto out = std::filesystem::temp_directory_path() / "sgcl_h2_oracle_client_tests";
             std::string cmd = "go build -o '" + out.string() + "' '" + src.string() + "' 2>&1";

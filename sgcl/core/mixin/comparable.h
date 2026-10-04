@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../detail/os.h"
 #include "../req.h"
 #include "detail/synth_three_way.h"
 
@@ -25,7 +26,7 @@ namespace sgcl::mixin {
     template<class Derived>
     class comparable {
     public:
-        constexpr friend auto operator<=>(const Derived& a, const Derived& b) requires detail::ComparableElements<Derived> {
+        SGCL_INLINE_HOT constexpr friend auto operator<=>(const Derived& a, const Derived& b) requires detail::ComparableElements<Derived> {
             return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end(), detail::synth_three_way);
         }
 

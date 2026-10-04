@@ -26,7 +26,7 @@ namespace sgcl::detail {
         CellBlock* block = nullptr;
         unsigned index = 0;
 
-        ~CellAllocator() noexcept {
+        SGCL_INLINE_HOT ~CellAllocator() noexcept {
             release();
         }
 
@@ -47,13 +47,13 @@ namespace sgcl::detail {
 
         // A cell given back, from any thread: free again, its own address
         // (cell_block.h)
-        static void free(Pointer* cell) noexcept {
+        SGCL_INLINE_HOT static void free(Pointer* cell) noexcept {
             assert(!CellBlock::is_free(cell));
             cell->store_no_update(cell);
         }
 
         // The block let go of: its state, after the slots handed out so far
-        void release() noexcept {
+        SGCL_INLINE_HOT void release() noexcept {
             if (block) {
                 Page::set_state<State::UniqueReleased>(block);
                 block = nullptr;

@@ -117,7 +117,7 @@ namespace sgcl::compress::detail {
         }
 
         // A new stream: the tables emptied, their memory kept
-        void restart() noexcept {
+        SGCL_INLINE_HOT void restart() noexcept {
             std::fill(_hash.get(), _hash.get() + _hash_entries, 0u);
             _pos = _cyclic;
             _cyc = 0;
@@ -214,7 +214,7 @@ namespace sgcl::compress::detail {
         }
 
         // The window moved down by n bytes: the positions stay, their bytes moved
-        void shifted(size_t n) noexcept {
+        SGCL_INLINE_HOT void shifted(size_t n) noexcept {
             read -= n;
             end -= n;
         }
@@ -241,7 +241,7 @@ namespace sgcl::compress::detail {
         }
 
         // A longest match at the nice length goes on as far as it may
-        void _finish_long(Match* m, uint32_t count, const uint8_t* cur, size_t avail) const noexcept {
+        SGCL_INLINE_HOT void _finish_long(Match* m, uint32_t count, const uint8_t* cur, size_t avail) const noexcept {
             if (count && m[count - 1].len == _nice && avail > _nice) {
                 uint32_t limit = uint32_t(std::min<size_t>(avail, lzma_model::MatchMax));
                 m[count - 1].len = _extend(cur, cur - m[count - 1].dist - 1, _nice, limit);
@@ -403,7 +403,7 @@ namespace sgcl::compress::detail {
         static constexpr uint32_t Opts = uint32_t(1) << 12;   // the positions the optimal parser prices at most
         static constexpr size_t Lookahead = Opts + lzma_model::MatchMax + 8;
 
-        explicit LzmaEncoder(const LzmaEncoderSettings& s) noexcept
+        SGCL_INLINE_HOT explicit LzmaEncoder(const LzmaEncoderSettings& s) noexcept
         : _s(s)
         , _rc(_sink) {
             _dictionary = std::max(s.props.dictionary, lzma_model::DictionaryMin);
@@ -414,7 +414,7 @@ namespace sgcl::compress::detail {
         LzmaEncoder(const LzmaEncoder&) = delete;
         LzmaEncoder& operator=(const LzmaEncoder&) = delete;
 
-        uint32_t dictionary() const noexcept {
+        SGCL_INLINE_HOT uint32_t dictionary() const noexcept {
             return _dictionary;
         }
 
@@ -473,7 +473,7 @@ namespace sgcl::compress::detail {
         // Codes what can be coded, into out: to the end of the data when
         // finishing. budget: the input bytes to go through at most (0: no
         // bound). In LZMA2's chunks, it stops as well where the chunk is full.
-        LzmaRun run(bool finish, std::vector<uint8_t>& out, uint64_t budget = 0) noexcept {
+        SGCL_INLINE_HOT LzmaRun run(bool finish, std::vector<uint8_t>& out, uint64_t budget = 0) noexcept {
             _rc_out(out);
             if (!_ready) {
                 return LzmaRun::done;
@@ -492,30 +492,30 @@ namespace sgcl::compress::detail {
         static constexpr uint32_t ChunkPacked = uint32_t(1) << 16;
 
         // Before the first append
-        void chunked() noexcept {
+        SGCL_INLINE_HOT void chunked() noexcept {
             _chunked = true;
         }
 
-        void chunk_begin() noexcept {
+        SGCL_INLINE_HOT void chunk_begin() noexcept {
             _rc.reset();
             _chunk_start = _total;
         }
 
         // The chunk's last bytes into out; the bytes it codes
-        uint32_t chunk_end(std::vector<uint8_t>& out) noexcept {
+        SGCL_INLINE_HOT uint32_t chunk_end(std::vector<uint8_t>& out) noexcept {
             _rc_out(out);
             _rc.finish();
             return uint32_t(_total - _chunk_start);
         }
 
         // The chunk's bytes as they are, for a chunk stored uncompressed
-        const uint8_t* chunk_data() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* chunk_data() const noexcept {
             return _mf.data + (_at - size_t(_total - _chunk_start));
         }
 
         // The probabilities, the state and the repeats as at the start
         // (after a chunk stored uncompressed, the next one resets them)
-        void reset_state() noexcept {
+        SGCL_INLINE_HOT void reset_state() noexcept {
             _reset_model();
             _prices_ready = false;
             _match_count = _align_count = 0;
@@ -556,7 +556,7 @@ namespace sgcl::compress::detail {
             uint32_t reps[4];
         };
 
-        static uint32_t _round_dictionary(uint32_t n) noexcept {
+        SGCL_INLINE_HOT static uint32_t _round_dictionary(uint32_t n) noexcept {
             // the next 2^k or 3 * 2^(k-1), as decoders size their windows
             if (n <= lzma_model::DictionaryMin) {
                 return lzma_model::DictionaryMin;
@@ -566,20 +566,20 @@ namespace sgcl::compress::detail {
             return three >= n ? three : p;
         }
 
-        size_t _rc_out_size() const noexcept {
+        SGCL_INLINE_HOT size_t _rc_out_size() const noexcept {
             return _rc_sink->size();
         }
 
-        void _rc_out(std::vector<uint8_t>& out) noexcept {
+        SGCL_INLINE_HOT void _rc_out(std::vector<uint8_t>& out) noexcept {
             _rc_sink = &out;
             _rc.sink(out);
         }
 
-        uint32_t _pb_mask() const noexcept {
+        SGCL_INLINE_HOT uint32_t _pb_mask() const noexcept {
             return (1u << _s.props.pb) - 1;
         }
 
-        void _reset_model() noexcept {
+        SGCL_INLINE_HOT void _reset_model() noexcept {
             _probs.reset();
             std::fill(_literal.get(), _literal.get() + _s.props.literal_probs(), rc::ProbInit);
             _state = 0;
@@ -588,7 +588,7 @@ namespace sgcl::compress::detail {
 
         // --- coding
 
-        uint16_t* _literal_probs(uint64_t at_total, uint32_t prev) noexcept {
+        SGCL_INLINE_HOT uint16_t* _literal_probs(uint64_t at_total, uint32_t prev) noexcept {
             uint32_t ctx = ((uint32_t(at_total) & ((1u << _s.props.lp) - 1)) << _s.props.lc) + (prev >> (8 - _s.props.lc));
             return _literal.get() + size_t(0x300) * ctx;
         }
@@ -846,7 +846,7 @@ namespace sgcl::compress::detail {
 
         // A chunk of LZMA2 full: the next symbol might not fit (one takes
         // at most 273 bytes of input and some 20 bytes of output)
-        bool _chunk_full() const noexcept {
+        SGCL_INLINE_HOT bool _chunk_full() const noexcept {
             return _chunked && (_total - _chunk_start > ChunkUnpacked - lzma_model::MatchMax || _rc_out_size() + _rc.pending() + 32 > ChunkPacked);
         }
 
@@ -879,7 +879,7 @@ namespace sgcl::compress::detail {
 
         // The matches at _at: the ones found ahead of time, or a search now
         template<bool Tree>
-        uint32_t _matches_here() noexcept {
+        SGCL_INLINE_HOT uint32_t _matches_here() noexcept {
             if (_have_look) {
                 _have_look = false;
                 return _look_count;
@@ -915,12 +915,12 @@ namespace sgcl::compress::detail {
             return len;
         }
 
-        void _one_step(uint32_t len, uint32_t back) noexcept {
+        SGCL_INLINE_HOT void _one_step(uint32_t len, uint32_t back) noexcept {
             _path[0] = {len, back, back == Literal ? 0 : back < 4 ? _reps[back] : back - 4};
             _path_len = 1;
         }
 
-        static bool _much_closer(uint32_t small, uint32_t big) noexcept {
+        SGCL_INLINE_HOT static bool _much_closer(uint32_t small, uint32_t big) noexcept {
             return small < (big >> 7);
         }
 

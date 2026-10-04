@@ -23,7 +23,7 @@
 // The product of two 64-bit words (the module's paths: paths.h)
 
 namespace sgcl::crypto::detail {
-    inline uint32_t rotl32(uint32_t v, int n) noexcept {
+    SGCL_INLINE_HOT uint32_t rotl32(uint32_t v, int n) noexcept {
         return v << n | v >> (32 - n);
     }
 
@@ -51,14 +51,14 @@ namespace sgcl::crypto::detail {
     }
 
     // a + b into a, with the carry of the low word into the high one
-    inline void add_wide(Wide& a, Wide b) noexcept {
+    SGCL_INLINE_HOT void add_wide(Wide& a, Wide b) noexcept {
         uint64_t lo = a.lo + b.lo;
         a.hi += b.hi + (lo < b.lo);
         a.lo = lo;
     }
 
     // The low bits of a wide value from the bit `shift` on (shift < 64)
-    inline uint64_t shift_right(Wide v, int shift) noexcept {
+    SGCL_INLINE_HOT uint64_t shift_right(Wide v, int shift) noexcept {
         return v.lo >> shift | v.hi << (64 - shift);
     }
 
@@ -67,7 +67,7 @@ namespace sgcl::crypto::detail {
     // Go's cipher packages panic on it
     // Two buffers that share a byte, at any place: for an output written
     // while an input is still to be read again (HKDF's info, PBKDF2's salt)
-    inline bool overlap(const void* out, size_t out_size, const void* in, size_t in_size) noexcept {
+    SGCL_INLINE_HOT bool overlap(const void* out, size_t out_size, const void* in, size_t in_size) noexcept {
         if (out_size == 0 || in_size == 0) {
             return false;
         }
@@ -76,7 +76,7 @@ namespace sgcl::crypto::detail {
         return o < i + in_size && i < o + out_size;
     }
 
-    inline bool inexact_overlap(const void* out, size_t out_size, const void* in, size_t in_size) noexcept {
+    SGCL_INLINE_HOT bool inexact_overlap(const void* out, size_t out_size, const void* in, size_t in_size) noexcept {
         if (out_size == 0 || in_size == 0 || out == in) {
             return false;
         }

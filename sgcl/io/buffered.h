@@ -60,7 +60,7 @@ namespace sgcl::io {
     namespace detail {
     class BufferedReaderState final {
     public:
-        explicit BufferedReaderState(const io::reader& r) noexcept
+        SGCL_INLINE_HOT explicit BufferedReaderState(const io::reader& r) noexcept
         : _reader(r), _block(make_tracked<detail::IoBlock>()), _data(_block->data()) {
         }
 
@@ -68,7 +68,7 @@ namespace sgcl::io {
         // that copies each token out before the next read and hands no
         // slice on (a connection's read_line, net/connection.h): the slices
         // it returns hold nothing, and are the caller's to drop in time
-        BufferedReaderState(const io::reader& r, detail::UnmanagedBlock) noexcept
+        SGCL_INLINE_HOT BufferedReaderState(const io::reader& r, detail::UnmanagedBlock) noexcept
         : _reader(r), _unmanaged(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _data(_unmanaged.get()) {
         }
 
@@ -117,20 +117,20 @@ namespace sgcl::io {
         }
 
         // `read_until(...)` on this thread, `co_await async_read_until(...)` in a task
-        expected<optional<slice<const char>>, error> read_until(char delimiter) {
+        SGCL_INLINE_HOT expected<optional<slice<const char>>, error> read_until(char delimiter) {
             return _block_read_until(delimiter, true);
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) noexcept {
+        SGCL_INLINE_HOT async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) noexcept {
             return _co_read_until(delimiter, true);
         }
 
         // `read_line(...)` on this thread, `co_await async_read_line(...)` in a task
-        expected<optional<slice<const char>>, error> read_line() {
+        SGCL_INLINE_HOT expected<optional<slice<const char>>, error> read_line() {
             return _block_read_line();
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_line() noexcept {
+        SGCL_INLINE_HOT async::task<expected<optional<slice<const char>>, error>> async_read_line() noexcept {
             return _co_read_line();
         }
 
@@ -150,7 +150,7 @@ namespace sgcl::io {
             return _block_slice(_begin, std::min(n, buffered()));
         }
 
-        expected<optional<byte>, error> read_byte() {
+        SGCL_INLINE_HOT expected<optional<byte>, error> read_byte() {
             if (buffered() == 0) {
                 auto r = _fill();
                 if (!r) {
@@ -184,17 +184,17 @@ namespace sgcl::io {
         }
 
         // The bytes in the buffer, readable without touching r
-        size_t buffered() const noexcept {
+        SGCL_INLINE_HOT size_t buffered() const noexcept {
             return _end - _begin;
         }
 
         // The longest line read_line, read_until and lines accept, in
         // bytes; 0 for no bound. A longer one is line_too_long, skipped
-        void set_max_line(size_t n) noexcept {
+        SGCL_INLINE_HOT void set_max_line(size_t n) noexcept {
             _max_line = n;
         }
 
-        size_t max_line() const noexcept {
+        SGCL_INLINE_HOT size_t max_line() const noexcept {
             return _max_line;
         }
 
@@ -232,11 +232,11 @@ namespace sgcl::io {
             }
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
-        io::reader underlying() const noexcept {
+        SGCL_INLINE_HOT io::reader underlying() const noexcept {
             return _reader;
         }
 
@@ -244,24 +244,24 @@ namespace sgcl::io {
         // it has a close: a file, a connection), as buffered_writer's close
         // closes its writer; a read after it is r's, which a closed file
         // answers with errc::closed
-        expected<void, error> close() {
+        SGCL_INLINE_HOT expected<void, error> close() {
             _drop();
             return _reader.close();
         }
 
-        async::task<expected<void, error>> async_close() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_close() noexcept {
             _drop();
             return _reader.async_close();
         }
 
     private:
-        void _drop() noexcept {
+        SGCL_INLINE_HOT void _drop() noexcept {
             _begin = _end = 0;
             _long.clear();
         }
 
         // A read of the block from the front, the buffer being empty
-        expected<size_t, error> _fill() {
+        SGCL_INLINE_HOT expected<size_t, error> _fill() {
             _begin = _end = 0;
             auto r = _reader.read(_block_room(0));
             if (r) {
@@ -281,7 +281,7 @@ namespace sgcl::io {
 
         // A read into the room behind the unread bytes, which are moved
         // to the front first; a full block is spilled into _long
-        void _make_room() noexcept {
+        SGCL_INLINE_HOT void _make_room() noexcept {
             if (_end == config::io_buffer_size) {
                 if (_begin == 0) {
                     _long.insert(_long.end(), _data, _data + _end);
@@ -294,7 +294,7 @@ namespace sgcl::io {
             }
         }
 
-        expected<size_t, error> _fill_tail() {
+        SGCL_INLINE_HOT expected<size_t, error> _fill_tail() {
             _make_room();
             auto r = _reader.read(_block_room(_end));
             if (r) {
@@ -312,7 +312,7 @@ namespace sgcl::io {
             co_return r;
         }
 
-        size_t _take(const slice<byte>& out) noexcept {
+        SGCL_INLINE_HOT size_t _take(const slice<byte>& out) noexcept {
             size_t n = std::min(out.size(), buffered());
             sgcl::detail::copy_bytes(out.data(), _data + _begin, n);
             _begin += n;
@@ -321,20 +321,20 @@ namespace sgcl::io {
 
         // The block's bytes [from, from + n) as a writable slice holding
         // the block, and as characters
-        slice<byte> _block_room(size_t from) noexcept {
+        SGCL_INLINE_HOT slice<byte> _block_room(size_t from) noexcept {
             return slice<byte>(_block, _data + from, config::io_buffer_size - from);
         }
 
-        slice<const byte> _block_slice(size_t from, size_t n) const noexcept {
+        SGCL_INLINE_HOT slice<const byte> _block_slice(size_t from, size_t n) const noexcept {
             return slice<const byte>(_block, _data + from, n);
         }
 
-        slice<const char> _block_text(size_t from, size_t n) const noexcept {
+        SGCL_INLINE_HOT slice<const char> _block_text(size_t from, size_t n) const noexcept {
             return slice<const char>(_block, reinterpret_cast<const char*>(_data) + from, n);
         }
 
         // The assembled long line as characters: a slice of _long's buffer
-        slice<const char> _long_text() const noexcept {
+        SGCL_INLINE_HOT slice<const char> _long_text() const noexcept {
             return detail::text_slice_of(_long.as_slice());
         }
 
@@ -366,7 +366,7 @@ namespace sgcl::io {
 
         // Whether the token so far, its delimiter not found yet, is past
         // the bound already
-        bool _past_max_line() const noexcept {
+        SGCL_INLINE_HOT bool _past_max_line() const noexcept {
             return _max_line && _long.size() + buffered() > _max_line;
         }
 
@@ -430,7 +430,7 @@ namespace sgcl::io {
         }
 
         // A token up to '\n', the '\n' left out, as a line: without its '\r'
-        static expected<optional<slice<const char>>, error> _line(expected<optional<slice<const char>>, error> r) noexcept {
+        SGCL_INLINE_HOT static expected<optional<slice<const char>>, error> _line(expected<optional<slice<const char>>, error> r) noexcept {
             if (r && *r && !(*r)->empty() && (*r)->back() == '\r') {
                 (*r)->remove_suffix(1);
             }
@@ -493,7 +493,7 @@ namespace sgcl::io {
             }
         }
 
-        expected<optional<slice<const char>>, error> _block_read_line()  {
+        SGCL_INLINE_HOT expected<optional<slice<const char>>, error> _block_read_line()  {
             return _line(_block_read_until('\n', false));
         }
 
@@ -515,130 +515,130 @@ namespace sgcl::io {
     public:
         buffered_reader() noexcept = default;
 
-        explicit buffered_reader(const io::reader& r) noexcept
+        SGCL_INLINE_HOT explicit buffered_reader(const io::reader& r) noexcept
         : _state(make_tracked<detail::BufferedReaderState>(r)) {
         }
 
-        expected<size_t, error> read(const slice<byte>& out) const {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& out) const {
             return _get().read(out);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read(const slice<byte>& out) const noexcept {
             return _get().async_read(out);
         }
 
         // `read_until(...)` on this thread, `co_await async_read_until(...)` in a task
-        expected<optional<slice<const char>>, error> read_until(char delimiter) const {
+        SGCL_INLINE_HOT expected<optional<slice<const char>>, error> read_until(char delimiter) const {
             return _get().read_until(delimiter);
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<optional<slice<const char>>, error>> async_read_until(char delimiter) const noexcept {
             return _get().async_read_until(delimiter);
         }
 
         // `read_line(...)` on this thread, `co_await async_read_line(...)` in a task
-        expected<optional<slice<const char>>, error> read_line() const {
+        SGCL_INLINE_HOT expected<optional<slice<const char>>, error> read_line() const {
             return _get().read_line();
         }
 
-        async::task<expected<optional<slice<const char>>, error>> async_read_line() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<optional<slice<const char>>, error>> async_read_line() const noexcept {
             return _get().async_read_line();
         }
 
         // The next n bytes without consuming them (fewer at the end of
         // the stream, at most the buffer's size): a slice of the block
-        expected<slice<const byte>, error> peek(size_t n) const {
+        SGCL_INLINE_HOT expected<slice<const byte>, error> peek(size_t n) const {
             return _get().peek(n);
         }
 
-        expected<optional<byte>, error> read_byte() const {
+        SGCL_INLINE_HOT expected<optional<byte>, error> read_byte() const {
             return _get().read_byte();
         }
 
         // Skips n bytes: the bytes skipped
-        expected<size_t, error> discard(size_t n) const {
+        SGCL_INLINE_HOT expected<size_t, error> discard(size_t n) const {
             return _get().discard(n);
         }
 
         // The bytes in the buffer, readable without touching the stream
-        size_t buffered() const noexcept {
+        SGCL_INLINE_HOT size_t buffered() const noexcept {
             return _get().buffered();
         }
 
         // The longest line read_line, read_until and lines accept, in
         // bytes; 0 for no bound. A longer one is line_too_long, skipped
-        void set_max_line(size_t n) const noexcept {
+        SGCL_INLINE_HOT void set_max_line(size_t n) const noexcept {
             _get().set_max_line(n);
         }
 
-        size_t max_line() const noexcept {
+        SGCL_INLINE_HOT size_t max_line() const noexcept {
             return _get().max_line();
         }
 
         // The lines of the stream as a range: `for (auto line : r.lines())`;
         // the generator ends at the end of the stream or on an error, which
         // last_error() holds afterwards (Scanner.Err())
-        generator<slice<const char>> lines() const noexcept {
+        SGCL_INLINE_HOT generator<slice<const char>> lines() const noexcept {
             return _get().lines();
         }
 
         // The same for a task: `while (auto line = co_await g.next())`
-        async::generator<slice<const char>> async_lines() const noexcept {
+        SGCL_INLINE_HOT async::generator<slice<const char>> async_lines() const noexcept {
             return _get().async_lines();
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _get().last_error();
         }
 
-        io::reader underlying() const noexcept {
+        SGCL_INLINE_HOT io::reader underlying() const noexcept {
             return _get().underlying();
         }
 
         // Drops what is buffered and closes the stream underneath (when
         // it has a close: a file, a connection)
-        expected<void, error> close() const {
+        SGCL_INLINE_HOT expected<void, error> close() const {
             return _get().close();
         }
 
-        async::task<expected<void, error>> async_close() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_close() const noexcept {
             return _get().async_close();
         }
 
         // Whether this handle holds a reader
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_state;
         }
 
         // The same reader: the same state
-        friend bool operator==(const buffered_reader& a, const buffered_reader& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const buffered_reader& a, const buffered_reader& b) noexcept {
             return a._state == b._state;
         }
 
     private:
         friend struct detail::HandleAccess;
 
-        detail::BufferedReaderState& _get() const noexcept {
+        SGCL_INLINE_HOT detail::BufferedReaderState& _get() const noexcept {
             assert(_state && "an empty io::buffered_reader");
             return *_state;
         }
 
-        const tracked_ptr<detail::BufferedReaderState>& _stream_state() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::BufferedReaderState>& _stream_state() const noexcept {
             return _state;
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        buffered_reader(sgcl::detail::FromWord, const tracked_ptr<detail::BufferedReaderState>& w) noexcept
+        SGCL_INLINE_HOT buffered_reader(sgcl::detail::FromWord, const tracked_ptr<detail::BufferedReaderState>& w) noexcept
         : _state(w) {
         }
 
-        tracked_ptr<detail::BufferedReaderState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::BufferedReaderState>& _handle_word() noexcept {
             return _state;
         }
 
-        const tracked_ptr<detail::BufferedReaderState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::BufferedReaderState>& _handle_word() const noexcept {
             return _state;
         }
 
@@ -673,7 +673,7 @@ namespace sgcl::io {
     namespace detail {
     class BufferedWriterState final {
     public:
-        explicit BufferedWriterState(const io::writer& w) noexcept
+        SGCL_INLINE_HOT explicit BufferedWriterState(const io::writer& w) noexcept
         : _writer(w), _plain(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _data(_plain.get()) {
         }
 
@@ -741,11 +741,11 @@ namespace sgcl::io {
         }
 
         // `flush(...)` on this thread, `co_await async_flush(...)` in a task
-        expected<void, error> flush() {
+        SGCL_INLINE_HOT expected<void, error> flush() {
             return _block_flush();
         }
 
-        async::task<expected<void, error>> async_flush() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_flush() noexcept {
             return _co_flush();
         }
 
@@ -776,27 +776,27 @@ namespace sgcl::io {
             co_return _kept();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _closed;
         }
 
         // The bytes in the buffer not yet written; the room left
-        size_t buffered() const noexcept {
+        SGCL_INLINE_HOT size_t buffered() const noexcept {
             return _size;
         }
 
-        size_t available() const noexcept {
+        SGCL_INLINE_HOT size_t available() const noexcept {
             return config::io_buffer_size - _size;
         }
 
-        io::writer underlying() const noexcept {
+        SGCL_INLINE_HOT io::writer underlying() const noexcept {
             return _writer;
         }
 
         // The first error given (a failure of w, a write after close), kept
         // (as buffered_reader's last_error and compress's writers): what
         // every operation after it gives
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
@@ -810,7 +810,7 @@ namespace sgcl::io {
         optional<error> _error;                    // the first error given, kept
 
         // the kept error, or a write after close kept as one: what a write gives at once
-        optional<error> _check() noexcept {
+        SGCL_INLINE_HOT optional<error> _check() noexcept {
             if (_error) {
                 return _error;
             }
@@ -828,7 +828,7 @@ namespace sgcl::io {
             return *_error;
         }
 
-        expected<void, error> _kept() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> _kept() const noexcept {
             if (_error) {
                 return detail::fail(*_error);
             }
@@ -837,7 +837,7 @@ namespace sgcl::io {
 
         // The block moved into managed memory, the bytes in it kept: a
         // task's write is given a slice that holds it
-        void _to_managed() noexcept {
+        SGCL_INLINE_HOT void _to_managed() noexcept {
             if (!_managed) {
                 _managed = make_tracked<detail::IoBlock>();
                 sgcl::detail::copy_bytes(_managed->data(), _data, _size);
@@ -847,7 +847,7 @@ namespace sgcl::io {
         }
 
         // the two halves of the operations above: a thread's and a task's
-        expected<void, error> _block_flush()  {
+        SGCL_INLINE_HOT expected<void, error> _block_flush()  {
             if (_error) {
                 return detail::fail(*_error);
             }
@@ -892,95 +892,95 @@ namespace sgcl::io {
 
         buffered_writer() noexcept = default;
 
-        explicit buffered_writer(const io::writer& w) noexcept
+        SGCL_INLINE_HOT explicit buffered_writer(const io::writer& w) noexcept
         : _state(make_tracked<detail::BufferedWriterState>(w)) {
         }
 
-        expected<size_t, error> write(const slice<const byte>& data) const {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& data) const {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
             return _get().async_write(data);
         }
 
         // `flush(...)` on this thread, `co_await async_flush(...)` in a task
-        expected<void, error> flush() const {
+        SGCL_INLINE_HOT expected<void, error> flush() const {
             return _get().flush();
         }
 
-        async::task<expected<void, error>> async_flush() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_flush() const noexcept {
             return _get().async_flush();
         }
 
         // Flushes, then closes the writer underneath (when it has a close:
         // a file, a connection), after an error too; the kept error is the
         // result, of this close and of every one after it
-        expected<void, error> close() const {
+        SGCL_INLINE_HOT expected<void, error> close() const {
             return _get().close();
         }
 
-        async::task<expected<void, error>> async_close() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_close() const noexcept {
             return _get().async_close();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _get().is_closed();
         }
 
         // The bytes in the buffer not yet written; the room left
-        size_t buffered() const noexcept {
+        SGCL_INLINE_HOT size_t buffered() const noexcept {
             return _get().buffered();
         }
 
-        size_t available() const noexcept {
+        SGCL_INLINE_HOT size_t available() const noexcept {
             return _get().available();
         }
 
-        io::writer underlying() const noexcept {
+        SGCL_INLINE_HOT io::writer underlying() const noexcept {
             return _get().underlying();
         }
 
         // The first error given (a failure of the writer underneath, a
         // write after close), kept: what every operation after it gives
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _get().last_error();
         }
 
         // Whether this handle holds a writer
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_state;
         }
 
         // The same writer: the same state
-        friend bool operator==(const buffered_writer& a, const buffered_writer& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const buffered_writer& a, const buffered_writer& b) noexcept {
             return a._state == b._state;
         }
 
     private:
         friend struct detail::HandleAccess;
 
-        detail::BufferedWriterState& _get() const noexcept {
+        SGCL_INLINE_HOT detail::BufferedWriterState& _get() const noexcept {
             assert(_state && "an empty io::buffered_writer");
             return *_state;
         }
 
-        const tracked_ptr<detail::BufferedWriterState>& _stream_state() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::BufferedWriterState>& _stream_state() const noexcept {
             return _state;
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        buffered_writer(sgcl::detail::FromWord, const tracked_ptr<detail::BufferedWriterState>& w) noexcept
+        SGCL_INLINE_HOT buffered_writer(sgcl::detail::FromWord, const tracked_ptr<detail::BufferedWriterState>& w) noexcept
         : _state(w) {
         }
 
-        tracked_ptr<detail::BufferedWriterState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::BufferedWriterState>& _handle_word() noexcept {
             return _state;
         }
 
-        const tracked_ptr<detail::BufferedWriterState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::BufferedWriterState>& _handle_word() const noexcept {
             return _state;
         }
 

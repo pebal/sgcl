@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -31,7 +33,7 @@ namespace sgcl::encoding::detail {
     // comparison). Both return the first such byte, or end.
 
     // Eight bytes of p as a little-endian word
-    inline uint64_t load_word(const char* p) noexcept {
+    SGCL_INLINE_HOT uint64_t load_word(const char* p) noexcept {
         uint64_t w;
         std::memcpy(&w, p, 8);
         if constexpr (std::endian::native == std::endian::big) {
@@ -46,28 +48,28 @@ namespace sgcl::encoding::detail {
     // The high bit of each byte of w that is zero. Exact for the lowest
     // such byte; a byte above it may be flagged by the borrow, which the
     // searches never look at (they take the lowest bit)
-    constexpr uint64_t zero_bytes(uint64_t w) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t zero_bytes(uint64_t w) noexcept {
         return (w - Ones) & ~w & Highs;
     }
 
     // The high bit of each byte of w under n (n <= 128), with the same
     // exactness at the lowest one
-    constexpr uint64_t bytes_below(uint64_t w, uint8_t n) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t bytes_below(uint64_t w, uint8_t n) noexcept {
         return (w - Ones * n) & ~w & Highs;
     }
 
-    constexpr uint64_t bytes_equal(uint64_t w, char c) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t bytes_equal(uint64_t w, char c) noexcept {
         return zero_bytes(w ^ (Ones * uint8_t(c)));
     }
 
-    inline const char* first_flagged(const char* p, uint64_t mask) noexcept {
+    SGCL_INLINE_HOT const char* first_flagged(const char* p, uint64_t mask) noexcept {
         return p + (std::countr_zero(mask) >> 3);
     }
 
 #ifdef SGCL_ENCODING_NEON
     // The lowest set byte of a 16-byte mask of 0x00/0xFF lanes, as an
     // index; 16 when none
-    inline unsigned first_lane(uint8x16_t m) noexcept {
+    SGCL_INLINE_HOT unsigned first_lane(uint8x16_t m) noexcept {
         uint64_t bits = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(m), 4)), 0);
         return bits ? unsigned(std::countr_zero(bits) >> 2) : 16u;
     }

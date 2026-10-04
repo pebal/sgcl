@@ -54,7 +54,7 @@ namespace sgcl::crypto {
             }
         }
 
-        inline void poly_lengths(Poly1305& p, uint64_t aad_size, uint64_t text_size, unsigned char* tag) noexcept {
+        SGCL_INLINE_HOT void poly_lengths(Poly1305& p, uint64_t aad_size, uint64_t text_size, unsigned char* tag) noexcept {
             unsigned char lengths[16];
             store_le64(lengths, aad_size);
             store_le64(lengths + 8, text_size);
@@ -65,7 +65,7 @@ namespace sgcl::crypto {
         // Block 0 (the one-time key, its first 32 bytes, §2.6) and the first
         // blocks of the text's keystream in one batch; the text's keystream
         // bytes made (at most 512), in ks + 64
-        inline size_t chacha_poly_start(Poly1305& p, const ChachaState& s, size_t n, unsigned char* ks) noexcept {
+        SGCL_INLINE_HOT size_t chacha_poly_start(Poly1305& p, const ChachaState& s, size_t n, unsigned char* ks) noexcept {
             size_t made = chacha_first_blocks(s, n, ks);
             p.init(ks);
             return made - 64;
@@ -168,7 +168,7 @@ namespace sgcl::crypto {
 
             ChachaKey() = default;
 
-            explicit ChachaKey(const slice<const byte>& key) {
+            SGCL_INLINE_HOT explicit ChachaKey(const slice<const byte>& key) {
                 if (key.size() != key_size) {
                     throw invalid_argument(key_size_message(Derived::_name, key.size()));
                 }
@@ -176,12 +176,12 @@ namespace sgcl::crypto {
                 _keyed = true;
             }
 
-            ChachaKey(ChachaKey&& other) noexcept
+            SGCL_INLINE_HOT ChachaKey(ChachaKey&& other) noexcept
             : _key(other._key), _keyed(other._keyed) {
                 other._wipe();
             }
 
-            ChachaKey& operator=(ChachaKey&& other) noexcept {
+            SGCL_INLINE_HOT ChachaKey& operator=(ChachaKey&& other) noexcept {
                 if (this != &other) {
                     _key = other._key;
                     _keyed = other._keyed;
@@ -190,22 +190,22 @@ namespace sgcl::crypto {
                 return *this;
             }
 
-            ~ChachaKey() {
+            SGCL_INLINE_HOT ~ChachaKey() {
                 _wipe();
             }
 
-            void _copy(const ChachaKey& other) noexcept {
+            SGCL_INLINE_HOT void _copy(const ChachaKey& other) noexcept {
                 _key = other._key;
                 _keyed = other._keyed;
             }
 
-            void _check() const {
+            SGCL_INLINE_HOT void _check() const {
                 if (!_keyed) {
                     moved_from(Derived::_name);
                 }
             }
 
-            void _wipe() noexcept {
+            SGCL_INLINE_HOT void _wipe() noexcept {
                 secure_zero(_key.data(), _key.size());
                 _keyed = false;
             }
@@ -223,12 +223,12 @@ namespace sgcl::crypto {
 
         // The key, 32 bytes; another length is std::invalid_argument. A
         // key read from data goes through from_key instead.
-        explicit chacha20_poly1305(const slice<const byte>& key)
+        SGCL_INLINE_HOT explicit chacha20_poly1305(const slice<const byte>& key)
         : ChachaKey(key) {
         }
 
         // The key from data: a wrong length is errc::invalid_key
-        static expected<chacha20_poly1305, error> from_key(const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT static expected<chacha20_poly1305, error> from_key(const slice<const byte>& key) noexcept {
             if (key.size() != key_size) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("chacha20_poly1305", key.size()))));
             }
@@ -238,7 +238,7 @@ namespace sgcl::crypto {
         chacha20_poly1305(chacha20_poly1305&&) noexcept = default;
         chacha20_poly1305& operator=(chacha20_poly1305&&) noexcept = default;
 
-        chacha20_poly1305 clone() const {
+        SGCL_INLINE_HOT chacha20_poly1305 clone() const {
             _check();
             chacha20_poly1305 c;
             c._copy(*this);
@@ -252,14 +252,14 @@ namespace sgcl::crypto {
 
         chacha20_poly1305() = default;
 
-        void _seal(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT void _seal(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
             detail::ChachaState s;
             detail::chacha_load(s, _key.data(), nonce);
             detail::chacha_poly_seal(s, in, n, aad, aad_size, out);
             detail::secure_zero_object(s);
         }
 
-        bool _open(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* tag, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT bool _open(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* tag, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
             detail::ChachaState s;
             detail::chacha_load(s, _key.data(), nonce);
             bool ok = detail::chacha_poly_open(s, in, n, tag, aad, aad_size, out);
@@ -277,11 +277,11 @@ namespace sgcl::crypto {
     public:
         static constexpr size_t nonce_size = 24;
 
-        explicit xchacha20_poly1305(const slice<const byte>& key)
+        SGCL_INLINE_HOT explicit xchacha20_poly1305(const slice<const byte>& key)
         : ChachaKey(key) {
         }
 
-        static expected<xchacha20_poly1305, error> from_key(const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT static expected<xchacha20_poly1305, error> from_key(const slice<const byte>& key) noexcept {
             if (key.size() != key_size) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("xchacha20_poly1305", key.size()))));
             }
@@ -291,7 +291,7 @@ namespace sgcl::crypto {
         xchacha20_poly1305(xchacha20_poly1305&&) noexcept = default;
         xchacha20_poly1305& operator=(xchacha20_poly1305&&) noexcept = default;
 
-        xchacha20_poly1305 clone() const {
+        SGCL_INLINE_HOT xchacha20_poly1305 clone() const {
             _check();
             xchacha20_poly1305 c;
             c._copy(*this);
@@ -304,7 +304,7 @@ namespace sgcl::crypto {
         // before the ciphertext: nonce || ciphertext || tag, plaintext.size()
         // + nonce_size + tag_size bytes. The one AEAD of the module where a
         // random nonce is safe for any number of messages.
-        vector<byte> seal_random(const slice<const byte>& plaintext) const {
+        SGCL_INLINE_HOT vector<byte> seal_random(const slice<const byte>& plaintext) const {
             return seal_random(plaintext, slice<const byte>());
         }
 
@@ -323,11 +323,11 @@ namespace sgcl::crypto {
         // What seal_random made, the nonce read from its first 24 bytes:
         // the plaintext, or errc::authentication (data shorter than a
         // nonce and a tag is one too)
-        [[nodiscard]] expected<vector<byte>, error> open_random(const slice<const byte>& sealed) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<vector<byte>, error> open_random(const slice<const byte>& sealed) const {
             return open_random(sealed, slice<const byte>());
         }
 
-        [[nodiscard]] expected<vector<byte>, error> open_random(const slice<const byte>& sealed, const slice<const byte>& aad) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<vector<byte>, error> open_random(const slice<const byte>& sealed, const slice<const byte>& aad) const {
             _check();
             if (sealed.size() < nonce_size + tag_size) {
                 return unexpected(error(errc::authentication));
@@ -340,14 +340,14 @@ namespace sgcl::crypto {
 
         xchacha20_poly1305() = default;
 
-        void _seal(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT void _seal(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
             detail::ChachaState s;
             detail::xchacha_state(s, _key, nonce);
             detail::chacha_poly_seal(s, in, n, aad, aad_size, out);
             detail::secure_zero_object(s);
         }
 
-        bool _open(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* tag, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT bool _open(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* tag, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
             detail::ChachaState s;
             detail::xchacha_state(s, _key, nonce);
             bool ok = detail::chacha_poly_open(s, in, n, tag, aad, aad_size, out);

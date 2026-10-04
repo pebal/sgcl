@@ -13,7 +13,8 @@ against Go's, is on [the benchmarks of http](http/benchmarks.md).
 Before and after the reactor per descriptor (2026-09-26: a descriptor registered once, edge-triggered, at its first
 wait in a direction, where every wait made a one-shot registration before; the [reactor](../async/readable.md), and the
 change told on [the benchmarks of http](http/benchmarks.md#the-reactor-per-descriptor-2026-09-26)). The same
-binaries, five processes each alternated, the median (ns per operation; the stream in GB/s):
+binaries, five processes each alternated, the median (ns per operation; the stream in GB/s); both sides built
+with `-O2`, the benchmarks' flags then, and kept as the record of that change rather than run again at `-O3`:
 
 | Case | Before | After |
 |---|---|---|

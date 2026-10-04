@@ -33,7 +33,7 @@ namespace sgcl::crypto {
         // The key, 16, 24 or 32 bytes (AES-128, -192, -256); any other
         // length is a broken contract, std::invalid_argument. A key read
         // from data goes through from_key instead.
-        explicit aes(const slice<const byte>& key) {
+        SGCL_INLINE_HOT explicit aes(const slice<const byte>& key) {
             if (!detail::is_aes_key_size(key.size())) {
                 throw invalid_argument(detail::key_size_message("sgcl::crypto::aes", key.size()));
             }
@@ -41,7 +41,7 @@ namespace sgcl::crypto {
         }
 
         // The key from data: a wrong length is errc::invalid_key
-        static expected<aes, error> from_key(const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT static expected<aes, error> from_key(const slice<const byte>& key) noexcept {
             if (!detail::is_aes_key_size(key.size())) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("aes", key.size()))));
             }
@@ -54,12 +54,12 @@ namespace sgcl::crypto {
         aes(const aes&) = delete;
         aes& operator=(const aes&) = delete;
 
-        aes(aes&& other) noexcept
+        SGCL_INLINE_HOT aes(aes&& other) noexcept
         : _enc(other._enc), _dec(other._dec), _key_size(other._key_size) {
             other._wipe();
         }
 
-        aes& operator=(aes&& other) noexcept {
+        SGCL_INLINE_HOT aes& operator=(aes&& other) noexcept {
             if (this != &other) {
                 _enc = other._enc;
                 _dec = other._dec;
@@ -69,28 +69,28 @@ namespace sgcl::crypto {
             return *this;
         }
 
-        ~aes() {
+        SGCL_INLINE_HOT ~aes() {
             _wipe();
         }
 
-        aes clone() const {
+        SGCL_INLINE_HOT aes clone() const {
             _check();
             return aes(*this, 0);
         }
 
         // 16, 24 or 32
-        size_t key_size() const noexcept {
+        SGCL_INLINE_HOT size_t key_size() const noexcept {
             return _key_size;
         }
 
-        array<byte, 16> encrypt_block(const array<byte, 16>& in) const {
+        SGCL_INLINE_HOT array<byte, 16> encrypt_block(const array<byte, 16>& in) const {
             _check();
             array<byte, 16> out;
             detail::aes_encrypt_block(_enc, detail::bytes(in.data()), detail::bytes(out.data()));
             return out;
         }
 
-        array<byte, 16> decrypt_block(const array<byte, 16>& in) const {
+        SGCL_INLINE_HOT array<byte, 16> decrypt_block(const array<byte, 16>& in) const {
             _check();
             array<byte, 16> out;
             detail::aes_decrypt_block(_enc, _dec, detail::bytes(in.data()), detail::bytes(out.data()));
@@ -102,23 +102,23 @@ namespace sgcl::crypto {
         detail::AesDecryptKey _dec;
         size_t _key_size = 0;
 
-        aes(const aes& other, int) noexcept
+        SGCL_INLINE_HOT aes(const aes& other, int) noexcept
         : _enc(other._enc), _dec(other._dec), _key_size(other._key_size) {
         }
 
-        void _setup(const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT void _setup(const slice<const byte>& key) noexcept {
             detail::aes_setup(_enc, detail::bytes(key.data()), key.size());
             detail::aes_setup_decrypt(_dec, _enc);
             _key_size = key.size();
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             if (_key_size == 0) {
                 detail::moved_from("sgcl::crypto::aes");
             }
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_enc);
             detail::secure_zero_object(_dec);
             _key_size = 0;

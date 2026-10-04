@@ -422,7 +422,7 @@ namespace sgcl::codec::detail {
 #endif
 
     // The first image of a HEIF or AVIF file in memory, read in place
-    inline expected<image, error> heif_decode_bytes(const slice<const byte>& data, const decode_options& o) noexcept {
+    SGCL_INLINE_HOT expected<image, error> heif_decode_bytes(const slice<const byte>& data, const decode_options& o) noexcept {
 #if defined(__APPLE__)
         return heif_decode_memory(reinterpret_cast<const uint8_t*>(data.data()), data.size(), o);
 #else
@@ -434,7 +434,7 @@ namespace sgcl::codec::detail {
 
     // The same from an input (a stream, its head already held)
     template<class Input>
-    expected<image, error> heif_decode_stream(Input& in, const decode_options& o) {
+    SGCL_INLINE_HOT expected<image, error> heif_decode_stream(Input& in, const decode_options& o) {
 #if defined(__APPLE__)
         return heif_decode_input(in, o);
 #else

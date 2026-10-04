@@ -22,7 +22,7 @@ namespace sgcl::detail {
     // names it alone: the weak containers compare and hash by it.
     struct WeakIdentity {
         template<class T>
-        static const void* of(const weak_ptr<T>& w) noexcept {
+        SGCL_INLINE_HOT static const void* of(const weak_ptr<T>& w) noexcept {
             auto cell = w._cell.get();
             return cell ? cell->target.load(std::memory_order_acquire) : nullptr;
         }
@@ -31,7 +31,7 @@ namespace sgcl::detail {
     // The hash of an object's address, with the top bit set so that the
     // word, cached in the node or spilled on a stack, is never taken for
     // a heap address by a conservative scan
-    inline size_t weak_hash(const void* p) noexcept {
+    SGCL_INLINE_HOT size_t weak_hash(const void* p) noexcept {
         auto x = (uint64_t)(uintptr_t)p >> 4;
         x *= 0x9E3779B97F4A7C15ull;
         x ^= x >> 29;
@@ -49,13 +49,13 @@ namespace sgcl::detail {
     template<class Key>
     struct WeakHash {
         using is_transparent = void;
-        size_t operator()(const weak_ptr<Key>& w) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const weak_ptr<Key>& w) const noexcept {
             return weak_hash(WeakIdentity::of(w));
         }
-        size_t operator()(const tracked_ptr<Key>& p) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const tracked_ptr<Key>& p) const noexcept {
             return weak_hash(p.get());
         }
-        size_t operator()(const Key* p) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const Key* p) const noexcept {
             return weak_hash(p);
         }
     };
@@ -63,11 +63,11 @@ namespace sgcl::detail {
     template<class Key>
     struct WeakEqual {
         using is_transparent = void;
-        static const void* of(const weak_ptr<Key>& w) noexcept { return WeakIdentity::of(w); }
-        static const void* of(const tracked_ptr<Key>& p) noexcept { return p.get(); }
-        static const void* of(const Key* p) noexcept { return p; }
+        SGCL_INLINE_HOT static const void* of(const weak_ptr<Key>& w) noexcept { return WeakIdentity::of(w); }
+        SGCL_INLINE_HOT static const void* of(const tracked_ptr<Key>& p) noexcept { return p.get(); }
+        SGCL_INLINE_HOT static const void* of(const Key* p) noexcept { return p; }
         template<class A, class B>
-        bool operator()(const A& a, const B& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const A& a, const B& b) const noexcept {
             auto x = of(a);
             return x && x == of(b);
         }
@@ -94,11 +94,11 @@ namespace sgcl::detail {
 
         // The entries, the dead ones not yet swept included; empty() is
         // exact after a sweep()
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _table.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _table.empty();
         }
 
@@ -118,7 +118,7 @@ namespace sgcl::detail {
             return count;
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _table.clear();
             _inserted = 0;
             _threshold = 16;
@@ -126,21 +126,21 @@ namespace sgcl::detail {
 
         // The entries of the object: none for a null pointer, or an object
         // that is gone
-        size_type count(const key_pointer& object) const noexcept {
+        SGCL_INLINE_HOT size_type count(const key_pointer& object) const noexcept {
             return object ? _table.count(object) : 0;
         }
 
-        bool contains(const key_pointer& object) const noexcept {
+        SGCL_INLINE_HOT bool contains(const key_pointer& object) const noexcept {
             return count(object) != 0;
         }
 
-        size_type erase(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT size_type erase(const key_pointer& object) noexcept {
             return object ? _table.erase(object) : 0;
         }
 
     protected:
         template<class V>
-        static auto& _key_of(V& value) noexcept {
+        SGCL_INLINE_HOT static auto& _key_of(V& value) noexcept {
             if constexpr(requires { value.first; }) {
                 return value.first;
             } else {
@@ -151,7 +151,7 @@ namespace sgcl::detail {
         // One more insertion: a sweep every so many, as many as the table
         // has entries, so that a pass costs less than the insertions that
         // paid for it
-        void _inserted_one() noexcept {
+        SGCL_INLINE_HOT void _inserted_one() noexcept {
             if (++_inserted > _threshold) {
                 sweep();
             }

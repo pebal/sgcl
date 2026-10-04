@@ -50,7 +50,7 @@ namespace sgcl {
         struct IsInPlaceType<std::in_place_type_t<T>> : std::true_type {};
 
         template<class R, class F, class... A>
-        R invoke_as(F& f, A&&... a) noexcept(std::is_nothrow_invocable_r_v<R, F&, A...>) {
+        SGCL_INLINE_HOT R invoke_as(F& f, A&&... a) noexcept(std::is_nothrow_invocable_r_v<R, F&, A...>) {
             if constexpr(std::is_void_v<R>) {
                 std::invoke(f, std::forward<A>(a)...);
             } else {
@@ -108,7 +108,7 @@ namespace sgcl {
 
         function() noexcept = default;
 
-        function(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT function(std::nullptr_t) noexcept {
         }
 
         function(const function& o) = default;
@@ -119,7 +119,7 @@ namespace sgcl {
         // a null member pointer or an empty function
         template<class F, class VF = std::decay_t<F>>
         requires Callable<VF> && std::is_copy_constructible_v<VF>
-        function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
+        SGCL_INLINE_HOT function(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
             if (!detail::callable_is_null(f)) {
                 this->template _emplace<VF, true, &_call<VF>>(std::forward<F>(f));
             }
@@ -127,67 +127,67 @@ namespace sgcl {
 
         ~function() noexcept = default;
 
-        function& operator=(const function& o) {
+        SGCL_INLINE_HOT function& operator=(const function& o) {
             function(o).swap(*this);
             return *this;
         }
 
-        function& operator=(function&& o) noexcept {
+        SGCL_INLINE_HOT function& operator=(function&& o) noexcept {
             function(std::move(o)).swap(*this);
             return *this;
         }
 
-        function& operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT function& operator=(std::nullptr_t) noexcept {
             this->_reset();
             return *this;
         }
 
         template<class F, class VF = std::decay_t<F>>
         requires Callable<VF> && std::is_copy_constructible_v<VF>
-        function& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
+        SGCL_INLINE_HOT function& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
             function(std::forward<F>(f)).swap(*this);
             return *this;
         }
 
         template<class F>
         requires Callable<std::reference_wrapper<F>>
-        function& operator=(std::reference_wrapper<F> f) noexcept {
+        SGCL_INLINE_HOT function& operator=(std::reference_wrapper<F> f) noexcept {
             function(f).swap(*this);
             return *this;
         }
 
-        void swap(function& o) noexcept {
+        SGCL_INLINE_HOT void swap(function& o) noexcept {
             this->_swap(o);
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return this->_manager != nullptr;
         }
 
-        R operator()(Args... a) const {
+        SGCL_INLINE_HOT R operator()(Args... a) const {
             if (!this->_manager) {
                 throw bad_function_call();
             }
             return this->_manager->extra(this, std::forward<Args>(a)...);
         }
 
-        const std::type_info& target_type() const noexcept {
+        SGCL_INLINE_HOT const std::type_info& target_type() const noexcept {
             return this->_manager ? this->_manager->type : typeid(void);
         }
 
         template<class T>
-        T* target() noexcept {
+        SGCL_INLINE_HOT T* target() noexcept {
             return this->_manager && this->_manager->type == typeid(T) ? static_cast<T*>(this->_get()) : nullptr;
         }
 
         template<class T>
-        const T* target() const noexcept {
+        SGCL_INLINE_HOT const T* target() const noexcept {
             return this->_manager && this->_manager->type == typeid(T) ? static_cast<const T*>(this->_get()) : nullptr;
         }
 
     private:
         template<class F>
-        static R _call(const void* s, Args&&... a) {
+        SGCL_INLINE_HOT static R _call(const void* s, Args&&... a) {
             return detail::invoke_as<R>(*Storage::template _value<F>(*static_cast<const Storage*>(s)), std::forward<Args>(a)...);
         }
     };
@@ -199,12 +199,12 @@ namespace sgcl {
     function(F) -> function<typename detail::CallSignature<decltype(&F::operator())>::type>;
 
     template<class R, class... Args>
-    void swap(function<R(Args...)>& l, function<R(Args...)>& r) noexcept {
+    SGCL_INLINE_HOT void swap(function<R(Args...)>& l, function<R(Args...)>& r) noexcept {
         l.swap(r);
     }
 
     template<class R, class... Args>
-    bool operator==(const function<R(Args...)>& f, std::nullptr_t) noexcept {
+    SGCL_INLINE_HOT bool operator==(const function<R(Args...)>& f, std::nullptr_t) noexcept {
         return !f;
     }
 
@@ -227,7 +227,7 @@ namespace sgcl {
 
             MoveOnlyFunction() noexcept = default;
 
-            MoveOnlyFunction(std::nullptr_t) noexcept {
+            SGCL_INLINE_HOT MoveOnlyFunction(std::nullptr_t) noexcept {
             }
 
             MoveOnlyFunction(MoveOnlyFunction&& o) noexcept = default;
@@ -236,7 +236,7 @@ namespace sgcl {
 
             template<class F, class VF = std::decay_t<F>>
             requires (!std::is_same_v<VF, MoveOnlyFunction>) && (!IsInPlaceType<VF>::value) && Callable<VF> && std::is_constructible_v<VF, F>
-            MoveOnlyFunction(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
+            SGCL_INLINE_HOT MoveOnlyFunction(F&& f) noexcept(std::is_nothrow_constructible_v<VF, F>) {
                 if (!callable_is_null(f)) {
                     this->template _emplace<VF, false, &_call<VF>>(std::forward<F>(f));
                 }
@@ -244,69 +244,69 @@ namespace sgcl {
 
             template<class T, class... A, class VF = std::decay_t<T>>
             requires Callable<VF> && std::is_constructible_v<VF, A...>
-            explicit MoveOnlyFunction(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<VF, A...>) {
+            SGCL_INLINE_HOT explicit MoveOnlyFunction(std::in_place_type_t<T>, A&&... a) noexcept(std::is_nothrow_constructible_v<VF, A...>) {
                 this->template _emplace<VF, false, &_call<VF>>(std::forward<A>(a)...);
             }
 
             template<class T, class U, class... A, class VF = std::decay_t<T>>
             requires Callable<VF> && std::is_constructible_v<VF, std::initializer_list<U>&, A...>
-            explicit MoveOnlyFunction(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VF, std::initializer_list<U>&, A...>) {
+            SGCL_INLINE_HOT explicit MoveOnlyFunction(std::in_place_type_t<T>, std::initializer_list<U> il, A&&... a) noexcept(std::is_nothrow_constructible_v<VF, std::initializer_list<U>&, A...>) {
                 this->template _emplace<VF, false, &_call<VF>>(il, std::forward<A>(a)...);
             }
 
             ~MoveOnlyFunction() noexcept = default;
 
-            MoveOnlyFunction& operator=(MoveOnlyFunction&& o) noexcept {
+            SGCL_INLINE_HOT MoveOnlyFunction& operator=(MoveOnlyFunction&& o) noexcept {
                 MoveOnlyFunction(std::move(o)).swap(*this);
                 return *this;
             }
 
             MoveOnlyFunction& operator=(const MoveOnlyFunction&) = delete;
 
-            MoveOnlyFunction& operator=(std::nullptr_t) noexcept {
+            SGCL_INLINE_HOT MoveOnlyFunction& operator=(std::nullptr_t) noexcept {
                 this->_reset();
                 return *this;
             }
 
             template<class F>
             requires std::is_constructible_v<MoveOnlyFunction, F>
-            MoveOnlyFunction& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<MoveOnlyFunction, F>) {
+            SGCL_INLINE_HOT MoveOnlyFunction& operator=(F&& f) noexcept(std::is_nothrow_constructible_v<MoveOnlyFunction, F>) {
                 MoveOnlyFunction(std::forward<F>(f)).swap(*this);
                 return *this;
             }
 
-            void swap(MoveOnlyFunction& o) noexcept {
+            SGCL_INLINE_HOT void swap(MoveOnlyFunction& o) noexcept {
                 this->_swap(o);
             }
 
-            explicit operator bool() const noexcept {
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return this->_manager != nullptr;
             }
 
             // Calling an empty one is undefined, as with std (asserted here)
-            R operator()(Args... a) noexcept(Noexcept)
+            SGCL_INLINE_HOT R operator()(Args... a) noexcept(Noexcept)
             requires (!Const) {
                 assert(this->_manager && "an empty move_only_function called");
                 return this->_manager->extra(this, std::forward<Args>(a)...);
             }
 
-            R operator()(Args... a) const noexcept(Noexcept)
+            SGCL_INLINE_HOT R operator()(Args... a) const noexcept(Noexcept)
             requires Const {
                 assert(this->_manager && "an empty move_only_function called");
                 return this->_manager->extra(this, std::forward<Args>(a)...);
             }
 
-            friend void swap(MoveOnlyFunction& l, MoveOnlyFunction& r) noexcept {
+            SGCL_INLINE_HOT friend void swap(MoveOnlyFunction& l, MoveOnlyFunction& r) noexcept {
                 l.swap(r);
             }
 
-            friend bool operator==(const MoveOnlyFunction& f, std::nullptr_t) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const MoveOnlyFunction& f, std::nullptr_t) noexcept {
                 return !f;
             }
 
         private:
             template<class F>
-            static R _call(const void* s, Args&&... a) noexcept(Noexcept) {
+            SGCL_INLINE_HOT static R _call(const void* s, Args&&... a) noexcept(Noexcept) {
                 return invoke_as<R>(*static_cast<CallAs<F>*>(Storage::template _value<F>(*static_cast<const Storage*>(s))), std::forward<Args>(a)...);
             }
         };

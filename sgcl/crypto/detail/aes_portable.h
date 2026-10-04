@@ -50,7 +50,7 @@ namespace sgcl::crypto::detail {
         return r;
     }
 
-    inline uint8_t rotl8(uint8_t v, int n) noexcept {
+    SGCL_INLINE_HOT uint8_t rotl8(uint8_t v, int n) noexcept {
         return uint8_t(v << n | v >> (8 - n));
     }
 
@@ -72,7 +72,7 @@ namespace sgcl::crypto::detail {
     }
 
     // SubWord of the key schedule, the four bytes of a word at once
-    inline uint32_t sub_word_portable(uint32_t w) noexcept {
+    SGCL_INLINE_HOT uint32_t sub_word_portable(uint32_t w) noexcept {
         return uint32_t(sbox_byte(uint8_t(w))) | uint32_t(sbox_byte(uint8_t(w >> 8))) << 8 | uint32_t(sbox_byte(uint8_t(w >> 16))) << 16 | uint32_t(sbox_byte(uint8_t(w >> 24))) << 24;
     }
 
@@ -229,7 +229,7 @@ namespace sgcl::crypto::detail {
 
     // The bits of each 16-bit lane rotated right by k (1..15): lane bit p
     // takes lane bit p + k, the high k bits take the low ones
-    inline uint64_t rotr_lanes16(uint64_t x, int k) noexcept {
+    SGCL_INLINE_HOT uint64_t rotr_lanes16(uint64_t x, int k) noexcept {
         uint64_t low = 0x0001000100010001ull * ((uint64_t(1) << (16 - k)) - 1);
         return ((x >> k) & low) | ((x << (16 - k)) & ~low);
     }
@@ -258,11 +258,11 @@ namespace sgcl::crypto::detail {
     }
 
     // Row r of each column takes row r+1 (r+2): the nibbles rotated
-    inline uint64_t rot_column1(uint64_t x) noexcept {
+    SGCL_INLINE_HOT uint64_t rot_column1(uint64_t x) noexcept {
         return ((x >> 1) & 0x7777777777777777ull) | ((x << 3) & 0x8888888888888888ull);
     }
 
-    inline uint64_t rot_column2(uint64_t x) noexcept {
+    SGCL_INLINE_HOT uint64_t rot_column2(uint64_t x) noexcept {
         return ((x >> 2) & 0x3333333333333333ull) | ((x << 2) & 0xCCCCCCCCCCCCCCCCull);
     }
 

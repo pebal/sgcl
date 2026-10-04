@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../../../core/detail/os.h"
+
 #include <cstdint>
 
 // The errors of HTTP/2 (RFC 9113 §5.4, §7), shared by the frames, HPACK and
@@ -36,16 +38,16 @@ namespace sgcl::net::http::detail::h2 {
         uint32_t stream = 0;
         const char* what = nullptr;
 
-        bool connection() const noexcept {
+        SGCL_INLINE_HOT bool connection() const noexcept {
             return stream == 0;
         }
     };
 
-    inline Error connection_error(ErrorCode code, const char* what) noexcept {
+    SGCL_INLINE_HOT Error connection_error(ErrorCode code, const char* what) noexcept {
         return Error{code, 0, what};
     }
 
-    inline Error stream_error(uint32_t stream, ErrorCode code, const char* what) noexcept {
+    SGCL_INLINE_HOT Error stream_error(uint32_t stream, ErrorCode code, const char* what) noexcept {
         return Error{code, stream, what};
     }
 }

@@ -179,7 +179,7 @@ namespace sgcl::math::detail {
 
     // The top 62 bits of u and the bits of v at the same place, for the
     // simulation: a u of 62 bits or fewer is taken whole
-    inline void lehmer_tops(const Limb* u, size_t un, const Limb* v, size_t vn, Limb& uh, Limb& vh) noexcept {
+    SGCL_INLINE_HOT void lehmer_tops(const Limb* u, size_t un, const Limb* v, size_t vn, Limb& uh, Limb& vh) noexcept {
         size_t bits = un * 64 - size_t(std::countl_zero(u[un - 1]));
         size_t h = bits > 62 ? bits - 62 : 0;
         uh = bits_at(u, un, h);
@@ -399,49 +399,49 @@ namespace sgcl::math::detail {
             detail::sub(_minus_one.data(), _m.data(), n, _one.data(), n);
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n;
         }
 
-        const Limb* modulus() const noexcept {
+        SGCL_INLINE_HOT const Limb* modulus() const noexcept {
             return _m.data();
         }
 
-        const Limb* one() const noexcept {
+        SGCL_INLINE_HOT const Limb* one() const noexcept {
             return _one.data();
         }
 
-        const Limb* minus_one() const noexcept {
+        SGCL_INLINE_HOT const Limb* minus_one() const noexcept {
             return _minus_one.data();
         }
 
         // r = x·R mod m for any x of xn limbs (r of n limbs)
-        void to(Limb* r, const Limb* x, size_t xn) noexcept {
+        SGCL_INLINE_HOT void to(Limb* r, const Limb* x, size_t xn) noexcept {
             to(r, x, xn, false);
         }
 
         // r = x·R^-1 mod m: the ordinary number of a residue
-        void from(Limb* r, const Limb* x) noexcept {
+        SGCL_INLINE_HOT void from(Limb* r, const Limb* x) noexcept {
             sgcl::detail::copy_bytes(_t.data(), x, _n * sizeof(Limb));
             sgcl::detail::fill_bytes(_t.data() + _n, 0, _n * sizeof(Limb));
             reduce(r);
         }
 
         // r = x·y·R^-1 mod m; r may be x or y
-        void mul(Limb* r, const Limb* x, const Limb* y) noexcept {
+        SGCL_INLINE_HOT void mul(Limb* r, const Limb* x, const Limb* y) noexcept {
             detail::mul(_t.data(), x, _n, y, _n, Arena(_scratch.data(), _scratch.size()));
             reduce(r);
         }
 
         // r = x ± y mod m; r may be x or y
-        void add(Limb* r, const Limb* x, const Limb* y) noexcept {
+        SGCL_INLINE_HOT void add(Limb* r, const Limb* x, const Limb* y) noexcept {
             Limb carry = add_n(r, x, y, _n);
             if (carry || compare_n(r, _m.data(), _n) >= 0) {
                 sub_n(r, r, _m.data(), _n);
             }
         }
 
-        void sub(Limb* r, const Limb* x, const Limb* y) noexcept {
+        SGCL_INLINE_HOT void sub(Limb* r, const Limb* x, const Limb* y) noexcept {
             if (sub_n(r, x, y, _n)) {
                 add_n(r, r, _m.data(), _n);
             }
@@ -461,11 +461,11 @@ namespace sgcl::math::detail {
             }
         }
 
-        bool equal(const Limb* x, const Limb* y) const noexcept {
+        SGCL_INLINE_HOT bool equal(const Limb* x, const Limb* y) const noexcept {
             return !compare_n(x, y, _n);
         }
 
-        bool is_zero(const Limb* x) const noexcept {
+        SGCL_INLINE_HOT bool is_zero(const Limb* x) const noexcept {
             return !normalized(x, _n);
         }
 

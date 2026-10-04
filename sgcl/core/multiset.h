@@ -35,17 +35,17 @@ namespace sgcl {
         // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
-        multiset& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT multiset& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
 
     private:
-        friend bool operator==(const multiset& lhs, const multiset& rhs) {
+        SGCL_INLINE_HOT friend bool operator==(const multiset& lhs, const multiset& rhs) {
             return lhs._equal_to(rhs);
         }
 
-        friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+        SGCL_INLINE_HOT friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs))) {
             lhs.swap(rhs);
         }
 
@@ -64,7 +64,7 @@ namespace sgcl {
         -> multiset<Key, Hash, KeyEqual>;
 
     template<class Key, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(multiset<Key, Hash, KeyEqual>& c, Pred pred) {
+    SGCL_INLINE_HOT size_t erase_if(multiset<Key, Hash, KeyEqual>& c, Pred pred) {
         return c._erase_if(pred);
     }
 }

@@ -12,6 +12,7 @@
 // lines and a record larger than the reader's buffer, close, and are
 // collected: no secret, key or IV is left in any block.
 #include "tests/types.h"
+#include "tests/source_root.h"
 
 #include "sgcl/net/tls.h"
 
@@ -72,8 +73,7 @@ namespace {
     }
 
     std::string testdata(const std::string& name) {
-        std::string f = __FILE__;
-        return f.substr(0, f.rfind('/')) + "/tls_testdata/" + name;
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     std::string slurp(const std::string& path) {

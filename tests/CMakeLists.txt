@@ -12,6 +12,10 @@ function(sgcl_test_program TARGET MODULE)
     add_executable(${TARGET} main.cpp types.h ${SOURCES})
     target_link_libraries(${TARGET} gtest sgcl)
     target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR})
+    # the repository's root, absolute, for the tests' data files
+    # (tests/source_root.h): __FILE__ is relative when the build directory
+    # is inside the tree
+    target_compile_definitions(${TARGET} PRIVATE SGCL_TEST_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
     add_test(NAME ${TARGET} COMMAND ${TARGET})
     add_dependencies(tests ${TARGET})
 endfunction()

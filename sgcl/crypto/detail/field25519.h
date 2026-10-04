@@ -39,7 +39,7 @@ namespace sgcl::crypto::detail {
     // A value the optimizer may not reason about, so that a mask made from
     // a secret bit stays a mask and is not turned back into a branch. The
     // 64-bit sibling of constant_time's barrier.
-    inline uint64_t value_barrier(uint64_t v) noexcept {
+    SGCL_INLINE_HOT uint64_t value_barrier(uint64_t v) noexcept {
 #if defined(__GNUC__) || defined(__clang__)
         __asm__("" : "+r"(v));
 #endif
@@ -47,12 +47,12 @@ namespace sgcl::crypto::detail {
     }
 
     // All ones when bit is 1, all zeros when it is 0 (bit is 0 or 1)
-    inline uint64_t mask_of(uint64_t bit) noexcept {
+    SGCL_INLINE_HOT uint64_t mask_of(uint64_t bit) noexcept {
         return value_barrier(0 - bit);
     }
 
     // All ones when a == b, in constant time
-    inline uint64_t mask_equal(uint64_t a, uint64_t b) noexcept {
+    SGCL_INLINE_HOT uint64_t mask_equal(uint64_t a, uint64_t b) noexcept {
         uint64_t x = a ^ b;
         // x | -x has its top bit set exactly when x is not 0
         return mask_of(((x | (0 - x)) >> 63) ^ 1);
@@ -64,11 +64,11 @@ namespace sgcl::crypto::detail {
 
     inline constexpr uint64_t fe_mask51 = (uint64_t(1) << 51) - 1;
 
-    inline constexpr Fe fe_zero() noexcept {
+    SGCL_INLINE_HOT constexpr Fe fe_zero() noexcept {
         return Fe{{0, 0, 0, 0, 0}};
     }
 
-    inline constexpr Fe fe_one() noexcept {
+    SGCL_INLINE_HOT constexpr Fe fe_one() noexcept {
         return Fe{{1, 0, 0, 0, 0}};
     }
 
@@ -109,7 +109,7 @@ namespace sgcl::crypto::detail {
         return h;
     }
 
-    inline Fe fe_neg(const Fe& a) noexcept {
+    SGCL_INLINE_HOT Fe fe_neg(const Fe& a) noexcept {
         return fe_sub(fe_zero(), a);
     }
 
@@ -166,7 +166,7 @@ namespace sgcl::crypto::detail {
     }
 
     // a times a small constant (below 2^32): the ladder's a24
-    inline Fe fe_mul_small(const Fe& a, uint32_t k) noexcept {
+    SGCL_INLINE_HOT Fe fe_mul_small(const Fe& a, uint32_t k) noexcept {
         return fe_reduce_wide(u128(a.v[0]) * k, u128(a.v[1]) * k, u128(a.v[2]) * k, u128(a.v[3]) * k,
                               u128(a.v[4]) * k);
     }
@@ -225,7 +225,7 @@ namespace sgcl::crypto::detail {
     }
 
     // 32 bytes little-endian, canonical (the value below p, bit 255 zero)
-    inline void fe_to_bytes(unsigned char* s, const Fe& a) noexcept {
+    SGCL_INLINE_HOT void fe_to_bytes(unsigned char* s, const Fe& a) noexcept {
         Fe h = fe_canonical(a);
         store_le64(s, h.v[0] | h.v[1] << 51);
         store_le64(s + 8, h.v[1] >> 13 | h.v[2] << 38);
@@ -250,20 +250,20 @@ namespace sgcl::crypto::detail {
     }
 
     // 1 when a is 0 mod p, else 0; in constant time
-    inline uint64_t fe_is_zero(const Fe& a) noexcept {
+    SGCL_INLINE_HOT uint64_t fe_is_zero(const Fe& a) noexcept {
         Fe h = fe_canonical(a);
         uint64_t x = h.v[0] | h.v[1] | h.v[2] | h.v[3] | h.v[4];
         return ((x | (0 - x)) >> 63) ^ 1;
     }
 
     // 1 when a and b are the same element, else 0
-    inline uint64_t fe_equal(const Fe& a, const Fe& b) noexcept {
+    SGCL_INLINE_HOT uint64_t fe_equal(const Fe& a, const Fe& b) noexcept {
         return fe_is_zero(fe_sub(a, b));
     }
 
     // The low bit of the canonical value: RFC 8032's sign of x ("negative"
     // is odd)
-    inline uint64_t fe_is_negative(const Fe& a) noexcept {
+    SGCL_INLINE_HOT uint64_t fe_is_negative(const Fe& a) noexcept {
         return fe_canonical(a).v[0] & 1;
     }
 
@@ -287,7 +287,7 @@ namespace sgcl::crypto::detail {
     }
 
     // 1/a by Fermat's little theorem, a^(p - 2) = a^(2^255 - 21); 1/0 is 0
-    inline Fe fe_invert(const Fe& a) noexcept {
+    SGCL_INLINE_HOT Fe fe_invert(const Fe& a) noexcept {
         Fe e250, a11;
         fe_pow2_250_1(a, e250, a11);
         return fe_mul(fe_sq_n(e250, 5), a11);    // (2^250 - 1)·2^5 + 11
@@ -295,14 +295,14 @@ namespace sgcl::crypto::detail {
 
     // a^((p - 5)/8) = a^(2^252 - 3), the exponent of the square root in
     // RFC 8032 §5.1.3
-    inline Fe fe_pow22523(const Fe& a) noexcept {
+    SGCL_INLINE_HOT Fe fe_pow22523(const Fe& a) noexcept {
         Fe e250, a11;
         fe_pow2_250_1(a, e250, a11);
         return fe_mul(fe_sq_n(e250, 2), a);      // (2^250 - 1)·4 + 1
     }
 
     // An element's limbs zeroed with stores the compiler keeps
-    inline void fe_wipe(Fe& a) noexcept {
+    SGCL_INLINE_HOT void fe_wipe(Fe& a) noexcept {
         secure_zero_object(a);
     }
 }

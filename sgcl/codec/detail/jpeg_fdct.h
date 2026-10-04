@@ -233,7 +233,7 @@ namespace sgcl::codec::detail {
     }
 #endif
 
-    inline void fdct_islow(const uint8_t* in, size_t stride, int32_t* out) noexcept {
+    SGCL_INLINE_HOT void fdct_islow(const uint8_t* in, size_t stride, int32_t* out) noexcept {
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         fdct_islow_vector(in, stride, out);
 #else
@@ -320,7 +320,7 @@ namespace sgcl::codec::detail {
 #endif
 
     // dct: the output of fdct_islow() (each within ±8192)
-    inline void quantize(const int32_t* dct, const QuantSteps& steps, int16_t* out) noexcept {
+    SGCL_INLINE_HOT void quantize(const int32_t* dct, const QuantSteps& steps, int16_t* out) noexcept {
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         if (steps.reciprocal) {
             quantize_vector(dct, steps, out);
@@ -372,7 +372,7 @@ namespace sgcl::codec::detail {
     }
 #endif
 
-    inline uint64_t nonzero_mask(const int16_t* z) noexcept {
+    SGCL_INLINE_HOT uint64_t nonzero_mask(const int16_t* z) noexcept {
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         return nonzero_mask_vector(z);
 #else
@@ -466,7 +466,7 @@ namespace sgcl::codec::detail {
     }
 #endif
 
-    inline void coded_block(const int16_t* b, CodedBlock& c) noexcept {
+    SGCL_INLINE_HOT void coded_block(const int16_t* b, CodedBlock& c) noexcept {
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         coded_block_vector(b, c);
 #else

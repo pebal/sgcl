@@ -44,12 +44,12 @@ namespace sgcl {
     public:
         using element_type = T;
 
-        tracked_ptr() noexcept
+        SGCL_INLINE_HOT tracked_ptr() noexcept
         : _raw_ptr(_registered((element_type*)nullptr)) {
             _init();
         }
 
-        tracked_ptr(std::nullptr_t) noexcept
+        SGCL_INLINE_HOT tracked_ptr(std::nullptr_t) noexcept
         : tracked_ptr() {
         }
 
@@ -58,34 +58,36 @@ namespace sgcl {
         // elements no tracked_ptr may address (README, "Pointer aliases"),
         // and never into an object a unique_ptr owns.
         // The constructors with a value store it once, with the barrier,
-        // and never write a null first (detail::Pointer).
+        // and never write a null first (detail::Pointer: the Registering
+        // constructor), but on a thread not registered yet, whose word
+        // stays null until the registration.
         template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
-        explicit tracked_ptr(U* p) noexcept
-        : _raw_ptr(_registered(static_cast<element_type*>(p))) {
+        SGCL_INLINE_HOT explicit tracked_ptr(U* p) noexcept
+        : _raw_ptr(static_cast<element_type*>(p), detail::Pointer::Registering{}) {
             _init();
             assert((!p || detail::Page::is_object(p)) && "a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer");
             assert(!p || !detail::Page::is_unique(p));
         }
 
-        tracked_ptr(const tracked_ptr& p) noexcept
-        : _raw_ptr(_registered(p.get())) {
+        SGCL_INLINE_HOT tracked_ptr(const tracked_ptr& p) noexcept
+        : _raw_ptr(p.get(), detail::Pointer::Registering{}) {
             _init();
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(const tracked_ptr<U>& p) noexcept
-        : _raw_ptr(_registered(static_cast<element_type*>(p.get()))) {
+        SGCL_INLINE_HOT tracked_ptr(const tracked_ptr<U>& p) noexcept
+        : _raw_ptr(static_cast<element_type*>(p.get()), detail::Pointer::Registering{}) {
             _init();
         }
 
-        tracked_ptr(tracked_ptr&& p) noexcept
-        : _raw_ptr(_registered(p.get())) {
+        SGCL_INLINE_HOT tracked_ptr(tracked_ptr&& p) noexcept
+        : _raw_ptr(p.get(), detail::Pointer::Registering{}) {
             _init();
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(tracked_ptr<U>&& p) noexcept
-        : _raw_ptr(_registered(static_cast<element_type*>(p.get()))) {
+        SGCL_INLINE_HOT tracked_ptr(tracked_ptr<U>&& p) noexcept
+        : _raw_ptr(static_cast<element_type*>(p.get()), detail::Pointer::Registering{}) {
             _init();
         }
 
@@ -94,12 +96,12 @@ namespace sgcl {
         // templates above cannot deduce through. A root_ptr of this very
         // type converts through that operator already.
         template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<U*, element_type*>, int> = 0>
-        tracked_ptr(const root_ptr<U>& r) noexcept
+        SGCL_INLINE_HOT tracked_ptr(const root_ptr<U>& r) noexcept
         : tracked_ptr(r.ptr()) {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(unique_ptr<U>&& u) noexcept
+        SGCL_INLINE_HOT tracked_ptr(unique_ptr<U>&& u) noexcept
         : _raw_ptr(_registered(static_cast<element_type*>(u.release())), detail::Pointer::Released{}) {
             _init();
         }
@@ -119,68 +121,68 @@ namespace sgcl {
             *(void* volatile*)&_raw_ptr = nullptr;
         }
 
-        tracked_ptr& operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT tracked_ptr& operator=(std::nullptr_t) noexcept {
             _ptr()->store(nullptr);
             return *this;
         }
 
-        tracked_ptr& operator=(const tracked_ptr& p) noexcept {
+        SGCL_INLINE_HOT tracked_ptr& operator=(const tracked_ptr& p) noexcept {
             _ptr()->store(p.get());
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept {
+        SGCL_INLINE_HOT tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept {
             _ptr()->store(static_cast<element_type*>(p.get()));
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
+        SGCL_INLINE_HOT tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
             _ptr()->store_released(static_cast<element_type*>(u.release()));
             return *this;
         }
 
-        tracked_ptr& operator=(tracked_ptr&& p) noexcept {
+        SGCL_INLINE_HOT tracked_ptr& operator=(tracked_ptr&& p) noexcept {
             _ptr()->store(p.get());
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept {
+        SGCL_INLINE_HOT tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept {
             _ptr()->store(static_cast<element_type*>(p.get()));
             return *this;
         }
 
         // The same word as a tracked_ptr<void>: what the containers of
         // pointers store (one type of node for every T)
-        operator tracked_ptr<void>&() noexcept {
+        SGCL_INLINE_HOT operator tracked_ptr<void>&() noexcept {
             return *(tracked_ptr<void>*)(this);
         }
 
-        operator const tracked_ptr<void>&() const noexcept {
+        SGCL_INLINE_HOT operator const tracked_ptr<void>&() const noexcept {
             return *(const tracked_ptr<void>*)(this);
         }
 
         // The interface of a smart pointer: bool, *, ->, get(), reset(),
         // swap(), the comparisons and casts below
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (get() != nullptr);
         }
 
         template <class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
-        U& operator*() const noexcept {
+        SGCL_INLINE_HOT U& operator*() const noexcept {
             assert(get() != nullptr);
             return *get();
         }
 
         template <class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
-        U* operator->() const noexcept {
+        SGCL_INLINE_HOT U* operator->() const noexcept {
             assert(get() != nullptr);
             return get();
         }
 
-        element_type* get() const noexcept {
+        SGCL_INLINE_HOT element_type* get() const noexcept {
             return (element_type*)_ptr()->load();
         }
 
@@ -192,7 +194,7 @@ namespace sgcl {
         // of a live target is safe in the middle of a sweep too: the
         // barrier's mark lands on a marked object, which the sweep leaves
         // alone, and the next cycle demotes it as usual.
-        tracked_ptr if_alive() const noexcept {
+        SGCL_INLINE_HOT tracked_ptr if_alive() const noexcept {
             auto p = get();
             if (p && detail::sweeping && detail::Page::dying(p)) {
                 return tracked_ptr();
@@ -200,7 +202,7 @@ namespace sgcl {
             return *this;
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _ptr()->store(nullptr);
         }
 
@@ -208,13 +210,13 @@ namespace sgcl {
         // constructor (a managed object or a part of it): one store with
         // its barrier, no temporary. What the containers use to relink
         // nodes the container roots.
-        void reset(element_type* p) noexcept {
+        SGCL_INLINE_HOT void reset(element_type* p) noexcept {
             assert((!p || detail::Page::is_object(p)) && "a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer");
             assert(!p || !detail::Page::is_unique(p));
             _ptr()->store(p);
         }
 
-        void swap(tracked_ptr& p) noexcept {
+        SGCL_INLINE_HOT void swap(tracked_ptr& p) noexcept {
             tracked_ptr<element_type> t = *this;
             *this = p;
             p = t;
@@ -233,12 +235,12 @@ namespace sgcl {
         // word. Sound only while the source is held through the copy and
         // the shade (im: the caller's version), and only for a node whose
         // words never change.
-        void store(const tracked_ptr& p, barrier::off_t) noexcept {
+        SGCL_INLINE_HOT void store(const tracked_ptr& p, barrier::off_t) noexcept {
             _ptr()->store_no_update(p.get(), std::memory_order_relaxed);
         }
 
         // The same as a constructor, for a word of a node built in place
-        tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept
+        SGCL_INLINE_HOT tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept
         : _raw_ptr(p.get(), detail::unshaded) {
             detail::os::escape(this);
             assert(detail::thread_registered());
@@ -246,7 +248,7 @@ namespace sgcl {
 
         // The write barrier for the target, on demand: reachable in the
         // current cycle, as a store of this pointer would make it
-        void shade() const noexcept {
+        SGCL_INLINE_HOT void shade() const noexcept {
             const_cast<detail::Pointer*>(_ptr())->shade();
         }
 
@@ -268,12 +270,12 @@ namespace sgcl {
         // the pointer to the object as a U, null when it is not one, type()
         // the type itself (typeid(T) for null); no virtual functions needed
         template<class U>
-        bool is() const noexcept {
+        SGCL_INLINE_HOT bool is() const noexcept {
             return _ptr()->template type_info<detail::NoObject>() == typeid(U);
         }
 
         template<class U>
-        tracked_ptr<U> as() const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<U> as() const noexcept {
             if (is<U>()) {
                 return tracked_ptr<U>((typename tracked_ptr<U>::element_type*)_ptr()->data_base_address());
             } else {
@@ -281,16 +283,16 @@ namespace sgcl {
             }
         }
 
-        const std::type_info& type() const noexcept {
+        SGCL_INLINE_HOT const std::type_info& type() const noexcept {
             return _ptr()->template type_info<element_type>();
         }
 
     protected:
-        detail::Pointer* _ptr() noexcept {
+        SGCL_INLINE_HOT detail::Pointer* _ptr() noexcept {
             return &_raw_ptr;
         }
 
-        const detail::Pointer* _ptr() const noexcept {
+        SGCL_INLINE_HOT const detail::Pointer* _ptr() const noexcept {
             return &_raw_ptr;
         }
 
@@ -301,7 +303,7 @@ namespace sgcl {
         // nothing, so the stack it lies on need not be known to the
         // collector; a value stored later into this word goes through
         // an assignment, whose caller registers first (slice::operator=)
-        tracked_ptr(std::nullptr_t, detail::unregistered_t) noexcept
+        SGCL_INLINE_HOT tracked_ptr(std::nullptr_t, detail::unregistered_t) noexcept
         : _raw_ptr(nullptr) {
             detail::os::escape(this);
         }
@@ -311,7 +313,7 @@ namespace sgcl {
         // escape as in every constructor, the thread-local check skipped.
         // On Darwin that check is a call into the dynamic loader per
         // construction, which costs the atomics a third of their time.
-        tracked_ptr(element_type* p, detail::OnRegisteredThread) noexcept
+        SGCL_INLINE_HOT tracked_ptr(element_type* p, detail::OnRegisteredThread) noexcept
         : _raw_ptr(p) {
             detail::os::escape(this);
             assert(detail::thread_registered());
@@ -319,7 +321,9 @@ namespace sgcl {
         }
 
         // Before the word is stored, in every constructor: the thread is
-        // registered. The write barrier skips its store when the target's
+        // registered (here, or for the constructors with a value in
+        // detail::Pointer's Registering constructor, which tests for it
+        // inline and registers out of line with the barrier's slow cases). The write barrier skips its store when the target's
         // state is Reachable already, and a cycle's first round demotes
         // that state; a thread that copied a pointer onto its stack before
         // registering, and registered after the cycle's second round, had
@@ -328,7 +332,7 @@ namespace sgcl {
         // the registration first, a thread registered before the second
         // round has its stack scanned after the store, and one registered
         // later does the barrier after the demotion, so its store stands.
-        static element_type* _registered(element_type* p) noexcept {
+        SGCL_INLINE_HOT static element_type* _registered(element_type* p) noexcept {
             detail::ensure_thread_registered();
             return p;
         }
@@ -336,7 +340,7 @@ namespace sgcl {
         // Every constructor, after the store: the address escapes (an
         // atomic that never escapes may live in a register only, invisible
         // to the stack scan), the location is a legal one.
-        void _init() noexcept {
+        SGCL_INLINE_HOT void _init() noexcept {
             detail::os::escape(this);
             assert((detail::Heap::contains(this) || detail::current_thread().on_stack(this)) && "a tracked_ptr must live on the stack or inside a managed object");
         }
@@ -344,7 +348,7 @@ namespace sgcl {
         // The pointer read without an atomic load (detail::Pointer::load_plain):
         // for the containers, on the pointer to their own buffer, which no
         // other thread writes.
-        element_type* get_plain() const noexcept {
+        SGCL_INLINE_HOT element_type* get_plain() const noexcept {
             return (element_type*)_ptr()->load_plain();
         }
 
@@ -378,7 +382,7 @@ namespace sgcl {
     }
 
     template<class T>
-    std::shared_ptr<T> tracked_ptr<T>::to_shared() const noexcept {
+    SGCL_INLINE_HOT std::shared_ptr<T> tracked_ptr<T>::to_shared() const noexcept {
         auto p = get();
         if (!p) {
             return std::shared_ptr<T>();
@@ -401,7 +405,7 @@ namespace sgcl {
     tracked_ptr(const root_ptr<T>&) -> tracked_ptr<T>;
 
     template<class T, class U>
-    inline std::strong_ordering operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
+    SGCL_INLINE_HOT std::strong_ordering operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
         using Y = typename std::common_type<decltype(l.get()), decltype(r.get())>::type;
         return static_cast<Y>(l.get()) <=> static_cast<Y>(r.get());
     }
@@ -411,7 +415,7 @@ namespace sgcl {
     // object, as <=> orders them; two types without one (unrelated
     // classes) compare their addresses as const void*
     template<class T, class U>
-    inline bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
+    SGCL_INLINE_HOT bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
         if constexpr (requires { l.get() == r.get(); }) {
             return l.get() == r.get();
         } else {
@@ -420,44 +424,44 @@ namespace sgcl {
     }
 
     template<class T>
-    inline std::strong_ordering operator<=>(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
+    SGCL_INLINE_HOT std::strong_ordering operator<=>(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
         return l.get() <=> static_cast<decltype(l.get())>(nullptr);
     }
 
     template<class T>
-    inline bool operator==(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
+    SGCL_INLINE_HOT bool operator==(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
         return l.get() == nullptr;
     }
 
     template<class T>
-    inline std::strong_ordering operator<=>(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
+    SGCL_INLINE_HOT std::strong_ordering operator<=>(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
         return static_cast<decltype(r.get())>(nullptr) <=> r.get();
     }
 
     template<class T>
-    inline bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
+    SGCL_INLINE_HOT bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
         return r.get() == nullptr;
     }
 
     // The casts of std::shared_ptr; the result addresses a base or a
     // derived subobject of the same object
     template<class T, class U>
-    inline tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& p) noexcept {
+    SGCL_INLINE_HOT tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& p) noexcept {
         return tracked_ptr<T>(static_cast<typename tracked_ptr<T>::element_type*>(p.get()));
     }
 
     template<class T, class U>
-    inline tracked_ptr<T> const_pointer_cast(const tracked_ptr<U>& p) noexcept {
+    SGCL_INLINE_HOT tracked_ptr<T> const_pointer_cast(const tracked_ptr<U>& p) noexcept {
         return tracked_ptr<T>(const_cast<typename tracked_ptr<T>::element_type*>(p.get()));
     }
 
     template<class T, class U>
-    inline tracked_ptr<T> dynamic_pointer_cast(const tracked_ptr<U>& p) noexcept {
+    SGCL_INLINE_HOT tracked_ptr<T> dynamic_pointer_cast(const tracked_ptr<U>& p) noexcept {
         return tracked_ptr<T>(dynamic_cast<typename tracked_ptr<T>::element_type*>(p.get()));
     }
 
     template<class T>
-    std::ostream& operator<<(std::ostream& s, const tracked_ptr<T>& p) {
+    SGCL_INLINE_HOT std::ostream& operator<<(std::ostream& s, const tracked_ptr<T>& p) {
         s << p.get();
         return s;
     }
@@ -469,7 +473,7 @@ namespace sgcl {
         // one door to it for the modules above core (time's zone), so that
         // core names none of their insides.
         template<class T>
-        T* load_plain(const tracked_ptr<T>& p) noexcept {
+        SGCL_INLINE_HOT T* load_plain(const tracked_ptr<T>& p) noexcept {
             return p.get_plain();
         }
     }
@@ -478,7 +482,7 @@ namespace sgcl {
 namespace std {
     template<class T>
     struct hash<sgcl::tracked_ptr<T>> {
-        std::size_t operator()(const sgcl::tracked_ptr<T>& p) const noexcept {
+        SGCL_INLINE_HOT std::size_t operator()(const sgcl::tracked_ptr<T>& p) const noexcept {
             return std::hash<T*>{}(p.get());
         }
     };

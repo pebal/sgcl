@@ -41,13 +41,13 @@ namespace sgcl::crypto::detail {
     inline constexpr unsigned char oid_x25519 = 0x6e;
     inline constexpr unsigned char oid_ed25519 = 0x70;
 
-    inline vector<byte> der_bytes(const unsigned char* p, size_t n) noexcept {
+    SGCL_INLINE_HOT vector<byte> der_bytes(const unsigned char* p, size_t n) noexcept {
         vector<byte> out(n);
         sgcl::detail::copy_bytes(out.data(), p, n);
         return out;
     }
 
-    inline vector<byte> der_pkix(unsigned char oid, const unsigned char* key) noexcept {
+    SGCL_INLINE_HOT vector<byte> der_pkix(unsigned char oid, const unsigned char* key) noexcept {
         unsigned char d[44] = {0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, oid, 0x03, 0x21, 0x00};
         std::memcpy(d + 12, key, 32);
         return der_bytes(d, sizeof d);

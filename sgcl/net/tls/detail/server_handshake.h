@@ -121,7 +121,7 @@ namespace sgcl::net::tls::detail {
 
     class ServerHandshake {
     public:
-        ServerHandshake(const ServerSettings& settings, const Entropy& entropy = Entropy()) noexcept
+        SGCL_INLINE_HOT ServerHandshake(const ServerSettings& settings, const Entropy& entropy = Entropy()) noexcept
         : _settings(settings), _entropy(entropy), _s(std::make_unique<Secrets>()) {
         }
 
@@ -132,7 +132,7 @@ namespace sgcl::net::tls::detail {
         // noexcept: an RSA signature that does not verify under its own
         // public key (a fault in the computation) is crypto's
         // std::runtime_error (sign, signature.h)
-        const Step& feed(const Bytes& message) {
+        SGCL_INLINE_HOT const Step& feed(const Bytes& message) {
             _s->step.clear();
             if (_state == State::failed) {
                 return _s->step;
@@ -145,25 +145,25 @@ namespace sgcl::net::tls::detail {
         }
 
         // An alert record from the client: the handshake is over
-        void on_record_alert(const Alert& a) noexcept {
+        SGCL_INLINE_HOT void on_record_alert(const Alert& a) noexcept {
             _peer_alert = a;
             _state = State::failed;
             _wipe();
         }
 
-        bool established() const noexcept {
+        SGCL_INLINE_HOT bool established() const noexcept {
             return _state == State::connected;
         }
 
-        bool failed() const noexcept {
+        SGCL_INLINE_HOT bool failed() const noexcept {
             return _state == State::failed;
         }
 
-        const ServerResult& result() const noexcept {
+        SGCL_INLINE_HOT const ServerResult& result() const noexcept {
             return _result;
         }
 
-        const optional<Alert>& peer_alert() const noexcept {
+        SGCL_INLINE_HOT const optional<Alert>& peer_alert() const noexcept {
             return _peer_alert;
         }
 
@@ -182,7 +182,7 @@ namespace sgcl::net::tls::detail {
             uint8_t random[32] = {};
             Step step;
 
-            ~Secrets() {
+            SGCL_INLINE_HOT ~Secrets() {
                 crypto::detail::secure_zero(random, sizeof random);
             }
         };
@@ -653,19 +653,19 @@ namespace sgcl::net::tls::detail {
 
         uint16_t _client_record_size_limit = 0;
 
-        void _push_send(Epoch e, size_t offset, size_t size) noexcept {
+        SGCL_INLINE_HOT void _push_send(Epoch e, size_t offset, size_t size) noexcept {
             Action a{Action::Kind::send, e};
             a.offset = offset;
             a.size = size;
             _s->step.actions.push_back(std::move(a));
         }
 
-        void _push_ccs() noexcept {
+        SGCL_INLINE_HOT void _push_ccs() noexcept {
             _s->step.actions.push_back(Action{Action::Kind::change_cipher_spec, Epoch::initial});
             _ccs_sent = true;
         }
 
-        void _push_install(Action::Kind kind, Epoch e, const Secret& s) noexcept {
+        SGCL_INLINE_HOT void _push_install(Action::Kind kind, Epoch e, const Secret& s) noexcept {
             Action a{kind, e, _result.cipher};
             std::memcpy(a.secret.bytes, s.bytes, sizeof s.bytes);
             a.secret.size = s.size;
@@ -683,7 +683,7 @@ namespace sgcl::net::tls::detail {
             return _s->step;
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             if (_s->schedule) {
                 _s->schedule->finish_handshake();
                 _s->schedule.reset();

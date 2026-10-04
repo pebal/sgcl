@@ -36,11 +36,11 @@ namespace sgcl::codec {
 namespace sgcl::codec::detail {
     inline constexpr unsigned PixelFormatCount = 9;
 
-    constexpr bool valid(pixel_format f) noexcept {
+    SGCL_INLINE_HOT constexpr bool valid(pixel_format f) noexcept {
         return static_cast<unsigned>(f) < PixelFormatCount;
     }
 
-    constexpr unsigned channels(pixel_format f) noexcept {
+    SGCL_INLINE_HOT constexpr unsigned channels(pixel_format f) noexcept {
         switch (f) {
             case pixel_format::gray8: case pixel_format::gray16: return 1;
             case pixel_format::gray_alpha8: case pixel_format::gray_alpha16: return 2;
@@ -50,29 +50,29 @@ namespace sgcl::codec::detail {
         return 0;
     }
 
-    constexpr bool wide(pixel_format f) noexcept {
+    SGCL_INLINE_HOT constexpr bool wide(pixel_format f) noexcept {
         return f >= pixel_format::gray16 && f <= pixel_format::rgba16;
     }
 
-    constexpr bool gray(pixel_format f) noexcept {
+    SGCL_INLINE_HOT constexpr bool gray(pixel_format f) noexcept {
         return f == pixel_format::gray8 || f == pixel_format::gray_alpha8 || f == pixel_format::gray16 || f == pixel_format::gray_alpha16;
     }
 
-    constexpr bool alpha(pixel_format f) noexcept {
+    SGCL_INLINE_HOT constexpr bool alpha(pixel_format f) noexcept {
         return f == pixel_format::gray_alpha8 || f == pixel_format::rgba8 || f == pixel_format::gray_alpha16 || f == pixel_format::rgba16;
     }
 
-    constexpr unsigned bytes_per_pixel(pixel_format f) noexcept {
+    SGCL_INLINE_HOT constexpr unsigned bytes_per_pixel(pixel_format f) noexcept {
         return channels(f) * (wide(f) ? 2 : 1);
     }
 
     // 8 bits to 16 and back: v * 257 is exact (255 to 65535), the way
     // back the nearest 8-bit value, round(v / 257)
-    constexpr uint16_t widen(uint8_t v) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t widen(uint8_t v) noexcept {
         return static_cast<uint16_t>(v * 257u);
     }
 
-    constexpr uint8_t narrow(uint16_t v) noexcept {
+    SGCL_INLINE_HOT constexpr uint8_t narrow(uint16_t v) noexcept {
         return static_cast<uint8_t>((v * 255u + 32895u) >> 16);
     }
 
@@ -80,14 +80,14 @@ namespace sgcl::codec::detail {
     // the weights summing to 65536 so that a gray pixel keeps its value),
     // for 8- and 16-bit channels alike: 65535 * 65536 + 32768 fits 32 bits
     template<class T>
-    constexpr T luma(T r, T g, T b) noexcept {
+    SGCL_INLINE_HOT constexpr T luma(T r, T g, T b) noexcept {
         return static_cast<T>((19595u * r + 38470u * g + 7471u * b + 32768u) >> 16);
     }
 
     // CMYK to RGB without a profile: each channel is what the ink and the
     // black leave of the white, (1 - c)(1 - k), to the nearest value; and
     // the way back, black as what the brightest channel lacks
-    constexpr uint8_t cmyk_channel(uint8_t ink, uint8_t k) noexcept {
+    SGCL_INLINE_HOT constexpr uint8_t cmyk_channel(uint8_t ink, uint8_t k) noexcept {
         return static_cast<uint8_t>(((255u - ink) * (255u - k) + 127u) / 255u);
     }
 
@@ -101,7 +101,7 @@ namespace sgcl::codec::detail {
 
     // A channel of the source at the depth T of the conversion
     template<class T>
-    inline T read_channel8(const std::byte* p) noexcept {
+    SGCL_INLINE_HOT T read_channel8(const std::byte* p) noexcept {
         auto v = static_cast<uint8_t>(*p);
         if constexpr (std::is_same_v<T, uint8_t>) {
             return v;
@@ -111,7 +111,7 @@ namespace sgcl::codec::detail {
     }
 
     template<class T>
-    inline T read_channel16(const std::byte* p) noexcept {
+    SGCL_INLINE_HOT T read_channel16(const std::byte* p) noexcept {
         uint16_t v;
         std::memcpy(&v, p, 2);
         if constexpr (std::is_same_v<T, uint16_t>) {
@@ -122,7 +122,7 @@ namespace sgcl::codec::detail {
     }
 
     template<class T>
-    inline void write_channel8(std::byte* p, T v) noexcept {
+    SGCL_INLINE_HOT void write_channel8(std::byte* p, T v) noexcept {
         if constexpr (std::is_same_v<T, uint8_t>) {
             *p = static_cast<std::byte>(v);
         } else {
@@ -131,7 +131,7 @@ namespace sgcl::codec::detail {
     }
 
     template<class T>
-    inline void write_channel16(std::byte* p, T v) noexcept {
+    SGCL_INLINE_HOT void write_channel16(std::byte* p, T v) noexcept {
         uint16_t w;
         if constexpr (std::is_same_v<T, uint16_t>) {
             w = v;
@@ -236,7 +236,7 @@ namespace sgcl::codec::detail {
     }
 
     template<size_t... I>
-    constexpr auto make_convert_table(std::index_sequence<I...>) noexcept {
+    SGCL_INLINE_HOT constexpr auto make_convert_table(std::index_sequence<I...>) noexcept {
         struct Table {
             ConvertRow f[PixelFormatCount * PixelFormatCount];
         };
@@ -248,7 +248,7 @@ namespace sgcl::codec::detail {
     // The conversion of `count` pixels of format s into format d: what
     // image::convert does row by row, and what a decoder does with each
     // row it makes when decode_options.want asks for another format
-    inline ConvertRow converter(pixel_format s, pixel_format d) noexcept {
+    SGCL_INLINE_HOT ConvertRow converter(pixel_format s, pixel_format d) noexcept {
         return ConvertTable.f[static_cast<unsigned>(s) * PixelFormatCount + static_cast<unsigned>(d)];
     }
 }

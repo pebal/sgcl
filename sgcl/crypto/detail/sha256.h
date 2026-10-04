@@ -168,7 +168,7 @@ namespace sgcl::crypto::detail {
         static constexpr size_t block = 64;
         static constexpr size_t length_bytes = 8;
 
-        static void compress(uint32_t* h, const unsigned char* p, size_t blocks) noexcept {
+        SGCL_INLINE_HOT static void compress(uint32_t* h, const unsigned char* p, size_t blocks) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
             if (sgcl::detail::cpu::crypto()) {
                 sha256_compress_arm64(h, p, blocks);

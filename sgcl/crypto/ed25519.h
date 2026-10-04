@@ -92,7 +92,7 @@ namespace sgcl::crypto::ed25519 {
         }
 
         // The key from a SubjectPublicKeyInfo (RFC 8410, OID 1.3.101.112)
-        static expected<public_key, error> from_pkix_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<public_key, error> from_pkix_der(const slice<const byte>& der) noexcept {
             unsigned char key[32];
             auto r = detail::der_read_pkix(der, detail::oid_ed25519, key);
             if (!r) {
@@ -101,23 +101,23 @@ namespace sgcl::crypto::ed25519 {
             return from_bytes(slice<const byte>(reinterpret_cast<const byte*>(key), 32));
         }
 
-        const array<byte, 32>& bytes() const noexcept {
+        SGCL_INLINE_HOT const array<byte, 32>& bytes() const noexcept {
             return _bytes;
         }
 
         // The SubjectPublicKeyInfo, 44 bytes
-        vector<byte> to_pkix_der() const noexcept {
+        SGCL_INLINE_HOT vector<byte> to_pkix_der() const noexcept {
             return detail::der_pkix(detail::oid_ed25519, detail::bytes(_bytes.data()));
         }
 
         // Whether signature is this key's signature of message (bytes or
         // text). A signature of another length is false. [[nodiscard]]: a
         // check whose result is dropped was never made
-        [[nodiscard]] bool verify(const slice<const byte>& message, const slice<const byte>& signature) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify(const slice<const byte>& message, const slice<const byte>& signature) const noexcept {
             return _verify(message, signature);
         }
 
-        friend bool operator==(const public_key& a, const public_key& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const public_key& a, const public_key& b) noexcept {
             return std::memcmp(a._bytes.data(), b._bytes.data(), public_key_size) == 0;
         }
 
@@ -158,7 +158,7 @@ namespace sgcl::crypto::ed25519 {
     class private_key {
     public:
         // A seed of 32 bytes from crypto::random
-        static private_key generate() noexcept {
+        SGCL_INLINE_HOT static private_key generate() noexcept {
             unsigned char seed[32];
             random::fill(slice<byte>(reinterpret_cast<byte*>(seed), 32));
             private_key k(seed);
@@ -168,7 +168,7 @@ namespace sgcl::crypto::ed25519 {
 
         // The key of a seed of 32 bytes (RFC 8032's private key); another
         // length is invalid_key
-        static expected<private_key, error> from_seed(const slice<const byte>& seed) noexcept {
+        SGCL_INLINE_HOT static expected<private_key, error> from_seed(const slice<const byte>& seed) noexcept {
             if (seed.size() != seed_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an Ed25519 seed is 32 bytes")));
             }
@@ -179,7 +179,7 @@ namespace sgcl::crypto::ed25519 {
         // PrivateKey and bytes() hold them; a public half that is not the
         // one the seed gives is invalid_key (signing under a mismatched
         // pair would give away the key)
-        static expected<private_key, error> from_private_bytes(const slice<const byte>& bytes) noexcept {
+        SGCL_INLINE_HOT static expected<private_key, error> from_private_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != private_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an Ed25519 private key is 64 bytes")));
             }
@@ -213,7 +213,7 @@ namespace sgcl::crypto::ed25519 {
 
         // The object moved from is zeroed and is no key of any use until
         // assigned again
-        private_key(private_key&& other) noexcept
+        SGCL_INLINE_HOT private_key(private_key&& other) noexcept
         : _seed(other._seed), _scalar(other._scalar), _prefix(other._prefix), _public(other._public) {
             other._wipe();
         }
@@ -229,7 +229,7 @@ namespace sgcl::crypto::ed25519 {
             return *this;
         }
 
-        ~private_key() {
+        SGCL_INLINE_HOT ~private_key() {
             _wipe();
         }
 
@@ -244,13 +244,13 @@ namespace sgcl::crypto::ed25519 {
             return k;
         }
 
-        ed25519::public_key public_key() const {
+        SGCL_INLINE_HOT ed25519::public_key public_key() const {
             _check();
             return _public;
         }
 
         // The seed, as a secret: move-only and zeroed when it goes
-        secret<32> seed() const {
+        SGCL_INLINE_HOT secret<32> seed() const {
             _check();
             auto s = detail::SecretAccess::make<32>();
             std::memcpy(detail::SecretAccess::data(s), _seed.data(), 32);
@@ -259,7 +259,7 @@ namespace sgcl::crypto::ed25519 {
 
         // The seed and the public key, 64 bytes (Go's PrivateKey), which
         // from_private_bytes takes back, as a secret
-        secret<64> bytes() const {
+        SGCL_INLINE_HOT secret<64> bytes() const {
             _check();
             auto s = detail::SecretAccess::make<64>();
             std::memcpy(detail::SecretAccess::data(s), _seed.data(), 32);
@@ -270,7 +270,7 @@ namespace sgcl::crypto::ed25519 {
         // The signature of message (bytes or text), RFC 8032 §5.1.6:
         // r = SHA-512(prefix || M) mod L, R = r·B, k = SHA-512(R || A || M)
         // mod L, S = r + k·s mod L; R || S
-        array<byte, 64> sign(const slice<const byte>& message) const {
+        SGCL_INLINE_HOT array<byte, 64> sign(const slice<const byte>& message) const {
             _check();
             array<byte, 64> out;
             _sign(detail::bytes(out.data()), message);
@@ -280,7 +280,7 @@ namespace sgcl::crypto::ed25519 {
         // The PKCS #8 PrivateKeyInfo, 48 bytes, version 0 as Go and OpenSSL
         // write it. It holds the seed: a secret_bytes (48 bytes in the object
         // itself), never managed memory
-        secret_bytes to_pkcs8_der() const {
+        SGCL_INLINE_HOT secret_bytes to_pkcs8_der() const {
             _check();
             return detail::der_pkcs8(detail::oid_ed25519, detail::bytes(_seed.data()));
         }
@@ -290,7 +290,7 @@ namespace sgcl::crypto::ed25519 {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<private_key, error> from_pem(const slice<const byte>& text) noexcept {
+        SGCL_INLINE_HOT static expected<private_key, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text);
             if (!p) {
                 return unexpected<error>(p.error());
@@ -304,14 +304,14 @@ namespace sgcl::crypto::ed25519 {
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
         // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
         // write it: a secret_bytes, never managed memory
-        secret_bytes to_pem() const {
+        SGCL_INLINE_HOT secret_bytes to_pem() const {
             return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
         }
 
 
         // The same key, compared in constant time; a key moved from is
         // std::logic_error, as everywhere
-        friend bool operator==(const private_key& a, const private_key& b) {
+        SGCL_INLINE_HOT friend bool operator==(const private_key& a, const private_key& b) {
             a._check();
             b._check();
             return constant_time::equal(a._seed, b._seed);
@@ -380,7 +380,7 @@ namespace sgcl::crypto::ed25519 {
             }
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_seed);
             detail::secure_zero_object(_scalar);
             detail::secure_zero_object(_prefix);

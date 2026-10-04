@@ -32,41 +32,41 @@ namespace sgcl {
 
         weak_set() = default;
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_table.begin(), _table.end());
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(_table.end(), _table.end());
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_table.begin(), _table.end());
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator(_table.end(), _table.end());
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        iterator find(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT iterator find(const key_pointer& object) noexcept {
             return object ? iterator(_table.find(object), _table.end()) : end();
         }
 
-        const_iterator find(const key_pointer& object) const noexcept {
+        SGCL_INLINE_HOT const_iterator find(const key_pointer& object) const noexcept {
             return object ? const_iterator(_table.find(object), _table.end()) : end();
         }
 
         // The object added, unless it is in the set; whether it was added.
         // One search: the entry is made from the pointer when it finds none
-        pair<iterator, bool> insert(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(const key_pointer& object) noexcept {
             assert(object && "a weak_set has no entry for a null pointer");
             auto [node, inserted] = _table._try_emplace(object);
             if (inserted) {
@@ -76,7 +76,7 @@ namespace sgcl {
         }
 
         // The next live entry up to the iterator's own bound
-        iterator erase(iterator pos) noexcept {
+        SGCL_INLINE_HOT iterator erase(iterator pos) noexcept {
             return iterator(_table.erase(pos.inner()), pos.bound());
         }
 

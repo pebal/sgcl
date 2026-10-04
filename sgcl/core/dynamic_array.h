@@ -122,19 +122,19 @@ namespace sgcl {
         // constructor, not this one
         template<std::ranges::input_range R>
         requires (!std::is_same_v<std::remove_cvref_t<R>, dynamic_array>) && std::is_constructible_v<T, std::ranges::range_reference_t<R>>
-        explicit dynamic_array(R&& r)
+        SGCL_INLINE_HOT explicit dynamic_array(R&& r)
         : dynamic_array(std::ranges::begin(r), std::ranges::end(r)) {
         }
 
-        dynamic_array(std::initializer_list<T> ilist)
+        SGCL_INLINE_HOT dynamic_array(std::initializer_list<T> ilist)
         : dynamic_array(ilist.begin(), ilist.end()) {
         }
 
-        dynamic_array(const dynamic_array& other)
+        SGCL_INLINE_HOT dynamic_array(const dynamic_array& other)
         : dynamic_array(other.begin(), other.end()) {
         }
 
-        dynamic_array(dynamic_array&& other) noexcept
+        SGCL_INLINE_HOT dynamic_array(dynamic_array&& other) noexcept
         : _ptr(other._ptr)
         , _size(other._size) {
             other._ptr = nullptr;
@@ -143,11 +143,11 @@ namespace sgcl {
 
         // The elements die with the handle, wherever it dies (vector.h:
         // ~vector); the buffer is freed by the collector, never destroyed.
-        ~dynamic_array() {
+        SGCL_INLINE_HOT ~dynamic_array() {
             _destroy_all();
         }
 
-        dynamic_array& operator=(const dynamic_array& other) {
+        SGCL_INLINE_HOT dynamic_array& operator=(const dynamic_array& other) {
             if (this != &other) {
                 if (size() == other.size()) {
                     std::copy(other.begin(), other.end(), begin());
@@ -170,157 +170,157 @@ namespace sgcl {
             return *this;
         }
 
-        dynamic_array& operator=(std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT dynamic_array& operator=(std::initializer_list<T> ilist) {
             dynamic_array fresh(ilist);
             swap(fresh);
             return *this;
         }
 
-        reference at(size_type pos) {
+        SGCL_INLINE_HOT reference at(size_type pos) {
             if (pos >= size()) {
                 throw out_of_range("sgcl::dynamic_array::at");
             }
             return _values()[pos];
         }
 
-        const_reference at(size_type pos) const {
+        SGCL_INLINE_HOT const_reference at(size_type pos) const {
             if (pos >= size()) {
                 throw out_of_range("sgcl::dynamic_array::at");
             }
             return _values()[pos];
         }
 
-        reference operator[](size_type pos) noexcept {
+        SGCL_INLINE_HOT reference operator[](size_type pos) noexcept {
             return _values()[pos];
         }
 
-        const_reference operator[](size_type pos) const noexcept {
+        SGCL_INLINE_HOT const_reference operator[](size_type pos) const noexcept {
             return _values()[pos];
         }
 
-        reference front() noexcept {
+        SGCL_INLINE_HOT reference front() noexcept {
             return _values()[0];
         }
 
-        const_reference front() const noexcept {
+        SGCL_INLINE_HOT const_reference front() const noexcept {
             return _values()[0];
         }
 
-        reference back() noexcept {
+        SGCL_INLINE_HOT reference back() noexcept {
             return _values()[size() - 1];
         }
 
-        const_reference back() const noexcept {
+        SGCL_INLINE_HOT const_reference back() const noexcept {
             return _values()[size() - 1];
         }
 
-        T* data() noexcept {
+        SGCL_INLINE_HOT T* data() noexcept {
             return _values();
         }
 
-        const T* data() const noexcept {
+        SGCL_INLINE_HOT const T* data() const noexcept {
             return _values();
         }
 
         // The elements as a slice that holds the buffer (slice.h): valid
         // for as long as the array is, and past it, the buffer never
         // moving
-        slice<T> as_slice() noexcept {
+        SGCL_INLINE_HOT slice<T> as_slice() noexcept {
             return slice<T>(tracked_ptr<const void>(_ptr), _values(), _values() + _size);
         }
 
-        slice<const T> as_slice() const noexcept {
+        SGCL_INLINE_HOT slice<const T> as_slice() const noexcept {
             return slice<const T>(tracked_ptr<const void>(_ptr), _values(), _values() + _size);
         }
 
-        slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
+        SGCL_INLINE_HOT slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
             if (pos > _size) {
                 throw out_of_range("sgcl::dynamic_array::as_slice");
             }
             return slice<T>(tracked_ptr<const void>(_ptr), _values() + pos, _values() + pos + std::min(n, _size - pos));
         }
 
-        slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
+        SGCL_INLINE_HOT slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
             if (pos > _size) {
                 throw out_of_range("sgcl::dynamic_array::as_slice");
             }
             return slice<const T>(tracked_ptr<const void>(_ptr), _values() + pos, _values() + pos + std::min(n, _size - pos));
         }
 
-        operator slice<T>() noexcept {
+        SGCL_INLINE_HOT operator slice<T>() noexcept {
             return as_slice();
         }
 
-        operator slice<const T>() const noexcept {
+        SGCL_INLINE_HOT operator slice<const T>() const noexcept {
             return as_slice();
         }
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_values());
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_values());
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(_values() + size());
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator(_values() + size());
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        reverse_iterator rbegin() noexcept {
+        SGCL_INLINE_HOT reverse_iterator rbegin() noexcept {
             return reverse_iterator(end());
         }
 
-        const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(end());
         }
 
-        const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        reverse_iterator rend() noexcept {
+        SGCL_INLINE_HOT reverse_iterator rend() noexcept {
             return reverse_iterator(begin());
         }
 
-        const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(begin());
         }
 
-        const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _size;
         }
 
-        size_type max_size() const noexcept {
+        SGCL_INLINE_HOT size_type max_size() const noexcept {
             return (size_type)std::numeric_limits<difference_type>::max() / sizeof(T);
         }
 
-        void swap(dynamic_array& other) noexcept {
+        SGCL_INLINE_HOT void swap(dynamic_array& other) noexcept {
             _ptr.swap(other._ptr);
             std::swap(_size, other._size);
         }
 
-        friend void swap(dynamic_array& l, dynamic_array& r) noexcept {
+        SGCL_INLINE_HOT friend void swap(dynamic_array& l, dynamic_array& r) noexcept {
             l.swap(r);
         }
 
@@ -330,27 +330,27 @@ namespace sgcl {
         tracked_ptr<T> _ptr;
         size_type _size = 0;
 
-        T* _data() const noexcept {
+        SGCL_INLINE_HOT T* _data() const noexcept {
             return _ptr.get_plain();   // this thread's own buffer: a plain load
         }
 
-        void _check_size(size_type n) const {
+        SGCL_INLINE_HOT void _check_size(size_type n) const {
             if (n > max_size()) {
                 throw length_error("sgcl::dynamic_array");
             }
         }
 
-        T* _values() const noexcept {
+        SGCL_INLINE_HOT T* _values() const noexcept {
             return _data();
         }
 
-        T* _allocate(size_type n) {
+        SGCL_INLINE_HOT T* _allocate(size_type n) {
             _ptr = unique_ptr<T>(detail::Maker<T[]>::make_tracked_data(n));
             return _data();
         }
 
         template<class... A>
-        void _construct(T* p, A&&... a) {
+        SGCL_INLINE_HOT void _construct(T* p, A&&... a) {
             _make_at(p, std::forward<A>(a)...);
             ++_size;
         }
@@ -362,7 +362,7 @@ namespace sgcl {
         // pages holds what its last user left there (maker.h), so a
         // default-initialized trivial element would be those bytes
         template<class... A>
-        static void _make_at(T* p, A&&... a) {
+        SGCL_INLINE_HOT static void _make_at(T* p, A&&... a) {
             if constexpr(sizeof...(A) == 0) {
                 ::new (static_cast<void*>(p)) std::remove_cv_t<T>();
             } else {
@@ -373,7 +373,7 @@ namespace sgcl {
         // Elements [from, to) value-initialized, the count raised once: a
         // trivial type that holds no tracked pointer is zeroed in one pass
         // (T() is zero for it), any other type constructed one by one
-        static constexpr bool _zero_is_value() noexcept {
+        SGCL_INLINE_HOT static constexpr bool _zero_is_value() noexcept {
             return std::is_trivially_default_constructible_v<T> && !detail::TypeInfo<T>::MayContainTracked && !std::is_member_pointer_v<T>;   // a null member pointer is not zero bytes (-1 on the Itanium ABI); a class holding one is not caught here
         }
 

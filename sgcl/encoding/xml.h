@@ -214,19 +214,19 @@ namespace sgcl::encoding {
 
         // --- what it is ---
 
-        kind type() const noexcept {
+        SGCL_INLINE_HOT kind type() const noexcept {
             return _node ? kind(_node->kind) : kind::none;
         }
 
-        bool exists() const noexcept {
+        SGCL_INLINE_HOT bool exists() const noexcept {
             return bool(_node);
         }
 
-        bool is_element() const noexcept {
+        SGCL_INLINE_HOT bool is_element() const noexcept {
             return type() == kind::element;
         }
 
-        bool is_text() const noexcept {
+        SGCL_INLINE_HOT bool is_text() const noexcept {
             return type() == kind::text;
         }
 
@@ -250,7 +250,7 @@ namespace sgcl::encoding {
         optional<string> attribute(const string& name) const noexcept;
 
         // The same with a value for when there is none: e.attribute("lang", "en")
-        string attribute(const string& name, const string& fallback) const noexcept {
+        SGCL_INLINE_HOT string attribute(const string& name, const string& fallback) const noexcept {
             auto a = attribute(name);
             return a ? *a : fallback;
         }
@@ -291,7 +291,7 @@ namespace sgcl::encoding {
 
         // The same node: kinds, names, namespaces, values, children in
         // order; attributes in any order, as XML has them
-        friend bool operator==(const xml& a, const xml& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const xml& a, const xml& b) noexcept {
             return _equal(a, b);
         }
 
@@ -315,7 +315,7 @@ namespace sgcl::encoding {
         static expected<T, error> _typed(reader& r);
         static generator<xml> _children(xml self, string wanted) noexcept;
 
-        explicit xml(const tracked_ptr<const detail::XmlNode>& node) noexcept
+        SGCL_INLINE_HOT explicit xml(const tracked_ptr<const detail::XmlNode>& node) noexcept
         : _node(node) {
         }
 
@@ -347,12 +347,12 @@ namespace sgcl::encoding {
             dynamic_array<xml> children;
         };
 
-        inline const XmlElementNode* xml_element(const tracked_ptr<const XmlNode>& n) noexcept {
+        SGCL_INLINE_HOT const XmlElementNode* xml_element(const tracked_ptr<const XmlNode>& n) noexcept {
             return n && n->kind == uint8_t(xml::kind::element) ? static_cast<const XmlElementNode*>(n.get()) : nullptr;
         }
 
         // The part of a name after its prefix
-        inline std::string_view xml_local(std::string_view qname) noexcept {
+        SGCL_INLINE_HOT std::string_view xml_local(std::string_view qname) noexcept {
             auto c = qname.find(':');
             return c == std::string_view::npos ? qname : qname.substr(c + 1);
         }
@@ -376,31 +376,31 @@ namespace sgcl::encoding {
             doctype
         };
 
-        kind type() const noexcept {
+        SGCL_INLINE_HOT kind type() const noexcept {
             return _kind;
         }
 
         // The element's name as written ("svg:rect"), the target of an
         // instruction, the root's name a DOCTYPE declaration gives
-        const string& name() const noexcept {
+        SGCL_INLINE_HOT const string& name() const noexcept {
             return _name;
         }
 
-        const string& local_name() const noexcept {
+        SGCL_INLINE_HOT const string& local_name() const noexcept {
             return _local;
         }
 
-        const string& namespace_uri() const noexcept {
+        SGCL_INLINE_HOT const string& namespace_uri() const noexcept {
             return _uri;
         }
 
         // Of a start: in the order of the tag
-        slice<const xml::attr> attributes() const noexcept {
+        SGCL_INLINE_HOT slice<const xml::attr> attributes() const noexcept {
             return _attributes;
         }
 
         // The same with a value for when there is none
-        string attribute(const string& name, const string& fallback) const noexcept {
+        SGCL_INLINE_HOT string attribute(const string& name, const string& fallback) const noexcept {
             auto a = attribute(name);
             return a ? *a : fallback;
         }
@@ -418,15 +418,15 @@ namespace sgcl::encoding {
         // The text, the comment, the instruction's data (the declaration's
         // is `version="1.0" encoding="UTF-8"`), or the DOCTYPE declaration
         // after its keyword ("html PUBLIC ...")
-        const string& text() const noexcept {
+        SGCL_INLINE_HOT const string& text() const noexcept {
             return _text;
         }
 
-        bool is_start(const string& name) const noexcept {
+        SGCL_INLINE_HOT bool is_start(const string& name) const noexcept {
             return _kind == kind::start_element && xml::_matches(_name.view(), _local, _uri, name.view());
         }
 
-        bool is_end(const string& name) const noexcept {
+        SGCL_INLINE_HOT bool is_end(const string& name) const noexcept {
             return _kind == kind::end_element && xml::_matches(_name.view(), _local, _uri, name.view());
         }
 
@@ -452,11 +452,11 @@ namespace sgcl::encoding {
             using token = typename Xml::token;
             using kind = typename token::kind;
 
-            explicit XmlTreeBuilder(const typename Xml::options& o) noexcept
+            SGCL_INLINE_HOT explicit XmlTreeBuilder(const typename Xml::options& o) noexcept
             : _keep_comments(o.keep_comments), _keep_whitespace(o.keep_whitespace) {
             }
 
-            bool open() const noexcept {
+            SGCL_INLINE_HOT bool open() const noexcept {
                 return !_frames.empty();
             }
 
@@ -527,7 +527,7 @@ namespace sgcl::encoding {
             // The text gathered outside any element: a text node, or
             // nullopt when there is none or it is white space the options
             // leave out
-            optional<Xml> take_text() {
+            SGCL_INLINE_HOT optional<Xml> take_text() {
                 if (!_pieces) {
                     return nullopt;
                 }
@@ -538,7 +538,7 @@ namespace sgcl::encoding {
                 return Xml::text_node(t);
             }
 
-            bool has_text() const noexcept {
+            SGCL_INLINE_HOT bool has_text() const noexcept {
                 return _pieces != 0;
             }
 
@@ -551,11 +551,11 @@ namespace sgcl::encoding {
                 size_t first = 0;
             };
 
-            static bool _blank(const string& t) noexcept {
+            SGCL_INLINE_HOT static bool _blank(const string& t) noexcept {
                 return std::all_of(t.begin(), t.end(), [](char c) { return xml_space(c); });
             }
 
-            string _joined() {
+            SGCL_INLINE_HOT string _joined() {
                 string t = _pieces == 1 ? std::move(_first_piece) : string(_text);
                 _pieces = 0;
                 _first_piece = string();
@@ -563,7 +563,7 @@ namespace sgcl::encoding {
                 return t;
             }
 
-            void _flush_text() {
+            SGCL_INLINE_HOT void _flush_text() {
                 if (!_pieces) {
                     return;
                 }
@@ -616,19 +616,19 @@ namespace sgcl::encoding {
     // a text or a comment at a time, up to options::max_token_size.
     class xml::reader {
     public:
-        explicit reader(const string& text) noexcept
+        SGCL_INLINE_HOT explicit reader(const string& text) noexcept
         : reader(text, options()) {
         }
 
-        reader(const string& text, const options& o) noexcept
+        SGCL_INLINE_HOT reader(const string& text, const options& o) noexcept
         : _scanner(text, o), _options(o) {
         }
 
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : reader(in, options()) {
         }
 
-        reader(const io::reader& in, const options& o) noexcept
+        SGCL_INLINE_HOT reader(const io::reader& in, const options& o) noexcept
         : _scanner(o), _in(in), _options(o) {
         }
 
@@ -639,17 +639,17 @@ namespace sgcl::encoding {
 
         // What went wrong, with its offset, line, column and the path of
         // the elements open ("/catalog/book"); nullopt while nothing has
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _typed_error ? _typed_error : _scanner.last_error();
         }
 
         // The byte of the input where the next token starts
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _peeked ? _peeked_offset : _scanner.offset();
         }
 
         // The elements open around the next token
-        uint32_t depth() const noexcept {
+        SGCL_INLINE_HOT uint32_t depth() const noexcept {
             return _peeked ? _peeked_depth : _scanner.depth();
         }
 
@@ -660,7 +660,7 @@ namespace sgcl::encoding {
 
         // A step of the scanner that needs no input: the token, or what
         // stopped it
-        Step _step(token& t) {
+        SGCL_INLINE_HOT Step _step(token& t) {
             return _scanner.step(t);
         }
 
@@ -678,7 +678,7 @@ namespace sgcl::encoding {
         }
 
         // More of the stream into the scanner
-        void _fill() {
+        SGCL_INLINE_HOT void _fill() {
             if (!_in) {
                 _scanner.received(expected<size_t, io::error>(size_t(0)));
                 return;
@@ -749,7 +749,7 @@ namespace sgcl::encoding {
             co_return true;
         }
 
-        token _take() noexcept {
+        SGCL_INLINE_HOT token _take() noexcept {
             token t = std::move(*_peeked);
             _peeked.reset();
             return t;
@@ -788,7 +788,7 @@ namespace sgcl::encoding {
         }
 
         // The token next() gives next, left where it is
-        optional<token> peek() {
+        SGCL_INLINE_HOT optional<token> peek() {
             if (!_front()) {
                 return nullopt;
             }
@@ -981,14 +981,14 @@ namespace sgcl::encoding {
         // and the first mistake kept
         class XmlOut {
         public:
-            explicit XmlOut(uint8_t indent) noexcept
+            SGCL_INLINE_HOT explicit XmlOut(uint8_t indent) noexcept
             : _indent(indent) {
             }
 
             std::string out;
             optional<error> failure;
 
-            void declaration() noexcept {
+            SGCL_INLINE_HOT void declaration() noexcept {
                 if (_any) {
                     return _fail(errc::syntax, "the XML declaration after something was written");
                 }
@@ -1088,7 +1088,7 @@ namespace sgcl::encoding {
                 out += '"';
             }
 
-            void text(std::string_view t) noexcept {
+            SGCL_INLINE_HOT void text(std::string_view t) noexcept {
                 if (failure || t.empty()) {
                     return;
                 }
@@ -1192,7 +1192,7 @@ namespace sgcl::encoding {
 
             void node(const xml& n) noexcept;
 
-            size_t depth() const noexcept {
+            SGCL_INLINE_HOT size_t depth() const noexcept {
                 return _open.size();
             }
 
@@ -1219,11 +1219,11 @@ namespace sgcl::encoding {
 
             static constexpr size_t AttributesInline = 16;
 
-            std::string_view _name(const Level& l) const noexcept {
+            SGCL_INLINE_HOT std::string_view _name(const Level& l) const noexcept {
                 return l.held ? std::string_view(l.held, l.name_size) : std::string_view(_names.data() + l.name_at, l.name_size);
             }
 
-            std::string_view _attribute(size_t i) const noexcept {
+            SGCL_INLINE_HOT std::string_view _attribute(size_t i) const noexcept {
                 auto& a = _attributes[i];
                 return a.held ? std::string_view(a.held, a.size) : std::string_view(_attribute_chars.data() + a.at, a.size);
             }
@@ -1260,14 +1260,14 @@ namespace sgcl::encoding {
                 out.clear();
             }
 
-            void _close_tag() noexcept {
+            SGCL_INLINE_HOT void _close_tag() noexcept {
                 if (_tag_open) {
                     out += '>';
                     _tag_open = false;
                 }
             }
 
-            void _content() noexcept {
+            SGCL_INLINE_HOT void _content() noexcept {
                 if (!_open.empty()) {
                     _open.back().content = true;
                 }
@@ -1550,7 +1550,7 @@ namespace sgcl::encoding {
     // declarations of its own: an xmlns attribute is an attribute.
     class xml::writer {
     public:
-        explicit writer(const io::writer& out, const style& s = compact) noexcept
+        SGCL_INLINE_HOT explicit writer(const io::writer& out, const style& s = compact) noexcept
         : _out(out), _core(s.indent) {
             if (s.declaration) {
                 _core.declaration();
@@ -1565,44 +1565,44 @@ namespace sgcl::encoding {
         writer& operator=(writer&&) noexcept = default;
 
         // <?xml version="1.0" encoding="UTF-8"?>: only first
-        writer& declaration() noexcept {
+        SGCL_INLINE_HOT writer& declaration() noexcept {
             _core.declaration();
             return *this;
         }
 
-        writer& start(const string& name) noexcept {
+        SGCL_INLINE_HOT writer& start(const string& name) noexcept {
             _core.start(name.view());
             return *this;
         }
 
-        writer& attribute(const string& name, const string& value) noexcept {
+        SGCL_INLINE_HOT writer& attribute(const string& name, const string& value) noexcept {
             _core.attribute(name.view(), value.view());
             return *this;
         }
 
-        writer& text(const string& t) noexcept {
+        SGCL_INLINE_HOT writer& text(const string& t) noexcept {
             _core.text(t.view());
             return *this;
         }
 
         // A CDATA section; one holding "]]>" is written as two
-        writer& cdata(const string& t) noexcept {
+        SGCL_INLINE_HOT writer& cdata(const string& t) noexcept {
             _core.cdata(t.view());
             return *this;
         }
 
-        writer& comment(const string& t) noexcept {
+        SGCL_INLINE_HOT writer& comment(const string& t) noexcept {
             _core.comment(t.view());
             return *this;
         }
 
-        writer& instruction(const string& target, const string& data = {}) noexcept {
+        SGCL_INLINE_HOT writer& instruction(const string& target, const string& data = {}) noexcept {
             _core.instruction(target.view(), data.view());
             return *this;
         }
 
         // The end of the element started last
-        writer& end() noexcept {
+        SGCL_INLINE_HOT writer& end() noexcept {
             _core.end();
             return *this;
         }
@@ -1614,7 +1614,7 @@ namespace sgcl::encoding {
         writer& value(const string& name, const T& v);
 
         // A node of a tree, whole
-        writer& node(const xml& n) noexcept {
+        SGCL_INLINE_HOT writer& node(const xml& n) noexcept {
             _core.node(n);
             return *this;
         }
@@ -1628,12 +1628,12 @@ namespace sgcl::encoding {
         }
 
         // The elements open
-        size_t depth() const noexcept {
+        SGCL_INLINE_HOT size_t depth() const noexcept {
             return _core.depth();
         }
 
     private:
-        optional<expected<void, io::error>> _before_flush() noexcept {
+        SGCL_INLINE_HOT optional<expected<void, io::error>> _before_flush() noexcept {
             if (_core.failure) {
                 auto& e = *_core.failure;
                 return expected<void, io::error>(io::detail::fail(e.io_error() ? *e.io_error() : io::error(make_error_code(e.code()), "encode", "xml")));
@@ -1647,7 +1647,7 @@ namespace sgcl::encoding {
             return nullopt;
         }
 
-        slice<const byte> _pending() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> _pending() const noexcept {
             return slice<const byte>(reinterpret_cast<const byte*>(_core.out.data()), _core.out.size());
         }
 
@@ -1655,7 +1655,7 @@ namespace sgcl::encoding {
         // (the core's failure, which last_error() does not show), and what
         // was gathered is let go, so that nothing more is gathered for a
         // flush that would never write it
-        void _stop(const io::error& e) noexcept {
+        SGCL_INLINE_HOT void _stop(const io::error& e) noexcept {
             _failed = e;
             if (!_core.failure) {
                 _core.failure = error(e, 0);
@@ -1735,14 +1735,14 @@ namespace sgcl::encoding {
 
 namespace sgcl::encoding {
     namespace detail {
-        inline void xml_check_name(const string& name) {
+        SGCL_INLINE_HOT void xml_check_name(const string& name) {
             if (!xml_qname(name.view())) {
                 throw invalid_argument("sgcl::encoding::xml: '" + std::string(name.view()) + "' is not a qualified name");
             }
         }
 
         // An element's name: a qualified name, not of the prefix xmlns
-        inline void xml_check_element(const string& name) {
+        SGCL_INLINE_HOT void xml_check_element(const string& name) {
             xml_check_name(name);
             if (xml_xmlns_element(name.view())) {
                 throw invalid_argument("sgcl::encoding::xml: '" + std::string(name.view()) + "': an element with the prefix xmlns");
@@ -1751,7 +1751,7 @@ namespace sgcl::encoding {
 
         // An attribute: a qualified name, and a namespace declaration
         // section 3 of Namespaces in XML lets a document hold
-        inline void xml_check_attribute(const string& name, const string& value) {
+        SGCL_INLINE_HOT void xml_check_attribute(const string& name, const string& value) {
             xml_check_name(name);
             if (const char* wrong = xml_declaration_wrong(name.view(), value.view())) {
                 throw invalid_argument("sgcl::encoding::xml: " + std::string(name.view()) + "=\"" + std::string(value.view()) + "\": " + wrong);
@@ -1787,7 +1787,7 @@ namespace sgcl::encoding {
         }
 
         // A namespace declaration: xmlns, xmlns:p
-        inline bool xml_declaration(std::string_view name) noexcept {
+        SGCL_INLINE_HOT bool xml_declaration(std::string_view name) noexcept {
             return name == "xmlns" || name.starts_with("xmlns:");
         }
 
@@ -1841,7 +1841,7 @@ namespace sgcl::encoding {
         _node = std::move(e);
     }
 
-    inline xml::xml(const string& name, const string& text)
+    SGCL_INLINE_HOT xml::xml(const string& name, const string& text)
     : xml(name) {
         if (!text.empty()) {
             auto e = static_pointer_cast<detail::XmlElementNode>(const_pointer_cast<detail::XmlNode>(_node));
@@ -1849,14 +1849,14 @@ namespace sgcl::encoding {
         }
     }
 
-    inline xml xml::comment_of(const string& text) noexcept {
+    SGCL_INLINE_HOT xml xml::comment_of(const string& text) noexcept {
         auto n = make_tracked<detail::XmlTextNode>();
         n->kind = uint8_t(kind::comment);
         n->text = text;
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
     }
 
-    inline xml xml::instruction_of(const string& target, const string& data) noexcept {
+    SGCL_INLINE_HOT xml xml::instruction_of(const string& target, const string& data) noexcept {
         auto n = make_tracked<detail::XmlInstructionNode>();
         n->kind = uint8_t(kind::instruction);
         n->target = target;
@@ -1864,7 +1864,7 @@ namespace sgcl::encoding {
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
     }
 
-    inline xml xml::text_node(const string& text) noexcept {
+    SGCL_INLINE_HOT xml xml::text_node(const string& text) noexcept {
         auto n = make_tracked<detail::XmlTextNode>();
         n->kind = uint8_t(kind::text);
         n->text = text;
@@ -1900,7 +1900,7 @@ namespace sgcl::encoding {
         return xml(tracked_ptr<const detail::XmlNode>(std::move(n)));
     }
 
-    inline string xml::name() const noexcept {
+    SGCL_INLINE_HOT string xml::name() const noexcept {
         switch (type()) {
             case kind::element:
                 return static_cast<const detail::XmlElementNode*>(_node.get())->name;
@@ -1911,7 +1911,7 @@ namespace sgcl::encoding {
         }
     }
 
-    inline string xml::local_name() const noexcept {
+    SGCL_INLINE_HOT string xml::local_name() const noexcept {
         switch (type()) {
             case kind::element:
                 return static_cast<const detail::XmlElementNode*>(_node.get())->local;
@@ -1922,12 +1922,12 @@ namespace sgcl::encoding {
         }
     }
 
-    inline string xml::namespace_uri() const noexcept {
+    SGCL_INLINE_HOT string xml::namespace_uri() const noexcept {
         auto e = detail::xml_element(_node);
         return e ? e->uri : string();
     }
 
-    inline bool xml::_matches(std::string_view qname, const string& local, const string& uri, std::string_view wanted) noexcept {
+    SGCL_INLINE_HOT bool xml::_matches(std::string_view qname, const string& local, const string& uri, std::string_view wanted) noexcept {
         if (!wanted.empty() && wanted[0] == '{') {
             auto close = wanted.find('}');
             return close != std::string_view::npos && uri.view() == wanted.substr(1, close - 1) && local.view() == wanted.substr(close + 1);
@@ -1950,12 +1950,12 @@ namespace sgcl::encoding {
         return nullopt;
     }
 
-    inline slice<const xml::attr> xml::attributes() const noexcept {
+    SGCL_INLINE_HOT slice<const xml::attr> xml::attributes() const noexcept {
         auto e = detail::xml_element(_node);
         return e ? e->attributes.as_slice() : slice<const xml::attr>();
     }
 
-    inline slice<const xml> xml::children() const noexcept {
+    SGCL_INLINE_HOT slice<const xml> xml::children() const noexcept {
         auto e = detail::xml_element(_node);
         return e ? e->children.as_slice() : slice<const xml>();
     }
@@ -1974,7 +1974,7 @@ namespace sgcl::encoding {
         return xml();
     }
 
-    inline generator<xml> xml::children(const string& name) const noexcept {
+    SGCL_INLINE_HOT generator<xml> xml::children(const string& name) const noexcept {
         // the node and the name by value, into the frame: the body runs
         // later, when the caller's temporaries are gone
         return _children(*this, name);
@@ -2227,24 +2227,24 @@ namespace sgcl::encoding {
         return root;
     }
 
-    inline expected<xml, xml::error> xml::parse(const string& text) {
+    SGCL_INLINE_HOT expected<xml, xml::error> xml::parse(const string& text) {
         return parse(text, options());
     }
 
-    inline expected<xml, xml::error> xml::parse(const io::reader& in) {
+    SGCL_INLINE_HOT expected<xml, xml::error> xml::parse(const io::reader& in) {
         return parse(in, options());
     }
 
-    inline async::task<expected<xml, xml::error>> xml::async_parse(const io::reader& in) noexcept {
+    SGCL_INLINE_HOT async::task<expected<xml, xml::error>> xml::async_parse(const io::reader& in) noexcept {
         return async_parse(in, options());
     }
 
-    inline expected<xml, xml::error> xml::parse(const string& text, const options& o) {
+    SGCL_INLINE_HOT expected<xml, xml::error> xml::parse(const string& text, const options& o) {
         reader r(text, o);
         return _parse_with(r);
     }
 
-    inline expected<xml, xml::error> xml::parse(const io::reader& in, const options& o) {
+    SGCL_INLINE_HOT expected<xml, xml::error> xml::parse(const io::reader& in, const options& o) {
         reader r(in, o);
         return _parse_with(r);
     }
@@ -2263,7 +2263,7 @@ namespace sgcl::encoding {
         co_return root;
     }
 
-    inline xml::builder::builder(const string& name)
+    SGCL_INLINE_HOT xml::builder::builder(const string& name)
     : _name(name) {
         detail::xml_check_element(name);
     }
@@ -2280,7 +2280,7 @@ namespace sgcl::encoding {
         return *this;
     }
 
-    inline xml::builder& xml::builder::push_back(const xml& child) {
+    SGCL_INLINE_HOT xml::builder& xml::builder::push_back(const xml& child) {
         if (!child.exists()) {
             throw invalid_argument("sgcl::encoding::xml::builder::push_back: xml() is no node");
         }
@@ -2323,12 +2323,12 @@ namespace sgcl::encoding {
         }
     }
 
-    inline expected<xml, xml::error> xml::load(const string& path) {
+    SGCL_INLINE_HOT expected<xml, xml::error> xml::load(const string& path) {
         return detail::with_file(path, [](const io::reader& in) { return xml::parse(in); });
     }
 
     template<class T>
-    expected<T, xml::error> xml::load(const string& path) {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::load(const string& path) {
         return detail::with_file(path, [](const io::reader& in) { return xml::parse<T>(in); });
     }
 
@@ -2342,7 +2342,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<void, xml::error> xml::save(const string& path, const string& name, const T& value) {
+    SGCL_INLINE_HOT expected<void, xml::error> xml::save(const string& path, const string& name, const T& value) {
         auto text = stringify(name, value);
         if (!text) {
             return unexpected(text.error());
@@ -2355,11 +2355,11 @@ namespace sgcl::encoding {
         co_return co_await async::spawn_blocking([path, name, value] { return xml::save(path, name, value); });
     }
 
-    inline expected<void, xml::error> xml::save(const string& path) const {
+    SGCL_INLINE_HOT expected<void, xml::error> xml::save(const string& path) const {
         return detail::save_text(path, to_string());
     }
 
-    inline async::task<expected<void, xml::error>> xml::async_save(string path) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, xml::error>> xml::async_save(string path) const noexcept {
         return detail::xml_save_task(std::move(path), *this);
     }
 }

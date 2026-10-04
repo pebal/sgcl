@@ -51,7 +51,7 @@ namespace sgcl::codec::detail {
     public:
         // most: the largest side and chunk, PngChunkMax but in the tests,
         // which hold the bounds at small values
-        PngEncoder(const image& im, int level, Sink& sink, size_t most = PngChunkMax) noexcept
+        SGCL_INLINE_HOT PngEncoder(const image& im, int level, Sink& sink, size_t most = PngChunkMax) noexcept
         : _im(im), _level(level), _sink(sink), _most(most) {
         }
 
@@ -180,14 +180,14 @@ namespace sgcl::codec::detail {
         static constexpr size_t IdatSize = 65536;
         static constexpr size_t OutputReserve = 262144;   // past the largest block the Deflater writes at once
 
-        static void be32(uint8_t* p, uint32_t v) noexcept {
+        SGCL_INLINE_HOT static void be32(uint8_t* p, uint32_t v) noexcept {
             p[0] = uint8_t(v >> 24);
             p[1] = uint8_t(v >> 16);
             p[2] = uint8_t(v >> 8);
             p[3] = uint8_t(v);
         }
 
-        bool _put(const uint8_t* p, size_t n) noexcept(NothrowSink<Sink>) {
+        SGCL_INLINE_HOT bool _put(const uint8_t* p, size_t n) noexcept(NothrowSink<Sink>) {
             return _sink.put(p, n);
         }
 

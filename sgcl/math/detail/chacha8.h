@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <bit>
 #include <cstdint>
 #include <cstring>
@@ -95,7 +97,7 @@ namespace sgcl::math::detail {
         uint32_t next;      // the next word of the buffer to hand out
         uint32_t end;       // 32, or 28 in the last four blocks, whose last four words are the next key
 
-        void init(const uint64_t (&k)[4]) noexcept {
+        SGCL_INLINE_HOT void init(const uint64_t (&k)[4]) noexcept {
             std::memcpy(key, k, sizeof key);
             counter = 0;
             chacha8_blocks(key, 0, buffer);
@@ -115,7 +117,7 @@ namespace sgcl::math::detail {
             init(k);
         }
 
-        uint64_t take() noexcept {
+        SGCL_INLINE_HOT uint64_t take() noexcept {
             if (next == end) [[unlikely]] {
                 refill();
             }

@@ -11,6 +11,7 @@
 // server (keep-alive, 1 MB with a length and chunked, 100-continue, HEAD,
 // 404, a stream, a redirect, 800 requests from 32 goroutines).
 #include "tests/types.h"
+#include "tests/source_root.h"
 #include "sgcl/net/http/http.h"
 
 #include <cstdio>
@@ -32,7 +33,7 @@ namespace {
             if (std::system("command -v go > /dev/null 2>&1") != 0) {
                 return std::string();
             }
-            auto src = std::filesystem::path(__FILE__).parent_path() / "go_peer" / "main.go";
+            auto src = source_root() / "tests/net/http/go_peer/main.go";
             auto out = std::filesystem::temp_directory_path() / "sgcl_http_go_peer";
             std::string cmd = "go build -o '" + out.string() + "' '" + src.string() + "' 2>&1";
             if (std::system(cmd.c_str()) != 0) {

@@ -98,10 +98,13 @@
 #define SGCL_TSAN_ACQUIRE(p) ((void)0)
 #endif
 
-// Hot paths of the containers: inlined into the caller in optimized
-// builds; in debug builds a plain call, so that the locals of the fast
-// path (a pointer to a buffer that a growth then replaces) do not linger
-// in the caller's frame and retain the old buffer in the counting tests.
+// Short functions (a few statements, no loop, not a slow path): inlined
+// into the caller in optimized builds, whatever the compiler's estimate of
+// the size around them (it counts every call in a body, a cold one too, so
+// a change in one function moved the decisions elsewhere: DESIGN 452); in
+// debug builds a plain call, so that the locals of a fast path (a pointer
+// to a buffer that a growth then replaces) do not linger in the caller's
+// frame and retain the old buffer in the counting tests.
 #ifdef NDEBUG
 #define SGCL_INLINE_HOT SGCL_ALWAYS_INLINE
 #else
@@ -127,7 +130,7 @@ namespace sgcl::detail::os {
 
     // The child of a fork gets forked_child raised (POSIX only: Windows
     // has no fork)
-    inline void register_fork_handler() noexcept {
+    SGCL_INLINE_HOT void register_fork_handler() noexcept {
 #if !defined(_WIN32)
         ::pthread_atfork(nullptr, nullptr, [] { forked_child.store(true, std::memory_order_relaxed); });
 #endif
@@ -179,7 +182,7 @@ namespace sgcl::detail::os {
     // A writable range backed by the operating system lazily, zero until
     // touched: for tables indexed by address (heap.h: the cards), of which
     // a program touches a few pages. Null when the system refuses.
-    inline void* map_lazy(size_t size) noexcept {
+    SGCL_INLINE_HOT void* map_lazy(size_t size) noexcept {
 #if defined(_WIN32)
         return ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #else
@@ -224,7 +227,7 @@ namespace sgcl::detail::os {
 
     // The range given back to the system (at exit only: the heap lives as
     // long as the process)
-    inline void release(const Reservation& r) noexcept {
+    SGCL_INLINE_HOT void release(const Reservation& r) noexcept {
         if (r.base) {
 #if defined(_WIN32)
             ::VirtualFree(r.base, 0, MEM_RELEASE);
@@ -235,7 +238,7 @@ namespace sgcl::detail::os {
     }
 
     // A chunk of the reservation made usable; false at the system's limit
-    inline bool commit(void* p, size_t size) noexcept {
+    SGCL_INLINE_HOT bool commit(void* p, size_t size) noexcept {
 #if defined(_WIN32)
         return ::VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE) != nullptr;
 #else
@@ -250,7 +253,7 @@ namespace sgcl::detail::os {
     // bytes until it does. Nothing relies on the zeros: a page is zeroed
     // where a type needs it (object_pool_allocator_base.h: _next_page,
     // maker.h: _init)
-    inline void decommit(void* p, size_t size, bool needs_commit) noexcept {
+    SGCL_INLINE_HOT void decommit(void* p, size_t size, bool needs_commit) noexcept {
 #if defined(_WIN32)
         (void)needs_commit;
         ::VirtualFree(p, size, MEM_DECOMMIT);
@@ -271,7 +274,7 @@ namespace sgcl::detail::os {
 
     // Transparent huge pages for the range, where the system offers them
     // (Linux): fewer TLB misses on a heap of many pages
-    inline void advise_huge_pages([[maybe_unused]] void* p, [[maybe_unused]] size_t size) noexcept {
+    SGCL_INLINE_HOT void advise_huge_pages([[maybe_unused]] void* p, [[maybe_unused]] size_t size) noexcept {
 #if defined(MADV_HUGEPAGE)
         ::madvise(p, size, MADV_HUGEPAGE);
 #endif
@@ -312,7 +315,7 @@ namespace sgcl::detail::os {
     }
 
     // The system's page size: the unit of touched_pages
-    inline size_t page_size() noexcept {
+    SGCL_INLINE_HOT size_t page_size() noexcept {
 #if defined(_WIN32)
         SYSTEM_INFO info;
         ::GetSystemInfo(&info);
@@ -507,7 +510,7 @@ namespace sgcl::detail::os {
         }
     }
 
-    inline void hidden_call(void (*fn)(void*), void* arg, uintptr_t) noexcept {
+    SGCL_INLINE_HOT void hidden_call(void (*fn)(void*), void* arg, uintptr_t) noexcept {
         _clear_stack_buffer();
         fn(arg);
     }
@@ -709,7 +712,7 @@ namespace sgcl::detail::os {
     // config::heap_limit_percent of memory_limit(); 0 (no ceiling) when the
     // system does not say how much memory there is. Read once, by the
     // heap's constructor: nothing on the paths of allocation reads it
-    inline size_t default_memory_limit() noexcept {
+    SGCL_INLINE_HOT size_t default_memory_limit() noexcept {
         const size_t base = memory_limit();
         const auto env = env_size_or_percent("SGCL_MEMORY_LIMIT");
         if (env.set && !env.percent) {

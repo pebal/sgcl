@@ -53,7 +53,7 @@ namespace sgcl::crypto::detail::mlkem {
     struct Wipe {
         T& object;
 
-        ~Wipe() {
+        SGCL_INLINE_HOT ~Wipe() {
             secure_zero_object(object);
         }
     };
@@ -145,7 +145,7 @@ namespace sgcl::crypto::detail::mlkem {
 
     // SamplePolyCBD_η(PRF_η(σ, n))
     template<unsigned Eta>
-    inline void sample_noise(Poly& f, const uint8_t sigma[32], uint8_t n) noexcept {
+    SGCL_INLINE_HOT void sample_noise(Poly& f, const uint8_t sigma[32], uint8_t n) noexcept {
         uint8_t prf[64 * Eta];
         shake256(prf, sizeof prf, sigma, 32, &n, 1);
         sample_cbd<Eta>(f, prf);
@@ -209,7 +209,7 @@ namespace sgcl::crypto::detail::mlkem {
     }
 
     template<class P>
-    inline void pke_keygen(uint8_t* ek, uint8_t* dk, const uint8_t d[32]) noexcept {
+    SGCL_INLINE_HOT void pke_keygen(uint8_t* ek, uint8_t* dk, const uint8_t d[32]) noexcept {
         Matrix<P> a;
         pke_keygen<P>(ek, dk, d, a);
     }
@@ -262,7 +262,7 @@ namespace sgcl::crypto::detail::mlkem {
 
     // The same, the matrix made here from ek's ρ
     template<class P>
-    inline void pke_encrypt(uint8_t* c, const uint8_t* ek, const uint8_t m[32], const uint8_t r[32]) noexcept {
+    SGCL_INLINE_HOT void pke_encrypt(uint8_t* c, const uint8_t* ek, const uint8_t m[32], const uint8_t r[32]) noexcept {
         Matrix<P> a;
         expand_matrix<P>(a, ek + 384 * P::k);
         pke_encrypt<P>(c, ek, a, m, r);
@@ -297,7 +297,7 @@ namespace sgcl::crypto::detail::mlkem {
     // dk_PKE‖ek‖H(ek)‖z (the form of the standard; the public key type
     // keeps the seed and makes this from it)
     template<class P>
-    inline void keygen_internal(uint8_t* ek, uint8_t* dk, const uint8_t d[32], const uint8_t z[32], Matrix<P>& a) noexcept {
+    SGCL_INLINE_HOT void keygen_internal(uint8_t* ek, uint8_t* dk, const uint8_t d[32], const uint8_t z[32], Matrix<P>& a) noexcept {
         pke_keygen<P>(ek, dk, d, a);
         std::memcpy(dk + Sizes<P>::dk_pke, ek, Sizes<P>::ek);
         sha3_256(dk + Sizes<P>::dk_pke + Sizes<P>::ek, ek, Sizes<P>::ek);
@@ -305,7 +305,7 @@ namespace sgcl::crypto::detail::mlkem {
     }
 
     template<class P>
-    inline void keygen_internal(uint8_t* ek, uint8_t* dk, const uint8_t d[32], const uint8_t z[32]) noexcept {
+    SGCL_INLINE_HOT void keygen_internal(uint8_t* ek, uint8_t* dk, const uint8_t d[32], const uint8_t z[32]) noexcept {
         Matrix<P> a;
         keygen_internal<P>(ek, dk, d, z, a);
     }
@@ -313,7 +313,7 @@ namespace sgcl::crypto::detail::mlkem {
     // Algorithm 17: ML-KEM.Encaps_internal(ek, m): the shared key K and c,
     // with H(ek) given (the encapsulation key type keeps it)
     template<class P>
-    inline void encaps_with_hash(uint8_t key[32], uint8_t* c, const uint8_t* ek, const Matrix<P>& a, const uint8_t h[32], const uint8_t m[32]) noexcept {
+    SGCL_INLINE_HOT void encaps_with_hash(uint8_t key[32], uint8_t* c, const uint8_t* ek, const Matrix<P>& a, const uint8_t h[32], const uint8_t m[32]) noexcept {
         uint8_t g[64];
         Wipe<decltype(g)> wipe_g{g};
         sha3_512(g, m, 32, h, 32);
@@ -323,7 +323,7 @@ namespace sgcl::crypto::detail::mlkem {
 
     // The same with H(ek) and the matrix computed here
     template<class P>
-    inline void encaps_internal(uint8_t key[32], uint8_t* c, const uint8_t* ek, const uint8_t m[32]) noexcept {
+    SGCL_INLINE_HOT void encaps_internal(uint8_t key[32], uint8_t* c, const uint8_t* ek, const uint8_t m[32]) noexcept {
         uint8_t h[32];
         sha3_256(h, ek, Sizes<P>::ek);
         Matrix<P> a;
@@ -363,7 +363,7 @@ namespace sgcl::crypto::detail::mlkem {
 
     // The same, the matrix made here from the ρ of the ek inside dk
     template<class P>
-    inline void decaps_internal(uint8_t key[32], const uint8_t* dk, const uint8_t* c) noexcept {
+    SGCL_INLINE_HOT void decaps_internal(uint8_t key[32], const uint8_t* dk, const uint8_t* c) noexcept {
         Matrix<P> a;
         expand_matrix<P>(a, dk + Sizes<P>::dk_pke + 384 * P::k);
         decaps_internal<P>(key, dk, a, c);
@@ -373,7 +373,7 @@ namespace sgcl::crypto::detail::mlkem {
     // (the tests' semi-expanded keys): its length and H(ek) = h. The keys
     // the public type makes come from a seed and pass it by construction
     template<class P>
-    inline bool decapsulation_key_valid(const uint8_t* dk, size_t n) noexcept {
+    SGCL_INLINE_HOT bool decapsulation_key_valid(const uint8_t* dk, size_t n) noexcept {
         if (n != Sizes<P>::dk) {
             return false;
         }

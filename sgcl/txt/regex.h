@@ -73,21 +73,21 @@ namespace sgcl::txt {
         // makes — carries the room and does nothing with it.
         class match_slots {
         public:
-            match_slots() noexcept {
+            SGCL_INLINE_HOT match_slots() noexcept {
             }
 
-            match_slots(const match_slots& other) noexcept {
+            SGCL_INLINE_HOT match_slots(const match_slots& other) noexcept {
                 _copy(other);
             }
 
-            match_slots& operator=(const match_slots& other) noexcept {
+            SGCL_INLINE_HOT match_slots& operator=(const match_slots& other) noexcept {
                 if (this != &other) {
                     _copy(other);
                 }
                 return *this;
             }
 
-            void assign(const size_t* from, size_t n) noexcept {
+            SGCL_INLINE_HOT void assign(const size_t* from, size_t n) noexcept {
                 _size = n;
                 if (n <= Inline) {
                     sgcl::detail::copy_bytes(_inline, from, n * sizeof(size_t));
@@ -97,18 +97,18 @@ namespace sgcl::txt {
                 }
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return _size;
             }
 
-            size_t operator[](size_t i) const noexcept {
+            SGCL_INLINE_HOT size_t operator[](size_t i) const noexcept {
                 return _size <= Inline ? _inline[i] : _more[i];
             }
 
         private:
             static constexpr size_t Inline = 8;
 
-            void _copy(const match_slots& other) noexcept {
+            SGCL_INLINE_HOT void _copy(const match_slots& other) noexcept {
                 if (other._size <= Inline) {
                     _size = other._size;
                     sgcl::detail::copy_bytes(_inline, other._inline, _size * sizeof(size_t));
@@ -134,17 +134,17 @@ namespace sgcl::txt {
     // what to do, and an empty optional does not.
     class regex_error {
     public:
-        regex_error(const string& message, size_t offset) noexcept
+        SGCL_INLINE_HOT regex_error(const string& message, size_t offset) noexcept
         : _message(message)
         , _offset(offset) {
         }
 
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return _message;
         }
 
         // The byte of the pattern
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _offset;
         }
 
@@ -163,25 +163,25 @@ namespace sgcl::txt {
         match() noexcept = default;
 
         // The whole match
-        slice<const char> text() const noexcept {
+        SGCL_INLINE_HOT slice<const char> text() const noexcept {
             return _subject.subslice(_begin, _end - _begin);
         }
 
-        size_t begin_at() const noexcept {
+        SGCL_INLINE_HOT size_t begin_at() const noexcept {
             return _begin;
         }
 
-        size_t end_at() const noexcept {
+        SGCL_INLINE_HOT size_t end_at() const noexcept {
             return _end;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _begin == _end;
         }
 
         // The number of groups the pattern has, the whole match not
         // counted: group(1) to group(group_count()) are the ones there are
-        size_t group_count() const noexcept {
+        SGCL_INLINE_HOT size_t group_count() const noexcept {
             return _slots.size() / 2;
         }
 
@@ -204,7 +204,7 @@ namespace sgcl::txt {
             return _subject.subslice(from, to - from);
         }
 
-        optional<slice<const char>> group(const string& name) const noexcept {
+        SGCL_INLINE_HOT optional<slice<const char>> group(const string& name) const noexcept {
             auto n = _index_of(name.view());
             return n ? group(*n) : nullopt;
         }
@@ -212,27 +212,27 @@ namespace sgcl::txt {
         // A C text: an array up to its first NUL or its end, a pointer up
         // to its NUL (detail::c_text)
         template<size_t N>
-        optional<slice<const char>> group(const char (&name)[N]) const noexcept {
+        SGCL_INLINE_HOT optional<slice<const char>> group(const char (&name)[N]) const noexcept {
             auto n = _index_of(detail::c_text(name).view());
             return n ? group(*n) : nullopt;
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        optional<slice<const char>> group(P name) const noexcept {
+        SGCL_INLINE_HOT optional<slice<const char>> group(P name) const noexcept {
             auto n = _index_of(detail::c_text(name).view());
             return n ? group(*n) : nullopt;
         }
 
         // The same, with a group that took no part reading as empty, for
         // the caller who does not care about the difference
-        slice<const char> operator[](size_t n) const noexcept {
+        SGCL_INLINE_HOT slice<const char> operator[](size_t n) const noexcept {
             auto g = group(n);
             return g ? *g : slice<const char>();
         }
 
         // The text the match was found in, whole
-        const slice<const char>& subject() const noexcept {
+        SGCL_INLINE_HOT const slice<const char>& subject() const noexcept {
             return _subject;
         }
 
@@ -315,33 +315,33 @@ namespace sgcl::txt {
             iterator(const iterator&) noexcept = default;
             iterator& operator=(const iterator&) noexcept = default;
 
-            const match& operator*() const noexcept {
+            SGCL_INLINE_HOT const match& operator*() const noexcept {
                 return _match;
             }
 
-            const match* operator->() const noexcept {
+            SGCL_INLINE_HOT const match* operator->() const noexcept {
                 return &_match;
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 _step(_next);
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._done == b._done && (a._done || a._match.begin_at() == b._match.begin_at());
             }
 
         private:
             friend class regex_matches;
 
-            iterator(tracked_ptr<const detail::regex_state> state, const slice<const char>& text) noexcept
+            SGCL_INLINE_HOT iterator(tracked_ptr<const detail::regex_state> state, const slice<const char>& text) noexcept
             : _state(std::move(state))
             , _text(text) {
                 if (_state) {
@@ -419,14 +419,14 @@ namespace sgcl::txt {
         regex_matches(const regex_matches&) = default;
         regex_matches& operator=(const regex_matches&) = default;
 
-        regex_matches(regex_matches&& other) noexcept
+        SGCL_INLINE_HOT regex_matches(regex_matches&& other) noexcept
         : _state(other._state)
         , _text(other._text) {
             other._state = nullptr;
             other._text = slice<const char>();
         }
 
-        regex_matches& operator=(regex_matches&& other) noexcept {
+        SGCL_INLINE_HOT regex_matches& operator=(regex_matches&& other) noexcept {
             if (this != &other) {
                 _state = other._state;
                 _text = other._text;
@@ -440,25 +440,25 @@ namespace sgcl::txt {
         // A C text, copied into a string the range then holds: the
         // slice of a literal's array would count its terminating zero
         template<size_t N>
-        regex_matches(const regex& re, const char (&text)[N])
+        SGCL_INLINE_HOT regex_matches(const regex& re, const char (&text)[N])
         : regex_matches(re, detail::c_string(text).as_slice()) {
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        regex_matches(const regex& re, P text)
+        SGCL_INLINE_HOT regex_matches(const regex& re, P text)
         : regex_matches(re, detail::c_string(text).as_slice()) {
         }
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return iterator(_state, _text);
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return begin() == end();
         }
 
@@ -471,7 +471,7 @@ namespace sgcl::txt {
             return n;
         }
 
-        const slice<const char>& text() const noexcept {
+        SGCL_INLINE_HOT const slice<const char>& text() const noexcept {
             return _text;
         }
 
@@ -517,7 +517,7 @@ namespace sgcl::txt {
                 }
             }
 
-            constexpr std::string_view view() const noexcept {
+            SGCL_INLINE_HOT constexpr std::string_view view() const noexcept {
                 return _text;
             }
 
@@ -532,17 +532,17 @@ namespace sgcl::txt {
     class regex {
     public:
         // From a literal, which the compiler has already read
-        regex(const detail::regex_pattern& pattern) noexcept
+        SGCL_INLINE_HOT regex(const detail::regex_pattern& pattern) noexcept
         : _state(_built(string(pattern.view().data(), pattern.view().size()))) {
         }
 
         // From a pattern the program only has where it runs: either the
         // regex or the reason it is not one
-        static expected<regex, regex_error> compile(const string& pattern) noexcept {
+        SGCL_INLINE_HOT static expected<regex, regex_error> compile(const string& pattern) noexcept {
             return _compile(pattern);
         }
 
-        static expected<regex, regex_error> compile(const slice<const char>& pattern) {
+        SGCL_INLINE_HOT static expected<regex, regex_error> compile(const slice<const char>& pattern) {
             return _compile(string(pattern.data(), pattern.size()));
         }
 
@@ -550,22 +550,22 @@ namespace sgcl::txt {
         // would both take — as detail::c_text reads it; so every member
         // below that takes a text
         template<size_t N>
-        static expected<regex, regex_error> compile(const char (&pattern)[N]) {
+        SGCL_INLINE_HOT static expected<regex, regex_error> compile(const char (&pattern)[N]) {
             return _compile(detail::c_string(pattern));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        static expected<regex, regex_error> compile(P pattern) {
+        SGCL_INLINE_HOT static expected<regex, regex_error> compile(P pattern) {
             return _compile(detail::c_string(pattern));
         }
 
-        const string& pattern() const noexcept {
+        SGCL_INLINE_HOT const string& pattern() const noexcept {
             return _state->pattern;
         }
 
         // How many capturing groups the pattern has
-        size_t group_count() const noexcept {
+        SGCL_INLINE_HOT size_t group_count() const noexcept {
             return _state->prog.groups;
         }
 
@@ -584,46 +584,46 @@ namespace sgcl::txt {
         // at the match a backtracking engine would have preferred, which
         // may be the shorter one, and the question here is whether the
         // longer one exists at all.
-        bool full_match(const slice<const char>& text) const noexcept {
+        SGCL_INLINE_HOT bool full_match(const slice<const char>& text) const noexcept {
             size_t caps[2];
             detail::matcher machine(detail::LentBlock{}, _state->prog, _view(text), 2);
             return machine.run(0, caps, true);
         }
 
-        bool full_match(const string& text) const noexcept {
+        SGCL_INLINE_HOT bool full_match(const string& text) const noexcept {
             return full_match(text.as_slice());
         }
 
         template<size_t N>
-        bool full_match(const char (&text)[N]) const noexcept {
+        SGCL_INLINE_HOT bool full_match(const char (&text)[N]) const noexcept {
             return full_match(detail::c_text(text));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        bool full_match(P text) const noexcept {
+        SGCL_INLINE_HOT bool full_match(P text) const noexcept {
             return full_match(detail::c_text(text));
         }
 
         // Whether the pattern is anywhere in the text
-        bool contains(const slice<const char>& text) const noexcept {
+        SGCL_INLINE_HOT bool contains(const slice<const char>& text) const noexcept {
             size_t caps[2];
             detail::matcher machine(detail::LentBlock{}, _state->prog, _view(text), 2);
             return machine.run(0, caps);
         }
 
-        bool contains(const string& text) const noexcept {
+        SGCL_INLINE_HOT bool contains(const string& text) const noexcept {
             return contains(text.as_slice());
         }
 
         template<size_t N>
-        bool contains(const char (&text)[N]) const noexcept {
+        SGCL_INLINE_HOT bool contains(const char (&text)[N]) const noexcept {
             return contains(detail::c_text(text));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        bool contains(P text) const noexcept {
+        SGCL_INLINE_HOT bool contains(P text) const noexcept {
             return contains(detail::c_text(text));
         }
 
@@ -651,74 +651,74 @@ namespace sgcl::txt {
             return match::_made(_state, text, caps);
         }
 
-        optional<match> find(const string& text, size_t from = 0) const noexcept {
+        SGCL_INLINE_HOT optional<match> find(const string& text, size_t from = 0) const noexcept {
             return find(text.as_slice(), from);
         }
 
         // The match holds its text, so a C text is copied into one
         template<size_t N>
-        optional<match> find(const char (&text)[N], size_t from = 0) const {
+        SGCL_INLINE_HOT optional<match> find(const char (&text)[N], size_t from = 0) const {
             return find(detail::c_string(text), from);
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        optional<match> find(P text, size_t from = 0) const {
+        SGCL_INLINE_HOT optional<match> find(P text, size_t from = 0) const {
             return find(detail::c_string(text), from);
         }
 
         // Every match, one after another and never overlapping
-        regex_matches all(const slice<const char>& text) const noexcept {
+        SGCL_INLINE_HOT regex_matches all(const slice<const char>& text) const noexcept {
             return regex_matches(*this, text);
         }
 
-        regex_matches all(const string& text) const noexcept {
+        SGCL_INLINE_HOT regex_matches all(const string& text) const noexcept {
             return regex_matches(*this, text.as_slice());
         }
 
         template<size_t N>
-        regex_matches all(const char (&text)[N]) const {
+        SGCL_INLINE_HOT regex_matches all(const char (&text)[N]) const {
             return regex_matches(*this, text);
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        regex_matches all(P text) const {
+        SGCL_INLINE_HOT regex_matches all(P text) const {
             return regex_matches(*this, text);
         }
 
-        size_t count(const slice<const char>& text) const noexcept {
+        SGCL_INLINE_HOT size_t count(const slice<const char>& text) const noexcept {
             return all(text).count();
         }
 
-        size_t count(const string& text) const noexcept {
+        SGCL_INLINE_HOT size_t count(const string& text) const noexcept {
             return count(text.as_slice());
         }
 
         template<size_t N>
-        size_t count(const char (&text)[N]) const noexcept {
+        SGCL_INLINE_HOT size_t count(const char (&text)[N]) const noexcept {
             return count(detail::c_text(text));
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        size_t count(P text) const noexcept {
+        SGCL_INLINE_HOT size_t count(P text) const noexcept {
             return count(detail::c_text(text));
         }
 
         // Every match replaced. In the replacement $1 is what group one
         // matched, ${name} what a named group matched, $0 the whole match
         // and $$ a dollar of its own; anything else stands for itself.
-        string replace(const slice<const char>& text, const slice<const char>& with) const {
+        SGCL_INLINE_HOT string replace(const slice<const char>& text, const slice<const char>& with) const {
             return _replace(text, _view(with), npos);
         }
 
-        string replace(const string& text, const string& with) const {
+        SGCL_INLINE_HOT string replace(const string& text, const string& with) const {
             return _replace(text.as_slice(), with.view(), npos);
         }
 
         template<size_t N, size_t M>
-        string replace(const char (&text)[N], const char (&with)[M]) const {
+        SGCL_INLINE_HOT string replace(const char (&text)[N], const char (&with)[M]) const {
             return _replace(detail::c_text(text), _view(detail::c_text(with)), npos);
         }
 
@@ -727,21 +727,21 @@ namespace sgcl::txt {
         template<class P, class Q>
         requires (std::same_as<P, const char*> || std::same_as<P, char*>)
               && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
-        string replace(const P& text, const Q& with) const {
+        SGCL_INLINE_HOT string replace(const P& text, const Q& with) const {
             return _replace(detail::c_text(text), _view(detail::c_text(with)), npos);
         }
 
         // Only the first match
-        string replace_first(const string& text, const string& with) const {
+        SGCL_INLINE_HOT string replace_first(const string& text, const string& with) const {
             return _replace(text.as_slice(), with.view(), 1);
         }
 
-        string replace_first(const slice<const char>& text, const slice<const char>& with) const {
+        SGCL_INLINE_HOT string replace_first(const slice<const char>& text, const slice<const char>& with) const {
             return _replace(text, _view(with), 1);
         }
 
         template<size_t N, size_t M>
-        string replace_first(const char (&text)[N], const char (&with)[M]) const {
+        SGCL_INLINE_HOT string replace_first(const char (&text)[N], const char (&with)[M]) const {
             return _replace(detail::c_text(text), _view(detail::c_text(with)), 1);
         }
 
@@ -750,7 +750,7 @@ namespace sgcl::txt {
         template<class P, class Q>
         requires (std::same_as<P, const char*> || std::same_as<P, char*>)
               && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
-        string replace_first(const P& text, const Q& with) const {
+        SGCL_INLINE_HOT string replace_first(const P& text, const Q& with) const {
             return _replace(detail::c_text(text), _view(detail::c_text(with)), 1);
         }
 
@@ -783,40 +783,40 @@ namespace sgcl::txt {
             return out;
         }
 
-        vector<slice<const char>> split(const string& text, size_t limit = 0) const noexcept {
+        SGCL_INLINE_HOT vector<slice<const char>> split(const string& text, size_t limit = 0) const noexcept {
             return split(text.as_slice(), limit);
         }
 
         // The pieces hold their text, so a C text is copied into one
         template<size_t N>
-        vector<slice<const char>> split(const char (&text)[N], size_t limit = 0) const {
+        SGCL_INLINE_HOT vector<slice<const char>> split(const char (&text)[N], size_t limit = 0) const {
             return split(detail::c_string(text), limit);
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        vector<slice<const char>> split(P text, size_t limit = 0) const {
+        SGCL_INLINE_HOT vector<slice<const char>> split(P text, size_t limit = 0) const {
             return split(detail::c_string(text), limit);
         }
 
         // How many instructions the pattern spelled out to, for whoever
         // wants to know what a {n,m} cost
-        size_t program_size() const noexcept {
+        SGCL_INLINE_HOT size_t program_size() const noexcept {
             return _state->prog.insts.size();
         }
 
     private:
         friend class regex_matches;
 
-        explicit regex(const tracked_ptr<const detail::regex_state>& state) noexcept
+        SGCL_INLINE_HOT explicit regex(const tracked_ptr<const detail::regex_state>& state) noexcept
         : _state(state) {
         }
 
-        static std::string_view _view(const slice<const char>& s) noexcept {
+        SGCL_INLINE_HOT static std::string_view _view(const slice<const char>& s) noexcept {
             return std::string_view(s.data(), s.size());
         }
 
-        size_t _ncap() const noexcept {
+        SGCL_INLINE_HOT size_t _ncap() const noexcept {
             return 2 * (size_t(_state->prog.groups) + 1);
         }
 
@@ -871,7 +871,7 @@ namespace sgcl::txt {
             return at;
         }
 
-        static size_t _one_point(const slice<const char>& text, size_t at) noexcept {
+        SGCL_INLINE_HOT static size_t _one_point(const slice<const char>& text, size_t at) noexcept {
             if (at >= text.size()) {
                 return 1;
             }
@@ -944,7 +944,7 @@ namespace sgcl::txt {
         // a number the pattern has no group for is meant to put nothing in.
         // Anything past the engine's own limit is already such a number, so
         // stopping there loses no group that could have existed.
-        static constexpr size_t _digit(size_t value, char c) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t _digit(size_t value, char c) noexcept {
             if (value > detail::MaxRegexGroups) {
                 return value;
             }
@@ -1011,7 +1011,7 @@ namespace sgcl::txt {
         tracked_ptr<const detail::regex_state> _state;
     };
 
-    inline regex_matches::regex_matches(const regex& re, const slice<const char>& text) noexcept
+    SGCL_INLINE_HOT regex_matches::regex_matches(const regex& re, const slice<const char>& text) noexcept
     : _state(re._state)
     , _text(text) {
     }

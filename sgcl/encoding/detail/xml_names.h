@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
 #include "../../core/aliases.h"
 #include "../../core/utf8.h"
 
@@ -24,13 +25,13 @@ namespace sgcl::encoding::detail {
     // matter of blocks, not of letters.
 
     // [2] Char: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
-    constexpr bool xml_char(char32_t c) noexcept {
+    SGCL_INLINE_HOT constexpr bool xml_char(char32_t c) noexcept {
         return c >= 0x20 ? (c < 0xD800 || (c >= 0xE000 && c <= 0xFFFD) || (c >= 0x10000 && c <= 0x10FFFF))
                          : (c == 0x9 || c == 0xA || c == 0xD);
     }
 
     // [4] NameStartChar
-    constexpr bool xml_name_start(char32_t c) noexcept {
+    SGCL_INLINE_HOT constexpr bool xml_name_start(char32_t c) noexcept {
         if (c < 0x80) {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':';
         }
@@ -41,7 +42,7 @@ namespace sgcl::encoding::detail {
     }
 
     // [4a] NameChar
-    constexpr bool xml_name_char(char32_t c) noexcept {
+    SGCL_INLINE_HOT constexpr bool xml_name_char(char32_t c) noexcept {
         if (c < 0x80) {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
                 || c == '_' || c == ':' || c == '-' || c == '.';
@@ -89,7 +90,7 @@ namespace sgcl::encoding::detail {
         return t;
     }();
 
-    constexpr bool xml_space(char c) noexcept {
+    SGCL_INLINE_HOT constexpr bool xml_space(char c) noexcept {
         return XmlBytes[uint8_t(c)] & XmlSpace;
     }
 
@@ -102,7 +103,7 @@ namespace sgcl::encoding::detail {
         uint32_t width;
     };
 
-    inline XmlRune xml_rune(const char* p, const char* end) noexcept {
+    SGCL_INLINE_HOT XmlRune xml_rune(const char* p, const char* end) noexcept {
         auto [c, n] = utf8::decode(std::string_view(p, size_t(end - p)), 0);
         if (c == utf8::replacement && n == 1) {
             return {c, 0};
@@ -142,11 +143,11 @@ namespace sgcl::encoding::detail {
         return true;
     }
 
-    inline bool xml_ncname(std::string_view s) noexcept {
+    SGCL_INLINE_HOT bool xml_ncname(std::string_view s) noexcept {
         return xml_name(s) && s.find(':') == std::string_view::npos;
     }
 
-    inline bool xml_qname(std::string_view s) noexcept {
+    SGCL_INLINE_HOT bool xml_qname(std::string_view s) noexcept {
         if (!xml_name(s)) {
             return false;
         }
@@ -160,7 +161,7 @@ namespace sgcl::encoding::detail {
 
     // Whether a string already known to be a Name is a QName: one colon at
     // the most, not at either end, a NameStartChar after it
-    inline bool xml_qname_of_name(std::string_view s) noexcept {
+    SGCL_INLINE_HOT bool xml_qname_of_name(std::string_view s) noexcept {
         auto colon = s.find(':');
         if (colon == std::string_view::npos) {
             return true;
@@ -259,7 +260,7 @@ namespace sgcl::encoding::detail {
     }
 
     // An element's name of the prefix xmlns, which no element has (section 3)
-    inline bool xml_xmlns_element(std::string_view qname) noexcept {
+    SGCL_INLINE_HOT bool xml_xmlns_element(std::string_view qname) noexcept {
         return qname.starts_with("xmlns:");
     }
 }

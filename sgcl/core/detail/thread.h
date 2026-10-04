@@ -27,7 +27,7 @@ namespace sgcl::detail {
     // function-local thread_local (current_thread), destroyed at thread
     // exit like before. Stays set after that: no re-registration from
     // thread_local destructors.
-    inline bool thread_registered() noexcept {
+    SGCL_INLINE_HOT bool thread_registered() noexcept {
         return current_thread_ptr != nullptr;
     }
     // The stack of the thread, [begin, begin + size), set at registration
@@ -36,7 +36,7 @@ namespace sgcl::detail {
     struct ThreadStack {
         uintptr_t begin = 0;
         uintptr_t size = 0;
-        bool holds(const void* p) const noexcept {
+        SGCL_INLINE_HOT bool holds(const void* p) const noexcept {
             return (uintptr_t)p - begin < size;
         }
     };
@@ -60,7 +60,7 @@ namespace sgcl::detail {
         // operation of the thread, and the Data of two threads would
         // otherwise share a line.
         struct alignas(config::cache_line_size) Data {
-            Data(PageAllocator* p) noexcept
+            SGCL_INLINE_HOT Data(PageAllocator* p) noexcept
             : page_allocator(p) {
             }
             std::unique_ptr<PageAllocator> page_allocator;
@@ -166,11 +166,11 @@ namespace sgcl::detail {
 
         // Whether p is on this thread's stack: the location check of the
         // debug assertions
-        bool on_stack(const void* p) const noexcept {
+        SGCL_INLINE_HOT bool on_stack(const void* p) const noexcept {
             return (uintptr_t)p - _data->stack_begin < _data->stack_end - _data->stack_begin;
         }
 
-        uintptr_t stack_begin() const noexcept {
+        SGCL_INLINE_HOT uintptr_t stack_begin() const noexcept {
             return _data->stack_begin;
         }
 
@@ -181,12 +181,12 @@ namespace sgcl::detail {
         // be overtaken by the load, and seq_cst makes it an xchg; on arm64
         // the store is stlr either way, and the load must be ldar, since
         // an acquire load is ldapr since ARMv8.3, which may pass the stlr.
-        void set_hazard_pointer(void* p) noexcept {
+        SGCL_INLINE_HOT void set_hazard_pointer(void* p) noexcept {
             _data->hazard_pointer.store(p, std::memory_order_seq_cst);
         }
 
         // The object is held by its tracked_ptr now (or was not taken)
-        void clear_hazard_pointer() noexcept {
+        SGCL_INLINE_HOT void clear_hazard_pointer() noexcept {
             _data->hazard_pointer.store(nullptr, std::memory_order_release);
         }
 
@@ -275,7 +275,7 @@ namespace sgcl::detail {
             return index;   // another thread's number, read by the failed CAS
         }
 
-        static unsigned _next_type_index() {
+        SGCL_INLINE_HOT static unsigned _next_type_index() {
             auto index = _type_counter.fetch_add(1, std::memory_order_relaxed) + 1;   // from 1: slot 0 stays null
             if (index >= config::max_types_number) {
                 // Was an assert: in release the next line would index past
@@ -291,7 +291,7 @@ namespace sgcl::detail {
     // The main thread's id, taken at static initialization: the Thread of
     // the main thread terminates the collector when it exits (~Thread).
     struct MainThreadDetector {
-        MainThreadDetector() noexcept {
+        SGCL_INLINE_HOT MainThreadDetector() noexcept {
             Thread::main_thread_id = std::this_thread::get_id();
         }
     };
@@ -329,7 +329,7 @@ namespace sgcl::detail {
         return *holder.thread;
     }
 
-    inline Thread& current_thread() noexcept {
+    SGCL_INLINE_HOT Thread& current_thread() noexcept {
         auto thread = current_thread_ptr;
         if (thread) [[likely]] {
                 return *static_cast<Thread*>(thread);
@@ -356,7 +356,7 @@ namespace sgcl::detail {
     // copy of a pointer read from a shared object), so constructing a
     // tracked_ptr on the stack registers the thread. One thread-local flag:
     // the check is a load and a predictable branch.
-    inline void ensure_thread_registered() noexcept {
+    SGCL_INLINE_HOT void ensure_thread_registered() noexcept {
         if (!current_thread_ptr) [[unlikely]] {
             register_thread();
         }

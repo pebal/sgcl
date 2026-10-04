@@ -14,6 +14,7 @@
 // alerts of a failed handshake as each side reads them (before the server's
 // hello, a chain the client refuses, a record the client cannot open).
 #include "tests/types.h"
+#include "tests/source_root.h"
 
 #include "sgcl/net/tls.h"
 
@@ -28,8 +29,7 @@ namespace tls = sgcl::net::tls;
 
 namespace {
     std::string testdata(const std::string& name) {
-        std::string f = __FILE__;
-        return f.substr(0, f.rfind('/')) + "/tls_testdata/" + name;
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     std::string slurp(const std::string& path) {

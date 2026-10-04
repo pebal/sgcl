@@ -30,7 +30,7 @@ namespace sgcl::async {
         once& operator=(const once&) = delete;
 
         template<class F> requires (!detail::TaskFactory<F>)
-        auto call(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto call(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return detail::make_operation([this, f = std::move(f)](auto how) mutable -> decltype(auto) {
                 if constexpr (detail::is_awaited<decltype(how)>) {
                     return _co_call(std::move(f));
@@ -60,18 +60,18 @@ namespace sgcl::async {
         // And for a coroutine function with captures, which a function's
         // form would call and drop the task it gave, never started
         template<detail::TaskFactory F>
-        task<> call(F f) {
+        SGCL_INLINE_HOT task<> call(F f) {
             return call(detail::task_of(std::move(f)));
         }
 
-        bool called() const noexcept {
+        SGCL_INLINE_HOT bool called() const noexcept {
             return _done.closed();
         }
 
     private:
         // the two halves of call(f): a thread's and a task's
         template<class F>
-        void _call(F& f) {
+        SGCL_INLINE_HOT void _call(F& f) {
             assert(!detail::on_worker() && "call(f).wait() blocks the worker: co_await o.call(f) from a task");
             if (_claim()) {
                 _run(f);
@@ -116,7 +116,7 @@ namespace sgcl::async {
             }
         }
 
-        bool _claim() noexcept {
+        SGCL_INLINE_HOT bool _claim() noexcept {
             int e = 0;
             return _state.compare_exchange_strong(e, 1, std::memory_order_acq_rel, std::memory_order_acquire);
         }

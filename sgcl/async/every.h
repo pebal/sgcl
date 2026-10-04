@@ -30,7 +30,7 @@ namespace sgcl::async {
         struct EveryTicks {
             channel<void> ticks;
 
-            ~EveryTicks() {
+            SGCL_INLINE_HOT ~EveryTicks() {
                 ticks.close();
             }
         };
@@ -59,7 +59,7 @@ namespace sgcl::async {
     // never ticks, as tick's
     template<class F>
     requires std::invocable<F&>
-    stop_source every(duration d, F f) {
+    SGCL_INLINE_HOT stop_source every(duration d, F f) {
         stop_source s;
         go(detail::every_loop(d, std::move(f), s.token()));
         return s;
@@ -68,7 +68,7 @@ namespace sgcl::async {
     // The same, stopped also when parent is: the source returned is its child
     template<class F>
     requires std::invocable<F&>
-    stop_source every(duration d, F f, const stop_token& parent) {
+    SGCL_INLINE_HOT stop_source every(duration d, F f, const stop_token& parent) {
         stop_source s(parent);
         go(detail::every_loop(d, std::move(f), s.token()));
         return s;

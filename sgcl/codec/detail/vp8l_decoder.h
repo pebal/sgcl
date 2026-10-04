@@ -29,7 +29,7 @@ namespace sgcl::codec::detail {
     public:
         static constexpr bool Nothrow = NothrowInput<Input>;
 
-        Vp8lBits(Input& in, uint64_t size) noexcept
+        SGCL_INLINE_HOT Vp8lBits(Input& in, uint64_t size) noexcept
         : _in(in), _left(size) {
         }
 
@@ -51,7 +51,7 @@ namespace sgcl::codec::detail {
             _fill_slow();
         }
 
-        uint32_t bits(unsigned n) noexcept(Nothrow) {
+        SGCL_INLINE_HOT uint32_t bits(unsigned n) noexcept(Nothrow) {
             fill();
             const uint32_t r = uint32_t(_val) & ((uint32_t(1) << n) - 1);
             _val >>= n;
@@ -60,25 +60,25 @@ namespace sgcl::codec::detail {
         }
 
         // The low bits held, for a table lookup; skip() takes them
-        uint64_t peek() const noexcept {
+        SGCL_INLINE_HOT uint64_t peek() const noexcept {
             return _val;
         }
 
-        void skip(unsigned n) noexcept {
+        SGCL_INLINE_HOT void skip(unsigned n) noexcept {
             _val >>= n;
             _nbits -= n;
         }
 
-        bool overrun() const noexcept {
+        SGCL_INLINE_HOT bool overrun() const noexcept {
             return _padded > _nbits;
         }
 
         // The input failed (a stream's error), or ended before the chunk
-        bool failed() const noexcept {
+        SGCL_INLINE_HOT bool failed() const noexcept {
             return _failed;
         }
 
-        bool truncated() const noexcept {
+        SGCL_INLINE_HOT bool truncated() const noexcept {
             return _truncated;
         }
 
@@ -157,7 +157,7 @@ namespace sgcl::codec::detail {
         inline constexpr uint32_t Pointer = uint32_t(1) << 24;
         inline constexpr unsigned MaxLength = 15;
 
-        inline uint32_t entry(uint32_t value, unsigned len) noexcept {
+        SGCL_INLINE_HOT uint32_t entry(uint32_t value, unsigned len) noexcept {
             return value | uint32_t(len) << 16;
         }
 
@@ -282,7 +282,7 @@ namespace sgcl::codec::detail {
 
         inline constexpr uint8_t CodeLengthOrder[19] = {17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
-        inline uint32_t div_round_up(uint32_t n, unsigned bits) noexcept {
+        SGCL_INLINE_HOT uint32_t div_round_up(uint32_t n, unsigned bits) noexcept {
             return (n + (uint32_t(1) << bits) - 1) >> bits;
         }
     }
@@ -340,7 +340,7 @@ namespace sgcl::codec::detail {
         }
 
         // The pixels of the last image, width × height ARGB words
-        const uint32_t* pixels() const noexcept {
+        SGCL_INLINE_HOT const uint32_t* pixels() const noexcept {
             return _pixels.data();
         }
 
@@ -655,7 +655,7 @@ namespace sgcl::codec::detail {
 
         // A length or a distance from its prefix code and extra bits
         template<class Bits>
-        static uint32_t _prefix_value(Bits& b, uint32_t code) noexcept(Bits::Nothrow) {
+        SGCL_INLINE_HOT static uint32_t _prefix_value(Bits& b, uint32_t code) noexcept(Bits::Nothrow) {
             if (code < 4) {
                 return code + 1;
             }

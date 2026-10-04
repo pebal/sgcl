@@ -37,24 +37,24 @@ namespace sgcl::hash {
 
         xxh3_64() noexcept = default;
 
-        explicit xxh3_64(uint64_t seed) noexcept
+        SGCL_INLINE_HOT explicit xxh3_64(uint64_t seed) noexcept
         : _state(seed) {
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
-        uint64_t value() const noexcept {
+        SGCL_INLINE_HOT uint64_t value() const noexcept {
             return _state.value64();
         }
 
-        array<byte, 8> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 8> digest() const noexcept {
             return detail::big_endian<8>(value());
         }
 
         // As new, with the seed it was made with
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.reset();
         }
 
@@ -62,7 +62,7 @@ namespace sgcl::hash {
         detail::Xxh3Stream _state;
 
         // the one-shot form of() calls: `xxh3_64::of(data)`, `xxh3_64::of(data, seed)`
-        static uint64_t _of(const slice<const byte>& data, uint64_t seed = 0) noexcept {
+        SGCL_INLINE_HOT static uint64_t _of(const slice<const byte>& data, uint64_t seed = 0) noexcept {
             return detail::xxh3_64(detail::bytes(data.data()), data.size(), seed);
         }
     };
@@ -80,30 +80,30 @@ namespace sgcl::hash {
 
         xxh3_128() noexcept = default;
 
-        explicit xxh3_128(uint64_t seed) noexcept
+        SGCL_INLINE_HOT explicit xxh3_128(uint64_t seed) noexcept
         : _state(seed) {
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
-        array<byte, 16> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 16> value() const noexcept {
             return detail::xxh3_128_bytes(_state.value128());
         }
 
-        array<byte, 16> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 16> digest() const noexcept {
             return value();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.reset();
         }
 
     private:
         detail::Xxh3Stream _state;
 
-        static array<byte, 16> _of(const slice<const byte>& data, uint64_t seed = 0) noexcept {
+        SGCL_INLINE_HOT static array<byte, 16> _of(const slice<const byte>& data, uint64_t seed = 0) noexcept {
             return detail::xxh3_128_bytes(detail::xxh3_128(detail::bytes(data.data()), data.size(), seed));
         }
     };

@@ -55,7 +55,7 @@ namespace sgcl::detail {
         // (defined in metadata.h, after the record)
         SGCL_NOINLINE static ChildPointers& of_type(TypeRecord& r);
 
-        uint64_t word(size_t w) const noexcept {
+        SGCL_INLINE_HOT uint64_t word(size_t w) const noexcept {
             return map[w].load(std::memory_order_relaxed);
         }
 

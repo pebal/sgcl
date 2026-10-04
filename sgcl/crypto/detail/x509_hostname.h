@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -21,7 +23,7 @@
 // (x509.h); the one question asked of a text is whether it is written as
 // an IPv4 address, so that such a text is never matched as a DNS name.
 namespace sgcl::crypto::detail::x509_names {
-    inline char lower(char c) noexcept {
+    SGCL_INLINE_HOT char lower(char c) noexcept {
         return c >= 'A' && c <= 'Z' ? char(c + ('a' - 'A')) : c;
     }
 
@@ -111,7 +113,7 @@ namespace sgcl::crypto::detail::x509_names {
 
     // The exact comparison for what is not a valid host name: folded, and
     // never of an empty name or "."
-    inline bool match_exactly(std::string_view a, std::string_view b) noexcept {
+    SGCL_INLINE_HOT bool match_exactly(std::string_view a, std::string_view b) noexcept {
         if (a.empty() || a == "." || b.empty() || b == ".") {
             return false;
         }
@@ -121,7 +123,7 @@ namespace sgcl::crypto::detail::x509_names {
     // Whether a certificate's dNSName pattern matches the host asked:
     // wildcards and the trailing dot only where both are valid host names,
     // else the exact comparison (Go's VerifyHostname)
-    inline bool host_matches(std::string_view pattern, std::string_view host) noexcept {
+    SGCL_INLINE_HOT bool host_matches(std::string_view pattern, std::string_view host) noexcept {
         if (valid_hostname(host, false) && valid_hostname(pattern, true)) {
             return match_hostname(pattern, host);
         }
@@ -369,7 +371,7 @@ namespace sgcl::crypto::detail::x509_names {
 
     // Whether an excluded constraint takes a wildcard name: "*.example.com"
     // is excluded by "foo.example.com", since it would match that name
-    inline bool excluded_wildcard(std::string_view constraint, std::string_view name) noexcept {
+    SGCL_INLINE_HOT bool excluded_wildcard(std::string_view constraint, std::string_view name) noexcept {
         if (name.empty() || name[0] != '*') {
             return false;
         }

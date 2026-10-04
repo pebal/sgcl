@@ -40,7 +40,7 @@ namespace sgcl::async {
         condition_variable& operator=(const condition_variable&) = delete;
 
         // Wakes the first waiter, if any
-        void notify_one() {
+        SGCL_INLINE_HOT void notify_one() {
             if (auto w = _waiters.try_pop()) {
                 (*w)->try_send();
             }
@@ -58,7 +58,7 @@ namespace sgcl::async {
         // (std::unique_lock<sgcl::async::mutex>)
         // A wait with the guard of an async::mutex: `co_await cv.wait(g)` in
         // a task, `cv.wait(g).wait()` on a thread
-        auto wait(mutex::guard& g) noexcept {
+        SGCL_INLINE_HOT auto wait(mutex::guard& g) noexcept {
             return detail::either([this, &g] { return _co_wait(g); }, [this, &g] { _wait(g); });
         }
 
@@ -84,7 +84,7 @@ namespace sgcl::async {
     public:
         template<class Lock>
             requires (!std::is_same_v<Lock, mutex::guard>)
-        void wait(Lock& lock) {
+        SGCL_INLINE_HOT void wait(Lock& lock) {
             tracked_ptr<detail::ChannelState<void>> w = _register();
             lock.unlock();
             (void)w->receive().wait();
@@ -102,7 +102,7 @@ namespace sgcl::async {
         }
 
     private:
-        tracked_ptr<detail::ChannelState<void>> _register() noexcept {   // a ring of one is never too large
+        SGCL_INLINE_HOT tracked_ptr<detail::ChannelState<void>> _register() noexcept {   // a ring of one is never too large
             tracked_ptr<detail::ChannelState<void>> w = detail::make_linked_state<void>(1);
             _waiters.push(w);
             return w;

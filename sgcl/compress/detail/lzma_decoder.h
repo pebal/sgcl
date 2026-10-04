@@ -42,24 +42,24 @@ namespace sgcl::compress::detail {
         constexpr uint32_t DictionaryMin = uint32_t(1) << 12;
         constexpr uint32_t EndMarker = 0xFFFFFFFF;   // the distance of the end marker
 
-        constexpr uint8_t after_literal(uint32_t s) noexcept {
+        SGCL_INLINE_HOT constexpr uint8_t after_literal(uint32_t s) noexcept {
             return uint8_t(s < 4 ? 0 : s < 10 ? s - 3 : s - 6);
         }
 
-        constexpr uint8_t after_match(uint32_t s) noexcept {
+        SGCL_INLINE_HOT constexpr uint8_t after_match(uint32_t s) noexcept {
             return uint8_t(s < LiteralStates ? 7 : 10);
         }
 
-        constexpr uint8_t after_rep(uint32_t s) noexcept {
+        SGCL_INLINE_HOT constexpr uint8_t after_rep(uint32_t s) noexcept {
             return uint8_t(s < LiteralStates ? 8 : 11);
         }
 
-        constexpr uint8_t after_short_rep(uint32_t s) noexcept {
+        SGCL_INLINE_HOT constexpr uint8_t after_short_rep(uint32_t s) noexcept {
             return uint8_t(s < LiteralStates ? 9 : 11);
         }
 
         // The slot of a distance: its top two bits and the place of the top one
-        inline uint32_t dist_slot(uint32_t dist) noexcept {
+        SGCL_INLINE_HOT uint32_t dist_slot(uint32_t dist) noexcept {
             if (dist < StartPosModel) {
                 return dist;
             }
@@ -89,7 +89,7 @@ namespace sgcl::compress::detail {
         LzmaLengthProbs len;
         LzmaLengthProbs rep_len;
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             uint16_t* p = reinterpret_cast<uint16_t*>(this);
             std::fill(p, p + sizeof(*this) / sizeof(uint16_t), rc::ProbInit);
         }
@@ -114,12 +114,12 @@ namespace sgcl::compress::detail {
             return true;
         }
 
-        uint8_t to_byte() const noexcept {
+        SGCL_INLINE_HOT uint8_t to_byte() const noexcept {
             return uint8_t((pb * 5 + lp) * 9 + lc);
         }
 
         // The literal probabilities of these lc and lp
-        size_t literal_probs() const noexcept {
+        SGCL_INLINE_HOT size_t literal_probs() const noexcept {
             return size_t(0x300) << (lc + lp);
         }
     };
@@ -195,7 +195,7 @@ namespace sgcl::compress::detail {
             error_text = nullptr;
         }
 
-        void lzma2_dictionary_reset() noexcept {
+        SGCL_INLINE_HOT void lzma2_dictionary_reset() noexcept {
             _total = 0;
         }
 
@@ -210,7 +210,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void lzma2_state_reset() noexcept {
+        SGCL_INLINE_HOT void lzma2_state_reset() noexcept {
             std::fill(_literal.get(), _literal.get() + _props.literal_probs(), rc::ProbInit);
             _probs.reset();
             _state = 0;
@@ -230,16 +230,16 @@ namespace sgcl::compress::detail {
         }
 
         // An uncompressed chunk's bytes, laid in the window by the caller
-        void lzma2_skip(uint64_t n) noexcept {
+        SGCL_INLINE_HOT void lzma2_skip(uint64_t n) noexcept {
             _total += n;
         }
 
         // Bytes decoded so far, and input bytes taken
-        uint64_t total() const noexcept {
+        SGCL_INLINE_HOT uint64_t total() const noexcept {
             return _total;
         }
 
-        uint64_t taken() const noexcept {
+        SGCL_INLINE_HOT uint64_t taken() const noexcept {
             return _taken;
         }
 
@@ -484,7 +484,7 @@ namespace sgcl::compress::detail {
             return window[pos >= d ? pos - d : pos + size - d];
         }
 
-        uint16_t* _literal_probs(uint32_t prev) noexcept {
+        SGCL_INLINE_HOT uint16_t* _literal_probs(uint32_t prev) noexcept {
             uint32_t ctx = ((uint32_t(_total) & ((1u << _props.lp) - 1)) << _props.lc) + (prev >> (8 - _props.lc));
             return _literal.get() + size_t(0x300) * ctx;
         }

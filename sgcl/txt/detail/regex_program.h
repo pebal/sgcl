@@ -79,7 +79,7 @@ namespace sgcl::txt::detail {
         bool first_known = false;
         uint64_t first[4] = {};
 
-        constexpr bool may_begin_with(uint8_t b) const noexcept {
+        SGCL_INLINE_HOT constexpr bool may_begin_with(uint8_t b) const noexcept {
             return (first[b >> 6] >> (b & 63)) & 1;
         }
 
@@ -139,7 +139,7 @@ namespace sgcl::txt::detail {
     // through which a pattern could cost more than linear time.
     class regex_compiler {
     public:
-        constexpr regex_compiler(const regex_tree& tree, program& out) noexcept
+        SGCL_INLINE_HOT constexpr regex_compiler(const regex_tree& tree, program& out) noexcept
         : _tree(tree)
         , _out(out) {
         }
@@ -167,11 +167,11 @@ namespace sgcl::txt::detail {
         }
 
     private:
-        constexpr bool _bad() const noexcept {
+        SGCL_INLINE_HOT constexpr bool _bad() const noexcept {
             return _fault != regex_fault::none;
         }
 
-        constexpr uint32_t _here() const noexcept {
+        SGCL_INLINE_HOT constexpr uint32_t _here() const noexcept {
             return uint32_t(_out.insts.size());
         }
 
@@ -180,7 +180,7 @@ namespace sgcl::txt::detail {
         // so only a handful more can follow, and the indices already
         // handed out stay pointing at what they were meant to. Nothing of
         // such a program is ever run.
-        constexpr uint32_t _emit(inst i) noexcept {
+        SGCL_INLINE_HOT constexpr uint32_t _emit(inst i) noexcept {
             if (_out.insts.size() >= MaxRegexInsts) {
                 _fault = regex_fault::too_large;
             }
@@ -277,7 +277,7 @@ namespace sgcl::txt::detail {
         // turns of such a body multiply through the nesting unchecked.
         // (?:(?:(?:(?:){1000}){1000}){1000}){1000} is forty bytes and 10^12
         // turns, and the depth limit of 200 allows 1000^200.
-        constexpr bool _turn() noexcept {
+        SGCL_INLINE_HOT constexpr bool _turn() noexcept {
             if (++_turns > MaxRegexExpansion) {
                 _fault = regex_fault::too_large;
                 return false;

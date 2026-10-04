@@ -54,7 +54,7 @@ namespace sgcl::crypto {
         // The key, 16, 24 or 32 bytes; any other length is a broken
         // contract, std::invalid_argument. A key read from data goes
         // through from_key instead.
-        explicit aes_gcm(const slice<const byte>& key) {
+        SGCL_INLINE_HOT explicit aes_gcm(const slice<const byte>& key) {
             if (!detail::is_aes_key_size(key.size())) {
                 throw invalid_argument(detail::key_size_message("sgcl::crypto::aes_gcm", key.size()));
             }
@@ -63,7 +63,7 @@ namespace sgcl::crypto {
         }
 
         // The key from data: a wrong length is errc::invalid_key
-        static expected<aes_gcm, error> from_key(const slice<const byte>& key) noexcept {
+        SGCL_INLINE_HOT static expected<aes_gcm, error> from_key(const slice<const byte>& key) noexcept {
             if (!detail::is_aes_key_size(key.size())) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("aes_gcm", key.size()))));
             }
@@ -75,12 +75,12 @@ namespace sgcl::crypto {
         aes_gcm(const aes_gcm&) = delete;
         aes_gcm& operator=(const aes_gcm&) = delete;
 
-        aes_gcm(aes_gcm&& other) noexcept
+        SGCL_INLINE_HOT aes_gcm(aes_gcm&& other) noexcept
         : _key(other._key), _key_size(other._key_size) {
             other._wipe();
         }
 
-        aes_gcm& operator=(aes_gcm&& other) noexcept {
+        SGCL_INLINE_HOT aes_gcm& operator=(aes_gcm&& other) noexcept {
             if (this != &other) {
                 _key = other._key;
                 _key_size = other._key_size;
@@ -89,16 +89,16 @@ namespace sgcl::crypto {
             return *this;
         }
 
-        ~aes_gcm() {
+        SGCL_INLINE_HOT ~aes_gcm() {
             _wipe();
         }
 
-        aes_gcm clone() const {
+        SGCL_INLINE_HOT aes_gcm clone() const {
             _check();
             return aes_gcm(*this, 0);
         }
 
-        size_t key_size() const noexcept {
+        SGCL_INLINE_HOT size_t key_size() const noexcept {
             return _key_size;
         }
 
@@ -110,26 +110,26 @@ namespace sgcl::crypto {
         detail::GcmKey _key;
         size_t _key_size = 0;
 
-        aes_gcm(const aes_gcm& other, int) noexcept
+        SGCL_INLINE_HOT aes_gcm(const aes_gcm& other, int) noexcept
         : _key(other._key), _key_size(other._key_size) {
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             if (_key_size == 0) {
                 detail::moved_from(_name);
             }
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_key);
             _key_size = 0;
         }
 
-        void _seal(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT void _seal(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
             detail::gcm_seal(_key, nonce, in, n, aad, aad_size, out);
         }
 
-        bool _open(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* tag, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
+        SGCL_INLINE_HOT bool _open(const unsigned char* nonce, const unsigned char* in, size_t n, const unsigned char* tag, const unsigned char* aad, size_t aad_size, unsigned char* out) const noexcept {
             return detail::gcm_open(_key, nonce, in, n, tag, aad, aad_size, out);
         }
     };

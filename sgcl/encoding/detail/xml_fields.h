@@ -440,7 +440,7 @@ namespace sgcl::encoding::detail {
 
         // Why a value has no element: a list is a field's element
         // repeated, never an element of its own (the root, an optional's)
-        static std::string _no_form(const ValueOps* ops) noexcept {
+        SGCL_INLINE_HOT static std::string _no_form(const ValueOps* ops) noexcept {
             if (ops->kind == ValueKind::sequence || ops->kind == ValueKind::set || ops->kind == ValueKind::fixed) {
                 return "a list has no element of its own in XML: it is a field's element repeated";
             }
@@ -594,7 +594,7 @@ namespace sgcl::encoding {
 
     // A tree has no input text: the error is the path alone
     template<class T>
-    expected<T, xml::error> xml::as() const {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::as() const {
         auto v = _as<T>(0);
         if (!v) {
             detail::ErrorAccess::without_place(v.error());
@@ -618,7 +618,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<string, xml::error> xml::stringify(const string& name, const T& value, const style& s) {
+    SGCL_INLINE_HOT expected<string, xml::error> xml::stringify(const string& name, const T& value, const style& s) {
         auto n = from(name, value);
         if (!n) {
             return unexpected<error>(std::move(n.error()));
@@ -627,7 +627,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<T, xml::error> xml::_typed(reader& r) {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::_typed(reader& r) {
         auto tree = _parse_with(r);
         if (!tree) {
             return unexpected<error>(std::move(tree.error()));
@@ -638,22 +638,22 @@ namespace sgcl::encoding {
     // A document in memory: the error of the mapping has the line and the
     // column of the element it was found under the root of
     template<class T>
-    expected<T, xml::error> xml::parse(const string& text) {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::parse(const string& text) {
         return parse<T>(text, options());
     }
 
     template<class T>
-    expected<T, xml::error> xml::parse(const io::reader& in) {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::parse(const io::reader& in) {
         return parse<T>(in, options());
     }
 
     template<class T>
-    async::task<expected<T, xml::error>> xml::async_parse(const io::reader& in) noexcept {
+    SGCL_INLINE_HOT async::task<expected<T, xml::error>> xml::async_parse(const io::reader& in) noexcept {
         return async_parse<T>(in, options());
     }
 
     template<class T>
-    expected<T, xml::error> xml::parse(const string& text, const options& o) {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::parse(const string& text, const options& o) {
         reader r(text, o);
         auto v = _typed<T>(r);
         if (!v && v.error().line() == 0) {
@@ -663,7 +663,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    expected<T, xml::error> xml::parse(const io::reader& in, const options& o) {
+    SGCL_INLINE_HOT expected<T, xml::error> xml::parse(const io::reader& in, const options& o) {
         reader r(in, o);
         return _typed<T>(r);
     }
@@ -703,7 +703,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    optional<T> xml::reader::read() {
+    SGCL_INLINE_HOT optional<T> xml::reader::read() {
         if (last_error()) {
             return nullopt;
         }
@@ -720,7 +720,7 @@ namespace sgcl::encoding {
     }
 
     template<class T>
-    xml::writer& xml::writer::value(const string& name, const T& v) {
+    SGCL_INLINE_HOT xml::writer& xml::writer::value(const string& name, const T& v) {
         if (_core.failure) {
             return *this;
         }

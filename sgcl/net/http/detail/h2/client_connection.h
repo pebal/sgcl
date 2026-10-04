@@ -57,7 +57,7 @@ namespace sgcl::net::http::detail::h2 {
         // before the server's SETTINGS come (Go: initialMaxConcurrentStreams)
         uint32_t initial_concurrent_streams = 100;
 
-        ClientSettings() noexcept {
+        SGCL_INLINE_HOT ClientSettings() noexcept {
             initial_window = 1u << 20;         // 1 MB
             connection_window = 16u << 20;     // 16 MB
             max_header_list_size = 1u << 20;   // the client's max_response_header_bytes
@@ -74,7 +74,7 @@ namespace sgcl::net::http::detail::h2 {
 
         static constexpr bool reads_preface = false;
 
-        ClientConnection(Events& events, const ClientSettings& settings = ClientSettings()) noexcept
+        SGCL_INLINE_HOT ClientConnection(Events& events, const ClientSettings& settings = ClientSettings()) noexcept
         : Base(events, settings, std::max(1u, settings.max_concurrent_streams))
         , _max_streams(std::max(1u, settings.max_concurrent_streams))
         , _initial_streams(std::max(1u, std::min(settings.initial_concurrent_streams, _max_streams))) {
@@ -93,7 +93,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // Whether open_stream() would take a stream now
-        bool can_open() const noexcept {
+        SGCL_INLINE_HOT bool can_open() const noexcept {
             return !this->_failed && !_goaway_received && !this->_goaway_sent && _next_id <= LargestStreamId
                 && this->_streams.size() < stream_limit();
         }
@@ -126,17 +126,17 @@ namespace sgcl::net::http::detail::h2 {
         // The most streams open at once now: the server's
         // SETTINGS_MAX_CONCURRENT_STREAMS (initial_concurrent_streams until
         // its SETTINGS come), never more than ours
-        uint32_t stream_limit() const noexcept {
+        SGCL_INLINE_HOT uint32_t stream_limit() const noexcept {
             const uint32_t peer = this->peer_settings_received() ? this->_peer.max_concurrent_streams : _initial_streams;
             return std::min(peer, _max_streams);
         }
 
-        bool goaway_received() const noexcept {
+        SGCL_INLINE_HOT bool goaway_received() const noexcept {
             return _goaway_received;
         }
 
         // The last stream the server's GOAWAY said it may process
-        uint32_t goaway_last() const noexcept {
+        SGCL_INLINE_HOT uint32_t goaway_last() const noexcept {
             return _goaway_last_peer;
         }
 
@@ -154,21 +154,21 @@ namespace sgcl::net::http::detail::h2 {
 
         // The server opens nothing (ENABLE_PUSH = 0): every even stream is
         // idle; an odd one until we open it
-        bool _idle(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT bool _idle(uint32_t id) const noexcept {
             return (id & 1) == 0 || id >= _next_id;
         }
 
-        bool _peer_opens(uint32_t) const noexcept {
+        SGCL_INLINE_HOT bool _peer_opens(uint32_t) const noexcept {
             return false;
         }
 
         // GOAWAY from us names the last stream the server opened: none
-        uint32_t _last_peer_stream() const noexcept {
+        SGCL_INLINE_HOT uint32_t _last_peer_stream() const noexcept {
             return 0;
         }
 
         // DATA only after the final response's fields (§8.1)
-        bool _accepts_data(const Stream& s) const noexcept {
+        SGCL_INLINE_HOT bool _accepts_data(const Stream& s) const noexcept {
             return s.final_headers;
         }
 
@@ -176,15 +176,15 @@ namespace sgcl::net::http::detail::h2 {
         // not idle: odd, below the next): a request given up while its
         // answer was on the way, however many were given up; dropped (Go
         // too). Its DATA's window goes back to the connection
-        bool _ignore_closed(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT bool _ignore_closed(uint32_t id) const noexcept {
             return (id & 1) && id < _next_id;
         }
 
-        bool _own_ping(const uint8_t*) const noexcept {
+        SGCL_INLINE_HOT bool _own_ping(const uint8_t*) const noexcept {
             return false;
         }
 
-        expected<void, Error> _peer_reset() const noexcept {
+        SGCL_INLINE_HOT expected<void, Error> _peer_reset() const noexcept {
             return {};
         }
 
@@ -217,7 +217,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The server opens no stream: never called (_peer_opens refuses first)
-        expected<void, Error> _block_new(uint32_t, Block&&, bool, bool) noexcept {
+        SGCL_INLINE_HOT expected<void, Error> _block_new(uint32_t, Block&&, bool, bool) noexcept {
             return unexpected(connection_error(ErrorCode::protocol_error, "HEADERS on a stream the server may not open"));
         }
 

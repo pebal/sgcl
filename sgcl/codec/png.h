@@ -49,7 +49,7 @@ namespace sgcl::codec {
         using options = detail::PngOptions;
 
         // The file in memory, read in place
-        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+        SGCL_INLINE_HOT static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
             detail::MemoryInput in(data);
             return detail::PngDecoder<detail::MemoryInput>(in, o).run();
         }
@@ -57,14 +57,14 @@ namespace sgcl::codec {
         // The file from a stream, read as it comes: memory is the image and
         // a constant (a block of the stream, the window of the zlib stream,
         // three rows), not the file
-        static expected<image, error> decode(const io::reader& in, const decode_options& o = {}) {
+        SGCL_INLINE_HOT static expected<image, error> decode(const io::reader& in, const decode_options& o = {}) {
             detail::ReaderInput source(in);
             return detail::PngDecoder<detail::ReaderInput>(source, o).run();
         }
 
         // The file as bytes: errc::invalid_argument for a side past 2^31 - 1
         // pixels, which IHDR cannot hold (any other image encodes)
-        static expected<vector<byte>, error> encode(const image& im, const options& o = {}) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const image& im, const options& o = {}) noexcept {
             vector<byte> out;
             detail::VectorSink sink{out, nullopt};
             if (!detail::PngEncoder<detail::VectorSink>(im, o.level.value(), sink).run()) {
@@ -76,7 +76,7 @@ namespace sgcl::codec {
         // The file into a stream: errc::invalid_argument for a side past
         // 2^31 - 1 pixels, nothing written; errc::io when the stream fails,
         // at the offset of the bytes written before
-        static expected<void, error> encode(const image& im, const io::writer& out, const options& o = {}) {
+        SGCL_INLINE_HOT static expected<void, error> encode(const image& im, const io::writer& out, const options& o = {}) {
             detail::WriterSink sink{out, 0, nullopt};
             if (!detail::PngEncoder<detail::WriterSink>(im, o.level.value(), sink).run()) {
                 return unexpected(*sink.failure);

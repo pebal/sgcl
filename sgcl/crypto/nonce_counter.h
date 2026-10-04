@@ -34,7 +34,7 @@ namespace sgcl::crypto {
         // From a given nonce on: where a program resumes the counter it
         // kept (the last nonce used, plus one), or starts the nonces of a
         // second sender of the same key in a range of their own
-        explicit nonce_counter(const array<byte, 12>& start) noexcept
+        SGCL_INLINE_HOT explicit nonce_counter(const array<byte, 12>& start) noexcept
         : _high(detail::load_be32(detail::bytes(start.data())))
         , _low(detail::load_be64(detail::bytes(start.data()) + 4)) {
         }
@@ -42,12 +42,12 @@ namespace sgcl::crypto {
         nonce_counter(const nonce_counter&) = delete;
         nonce_counter& operator=(const nonce_counter&) = delete;
 
-        nonce_counter(nonce_counter&& other) noexcept
+        SGCL_INLINE_HOT nonce_counter(nonce_counter&& other) noexcept
         : _high(other._high), _low(other._low), _spent(other._spent) {
             other._spent = true;
         }
 
-        nonce_counter& operator=(nonce_counter&& other) noexcept {
+        SGCL_INLINE_HOT nonce_counter& operator=(nonce_counter&& other) noexcept {
             if (this != &other) {
                 _high = other._high;
                 _low = other._low;

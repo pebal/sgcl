@@ -100,30 +100,30 @@ namespace sgcl::compress {
         // The code at the offset; the detail, when given, is what
         // message() says in place of the code's own words ("gzip: CRC-32
         // mismatch", "zip: method 12 (bzip2)")
-        error(errc code, uint64_t offset) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset) noexcept
         : _code(code), _offset(offset) {
         }
 
-        error(errc code, uint64_t offset, const string& detail) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset, const string& detail) noexcept
         : _code(code), _offset(offset), _detail(detail) {
         }
 
         // The source or the sink failed at the offset
-        error(const io::error& e, uint64_t offset) noexcept
+        SGCL_INLINE_HOT error(const io::error& e, uint64_t offset) noexcept
         : _code(errc::io), _offset(offset), _io(e) {
         }
 
-        errc code() const noexcept {
+        SGCL_INLINE_HOT errc code() const noexcept {
             return _code;
         }
 
         // Bytes from the start of the compressed input (of the archive);
         // 0 when the error did not come from the data
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _offset;
         }
 
-        const optional<io::error>& io_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& io_error() const noexcept {
             return _io;
         }
 
@@ -153,7 +153,7 @@ namespace sgcl::compress {
 
         // Everything it says: the code, the place (none differs from
         // offset 0), the words and the stream's error
-        friend bool operator==(const error& a, const error& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const error& a, const error& b) noexcept {
             return a._code == b._code && a._no_place == b._no_place && a._offset == b._offset && a._detail == b._detail
                 && a._io == b._io;
         }
@@ -173,13 +173,13 @@ namespace sgcl::compress {
         struct ErrorAccess {
             // An error that did not come from the data: no offset, none in
             // its message
-            static error& without_place(error& e) noexcept {
+            SGCL_INLINE_HOT static error& without_place(error& e) noexcept {
                 e._no_place = true;
                 e._offset = 0;
                 return e;
             }
 
-            static bool has_place(const error& e) noexcept {
+            SGCL_INLINE_HOT static bool has_place(const error& e) noexcept {
                 return !e._no_place;
             }
         };

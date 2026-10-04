@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/os.h"
+
 #include <stdexcept>
 
 namespace sgcl::compress {
@@ -22,18 +24,18 @@ namespace sgcl::compress {
         static constexpr int smallest = 9;
         static constexpr int huffman_only = -2;
 
-        constexpr level() noexcept
+        SGCL_INLINE_HOT constexpr level() noexcept
         : _value(standard) {
         }
 
-        constexpr level(int n)
+        SGCL_INLINE_HOT constexpr level(int n)
         : _value(n) {
             if (!((n >= 0 && n <= 9) || n == huffman_only)) {
                 throw std::invalid_argument("compress::level: 0..9 or level::huffman_only");
             }
         }
 
-        constexpr int value() const noexcept {
+        SGCL_INLINE_HOT constexpr int value() const noexcept {
             return _value;
         }
 

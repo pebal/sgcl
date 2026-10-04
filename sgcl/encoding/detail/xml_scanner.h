@@ -93,7 +93,7 @@ namespace sgcl::encoding::detail {
         };
 
         // A document in memory, read where it lies
-        XmlScanner(const string& text, const options& o) noexcept
+        SGCL_INLINE_HOT XmlScanner(const string& text, const options& o) noexcept
         : _options(o), _text(text), _memory(true) {
             _init();
             _base = _text.data();
@@ -102,7 +102,7 @@ namespace sgcl::encoding::detail {
         }
 
         // A document a stream brings: room() and received() feed it
-        explicit XmlScanner(const options& o) noexcept
+        SGCL_INLINE_HOT explicit XmlScanner(const options& o) noexcept
         : _options(o) {
             _init();
             _buffer.resize(config::io_buffer_size);
@@ -177,7 +177,7 @@ namespace sgcl::encoding::detail {
         // Where the next bytes of the stream go: free room at the end of
         // the buffer, or the block a document in another encoding is read
         // into before it becomes UTF-8
-        slice<byte> room() noexcept {
+        SGCL_INLINE_HOT slice<byte> room() noexcept {
             if (_transcode != Transcode::none) {
                 if (!_raw) {
                     _raw = make_tracked<array<byte, config::io_buffer_size>>();
@@ -214,16 +214,16 @@ namespace sgcl::encoding::detail {
             }
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
         // The byte of the input where the next token starts
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _original(_pos);
         }
 
-        uint32_t depth() const noexcept {
+        SGCL_INLINE_HOT uint32_t depth() const noexcept {
             return uint32_t(_open.size());
         }
 
@@ -275,13 +275,13 @@ namespace sgcl::encoding::detail {
         static constexpr size_t Short = size_t(-2);    // the data ended; more is coming
         static constexpr size_t Failed = size_t(-1);   // _error is set
 
-        void _init() noexcept {
+        SGCL_INLINE_HOT void _init() noexcept {
             _cache = dynamic_array<string>(CacheSize);
         }
 
         // --- the input -------------------------------------------------
 
-        Step _more() noexcept {
+        SGCL_INLINE_HOT Step _more() noexcept {
             if (!_memory && _end - _pos > _options.max_token_size) {
                 _fail(errc::out_of_range, _pos, "a token longer than options.max_token_size ("
                     + std::to_string(_options.max_token_size) + " bytes)");
@@ -293,7 +293,7 @@ namespace sgcl::encoding::detail {
         // At least n bytes of room past the end: the bytes already read
         // moved to the front first, the buffer grown only when a token
         // fills it
-        void _reserve(size_t n) noexcept {
+        SGCL_INLINE_HOT void _reserve(size_t n) noexcept {
             if (_buffer.size() - _end >= n) {
                 return;
             }
@@ -416,7 +416,7 @@ namespace sgcl::encoding::detail {
 
         // The data ended at `at`: more is coming, or it never will and the
         // token is cut
-        size_t _short(size_t at, const char* inside) noexcept {
+        SGCL_INLINE_HOT size_t _short(size_t at, const char* inside) noexcept {
             if (!_eof) {
                 return Short;
             }
@@ -494,7 +494,7 @@ namespace sgcl::encoding::detail {
             return slot;
         }
 
-        string _string(const std::string& s) {
+        SGCL_INLINE_HOT string _string(const std::string& s) {
             return _string(s.data(), s.size());
         }
 
@@ -661,7 +661,7 @@ namespace sgcl::encoding::detail {
 
         // A surrogate of UTF-16 without its pair: the text up to it is
         // read, and then the reader stops there
-        void _lone_surrogate(char* o, uint64_t at) noexcept {
+        SGCL_INLINE_HOT void _lone_surrogate(char* o, uint64_t at) noexcept {
             _end = size_t(o - _buffer.data());
             if (!_deferred) {
                 _deferred = error(errc::invalid_character, at, "a UTF-16 surrogate without its pair");
@@ -898,11 +898,11 @@ namespace sgcl::encoding::detail {
             return _start_tag(out);
         }
 
-        bool _starts(size_t i, std::string_view s) const noexcept {
+        SGCL_INLINE_HOT bool _starts(size_t i, std::string_view s) const noexcept {
             return _end - i >= s.size() && std::memcmp(_base + i, s.data(), s.size()) == 0;
         }
 
-        Parse _parse_short(size_t at, const char* inside) noexcept {
+        SGCL_INLINE_HOT Parse _parse_short(size_t at, const char* inside) noexcept {
             return _short(at, inside) == Short ? Parse::more : Parse::failed;
         }
 
@@ -911,11 +911,11 @@ namespace sgcl::encoding::detail {
             return Parse::failed;
         }
 
-        static Parse _status(size_t r) noexcept {
+        SGCL_INLINE_HOT static Parse _status(size_t r) noexcept {
             return r == Short ? Parse::more : Parse::failed;
         }
 
-        static bool _bad(size_t r) noexcept {
+        SGCL_INLINE_HOT static bool _bad(size_t r) noexcept {
             return r >= Short;
         }
 
@@ -1543,7 +1543,7 @@ namespace sgcl::encoding::detail {
         }
 
         // The prefix of a QName, or an empty view
-        static std::string_view _prefix(std::string_view qname) noexcept {
+        SGCL_INLINE_HOT static std::string_view _prefix(std::string_view qname) noexcept {
             auto c = qname.find(':');
             return c == std::string_view::npos ? std::string_view() : qname.substr(0, c);
         }

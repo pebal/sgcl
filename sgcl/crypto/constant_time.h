@@ -25,7 +25,7 @@ namespace sgcl::crypto {
         // early exit at the first byte that differs) or a mask into a
         // select it predicts
         template<class T>
-        inline T value_barrier(T v) noexcept {
+        SGCL_INLINE_HOT T value_barrier(T v) noexcept {
 #if defined(__GNUC__) || defined(__clang__)
             __asm__ volatile("" : "+r"(v));
 #else
@@ -62,7 +62,7 @@ namespace sgcl::crypto {
         // has it (a tag is compared with one of its own length, which the
         // protocol fixes). [[nodiscard]]: a comparison whose result is
         // dropped is a check that was never made.
-        [[nodiscard]] inline bool equal(const slice<const byte>& a, const slice<const byte>& b) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool equal(const slice<const byte>& a, const slice<const byte>& b) noexcept {
             if (a.size() != b.size()) {
                 return false;
             }

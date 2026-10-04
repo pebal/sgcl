@@ -29,7 +29,7 @@ namespace sgcl::math::detail {
 
     // The value of a digit of any base up to 36, either case; 36 for
     // anything that is not one
-    constexpr unsigned digit_value(char c) noexcept {
+    SGCL_INLINE_HOT constexpr unsigned digit_value(char c) noexcept {
         if (c >= '0' && c <= '9') {
             return unsigned(c - '0');
         }
@@ -43,7 +43,7 @@ namespace sgcl::math::detail {
     }
 
     // log2 of the base when it is a power of two, 0 otherwise
-    constexpr unsigned power_of_two_bits(unsigned base) noexcept {
+    SGCL_INLINE_HOT constexpr unsigned power_of_two_bits(unsigned base) noexcept {
         return std::has_single_bit(base) ? unsigned(std::countr_zero(base)) : 0;
     }
 
@@ -66,7 +66,7 @@ namespace sgcl::math::detail {
 
     // At most how many digits a magnitude of `bits` bits takes in the
     // base: every digit carries at least floor(log2(base)) bits
-    constexpr size_t max_digits(size_t bits, unsigned base) noexcept {
+    SGCL_INLINE_HOT constexpr size_t max_digits(size_t bits, unsigned base) noexcept {
         unsigned per = unsigned(std::bit_width(base) - 1);
         return bits / per + 1;
     }
@@ -203,7 +203,7 @@ namespace sgcl::math::detail {
 
     // At most how many limbs `digits` digits of the base take: every
     // digit carries at most ceil(log2(base)) bits
-    constexpr size_t max_limbs(size_t digits, unsigned base) noexcept {
+    SGCL_INLINE_HOT constexpr size_t max_limbs(size_t digits, unsigned base) noexcept {
         unsigned per = unsigned(std::bit_width(base - 1));
         return digits / 64 * per + (digits % 64 * per + 63) / 64 + 1;
     }

@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -99,16 +101,16 @@ namespace sgcl::compress::detail {
 
     class RangeEncoder {
     public:
-        explicit RangeEncoder(std::vector<uint8_t>& out) noexcept
+        SGCL_INLINE_HOT explicit RangeEncoder(std::vector<uint8_t>& out) noexcept
         : _out(&out) {
         }
 
         // Where the bytes go from now on
-        void sink(std::vector<uint8_t>& out) noexcept {
+        SGCL_INLINE_HOT void sink(std::vector<uint8_t>& out) noexcept {
             _out = &out;
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _low = 0;
             _range = 0xFFFFFFFF;
             _cache = 0;
@@ -197,7 +199,7 @@ namespace sgcl::compress::detail {
         }
 
         // What finish() would still write
-        uint64_t pending() const noexcept {
+        SGCL_INLINE_HOT uint64_t pending() const noexcept {
             return _pending + 4;
         }
 

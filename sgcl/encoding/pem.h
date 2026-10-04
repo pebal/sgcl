@@ -33,7 +33,7 @@ namespace sgcl::encoding {
             size_t next;
         };
 
-        inline PemLine pem_line(std::string_view v, size_t at) noexcept {
+        SGCL_INLINE_HOT PemLine pem_line(std::string_view v, size_t at) noexcept {
             size_t nl = v.find('\n', at);
             size_t end = nl == std::string_view::npos ? v.size() : nl;
             size_t next = nl == std::string_view::npos ? v.size() : nl + 1;
@@ -45,7 +45,7 @@ namespace sgcl::encoding {
 
         // The white space RFC 7468 lets a parser skip in the base64 of a
         // block: space, tab, the line endings, vertical tab, form feed
-        inline bool pem_space(char c) noexcept {
+        SGCL_INLINE_HOT bool pem_space(char c) noexcept {
             return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
         }
 
@@ -115,26 +115,26 @@ namespace sgcl::encoding {
         // hold a control character (a tab inside it is one it may) or
         // start or end with white space: anything else would not read back
         // as it was written, and is invalid_argument
-        pem(const string& type, vector<byte> bytes)
+        SGCL_INLINE_HOT pem(const string& type, vector<byte> bytes)
         : _type(type), _bytes(std::move(bytes)) {
             _check();
         }
 
-        pem(const string& type, vector<byte> bytes, ordered_map<string, string> headers)
+        SGCL_INLINE_HOT pem(const string& type, vector<byte> bytes, ordered_map<string, string> headers)
         : _type(type), _bytes(std::move(bytes)), _headers(std::move(headers)) {
             _check();
         }
 
-        const string& type() const noexcept {
+        SGCL_INLINE_HOT const string& type() const noexcept {
             return _type;
         }
 
-        const vector<byte>& bytes() const noexcept {
+        SGCL_INLINE_HOT const vector<byte>& bytes() const noexcept {
             return _bytes;
         }
 
         // In the order of the text; a name given twice keeps its last value
-        const ordered_map<string, string>& headers() const noexcept {
+        SGCL_INLINE_HOT const ordered_map<string, string>& headers() const noexcept {
             return _headers;
         }
 
@@ -177,7 +177,7 @@ namespace sgcl::encoding {
         }
 
         // The first block of the text; a text with none is unexpected_end
-        static expected<pem, error> parse(const string& text) noexcept {
+        SGCL_INLINE_HOT static expected<pem, error> parse(const string& text) noexcept {
             size_t next = 0;
             auto r = _parse(text, 0, next);
             if (!r) {
@@ -193,7 +193,7 @@ namespace sgcl::encoding {
         // bad_expected_access<encoding::error> with parse's message. Input
         // is parsed; a text the program itself wrote is constructed
         // (DESIGN 234)
-        explicit pem(const string& text)
+        SGCL_INLINE_HOT explicit pem(const string& text)
         : pem(parse(text).value()) {
         }
 

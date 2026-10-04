@@ -55,7 +55,7 @@ namespace sgcl::compress {
         class writer;
         class reader;
 
-        static vector<byte> compress(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const slice<const byte>& data) noexcept {
             return compress(data, options{});
         }
 
@@ -110,11 +110,11 @@ namespace sgcl::compress {
             return detail::to_vector(out.data(), out.size());
         }
 
-        static vector<byte> compress(const string& text) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text) noexcept {
             return compress(io::detail::bytes_of(text), options{});
         }
 
-        static vector<byte> compress(const string& text, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text, const options& o) {
             return compress(io::detail::bytes_of(text), o);
         }
 
@@ -122,16 +122,16 @@ namespace sgcl::compress {
         // bytes as the string's overload takes them (an exact match, else
         // the two conversions, to a string and to bytes, tie)
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text) noexcept {
             return compress(slice<const byte>(text), options{});
         }
 
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text, const options& o) {
             return compress(slice<const byte>(text), o);
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
             return decompress(data, limits{});
         }
 
@@ -353,7 +353,7 @@ namespace sgcl::compress {
         // What a decoder takes because the header asks: the dictionary
         // (as large as the block, when its header gives its size), the
         // probabilities, the filters' buffer
-        static uint64_t _memory(uint32_t dictionary, uint64_t uncompressed) noexcept {
+        SGCL_INLINE_HOT static uint64_t _memory(uint32_t dictionary, uint64_t uncompressed) noexcept {
             uint64_t d = std::max(dictionary, detail::lzma_model::DictionaryMin);
             return std::min(d, uncompressed) + (uint64_t(0x300) << 4) * 2 + sizeof(detail::Lzma2Decoder) + detail::FilterChain::Capacity;
         }
@@ -374,11 +374,11 @@ namespace sgcl::compress {
         using io::mixin::writer<xz::writer>::write;
         using io::mixin::writer<xz::writer>::async_write;
 
-        explicit writer(const io::writer& out) noexcept
+        SGCL_INLINE_HOT explicit writer(const io::writer& out) noexcept
         : writer(out, options{}) {
         }
 
-        writer(const io::writer& out, const options& o) noexcept
+        SGCL_INLINE_HOT writer(const io::writer& out, const options& o) noexcept
         : _out(out) {
             auto s = xz::_setup(o);
             if (s) {
@@ -418,11 +418,11 @@ namespace sgcl::compress {
             o._closed = true;
         }
 
-        writer& operator=(writer&& o) noexcept {
+        SGCL_INLINE_HOT writer& operator=(writer&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
-        expected<size_t, io::error> write(const slice<const byte>& data) {
+        SGCL_INLINE_HOT expected<size_t, io::error> write(const slice<const byte>& data) {
             if (auto e = _check_state("write")) {
                 return io::detail::fail(*e);
             }
@@ -502,12 +502,12 @@ namespace sgcl::compress {
             co_return expected<void, io::error>();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _closed;
         }
 
         // The first failure, kept
-        const optional<io::error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& last_error() const noexcept {
             return _error;
         }
 
@@ -558,7 +558,7 @@ namespace sgcl::compress {
             return nullopt;
         }
 
-        void _begin_block() noexcept {
+        SGCL_INLINE_HOT void _begin_block() noexcept {
             if (!_block_started) {
                 _block_started = true;
                 size_t before = _pending.size();
@@ -607,7 +607,7 @@ namespace sgcl::compress {
             }
         }
 
-        void _flush_filters() noexcept {
+        SGCL_INLINE_HOT void _flush_filters() noexcept {
             if (_chain.empty() || !_block_started) {
                 return;
             }
@@ -617,7 +617,7 @@ namespace sgcl::compress {
             _chain.take(r);
         }
 
-        detail::LzmaRun _run(bool finish, uint64_t budget) noexcept {
+        SGCL_INLINE_HOT detail::LzmaRun _run(bool finish, uint64_t budget) noexcept {
             if (!_block_started) {
                 return detail::LzmaRun::done;
             }
@@ -706,11 +706,11 @@ namespace sgcl::compress {
     class xz::reader final
     : public io::mixin::reader<xz::reader> {
     public:
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : reader(in, limits{}) {
         }
 
-        reader(const io::reader& in, const limits& l) noexcept
+        SGCL_INLINE_HOT reader(const io::reader& in, const limits& l) noexcept
         : _in(in)
         , _limits(l)
         , _decoder(std::make_unique<detail::Lzma2Decoder>())
@@ -764,7 +764,7 @@ namespace sgcl::compress {
             o._error = detail::moved_from_error("xz");
         }
 
-        reader& operator=(reader&& o) noexcept {
+        SGCL_INLINE_HOT reader& operator=(reader&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
@@ -812,15 +812,15 @@ namespace sgcl::compress {
         }
 
         // Closes in, as buffered_reader's close does
-        expected<void, io::error> close() {
+        SGCL_INLINE_HOT expected<void, io::error> close() {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
@@ -858,7 +858,7 @@ namespace sgcl::compress {
             stream_padding
         };
 
-        uint64_t _offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t _offset() const noexcept {
             return _consumed + _in_begin;
         }
 
@@ -888,16 +888,16 @@ namespace sgcl::compress {
             return n;
         }
 
-        bool _pending_out() const noexcept {
+        SGCL_INLINE_HOT bool _pending_out() const noexcept {
             return _chain.empty() ? _pos != _from : _chain.ready_size() != 0;
         }
 
         // What there is of the input, and its end
-        const uint8_t* _at() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* _at() const noexcept {
             return _input.get() + _in_begin;
         }
 
-        size_t _have() const noexcept {
+        SGCL_INLINE_HOT size_t _have() const noexcept {
             return _in_end - _in_begin;
         }
 
@@ -1147,7 +1147,7 @@ namespace sgcl::compress {
         }
 
         // room for more input: what is left moved to the front
-        size_t _make_room() noexcept {
+        SGCL_INLINE_HOT size_t _make_room() noexcept {
             if (_in_begin) {
                 sgcl::detail::move_bytes(_input.get(), _input.get() + _in_begin, _in_end - _in_begin);
                 _consumed += _in_begin;
@@ -1157,7 +1157,7 @@ namespace sgcl::compress {
             return InputBytes - _in_end;
         }
 
-        optional<io::error> _fill() {
+        SGCL_INLINE_HOT optional<io::error> _fill() {
             size_t room = _make_room();
             auto r = _in.read(slice<byte>(reinterpret_cast<byte*>(_input.get() + _in_end), room));
             return _took(r, r ? *r : 0);
@@ -1177,7 +1177,7 @@ namespace sgcl::compress {
             co_return _took(r, r ? *r : 0);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r, size_t n) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _took(const expected<size_t, io::error>& r, size_t n) noexcept {
             if (!r) {
                 _error = error(r.error(), _consumed + _in_end);
                 return r.error();

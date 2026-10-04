@@ -78,24 +78,24 @@ namespace sgcl::txt::detail {
 
         scratch_vector() noexcept = default;
 
-        scratch_vector(const scratch_vector& other) noexcept {
+        SGCL_INLINE_HOT scratch_vector(const scratch_vector& other) noexcept {
             assign(other.begin(), other.end());
         }
 
-        scratch_vector(scratch_vector&& other) noexcept
+        SGCL_INLINE_HOT scratch_vector(scratch_vector&& other) noexcept
         : _data(std::exchange(other._data, nullptr))
         , _size(std::exchange(other._size, 0))
         , _capacity(std::exchange(other._capacity, 0)) {
         }
 
-        scratch_vector& operator=(const scratch_vector& other) noexcept {
+        SGCL_INLINE_HOT scratch_vector& operator=(const scratch_vector& other) noexcept {
             if (this != &other) {
                 assign(other.begin(), other.end());
             }
             return *this;
         }
 
-        scratch_vector& operator=(scratch_vector&& other) noexcept {
+        SGCL_INLINE_HOT scratch_vector& operator=(scratch_vector&& other) noexcept {
             if (this != &other) {
                 std::free(_data);
                 _data = std::exchange(other._data, nullptr);
@@ -105,83 +105,83 @@ namespace sgcl::txt::detail {
             return *this;
         }
 
-        ~scratch_vector() {
+        SGCL_INLINE_HOT ~scratch_vector() {
             std::free(_data);
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _size;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _capacity;
         }
 
-        T* data() noexcept {
+        SGCL_INLINE_HOT T* data() noexcept {
             return _data;
         }
 
-        const T* data() const noexcept {
+        SGCL_INLINE_HOT const T* data() const noexcept {
             return _data;
         }
 
-        T* begin() noexcept {
+        SGCL_INLINE_HOT T* begin() noexcept {
             return _data;
         }
 
-        T* end() noexcept {
+        SGCL_INLINE_HOT T* end() noexcept {
             return _data + _size;
         }
 
-        const T* begin() const noexcept {
+        SGCL_INLINE_HOT const T* begin() const noexcept {
             return _data;
         }
 
-        const T* end() const noexcept {
+        SGCL_INLINE_HOT const T* end() const noexcept {
             return _data + _size;
         }
 
-        T& operator[](size_t i) noexcept {
+        SGCL_INLINE_HOT T& operator[](size_t i) noexcept {
             return _data[i];
         }
 
-        const T& operator[](size_t i) const noexcept {
+        SGCL_INLINE_HOT const T& operator[](size_t i) const noexcept {
             return _data[i];
         }
 
-        T& front() noexcept {
+        SGCL_INLINE_HOT T& front() noexcept {
             return _data[0];
         }
 
-        const T& front() const noexcept {
+        SGCL_INLINE_HOT const T& front() const noexcept {
             return _data[0];
         }
 
-        T& back() noexcept {
+        SGCL_INLINE_HOT T& back() noexcept {
             return _data[_size - 1];
         }
 
-        const T& back() const noexcept {
+        SGCL_INLINE_HOT const T& back() const noexcept {
             return _data[_size - 1];
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _size = 0;
         }
 
         // The members that grow cannot throw: a failed realloc ends the
         // program (os::memory_refused)
-        void reserve(size_t n) noexcept {
+        SGCL_INLINE_HOT void reserve(size_t n) noexcept {
             if (n > _capacity) {
                 _grow_to(n);
             }
         }
 
-        void resize(size_t n) noexcept {
+        SGCL_INLINE_HOT void resize(size_t n) noexcept {
             reserve(n);
             if (n > _size) {
                 // libc's and not fill_bytes: a zero fill of any length
@@ -203,12 +203,12 @@ namespace sgcl::txt::detail {
         }
 
         template<class It>
-        void assign(It first, It last) noexcept {
+        SGCL_INLINE_HOT void assign(It first, It last) noexcept {
             _size = 0;
             append(first, last);
         }
 
-        void push_back(const T& value) noexcept {
+        SGCL_INLINE_HOT void push_back(const T& value) noexcept {
             if (_size == _capacity) [[unlikely]] {
                 _grow_to(_size + 1);
             }
@@ -216,12 +216,12 @@ namespace sgcl::txt::detail {
         }
 
         template<class... A>
-        T& emplace_back(A&&... a) noexcept(noexcept(T{std::forward<A>(a)...})) {
+        SGCL_INLINE_HOT T& emplace_back(A&&... a) noexcept(noexcept(T{std::forward<A>(a)...})) {
             push_back(T{std::forward<A>(a)...});
             return back();
         }
 
-        void pop_back() noexcept {
+        SGCL_INLINE_HOT void pop_back() noexcept {
             --_size;
         }
 
@@ -237,7 +237,7 @@ namespace sgcl::txt::detail {
         }
 
         // One element in front of `at`, the rest moved up
-        void insert(const T* at, const T& value) noexcept {
+        SGCL_INLINE_HOT void insert(const T* at, const T& value) noexcept {
             size_t i = size_t(at - _data);
             T copy = value;
             push_back(copy);
@@ -246,7 +246,7 @@ namespace sgcl::txt::detail {
             _data[i] = copy;
         }
 
-        friend bool operator==(const scratch_vector& a, const scratch_vector& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const scratch_vector& a, const scratch_vector& b) noexcept {
             return a._size == b._size && (a._size == 0 || std::memcmp(a._data, b._data, a._size * sizeof(T)) == 0);
         }
 
@@ -282,7 +282,7 @@ namespace sgcl::txt::detail {
     // one, a struct of them has a lent_each of its own, found by argument
     // dependent lookup
     template<class T, class F>
-    void lent_arrays(T& value, F&& f) noexcept {
+    SGCL_INLINE_HOT void lent_arrays(T& value, F&& f) noexcept {
         if constexpr (is_scratch_vector<T>::value) {
             f(value);
         } else {
@@ -342,11 +342,11 @@ namespace sgcl::txt::detail {
             _held->busy = false;
         }
 
-        T& operator*() const noexcept {
+        SGCL_INLINE_HOT T& operator*() const noexcept {
             return *_value;
         }
 
-        T* operator->() const noexcept {
+        SGCL_INLINE_HOT T* operator->() const noexcept {
             return _value;
         }
 

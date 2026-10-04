@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
 #include "../../core/aliases.h"
 
 #include <cstddef>
@@ -25,7 +26,7 @@ namespace sgcl::crypto::detail {
         return m;
     }
 
-    inline bool is_aes_key_size(size_t n) noexcept {
+    SGCL_INLINE_HOT bool is_aes_key_size(size_t n) noexcept {
         return n == 16 || n == 24 || n == 32;
     }
 

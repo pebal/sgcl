@@ -13,6 +13,7 @@
 // ignorable code points, which the module has the tables for already, so
 // only the set of code points it changes is kept.
 
+#include "../../core/detail/os.h"
 #include "tables.h"
 
 namespace sgcl::txt::detail {
@@ -35,11 +36,11 @@ namespace sgcl::txt::detail {
         recommended       = 1 << 10,
     };
 
-    constexpr identifier_type operator|(identifier_type a, identifier_type b) noexcept {
+    SGCL_INLINE_HOT constexpr identifier_type operator|(identifier_type a, identifier_type b) noexcept {
         return identifier_type(uint16_t(a) | uint16_t(b));
     }
 
-    constexpr identifier_type operator&(identifier_type a, identifier_type b) noexcept {
+    SGCL_INLINE_HOT constexpr identifier_type operator&(identifier_type a, identifier_type b) noexcept {
         return identifier_type(uint16_t(a) & uint16_t(b));
     }
 

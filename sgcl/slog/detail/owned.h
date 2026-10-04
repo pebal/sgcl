@@ -39,7 +39,7 @@ namespace sgcl::slog::detail {
             }
         }
 
-        void* alloc(size_t n, size_t align = alignof(std::max_align_t)) noexcept {
+        SGCL_INLINE_HOT void* alloc(size_t n, size_t align = alignof(std::max_align_t)) noexcept {
             uintptr_t at = (uintptr_t(_at) + align - 1) & ~(uintptr_t(align) - 1);
             if (!_at || at + n > uintptr_t(_end)) {
                 _block(n + align);
@@ -49,7 +49,7 @@ namespace sgcl::slog::detail {
             return reinterpret_cast<void*>(at);
         }
 
-        const char* copy(const char* p, size_t n) noexcept {
+        SGCL_INLINE_HOT const char* copy(const char* p, size_t n) noexcept {
             if (!n) {
                 return "";
             }
@@ -192,7 +192,7 @@ namespace sgcl::slog::detail {
         }
     }
 
-    inline void copy_attr(Arena& ar, Lines& w, const Attr& from, Attr& to, const Tail& t, int depth) {
+    SGCL_INLINE_HOT void copy_attr(Arena& ar, Lines& w, const Attr& from, Attr& to, const Tail& t, int depth) {
         to.key = ar.copy(from.key, from.key_n);
         to.key_n = from.key_n;
         copy_value(ar, w, from.value, to.value, t, depth);

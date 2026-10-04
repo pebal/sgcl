@@ -26,43 +26,43 @@ namespace sgcl {
         // a dead member leaves its slot's pointer offset null for the next
         // object of the type, constructed on it without any zeroing
         // (maker.h: _init), as a tracked_ptr's destructor does.
-        ~unique_ptr() noexcept {
+        SGCL_INLINE_HOT ~unique_ptr() noexcept {
             this->reset();
         }
 
         unique_ptr(unique_ptr&&) noexcept = default;
         unique_ptr& operator=(unique_ptr&&) noexcept = default;
 
-        constexpr unique_ptr(std::nullptr_t) noexcept
+        SGCL_INLINE_HOT constexpr unique_ptr(std::nullptr_t) noexcept
         :Base(nullptr) {
         };
 
         // From a pointer to a derived class, the ownership moved (a
         // unique_ptr<U> is a std::unique_ptr<U, deleter_type>)
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        unique_ptr(std::unique_ptr<U, deleter_type>&& p) noexcept
+        SGCL_INLINE_HOT unique_ptr(std::unique_ptr<U, deleter_type>&& p) noexcept
         : Base(static_cast<element_type*>(p.release())) {
         }
 
         // The assignments return this unique_ptr, as std's return theirs:
         // of a pointer to a derived class, the ownership moved, and of null
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
-        unique_ptr& operator=(std::unique_ptr<U, deleter_type>&& p) noexcept {
+        SGCL_INLINE_HOT unique_ptr& operator=(std::unique_ptr<U, deleter_type>&& p) noexcept {
             Base::operator=(std::move(p));
             return *this;
         }
 
-        unique_ptr& operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT unique_ptr& operator=(std::nullptr_t) noexcept {
             Base::operator=(nullptr);
             return *this;
         }
 
         // The same word as a unique_ptr<void>, for the containers
-        operator unique_ptr<void>&() noexcept {
+        SGCL_INLINE_HOT operator unique_ptr<void>&() noexcept {
             return *(unique_ptr<void>*)(this);
         }
 
-        operator const unique_ptr<void>&() const noexcept {
+        SGCL_INLINE_HOT operator const unique_ptr<void>&() const noexcept {
             return *(const unique_ptr<void>*)(this);
         }
 
@@ -70,12 +70,12 @@ namespace sgcl {
         // when empty); as<U>() moves the ownership into the result (null,
         // and nothing moved, when empty or the object is not a U)
         template<class U>
-        bool is() const noexcept {
+        SGCL_INLINE_HOT bool is() const noexcept {
             return detail::Pointer::type_info<detail::NoObject>(this->get()) == typeid(U);
         }
 
         template<class U>
-        unique_ptr<U> as() noexcept {
+        SGCL_INLINE_HOT unique_ptr<U> as() noexcept {
             if (this->get() && is<U>()) {   // the null test first: it drops is<U>()'s null arm, the code as before
                 auto base =  detail::Pointer::data_base_address_of(this->release());
                 return unique_ptr<U>((typename unique_ptr<U>::element_type*)base);
@@ -84,12 +84,12 @@ namespace sgcl {
             }
         }
 
-        const std::type_info& type() const noexcept {
+        SGCL_INLINE_HOT const std::type_info& type() const noexcept {
             return detail::Pointer::type_info<element_type>(this->get());
         }
 
     private:
-        unique_ptr(element_type* p) noexcept
+        SGCL_INLINE_HOT unique_ptr(element_type* p) noexcept
         : Base(p) {
         }
 
@@ -106,17 +106,17 @@ namespace sgcl {
 
     // The casts, moving the ownership: a unique_ptr has one owner
     template<class T, class U>
-    inline unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept {
+    SGCL_INLINE_HOT unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept {
         return unique_ptr<T>(static_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 
     template<class T, class U>
-    inline unique_ptr<T> const_pointer_cast(unique_ptr<U>&& r) noexcept {
+    SGCL_INLINE_HOT unique_ptr<T> const_pointer_cast(unique_ptr<U>&& r) noexcept {
         return unique_ptr<T>(const_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 
     template<class T, class U>
-    inline unique_ptr<T> dynamic_pointer_cast(unique_ptr<U>&& r) noexcept {
+    SGCL_INLINE_HOT unique_ptr<T> dynamic_pointer_cast(unique_ptr<U>&& r) noexcept {
         return unique_ptr<T>(dynamic_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 }
@@ -124,7 +124,7 @@ namespace sgcl {
 namespace std {
     template<class T>
     struct hash<sgcl::unique_ptr<T>> {
-        std::size_t operator()(const sgcl::unique_ptr<T>& p) const noexcept {
+        SGCL_INLINE_HOT std::size_t operator()(const sgcl::unique_ptr<T>& p) const noexcept {
             return std::hash<T*>{}(p.get());
         }
     };

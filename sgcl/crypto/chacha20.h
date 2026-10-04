@@ -40,7 +40,7 @@ namespace sgcl::crypto {
         // The key, 32 bytes, and the nonce, 12 bytes or 24 (XChaCha20);
         // another length of either is std::invalid_argument. The keystream
         // starts at block 0.
-        chacha20(const slice<const byte>& key, const slice<const byte>& nonce) {
+        SGCL_INLINE_HOT chacha20(const slice<const byte>& key, const slice<const byte>& nonce) {
             if (key.size() != key_size) {
                 throw invalid_argument(detail::key_size_message("sgcl::crypto::chacha20", key.size()));
             }
@@ -49,7 +49,7 @@ namespace sgcl::crypto {
 
         // The key from data: a wrong length is errc::invalid_key (the nonce
         // is the program's, and a wrong one still throws)
-        static expected<chacha20, error> from_key(const slice<const byte>& key, const slice<const byte>& nonce) {
+        SGCL_INLINE_HOT static expected<chacha20, error> from_key(const slice<const byte>& key, const slice<const byte>& nonce) {
             if (key.size() != key_size) {
                 return unexpected(error(errc::invalid_key, 0, string(detail::key_size_message("chacha20", key.size()))));
             }
@@ -59,22 +59,22 @@ namespace sgcl::crypto {
         chacha20(const chacha20&) = delete;
         chacha20& operator=(const chacha20&) = delete;
 
-        chacha20(chacha20&& other) noexcept {
+        SGCL_INLINE_HOT chacha20(chacha20&& other) noexcept {
             _take(other);
         }
 
-        chacha20& operator=(chacha20&& other) noexcept {
+        SGCL_INLINE_HOT chacha20& operator=(chacha20&& other) noexcept {
             if (this != &other) {
                 _take(other);
             }
             return *this;
         }
 
-        ~chacha20() {
+        SGCL_INLINE_HOT ~chacha20() {
             _wipe();
         }
 
-        chacha20 clone() const {
+        SGCL_INLINE_HOT chacha20 clone() const {
             _check();
             chacha20 c;
             c._copy(*this);
@@ -129,7 +129,7 @@ namespace sgcl::crypto {
         // The keystream from the start of block `counter` on (Go's
         // SetCounter, without its refusal to go back: decrypting from the
         // middle is what a seek is for)
-        void seek(uint32_t counter) {
+        SGCL_INLINE_HOT void seek(uint32_t counter) {
             _check();
             _counter = counter;
             _used = 64;
@@ -164,7 +164,7 @@ namespace sgcl::crypto {
             _keyed = true;
         }
 
-        void _copy(const chacha20& o) noexcept {
+        SGCL_INLINE_HOT void _copy(const chacha20& o) noexcept {
             _state = o._state;
             _counter = o._counter;
             std::memcpy(_stream, o._stream, sizeof _stream);
@@ -172,18 +172,18 @@ namespace sgcl::crypto {
             _keyed = o._keyed;
         }
 
-        void _take(chacha20& o) noexcept {
+        SGCL_INLINE_HOT void _take(chacha20& o) noexcept {
             _copy(o);
             o._wipe();
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             if (!_keyed) {
                 detail::moved_from("sgcl::crypto::chacha20");
             }
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_state);
             detail::secure_zero(_stream, sizeof _stream);
             _counter = 0;

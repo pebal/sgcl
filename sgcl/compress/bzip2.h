@@ -24,7 +24,7 @@ namespace sgcl::compress {
         class reader;
 
         // Every stream, one after another, up to the limit
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
             return decompress(data, limits{});
         }
 
@@ -81,7 +81,7 @@ namespace sgcl::compress {
 
     public:
 
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : _in(in)
         , _decoder(std::make_unique<detail::Bzip2Decoder>())
         , _input(InputBytes) {
@@ -94,7 +94,7 @@ namespace sgcl::compress {
         // The other left without a stream, its decoder and its input gone
         // with the move: its reads give io::errc::closed, its close closes
         // nothing, and a reset gives it a new stream
-        reader(reader&& o) noexcept
+        SGCL_INLINE_HOT reader(reader&& o) noexcept
         : _in(std::move(o._in))
         , _decoder(std::move(o._decoder))
         , _input(std::move(o._input))
@@ -110,7 +110,7 @@ namespace sgcl::compress {
             o._error = detail::moved_from_error("bzip2");
         }
 
-        reader& operator=(reader&& o) noexcept {
+        SGCL_INLINE_HOT reader& operator=(reader&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
@@ -165,15 +165,15 @@ namespace sgcl::compress {
         }
 
         // Closes in, as buffered_reader's close does
-        expected<void, io::error> close() {
+        SGCL_INLINE_HOT expected<void, io::error> close() {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
@@ -214,7 +214,7 @@ namespace sgcl::compress {
 
         // The decoder takes every byte it is given, so the buffer is
         // empty when it asks for more
-        optional<io::error> _fill() {
+        SGCL_INLINE_HOT optional<io::error> _fill() {
             _in_begin = _in_end = 0;
             auto r = _in.read(_input.room(0, _input.size()));
             return _took(r);
@@ -227,7 +227,7 @@ namespace sgcl::compress {
             co_return _took(r);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _decoder->offset());
                 return r.error();

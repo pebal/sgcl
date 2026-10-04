@@ -39,11 +39,11 @@ namespace sgcl::io {
         sync = 64
     };
 
-    constexpr open_flags operator|(open_flags a, open_flags b) noexcept {
+    SGCL_INLINE_HOT constexpr open_flags operator|(open_flags a, open_flags b) noexcept {
         return static_cast<open_flags>(static_cast<unsigned>(a) | static_cast<unsigned>(b));
     }
 
-    constexpr bool operator&(open_flags a, open_flags b) noexcept {
+    SGCL_INLINE_HOT constexpr bool operator&(open_flags a, open_flags b) noexcept {
         return (static_cast<unsigned>(a) & static_cast<unsigned>(b)) != 0;
     }
 
@@ -84,7 +84,7 @@ namespace sgcl::io {
     namespace detail {
         // A descriptor io owns from now on: true when its writes must hold
         // the signal back themselves
-        inline bool no_sigpipe(int fd) noexcept {
+        SGCL_INLINE_HOT bool no_sigpipe(int fd) noexcept {
 #if defined(F_SETNOSIGPIPE)
             (void)::fcntl(fd, F_SETNOSIGPIPE, 1);
             return false;
@@ -119,7 +119,7 @@ namespace sgcl::io {
     class FileState final {
     public:
         // `hold_sigpipe`: what no_sigpipe answered, for a descriptor io owns
-        FileState(int fd, const string& name, bool reactor, bool owns, bool hold_sigpipe = false) noexcept
+        SGCL_INLINE_HOT FileState(int fd, const string& name, bool reactor, bool owns, bool hold_sigpipe = false) noexcept
         : _d(fd, owns), _path(std::move(name)), _reactor(reactor) {
 #if defined(F_SETNOSIGPIPE)
             (void)hold_sigpipe;
@@ -263,7 +263,7 @@ namespace sgcl::io {
         // to the kernel by whoever lets go of it last, this call or the
         // last operation in progress, so that none of them lands on the
         // number the kernel gives to the next file opened
-        expected<void, error> close() noexcept {
+        SGCL_INLINE_HOT expected<void, error> close() noexcept {
             if (int e = _d.close()) {
                 errno = e;
                 return detail::fail(last_error("close", _name()));
@@ -271,30 +271,30 @@ namespace sgcl::io {
             return {};
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _d.closing();
         }
 
         // `read_at(...)` on this thread, `co_await async_read_at(...)` in a task
-        expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) noexcept {
+        SGCL_INLINE_HOT expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) noexcept {
             return _block_read_at(buffer, offset);
         }
 
-        async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer, uint64_t offset) noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer, uint64_t offset) noexcept {
             return _co_read_at(buffer, offset);
         }
 
         // `write_at(...)` on this thread, `co_await async_write_at(...)` in a task
-        expected<size_t, error> write_at(const slice<const byte>& data, uint64_t offset) noexcept {
+        SGCL_INLINE_HOT expected<size_t, error> write_at(const slice<const byte>& data, uint64_t offset) noexcept {
             return _block_write_at(data, offset);
         }
 
-        async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data, uint64_t offset) noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data, uint64_t offset) noexcept {
             return _co_write_at(data, offset);
         }
 
         // fsync; ftruncate; fstat; fchmod
-        expected<void, error> sync() noexcept {
+        SGCL_INLINE_HOT expected<void, error> sync() noexcept {
             detail::Operation op(_d);
             if (!op) {
                 return detail::fail(error(errc::closed, "sync", _name()));
@@ -305,7 +305,7 @@ namespace sgcl::io {
             return {};
         }
 
-        expected<void, error> truncate(uint64_t size) noexcept {
+        SGCL_INLINE_HOT expected<void, error> truncate(uint64_t size) noexcept {
             detail::Operation op(_d);
             if (!op) {
                 return detail::fail(error(errc::closed, "truncate", _name()));
@@ -326,7 +326,7 @@ namespace sgcl::io {
             co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), size] { return self->truncate(size); });
         }
 
-        expected<file_info, error> stat() const noexcept {
+        SGCL_INLINE_HOT expected<file_info, error> stat() const noexcept {
             detail::Operation op(_d);
             if (!op) {
                 return detail::fail(error(errc::closed, "stat", _name()));
@@ -338,7 +338,7 @@ namespace sgcl::io {
             return detail::info_of(st, _name());
         }
 
-        expected<void, error> chmod(permissions p) noexcept {
+        SGCL_INLINE_HOT expected<void, error> chmod(permissions p) noexcept {
             detail::Operation op(_d);
             if (!op) {
                 return detail::fail(error(errc::closed, "chmod", _name()));
@@ -357,26 +357,26 @@ namespace sgcl::io {
 
         // The descriptor, -1 when closed; the path it was opened with,
         // or the name given to from_fd
-        int fd() const noexcept {
+        SGCL_INLINE_HOT int fd() const noexcept {
             return _d.closing() ? -1 : _d.fd();
         }
 
-        const string& path() const noexcept {
+        SGCL_INLINE_HOT const string& path() const noexcept {
             return _path;
         }
 
         // Whether the async operations wait on the reactor (a
         // non-blocking descriptor) rather than run on the blocking pool
-        bool is_nonblocking() const noexcept {
+        SGCL_INLINE_HOT bool is_nonblocking() const noexcept {
             return _reactor;
         }
 
     private:
-        const string& _name() const noexcept {
+        SGCL_INLINE_HOT const string& _name() const noexcept {
             return _path;
         }
 
-        ssize_t _write(const byte* data, size_t n) noexcept {
+        SGCL_INLINE_HOT ssize_t _write(const byte* data, size_t n) noexcept {
 #if !defined(F_SETNOSIGPIPE)
             if (_hold_sigpipe) {
                 return detail::write_holding_sigpipe(_d.fd(), data, n);
@@ -387,7 +387,7 @@ namespace sgcl::io {
 
         // The error of a wait that did not end in readiness: the file
         // closed under it, or the reactor stopped (scheduler::stop)
-        optional<error> _waited(detail::WaitResult r, const char* op) const noexcept {
+        SGCL_INLINE_HOT optional<error> _waited(detail::WaitResult r, const char* op) const noexcept {
             if (r == detail::WaitResult::ready) {
                 return nullopt;
             }
@@ -469,24 +469,24 @@ namespace sgcl::io {
         file() noexcept = default;
 
         // `read(...)` on this thread, `co_await async_read(...)` in a task
-        expected<size_t, error> read(const slice<byte>& buffer) const {
+        SGCL_INLINE_HOT expected<size_t, error> read(const slice<byte>& buffer) const {
             return _get().read(buffer);
         }
 
-        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const noexcept {
             return _get().async_read(buffer);
         }
 
         // `write(...)` on this thread, `co_await async_write(...)` in a task
-        expected<size_t, error> write(const slice<const byte>& data) const {
+        SGCL_INLINE_HOT expected<size_t, error> write(const slice<const byte>& data) const {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const noexcept {
             return _get().async_write(data);
         }
 
-        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const noexcept {
+        SGCL_INLINE_HOT expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const noexcept {
             return _get().seek(offset, from);
         }
 
@@ -494,87 +494,87 @@ namespace sgcl::io {
         // progress end with errc::closed, and the descriptor is given back
         // to the kernel by whoever lets go of it last, this call or the
         // last operation in progress
-        expected<void, error> close() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> close() const noexcept {
             return _get().close();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _get().is_closed();
         }
 
         // pread and pwrite: the position given, the file's own untouched
         // `read_at(...)` on this thread, `co_await async_read_at(...)` in a task
-        expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) const noexcept {
+        SGCL_INLINE_HOT expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) const noexcept {
             return _get().read_at(buffer, offset);
         }
 
-        async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer, uint64_t offset) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer, uint64_t offset) const noexcept {
             return _get().async_read_at(buffer, offset);
         }
 
         // `write_at(...)` on this thread, `co_await async_write_at(...)` in a task
-        expected<size_t, error> write_at(const slice<const byte>& data, uint64_t offset) const noexcept {
+        SGCL_INLINE_HOT expected<size_t, error> write_at(const slice<const byte>& data, uint64_t offset) const noexcept {
             return _get().write_at(data, offset);
         }
 
-        async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data, uint64_t offset) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data, uint64_t offset) const noexcept {
             return _get().async_write_at(data, offset);
         }
 
         // fsync; ftruncate; fstat; fchmod. `sync()` on this thread,
         // `co_await async_sync()` in a task, on the blocking pool;
         // truncate and chmod likewise
-        expected<void, error> sync() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> sync() const noexcept {
             return _get().sync();
         }
 
-        async::task<expected<void, error>> async_sync() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_sync() const noexcept {
             return _get().async_sync();
         }
 
-        expected<void, error> truncate(uint64_t size) const noexcept {
+        SGCL_INLINE_HOT expected<void, error> truncate(uint64_t size) const noexcept {
             return _get().truncate(size);
         }
 
-        async::task<expected<void, error>> async_truncate(uint64_t size) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_truncate(uint64_t size) const noexcept {
             return _get().async_truncate(size);
         }
 
-        expected<file_info, error> stat() const noexcept {
+        SGCL_INLINE_HOT expected<file_info, error> stat() const noexcept {
             return _get().stat();
         }
 
-        expected<void, error> chmod(permissions p) const noexcept {
+        SGCL_INLINE_HOT expected<void, error> chmod(permissions p) const noexcept {
             return _get().chmod(p);
         }
 
-        async::task<expected<void, error>> async_chmod(permissions p) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_chmod(permissions p) const noexcept {
             return _get().async_chmod(p);
         }
 
         // The descriptor, -1 when closed; the path it was opened with,
         // or the name given to from_fd
-        int fd() const noexcept {
+        SGCL_INLINE_HOT int fd() const noexcept {
             return _get().fd();
         }
 
-        const string& path() const noexcept {
+        SGCL_INLINE_HOT const string& path() const noexcept {
             return _get().path();
         }
 
         // Whether the async operations wait on the reactor (a
         // non-blocking descriptor) rather than run on the blocking pool
-        bool is_nonblocking() const noexcept {
+        SGCL_INLINE_HOT bool is_nonblocking() const noexcept {
             return _get().is_nonblocking();
         }
 
         // Whether this handle holds a file
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_state;
         }
 
         // The same file: the same state
-        friend bool operator==(const file& a, const file& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const file& a, const file& b) noexcept {
             return a._state == b._state;
         }
 
@@ -582,31 +582,31 @@ namespace sgcl::io {
         friend struct detail::FileAccess;
         friend struct detail::HandleAccess;
 
-        explicit file(tracked_ptr<detail::FileState> state) noexcept
+        SGCL_INLINE_HOT explicit file(tracked_ptr<detail::FileState> state) noexcept
         : _state(std::move(state)) {
         }
 
-        detail::FileState& _get() const noexcept {
+        SGCL_INLINE_HOT detail::FileState& _get() const noexcept {
             assert(_state && "an empty io::file");
             return *_state;
         }
 
-        const tracked_ptr<detail::FileState>& _stream_state() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::FileState>& _stream_state() const noexcept {
             return _state;
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        file(sgcl::detail::FromWord, const tracked_ptr<detail::FileState>& w) noexcept
+        SGCL_INLINE_HOT file(sgcl::detail::FromWord, const tracked_ptr<detail::FileState>& w) noexcept
         : _state(w) {
         }
 
-        tracked_ptr<detail::FileState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::FileState>& _handle_word() noexcept {
             return _state;
         }
 
-        const tracked_ptr<detail::FileState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::FileState>& _handle_word() const noexcept {
             return _state;
         }
 
@@ -620,11 +620,11 @@ namespace sgcl::io {
         // The handle made over a state, and the state under a handle, for
         // the library's own code (exec, the standard streams, compress)
         struct FileAccess {
-            static file make(tracked_ptr<FileState> state) noexcept {
+            SGCL_INLINE_HOT static file make(tracked_ptr<FileState> state) noexcept {
                 return file(std::move(state));
             }
 
-            static const tracked_ptr<FileState>& state(const file& f) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<FileState>& state(const file& f) noexcept {
                 return f._state;
             }
         };
@@ -632,19 +632,19 @@ namespace sgcl::io {
 
     namespace detail {
         // Whether the descriptor has O_NONBLOCK set
-        inline bool is_nonblocking_fd(int fd) noexcept {
+        SGCL_INLINE_HOT bool is_nonblocking_fd(int fd) noexcept {
             int f = ::fcntl(fd, F_GETFL);
             return f >= 0 && (f & O_NONBLOCK);
         }
 
-        inline bool set_nonblocking_fd(int fd) noexcept {
+        SGCL_INLINE_HOT bool set_nonblocking_fd(int fd) noexcept {
             int f = ::fcntl(fd, F_GETFL);
             return f >= 0 && ::fcntl(fd, F_SETFL, f | O_NONBLOCK) == 0;
         }
 
         // The state of a file over a standard descriptor, which it never
         // closes (os.h: io::stdin, io::stdout, io::stderr)
-        inline tracked_ptr<FileState> std_stream(int fd, const string& name) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<FileState> std_stream(int fd, const string& name) noexcept {
             return tracked_ptr<FileState>(make_tracked<FileState>(fd, name, is_nonblocking_fd(fd), false));
         }
     }
@@ -680,18 +680,18 @@ namespace sgcl::io {
     }
 
     // open(path, write | create | truncate, p)
-    inline expected<file, error> create(const string& path, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT expected<file, error> create(const string& path, permissions p = permissions(0666)) noexcept {
         return open(path, open_flags::write | open_flags::create | open_flags::truncate, p);
     }
 
     // `open(...)` on this thread, `co_await async_open(...)` in a task, on
     // the blocking pool: an open waits for the disk, and one of a FIFO for
     // the other end; create likewise
-    inline async::task<expected<file, error>> async_open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT async::task<expected<file, error>> async_open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666)) noexcept {
         return detail::on_pool([path, flags, p] { return open(path, flags, p); });
     }
 
-    inline async::task<expected<file, error>> async_create(const string& path, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT async::task<expected<file, error>> async_create(const string& path, permissions p = permissions(0666)) noexcept {
         return detail::on_pool([path, p] { return create(path, p); });
     }
 
@@ -700,7 +700,7 @@ namespace sgcl::io {
     // descriptor's flags are left as they are, but for SIGPIPE (a write
     // without a reader is EPIPE): one that is non-blocking already is
     // served by the reactor, any other by the pool.
-    inline file from_fd(int fd, const string& name = {}) noexcept {
+    SGCL_INLINE_HOT file from_fd(int fd, const string& name = {}) noexcept {
         const bool hold_sigpipe = detail::no_sigpipe(fd);
         return detail::FileAccess::make(make_tracked<detail::FileState>(fd, name, detail::is_nonblocking_fd(fd), true, hold_sigpipe));
     }
@@ -776,7 +776,7 @@ namespace sgcl::io {
         return out;
     }
 
-    inline expected<vector<byte>, error> _block_read_file(const string& path)  {
+    SGCL_INLINE_HOT expected<vector<byte>, error> _block_read_file(const string& path)  {
         auto f = open(path);
         if (!f) {
             return detail::fail(f);
@@ -856,11 +856,11 @@ namespace sgcl::io {
     }
 
     // `read_file(...)` on this thread, `co_await async_read_file(...)` in a task
-    inline expected<vector<byte>, error> read_file(const string& path) {
+    SGCL_INLINE_HOT expected<vector<byte>, error> read_file(const string& path) {
         return detail::_block_read_file(path);
     }
 
-    inline async::task<expected<vector<byte>, error>> async_read_file(const string& path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<vector<byte>, error>> async_read_file(const string& path) noexcept {
         return detail::_co_read_file(path);
     }
 
@@ -871,11 +871,11 @@ namespace sgcl::io {
     }
 
     // `read_text(...)` on this thread, `co_await async_read_text(...)` in a task
-    inline expected<string, error> read_text(const string& path) {
+    SGCL_INLINE_HOT expected<string, error> read_text(const string& path) {
         return detail::_block_read_text(path);
     }
 
-    inline async::task<expected<string, error>> async_read_text(const string& path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<string, error>> async_read_text(const string& path) noexcept {
         return detail::_co_read_text(path);
     }
 
@@ -913,11 +913,11 @@ namespace sgcl::io {
     }
 
     // `read_lines(...)` on this thread, `co_await async_read_lines(...)` in a task
-    inline expected<vector<string>, error> read_lines(const string& path) {
+    SGCL_INLINE_HOT expected<vector<string>, error> read_lines(const string& path) {
         return detail::_block_read_lines(path);
     }
 
-    inline async::task<expected<vector<string>, error>> async_read_lines(const string& path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<vector<string>, error>> async_read_lines(const string& path) noexcept {
         return detail::_co_read_lines(path);
     }
 
@@ -943,7 +943,7 @@ namespace sgcl::io {
     }
 
     namespace detail {
-    inline expected<void, error> _block_write_file(const string& path, const string& text, permissions p) {
+    SGCL_INLINE_HOT expected<void, error> _block_write_file(const string& path, const string& text, permissions p) {
         return _block_write_file(path, detail::bytes_of(text), p);
     }
     }
@@ -964,7 +964,7 @@ namespace sgcl::io {
     }
 
     namespace detail {
-    inline expected<void, error> _block_append_file(const string& path, const string& text, permissions p) {
+    SGCL_INLINE_HOT expected<void, error> _block_append_file(const string& path, const string& text, permissions p) {
         return _block_append_file(path, detail::bytes_of(text), p);
     }
     }
@@ -983,20 +983,20 @@ namespace sgcl::io {
     }
 
     // `io::write_file(...)` on this thread, `co_await io::async_write_file(...)` in a task
-    inline expected<void, error> write_file(const string& path, const string& text, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT expected<void, error> write_file(const string& path, const string& text, permissions p = permissions(0666)) {
         return detail::_block_write_file(path, text, p);
     }
 
-    inline async::task<expected<void, error>> async_write_file(const string& path, const string& text, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_write_file(const string& path, const string& text, permissions p = permissions(0666)) noexcept {
         return detail::_co_write_file(path, text, p);
     }
 
     // `io::write_file(...)` on this thread, `co_await io::async_write_file(...)` in a task
-    inline expected<void, error> write_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT expected<void, error> write_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) {
         return detail::_block_write_file(path, data, p);
     }
 
-    inline async::task<expected<void, error>> async_write_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_write_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) noexcept {
         return detail::_co_write_file(path, data, p);
     }
 
@@ -1014,20 +1014,20 @@ namespace sgcl::io {
     }
 
     // `io::append_file(...)` on this thread, `co_await io::async_append_file(...)` in a task
-    inline expected<void, error> append_file(const string& path, const string& text, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT expected<void, error> append_file(const string& path, const string& text, permissions p = permissions(0666)) {
         return detail::_block_append_file(path, text, p);
     }
 
-    inline async::task<expected<void, error>> async_append_file(const string& path, const string& text, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_append_file(const string& path, const string& text, permissions p = permissions(0666)) noexcept {
         return detail::_co_append_file(path, text, p);
     }
 
     // `io::append_file(...)` on this thread, `co_await io::async_append_file(...)` in a task
-    inline expected<void, error> append_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT expected<void, error> append_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) {
         return detail::_block_append_file(path, data, p);
     }
 
-    inline async::task<expected<void, error>> async_append_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_append_file(const string& path, const slice<const byte>& data, permissions p = permissions(0666)) noexcept {
         return detail::_co_append_file(path, data, p);
     }
 
@@ -1035,29 +1035,29 @@ namespace sgcl::io {
     // exact match, else the conversions to a string and to bytes tie); the
     // async forms copy the text, which the task then holds
     template<sgcl::detail::TextArgument T>
-    expected<void, error> write_file(const string& path, const T& text, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT expected<void, error> write_file(const string& path, const T& text, permissions p = permissions(0666)) {
         return detail::_block_write_file(path, slice<const byte>(text), p);
     }
 
     template<sgcl::detail::TextArgument T>
-    async::task<expected<void, error>> async_write_file(const string& path, const T& text, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_write_file(const string& path, const T& text, permissions p = permissions(0666)) {
         return detail::_co_write_file(path, string(slice<const byte>(text)), p);
     }
 
     template<sgcl::detail::TextArgument T>
-    expected<void, error> append_file(const string& path, const T& text, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT expected<void, error> append_file(const string& path, const T& text, permissions p = permissions(0666)) {
         return detail::_block_append_file(path, slice<const byte>(text), p);
     }
 
     template<sgcl::detail::TextArgument T>
-    async::task<expected<void, error>> async_append_file(const string& path, const T& text, permissions p = permissions(0666)) {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_append_file(const string& path, const T& text, permissions p = permissions(0666)) {
         return detail::_co_append_file(path, string(slice<const byte>(text)), p);
     }
 
 
     namespace detail {
         // The system's temporary directory: $TMPDIR, else /tmp
-        inline string temp_root() noexcept {
+        SGCL_INLINE_HOT string temp_root() noexcept {
             const char* t = ::getenv("TMPDIR");
             if (t && *t) {
                 return io::path::clean(string(t));
@@ -1119,11 +1119,11 @@ namespace sgcl::io {
 
     // `temp_file(...)` on this thread, `co_await async_temp_file(...)` in a
     // task, on the blocking pool, as create; make_temp_dir likewise
-    inline async::task<expected<file, error>> async_temp_file(const string& dir = {}, const string& pattern = "*") noexcept {
+    SGCL_INLINE_HOT async::task<expected<file, error>> async_temp_file(const string& dir = {}, const string& pattern = "*") noexcept {
         return detail::on_pool([dir, pattern] { return temp_file(dir, pattern); });
     }
 
-    inline async::task<expected<string, error>> async_make_temp_dir(const string& dir = {}, const string& pattern = "*") noexcept {
+    SGCL_INLINE_HOT async::task<expected<string, error>> async_make_temp_dir(const string& dir = {}, const string& pattern = "*") noexcept {
         return detail::on_pool([dir, pattern] { return make_temp_dir(dir, pattern); });
     }
 }

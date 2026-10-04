@@ -29,7 +29,7 @@ namespace sgcl::net {
         // A deadline at the clock's end, where a limit of duration::max()
         // saturates (clock::now() + limit), is no deadline: the timers
         // never fire at it, and nothing is armed for it
-        inline time_point no_deadline_at_max(time_point t) noexcept {
+        SGCL_INLINE_HOT time_point no_deadline_at_max(time_point t) noexcept {
             return t == time_point::max() ? time_point() : t;
         }
 
@@ -69,7 +69,7 @@ namespace sgcl::net {
         // passed while the job waited for a thread, so that a burst of
         // lookups given up does not hold the pool in getaddrinfo (a call
         // already inside it cannot be stopped, and finishes on its own)
-        inline optional<io::error> given_up(const async::stop_token& stop, time_point deadline, const string& what) noexcept {
+        SGCL_INLINE_HOT optional<io::error> given_up(const async::stop_token& stop, time_point deadline, const string& what) noexcept {
             if (stop.stop_requested()) {
                 return system_error(ECANCELED, "lookup", what);
             }
@@ -79,7 +79,7 @@ namespace sgcl::net {
             return nullopt;
         }
 
-        inline expected<vector<ip_address>, io::error> resolve_unless_given_up(const string& host, const async::stop_token& stop, time_point deadline) noexcept {
+        SGCL_INLINE_HOT expected<vector<ip_address>, io::error> resolve_unless_given_up(const string& host, const async::stop_token& stop, time_point deadline) noexcept {
             if (auto e = given_up(stop, deadline, host)) {
                 return io::detail::fail(*e);
             }
@@ -169,11 +169,11 @@ namespace sgcl::net {
         // the stop ends a task's wait. The thread's form takes none: the
         // system's resolver cannot be interrupted, so the call goes on to
         // its end
-        static expected<vector<ip_address>, io::error> lookup(const string& host) noexcept {
+        SGCL_INLINE_HOT static expected<vector<ip_address>, io::error> lookup(const string& host) noexcept {
             return _block_lookup(host);
         }
 
-        static async::task<expected<vector<ip_address>, io::error>> async_lookup(const string& host, async::stop_token stop = {}) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<vector<ip_address>, io::error>> async_lookup(const string& host, async::stop_token stop = {}) noexcept {
             return _co_lookup(host, stop);
         }
 
@@ -181,17 +181,17 @@ namespace sgcl::net {
         // address with none is net::errc::host_not_found
         // `dns::reverse_lookup(...)` on this thread, `co_await dns::async_reverse_lookup(...)` in a task;
         // the stop ends a task's wait (the thread's form takes none, as lookup)
-        static expected<vector<string>, io::error> reverse_lookup(const ip_address& address) noexcept {
+        SGCL_INLINE_HOT static expected<vector<string>, io::error> reverse_lookup(const ip_address& address) noexcept {
             return _block_reverse_lookup(address);
         }
 
-        static async::task<expected<vector<string>, io::error>> async_reverse_lookup(const ip_address& address, async::stop_token stop = {}) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<vector<string>, io::error>> async_reverse_lookup(const ip_address& address, async::stop_token stop = {}) noexcept {
             return _co_reverse_lookup(address, stop);
         }
 
     private:
         // the two halves of the operations above: a thread's and a task's
-        static expected<vector<ip_address>, io::error> _block_lookup(const string& host) noexcept {
+        SGCL_INLINE_HOT static expected<vector<ip_address>, io::error> _block_lookup(const string& host) noexcept {
             if (auto a = detail::IpText::parse(detail::IpText::view(host))) {   // a number: no error made for a name
                 vector<ip_address> one;
                 one.push_back(*a);
@@ -203,11 +203,11 @@ namespace sgcl::net {
             return net::detail::resolve(host);
         }
 
-        static async::task<expected<vector<ip_address>, io::error>> _co_lookup(const string& host, async::stop_token stop) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<vector<ip_address>, io::error>> _co_lookup(const string& host, async::stop_token stop) noexcept {
             return net::detail::lookup_until(host, std::move(stop), time_point());
         }
 
-        static expected<vector<string>, io::error> _block_reverse_lookup(const ip_address& address) noexcept {
+        SGCL_INLINE_HOT static expected<vector<string>, io::error> _block_reverse_lookup(const ip_address& address) noexcept {
             return net::detail::resolve_name(address);
         }
 

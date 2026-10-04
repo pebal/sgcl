@@ -67,7 +67,7 @@ namespace sgcl::net::http::detail {
     // A number that may be absent, set into a managed object: emplace and
     // reset, never the assignment of an optional made on the stack, whose
     // payload (uninitialized when empty) the trivial copy would carry in
-    inline void set_optional(optional<uint64_t>& to, const optional<uint64_t>& from) noexcept {
+    SGCL_INLINE_HOT void set_optional(optional<uint64_t>& to, const optional<uint64_t>& from) noexcept {
         if (from) {
             to.emplace(*from);
         } else {
@@ -109,7 +109,7 @@ namespace sgcl::net::http::detail {
     }
 
     // Where the search is to go on after a failed one over n bytes
-    inline size_t head_search_resume(size_t n) noexcept {
+    SGCL_INLINE_HOT size_t head_search_resume(size_t n) noexcept {
         return n >= 2 ? n - 2 : 0;
     }
 
@@ -206,7 +206,7 @@ namespace sgcl::net::http::detail {
 
     // "HTTP/1.0", "HTTP/1.1": the minor; -1 for another HTTP/x.y (505),
     // -2 for anything else (400)
-    inline int parse_version(std::string_view v) noexcept {
+    SGCL_INLINE_HOT int parse_version(std::string_view v) noexcept {
         if (v.size() != 8 || v.substr(0, 5) != "HTTP/" || v[6] != '.' || v[5] < '0' || v[5] > '9' || v[7] < '0' || v[7] > '9') {
             return -2;
         }
@@ -538,7 +538,7 @@ namespace sgcl::net::http::detail {
             int error = 0;              // 400: the framing is broken
         };
 
-        explicit ChunkedDecoder(size_t max_trailer = 32 * 1024) noexcept
+        SGCL_INLINE_HOT explicit ChunkedDecoder(size_t max_trailer = 32 * 1024) noexcept
         : _max_trailer(max_trailer) {
         }
 
@@ -644,11 +644,11 @@ namespace sgcl::net::http::detail {
             return r;
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return _state == State::done;
         }
 
-        const headers& trailers() const noexcept {
+        SGCL_INLINE_HOT const headers& trailers() const noexcept {
             return _trailers;
         }
 

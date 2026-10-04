@@ -241,31 +241,31 @@ namespace sgcl::encoding {
             FieldArray(const FieldArray&) = delete;
             FieldArray& operator=(const FieldArray&) = delete;
 
-            const FieldInfo* begin() const noexcept {
+            SGCL_INLINE_HOT const FieldInfo* begin() const noexcept {
                 return _p;
             }
 
-            const FieldInfo* end() const noexcept {
+            SGCL_INLINE_HOT const FieldInfo* end() const noexcept {
                 return _p + _n;
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return _n;
             }
 
-            bool empty() const noexcept {
+            SGCL_INLINE_HOT bool empty() const noexcept {
                 return !_n;
             }
 
-            const FieldInfo& operator[](size_t i) const noexcept {
+            SGCL_INLINE_HOT const FieldInfo& operator[](size_t i) const noexcept {
                 return _p[i];
             }
 
-            FieldInfo& operator[](size_t i) noexcept {
+            SGCL_INLINE_HOT FieldInfo& operator[](size_t i) noexcept {
                 return _p[i];
             }
 
-            void push_back(const FieldInfo& f) noexcept {
+            SGCL_INLINE_HOT void push_back(const FieldInfo& f) noexcept {
                 if (_n == _capacity) {
                     _grow();
                 }
@@ -273,12 +273,12 @@ namespace sgcl::encoding {
                 ++_n;
             }
 
-            void clear() noexcept {
+            SGCL_INLINE_HOT void clear() noexcept {
                 _n = 0;
             }
 
         private:
-            void _grow() noexcept {
+            SGCL_INLINE_HOT void _grow() noexcept {
                 auto more = std::make_unique_for_overwrite<FieldInfo[]>(_capacity * 2);
                 sgcl::detail::copy_bytes(more.get(), _p, _n * sizeof(FieldInfo));
                 _heap = std::move(more);
@@ -308,30 +308,30 @@ namespace sgcl::encoding {
 
         // Missing from the input: missing_field (by default a missing field
         // keeps its value)
-        field& required() noexcept {
+        SGCL_INLINE_HOT field& required() noexcept {
             return _set(detail::Required);
         }
 
         // Not written when it is empty: 0, false, "", an empty container,
         // nullopt, nullptr, a default value of a type of fields
-        field& omit_empty() noexcept {
+        SGCL_INLINE_HOT field& omit_empty() noexcept {
             return _set(detail::OmitEmpty);
         }
 
         // A number or a boolean written as a string and read from one:
         // "12" (Go's `json:",string"`; quoted, not as_string, which is the
         // name of a json value's string)
-        field& quoted() noexcept {
+        SGCL_INLINE_HOT field& quoted() noexcept {
             return _set(detail::AsString);
         }
 
         // XML: the field is an attribute of the element, not an element
-        field& attribute() noexcept {
+        SGCL_INLINE_HOT field& attribute() noexcept {
             return _set(detail::Attribute);
         }
 
         // XML: the field is the text of the element
-        field& text() noexcept {
+        SGCL_INLINE_HOT field& text() noexcept {
             return _set(detail::Text);
         }
 
@@ -348,7 +348,7 @@ namespace sgcl::encoding {
     private:
         friend class field_list;
 
-        field(field_list* list, size_t index) noexcept
+        SGCL_INLINE_HOT field(field_list* list, size_t index) noexcept
         : _list(list), _index(index) {
         }
 
@@ -371,7 +371,7 @@ namespace sgcl::encoding {
         // read after describe returns) and the member itself
         template<class Name, class T>
         requires std::same_as<Name, const char*> || std::same_as<Name, char*>
-        field add(Name name, T& value) noexcept {
+        SGCL_INLINE_HOT field add(Name name, T& value) noexcept {
             return _add(std::string_view(name), value);
         }
 
@@ -380,12 +380,12 @@ namespace sgcl::encoding {
         // is a zero too holds a shorter string, and is measured as a
         // pointer is.
         template<size_t N, class T>
-        field add(const char (&name)[N], T& value) noexcept {
+        SGCL_INLINE_HOT field add(const char (&name)[N], T& value) noexcept {
             const bool literal = N >= 2 && name[N - 1] == 0 && name[N - 2] != 0;
             return _add(literal ? std::string_view(name, N - 1) : std::string_view(name), value);
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _fields.size();
         }
 
@@ -407,16 +407,16 @@ namespace sgcl::encoding {
         std::vector<const char*> _names;
     };
 
-    inline detail::FieldInfo& field::_info() noexcept {
+    SGCL_INLINE_HOT detail::FieldInfo& field::_info() noexcept {
         return _list->_fields[_index];
     }
 
-    inline field& field::_set(uint8_t f) noexcept {
+    SGCL_INLINE_HOT field& field::_set(uint8_t f) noexcept {
         _info().flags |= f;
         return *this;
     }
 
-    inline field& field::names(std::initializer_list<const char*> names) noexcept {
+    SGCL_INLINE_HOT field& field::names(std::initializer_list<const char*> names) noexcept {
         auto& info = _info();
         info.names_from = uint32_t(_list->_names.size());
         info.names_count = uint32_t(names.size());
@@ -424,7 +424,7 @@ namespace sgcl::encoding {
         return *this;
     }
 
-    inline field& field::tagged(const char* key, std::initializer_list<const char*> names) noexcept {
+    SGCL_INLINE_HOT field& field::tagged(const char* key, std::initializer_list<const char*> names) noexcept {
         this->names(names);
         _info().tag = key;
         return *this;
@@ -433,18 +433,18 @@ namespace sgcl::encoding {
     namespace detail {
         // What a format reads of a field_list
         struct FieldAccess {
-            static const FieldArray& fields(const field_list& l) noexcept {
+            SGCL_INLINE_HOT static const FieldArray& fields(const field_list& l) noexcept {
                 return l._fields;
             }
 
             // The list emptied, to be filled again by another object
-            static void clear(field_list& l) noexcept {
+            SGCL_INLINE_HOT static void clear(field_list& l) noexcept {
                 l._fields.clear();
                 l._names.clear();
             }
 
             // The names given to the field (names() or tagged())
-            static std::string_view name(const field_list& l, const FieldInfo& f, size_t i) noexcept {
+            SGCL_INLINE_HOT static std::string_view name(const field_list& l, const FieldInfo& f, size_t i) noexcept {
                 return i < f.names_count ? std::string_view(l._names[f.names_from + i]) : std::string_view();
             }
 
@@ -620,7 +620,7 @@ namespace sgcl::encoding {
         struct ElementsPlain<T> : IsPlain<typename T::value_type> {};
 
         template<class T>
-        void describe_of(T& value, field_list& f) {
+        SGCL_INLINE_HOT void describe_of(T& value, field_list& f) {
             if constexpr (HasDescribe<T>) {
                 value.describe(f);
             } else {
@@ -777,15 +777,15 @@ namespace sgcl::encoding {
 
         template<class T>
         struct ScalarOps {
-            static bool get_bool(const void* p) noexcept {
+            SGCL_INLINE_HOT static bool get_bool(const void* p) noexcept {
                 return *static_cast<const T*>(p);
             }
 
-            static void set_bool(void* p, bool b) noexcept {
+            SGCL_INLINE_HOT static void set_bool(void* p, bool b) noexcept {
                 *static_cast<T*>(p) = b;
             }
 
-            static int64_t get_int(const void* p) noexcept {
+            SGCL_INLINE_HOT static int64_t get_int(const void* p) noexcept {
                 if constexpr (std::is_enum_v<T>) {
                     return int64_t(std::underlying_type_t<T>(*static_cast<const T*>(p)));
                 } else {
@@ -793,7 +793,7 @@ namespace sgcl::encoding {
                 }
             }
 
-            static uint64_t get_uint(const void* p) noexcept {
+            SGCL_INLINE_HOT static uint64_t get_uint(const void* p) noexcept {
                 if constexpr (std::is_enum_v<T>) {
                     return uint64_t(std::underlying_type_t<T>(*static_cast<const T*>(p)));
                 } else {
@@ -803,7 +803,7 @@ namespace sgcl::encoding {
 
             using Integer = typename std::conditional_t<std::is_enum_v<T>, std::underlying_type<T>, std::type_identity<T>>::type;
 
-            static bool set_int(void* p, int64_t v) noexcept {
+            SGCL_INLINE_HOT static bool set_int(void* p, int64_t v) noexcept {
                 if constexpr (std::is_signed_v<Integer>) {
                     if (v < int64_t(std::numeric_limits<Integer>::min()) || v > int64_t(std::numeric_limits<Integer>::max())) {
                         return false;
@@ -817,7 +817,7 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            static bool set_uint(void* p, uint64_t v) noexcept {
+            SGCL_INLINE_HOT static bool set_uint(void* p, uint64_t v) noexcept {
                 if (v > uint64_t(std::numeric_limits<Integer>::max())) {
                     return false;
                 }
@@ -825,11 +825,11 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            static double get_double(const void* p) noexcept {
+            SGCL_INLINE_HOT static double get_double(const void* p) noexcept {
                 return double(*static_cast<const T*>(p));
             }
 
-            static void set_double(void* p, double d) noexcept {
+            SGCL_INLINE_HOT static void set_double(void* p, double d) noexcept {
                 *static_cast<T*>(p) = T(d);
             }
 
@@ -871,7 +871,7 @@ namespace sgcl::encoding {
                 }
             }
 
-            static size_t number_text(const void* p, char* out) noexcept {
+            SGCL_INLINE_HOT static size_t number_text(const void* p, char* out) noexcept {
                 if constexpr (std::is_floating_point_v<T>) {
                     return detail::number_text(out, *static_cast<const T*>(p));
                 } else {
@@ -882,7 +882,7 @@ namespace sgcl::encoding {
 
         template<class T>
         struct TextOps {
-            static string get_text(const void* p) {
+            SGCL_INLINE_HOT static string get_text(const void* p) {
                 const T& v = *static_cast<const T*>(p);
                 if constexpr (std::is_same_v<T, string>) {
                     return v;
@@ -916,23 +916,23 @@ namespace sgcl::encoding {
         struct OptionalOps {
             using U = typename T::value_type;
 
-            static bool has_value(const void* p) noexcept {
+            SGCL_INLINE_HOT static bool has_value(const void* p) noexcept {
                 return static_cast<const T*>(p)->has_value();
             }
 
-            static const void* value(const void* p) noexcept {
+            SGCL_INLINE_HOT static const void* value(const void* p) noexcept {
                 return std::addressof(**static_cast<const T*>(p));
             }
 
-            static void* emplace(void* p) {
+            SGCL_INLINE_HOT static void* emplace(void* p) {
                 return std::addressof(static_cast<T*>(p)->emplace());
             }
 
-            static void reset(void* p) noexcept {
+            SGCL_INLINE_HOT static void reset(void* p) noexcept {
                 static_cast<T*>(p)->reset();
             }
 
-            static const ValueOps* inner() noexcept {
+            SGCL_INLINE_HOT static const ValueOps* inner() noexcept {
                 return value_ops<U>();
             }
         };
@@ -941,11 +941,11 @@ namespace sgcl::encoding {
         struct PointerOps {
             using U = typename T::element_type;
 
-            static bool has_value(const void* p) noexcept {
+            SGCL_INLINE_HOT static bool has_value(const void* p) noexcept {
                 return bool(*static_cast<const T*>(p));
             }
 
-            static const void* value(const void* p) noexcept {
+            SGCL_INLINE_HOT static const void* value(const void* p) noexcept {
                 return static_cast<const T*>(p)->get();
             }
 
@@ -966,11 +966,11 @@ namespace sgcl::encoding {
                 return made.get();
             }
 
-            static void reset(void* p) noexcept {
+            SGCL_INLINE_HOT static void reset(void* p) noexcept {
                 *static_cast<T*>(p) = nullptr;
             }
 
-            static const ValueOps* inner() noexcept {
+            SGCL_INLINE_HOT static const ValueOps* inner() noexcept {
                 return value_ops<std::remove_cv_t<U>>();
             }
         };
@@ -993,7 +993,7 @@ namespace sgcl::encoding {
         concept Addable = VoidPush<C, E> || ValuePush<C, E> || ValueInsert<C, E> || PlainInsert<C, E>;
 
         template<class C, class E>
-        void add_element(C& c, E&& e) {
+        SGCL_INLINE_HOT void add_element(C& c, E&& e) {
             if constexpr (VoidPush<C, E>) {
                 c.push_back(std::move(e));
             } else if constexpr (ValuePush<C, E>) {
@@ -1012,7 +1012,7 @@ namespace sgcl::encoding {
         struct RangeOps {
             using E = std::ranges::range_value_t<T>;
 
-            static size_t count(const void* p) noexcept(requires(const T& c) { { c.size() } noexcept; }) {
+            SGCL_INLINE_HOT static size_t count(const void* p) noexcept(requires(const T& c) { { c.size() } noexcept; }) {
                 const T& c = *static_cast<const T*>(p);
                 if constexpr (requires { c.size(); }) {
                     return size_t(c.size());
@@ -1092,7 +1092,7 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            static const ValueOps* inner() noexcept {
+            SGCL_INLINE_HOT static const ValueOps* inner() noexcept {
                 return value_ops<std::remove_cv_t<E>>();
             }
         };
@@ -1102,11 +1102,11 @@ namespace sgcl::encoding {
             using E = typename FixedOf<T>::element;
             static constexpr size_t N = FixedOf<T>::count;
 
-            static size_t count(const void*) noexcept {
+            SGCL_INLINE_HOT static size_t count(const void*) noexcept {
                 return N;
             }
 
-            static E* data(void* p) noexcept {
+            SGCL_INLINE_HOT static E* data(void* p) noexcept {
                 if constexpr (std::is_array_v<T>) {
                     return *static_cast<T*>(p);
                 } else {
@@ -1114,7 +1114,7 @@ namespace sgcl::encoding {
                 }
             }
 
-            static const E* data(const void* p) noexcept {
+            SGCL_INLINE_HOT static const E* data(const void* p) noexcept {
                 if constexpr (std::is_array_v<T>) {
                     return *static_cast<const T*>(p);
                 } else {
@@ -1132,17 +1132,17 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            static void* element(void* p, size_t i, const ValueOps** ops) noexcept {
+            SGCL_INLINE_HOT static void* element(void* p, size_t i, const ValueOps** ops) noexcept {
                 *ops = value_ops<E>();
                 return data(p) + i;
             }
 
-            static const void* element_of(const void* p, size_t i, const ValueOps** ops) noexcept {
+            SGCL_INLINE_HOT static const void* element_of(const void* p, size_t i, const ValueOps** ops) noexcept {
                 *ops = value_ops<E>();
                 return data(p) + i;
             }
 
-            static const ValueOps* inner() noexcept {
+            SGCL_INLINE_HOT static const ValueOps* inner() noexcept {
                 return value_ops<E>();
             }
         };
@@ -1152,7 +1152,7 @@ namespace sgcl::encoding {
             static constexpr size_t N = std::tuple_size_v<T>;
 
             template<size_t I = 0>
-            static void* at(T& t, size_t i, const ValueOps** ops) noexcept {
+            SGCL_INLINE_HOT static void* at(T& t, size_t i, const ValueOps** ops) noexcept {
                 if constexpr (I == N) {
                     return nullptr;
                 } else {
@@ -1164,11 +1164,11 @@ namespace sgcl::encoding {
                 }
             }
 
-            static void* element(void* p, size_t i, const ValueOps** ops) noexcept {
+            SGCL_INLINE_HOT static void* element(void* p, size_t i, const ValueOps** ops) noexcept {
                 return at(*static_cast<T*>(p), i, ops);
             }
 
-            static const void* element_of(const void* p, size_t i, const ValueOps** ops) noexcept {
+            SGCL_INLINE_HOT static const void* element_of(const void* p, size_t i, const ValueOps** ops) noexcept {
                 return at(*const_cast<T*>(static_cast<const T*>(p)), i, ops);
             }
         };
@@ -1178,7 +1178,7 @@ namespace sgcl::encoding {
             using K = typename T::key_type;
             using V = typename T::mapped_type;
 
-            static size_t count(const void* p) noexcept(noexcept(std::declval<const T&>().size())) {
+            SGCL_INLINE_HOT static size_t count(const void* p) noexcept(noexcept(std::declval<const T&>().size())) {
                 return size_t(static_cast<const T*>(p)->size());
             }
 
@@ -1235,18 +1235,18 @@ namespace sgcl::encoding {
                 return EntryStatus::done;
             }
 
-            static const ValueOps* inner() noexcept {
+            SGCL_INLINE_HOT static const ValueOps* inner() noexcept {
                 return value_ops<std::remove_cv_t<V>>();
             }
 
-            static const ValueOps* key() noexcept {
+            SGCL_INLINE_HOT static const ValueOps* key() noexcept {
                 return value_ops<std::remove_cv_t<K>>();
             }
         };
 
         template<class T>
         struct RecordOps {
-            static void describe(void* p, field_list& f) {
+            SGCL_INLINE_HOT static void describe(void* p, field_list& f) {
                 describe_of(*static_cast<T*>(p), f);
             }
         };
@@ -1259,7 +1259,7 @@ namespace sgcl::encoding {
             using T = Var<A...>;
             static constexpr size_t N = sizeof...(A);
 
-            static size_t index(const void* p) noexcept {
+            SGCL_INLINE_HOT static size_t index(const void* p) noexcept {
                 return static_cast<const T*>(p)->index();
             }
 
@@ -1281,12 +1281,12 @@ namespace sgcl::encoding {
                 }
             }
 
-            static const void* alternative(const void* p, const ValueOps** ops) noexcept {
+            SGCL_INLINE_HOT static const void* alternative(const void* p, const ValueOps** ops) noexcept {
                 return held(*static_cast<const T*>(p), ops);
             }
 
             template<size_t I = 0>
-            static void* make(T& v, size_t i, const ValueOps** ops) {
+            SGCL_INLINE_HOT static void* make(T& v, size_t i, const ValueOps** ops) {
                 if constexpr (I == N) {
                     return nullptr;
                 } else {
@@ -1299,7 +1299,7 @@ namespace sgcl::encoding {
                 }
             }
 
-            static void* emplace_alternative(void* p, size_t i, const ValueOps** ops) {
+            SGCL_INLINE_HOT static void* emplace_alternative(void* p, size_t i, const ValueOps** ops) {
                 return make(*static_cast<T*>(p), i, ops);
             }
         };
@@ -1442,7 +1442,7 @@ namespace sgcl::encoding {
         };
 
         template<class T>
-        const ValueOps* value_ops() noexcept {
+        SGCL_INLINE_HOT const ValueOps* value_ops() noexcept {
             return &OpsTable<T>::value;
         }
     }

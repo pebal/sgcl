@@ -55,7 +55,7 @@ namespace sgcl::net {
             uint16_t port = 0;
         };
 
-        inline expected<Target, io::error> parse_target(const string& address, const char* op) noexcept {
+        SGCL_INLINE_HOT expected<Target, io::error> parse_target(const string& address, const char* op) noexcept {
             auto hp = split_host_port(std::string_view(address.data(), address.size()));
             if (!hp) {
                 return fail(net_error(errc::invalid_address, op, address));
@@ -87,7 +87,7 @@ namespace sgcl::net {
             return out;
         }
 
-        inline int family_of(const endpoint& e) noexcept {
+        SGCL_INLINE_HOT int family_of(const endpoint& e) noexcept {
             return e.address().unmap().is_v4() ? AF_INET : AF_INET6;
         }
 
@@ -154,7 +154,7 @@ namespace sgcl::net {
         }
 
         // One TCP connection to the endpoint, on this thread
-        inline expected<connection, io::error> dial_tcp(const endpoint& to) {
+        SGCL_INLINE_HOT expected<connection, io::error> dial_tcp(const endpoint& to) {
             auto c = start_connect(to, "dial tcp");
             if (!c) {
                 return fail(c);
@@ -186,7 +186,7 @@ namespace sgcl::net {
         };
 
         struct Race {
-            explicit Race(size_t n) noexcept
+            SGCL_INLINE_HOT explicit Race(size_t n) noexcept
             : results(n) {
             }
 
@@ -421,7 +421,7 @@ namespace sgcl::net {
             return s;
         }
 
-        inline expected<listener, io::error> listen_tcp(const string& address, const vector<ip_address>& found, const Target& t, bool reuse_port) noexcept {
+        SGCL_INLINE_HOT expected<listener, io::error> listen_tcp(const string& address, const vector<ip_address>& found, const Target& t, bool reuse_port) noexcept {
             auto at = pick_local(t, found);
             if (!at) {
                 return fail(at);
@@ -436,7 +436,7 @@ namespace sgcl::net {
         // The addresses of a target's host for a listener or a UDP
         // socket: none needed for an empty host, the host itself when
         // it is numeric, the resolver's otherwise
-        inline expected<vector<ip_address>, io::error> local_addresses(const Target& t) noexcept {
+        SGCL_INLINE_HOT expected<vector<ip_address>, io::error> local_addresses(const Target& t) noexcept {
             if (t.host.empty()) {
                 return vector<ip_address>();
             }
@@ -490,7 +490,7 @@ namespace sgcl::net {
             return c;
         }
 
-        inline expected<connection, io::error> finish_connect_unix(Connecting& c, int e, const string& path) noexcept {
+        SGCL_INLINE_HOT expected<connection, io::error> finish_connect_unix(Connecting& c, int e, const string& path) noexcept {
             if (e != 0) {
                 (void)c.conn->close();
                 return fail(system_error(e, "dial unix", path));
@@ -522,63 +522,63 @@ namespace sgcl::net {
     // reuse_port flag lets other processes listen on the same port.
     struct tcp {
         // `connect(...)` on this thread, `co_await async_connect(...)` in a task
-        static expected<net::connection, io::error> connect(const string& address) {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> connect(const string& address) {
             return _block_connect(address);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& address) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> async_connect(const string& address) noexcept {
             return _co_connect(address);
         }
 
 
         // `connect(...)` on this thread, `co_await async_connect(...)` in a task
-        static expected<net::connection, io::error> connect(const string& address, async::stop_token stop) {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> connect(const string& address, async::stop_token stop) {
             return _block_connect(address, stop);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& address, async::stop_token stop) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> async_connect(const string& address, async::stop_token stop) noexcept {
             return _co_connect(address, stop);
         }
 
         // `connect(...)` on this thread, `co_await async_connect(...)` in a task
-        static expected<net::connection, io::error> connect(const string& address, duration timeout) {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> connect(const string& address, duration timeout) {
             return _block_connect(address, timeout);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& address, duration timeout) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> async_connect(const string& address, duration timeout) noexcept {
             return _co_connect(address, timeout);
         }
 
         // To the endpoint as it is: no lookup, no race
         // `connect(...)` on this thread, `co_await async_connect(...)` in a task
-        static expected<net::connection, io::error> connect(const net::endpoint& to) {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> connect(const net::endpoint& to) {
             return _block_connect(to);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const net::endpoint& to) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> async_connect(const net::endpoint& to) noexcept {
             return _co_connect(to);
         }
 
         // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-        static expected<net::listener, io::error> listen(const string& address) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> listen(const string& address) noexcept {
             return _block_listen(address);
         }
 
-        static async::task<expected<net::listener, io::error>> async_listen(const string& address) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::listener, io::error>> async_listen(const string& address) noexcept {
             return _co_listen(address);
         }
 
         // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-        static expected<net::listener, io::error> listen(const string& address, net::reuse_port_t flag) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> listen(const string& address, net::reuse_port_t flag) noexcept {
             return _block_listen(address, flag);
         }
 
-        static async::task<expected<net::listener, io::error>> async_listen(const string& address, net::reuse_port_t flag) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::listener, io::error>> async_listen(const string& address, net::reuse_port_t flag) noexcept {
             return _co_listen(address, flag);
         }
 
     private:
-        static expected<net::listener, io::error> _listen(const string& address, bool reuse_port) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> _listen(const string& address, bool reuse_port) noexcept {
             auto t = net::detail::parse_target(address, "listen tcp");
             if (!t) {
                 return net::detail::fail(t);
@@ -603,51 +603,51 @@ namespace sgcl::net {
         }
 
         // the two halves of the operations above: a thread's and a task's
-        static expected<net::connection, io::error> _block_connect(const string& address)  {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> _block_connect(const string& address)  {
             return _co_connect(address).wait();
         }
 
-        static expected<net::connection, io::error> _block_connect(const string& address, async::stop_token stop)  {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> _block_connect(const string& address, async::stop_token stop)  {
             return _co_connect(address, std::move(stop)).wait();
         }
 
-        static expected<net::connection, io::error> _block_connect(const string& address, duration timeout)  {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> _block_connect(const string& address, duration timeout)  {
             return _co_connect(address, timeout).wait();
         }
 
-        static expected<net::connection, io::error> _block_connect(const net::endpoint& to)  {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> _block_connect(const net::endpoint& to)  {
             return net::detail::dial_tcp(to);
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& address) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> _co_connect(const string& address) noexcept {
             return net::detail::dial(address, async::stop_token(), time_point());
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& address, async::stop_token stop) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> _co_connect(const string& address, async::stop_token stop) noexcept {
             return net::detail::dial(address, std::move(stop), time_point());
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& address, duration timeout) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> _co_connect(const string& address, duration timeout) noexcept {
             return net::detail::dial(address, async::stop_token(), sgcl::clock::now() + timeout);   // saturates: duration::max() is time_point::max(), no deadline
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const net::endpoint& to) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> _co_connect(const net::endpoint& to) noexcept {
             return net::detail::_co_dial_tcp(to, async::stop_token());
         }
 
-        static expected<net::listener, io::error> _block_listen(const string& address) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> _block_listen(const string& address) noexcept {
             return _listen(address, false);
         }
 
-        static expected<net::listener, io::error> _block_listen(const string& address, net::reuse_port_t) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> _block_listen(const string& address, net::reuse_port_t) noexcept {
             return _listen(address, true);
         }
 
-        static async::task<expected<net::listener, io::error>> _co_listen(const string& address) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::listener, io::error>> _co_listen(const string& address) noexcept {
             return _async_listen(address, false);
         }
 
-        static async::task<expected<net::listener, io::error>> _co_listen(const string& address, net::reuse_port_t) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::listener, io::error>> _co_listen(const string& address, net::reuse_port_t) noexcept {
             return _async_listen(address, true);
         }
     };
@@ -717,33 +717,33 @@ namespace sgcl::net {
             time_point read_deadline() const noexcept;
             time_point write_deadline() const noexcept;
 
-            explicit operator bool() const noexcept {
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return (bool)_impl;
             }
 
-            friend bool operator==(const socket& a, const socket& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const socket& a, const socket& b) noexcept {
                 return a._impl == b._impl;
             }
 
         private:
             friend struct detail::UdpAccess;
 
-            explicit socket(const tracked_ptr<detail::UdpImpl>& impl) noexcept
+            SGCL_INLINE_HOT explicit socket(const tracked_ptr<detail::UdpImpl>& impl) noexcept
             : _impl(impl) {
             }
 
             // The handle's word, for the atomics (core/detail/handle_word.h)
             friend struct sgcl::detail::HandleWord;
 
-            socket(sgcl::detail::FromWord, const tracked_ptr<detail::UdpImpl>& w) noexcept
+            SGCL_INLINE_HOT socket(sgcl::detail::FromWord, const tracked_ptr<detail::UdpImpl>& w) noexcept
             : _impl(w) {
             }
 
-            tracked_ptr<detail::UdpImpl>& _handle_word() noexcept {
+            SGCL_INLINE_HOT tracked_ptr<detail::UdpImpl>& _handle_word() noexcept {
                 return _impl;
             }
 
-            const tracked_ptr<detail::UdpImpl>& _handle_word() const noexcept {
+            SGCL_INLINE_HOT const tracked_ptr<detail::UdpImpl>& _handle_word() const noexcept {
                 return _impl;
             }
 
@@ -769,7 +769,7 @@ namespace sgcl::net {
     namespace detail {
         class UdpImpl {
         public:
-            UdpImpl(int fd, int family, endpoint local, endpoint remote) noexcept
+            SGCL_INLINE_HOT UdpImpl(int fd, int family, endpoint local, endpoint remote) noexcept
             : _d(fd)
             , _local(local)
             , _remote(remote)
@@ -778,11 +778,11 @@ namespace sgcl::net {
 
             // One datagram: its size in the buffer and its sender
             // `receive(...)` on this thread, `co_await async_receive(...)` in a task
-            expected<udp::datagram, io::error> receive(const slice<byte>& b) {
+            SGCL_INLINE_HOT expected<udp::datagram, io::error> receive(const slice<byte>& b) {
                 return _block_receive(b);
             }
 
-            async::task<expected<udp::datagram, io::error>> async_receive(const slice<byte>& b) noexcept {
+            SGCL_INLINE_HOT async::task<expected<udp::datagram, io::error>> async_receive(const slice<byte>& b) noexcept {
                 return _co_receive(b);
             }
 
@@ -905,7 +905,7 @@ namespace sgcl::net {
                 }
             }
 
-            expected<void, io::error> close() noexcept {
+            SGCL_INLINE_HOT expected<void, io::error> close() noexcept {
                 int e = _d.close();
                 if (e) {
                     return fail(system_error(e, "close", describe()));
@@ -913,27 +913,27 @@ namespace sgcl::net {
                 return {};
             }
 
-            bool is_closed() const noexcept {
+            SGCL_INLINE_HOT bool is_closed() const noexcept {
                 return _d.closing();
             }
 
-            void set_deadline(int dir, time_point t) noexcept {
+            SGCL_INLINE_HOT void set_deadline(int dir, time_point t) noexcept {
                 _d.set_deadline(dir, t);
             }
 
-            time_point deadline(int dir) const noexcept {
+            SGCL_INLINE_HOT time_point deadline(int dir) const noexcept {
                 return _d.deadline(dir);
             }
 
-            endpoint local_endpoint() const noexcept {
+            SGCL_INLINE_HOT endpoint local_endpoint() const noexcept {
                 return _local;
             }
 
-            endpoint remote_endpoint() const noexcept {
+            SGCL_INLINE_HOT endpoint remote_endpoint() const noexcept {
                 return _remote;
             }
 
-            string describe() const noexcept {
+            SGCL_INLINE_HOT string describe() const noexcept {
                 return _remote.is_valid() ? string("udp ") + _local.to_string() + "->" + _remote.to_string() : string("udp ") + _local.to_string();
             }
 
@@ -975,7 +975,7 @@ namespace sgcl::net {
                 return net_error(errc::invalid_address, "write", to.to_string());
             }
 
-            optional<io::error> _check(int dir, const char* op) const noexcept {
+            SGCL_INLINE_HOT optional<io::error> _check(int dir, const char* op) const noexcept {
                 if (_d.closing()) {
                     return closed_error(op, describe());
                 }
@@ -992,7 +992,7 @@ namespace sgcl::net {
         };
 
         struct UdpAccess {
-            static udp::socket make(const tracked_ptr<UdpImpl>& impl) noexcept {
+            SGCL_INLINE_HOT static udp::socket make(const tracked_ptr<UdpImpl>& impl) noexcept {
                 return udp::socket(impl);
             }
         };
@@ -1033,28 +1033,28 @@ namespace sgcl::net {
 
     // --- udp::socket, over its object ---------------------------------------
 
-    inline detail::UdpImpl& udp::socket::_get() const noexcept {
+    SGCL_INLINE_HOT detail::UdpImpl& udp::socket::_get() const noexcept {
         assert(_impl && "an empty net::udp::socket");
         return *_impl;
     }
 
-    inline expected<udp::datagram, io::error> udp::socket::receive_from(const slice<byte>& buffer) const {
+    SGCL_INLINE_HOT expected<udp::datagram, io::error> udp::socket::receive_from(const slice<byte>& buffer) const {
         return _get()._block_receive(buffer);
     }
 
-    inline async::task<expected<udp::datagram, io::error>> udp::socket::async_receive_from(const slice<byte>& buffer) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<udp::datagram, io::error>> udp::socket::async_receive_from(const slice<byte>& buffer) const noexcept {
         return _get()._co_receive(buffer);
     }
 
-    inline expected<size_t, io::error> udp::socket::send_to(const slice<const byte>& data, const endpoint& to) const {
+    SGCL_INLINE_HOT expected<size_t, io::error> udp::socket::send_to(const slice<const byte>& data, const endpoint& to) const {
         return _get().send(data, to);
     }
 
-    inline async::task<expected<size_t, io::error>> udp::socket::async_send_to(const slice<const byte>& data, const endpoint& to) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<size_t, io::error>> udp::socket::async_send_to(const slice<const byte>& data, const endpoint& to) const noexcept {
         return _get()._co_send(data, to);
     }
 
-    inline expected<size_t, io::error> udp::socket::receive(const slice<byte>& buffer) const {
+    SGCL_INLINE_HOT expected<size_t, io::error> udp::socket::receive(const slice<byte>& buffer) const {
         auto d = _get()._block_receive(buffer);
         if (!d) {
             return detail::fail(d);
@@ -1062,7 +1062,7 @@ namespace sgcl::net {
         return d->size;
     }
 
-    inline async::task<expected<size_t, io::error>> udp::socket::async_receive(const slice<byte>& buffer) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<size_t, io::error>> udp::socket::async_receive(const slice<byte>& buffer) const noexcept {
         return _receive_size(_impl, buffer);
     }
 
@@ -1074,54 +1074,54 @@ namespace sgcl::net {
         co_return d->size;
     }
 
-    inline expected<size_t, io::error> udp::socket::send(const slice<const byte>& data) const {
+    SGCL_INLINE_HOT expected<size_t, io::error> udp::socket::send(const slice<const byte>& data) const {
         return _get().send(data, endpoint());
     }
 
-    inline async::task<expected<size_t, io::error>> udp::socket::async_send(const slice<const byte>& data) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<size_t, io::error>> udp::socket::async_send(const slice<const byte>& data) const noexcept {
         return _get()._co_send(data, endpoint());
     }
 
-    inline expected<void, io::error> udp::socket::close() const noexcept {
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::close() const noexcept {
         return _get().close();
     }
 
-    inline bool udp::socket::is_closed() const noexcept {
+    SGCL_INLINE_HOT bool udp::socket::is_closed() const noexcept {
         return _get().is_closed();
     }
 
-    inline endpoint udp::socket::local_endpoint() const noexcept {
+    SGCL_INLINE_HOT endpoint udp::socket::local_endpoint() const noexcept {
         return _get().local_endpoint();
     }
 
-    inline endpoint udp::socket::remote_endpoint() const noexcept {
+    SGCL_INLINE_HOT endpoint udp::socket::remote_endpoint() const noexcept {
         return _get().remote_endpoint();
     }
 
-    inline void udp::socket::set_deadline(time_point t) const noexcept {
+    SGCL_INLINE_HOT void udp::socket::set_deadline(time_point t) const noexcept {
         _get().set_deadline(detail::Descriptor::Read, t);
         _get().set_deadline(detail::Descriptor::Write, t);
     }
 
-    inline void udp::socket::set_read_deadline(time_point t) const noexcept {
+    SGCL_INLINE_HOT void udp::socket::set_read_deadline(time_point t) const noexcept {
         _get().set_deadline(detail::Descriptor::Read, t);
     }
 
-    inline void udp::socket::set_write_deadline(time_point t) const noexcept {
+    SGCL_INLINE_HOT void udp::socket::set_write_deadline(time_point t) const noexcept {
         _get().set_deadline(detail::Descriptor::Write, t);
     }
 
-    inline time_point udp::socket::read_deadline() const noexcept {
+    SGCL_INLINE_HOT time_point udp::socket::read_deadline() const noexcept {
         return _get().deadline(detail::Descriptor::Read);
     }
 
-    inline time_point udp::socket::write_deadline() const noexcept {
+    SGCL_INLINE_HOT time_point udp::socket::write_deadline() const noexcept {
         return _get().deadline(detail::Descriptor::Write);
     }
 
     // --- udp's functions ------------------------------------------------------
 
-    inline expected<udp::socket, io::error> udp::bind(const string& address) noexcept {
+    SGCL_INLINE_HOT expected<udp::socket, io::error> udp::bind(const string& address) noexcept {
         auto t = net::detail::parse_target(address, "bind udp");
         if (!t) {
             return net::detail::fail(t);
@@ -1133,11 +1133,11 @@ namespace sgcl::net {
         return net::detail::bind_udp(address, *found, *t);
     }
 
-    inline async::task<expected<udp::socket, io::error>> udp::async_bind(const string& address) noexcept {
+    SGCL_INLINE_HOT async::task<expected<udp::socket, io::error>> udp::async_bind(const string& address) noexcept {
         return _async_bind(address);
     }
 
-    inline expected<udp::socket, io::error> udp::connect(const string& address) noexcept {
+    SGCL_INLINE_HOT expected<udp::socket, io::error> udp::connect(const string& address) noexcept {
         auto t = net::detail::parse_target(address, "dial udp");
         if (!t) {
             return net::detail::fail(t);
@@ -1149,7 +1149,7 @@ namespace sgcl::net {
         return net::detail::connect_udp(address, *found, t->port);
     }
 
-    inline async::task<expected<udp::socket, io::error>> udp::async_connect(const string& address) noexcept {
+    SGCL_INLINE_HOT async::task<expected<udp::socket, io::error>> udp::async_connect(const string& address) noexcept {
         return _async_connect(address);
     }
 
@@ -1188,20 +1188,20 @@ namespace sgcl::net {
     // modes of GCC and Clang on Linux.
     struct unix_domain {
         // `connect(...)` on this thread, `co_await async_connect(...)` in a task
-        static expected<net::connection, io::error> connect(const string& path) {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> connect(const string& path) {
             return _block_connect(path);
         }
 
-        static async::task<expected<net::connection, io::error>> async_connect(const string& path) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> async_connect(const string& path) noexcept {
             return _co_connect(path);
         }
 
         // `listen(...)` on this thread, `co_await async_listen(...)` in a task
-        static expected<net::listener, io::error> listen(const string& path) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> listen(const string& path) noexcept {
             return _block_listen(path);
         }
 
-        static async::task<expected<net::listener, io::error>> async_listen(const string& path) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::listener, io::error>> async_listen(const string& path) noexcept {
             return _co_listen(path);
         }
 
@@ -1220,7 +1220,7 @@ namespace sgcl::net {
         }
 
         // the two halves of the operations above: a thread's and a task's
-        static expected<net::connection, io::error> _block_connect(const string& path)  {
+        SGCL_INLINE_HOT static expected<net::connection, io::error> _block_connect(const string& path)  {
             auto c = net::detail::start_connect_unix(path);
             if (!c) {
                 return net::detail::fail(c);
@@ -1228,16 +1228,16 @@ namespace sgcl::net {
             return net::detail::finish_connect_unix(*c, c->pending ? c->conn->connected() : 0, path);
         }
 
-        static async::task<expected<net::connection, io::error>> _co_connect(const string& path) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::connection, io::error>> _co_connect(const string& path) noexcept {
             return _async_connect(path);
         }
 
-        static expected<net::listener, io::error> _block_listen(const string& path) noexcept {
+        SGCL_INLINE_HOT static expected<net::listener, io::error> _block_listen(const string& path) noexcept {
             return net::detail::listen_unix(path);
         }
 
         // Nothing to wait for: the task form of listen, for symmetry
-        static async::task<expected<net::listener, io::error>> _co_listen(const string& path) noexcept {
+        SGCL_INLINE_HOT static async::task<expected<net::listener, io::error>> _co_listen(const string& path) noexcept {
             return _async_listen(path);
         }
     };

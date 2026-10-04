@@ -91,7 +91,7 @@ namespace sgcl::async {
         // A job with its closure: what it returns or throws goes to the promise
         template<class F, class T>
         struct BlockingJobOf : BlockingJob<T> {
-            explicit BlockingJobOf(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+            SGCL_INLINE_HOT explicit BlockingJobOf(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
             : f(std::move(f)) {
             }
 
@@ -118,7 +118,7 @@ namespace sgcl::async {
         // that ends it (the default's line names the pool: thread_place)
         template<class F>
         struct BlockingJobDetached : BlockingJobBase {
-            explicit BlockingJobDetached(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
+            SGCL_INLINE_HOT explicit BlockingJobDetached(F f) noexcept(std::is_nothrow_move_constructible_v<F>)
             : f(std::move(f)) {
             }
 
@@ -144,7 +144,7 @@ namespace sgcl::async {
 
         class BlockingPool {
         public:
-            BlockingPool() {
+            SGCL_INLINE_HOT BlockingPool() {
                 scheduler_instance();   // made after the scheduler, so destroyed before it (timer.h: Timers)
             }
 
@@ -158,7 +158,7 @@ namespace sgcl::async {
                 size_t queued = 0;      // jobs waiting for a thread
             };
 
-            ~BlockingPool() {
+            SGCL_INLINE_HOT ~BlockingPool() {
                 stop();
             }
 
@@ -209,7 +209,7 @@ namespace sgcl::async {
             }
 
             // Blocks until every job queued so far has run
-            void wait_idle() {
+            SGCL_INLINE_HOT void wait_idle() {
                 std::unique_lock lock(_m);
                 _idle_cv.wait(lock, [&] { return _pending == 0; });
             }
@@ -223,12 +223,12 @@ namespace sgcl::async {
                 return st;
             }
 
-            void set_idle_time(duration d) {
+            SGCL_INLINE_HOT void set_idle_time(duration d) {
                 std::lock_guard lock(_m);
                 _idle_time = d;
             }
 
-            duration idle_time() {
+            SGCL_INLINE_HOT duration idle_time() {
                 std::lock_guard lock(_m);
                 return _idle_time;
             }
@@ -239,12 +239,12 @@ namespace sgcl::async {
             // and four times the hardware concurrency. A smaller number
             // stops the growth at once; the threads over it exit as they
             // run out of work (the idle time)
-            unsigned cap() {
+            SGCL_INLINE_HOT unsigned cap() {
                 std::lock_guard lock(_m);
                 return _cap();
             }
 
-            void set_cap(unsigned n) {
+            SGCL_INLINE_HOT void set_cap(unsigned n) {
                 std::lock_guard lock(_m);
                 _cap_set = true;
                 _cap_asked = n;
@@ -254,7 +254,7 @@ namespace sgcl::async {
             using Threads = std::list<std::thread>;
 
             // Under _m
-            unsigned _cap() noexcept {
+            SGCL_INLINE_HOT unsigned _cap() noexcept {
                 if (!_cap_set && !_cap_env_read) {
                     _cap_env_read = true;
                     _cap_asked = env_unsigned("SGCL_BLOCKING_THREADS", config::blocking_threads);
@@ -378,7 +378,7 @@ namespace sgcl::async {
             // never counts a thread that is neither idle nor going to look
             // at the queue again (it would neither wake nor start one, and
             // the job would wait for the next submit)
-            void _leave(Threads::iterator it) noexcept {
+            SGCL_INLINE_HOT void _leave(Threads::iterator it) noexcept {
                 _finished.splice(_finished.end(), _threads, it);
                 if (_threads.empty()) {
                     _exit_cv.notify_all();
@@ -426,13 +426,13 @@ namespace sgcl::async {
         blocking_task(const blocking_task&) = delete;
         blocking_task& operator=(const blocking_task&) = delete;
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return _job && _job->result.done();
         }
 
         // Waits for the job, on this thread: what f returned, or what it
         // threw, rethrown. Not from a task on a worker
-        T wait() {
+        SGCL_INLINE_HOT T wait() {
             if constexpr (std::is_void_v<T>) {
                 _job->result.wait();
             } else {
@@ -443,16 +443,16 @@ namespace sgcl::async {
         // `co_await spawn_blocking(f)`: the task suspended until the job ran
         class awaiter {
         public:
-            bool await_ready() {
+            SGCL_INLINE_HOT bool await_ready() {
                 return _aw.await_ready();
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                 return _aw.await_suspend(h);
             }
 
-            T await_resume() {
+            SGCL_INLINE_HOT T await_resume() {
                 if constexpr (std::is_void_v<T>) {
                     _aw.await_resume();
                 } else {
@@ -463,7 +463,7 @@ namespace sgcl::async {
         private:
             friend class blocking_task;
 
-            explicit awaiter(const tracked_ptr<detail::BlockingJob<T>>& job) noexcept
+            SGCL_INLINE_HOT explicit awaiter(const tracked_ptr<detail::BlockingJob<T>>& job) noexcept
             : _job(job)
             , _aw(_job->result.operator co_await()) {
             }
@@ -472,20 +472,20 @@ namespace sgcl::async {
             typename detail::PromiseState<T>::awaiter _aw;
         };
 
-        awaiter operator co_await() noexcept {
+        SGCL_INLINE_HOT awaiter operator co_await() noexcept {
             return awaiter(_job.ptr());
         }
 
         // What f returned, or what it threw, as a task's result() has it:
         // waited for first, on this thread, when the job has not run yet;
         // a reference into the job (void for a job of nothing)
-        decltype(auto) result() {
+        SGCL_INLINE_HOT decltype(auto) result() {
             return _job->result.result();
         }
 
         // A case of a select: f() once the job ran
         template<class F>
-        auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _job->result.on_done(std::move(f));
         }
 
@@ -494,7 +494,7 @@ namespace sgcl::async {
         friend auto spawn_blocking(F f);
 
         // From the job, by spawn_blocking
-        explicit blocking_task(const tracked_ptr<detail::BlockingJob<T>>& job) noexcept
+        SGCL_INLINE_HOT explicit blocking_task(const tracked_ptr<detail::BlockingJob<T>>& job) noexcept
         : _job(job) {
         }
 
@@ -507,7 +507,7 @@ namespace sgcl::async {
     // what it captures by reference must outlive the job, which a task's
     // locals do while the task awaits it
     template<class F>
-    auto spawn_blocking(F f) {
+    SGCL_INLINE_HOT auto spawn_blocking(F f) {
         using T = std::decay_t<std::invoke_result_t<F&>>;
         tracked_ptr<detail::BlockingJobOf<F, T>> job = make_tracked<detail::BlockingJobOf<F, T>>(std::move(f));
         job->result.link();   // the promise's channel, before the job is given to the pool (ChannelState::link)
@@ -524,7 +524,7 @@ namespace sgcl::async {
     // capture tracked pointers, and what it captures by reference must
     // outlive the job; the call throws as spawn_blocking's does
     template<class F>
-    void go_blocking(F f) {
+    SGCL_INLINE_HOT void go_blocking(F f) {
         tracked_ptr<detail::BlockingJobDetached<F>> job = make_tracked<detail::BlockingJobDetached<F>>(std::move(f));
         detail::blocking_pool_instance().submit(job);
     }
@@ -534,7 +534,7 @@ namespace sgcl::async {
         using statistics = detail::BlockingPool::Statistics;
 
         // The threads, the idle ones among them, the jobs waiting
-        static statistics get_statistics() {
+        SGCL_INLINE_HOT static statistics get_statistics() {
             return detail::blocking_pool_instance().statistics();
         }
 
@@ -542,29 +542,29 @@ namespace sgcl::async {
         // SGCL_BLOCKING_THREADS from the environment (read once), else
         // config::blocking_threads; 0 in any of them the larger of 64 and
         // four times the hardware concurrency
-        static unsigned max_threads() {
+        SGCL_INLINE_HOT static unsigned max_threads() {
             return detail::blocking_pool_instance().cap();
         }
 
         // The most threads from now on (0: the default above). A smaller
         // number stops the growth at once; threads over it exit as they
         // run out of work, after the idle time
-        static void set_threads(unsigned n) {
+        SGCL_INLINE_HOT static void set_threads(unsigned n) {
             detail::blocking_pool_instance().set_cap(n);
         }
 
         // How long an idle thread waits for a job before it exits
         // (config::blocking_idle_milliseconds by default)
-        static void set_idle_time(duration d) {
+        SGCL_INLINE_HOT static void set_idle_time(duration d) {
             detail::blocking_pool_instance().set_idle_time(d);
         }
 
-        static duration idle_time() {
+        SGCL_INLINE_HOT static duration idle_time() {
             return detail::blocking_pool_instance().idle_time();
         }
 
         // Blocks until every job queued so far has run
-        static void wait_idle() {
+        SGCL_INLINE_HOT static void wait_idle() {
             assert(!detail::on_worker() && "wait_idle() blocks the worker");
             detail::blocking_pool_instance().wait_idle();
         }
@@ -573,7 +573,7 @@ namespace sgcl::async {
         // program that wants its threads gone at a point of its own (the
         // end of the program, and scheduler::stop(), do it); the next
         // spawn_blocking starts the pool again
-        static void stop() {
+        SGCL_INLINE_HOT static void stop() {
             assert(!detail::on_worker() && "stop() blocks the worker");
             detail::blocking_pool_instance().stop();
         }

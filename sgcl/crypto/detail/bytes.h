@@ -21,27 +21,27 @@ namespace sgcl::crypto::detail {
     // Words of the digests: SHA-1 and SHA-2 are big-endian, Keccak,
     // ChaCha20 and Poly1305 little-endian. A memcpy of a known length is one load, and the swap
     // is one instruction (rev) on a little-endian machine
-    inline uint32_t load_be32(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT uint32_t load_be32(const unsigned char* p) noexcept {
         return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | uint32_t(p[3]);
     }
 
-    inline uint64_t load_be64(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT uint64_t load_be64(const unsigned char* p) noexcept {
         return uint64_t(load_be32(p)) << 32 | load_be32(p + 4);
     }
 
-    inline void store_be32(unsigned char* p, uint32_t v) noexcept {
+    SGCL_INLINE_HOT void store_be32(unsigned char* p, uint32_t v) noexcept {
         p[0] = static_cast<unsigned char>(v >> 24);
         p[1] = static_cast<unsigned char>(v >> 16);
         p[2] = static_cast<unsigned char>(v >> 8);
         p[3] = static_cast<unsigned char>(v);
     }
 
-    inline void store_be64(unsigned char* p, uint64_t v) noexcept {
+    SGCL_INLINE_HOT void store_be64(unsigned char* p, uint64_t v) noexcept {
         store_be32(p, uint32_t(v >> 32));
         store_be32(p + 4, uint32_t(v));
     }
 
-    inline uint32_t load_le32(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT uint32_t load_le32(const unsigned char* p) noexcept {
         uint32_t v;
         if constexpr (std::endian::native == std::endian::little) {
             std::memcpy(&v, p, 4);
@@ -84,11 +84,11 @@ namespace sgcl::crypto::detail {
         }
     }
 
-    inline const unsigned char* bytes(const byte* p) noexcept {
+    SGCL_INLINE_HOT const unsigned char* bytes(const byte* p) noexcept {
         return reinterpret_cast<const unsigned char*>(p);
     }
 
-    inline unsigned char* bytes(byte* p) noexcept {
+    SGCL_INLINE_HOT unsigned char* bytes(byte* p) noexcept {
         return reinterpret_cast<unsigned char*>(p);
     }
 
@@ -98,7 +98,7 @@ namespace sgcl::crypto::detail {
     // and zeroed by the caller rather than copied again by value()
     struct HashAccess {
         template<class H>
-        static void finish(H& h, unsigned char* out) noexcept {
+        SGCL_INLINE_HOT static void finish(H& h, unsigned char* out) noexcept {
             h._finish(out);
         }
     };

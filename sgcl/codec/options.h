@@ -43,7 +43,7 @@ namespace sgcl::codec {
         // says (the image's constructor would throw length_error there; PNG
         // and HEIF sides reach it), at the offset of the header that
         // claimed it
-        inline optional<error> check_size(uint32_t width, uint32_t height, const codec::limits& l, uint64_t offset) noexcept {
+        SGCL_INLINE_HOT optional<error> check_size(uint32_t width, uint32_t height, const codec::limits& l, uint64_t offset) noexcept {
             if (width == 0 || height == 0) {
                 return error(errc::corrupt, offset, "image of zero pixels");
             }

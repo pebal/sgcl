@@ -112,7 +112,7 @@ namespace sgcl::crypto::detail {
     inline constexpr uint64_t drbg_reseed_ns = uint64_t(60) * 1000000000u;
 
     // Nanoseconds on a clock that counts time asleep
-    inline uint64_t drbg_system_clock() noexcept {
+    SGCL_INLINE_HOT uint64_t drbg_system_clock() noexcept {
 #if defined(_WIN32)
         return uint64_t(::GetTickCount64()) * 1000000u;
 #else
@@ -126,7 +126,7 @@ namespace sgcl::crypto::detail {
 #endif
     }
 
-    inline int drbg_pid() noexcept {
+    SGCL_INLINE_HOT int drbg_pid() noexcept {
 #if defined(_WIN32)
         return 0;
 #else
@@ -173,7 +173,7 @@ namespace sgcl::crypto::detail {
     struct DrbgWiper {
         bool armed = false;
 
-        ~DrbgWiper() {
+        SGCL_INLINE_HOT ~DrbgWiper() {
             DrbgState& s = drbg_state;
             secure_zero(&s, sizeof s);
             s.status = DrbgState::dead;
@@ -211,7 +211,7 @@ namespace sgcl::crypto::detail {
         drbg_refill_now(s);
     }
 
-    inline void drbg_after_fork() noexcept {
+    SGCL_INLINE_HOT void drbg_after_fork() noexcept {
         drbg_forks.fetch_add(1, std::memory_order_relaxed);
     }
 
@@ -298,7 +298,7 @@ namespace sgcl::crypto::detail {
         }
     }
 
-    inline void drbg_fill(unsigned char* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void drbg_fill(unsigned char* out, size_t n) noexcept {
         DrbgState& s = drbg_state;
         if (s.status != DrbgState::seeded || s.forks != drbg_forks.load(std::memory_order_relaxed)) [[unlikely]] {
             if (!drbg_prepare(s)) {

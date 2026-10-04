@@ -42,7 +42,7 @@ namespace sgcl::crypto {
         // `iterations` rounds. iterations of 0 is std::invalid_argument
         // (RFC 8018 asks for at least 1, and 600 000 of SHA-256 is what
         // OWASP names in 2023); so is n past (2^32 - 1) blocks
-        static secret_bytes derive(const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations, size_t n) {
+        SGCL_INLINE_HOT static secret_bytes derive(const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations, size_t n) {
             _check(iterations, n);
             secret_bytes out(n);
             _derive(out.as_slice().data(), n, password, salt, iterations);
@@ -53,7 +53,7 @@ namespace sgcl::crypto {
         // allocation. The salt is read again for every block, so an out
         // that overlaps it is std::invalid_argument (the password is read
         // whole before the first byte is written: out may lie over it)
-        static void derive_to(const slice<byte>& out, const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations) {
+        SGCL_INLINE_HOT static void derive_to(const slice<byte>& out, const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations) {
             _check(iterations, out.size());
             if (detail::overlap(out.data(), out.size(), salt.data(), salt.size())) {
                 throw invalid_argument("sgcl::crypto::pbkdf2: the output overlaps the salt, which every block reads");
@@ -62,7 +62,7 @@ namespace sgcl::crypto {
         }
 
     private:
-        static void _check(uint32_t iterations, size_t n) {
+        SGCL_INLINE_HOT static void _check(uint32_t iterations, size_t n) {
             if (iterations == 0) {
                 throw invalid_argument("sgcl::crypto::pbkdf2: no iterations");
             }

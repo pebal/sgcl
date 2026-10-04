@@ -33,21 +33,21 @@ namespace sgcl::async {
             std::coroutine_handle<> consumer;               // the coroutine waiting in next()
             tracked_ptr<detail::FrameWord> consumer_frame;   // its frame, held for the length of the wait
 
-            generator get_return_object() noexcept {
+            SGCL_INLINE_HOT generator get_return_object() noexcept {
                 return generator(std::coroutine_handle<promise_type>::from_promise(*this));
             }
 
-            std::suspend_always initial_suspend() noexcept {
+            SGCL_INLINE_HOT std::suspend_always initial_suspend() noexcept {
                 return {};
             }
 
             // At a yield and at the end: back to the consumer, directly
             struct to_consumer {
-                bool await_ready() noexcept {
+                SGCL_INLINE_HOT bool await_ready() noexcept {
                     return false;
                 }
 
-                std::coroutine_handle<> await_suspend(std::coroutine_handle<promise_type> h) noexcept {
+                SGCL_INLINE_HOT std::coroutine_handle<> await_suspend(std::coroutine_handle<promise_type> h) noexcept {
                     auto& p = h.promise();
                     auto c = p.consumer;
                     p.consumer = {};
@@ -65,23 +65,23 @@ namespace sgcl::async {
                     return c ? c : std::noop_coroutine();
                 }
 
-                void await_resume() noexcept {
+                SGCL_INLINE_HOT void await_resume() noexcept {
                 }
             };
 
-            to_consumer yield_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
+            SGCL_INLINE_HOT to_consumer yield_value(T v) noexcept(std::is_nothrow_move_constructible_v<T>) {
                 value.emplace(std::move(v));
                 return {};
             }
 
-            to_consumer final_suspend() noexcept {
+            SGCL_INLINE_HOT to_consumer final_suspend() noexcept {
                 return {};
             }
 
-            void return_void() noexcept {
+            SGCL_INLINE_HOT void return_void() noexcept {
             }
 
-            void unhandled_exception() noexcept {
+            SGCL_INLINE_HOT void unhandled_exception() noexcept {
                 error = std::current_exception();
             }
         };
@@ -94,7 +94,7 @@ namespace sgcl::async {
         // rethrows what the generator threw
         class next_op {
         public:
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return !_g._frame || _g._frame.done();
             }
 
@@ -120,7 +120,7 @@ namespace sgcl::async {
                 return _g._frame.handle();   // the generator runs, here, until its next yield or wait
             }
 
-            optional<T> await_resume() {
+            SGCL_INLINE_HOT optional<T> await_resume() {
                 if (!_g._frame) {
                     return nullopt;
                 }
@@ -137,23 +137,23 @@ namespace sgcl::async {
         private:
             friend class generator;
 
-            explicit next_op(generator& g) noexcept
+            SGCL_INLINE_HOT explicit next_op(generator& g) noexcept
             : _g(g) {
             }
 
             generator& _g;
         };
 
-        next_op next() noexcept {
+        SGCL_INLINE_HOT next_op next() noexcept {
             return next_op(*this);
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return !_frame || _frame.done();
         }
 
     private:
-        explicit generator(std::coroutine_handle<promise_type> h) noexcept
+        SGCL_INLINE_HOT explicit generator(std::coroutine_handle<promise_type> h) noexcept
         : _frame(h) {
         }
 

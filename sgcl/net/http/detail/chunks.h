@@ -126,11 +126,11 @@ namespace sgcl::net::http::detail {
     // from the head, a block dropped once taken whole
     class ByteChunks {
     public:
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _size;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
@@ -155,7 +155,7 @@ namespace sgcl::net::http::detail {
             }
         }
 
-        void append(std::string_view s) noexcept {
+        SGCL_INLINE_HOT void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
@@ -201,7 +201,7 @@ namespace sgcl::net::http::detail {
             return done;
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _head = tracked_ptr<ByteChunk>();
             _tail = tracked_ptr<ByteChunk>();
             _size = 0;
@@ -225,7 +225,7 @@ namespace sgcl::net::http::detail {
         // empty: for whoever gives them back to the pool later, once no
         // slice of them is left (an HTTP/2 connection, after the write
         // that sends them in place)
-        void detach(tracked_ptr<ByteChunk>& first, tracked_ptr<ByteChunk>& last) noexcept {
+        SGCL_INLINE_HOT void detach(tracked_ptr<ByteChunk>& first, tracked_ptr<ByteChunk>& last) noexcept {
             first = std::move(_head);
             last = std::move(_tail);
             _head = tracked_ptr<ByteChunk>();
@@ -254,7 +254,7 @@ namespace sgcl::net::http::detail {
         }
 
         // Every byte appended to a std::string (a head's buffer)
-        void copy_to(std::string& out) const noexcept {
+        SGCL_INLINE_HOT void copy_to(std::string& out) const noexcept {
             out.reserve(out.size() + _size);
             each([&](const slice<const byte>& s) {
                 out.append(reinterpret_cast<const char*>(s.data()), s.size());
@@ -263,7 +263,7 @@ namespace sgcl::net::http::detail {
 
         // The first block, for a walk through `next` in a coroutine (no
         // callback across its awaits)
-        const tracked_ptr<ByteChunk>& head() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<ByteChunk>& head() const noexcept {
             return _head;
         }
 
@@ -273,7 +273,7 @@ namespace sgcl::net::http::detail {
         size_t _size = 0;
 
         // A block taken whole goes back to the pool (its bytes copied out)
-        void _pop() noexcept {
+        SGCL_INLINE_HOT void _pop() noexcept {
             tracked_ptr<ByteChunk> done = _head;
             _head = _head->next;
             if (!_head) {
@@ -289,11 +289,11 @@ namespace sgcl::net::http::detail {
     public:
         static constexpr size_t Inline = 64;
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _chunks.empty() ? _small_n : _chunks.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
@@ -310,14 +310,14 @@ namespace sgcl::net::http::detail {
             _chunks.append(data, n);
         }
 
-        void append(std::string_view s) noexcept {
+        SGCL_INLINE_HOT void append(std::string_view s) noexcept {
             append(s.data(), s.size());
         }
 
         // Bytes read straight into the blocks (ByteChunks::append_read),
         // after what the buffer holds
         template<class Read>
-        void append_read(Read&& read) noexcept(std::is_nothrow_invocable_v<Read&, std::byte*, size_t>) {
+        SGCL_INLINE_HOT void append_read(Read&& read) noexcept(std::is_nothrow_invocable_v<Read&, std::byte*, size_t>) {
             if (_small_n) {
                 _chunks.append(_small, _small_n);
                 _small_n = 0;
@@ -325,20 +325,20 @@ namespace sgcl::net::http::detail {
             _chunks.append_read(std::forward<Read>(read));
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _small_n = 0;
             _chunks.clear();
         }
 
         // Empty, the blocks given back to the pool (every slice of them done)
-        void release() noexcept {
+        SGCL_INLINE_HOT void release() noexcept {
             _small_n = 0;
             _chunks.release();
         }
 
         // The blocks handed over (ByteChunks::detach), the in-place bytes
         // dropped: the buffer empty
-        void detach(tracked_ptr<ByteChunk>& first, tracked_ptr<ByteChunk>& last) noexcept {
+        SGCL_INLINE_HOT void detach(tracked_ptr<ByteChunk>& first, tracked_ptr<ByteChunk>& last) noexcept {
             _small_n = 0;
             _chunks.detach(first, last);
         }
@@ -346,21 +346,21 @@ namespace sgcl::net::http::detail {
         // The bytes as slices in order (the in-place ones copied by the
         // caller before the buffer changes: a slice without an owner)
         template<class F>
-        void each(F&& f) const noexcept(std::is_nothrow_invocable_v<F&, const slice<const byte>&>) {
+        SGCL_INLINE_HOT void each(F&& f) const noexcept(std::is_nothrow_invocable_v<F&, const slice<const byte>&>) {
             if (_small_n) {
                 f(slice<const byte>(reinterpret_cast<const byte*>(_small), _small_n));
             }
             _chunks.each(f);
         }
 
-        void copy_to(std::string& out) const noexcept {
+        SGCL_INLINE_HOT void copy_to(std::string& out) const noexcept {
             out.append(_small, _small_n);
             _chunks.copy_to(out);
         }
 
         // The first n bytes, as a copy (a response past its declared
         // length is cut)
-        void copy_to(std::string& out, size_t n) const noexcept {
+        SGCL_INLINE_HOT void copy_to(std::string& out, size_t n) const noexcept {
             each([&](const slice<const byte>& s) {
                 const size_t k = std::min(n, s.size());
                 out.append(reinterpret_cast<const char*>(s.data()), k);
@@ -369,11 +369,11 @@ namespace sgcl::net::http::detail {
         }
 
         // The in-place bytes and the blocks, for a walk in a coroutine
-        std::string_view small() const noexcept {
+        SGCL_INLINE_HOT std::string_view small() const noexcept {
             return std::string_view(_small, _small_n);
         }
 
-        const ByteChunks& chunks() const noexcept {
+        SGCL_INLINE_HOT const ByteChunks& chunks() const noexcept {
             return _chunks;
         }
 

@@ -38,7 +38,7 @@ namespace sgcl::codec {
     // The image of the file at path, in any of the module's formats, told
     // by its first bytes as decode tells them: errc::io with io's error
     // inside when the file does not read, the decoder's error else
-    inline expected<image, error> load(const string& path, const decode_options& o = {}) {
+    SGCL_INLINE_HOT expected<image, error> load(const string& path, const decode_options& o = {}) {
         auto bytes = io::read_file(path);
         if (!bytes) {
             return unexpected(error(bytes.error(), 0));
@@ -93,14 +93,14 @@ namespace sgcl::codec {
         // (an exception too), leaves neither a part nor a half file
         class PartFile {
         public:
-            explicit PartFile(const string& path)
+            SGCL_INLINE_HOT explicit PartFile(const string& path)
             : _part(string::concat(path, ".part")) {
             }
 
             PartFile(const PartFile&) = delete;
             PartFile& operator=(const PartFile&) = delete;
 
-            ~PartFile() {
+            SGCL_INLINE_HOT ~PartFile() {
                 if (_file) {
                     (void)_file->close();
                 }
@@ -109,7 +109,7 @@ namespace sgcl::codec {
                 }
             }
 
-            expected<void, error> create() noexcept {
+            SGCL_INLINE_HOT expected<void, error> create() noexcept {
                 auto f = io::create(_part);
                 if (!f) {
                     return unexpected(error(f.error(), 0));
@@ -119,7 +119,7 @@ namespace sgcl::codec {
                 return {};
             }
 
-            io::file& file() noexcept {
+            SGCL_INLINE_HOT io::file& file() noexcept {
                 return *_file;
             }
 
@@ -185,7 +185,7 @@ namespace sgcl::codec {
     }
 
     // The same, run on the blocking pool for a task
-    inline async::task<expected<image, error>> async_load(const string& path, const decode_options& o = {}) noexcept {
+    SGCL_INLINE_HOT async::task<expected<image, error>> async_load(const string& path, const decode_options& o = {}) noexcept {
         return detail::load_task(path, o);
     }
 
@@ -194,29 +194,29 @@ namespace sgcl::codec {
     // HEIC): errc::unsupported for .gif, .webp, .avif (read, not written)
     // and any other extension. Written as path + ".part" and renamed over
     // path when whole; a failure leaves no part and path as it was
-    inline expected<void, error> save(const image& im, const string& path, const save_options& o = {}) {
+    SGCL_INLINE_HOT expected<void, error> save(const image& im, const string& path, const save_options& o = {}) {
         return detail::save(im, path, o);
     }
 
-    inline async::task<expected<void, error>> async_save(const image& im, const string& path, const save_options& o = {}) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_save(const image& im, const string& path, const save_options& o = {}) noexcept {
 
         return detail::save_task(im, path, o);
     }
 
     // image's own (declared in image.h)
-    inline expected<void, error> image::save(const string& path) const {
+    SGCL_INLINE_HOT expected<void, error> image::save(const string& path) const {
         return detail::save(*this, path, save_options{});
     }
 
-    inline expected<void, error> image::save(const string& path, const save_options& o) const {
+    SGCL_INLINE_HOT expected<void, error> image::save(const string& path, const save_options& o) const {
         return detail::save(*this, path, o);
     }
 
-    inline async::task<expected<void, error>> image::async_save(const string& path) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> image::async_save(const string& path) const noexcept {
         return detail::save_task(*this, path, save_options{});
     }
 
-    inline async::task<expected<void, error>> image::async_save(const string& path, const save_options& o) const noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> image::async_save(const string& path, const save_options& o) const noexcept {
         return detail::save_task(*this, path, o);
     }
 }

@@ -43,7 +43,7 @@ namespace sgcl::crypto::detail::bn {
     // between (tests/crypto/rsa.cpp checks that every block a key frees is
     // zero)
     struct OperatorDelete {
-        static void release(void* p, size_t) noexcept {
+        SGCL_INLINE_HOT static void release(void* p, size_t) noexcept {
             ::operator delete(p);
         }
     };
@@ -57,7 +57,7 @@ namespace sgcl::crypto::detail::bn {
     public:
         SecretWords() noexcept = default;
 
-        explicit SecretWords(size_t n) noexcept
+        SGCL_INLINE_HOT explicit SecretWords(size_t n) noexcept
         : _p(n != 0 ? static_cast<word*>(::operator new(n * sizeof(word))) : nullptr), _n(n) {
             if (_p) {
                 sgcl::detail::fill_bytes(_p, 0, n * sizeof(word));
@@ -67,11 +67,11 @@ namespace sgcl::crypto::detail::bn {
         SecretWords(const SecretWords&) = delete;
         SecretWords& operator=(const SecretWords&) = delete;
 
-        SecretWords(SecretWords&& o) noexcept
+        SGCL_INLINE_HOT SecretWords(SecretWords&& o) noexcept
         : _p(std::exchange(o._p, nullptr)), _n(std::exchange(o._n, 0)) {
         }
 
-        SecretWords& operator=(SecretWords&& o) noexcept {
+        SGCL_INLINE_HOT SecretWords& operator=(SecretWords&& o) noexcept {
             if (this != &o) {
                 _free();
                 _p = std::exchange(o._p, nullptr);
@@ -80,23 +80,23 @@ namespace sgcl::crypto::detail::bn {
             return *this;
         }
 
-        ~SecretWords() {
+        SGCL_INLINE_HOT ~SecretWords() {
             _free();
         }
 
-        word* data() noexcept {
+        SGCL_INLINE_HOT word* data() noexcept {
             return _p;
         }
 
-        const word* data() const noexcept {
+        SGCL_INLINE_HOT const word* data() const noexcept {
             return _p;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n;
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _p != nullptr;
         }
 
@@ -104,7 +104,7 @@ namespace sgcl::crypto::detail::bn {
         word* _p = nullptr;
         size_t _n = 0;
 
-        void _free() noexcept {
+        SGCL_INLINE_HOT void _free() noexcept {
             if (_p) {
                 secure_zero(_p, _n * sizeof(word));
                 Release::release(_p, _n * sizeof(word));
@@ -116,7 +116,7 @@ namespace sgcl::crypto::detail::bn {
 
     // --- words -------------------------------------------------------------
 
-    inline size_t words_for_bytes(size_t n) noexcept {
+    SGCL_INLINE_HOT size_t words_for_bytes(size_t n) noexcept {
         return (n + 7) / 8;
     }
 
@@ -298,13 +298,13 @@ namespace sgcl::crypto::detail::bn {
     }
 
     // Words of scratch the functions below take, for a modulus of k words
-    inline size_t mul_scratch(size_t k) noexcept {
+    SGCL_INLINE_HOT size_t mul_scratch(size_t k) noexcept {
         return 3 * k + 2;
     }
 
     // r = t - m when t (k words and a top word hi, t < 2m) is at least m,
     // r = t otherwise; r may be t
-    inline void reduce_once(word* r, const word* t, word hi, const word* m, size_t k, word* u) noexcept {
+    SGCL_INLINE_HOT void reduce_once(word* r, const word* t, word hi, const word* m, size_t k, word* u) noexcept {
         word borrow = sub(u, t, m, k);
         word keep = ct_bit_mask(borrow & ~hi & 1);
         select(r, keep, t, u, k);
@@ -317,7 +317,7 @@ namespace sgcl::crypto::detail::bn {
         word a1 = 0;
         word a2 = 0;
 
-        void add(word x, word y) noexcept {
+        SGCL_INLINE_HOT void add(word x, word y) noexcept {
             wide p = wide(x) * y;
             wide s = (wide(a1) << 64 | a0) + p;
             a2 += word(s < p);
@@ -339,7 +339,7 @@ namespace sgcl::crypto::detail::bn {
         }
 
         // The lowest word out, the rest moved down
-        word shift() noexcept {
+        SGCL_INLINE_HOT word shift() noexcept {
             word w = a0;
             a0 = a1;
             a1 = a2;
@@ -465,7 +465,7 @@ namespace sgcl::crypto::detail::bn {
     }
 
     // x doubled modulo m (x below m); u: k words of scratch
-    inline void mod_double(word* x, const word* m, size_t k, word* u) noexcept {
+    SGCL_INLINE_HOT void mod_double(word* x, const word* m, size_t k, word* u) noexcept {
         word carry = add(x, x, x, k);
         reduce_once(x, x, carry, m, k, u);
     }
@@ -498,11 +498,11 @@ namespace sgcl::crypto::detail::bn {
     }
 
     // a (below m) into the Montgomery form a R mod m, and back
-    inline void to_mont(word* r, const word* a, const Modulus& mod, word* t) noexcept {
+    SGCL_INLINE_HOT void to_mont(word* r, const word* a, const Modulus& mod, word* t) noexcept {
         mont_mul(r, a, mod.rr, mod, t);
     }
 
-    inline void from_mont(word* r, const word* a, const Modulus& mod, word* t) noexcept {
+    SGCL_INLINE_HOT void from_mont(word* r, const word* a, const Modulus& mod, word* t) noexcept {
         word* one = t + mul_scratch(mod.k);
         zero(one, mod.k);
         one[0] = 1;
@@ -523,12 +523,12 @@ namespace sgcl::crypto::detail::bn {
     }
 
     // Words of scratch for reduce_to_mont
-    inline size_t reduce_scratch(size_t k) noexcept {
+    SGCL_INLINE_HOT size_t reduce_scratch(size_t k) noexcept {
         return mul_scratch(k) + k;
     }
 
     // Words of scratch for mont_pow
-    inline size_t pow_scratch(size_t k) noexcept {
+    SGCL_INLINE_HOT size_t pow_scratch(size_t k) noexcept {
         return 18 * k + mul_scratch(k) + k;
     }
 
@@ -600,7 +600,7 @@ namespace sgcl::crypto::detail::bn {
     // --- the one variable-time inverse --------------------------------------
 
     // Words of scratch for inverse_vartime
-    inline size_t inverse_scratch(size_t k) noexcept {
+    SGCL_INLINE_HOT size_t inverse_scratch(size_t k) noexcept {
         return 6 * (k + 1);
     }
 

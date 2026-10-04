@@ -71,7 +71,7 @@ namespace sgcl::crypto::detail {
     // cipher.NewCTR and OpenSSL count), or only its last 32 bits, modulo
     // 2^32 (GCM's inc32, SP 800-38D §6.2)
     template<bool Inc32>
-    inline Counter counter_add(Counter c, uint64_t n) noexcept {
+    SGCL_INLINE_HOT Counter counter_add(Counter c, uint64_t n) noexcept {
         if constexpr (Inc32) {
             c.lo = (c.lo & 0xffffffff00000000ull) | uint32_t(uint32_t(c.lo) + uint32_t(n));
         } else {
@@ -82,7 +82,7 @@ namespace sgcl::crypto::detail {
         return c;
     }
 
-    inline void store_counter(unsigned char* p, Counter c) noexcept {
+    SGCL_INLINE_HOT void store_counter(unsigned char* p, Counter c) noexcept {
         store_be64(p, c.hi);
         store_be64(p + 8, c.lo);
     }
@@ -239,7 +239,7 @@ namespace sgcl::crypto::detail {
         }
     }
 
-    inline uint8x16_t counter_vector(Counter c) noexcept {
+    SGCL_INLINE_HOT uint8x16_t counter_vector(Counter c) noexcept {
         return vcombine_u8(vrev64_u8(vcreate_u8(c.hi)), vrev64_u8(vcreate_u8(c.lo)));
     }
 
@@ -430,11 +430,11 @@ namespace sgcl::crypto::detail {
         }
     }
 
-    inline __m128i load128(const unsigned char* p) noexcept {
+    SGCL_INLINE_HOT __m128i load128(const unsigned char* p) noexcept {
         return _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));
     }
 
-    inline void store128(unsigned char* p, __m128i v) noexcept {
+    SGCL_INLINE_HOT void store128(unsigned char* p, __m128i v) noexcept {
         _mm_storeu_si128(reinterpret_cast<__m128i*>(p), v);
     }
 
@@ -609,7 +609,7 @@ namespace sgcl::crypto::detail {
         secure_zero(block, sizeof block);
     }
 
-    inline void aes_encrypt_block_portable(const AesPortableKey& k, const unsigned char* in, unsigned char* out) noexcept {
+    SGCL_INLINE_HOT void aes_encrypt_block_portable(const AesPortableKey& k, const unsigned char* in, unsigned char* out) noexcept {
         unsigned char block[64] = {};
         std::memcpy(block, in, 16);
         aes_portable_encrypt4(k, block, block);
@@ -617,7 +617,7 @@ namespace sgcl::crypto::detail {
         secure_zero(block, sizeof block);
     }
 
-    inline void aes_decrypt_block_portable(const AesPortableKey& k, const unsigned char* in, unsigned char* out) noexcept {
+    SGCL_INLINE_HOT void aes_decrypt_block_portable(const AesPortableKey& k, const unsigned char* in, unsigned char* out) noexcept {
         unsigned char block[64] = {};
         std::memcpy(block, in, 16);
         aes_portable_decrypt4(k, block, block);
@@ -666,7 +666,7 @@ namespace sgcl::crypto::detail {
 #endif
         };
 
-        AesEncryptKey() noexcept
+        SGCL_INLINE_HOT AesEncryptKey() noexcept
         : portable() {
         }
     };
@@ -708,7 +708,7 @@ namespace sgcl::crypto::detail {
         k.rounds = k.portable.rounds;
     }
 
-    inline void aes_setup_decrypt([[maybe_unused]] AesDecryptKey& d, [[maybe_unused]] const AesEncryptKey& k) noexcept {
+    SGCL_INLINE_HOT void aes_setup_decrypt([[maybe_unused]] AesDecryptKey& d, [[maybe_unused]] const AesEncryptKey& k) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (k.path == AesPath::arm64) {
             aes_setup_decrypt_arm64(d.arm64, k.arm64);
@@ -722,7 +722,7 @@ namespace sgcl::crypto::detail {
     }
 
     template<bool Inc32>
-    inline void aes_ctr_blocks(const AesEncryptKey& k, Counter& c, const unsigned char* in, unsigned char* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void aes_ctr_blocks(const AesEncryptKey& k, Counter& c, const unsigned char* in, unsigned char* out, size_t n) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (k.path == AesPath::arm64) {
             aes_ctr_blocks_arm64<Inc32>(k.arm64, c, in, out, n);
@@ -738,7 +738,7 @@ namespace sgcl::crypto::detail {
         aes_ctr_blocks_portable<Inc32>(k.portable, c, in, out, n);
     }
 
-    inline void aes_encrypt_block(const AesEncryptKey& k, const unsigned char* in, unsigned char* out) noexcept {
+    SGCL_INLINE_HOT void aes_encrypt_block(const AesEncryptKey& k, const unsigned char* in, unsigned char* out) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (k.path == AesPath::arm64) {
             aes_encrypt_block_arm64(k.arm64, in, out);
@@ -754,7 +754,7 @@ namespace sgcl::crypto::detail {
         aes_encrypt_block_portable(k.portable, in, out);
     }
 
-    inline void aes_decrypt_block(const AesEncryptKey& k, [[maybe_unused]] const AesDecryptKey& d, const unsigned char* in, unsigned char* out) noexcept {
+    SGCL_INLINE_HOT void aes_decrypt_block(const AesEncryptKey& k, [[maybe_unused]] const AesDecryptKey& d, const unsigned char* in, unsigned char* out) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (k.path == AesPath::arm64) {
             aes_decrypt_block_arm64(k.arm64, d.arm64, in, out);
@@ -770,7 +770,7 @@ namespace sgcl::crypto::detail {
         aes_decrypt_block_portable(k.portable, in, out);
     }
 
-    inline void aes_cbc_decrypt(const AesEncryptKey& k, [[maybe_unused]] const AesDecryptKey& d, unsigned char* iv, const unsigned char* in, unsigned char* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void aes_cbc_decrypt(const AesEncryptKey& k, [[maybe_unused]] const AesDecryptKey& d, unsigned char* iv, const unsigned char* in, unsigned char* out, size_t n) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
         if (k.path == AesPath::arm64) {
             aes_cbc_decrypt_arm64(k.arm64, d.arm64, iv, in, out, n);

@@ -51,7 +51,7 @@ namespace sgcl::net::http::detail {
         std::string host;       // "" for any
         std::vector<RouteSegment> segments;
 
-        bool trailing_slash() const noexcept {
+        SGCL_INLINE_HOT bool trailing_slash() const noexcept {
             return !segments.empty() && segments.back().kind == RouteSegment::multi && segments.back().text.empty();
         }
     };
@@ -255,7 +255,7 @@ namespace sgcl::net::http::detail {
         return r;
     }
 
-    inline Relation compare_routes(const RoutePattern& p, const RoutePattern& q) noexcept {
+    SGCL_INLINE_HOT Relation compare_routes(const RoutePattern& p, const RoutePattern& q) noexcept {
         auto m = compare_methods(p.method, q.method);
         if (m == Relation::disjoint) {
             return m;
@@ -303,11 +303,11 @@ namespace sgcl::net::http::detail {
         PathSegments(const PathSegments&) = delete;
         PathSegments& operator=(const PathSegments&) = delete;
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n;
         }
 
-        std::string_view operator[](size_t i) const noexcept {
+        SGCL_INLINE_HOT std::string_view operator[](size_t i) const noexcept {
             return _views[i];
         }
 
@@ -316,20 +316,20 @@ namespace sgcl::net::http::detail {
             const std::string_view* views;
             size_t n;
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return n;
             }
 
-            std::string_view operator[](size_t i) const noexcept {
+            SGCL_INLINE_HOT std::string_view operator[](size_t i) const noexcept {
                 return i < n ? views[i] : std::string_view();
             }
         };
 
-        List list() const noexcept {
+        SGCL_INLINE_HOT List list() const noexcept {
             return List{_views.data(), _n};
         }
 
-        List with_empty_end() noexcept {
+        SGCL_INLINE_HOT List with_empty_end() noexcept {
             _views[_n] = std::string_view();   // room kept for it (n + 1)
             return List{_views.data(), _n + 1};
         }
@@ -447,7 +447,7 @@ namespace sgcl::net::http::detail {
         return p.segments.size() == segs.size();
     }
 
-    inline bool match_method(const std::string& pattern, std::string_view method) noexcept {
+    SGCL_INLINE_HOT bool match_method(const std::string& pattern, std::string_view method) noexcept {
         return pattern.empty() || pattern == method || (pattern == "GET" && method == "HEAD");
     }
 
@@ -590,18 +590,18 @@ namespace sgcl::net::http::detail {
             return f;
         }
 
-        const RoutePattern& pattern(size_t i) const noexcept {
+        SGCL_INLINE_HOT const RoutePattern& pattern(size_t i) const noexcept {
             return _patterns[i];
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _patterns.size();
         }
 
     private:
         // A match without a multi wildcard, or with one that took only the
         // empty last segment
-        static bool _exact(const RoutePattern& p, const PathSegments::List& segs) noexcept {
+        SGCL_INLINE_HOT static bool _exact(const RoutePattern& p, const PathSegments::List& segs) noexcept {
             if (p.segments.empty() || p.segments.back().kind != RouteSegment::multi) {
                 return true;
             }

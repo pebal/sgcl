@@ -32,7 +32,7 @@ namespace sgcl::async {
 
         template<class T>
         struct TaskLocalValue : TaskLocals {
-            explicit TaskLocalValue(T v) noexcept(std::is_nothrow_move_constructible_v<T>)
+            SGCL_INLINE_HOT explicit TaskLocalValue(T v) noexcept(std::is_nothrow_move_constructible_v<T>)
             : value(std::move(v)) {
             }
 
@@ -85,7 +85,7 @@ namespace sgcl::async {
         // it is (a function the task calls reads, the task sets)
         class [[nodiscard]] setter {
         public:
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return false;
             }
 
@@ -99,13 +99,13 @@ namespace sgcl::async {
                 return false;   // set: the coroutine goes on at once
             }
 
-            void await_resume() const noexcept {
+            SGCL_INLINE_HOT void await_resume() const noexcept {
             }
 
         private:
             friend class task_local;
 
-            setter(const void* key, T value) noexcept(std::is_nothrow_move_constructible_v<T>)
+            SGCL_INLINE_HOT setter(const void* key, T value) noexcept(std::is_nothrow_move_constructible_v<T>)
             : _key(key)
             , _value(std::move(value)) {
             }
@@ -114,13 +114,13 @@ namespace sgcl::async {
             T _value;
         };
 
-        setter set(T value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT setter set(T value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return setter(this, std::move(value));
         }
 
         // The value of the task this thread runs: nullopt when the task
         // never set it and inherited none, and outside a task
-        optional<T> get() const noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT optional<T> get() const noexcept(std::is_nothrow_copy_constructible_v<T>) {
             if (auto n = detail::find_task_local(this)) {
                 return static_cast<const detail::TaskLocalValue<T>*>(n)->value;
             }
@@ -128,14 +128,14 @@ namespace sgcl::async {
         }
 
         // The value, or the one given when there is none
-        T get_or(T fallback) const noexcept(std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT T get_or(T fallback) const noexcept(std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>) {
             if (auto n = detail::find_task_local(this)) {
                 return static_cast<const detail::TaskLocalValue<T>*>(n)->value;
             }
             return fallback;
         }
 
-        bool is_set() const noexcept {
+        SGCL_INLINE_HOT bool is_set() const noexcept {
             return detail::find_task_local(this) != nullptr;
         }
 

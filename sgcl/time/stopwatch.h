@@ -22,16 +22,16 @@ namespace sgcl::time {
     class stopwatch {
     public:
         // Started at once
-        stopwatch() noexcept
+        SGCL_INLINE_HOT stopwatch() noexcept
         : _start(clock::now()) {
         }
 
-        duration elapsed() const noexcept {
+        SGCL_INLINE_HOT duration elapsed() const noexcept {
             return clock::now() - _start;
         }
 
         // What had elapsed, and a new start from now
-        duration restart() noexcept {
+        SGCL_INLINE_HOT duration restart() noexcept {
             time_point now = clock::now();
             duration elapsed = now - _start;
             _start = now;
@@ -43,7 +43,7 @@ namespace sgcl::time {
         // dropped; what it throws goes through, unmeasured
         template<class F>
             requires std::invocable<F&>
-        static duration measure(F&& f) noexcept(std::is_nothrow_invocable_v<F&>) {
+        SGCL_INLINE_HOT static duration measure(F&& f) noexcept(std::is_nothrow_invocable_v<F&>) {
             stopwatch sw;
             (void)std::invoke(f);
             return sw.elapsed();

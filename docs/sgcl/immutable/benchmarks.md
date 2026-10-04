@@ -4,11 +4,13 @@
 
 The setup, the machine, the environments and how the timers are read are described with
 [the benchmarks of the engine](../../garbage_collector/benchmarks.md); the numbers here were taken the same way on
-19 September 2026 with `benchmarks/compare.sh` (`CASES="im"`, the best of three runs of every cell, the machine
+4 October 2026 with `benchmarks/compare.sh` (`CASES="im"`, the best of three runs of every cell, the machine
 under its desktop load), from `bench_immutable`, whose source is `benchmarks/immutable/immutable.cpp`:
 `bench_immutable vector|map sgcl|immer|immer-unsafe|std [n]`, `bench_immutable list sgcl|std [n]`. What is
 measured is the cost of a version: every `push_back`, `set` and `insert` returns a new container and lets the old
-one go, so the number is what a change costs in a program whose state is a value. An Apple M-series core, `-O2`.
+one go, so the number is what a change costs in a program whose state is a value. An Apple M-series core, `-O3`, immer built
+together with the benchmark from its headers, every process in a clean environment (`env -i`; the shell of the earlier
+runs set `MallocNanoZone=0`, which turns macOS's nano allocator off).
 
 ## Against std
 
@@ -19,16 +21,16 @@ a range at once, and `std::map` doing the same in place, ns per operation:
 
 | Operation | `immutable::map` | `std::map` |
 |---|---|---|
-| insert (`set`) | 480 | 153 |
-| find | 24 | 91 |
-| built at once, per element | 91 | 149 |
+| insert (`set`) | 422 | 125 |
+| find | 20 | 77 |
+| built at once, per element | 79 | 125 |
 
 The map pays for its versions where its page says: an insertion copies the path, four nodes, the links taken
-without the barrier and each source node shaded once, 480 ns against the red-black tree's 153 (702 before the
+without the barrier and each source node shaded once, 422 ns against the red-black tree's 125 (702 before the
 unshaded copy, a hundred pointers stored each with the write barrier); its lookup is the hash trie's walk of four
-nodes, 24 ns against the tree's 91 at that size; the constructor from a range was an insert per element at first,
+nodes, 20 ns against the tree's 77 at that size; the constructor from a range was an insert per element at first,
 698 ns each, and builds the trie at once now, the elements sorted by their hashes in the trie's order and every
-node made once at its size: 90 ns per element, of which the sort is the larger part. Against
+node made once at its size: 79 ns per element, of which the sort is the larger part. Against
 `std::unordered_map` at the same size the insertion is 52 ns and the find 10.
 
 The list against `std::forward_list` in place (immer has no list): a million `long`s pushed in front one version
@@ -36,9 +38,9 @@ each, the million walked, and popped from the front one version each, ns per ele
 
 | Operation | `immutable::list` | `std::forward_list` |
 |---|---|---|
-| push_front | 13–16 | 11 |
+| push_front | 7.5 | 7.0 |
 | walk, per cell | 1.5 | 0.4 |
-| pop_front | 7 | 8 |
+| pop_front | 6.7 | 8.2 |
 
 A `push_front` is one managed allocation and one barriered store against a `malloc` and a plain store; a
 `pop_front` frees nothing, where the mutable list frees a node; the walk is the same chain of dependent loads on
@@ -47,7 +49,7 @@ an atomic load, which keeps the compiler from fetching the element and the link 
 the order in which a thread is handed its pages; measured, and left as it is.
 
 The vector against `std::vector` in place, a million `long`s: a `push_back` of `std::vector` is 0.4 ns against
-the immutable vector's 22 a version each, and a read at a random position 0.5 ns, where the trie walks its
+the immutable vector's 19 a version each, and a read at a random position 0.5 ns, where the trie walks its
 branches ([Against immer](#against-immer) has the immutable vector's own numbers).
 
 ## Against immer
@@ -55,8 +57,7 @@ branches ([Against immer](#against-immer) has the immutable vector's own numbers
 The immutable containers against [immer](https://github.com/arximboldi/immer), the C++ library of the same
 structures (Clojure's vector, a hash array mapped trie) over reference counts: `bench_immutable` (`CASES="im"`;
 the immer variants are built with `-DSGCL_IMMER_INCLUDE=<checkout>`), one thread, the best of three runs, ns per
-element (the vector's rows, both libraries, taken again on 24 September with immer at `bd4fc74`, after the tails
-of `immutable::vector` took pages of their own). `immer` is its default memory policy, atomic counts and
+element (every row, both libraries, taken again on 4 October at `-O3`, immer at `bd4fc74`). `immer` is its default memory policy, atomic counts and
 thread-safe versions as the module's are; `immer-unsafe` counts without atomics. The vector: a million elements
 pushed one version each, read at random positions, `set` at random positions one version each, and a million
 built at once (the range constructor, immer's transient); the map: 200,000 random `long` keys inserted one
@@ -64,37 +65,37 @@ version each, found, and built at once:
 
 | Operation | `immutable::vector` | `immer::vector` | `immer-unsafe` |
 |---|---|---|---|
-| push_back | 22 | 31 | 25 |
-| get | 3.2 | 3.4 | 4.0 |
-| set | 131 | 429 | 259 |
-| built at once | 4.9 | 2.9 | 3.5 |
+| push_back | 19 | 28 | 18 |
+| get | 2.6 | 1.9 | 2.0 |
+| set | 111 | 253 | 193 |
+| built at once | 4.5 | 3.2 | 3.3 |
 
 | Operation | `immutable::map` | `immer::map` | `immer-unsafe` |
 |---|---|---|---|
-| insert (`set`) | 480 | 452 | 383 |
-| find | 24 | 16 | 15 |
-| built at once | 91 | 154 | 146 |
+| insert (`set`) | 422 | 375 | 339 |
+| find | 20 | 15 | 15 |
+| built at once | 79 | 123 | 123 |
 
 ## The builder
 
 The map's builder ([map::builder](map-builder/README.md)) against immer's transient, `bench_immutable map
-builder|immer-builder` (`CASES="im"`, 24 September): the 200,000 keys built one at a time through it and frozen, a
+builder|immer-builder` (`CASES="im"`, 4 October): the 200,000 keys built one at a time through it and frozen, a
 lookup of each in the map that comes out, and an edit of that map through one builder, a tenth of the keys given
 new values and a tenth erased, ns per element or per change; the last row is the same edit made a version a
 change:
 
 | Operation | `immutable::map::builder` | Immer's transient |
 |---|---|---|
-| built one at a time | 88 | 144 |
-| find | 20 | 15 |
-| an edit, per change | 137 | 103 |
-| the edit a version a change | 559 | 407 |
+| built one at a time | 76 | 121 |
+| find | 16 | 15 |
+| an edit, per change | 106 | 86 |
+| the edit a version a change | 462 | 362 |
 
 Built one at a time the builder is ahead: a node it made takes the next element where it lies until it is full,
 and grows into the next size once. The edit is behind: an `erase` looks its key up before it touches anything, so
 that an absent key copies nothing, which is a second walk; and the first change through a node the map shares
-copies it, a node with room for one more entry. An insert a version each over the same keys is 455 ns, and the map
-built at once from a range 92 ns per element: nothing needs a builder to be built fast.
+copies it, a node with room for one more entry. An insert a version each over the same keys is 422 ns, and the map
+built at once from a range 79 ns per element: nothing needs a builder to be built fast.
 
 ## Memory of a version
 
@@ -114,12 +115,12 @@ it was 1.06.
 
 A change copies the nodes on a path, 32 words each; the module copies them without the write barrier and shades
 the source node once ([tracked_ptr: shade](../core/tracked_ptr/shade.md)), where immer copies
-the words and bumps a reference count per child: `set` 131 against 259–429, `push_back` 22 against 25–31, the
-map's insert level with immer's thread-safe policy. Building at once: `immutable::map` sorts by hash and builds the
-trie bottom up, 91 against immer's transient's 150; `immutable::vector`'s range constructor fills leaves in order,
-4.9 against 2.9–3.5 (a managed allocation per leaf and branch against immer's free list). The reads: the vector
-reads 3.2 ns against 3.4–4.0; it read 5.2 while its tails and the leaves of its trie were one type
-([Memory of a version](#memory-of-a-version)). The map is behind, 24 against 16, and not in the walk, which is a
+the words and bumps a reference count per child: `set` 111 against 193–253, `push_back` 19 against 28 with atomic counts and 18 without, the
+map's insert behind immer's thread-safe policy (422 against 375). Building at once: `immutable::map` sorts by hash and builds the
+trie bottom up, 79 against immer's 123; `immutable::vector`'s range constructor fills leaves in order,
+4.5 against 3.2–3.3 (a managed allocation per leaf and branch against immer's free list). The reads: the vector
+reads 2.6 ns against immer's 1.9–2.0; it read 5.2 while its tails and the leaves of its trie were one type
+([Memory of a version](#memory-of-a-version)). The map is behind, 20 against 15, and not in the walk, which is a
 few instructions a level: `bench_immutable` reads it right after the insertions, while the collector sweeps the
 800,000 nodes they dropped, and the nodes the insertions kept lie among them; a map built at once and read after a
 collection reads as immer's, 16.6.

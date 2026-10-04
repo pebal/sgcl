@@ -13,21 +13,21 @@ namespace sgcl::time {
     // type of error for the whole module.
     class error {
     public:
-        explicit error(const string& message, size_t offset = 0) noexcept
+        SGCL_INLINE_HOT explicit error(const string& message, size_t offset = 0) noexcept
         : _message(message)
         , _offset(offset) {
         }
 
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return _message;
         }
 
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _offset;
         }
 
         // The same sentence at the same byte
-        friend bool operator==(const error& a, const error& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const error& a, const error& b) noexcept {
             return a._offset == b._offset && a._message == b._message;
         }
 

@@ -67,27 +67,27 @@ namespace sgcl::detail {
         // Write-barrier path: the pointer is known to be managed. The table
         // pointer is pre-biased by base >> PageShift, so this is one global
         // load, a shift and one load from a hot table.
-        static Page* page_of(const void* p) noexcept {
+        SGCL_INLINE_HOT static Page* page_of(const void* p) noexcept {
             return globals.biased_table[(uintptr_t)p >> PageShift].load(std::memory_order_relaxed);
         }
 
         // For pointers of unknown origin (stack scanning): null when the
         // address is outside the heap or the page holds no object. Acquire
         // pairs with the release in set_pages: the header is complete.
-        static Page* page_of_checked(const void* p) noexcept {
+        SGCL_INLINE_HOT static Page* page_of_checked(const void* p) noexcept {
             auto offset = (uintptr_t)p - globals.base;
             return offset < globals.size ? globals.table[offset >> PageShift].load(std::memory_order_acquire) : nullptr;
         }
 
-        static bool contains(const void* p) noexcept {
+        SGCL_INLINE_HOT static bool contains(const void* p) noexcept {
             return (uintptr_t)p - globals.base < globals.size;
         }
 
-        static uintptr_t base() noexcept {
+        SGCL_INLINE_HOT static uintptr_t base() noexcept {
             return globals.base;
         }
 
-        static size_t size() noexcept {
+        SGCL_INLINE_HOT static size_t size() noexcept {
             return globals.size;
         }
 
@@ -109,11 +109,11 @@ namespace sgcl::detail {
         // a miss.
         static constexpr size_t CardCount = size_t(1) << (47 - PageShift);
 
-        static std::atomic<uint8_t>& card_of(const void* location) noexcept {
+        SGCL_INLINE_HOT static std::atomic<uint8_t>& card_of(const void* location) noexcept {
             return globals.cards[((uintptr_t)location >> PageShift) & (CardCount - 1)];
         }
 
-        static void stamp_card(const void* location, uint32_t epoch) noexcept {
+        SGCL_INLINE_HOT static void stamp_card(const void* location, uint32_t epoch) noexcept {
             if constexpr(!config::generational) {
                 return;
             }
@@ -126,12 +126,16 @@ namespace sgcl::detail {
 
         // The barrier's card stamp, with the epoch byte kept in the same
         // line of statics as the table's address
-        static void mark_card(const void* location) noexcept {
+        SGCL_INLINE_HOT static void mark_card(const void* location) noexcept {
             auto& card = card_of(location);
             auto e = globals.epoch_byte.load(std::memory_order_relaxed);
             if (card.load(std::memory_order_relaxed) != e) [[unlikely]] {
                 _stamp_slow(card);
             }
+        }
+
+        SGCL_INLINE_HOT static bool card_current(const void* location) noexcept {
+            return card_of(location).load(std::memory_order_relaxed) == globals.epoch_byte.load(std::memory_order_relaxed);
         }
 
         // The stamp, out of line: in a region, the epoch read again behind
@@ -143,7 +147,7 @@ namespace sgcl::detail {
             card.store(globals.epoch_byte.load(std::memory_order_seq_cst), std::memory_order_release);   // the load of the Dekker pair with the region's raise
         }
 
-        static void set_epoch(uint32_t epoch) noexcept {
+        SGCL_INLINE_HOT static void set_epoch(uint32_t epoch) noexcept {
             globals.epoch_byte.store((uint8_t)epoch, std::memory_order_relaxed);
         }
 
@@ -192,12 +196,12 @@ namespace sgcl::detail {
         }
 
         // Contiguous pages for objects larger than a page.
-        void* alloc_range(size_t pages) {
+        SGCL_INLINE_HOT void* alloc_range(size_t pages) {
             std::lock_guard<std::mutex> lock(_mutex);
             return _alloc_range_locked(pages);
         }
 
-        void free_range(const void* data, size_t pages) noexcept {
+        SGCL_INLINE_HOT void free_range(const void* data, size_t pages) noexcept {
             std::lock_guard<std::mutex> lock(_mutex);
             _free_range_locked(((uintptr_t)data - globals.base) >> PageShift, pages);
         }
@@ -212,26 +216,26 @@ namespace sgcl::detail {
             return n;
         }
 
-        size_t committed_bytes() const noexcept {
+        SGCL_INLINE_HOT size_t committed_bytes() const noexcept {
             return _committed_chunks.load(std::memory_order_relaxed) * ChunkSize;
         }
 
         // Hard cap on committed memory (0 = none); see config::heap_limit_percent.
-        size_t memory_limit() const noexcept {
+        SGCL_INLINE_HOT size_t memory_limit() const noexcept {
             return _limit.load(std::memory_order_relaxed);
         }
 
-        void set_memory_limit(size_t bytes) noexcept {
+        SGCL_INLINE_HOT void set_memory_limit(size_t bytes) noexcept {
             _limit.store(bytes, std::memory_order_relaxed);
         }
 
         // Above config::heap_pressure_percent of the limit.
-        bool under_pressure() const noexcept {
+        SGCL_INLINE_HOT bool under_pressure() const noexcept {
             auto limit = memory_limit();
             return limit && committed_bytes() * 100 >= limit * config::heap_pressure_percent;
         }
 
-        size_t reserved_bytes() const noexcept {
+        SGCL_INLINE_HOT size_t reserved_bytes() const noexcept {
             return globals.size;
         }
 
@@ -245,7 +249,7 @@ namespace sgcl::detail {
         };
 
         // A chunk taken for pages again: no longer idle for trim()
-        void _mark_in_use(size_t c) noexcept {
+        SGCL_INLINE_HOT void _mark_in_use(size_t c) noexcept {
             auto& chunk = _chunks[c];
             if (chunk.free_committed) {
                 chunk.free_committed = false;
@@ -305,7 +309,7 @@ namespace sgcl::detail {
 
         ~Heap() = default;   // the range lives as long as the process
 
-        uintptr_t _chunk_address(size_t c) const noexcept {
+        SGCL_INLINE_HOT uintptr_t _chunk_address(size_t c) const noexcept {
             return globals.base + (c << ChunkShift);
         }
 
@@ -325,7 +329,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        void _decommit_chunk(size_t c) noexcept {
+        SGCL_INLINE_HOT void _decommit_chunk(size_t c) noexcept {
             auto& chunk = _chunks[c];
             if (chunk.committed) {
                 os::decommit((void*)_chunk_address(c), ChunkSize, _needs_commit);
@@ -334,7 +338,7 @@ namespace sgcl::detail {
             }
         }
 
-        void _set_has_free(size_t c, bool value) noexcept {
+        SGCL_INLINE_HOT void _set_has_free(size_t c, bool value) noexcept {
             auto mask = uint64_t(1) << (c % 64);
             if (value) {
                 _has_free[c / 64] |= mask;
@@ -343,7 +347,7 @@ namespace sgcl::detail {
             }
         }
 
-        void* _take_page_from_chunk(size_t c) noexcept {
+        SGCL_INLINE_HOT void* _take_page_from_chunk(size_t c) noexcept {
             auto& chunk = _chunks[c];
             unsigned bit = std::countr_zero(chunk.free_mask);
             chunk.free_mask &= ~(uint32_t(1) << bit);
@@ -536,16 +540,16 @@ namespace sgcl::detail {
 
     private:
 
-        static unsigned _bin_of(size_t count) noexcept {
+        SGCL_INLINE_HOT static unsigned _bin_of(size_t count) noexcept {
             return std::bit_width(count) - 1;
         }
 
-        void _tag(const Range& r, uint32_t pos) noexcept {
+        SGCL_INLINE_HOT void _tag(const Range& r, uint32_t pos) noexcept {
             _tags[r.first] = {(uint32_t)r.count, pos};
             _tags[r.first + r.count - 1] = {(uint32_t)r.count, pos};
         }
 
-        void _push(const Range& r) noexcept {
+        SGCL_INLINE_HOT void _push(const Range& r) noexcept {
             auto& bin = _bins[_bin_of(r.count)];
             bin.push_back(r);
             _bin_mask |= uint32_t(1) << _bin_of(r.count);

@@ -31,31 +31,31 @@ namespace sgcl::detail {
 
         // The interface of std::atomic<T*> on the word, the stores and the
         // successful exchanges through the barrier (pointer.h)
-        bool is_lock_free() const noexcept {
+        SGCL_INLINE_HOT bool is_lock_free() const noexcept {
             return _ptr().is_lock_free();
         }
 
-        Value load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT Value load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
             return _load(m);
         }
 
-        operator Value() const noexcept {
+        SGCL_INLINE_HOT operator Value() const noexcept {
             return load();
         }
 
-        void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             _ptr().store(nullptr, m);
         }
 
-        void store(unique_ptr<T>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT void store(unique_ptr<T>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             _ptr().store_released(p.release(), m);   // the barrier that takes the object out of the unique state
         }
 
-        void store(tracked_ptr<T> p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT void store(tracked_ptr<T> p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             _ptr().store(p.get(), m);
         }
 
-        bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, nullptr, m)) {
                 e = _load(std::memory_order_acquire);
@@ -64,7 +64,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), m)) {
                 e = _load(std::memory_order_acquire);
@@ -94,11 +94,11 @@ namespace sgcl::detail {
             return p;
         }
 
-        Value exchange(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT Value exchange(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             return exchange(tracked_ptr<T>(), m);
         }
 
-        bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, nullptr, s, f)) {
                 e = _load(std::memory_order_acquire);
@@ -107,7 +107,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), s, f)) {
                 e = _load(std::memory_order_acquire);
@@ -116,7 +116,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, nullptr, m)) {
                 e = _load(std::memory_order_acquire);
@@ -125,7 +125,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), m)) {
                 e = _load(std::memory_order_acquire);
@@ -134,7 +134,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, nullptr, s, f)) {
                 e = _load(std::memory_order_acquire);
@@ -143,7 +143,7 @@ namespace sgcl::detail {
             return true;
         }
 
-        bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), s, f)) {
                 e = _load(std::memory_order_acquire);
@@ -152,19 +152,19 @@ namespace sgcl::detail {
             return true;
         }
 
-        void notify_one() noexcept {
+        SGCL_INLINE_HOT void notify_one() noexcept {
             _ptr().notify_one();
         }
 
-        void notify_all() noexcept {
+        SGCL_INLINE_HOT void notify_all() noexcept {
             _ptr().notify_all();
         }
 
-        void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept {
             _ptr().wait(nullptr, m);
         }
 
-        void wait(tracked_ptr<T> p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT void wait(tracked_ptr<T> p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
             _ptr().wait(p.get(), m);
         }
 
@@ -195,11 +195,11 @@ namespace sgcl::detail {
         }
 
     private:
-        Pointer& _ptr() noexcept {
+        SGCL_INLINE_HOT Pointer& _ptr() noexcept {
             return static_cast<Derived*>(this)->_ptr();
         }
 
-        const Pointer& _ptr() const noexcept {
+        SGCL_INLINE_HOT const Pointer& _ptr() const noexcept {
             return static_cast<const Derived*>(this)->_ptr();
         }
     };

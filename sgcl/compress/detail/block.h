@@ -36,7 +36,7 @@ namespace sgcl::compress::detail {
         static_assert(config::page_size % N == 0, "a block of whole pages");
         byte bytes[N];
 
-        byte* data() noexcept {
+        SGCL_INLINE_HOT byte* data() noexcept {
             return bytes;
         }
     };
@@ -75,19 +75,19 @@ namespace sgcl::compress::detail {
     template<size_t Block>
     class InputBuffer {
     public:
-        explicit InputBuffer(size_t n) noexcept
+        SGCL_INLINE_HOT explicit InputBuffer(size_t n) noexcept
         : _size(n) {
         }
 
-        bool managed() const noexcept {
+        SGCL_INLINE_HOT bool managed() const noexcept {
             return _managed.owned();
         }
 
-        uint8_t* data() noexcept {
+        SGCL_INLINE_HOT uint8_t* data() noexcept {
             return managed() ? reinterpret_cast<uint8_t*>(_managed.data()) : _plain.empty() ? &_none : _plain.data();
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return managed() ? _managed.size() : _size;
         }
 
@@ -112,7 +112,7 @@ namespace sgcl::compress::detail {
 
         // Managed from here on (a task's read comes), the first `keep`
         // bytes kept: a block of Block bytes, or more when keep needs it
-        void to_managed(size_t keep) noexcept {
+        SGCL_INLINE_HOT void to_managed(size_t keep) noexcept {
             if (!managed()) {
                 _replace(std::max(std::min(_size, Block), keep), keep);
                 _plain = std::vector<uint8_t>();
@@ -121,7 +121,7 @@ namespace sgcl::compress::detail {
 
         // The bytes [from, from + n), for a read into them: a slice that
         // holds them when they are managed
-        slice<byte> room(size_t from, size_t n) noexcept {
+        SGCL_INLINE_HOT slice<byte> room(size_t from, size_t n) noexcept {
             if (managed()) {
                 return _managed.subslice(from, n);
             }
@@ -132,7 +132,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        void _replace(size_t n, size_t keep) noexcept {
+        SGCL_INLINE_HOT void _replace(size_t n, size_t keep) noexcept {
             auto s = managed_bytes<Block>(n);
             size_t held = managed() ? _managed.size() : _plain.size();
             if (size_t k = std::min({keep, n, held})) {
@@ -157,48 +157,48 @@ namespace sgcl::compress::detail {
     public:
         struct End {};
 
-        End end() const noexcept {
+        SGCL_INLINE_HOT End end() const noexcept {
             return {};
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _n == 0;
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _n = 0;
         }
 
-        void push_back(uint8_t b) noexcept {
+        SGCL_INLINE_HOT void push_back(uint8_t b) noexcept {
             _room(_n + 1);
             _block.data()[_n++] = byte(b);
         }
 
         template<class It>
-        void insert(End, It first, It last) noexcept {
+        SGCL_INLINE_HOT void insert(End, It first, It last) noexcept {
             const size_t n = size_t(std::distance(first, last));
             _room(_n + n);
             std::copy(first, last, reinterpret_cast<uint8_t*>(_block.data()) + _n);
             _n += n;
         }
 
-        void append(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void append(const uint8_t* p, size_t n) noexcept {
             _room(_n + n);
             sgcl::detail::copy_bytes(_block.data() + _n, p, n);
             _n += n;
         }
 
         // The bytes so far, owned by the block
-        slice<const byte> bytes() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes() const noexcept {
             return slice<const byte>(_block).first(_n);
         }
 
     private:
-        void _room(size_t need) noexcept {
+        SGCL_INLINE_HOT void _room(size_t need) noexcept {
             if (need > _block.size()) {
                 const size_t cap = std::max({need, 2 * _block.size(), size_t(32768)});
                 slice<byte> grown = managed_bytes<32768>(cap);
@@ -211,11 +211,11 @@ namespace sgcl::compress::detail {
         size_t _n = 0;
     };
 
-    inline void append_bytes(ManagedOutput& out, const uint8_t* p, size_t n) noexcept {
+    SGCL_INLINE_HOT void append_bytes(ManagedOutput& out, const uint8_t* p, size_t n) noexcept {
         out.append(p, n);
     }
 
-    inline void append_byte(ManagedOutput& out, uint8_t b) noexcept {
+    SGCL_INLINE_HOT void append_byte(ManagedOutput& out, uint8_t b) noexcept {
         out.push_back(b);
     }
 
@@ -227,18 +227,18 @@ namespace sgcl::compress::detail {
     // it grows when a write needs more.
     class OutputStage {
     public:
-        slice<const byte> stage(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT slice<const byte> stage(const uint8_t* p, size_t n) noexcept {
             _room(n);
             sgcl::detail::copy_bytes(_block.data(), p, n);
             return _block.first(n);
         }
 
-        slice<const byte> stage(const std::vector<uint8_t>& v) noexcept {
+        SGCL_INLINE_HOT slice<const byte> stage(const std::vector<uint8_t>& v) noexcept {
             return stage(v.data(), v.size());
         }
 
         // Two pieces one after another, in one write
-        slice<const byte> stage(const std::vector<uint8_t>& a, const slice<const byte>& b) noexcept {
+        SGCL_INLINE_HOT slice<const byte> stage(const std::vector<uint8_t>& a, const slice<const byte>& b) noexcept {
             _room(a.size() + b.size());
             sgcl::detail::copy_bytes(_block.data(), a.data(), a.size());
             sgcl::detail::copy_bytes(_block.data() + a.size(), b.data(), b.size());
@@ -246,7 +246,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        void _room(size_t n) noexcept {
+        SGCL_INLINE_HOT void _room(size_t n) noexcept {
             if (_block.size() < n) {
                 n = std::max(n, 2 * _block.size());
                 _block = n <= 1024 ? managed_bytes<1024>(1024) : n <= 8192 ? managed_bytes<8192>(8192) : managed_bytes<32768>(std::max<size_t>(n, 32768));

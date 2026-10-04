@@ -47,7 +47,7 @@ namespace sgcl::txt {
     using detail::encoding;
 
     // The name a header would use for it
-    constexpr const char* name_of(encoding e) noexcept {
+    SGCL_INLINE_HOT constexpr const char* name_of(encoding e) noexcept {
         return detail::EncodingNames[uint8_t(e)];
     }
 
@@ -77,11 +77,11 @@ namespace sgcl::txt {
             }
         }
 
-        constexpr bool single_byte(encoding e) noexcept {
+        SGCL_INLINE_HOT constexpr bool single_byte(encoding e) noexcept {
             return uint8_t(e) >= FirstSingleByte;
         }
 
-        constexpr const SingleByte& table_of(encoding e) noexcept {
+        SGCL_INLINE_HOT constexpr const SingleByte& table_of(encoding e) noexcept {
             return SingleBytes[uint8_t(e) - FirstSingleByte];
         }
 
@@ -105,7 +105,7 @@ namespace sgcl::txt {
             }
         }
 
-        inline void put(std::string& out, char32_t c) noexcept {
+        SGCL_INLINE_HOT void put(std::string& out, char32_t c) noexcept {
             char buf[utf8::max_width];
             out.append(buf, utf8::encode(c, buf));
         }
@@ -115,7 +115,7 @@ namespace sgcl::txt {
         // bytes at the most and one outside it takes four, so three bytes
         // an input byte covers every encoding here and the rest is given
         // back when the text is made.
-        inline void put(char*& at, char32_t c) noexcept {
+        SGCL_INLINE_HOT void put(char*& at, char32_t c) noexcept {
             at += utf8::encode(c, at);
         }
 
@@ -137,7 +137,7 @@ namespace sgcl::txt {
         optional<encoding> says;
         size_t size = 0;
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return says.has_value();
         }
     };
@@ -282,20 +282,20 @@ namespace sgcl::txt {
     // nothing in it
     class decode_error {
     public:
-        decode_error(size_t offset, encoding from) noexcept
+        SGCL_INLINE_HOT decode_error(size_t offset, encoding from) noexcept
         : _offset(offset)
         , _from(from) {
         }
 
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _offset;
         }
 
-        encoding from() const noexcept {
+        SGCL_INLINE_HOT encoding from() const noexcept {
             return _from;
         }
 
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return string(std::string("not ") + name_of(_from));
         }
 
@@ -380,7 +380,7 @@ namespace sgcl::txt {
     // Bytes in some encoding as text, or the first byte that means
     // nothing in it: what a program that must not store a changed text
     // asks, where the form above puts a replacement character in
-    inline expected<string, decode_error> decode(const slice<const byte>& bytes, encoding from, strict_t) {
+    SGCL_INLINE_HOT expected<string, decode_error> decode(const slice<const byte>& bytes, encoding from, strict_t) {
         if (size_t at = detail::first_undecodable(bytes, from); at != npos) {
             return unexpected(decode_error(at, from));
         }
@@ -391,7 +391,7 @@ namespace sgcl::txt {
     // reads it (`charset=iso-8859-2` out of a header): decode(bytes, e),
     // or nothing when nobody knows the name, as encoding_from_name says
     // nothing — an ordinary answer for a name out of data, not a throw
-    inline optional<string> decode(const slice<const byte>& bytes, const string& name) {
+    SGCL_INLINE_HOT optional<string> decode(const slice<const byte>& bytes, const string& name) {
         auto from = encoding_from_name(name);
         if (!from) {
             return nullopt;
@@ -482,7 +482,7 @@ namespace sgcl::txt {
 
     // Text as bytes in the encoding a name stands for: encode(text, e),
     // or nothing when nobody knows the name, as decode by a name
-    inline optional<vector<byte>> encode(const string& text, const string& name) noexcept {
+    SGCL_INLINE_HOT optional<vector<byte>> encode(const string& text, const string& name) noexcept {
         auto to = encoding_from_name(name);
         if (!to) {
             return nullopt;

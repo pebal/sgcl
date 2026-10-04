@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 namespace sgcl::detail {
     // One word of a coroutine frame (coroutine.h): the frame is a managed
     // buffer of these, zeroed when made (the constructor is what makes the
@@ -14,7 +16,7 @@ namespace sgcl::detail {
     // never taken as proof that the offset is data, since every word of a
     // frame may be either, and differently in every frame.
     struct FrameWord {
-        FrameWord() noexcept
+        SGCL_INLINE_HOT FrameWord() noexcept
         : word(nullptr) {
         }
 

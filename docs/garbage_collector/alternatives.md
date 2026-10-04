@@ -5,8 +5,8 @@ The collector against `shared_ptr`/`unique_ptr`, Go and Java with ZGC, in one ta
 |---|---|---|---|---|
 | Pauses, safepoints | none: no thread is ever stopped or asked to reach a point | none | short stop-the-world phases, preemption at safepoints | short pauses at phase changes, safepoints |
 | What a mutator waits for | nothing in the collector: a page from the heap under a mutex (once per 64 KB), the memory ceiling | the destructor cascade of what it releases | allocation assists when the collector is behind | allocation stalls when the collector is behind |
-| Pointer copy | a store and a byte of state, 1.4 ns onto the stack and 1.8 into an object (the card), the same when a thread copies a shared object's pointer | a reference count update, 5 ns alone and 100–300 ns on a shared object | a store, 0.6 ns, plus the barrier while marking | a store and a load barrier, 1 ns |
-| Allocation | 4 ns, a per-thread bitmap, no lock | 21 ns, malloc | 7 ns, assists included | 3 ns, TLAB |
+| Pointer copy | a store and a byte of state, 1.4 ns onto the stack and 1.8 into an object (the card), the same when a thread copies a shared object's pointer | a reference count update, 4.7 ns alone and 100–300 ns on a shared object | a store, 0.6 ns, plus the barrier while marking | a store and a load barrier, 1 ns |
+| Allocation | 2.8 ns, a per-thread bitmap, no lock | 17 ns, malloc | 7 ns, assists included | 3.1 ns, TLAB |
 | Cycles | collected | leak unless broken by hand | collected | collected |
 | Objects | never move | never move | never move | relocated, with load barriers |
 | Heap | precise, through pointer maps the collector builds itself | | precise, stack maps from the compiler | precise |

@@ -60,7 +60,7 @@ namespace sgcl::io {
         static expected<void, error> remove(const string& name) noexcept;
 
         // The region's bytes; empty once closed
-        slice<byte> data() const noexcept {
+        SGCL_INLINE_HOT slice<byte> data() const noexcept {
             auto& r = _get();
             if (r.size() == 0) {
                 return {};
@@ -69,7 +69,7 @@ namespace sgcl::io {
         }
 
         // The length, 0 once closed
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _get().size();
         }
 
@@ -78,32 +78,32 @@ namespace sgcl::io {
         // slice taken before; data() is empty after it. The object and its
         // name are untouched (remove(name)). The destructor unmaps a region
         // nobody closed; a second close does nothing
-        expected<void, error> close() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> close() const noexcept {
             return _get().close();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _get().closed();
         }
 
         // Whether this handle holds a region
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_region;
         }
 
         // The same region (not the same name: two opens are two regions)
-        friend bool operator==(const shared_memory& a, const shared_memory& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const shared_memory& a, const shared_memory& b) noexcept {
             return a._region == b._region;
         }
 
     private:
         friend struct detail::SharedMemoryAccess;
 
-        explicit shared_memory(tracked_ptr<detail::MappedRegion> region) noexcept
+        SGCL_INLINE_HOT explicit shared_memory(tracked_ptr<detail::MappedRegion> region) noexcept
         : _region(std::move(region)) {
         }
 
-        detail::MappedRegion& _get() const noexcept {
+        SGCL_INLINE_HOT detail::MappedRegion& _get() const noexcept {
             assert(_region && "an empty io::shared_memory");
             return *_region;
         }
@@ -111,15 +111,15 @@ namespace sgcl::io {
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        shared_memory(sgcl::detail::FromWord, const tracked_ptr<detail::MappedRegion>& w) noexcept
+        SGCL_INLINE_HOT shared_memory(sgcl::detail::FromWord, const tracked_ptr<detail::MappedRegion>& w) noexcept
         : _region(w) {
         }
 
-        tracked_ptr<detail::MappedRegion>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::MappedRegion>& _handle_word() noexcept {
             return _region;
         }
 
-        const tracked_ptr<detail::MappedRegion>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::MappedRegion>& _handle_word() const noexcept {
             return _region;
         }
 
@@ -128,7 +128,7 @@ namespace sgcl::io {
 
     namespace detail {
         struct SharedMemoryAccess {
-            static shared_memory make(tracked_ptr<MappedRegion> region) noexcept {
+            SGCL_INLINE_HOT static shared_memory make(tracked_ptr<MappedRegion> region) noexcept {
                 return shared_memory(std::move(region));
             }
         };
@@ -152,7 +152,7 @@ namespace sgcl::io {
         }
 
 #if defined(_WIN32)
-        inline std::wstring shared_name(const string& name) noexcept {
+        SGCL_INLINE_HOT std::wstring shared_name(const string& name) noexcept {
             std::string n = "Local\\";
             n.append(name.data(), name.size());
             return win::wide<std::wstring>(n.data(), int(n.size()));
@@ -179,7 +179,7 @@ namespace sgcl::io {
             return SharedMemoryAccess::make(make_tracked<MappedRegion>(base, size, static_cast<byte*>(base), size, win::InvalidHandle, section, true, true, name));
         }
 #else
-        inline std::string shared_name(const string& name) noexcept {
+        SGCL_INLINE_HOT std::string shared_name(const string& name) noexcept {
             std::string n = "/";
             n.append(name.data(), name.size());
             return n;
@@ -269,7 +269,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline expected<void, error> shared_memory::remove(const string& name) noexcept {
+    SGCL_INLINE_HOT expected<void, error> shared_memory::remove(const string& name) noexcept {
         if (!detail::valid_shared_name(name)) {
             return detail::bad_shared_name("remove", name);
         }

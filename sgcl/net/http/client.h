@@ -108,7 +108,7 @@ namespace sgcl::net::http {
                 return most;
             }
 
-            void add_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) noexcept {
+            SGCL_INLINE_HOT void add_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 h2[key].push_back(h);
             }
@@ -133,7 +133,7 @@ namespace sgcl::net::http {
 
             // The dial to an origin: this request's (an event of its own
             // set, the result in the pool, when it ends) or another's to wait for
-            optional<async::event> begin_dial(const string& key, const async::event& mine) noexcept {
+            SGCL_INLINE_HOT optional<async::event> begin_dial(const string& key, const async::event& mine) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 auto it = h2_dialing.find(key);
                 if (it != h2_dialing.end()) {
@@ -143,7 +143,7 @@ namespace sgcl::net::http {
                 return nullopt;
             }
 
-            void end_dial(const string& key, const async::event& mine) {
+            SGCL_INLINE_HOT void end_dial(const string& key, const async::event& mine) {
                 {
                     std::lock_guard<std::mutex> g(lock);
                     h2_dialing.erase(key);
@@ -291,11 +291,11 @@ namespace sgcl::net::http {
             io::reader stream;
             optional<uint64_t> stream_length;
 
-            bool replayable() const noexcept {
+            SGCL_INLINE_HOT bool replayable() const noexcept {
                 return body_kind != RequestImpl::BodyKind::stream;
             }
 
-            bool idempotent() const noexcept {
+            SGCL_INLINE_HOT bool idempotent() const noexcept {
                 auto m = method.view();
                 return m == "GET" || m == "HEAD" || m == "OPTIONS" || m == "TRACE" || m == "PUT" || m == "DELETE";
             }
@@ -303,7 +303,7 @@ namespace sgcl::net::http {
 
         // The pool's key of a connection: scheme://host:port, one string of
         // its pieces (string::concat), the port's digits written on the stack
-        inline string origin_key(const net::url& u) noexcept {
+        SGCL_INLINE_HOT string origin_key(const net::url& u) noexcept {
             char port[8];
             auto end = std::to_chars(port, port + sizeof port, u.effective_port()).ptr;
             return string::concat(u.scheme(), "://", net::detail::UrlAccess::host_as_written(u), ':', std::string_view(port, size_t(end - port)));
@@ -367,7 +367,7 @@ namespace sgcl::net::http {
 
         // The body when it is in memory, as it lies (the slice holds its
         // string or vector); empty for none and for a stream
-        inline slice<const byte> body_in_memory(const Outgoing& o) noexcept {
+        SGCL_INLINE_HOT slice<const byte> body_in_memory(const Outgoing& o) noexcept {
             if (o.body_kind == RequestImpl::BodyKind::text) {
                 return as_bytes(o.text.as_slice());
             }
@@ -586,7 +586,7 @@ namespace sgcl::net::http {
         struct RequestBlock final : h2::FieldBlock {
             const Outgoing& o;
 
-            explicit RequestBlock(const Outgoing& o) noexcept
+            SGCL_INLINE_HOT explicit RequestBlock(const Outgoing& o) noexcept
             : o(o) {
             }
 
@@ -763,7 +763,7 @@ namespace sgcl::net::http {
         }
 
         // The machine's settings of the client's HTTP/2 connections
-        inline h2::TransportSettings transport_settings(const ClientSettings& cfg, uint32_t known_limit) noexcept {
+        SGCL_INLINE_HOT h2::TransportSettings transport_settings(const ClientSettings& cfg, uint32_t known_limit) noexcept {
             h2::TransportSettings t;
             t.machine.max_header_list_size = uint32_t(std::min<size_t>(cfg.max_response_header_bytes, 0xFFFFFFFFu));
             if (known_limit) {
@@ -930,7 +930,7 @@ namespace sgcl::net::http {
 
         // Whether the headers of the credentials go with a redirect: to the
         // same host or to one under it, as Go decides
-        inline bool same_or_sub_host(std::string_view from, std::string_view to) noexcept {
+        SGCL_INLINE_HOT bool same_or_sub_host(std::string_view from, std::string_view to) noexcept {
             if (from == to) {
                 return true;
             }
@@ -1054,7 +1054,7 @@ namespace sgcl::net::http {
     // which protocol answered.
     class client {
     public:
-        client() noexcept
+        SGCL_INLINE_HOT client() noexcept
         : _pool(make_tracked<detail::Pool>()) {
         }
 
@@ -1071,35 +1071,35 @@ namespace sgcl::net::http {
         // too_many_redirects. A 4xx or 5xx is a response. send() blocks the
         // thread (the exchange runs on the scheduler and the thread waits:
         // never from a worker); in a task `co_await client.async_send(req)`.
-        expected<response, io::error> send(const request& req) const {
+        SGCL_INLINE_HOT expected<response, io::error> send(const request& req) const {
             return async_send(req).wait();
         }
 
-        async::task<expected<response, io::error>> async_send(const request& req) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<response, io::error>> async_send(const request& req) const noexcept {
             return detail::send_request(_settings(), _pool, detail::RequestAccess::impl(req));
         }
 
-        expected<response, io::error> get(const string& url) const {
+        SGCL_INLINE_HOT expected<response, io::error> get(const string& url) const {
             return send(request("GET", url));
         }
 
-        async::task<expected<response, io::error>> async_get(const string& url) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<response, io::error>> async_get(const string& url) const noexcept {
             return async_send(request("GET", url));
         }
 
-        expected<response, io::error> head(const string& url) const {
+        SGCL_INLINE_HOT expected<response, io::error> head(const string& url) const {
             return send(request("HEAD", url));
         }
 
-        async::task<expected<response, io::error>> async_head(const string& url) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<response, io::error>> async_head(const string& url) const noexcept {
             return async_send(request("HEAD", url));
         }
 
-        expected<response, io::error> post(const string& url, const string& content_type, const string& body) const {
+        SGCL_INLINE_HOT expected<response, io::error> post(const string& url, const string& content_type, const string& body) const {
             return send(_post(url, content_type, body));
         }
 
-        async::task<expected<response, io::error>> async_post(const string& url, const string& content_type, const string& body) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<response, io::error>> async_post(const string& url, const string& content_type, const string& body) const noexcept {
             return async_send(_post(url, content_type, body));
         }
 
@@ -1111,7 +1111,7 @@ namespace sgcl::net::http {
         async::task<expected<response, io::error>> async_download(string url, string path) const noexcept;
 
         // The idle connections of the pool closed now
-        void close_idle_connections() const noexcept {
+        SGCL_INLINE_HOT void close_idle_connections() const noexcept {
             _pool->close_all();
         }
 
@@ -1134,7 +1134,7 @@ namespace sgcl::net::http {
         bool h2c = false;    // http:// as HTTP/2 by prior knowledge
 
     private:
-        static net::tls::config _default_tls() noexcept {
+        SGCL_INLINE_HOT static net::tls::config _default_tls() noexcept {
             net::tls::config c;
             c.alpn = {string("http/1.1")};
             return c;
@@ -1167,7 +1167,7 @@ namespace sgcl::net::http {
             return cfg;
         }
 
-        static request _post(const string& url, const string& content_type, const string& body) noexcept {
+        SGCL_INLINE_HOT static request _post(const string& url, const string& content_type, const string& body) noexcept {
             request r("POST", url);
             r.set_header("Content-Type", content_type);
             r.set_body(body);

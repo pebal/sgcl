@@ -32,7 +32,7 @@
 // DATA without END_STREAM). One task writes: whatever the machine has to
 // send is taken under the lock and written by it, in order.
 namespace sgcl::net::http::detail::h2 {
-    inline int64_t now_ns() noexcept {
+    SGCL_INLINE_HOT int64_t now_ns() noexcept {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(sgcl::clock::now().time_since_epoch()).count();
     }
 
@@ -47,7 +47,7 @@ namespace sgcl::net::http::detail::h2 {
         int64_t read_by = 0;           // the request's body whole by then (ns; 0: no limit, or it came)
         int64_t write_by = 0;          // the response whole by then (ns; 0: no limit)
 
-        ServerStream(uint32_t id, tracked_ptr<StreamOwner> owner) noexcept
+        SGCL_INLINE_HOT ServerStream(uint32_t id, tracked_ptr<StreamOwner> owner) noexcept
         : StreamState(id, std::move(owner)) {
         }
     };
@@ -81,22 +81,22 @@ namespace sgcl::net::http::detail::h2 {
 
         class iterator {
         public:
-            iterator(Slot* p, Slot* end) noexcept
+            SGCL_INLINE_HOT iterator(Slot* p, Slot* end) noexcept
             : _p(p), _end(end) {
                 _skip();
             }
 
-            Slot& operator*() const noexcept {
+            SGCL_INLINE_HOT Slot& operator*() const noexcept {
                 return *_p;
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 ++_p;
                 _skip();
                 return *this;
             }
 
-            bool operator!=(const iterator& o) const noexcept {
+            SGCL_INLINE_HOT bool operator!=(const iterator& o) const noexcept {
                 return _p != o._p;
             }
 
@@ -113,7 +113,7 @@ namespace sgcl::net::http::detail::h2 {
 
         static constexpr size_t Initial = 64;
 
-        ServerStreams() noexcept
+        SGCL_INLINE_HOT ServerStreams() noexcept
         : _slots(Initial) {
         }
 
@@ -129,7 +129,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void insert_or_assign(uint32_t id, tracked_ptr<ServerStream> st) noexcept {
+        SGCL_INLINE_HOT void insert_or_assign(uint32_t id, tracked_ptr<ServerStream> st) noexcept {
             if (Slot* s = _at(id)) {
                 s->st = std::move(st);
                 return;
@@ -162,23 +162,23 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _size;
         }
 
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _slots.size();
         }
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_slots.data(), _slots.data() + _slots.size());
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(_slots.data() + _slots.size(), _slots.data() + _slots.size());
         }
 
@@ -186,11 +186,11 @@ namespace sgcl::net::http::detail::h2 {
         vector<Slot> _slots;
         size_t _size = 0;
 
-        size_t _mask() const noexcept {
+        SGCL_INLINE_HOT size_t _mask() const noexcept {
             return _slots.size() - 1;
         }
 
-        size_t _home(uint32_t id) const noexcept {
+        SGCL_INLINE_HOT size_t _home(uint32_t id) const noexcept {
             return size_t(uint64_t(id) * 0x9E3779B97F4A7C15ull >> 32) & _mask();
         }
 
@@ -232,7 +232,7 @@ namespace sgcl::net::http::detail::h2 {
 
     class ServerH2 final : public StreamOwner {
     public:
-        ServerH2(net::connection c, tracked_ptr<ServerImpl> s, tracked_ptr<detail::ServerSettings> cfg, tracked_ptr<ServerConn> node) noexcept
+        SGCL_INLINE_HOT ServerH2(net::connection c, tracked_ptr<ServerImpl> s, tracked_ptr<detail::ServerSettings> cfg, tracked_ptr<ServerConn> node) noexcept
         : _c(std::move(c))
         , _s(std::move(s))
         , _cfg(std::move(cfg))
@@ -306,7 +306,7 @@ namespace sgcl::net::http::detail::h2 {
             return ErrorCode::no_error;
         }
 
-        void on_start(uint32_t id) noexcept {
+        SGCL_INLINE_HOT void on_start(uint32_t id) noexcept {
             if (auto st = _find(id)) {
                 _turn(*st);
             } else {
@@ -316,7 +316,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A request's turn to run: now, or with its body's first bytes
         // (SmallBody)
-        void _turn(ServerStream& st) noexcept {
+        SGCL_INLINE_HOT void _turn(ServerStream& st) noexcept {
             if (st.small_body && !st.body_came) {
                 st.deferred = true;
                 return;
@@ -325,7 +325,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // Its body's first bytes (or its end) came: a deferred start is due
-        void _body_came(ServerStream& st) noexcept {
+        SGCL_INLINE_HOT void _body_came(ServerStream& st) noexcept {
             st.body_came = true;
             if (st.deferred) {
                 st.deferred = false;
@@ -370,7 +370,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_reset(uint32_t id, ErrorCode code) {
+        SGCL_INLINE_HOT void on_reset(uint32_t id, ErrorCode code) {
             if (auto st = _find(id)) {
                 st->reset_by(code);
                 if (!st->started) {
@@ -393,10 +393,10 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_goaway(uint32_t, ErrorCode) noexcept {
+        SGCL_INLINE_HOT void on_goaway(uint32_t, ErrorCode) noexcept {
         }
 
-        void on_ping_ack(const uint8_t*) noexcept {
+        SGCL_INLINE_HOT void on_ping_ack(const uint8_t*) noexcept {
         }
 
         // --- StreamOwner ---------------------------------------------------------
@@ -502,7 +502,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // Under the lock: a block's piece as DATA in place when it is worth
         // a piece of the write of its own, else copied
-        size_t _send_block_now(uint32_t id, const slice<const byte>& s, bool end_stream) noexcept {
+        SGCL_INLINE_HOT size_t _send_block_now(uint32_t id, const slice<const byte>& s, bool end_stream) noexcept {
             if (s.size() < InPlaceMin) {
                 return _m.send_data(id, reinterpret_cast<const uint8_t*>(s.data()), s.size(), end_stream);
             }
@@ -693,18 +693,18 @@ namespace sgcl::net::http::detail::h2 {
         net::endpoint _remote;
         bool _closing = false;
 
-        static h2::ServerSettings _machine_settings(const detail::ServerSettings& cfg) noexcept {
+        SGCL_INLINE_HOT static h2::ServerSettings _machine_settings(const detail::ServerSettings& cfg) noexcept {
             h2::ServerSettings m;
             m.max_concurrent_streams = cfg.max_concurrent_streams;
             m.max_header_list_size = uint32_t(std::min<size_t>(cfg.max_header_bytes, 0xFFFFFFFFu));
             return m;
         }
 
-        tracked_ptr<ServerStream> _find(uint32_t id) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<ServerStream> _find(uint32_t id) noexcept {
             return _streams.find(id);
         }
 
-        void _kick() {
+        SGCL_INLINE_HOT void _kick() {
             _wake.try_send();
         }
 

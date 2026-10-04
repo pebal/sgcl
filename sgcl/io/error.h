@@ -103,7 +103,7 @@ namespace sgcl::io {
     public:
         error() noexcept = default;
 
-        error(error_code code, const string& op, const string& path = {}, size_t count = 0) noexcept
+        SGCL_INLINE_HOT error(error_code code, const string& op, const string& path = {}, size_t count = 0) noexcept
         : _value(code.value())
         , _count(count < UINT32_MAX ? static_cast<uint32_t>(count) : UINT32_MAX)
         , _category(&code.category())
@@ -111,23 +111,23 @@ namespace sgcl::io {
         , _path(path) {
         }
 
-        error(errc e, const string& op, const string& path = {}, size_t count = 0) noexcept
+        SGCL_INLINE_HOT error(errc e, const string& op, const string& path = {}, size_t count = 0) noexcept
         : error(make_error_code(e), op, path, count) {
         }
 
-        error_code code() const noexcept {
+        SGCL_INLINE_HOT error_code code() const noexcept {
             return error_code(_value, *_category);
         }
 
-        const string& op() const noexcept {
+        SGCL_INLINE_HOT const string& op() const noexcept {
             return _op;
         }
 
-        const string& path() const noexcept {
+        SGCL_INLINE_HOT const string& path() const noexcept {
             return _path;
         }
 
-        size_t count() const noexcept {
+        SGCL_INLINE_HOT size_t count() const noexcept {
             return _count;
         }
 
@@ -146,44 +146,44 @@ namespace sgcl::io {
             return string(m);
         }
 
-        bool is_not_found() const noexcept {
+        SGCL_INLINE_HOT bool is_not_found() const noexcept {
             return _is(std::errc::no_such_file_or_directory) || code() == errc::not_found;
         }
 
-        bool is_exists() const noexcept {
+        SGCL_INLINE_HOT bool is_exists() const noexcept {
             return _is(std::errc::file_exists);
         }
 
-        bool is_permission() const noexcept {
+        SGCL_INLINE_HOT bool is_permission() const noexcept {
             return _is(std::errc::permission_denied) || _is(std::errc::operation_not_permitted);
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return code() == errc::closed || _is(std::errc::bad_file_descriptor);
         }
 
-        bool is_eof() const noexcept {
+        SGCL_INLINE_HOT bool is_eof() const noexcept {
             return code() == errc::unexpected_eof;
         }
 
-        bool is_interrupted() const noexcept {
+        SGCL_INLINE_HOT bool is_interrupted() const noexcept {
             return _is(std::errc::interrupted);
         }
 
-        bool is_timeout() const noexcept {
+        SGCL_INLINE_HOT bool is_timeout() const noexcept {
             return _is(std::errc::timed_out) || _is(std::errc::resource_unavailable_try_again) || _is(std::errc::operation_would_block);
         }
 
-        bool is_exit_status() const noexcept {
+        SGCL_INLINE_HOT bool is_exit_status() const noexcept {
             return code() == errc::exit_status;
         }
 
-        friend bool operator==(const error& a, const error& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const error& a, const error& b) noexcept {
             return a.code() == b.code();
         }
 
     private:
-        bool _is(std::errc e) const noexcept {
+        SGCL_INLINE_HOT bool _is(std::errc e) const noexcept {
             return code() == std::make_error_condition(e);
         }
 

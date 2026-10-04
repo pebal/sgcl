@@ -200,7 +200,7 @@ namespace sgcl::codec::detail {
     template<class Sink>
     class JpegEncoder {
     public:
-        JpegEncoder(const image& im, const JpegEncodeSettings& s, Sink& sink) noexcept
+        SGCL_INLINE_HOT JpegEncoder(const image& im, const JpegEncodeSettings& s, Sink& sink) noexcept
         : _im(im), _set(s), _sink(sink) {
         }
 
@@ -372,21 +372,21 @@ namespace sgcl::codec::detail {
         // a word's bytes and their stuffing), to the sink when it is full
         static constexpr size_t OutputBlock = 65536;
 
-        void _drain() noexcept(NothrowSink<Sink>) {
+        SGCL_INLINE_HOT void _drain() noexcept(NothrowSink<Sink>) {
             if (_ok && _olen) {
                 _ok = _sink.put(_out.data(), _olen);
             }
             _olen = 0;
         }
 
-        void _byte(uint8_t b) noexcept(NothrowSink<Sink>) {
+        SGCL_INLINE_HOT void _byte(uint8_t b) noexcept(NothrowSink<Sink>) {
             _out[_olen++] = b;
             if (_olen >= OutputBlock) {
                 _drain();
             }
         }
 
-        void _marker(uint8_t code) noexcept(NothrowSink<Sink>) {
+        SGCL_INLINE_HOT void _marker(uint8_t code) noexcept(NothrowSink<Sink>) {
             _byte(0xFF);
             _byte(code);
         }
@@ -567,7 +567,7 @@ namespace sgcl::codec::detail {
             uint32_t bits;
         };
 
-        static Category _category(int v) noexcept {
+        SGCL_INLINE_HOT static Category _category(int v) noexcept {
             const int sign = v >> 31;
             const unsigned size = unsigned(std::bit_width(unsigned((v ^ sign) - sign)));
             return {size, uint32_t(v + sign) & ((1u << size) - 1)};

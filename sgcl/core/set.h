@@ -36,17 +36,17 @@ namespace sgcl {
         // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
-        set& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT set& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
 
     private:
-        friend bool operator==(const set& lhs, const set& rhs) {
+        SGCL_INLINE_HOT friend bool operator==(const set& lhs, const set& rhs) {
             return lhs._equal_to(rhs);
         }
 
-        friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+        SGCL_INLINE_HOT friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs))) {
             lhs.swap(rhs);
         }
 
@@ -65,7 +65,7 @@ namespace sgcl {
         -> set<Key, Hash, KeyEqual>;
 
     template<class Key, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(set<Key, Hash, KeyEqual>& c, Pred pred) {
+    SGCL_INLINE_HOT size_t erase_if(set<Key, Hash, KeyEqual>& c, Pred pred) {
         return c._erase_if(pred);
     }
 }

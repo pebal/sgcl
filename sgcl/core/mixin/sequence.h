@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../detail/os.h"
 #include "../req.h"
 
 #include <algorithm>
@@ -21,11 +22,11 @@ namespace sgcl::mixin {
     public:
         // Where the elements are assignable from the value
         template<class V>
-        constexpr void fill(const V& value) noexcept(std::is_nothrow_assignable_v<detail::ElementReference<Derived>, const V&>) requires std::is_assignable_v<detail::ElementReference<Derived>, const V&> {
+        SGCL_INLINE_HOT constexpr void fill(const V& value) noexcept(std::is_nothrow_assignable_v<detail::ElementReference<Derived>, const V&>) requires std::is_assignable_v<detail::ElementReference<Derived>, const V&> {
             std::ranges::fill(_begin(), _end(), value);
         }
 
-        constexpr void reverse() noexcept(std::is_nothrow_swappable_v<detail::ElementValue<Derived>>) requires req::bidirectional<Derived> {
+        SGCL_INLINE_HOT constexpr void reverse() noexcept(std::is_nothrow_swappable_v<detail::ElementValue<Derived>>) requires req::bidirectional<Derived> {
             std::ranges::reverse(_begin(), _end());
         }
 
@@ -34,7 +35,7 @@ namespace sgcl::mixin {
         ~sequence() = default;
 
     private:
-        constexpr auto _begin() noexcept { return static_cast<Derived&>(*this).begin(); }
-        constexpr auto _end() noexcept { return static_cast<Derived&>(*this).end(); }
+        SGCL_INLINE_HOT constexpr auto _begin() noexcept { return static_cast<Derived&>(*this).begin(); }
+        SGCL_INLINE_HOT constexpr auto _end() noexcept { return static_cast<Derived&>(*this).end(); }
     };
 }

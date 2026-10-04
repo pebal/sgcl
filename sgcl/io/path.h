@@ -115,12 +115,12 @@ namespace sgcl::io::path {
         return clean(string(out));
     }
 
-    inline string join(std::initializer_list<string> elements) noexcept {
+    SGCL_INLINE_HOT string join(std::initializer_list<string> elements) noexcept {
         return join<std::initializer_list<string>>(elements);
     }
 
     template<class... S>
-    string join(const string& first, const S&... rest) noexcept((io::detail::PlainText<S> && ...)) {
+    SGCL_INLINE_HOT string join(const string& first, const S&... rest) noexcept((io::detail::PlainText<S> && ...)) {
         return join({first, string(rest)...});
     }
 
@@ -145,7 +145,7 @@ namespace sgcl::io::path {
         return string(p);
     }
 
-    inline string dir(const string& path) noexcept {
+    SGCL_INLINE_HOT string dir(const string& path) noexcept {
         std::string_view p(path);
         auto i = p.rfind(separator);
         if (i == std::string_view::npos) {
@@ -177,7 +177,7 @@ namespace sgcl::io::path {
 
     // dir and base, as a pair: the directory with its trailing separator
     // as written, the file after it (Go's Split)
-    inline pair<string, string> split(const string& path) noexcept {
+    SGCL_INLINE_HOT pair<string, string> split(const string& path) noexcept {
         std::string_view p(path);
         auto i = p.rfind(separator);
         if (i == std::string_view::npos) {
@@ -204,7 +204,7 @@ namespace sgcl::io::path {
         return out;
     }
 
-    inline bool is_abs(const string& p) noexcept {
+    SGCL_INLINE_HOT bool is_abs(const string& p) noexcept {
         return !p.empty() && p.front() == separator;
     }
 
@@ -214,7 +214,7 @@ namespace sgcl::io::path {
     // lexically ("a/../b" is local, "a/../.." is not). A name from outside
     // the program — an entry of an archive, the path of a request, which
     // may have been "..%2f" before it was decoded — is checked so
-    inline bool is_local(const string& name) noexcept {
+    SGCL_INLINE_HOT bool is_local(const string& name) noexcept {
         return io::detail::is_local_path(name.view());
     }
 
@@ -223,7 +223,7 @@ namespace sgcl::io::path {
     // for a name from outside that becomes a file's path:
     //
     //     auto file = io::path::under("public", name);   // "public/a/b.txt", or the error for "../secret.txt"
-    inline expected<string, error> under(const string& directory, const string& name) noexcept {
+    SGCL_INLINE_HOT expected<string, error> under(const string& directory, const string& name) noexcept {
         if (!is_local(name)) {
             return io::detail::fail(error(errc::insecure_path, "under", name));
         }
@@ -232,7 +232,7 @@ namespace sgcl::io::path {
 
     // The absolute form: the working directory joined when relative,
     // cleaned
-    inline expected<string, error> abs(const string& p) noexcept {
+    SGCL_INLINE_HOT expected<string, error> abs(const string& p) noexcept {
         if (is_abs(p)) {
             return clean(p);
         }
@@ -463,7 +463,7 @@ namespace sgcl::io::path {
             return true;
         }
 
-        inline bool has_meta(std::string_view s) noexcept {
+        SGCL_INLINE_HOT bool has_meta(std::string_view s) noexcept {
             return s.find_first_of("*?[\\") != std::string_view::npos;
         }
 
@@ -556,7 +556,7 @@ namespace sgcl::io::path {
     // The paths that match the pattern, sorted within each directory;
     // a directory that cannot be read is skipped; a pattern without
     // meta characters names the file if it exists
-    inline expected<vector<string>, error> glob(const string& pattern) noexcept {
+    SGCL_INLINE_HOT expected<vector<string>, error> glob(const string& pattern) noexcept {
         if (!detail::valid_pattern(std::string_view(pattern))) {
             return io::detail::fail(error(errc::invalid_pattern, "glob", pattern));
         }
@@ -568,11 +568,11 @@ namespace sgcl::io::path {
     }
 
     // Separators converted to and from "/", the form of URLs and archives
-    inline string from_slash(const string& p) noexcept {
+    SGCL_INLINE_HOT string from_slash(const string& p) noexcept {
         return p;
     }
 
-    inline string to_slash(const string& p) noexcept {
+    SGCL_INLINE_HOT string to_slash(const string& p) noexcept {
         return p;
     }
 }

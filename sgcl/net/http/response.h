@@ -47,55 +47,55 @@ namespace sgcl::net::http {
     // tells a 2xx.
     class response {
     public:
-        int status() const noexcept {
+        SGCL_INLINE_HOT int status() const noexcept {
             return _impl->status;
         }
 
         // The protocol the response came over, as Go's resp.Proto:
         // "HTTP/1.1", "HTTP/1.0" or "HTTP/2.0"
-        string proto() const noexcept {
+        SGCL_INLINE_HOT string proto() const noexcept {
             return _impl->h2 ? "HTTP/2.0" : _impl->minor == 0 ? "HTTP/1.0" : "HTTP/1.1";
         }
 
         // 200 to 299
-        bool ok() const noexcept {
+        SGCL_INLINE_HOT bool ok() const noexcept {
             return _impl->status >= 200 && _impl->status < 300;
         }
 
         // A field of the head, "" when there is none
-        string header(const string& name) const noexcept {
+        SGCL_INLINE_HOT string header(const string& name) const noexcept {
             return _impl->fields.get(name);
         }
 
-        const http::headers& headers() const noexcept {
+        SGCL_INLINE_HOT const http::headers& headers() const noexcept {
             return _impl->fields;
         }
 
-        optional<uint64_t> content_length() const noexcept {
+        SGCL_INLINE_HOT optional<uint64_t> content_length() const noexcept {
             return _impl->content_length;
         }
 
         // The URL the response came from: the last of the redirects
-        net::url url() const noexcept {
+        SGCL_INLINE_HOT net::url url() const noexcept {
             return *_impl->url;
         }
 
         // The whole body as text; the connection goes back to the pool.
         // text() blocks the thread (never from a worker); in a task
         // `co_await res.async_text()`
-        expected<string, io::error> text() const {
+        SGCL_INLINE_HOT expected<string, io::error> text() const {
             return _co_text(_impl).wait();
         }
 
-        async::task<expected<string, io::error>> async_text() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<string, io::error>> async_text() const noexcept {
             return _co_text(_impl);
         }
 
-        expected<vector<byte>, io::error> bytes() const {
+        SGCL_INLINE_HOT expected<vector<byte>, io::error> bytes() const {
             return _co_bytes(_impl).wait();
         }
 
-        async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<vector<byte>, io::error>> async_bytes() const noexcept {
             return _co_bytes(_impl);
         }
 
@@ -114,19 +114,19 @@ namespace sgcl::net::http {
         async::task<expected<uint64_t, io::error>> async_save(string path) const noexcept;
 
         // The body as a stream; its end gives the connection back
-        io::reader body() const noexcept {
+        SGCL_INLINE_HOT io::reader body() const noexcept {
             return io::reader(_impl->body);
         }
 
         // The trailers of a chunked body, once it has been read to its end
-        http::headers trailers() const noexcept {
+        SGCL_INLINE_HOT http::headers trailers() const noexcept {
             return _impl->body->trailers();
         }
 
         // The body given up: the rest dropped when the buffer holds it
         // (the connection back to the pool), the connection closed when it
         // does not. Does not wait.
-        void close() const {
+        SGCL_INLINE_HOT void close() const {
             if (!_impl->body->discard_buffered()) {
                 _impl->body->abandon();
             }
@@ -135,7 +135,7 @@ namespace sgcl::net::http {
     private:
         friend struct detail::ResponseAccess;
 
-        explicit response(const tracked_ptr<detail::ResponseImpl>& impl) noexcept
+        SGCL_INLINE_HOT explicit response(const tracked_ptr<detail::ResponseImpl>& impl) noexcept
         : _impl(impl) {
         }
 
@@ -153,11 +153,11 @@ namespace sgcl::net::http {
 
     namespace detail {
         struct ResponseAccess {
-            static response make(const tracked_ptr<ResponseImpl>& impl) noexcept {
+            SGCL_INLINE_HOT static response make(const tracked_ptr<ResponseImpl>& impl) noexcept {
                 return response(impl);
             }
 
-            static const tracked_ptr<ResponseImpl>& impl(const response& r) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<ResponseImpl>& impl(const response& r) noexcept {
                 return r._impl;
             }
         };

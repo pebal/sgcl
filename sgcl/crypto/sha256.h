@@ -33,34 +33,34 @@ namespace sgcl::crypto {
         static constexpr size_t digest_size = 32;
         static constexpr size_t block_size = 64;
 
-        sha256() noexcept {
+        SGCL_INLINE_HOT sha256() noexcept {
             _state.init(detail::sha256_iv);
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
         // The digest of everything so far; the hasher goes on
-        array<byte, 32> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 32> value() const noexcept {
             sha256 h = *this;
             array<byte, 32> out;
             h._finish(detail::bytes(out.data()));
             return out;
         }
 
-        array<byte, 32> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 32> digest() const noexcept {
             return value();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.init(detail::sha256_iv);
         }
 
     private:
         detail::MdStream<detail::Sha256Traits> _state;
 
-        void _finish(unsigned char* out) noexcept {
+        SGCL_INLINE_HOT void _finish(unsigned char* out) noexcept {
             _state.finish(out);
         }
     };
@@ -75,26 +75,26 @@ namespace sgcl::crypto {
         static constexpr size_t digest_size = 28;
         static constexpr size_t block_size = 64;
 
-        sha224() noexcept {
+        SGCL_INLINE_HOT sha224() noexcept {
             _state.init(detail::sha224_iv);
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _state.update(detail::bytes(data.data()), data.size());
         }
 
-        array<byte, 28> value() const noexcept {
+        SGCL_INLINE_HOT array<byte, 28> value() const noexcept {
             sha224 h = *this;
             array<byte, 28> out;
             h._finish(detail::bytes(out.data()));
             return out;
         }
 
-        array<byte, 28> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 28> digest() const noexcept {
             return value();
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state.init(detail::sha224_iv);
         }
 
@@ -103,7 +103,7 @@ namespace sgcl::crypto {
 
         // the eight words, of which the first seven are the digest; the
         // eighth is state an HMAC's key went into, so it does not stay
-        void _finish(unsigned char* out) noexcept {
+        SGCL_INLINE_HOT void _finish(unsigned char* out) noexcept {
             unsigned char full[32];
             _state.finish(full);
             std::memcpy(out, full, 28);

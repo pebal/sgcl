@@ -44,14 +44,14 @@ namespace sgcl::async {
         // run leaves (the task's value or its exception)
         class RunSignals {
         public:
-            explicit RunSignals(const channel<int>& sig) noexcept
+            SGCL_INLINE_HOT explicit RunSignals(const channel<int>& sig) noexcept
             : _sig(sig) {
             }
 
             RunSignals(const RunSignals&) = delete;
             RunSignals& operator=(const RunSignals&) = delete;
 
-            ~RunSignals() {
+            SGCL_INLINE_HOT ~RunSignals() {
                 signals_instance().forget(ChannelAccess::state(_sig).get());
                 _sig.close();
             }
@@ -64,7 +64,7 @@ namespace sgcl::async {
     // The task run on the scheduler and waited for on the calling thread:
     // its value, or what it threw. For a thread (main), never a task
     template<class T>
-    T run(task<T> t) {
+    SGCL_INLINE_HOT T run(task<T> t) {
         if constexpr (std::is_void_v<T>) {
             t.wait();
         } else {
@@ -77,7 +77,7 @@ namespace sgcl::async {
     // run (by default: the process ends, 130 in the shell)
     template<class F>
         requires std::invocable<F&, stop_token>
-    auto run(F&& f) {
+    SGCL_INLINE_HOT auto run(F&& f) {
         stop_source src;
         channel<int> sig = signals({SIGINT, SIGTERM});
         detail::RunSignals registered(sig);

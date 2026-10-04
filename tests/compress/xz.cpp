@@ -11,6 +11,7 @@
 // inside 7z, which comes later): our encoder against our decoder, and a
 // vector worked by hand from the description.
 #include "common.h"
+#include "tests/source_root.h"
 
 #include "sgcl/compress/detail/bcj2.h"
 
@@ -29,7 +30,7 @@ namespace cd = sgcl::compress::detail;
 
 namespace {
     std::string repo_text(size_t limit) {
-        auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "sgcl";
+        auto root = source_root() / "sgcl";
         std::vector<std::filesystem::path> files;
         for (auto& e : std::filesystem::recursive_directory_iterator(root)) {
             if (e.path().extension() == ".h") {

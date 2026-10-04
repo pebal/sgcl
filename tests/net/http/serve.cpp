@@ -10,6 +10,7 @@
 // them, which the URL's normalization does not see) — and https with the
 // certificate and the key read from their files.
 #include "tests/types.h"
+#include "tests/source_root.h"
 #include "sgcl/net/http/http.h"
 
 #include <filesystem>
@@ -27,7 +28,7 @@ namespace {
     }
 
     std::string testdata(const std::string& name) {
-        return (std::filesystem::path(__FILE__).parent_path().parent_path() / "tls_testdata" / name).string();
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     void write(const std::filesystem::path& p, const std::string& data) {

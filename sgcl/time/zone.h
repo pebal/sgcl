@@ -118,7 +118,7 @@ namespace sgcl::time {
                 return dst;
             }
 
-            uint16_t rule_type(int64_t t) const noexcept {
+            SGCL_INLINE_HOT uint16_t rule_type(int64_t t) const noexcept {
                 if (!rule.has_dst) {
                     return rule.std_type;
                 }
@@ -237,7 +237,7 @@ namespace sgcl::time {
             return uint16_t(types.size() - 1);
         }
 
-        inline bool same_type(const zone_type& a, const zone_type& b) noexcept {
+        SGCL_INLINE_HOT bool same_type(const zone_type& a, const zone_type& b) noexcept {
             return a.offset == b.offset && a.dst == b.dst && a.abbreviation == b.abbreviation;
         }
 
@@ -413,7 +413,7 @@ namespace sgcl::time {
 
         // UTC's data: a fixed offset of 0 named "UTC", so that every lookup
         // has an object to refer to
-        inline const zone_data& utc_data() noexcept {
+        SGCL_INLINE_HOT const zone_data& utc_data() noexcept {
             return *quarter_zones()[96];
         }
 
@@ -471,7 +471,7 @@ namespace sgcl::time {
             return true;
         }
 
-        inline slice<const byte> bytes_of(const std::string& s) noexcept {
+        SGCL_INLINE_HOT slice<const byte> bytes_of(const std::string& s) noexcept {
             return slice<const byte>(reinterpret_cast<const byte*>(s.data()), s.size());
         }
 
@@ -525,13 +525,13 @@ namespace sgcl::time {
         // UTC
         zone() noexcept = default;
 
-        static zone utc() noexcept {
+        SGCL_INLINE_HOT static zone utc() noexcept {
             return zone();
         }
 
         // A zone that is always `offset` east of UTC, named for it
         // ("+05:30"); whole seconds, less than a day. zone::fixed(0) is UTC
-        static zone fixed(duration offset) {
+        SGCL_INLINE_HOT static zone fixed(duration offset) {
             int64_t seconds = offset.nanoseconds() / 1000000000;
             if (seconds <= -86400 || seconds >= 86400) {
                 throw invalid_argument("sgcl::time::zone::fixed: an offset of a day or more");
@@ -554,7 +554,7 @@ namespace sgcl::time {
         // std::chrono::locate_zone throws for a name it does not know. A
         // name that comes from outside (a setting, the user) is loaded;
         // one the program itself wrote is constructed (DESIGN 234)
-        explicit zone(const string& name)
+        SGCL_INLINE_HOT explicit zone(const string& name)
         : zone(load(name).value()) {
         }
 
@@ -596,7 +596,7 @@ namespace sgcl::time {
         // into the database is "Local"
         string name() const noexcept;
 
-        friend bool operator==(const zone& a, const zone& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const zone& a, const zone& b) noexcept {
             const detail::zone_data* pa = a._ptr.get();   // null and UTC's data are both UTC
             const detail::zone_data* pb = b._ptr.get();
             return (pa ? pa : &detail::utc_data()) == (pb ? pb : &detail::utc_data());
@@ -606,7 +606,7 @@ namespace sgcl::time {
         friend struct detail::zone_access;
 
         // The library's own (zone_access::make): the zone of this data
-        zone(detail::made_in_place, const detail::zone_data& data) noexcept
+        SGCL_INLINE_HOT zone(detail::made_in_place, const detail::zone_data& data) noexcept
         : _ptr(&data) {
         }
 
@@ -629,23 +629,23 @@ namespace sgcl::time {
         struct zone_access {
             // A zone of this data, and a datetime of an instant in the zone
             // of this data: the constructors that are the library's own
-            static zone make(const zone_data& d) noexcept {
+            SGCL_INLINE_HOT static zone make(const zone_data& d) noexcept {
                 return zone(made_in_place(), d);
             }
 
             template<class Datetime>
-            static Datetime make_datetime(int64_t ns, const zone_data& d) noexcept {
+            SGCL_INLINE_HOT static Datetime make_datetime(int64_t ns, const zone_data& d) noexcept {
                 return Datetime(made_in_place(), ns, d);
             }
 
             // The zone's data, its pointer read once: the public call that
             // holds the zone asks this, and passes the data on by reference
-            static const zone_data& data(const zone& z) noexcept {
+            SGCL_INLINE_HOT static const zone_data& data(const zone& z) noexcept {
                 auto p = sgcl::detail::load_plain(z._ptr);   // a value's own word, which no other thread writes while this one reads it
                 return p ? *p : utc_data();
             }
 
-            static zone_state state_at(const zone_data& d, int64_t t) noexcept {
+            SGCL_INLINE_HOT static zone_state state_at(const zone_data& d, int64_t t) noexcept {
                 if (d.fixed) {
                     return {d.fixed_offset, false, nullptr};
                 }
@@ -653,28 +653,28 @@ namespace sgcl::time {
                 return {type.offset, type.dst, &type.abbreviation};
             }
 
-            static int32_t offset_at(const zone_data& d, int64_t t) noexcept {
+            SGCL_INLINE_HOT static int32_t offset_at(const zone_data& d, int64_t t) noexcept {
                 return d.fixed ? d.fixed_offset : d.types[d.type_at(t)].offset;
             }
 
             // The offset asked of the zone itself, its word read once: UTC's
             // is 0 with no data to look at (datetime's fields ask this)
-            static int32_t offset_at(const zone& z, int64_t t) noexcept {
+            SGCL_INLINE_HOT static int32_t offset_at(const zone& z, int64_t t) noexcept {
                 auto p = sgcl::detail::load_plain(z._ptr);
                 return p ? offset_at(*p, t) : 0;
             }
 
-            static optional<int64_t> next_change(const zone_data& d, int64_t t) noexcept {
+            SGCL_INLINE_HOT static optional<int64_t> next_change(const zone_data& d, int64_t t) noexcept {
                 return d.fixed ? nullopt : d.next_change(t);
             }
 
-            static optional<int64_t> previous_change(const zone_data& d, int64_t t) noexcept {
+            SGCL_INLINE_HOT static optional<int64_t> previous_change(const zone_data& d, int64_t t) noexcept {
                 return d.fixed ? nullopt : d.previous_change(t);
             }
 
             // The abbreviation of a state of the zone; a fixed offset's and
             // UTC's are their names ("+05:30", "UTC")
-            static string abbreviation(const zone_data& d, const zone_state& s) noexcept {
+            SGCL_INLINE_HOT static string abbreviation(const zone_data& d, const zone_state& s) noexcept {
                 return s.abbreviation ? *s.abbreviation : d.name;
             }
         };
@@ -694,7 +694,7 @@ namespace sgcl::time {
         // sweep_dead by one thread at a time, once the map has had half as
         // many insertions as it has entries (64 at least): the cost of a
         // sweep spread over the insertions that made the dead entries
-        inline void sweep_content(zone_registry& r) noexcept {
+        SGCL_INLINE_HOT void sweep_content(zone_registry& r) noexcept {
             size_t n = r.content_inserts.fetch_add(1, std::memory_order_relaxed) + 1;
             if (n < std::max<size_t>(64, r.by_content.size() / 2) || r.sweeping.exchange(true, std::memory_order_acquire)) {
                 return;
@@ -799,7 +799,7 @@ namespace sgcl::time {
             return z ? optional<zone>(*z) : nullopt;
         }
 
-        inline zone find_local() noexcept {
+        SGCL_INLINE_HOT zone find_local() noexcept {
             if (const char* tz = std::getenv("TZ")) {
                 if (auto z = zone_from_tz(string(tz))) {
                     return *z;
@@ -850,7 +850,7 @@ namespace sgcl::time {
         });
     }
 
-    inline expected<zone, error> zone::from_posix(const string& rule) noexcept {
+    SGCL_INLINE_HOT expected<zone, error> zone::from_posix(const string& rule) noexcept {
         return detail::intern_foreign(string("P" + std::string(rule)), [&]() noexcept {
             return detail::zone_from_rule(rule);
         });
@@ -870,7 +870,7 @@ namespace sgcl::time {
         }
     }
 
-    inline zone zone::local() noexcept {
+    SGCL_INLINE_HOT zone zone::local() noexcept {
         return zone(detail::made_in_place(), detail::local_data());
     }
 
@@ -905,7 +905,7 @@ namespace sgcl::time {
         return {};
     }
 
-    inline string zone::name() const noexcept {
+    SGCL_INLINE_HOT string zone::name() const noexcept {
         return detail::zone_access::data(*this).name;
     }
 }

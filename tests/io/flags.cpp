@@ -11,6 +11,7 @@
 // as a value, the program's own types, the rules at add, and parse(argc,
 // argv) ending the process with 0 and 2.
 #include "tests/types.h"
+#include "tests/source_root.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -201,7 +202,7 @@ namespace {
     }
 
     std::string go_output() {
-        const auto dir = std::filesystem::path(__FILE__).parent_path() / "go_flags";
+        const auto dir = source_root() / "tests/io/go_flags";
         const auto tmp = std::filesystem::temp_directory_path() / ("sgcl_io_go_flags_" + std::to_string(::getpid()));
         std::filesystem::create_directories(tmp);
         const auto bin = tmp / "go_flags";

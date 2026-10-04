@@ -68,19 +68,19 @@ namespace sgcl::math::detail {
     using LimbObject = unique_ptr<void>;
 
     template<size_t N>
-    LimbObject make_limb_slot() noexcept {
+    SGCL_INLINE_HOT LimbObject make_limb_slot() noexcept {
         return LimbObject(sgcl::detail::Maker<LimbSlot<N>>::make_tracked_data());
     }
 
     using MakeLimbs = LimbObject (*)() noexcept;
 
     template<size_t... Is>
-    constexpr std::array<MakeLimbs, sizeof...(Is)> limb_small_entries(std::index_sequence<Is...>) {
+    SGCL_INLINE_HOT constexpr std::array<MakeLimbs, sizeof...(Is)> limb_small_entries(std::index_sequence<Is...>) {
         return {&make_limb_slot<Is + 1>...};
     }
 
     template<size_t... Is>
-    constexpr std::array<MakeLimbs, sizeof...(Is)> limb_large_entries(std::index_sequence<Is...>) {
+    SGCL_INLINE_HOT constexpr std::array<MakeLimbs, sizeof...(Is)> limb_large_entries(std::index_sequence<Is...>) {
         return {&make_limb_slot<limb_large_class(Is)>...};
     }
 

@@ -60,7 +60,7 @@ namespace sgcl::crypto::x25519 {
     namespace detail {
         using namespace sgcl::crypto::detail;
 
-        inline void clamp(unsigned char* k) noexcept {
+        SGCL_INLINE_HOT void clamp(unsigned char* k) noexcept {
             k[0] &= 248;
             k[31] &= 127;
             k[31] |= 64;
@@ -130,7 +130,7 @@ namespace sgcl::crypto::x25519 {
     class public_key {
     public:
         // The key of 32 bytes; another length is invalid_key
-        static expected<public_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
+        SGCL_INLINE_HOT static expected<public_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != public_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an X25519 public key is 32 bytes")));
             }
@@ -140,7 +140,7 @@ namespace sgcl::crypto::x25519 {
         }
 
         // The key from a SubjectPublicKeyInfo (RFC 8410, OID 1.3.101.110)
-        static expected<public_key, error> from_pkix_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<public_key, error> from_pkix_der(const slice<const byte>& der) noexcept {
             public_key k;
             auto r = detail::der_read_pkix(der, detail::oid_x25519, detail::bytes(k._bytes.data()));
             if (!r) {
@@ -149,16 +149,16 @@ namespace sgcl::crypto::x25519 {
             return k;
         }
 
-        const array<byte, 32>& bytes() const noexcept {
+        SGCL_INLINE_HOT const array<byte, 32>& bytes() const noexcept {
             return _bytes;
         }
 
         // The SubjectPublicKeyInfo, 44 bytes
-        vector<byte> to_pkix_der() const noexcept {
+        SGCL_INLINE_HOT vector<byte> to_pkix_der() const noexcept {
             return detail::der_pkix(detail::oid_x25519, detail::bytes(_bytes.data()));
         }
 
-        friend bool operator==(const public_key& a, const public_key& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const public_key& a, const public_key& b) noexcept {
             return std::memcmp(a._bytes.data(), b._bytes.data(), public_key_size) == 0;
         }
 
@@ -175,7 +175,7 @@ namespace sgcl::crypto::x25519 {
     class private_key {
     public:
         // 32 bytes from crypto::random
-        static private_key generate() noexcept {
+        SGCL_INLINE_HOT static private_key generate() noexcept {
             private_key k;
             random::fill(k._secret.as_slice());
             k._derive();
@@ -184,7 +184,7 @@ namespace sgcl::crypto::x25519 {
 
         // The key of 32 bytes (any 32 bytes are one; they are clamped when
         // used); another length is invalid_key
-        static expected<private_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
+        SGCL_INLINE_HOT static expected<private_key, error> from_bytes(const slice<const byte>& bytes) noexcept {
             if (bytes.size() != private_key_size) {
                 return unexpected<error>(error(errc::invalid_key, string("an X25519 private key is 32 bytes")));
             }
@@ -217,12 +217,12 @@ namespace sgcl::crypto::x25519 {
 
         // The object moved from is zeroed and is no key of any use until
         // assigned again
-        private_key(private_key&& other) noexcept
+        SGCL_INLINE_HOT private_key(private_key&& other) noexcept
         : _secret(other._secret), _public(other._public) {
             other._wipe();
         }
 
-        private_key& operator=(private_key&& other) noexcept {
+        SGCL_INLINE_HOT private_key& operator=(private_key&& other) noexcept {
             if (this != &other) {
                 _secret = other._secret;
                 _public = other._public;
@@ -231,12 +231,12 @@ namespace sgcl::crypto::x25519 {
             return *this;
         }
 
-        ~private_key() {
+        SGCL_INLINE_HOT ~private_key() {
             _wipe();
         }
 
         // A second key of the same bytes
-        private_key clone() const {
+        SGCL_INLINE_HOT private_key clone() const {
             _check();
             private_key k;
             k._secret = _secret;
@@ -244,14 +244,14 @@ namespace sgcl::crypto::x25519 {
             return k;
         }
 
-        x25519::public_key public_key() const {
+        SGCL_INLINE_HOT x25519::public_key public_key() const {
             _check();
             return _public;
         }
 
         // The 32 secret bytes, as given or generated (not clamped), as a
         // secret: move-only and zeroed when it goes
-        secret<32> bytes() const {
+        SGCL_INLINE_HOT secret<32> bytes() const {
             _check();
             auto s = detail::SecretAccess::make<32>();
             std::memcpy(detail::SecretAccess::data(s), _secret.data(), 32);
@@ -276,7 +276,7 @@ namespace sgcl::crypto::x25519 {
         // The PKCS #8 PrivateKeyInfo, 48 bytes, version 0 as Go and OpenSSL
         // write it. It holds the secret: a secret_bytes (48 bytes in the
         // object itself), never managed memory
-        secret_bytes to_pkcs8_der() const {
+        SGCL_INLINE_HOT secret_bytes to_pkcs8_der() const {
             _check();
             return detail::der_pkcs8(detail::oid_x25519, detail::bytes(_secret.data()));
         }
@@ -286,7 +286,7 @@ namespace sgcl::crypto::x25519 {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<private_key, error> from_pem(const slice<const byte>& text) noexcept {
+        SGCL_INLINE_HOT static expected<private_key, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text);
             if (!p) {
                 return unexpected<error>(p.error());
@@ -300,14 +300,14 @@ namespace sgcl::crypto::x25519 {
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
         // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
         // write it: a secret_bytes, never managed memory
-        secret_bytes to_pem() const {
+        SGCL_INLINE_HOT secret_bytes to_pem() const {
             return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
         }
 
 
         // The same key, compared in constant time; a key moved from is
         // std::logic_error, as everywhere
-        friend bool operator==(const private_key& a, const private_key& b) {
+        SGCL_INLINE_HOT friend bool operator==(const private_key& a, const private_key& b) {
             a._check();
             b._check();
             return constant_time::equal(a._secret, b._secret);
@@ -319,7 +319,7 @@ namespace sgcl::crypto::x25519 {
 
         private_key() noexcept = default;
 
-        void _derive() noexcept {
+        SGCL_INLINE_HOT void _derive() noexcept {
             detail::scalarmult_base(detail::bytes(_public._bytes.data()), detail::bytes(_secret.data()));
         }
 
@@ -333,7 +333,7 @@ namespace sgcl::crypto::x25519 {
             }
         }
 
-        void _wipe() noexcept {
+        SGCL_INLINE_HOT void _wipe() noexcept {
             detail::secure_zero_object(_secret);
             detail::secure_zero_object(_public._bytes);
         }

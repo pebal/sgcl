@@ -66,10 +66,10 @@ namespace sgcl::concurrent {
         // element may hold tracked pointers, and the queue constructs
         // the element and destroys it in place.
         struct Cell {
-            Cell() noexcept {
+            SGCL_INLINE_HOT Cell() noexcept {
             }
 
-            ~Cell() {
+            SGCL_INLINE_HOT ~Cell() {
             }
 
             atomic<size_t> sequence;
@@ -121,11 +121,11 @@ namespace sgcl::concurrent {
         }
 
         // The element appended, or false when the queue is full
-        bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT bool try_push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             return try_emplace(value);
         }
 
-        bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT bool try_push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             return try_emplace(std::move(value));
         }
 
@@ -194,29 +194,29 @@ namespace sgcl::concurrent {
 
         // The number of cells: the capacity asked for, rounded up to a
         // power of two
-        size_type capacity() const noexcept {
+        SGCL_INLINE_HOT size_type capacity() const noexcept {
             return _mask + 1;
         }
 
         // The number of elements: the tail less the head, exact on the
         // producer's thread and the consumer's, of some moment elsewhere
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             auto head = _head.load(std::memory_order_acquire);
             auto tail = _tail.load(std::memory_order_acquire);
             auto n = tail - head;
             return n < capacity() ? n : capacity();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size() == 0;
         }
 
-        bool full() const noexcept {
+        SGCL_INLINE_HOT bool full() const noexcept {
             return size() == capacity();
         }
 
     private:
-        Cell& _cell(size_type pos) const noexcept {
+        SGCL_INLINE_HOT Cell& _cell(size_type pos) const noexcept {
             return _cells.get()[pos & _mask];   // the pointer no thread writes after construction: a relaxed load
         }
 
@@ -232,7 +232,7 @@ namespace sgcl::concurrent {
         // be anyway. One waiter at most on a cell: a side waits on the
         // cell at its own position, and the queue is not full and empty
         // at once.
-        void _publish(Cell& cell, size_type seq) noexcept {
+        SGCL_INLINE_HOT void _publish(Cell& cell, size_type seq) noexcept {
             cell.sequence.store(seq, std::memory_order_seq_cst);
             if (_waiters.load(std::memory_order_seq_cst)) {
                 cell.sequence.notify_one();

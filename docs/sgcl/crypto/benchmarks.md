@@ -6,7 +6,7 @@ The setup, the machine and how the timers are read are described with [the bench
 
 ## ML-KEM (FIPS 203)
 
-`bench_mlkem <case> <sgcl|openssl>` and `benchmarks/go/mlkem` (Go 1.27.1's `crypto/mlkem`, which has no ML-KEM-512), the same seed on every side; nanoseconds per operation, each process timed for about two seconds after a quarter of a second thrown away; three rounds, the sides alternated case by case, the median and the smallest and largest of the three (Apple silicon, 2026-09-29, a load of about 3 from the user's own programs; the run of 2026-09-27 on a quiet machine gave every side 3 to 4 % less, the ratios the same):
+`bench_mlkem <case> <sgcl|openssl>` and `benchmarks/go/mlkem` (Go 1.27.1's `crypto/mlkem`, which has no ML-KEM-512), the same seed on every side; nanoseconds per operation, each process timed for about two seconds after a quarter of a second thrown away; three rounds, the sides alternated case by case, the median and the smallest and largest of the three (Apple silicon, 2026-09-29, a load of about 3 from the user's own programs; the run of 2026-09-27 on a quiet machine gave every side 3 to 4 % less, the ratios the same). The SGCL column is from a run on 4 October 2026 at `-O3`, three processes a case in a clean environment (`env -i`; the shell of the earlier runs set `MallocNanoZone=0`, which turns macOS's nano allocator off); the OpenSSL and Go columns are from the run of 2026-09-29, not run again, and the ratios set the new medians against theirs:
 
 - `keygen`: a decapsulation key from its seed of 64 bytes, and its encapsulation key (`decapsulation_key::from_seed` and `encapsulation_key()`, against `EVP_PKEY_generate` with the "seed" parameter and `EVP_PKEY_get_raw_public_key`, against `NewDecapsulationKey768`);
 - `import`: an encapsulation key read from its bytes (`encapsulation_key::from_bytes`, its check of §7.2 and the matrix Â it makes, against `EVP_PKEY_new_raw_public_key_ex`, against `NewEncapsulationKey768`);
@@ -15,18 +15,18 @@ The setup, the machine and how the timers are read are described with [the bench
 
 | Case | SGCL | OpenSSL | Go | SGCL / OpenSSL | SGCL / Go |
 |---|---|---|---|---|---|
-| keygen512 | 15 390 (15 347–15 409) | 19 948 (19 924–20 025) | — | 0.77 | — |
-| keygen768 | 23 419 (23 372–23 494) | 30 750 (30 686–30 809) | 35 342 (35 178–35 380) | 0.76 | 0.66 |
-| keygen1024 | 35 523 (35 277–35 898) | 44 692 (44 608–44 857) | 54 245 (53 947–54 563) | 0.79 | 0.65 |
-| import512 | 6 316 (6 193–6 321) | 6 680 (6 471–6 708) | — | 0.95 | — |
-| import768 | 11 842 (11 418–11 875) | 11 258 (11 043–11 402) | 10 760 (10 758–10 993) | 1.05 | 1.10 |
-| import1024 | 19 565 (19 420–19 845) | 17 606 (17 574–17 706) | 18 179 (18 095–18 249) | 1.11 | 1.08 |
-| encaps512 | 10 466 (10 466–10 486) | 14 878 (14 860–14 878) | — | 0.70 | — |
-| encaps768 | 14 061 (14 058–14 177) | 21 475 (21 440–21 660) | 30 371 (29 936–30 949) | 0.65 | 0.46 |
-| encaps1024 | 19 032 (18 386–19 044) | 29 094 (28 862–29 919) | 47 556 (47 419–47 793) | 0.65 | 0.40 |
-| decaps512 | 16 337 (16 247–16 535) | 23 495 (23 406–23 544) | — | 0.70 | — |
-| decaps768 | 22 097 (21 937–22 119) | 33 556 (33 183–33 568) | 45 338 (45 038–45 505) | 0.66 | 0.49 |
-| decaps1024 | 29 315 (29 157–29 479) | 44 924 (44 819–45 112) | 72 068 (71 869–72 076) | 0.65 | 0.41 |
+| keygen512 | 13 927 (13 873–13 931) | 19 948 (19 924–20 025) | — | 0.70 | — |
+| keygen768 | 21 121 (21 111–21 182) | 30 750 (30 686–30 809) | 35 342 (35 178–35 380) | 0.69 | 0.60 |
+| keygen1024 | 32 453 (32 402–32 900) | 44 692 (44 608–44 857) | 54 245 (53 947–54 563) | 0.73 | 0.60 |
+| import512 | 5 920 (5 920–5 929) | 6 680 (6 471–6 708) | — | 0.89 | — |
+| import768 | 11 684 (11 679–11 692) | 11 258 (11 043–11 402) | 10 760 (10 758–10 993) | 1.04 | 1.09 |
+| import1024 | 19 275 (19 210–19 344) | 17 606 (17 574–17 706) | 18 179 (18 095–18 249) | 1.09 | 1.06 |
+| encaps512 | 9 371 (9 335–9 395) | 14 878 (14 860–14 878) | — | 0.63 | — |
+| encaps768 | 12 535 (12 532–12 778) | 21 475 (21 440–21 660) | 30 371 (29 936–30 949) | 0.58 | 0.41 |
+| encaps1024 | 16 925 (16 829–16 932) | 29 094 (28 862–29 919) | 47 556 (47 419–47 793) | 0.58 | 0.36 |
+| decaps512 | 14 380 (14 378–14 387) | 23 495 (23 406–23 544) | — | 0.61 | — |
+| decaps768 | 19 210 (19 170–19 261) | 33 556 (33 183–33 568) | 45 338 (45 038–45 505) | 0.57 | 0.42 |
+| decaps1024 | 25 661 (25 636–25 687) | 44 924 (44 819–45 112) | 72 068 (71 869–72 076) | 0.57 | 0.36 |
 
 The code is the portable one: plain C++ that the compiler vectorizes where it can, no intrinsics in the transform (NEON for it is deferred: the table above leaves it little to win, and intrinsics would need the constant-time review again). SHAKE and SHA-3 run on the processor's SHA-3 instructions.
 
@@ -41,7 +41,7 @@ The code is the portable one: plain C++ that the compiler vectorizes where it ca
 
 The cost moved to reading a key, where OpenSSL and Go pay it too: for a key used once, reading it and encapsulating costs what it did (ML-KEM-768 26.4 µs before, 26.3 µs after; ML-KEM-1024 38.5 µs both); every further encapsulation to the same key is the gain.
 
-**The random bytes.** An encapsulation takes 32 bytes from [random](random/README.md). When that was a call into the system each time, fixing the message instead (the derandomized form the tests have) made an encapsulation 1.3 to 1.5 µs faster in every set (512: 15 146 → 13 640 ns, 768: 23 064 → 21 551, 1024: 34 027 → 32 749, measured before the matrix was kept). Since 2026-09-27 `random` is a ChaCha20 generator in the process, one per thread, seeded from the system (DESIGN 273), as OpenSSL's and Go's are: the encapsulations above are 4 to 10 % under the run of 2026-09-27 while every other case is 3 to 4 % over it with the load.
+**The random bytes.** An encapsulation takes 32 bytes from [random](random/README.md). When that was a call into the system each time, fixing the message instead (the derandomized form the tests have) made an encapsulation 1.3 to 1.5 µs faster in every set (512: 15 146 → 13 640 ns, 768: 23 064 → 21 551, 1024: 34 027 → 32 749, measured before the matrix was kept). Since 2026-09-27 `random` is a ChaCha20 generator in the process, one per thread, seeded from the system (DESIGN 273), as OpenSSL's and Go's are: in the run of 2026-09-29 the encapsulations were 4 to 10 % under the run of 2026-09-27 while every other case was 3 to 4 % over it with the load.
 
 ## random
 

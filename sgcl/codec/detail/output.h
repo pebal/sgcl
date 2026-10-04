@@ -25,7 +25,7 @@ namespace sgcl::codec::detail {
         vector<byte>& out;
         optional<error> failure;   // the encoder's refusal; put never fails
 
-        bool put(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT bool put(const uint8_t* p, size_t n) noexcept {
             const auto* b = reinterpret_cast<const byte*>(p);
             out.insert(out.end(), b, b + n);
             return true;
@@ -38,7 +38,7 @@ namespace sgcl::codec::detail {
         uint64_t written = 0;
         optional<error> failure;
 
-        bool put(const uint8_t* p, size_t n) {
+        SGCL_INLINE_HOT bool put(const uint8_t* p, size_t n) {
             auto w = out.write(slice<const byte>(reinterpret_cast<const byte*>(p), n));
             if (!w) {
                 failure = error(w.error(), written);

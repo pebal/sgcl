@@ -79,13 +79,13 @@ namespace sgcl::compress::detail {
             return nullptr;
         }
 
-        void update(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void update(const uint8_t* p, size_t n) noexcept {
             sum.update(slice<const byte>(reinterpret_cast<const byte*>(p), n));
             size += uint32_t(n);
         }
 
         template<class Out>
-        void finish(Out& out) noexcept {
+        SGCL_INLINE_HOT void finish(Out& out) noexcept {
             put_le32(out, sum.value());
             put_le32(out, size);
         }
@@ -155,7 +155,7 @@ namespace sgcl::compress::detail {
             return Parsed::done(at);
         }
 
-        Parsed trailer(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT Parsed trailer(const uint8_t* p, size_t n) noexcept {
             if (n < 8) {
                 return Parsed::need();
             }
@@ -168,7 +168,7 @@ namespace sgcl::compress::detail {
             return Parsed::done(8);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             sum = hash::crc32();
             size = 0;
         }
@@ -224,7 +224,7 @@ namespace sgcl::compress {
         static async::task<expected<void, error>> async_decompress_file(string path) noexcept;
         static async::task<expected<void, error>> async_decompress_file(string path, file_options o) noexcept;
 
-        static vector<byte> compress(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const slice<const byte>& data) noexcept {
             return compress(data, options{});
         }
 
@@ -232,17 +232,17 @@ namespace sgcl::compress {
         // NUL, an extra field past 65535 bytes — is the program's mistake:
         // std::invalid_argument (the writer's first write reports it as
         // errc::invalid_argument)
-        static vector<byte> compress(const slice<const byte>& data, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const slice<const byte>& data, const options& o) {
             detail::GzipFormat f;
             f.head = o.header;
             return detail::compress_all(detail::bytes(data), data.size(), o.level.value(), f, {});
         }
 
-        static vector<byte> compress(const string& text) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text) noexcept {
             return compress(io::detail::bytes_of(text), options{});
         }
 
-        static vector<byte> compress(const string& text, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text, const options& o) {
             return compress(io::detail::bytes_of(text), o);
         }
 
@@ -250,21 +250,21 @@ namespace sgcl::compress {
         // bytes as the string's overload takes them (an exact match, else
         // the two conversions, to a string and to bytes, tie)
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text) noexcept {
             return compress(slice<const byte>(text), options{});
         }
 
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text, const options& o) {
             return compress(slice<const byte>(text), o);
         }
 
         // Every member, one after another
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data) {
             return decompress(data, limits{});
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l) {
             // the length of the last member is the size to expect
             size_t hint = data.size() >= 18 ? detail::le32(detail::bytes(data) + data.size() - 4) : 0;
             return detail::decompress_all(detail::bytes(data), data.size(), l, detail::GzipFormat(), {}, std::min<size_t>(hint, size_t(l.max_size)));
@@ -280,20 +280,20 @@ namespace sgcl::compress {
     public:
         writer(writer&&) noexcept = default;   // the other left closed (detail/stream.h)
 
-        writer& operator=(writer&& o) noexcept {
+        SGCL_INLINE_HOT writer& operator=(writer&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
-        explicit writer(const io::writer& out) noexcept
+        SGCL_INLINE_HOT explicit writer(const io::writer& out) noexcept
         : writer(out, options{}) {
         }
 
-        writer(const io::writer& out, const options& o) noexcept
+        SGCL_INLINE_HOT writer(const io::writer& out, const options& o) noexcept
         : DeflateWriter(out, o.level.value(), _format(o), {}) {
         }
 
     private:
-        static detail::GzipFormat _format(const options& o) noexcept {
+        SGCL_INLINE_HOT static detail::GzipFormat _format(const options& o) noexcept {
             detail::GzipFormat f;
             f.head = o.header;
             return f;
@@ -305,20 +305,20 @@ namespace sgcl::compress {
     public:
         reader(reader&&) noexcept = default;   // the other left closed (detail/stream.h)
 
-        reader& operator=(reader&& o) noexcept {
+        SGCL_INLINE_HOT reader& operator=(reader&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : InflateReader(in, {}) {
         }
 
-        reader(const io::reader& in, gzip::single_member_t) noexcept
+        SGCL_INLINE_HOT reader(const io::reader& in, gzip::single_member_t) noexcept
         : InflateReader(in, {}, true) {
         }
 
         // The header of the current member, read now if it was not yet
-        expected<gzip::header, error> header() {
+        SGCL_INLINE_HOT expected<gzip::header, error> header() {
             auto f = _header_now();
             if (!f) {
                 return unexpected<error>(f.error());
@@ -463,35 +463,35 @@ namespace sgcl::compress {
         }
     }
 
-    inline expected<void, error> gzip::compress_file(const string& path) {
+    SGCL_INLINE_HOT expected<void, error> gzip::compress_file(const string& path) {
         return compress_file(path, file_options{});
     }
 
-    inline expected<void, error> gzip::compress_file(const string& path, const file_options& o) {
+    SGCL_INLINE_HOT expected<void, error> gzip::compress_file(const string& path, const file_options& o) {
         return detail::gzip_compress_file(path, o.level, o.keep);
     }
 
-    inline async::task<expected<void, error>> gzip::async_compress_file(string path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> gzip::async_compress_file(string path) noexcept {
         return async_compress_file(std::move(path), file_options{});
     }
 
-    inline async::task<expected<void, error>> gzip::async_compress_file(string path, file_options o) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> gzip::async_compress_file(string path, file_options o) noexcept {
         return detail::gzip_compress_file_task(std::move(path), o.level, o.keep);
     }
 
-    inline expected<void, error> gzip::decompress_file(const string& path) {
+    SGCL_INLINE_HOT expected<void, error> gzip::decompress_file(const string& path) {
         return decompress_file(path, file_options{});
     }
 
-    inline expected<void, error> gzip::decompress_file(const string& path, const file_options& o) {
+    SGCL_INLINE_HOT expected<void, error> gzip::decompress_file(const string& path, const file_options& o) {
         return detail::gzip_decompress_file(path, o.keep);
     }
 
-    inline async::task<expected<void, error>> gzip::async_decompress_file(string path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> gzip::async_decompress_file(string path) noexcept {
         return async_decompress_file(std::move(path), file_options{});
     }
 
-    inline async::task<expected<void, error>> gzip::async_decompress_file(string path, file_options o) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, error>> gzip::async_decompress_file(string path, file_options o) noexcept {
         return detail::gzip_decompress_file_task(std::move(path), o.keep);
     }
 }

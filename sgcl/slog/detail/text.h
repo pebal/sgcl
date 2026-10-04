@@ -36,61 +36,61 @@ namespace sgcl::slog::detail {
         Buf(const Buf&) = delete;
         Buf& operator=(const Buf&) = delete;
 
-        ~Buf() {
+        SGCL_INLINE_HOT ~Buf() {
             std::free(_p);
         }
 
-        char* data() noexcept {
+        SGCL_INLINE_HOT char* data() noexcept {
             return _p;
         }
 
-        const char* data() const noexcept {
+        SGCL_INLINE_HOT const char* data() const noexcept {
             return _p;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _n;
         }
 
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _cap;
         }
 
-        std::string_view view() const noexcept {
+        SGCL_INLINE_HOT std::string_view view() const noexcept {
             return std::string_view(_p, _n);
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _n = 0;
         }
 
         // Back to the first n bytes (a group that came out empty)
-        void resize_down(size_t n) noexcept {
+        SGCL_INLINE_HOT void resize_down(size_t n) noexcept {
             _n = n;
         }
 
         // Room for k more bytes, at the end: the caller writes there and
         // then says how many it wrote (commit). The members that grow
         // cannot throw: a failed realloc ends the program (os::memory_refused)
-        char* reserve(size_t k) noexcept {
+        SGCL_INLINE_HOT char* reserve(size_t k) noexcept {
             if (_cap - _n < k) [[unlikely]] {
                 _grow(_n + k);
             }
             return _p + _n;
         }
 
-        void commit(size_t k) noexcept {
+        SGCL_INLINE_HOT void commit(size_t k) noexcept {
             _n += k;
         }
 
-        void put(char c) noexcept {
+        SGCL_INLINE_HOT void put(char c) noexcept {
             if (_n == _cap) [[unlikely]] {
                 _grow(_n + 1);
             }
             _p[_n++] = c;
         }
 
-        void put(const char* s, size_t k) noexcept {
+        SGCL_INLINE_HOT void put(const char* s, size_t k) noexcept {
             if (_cap - _n < k) [[unlikely]] {
                 _grow(_n + k);
             }
@@ -100,11 +100,11 @@ namespace sgcl::slog::detail {
             _n += k;
         }
 
-        void put(std::string_view s) noexcept {
+        SGCL_INLINE_HOT void put(std::string_view s) noexcept {
             put(s.data(), s.size());
         }
 
-        char back() const noexcept {
+        SGCL_INLINE_HOT char back() const noexcept {
             return _p[_n - 1];
         }
 
@@ -255,7 +255,7 @@ namespace sgcl::slog::detail {
     }
 
     // A text as the text handler writes it: as it is, or in quotes
-    inline void text_string(Buf& b, const char* s, size_t n) noexcept {
+    SGCL_INLINE_HOT void text_string(Buf& b, const char* s, size_t n) noexcept {
         if (!text_needs_quoting(s, n)) {
             b.put(s, n);
             return;
@@ -329,7 +329,7 @@ namespace sgcl::slog::detail {
         b.put(s + start, i - start);
     }
 
-    inline void json_string(Buf& b, const char* s, size_t n, bool marshal = false) noexcept {
+    SGCL_INLINE_HOT void json_string(Buf& b, const char* s, size_t n, bool marshal = false) noexcept {
         b.put('"');
         json_escaped(b, s, n, marshal);
         b.put('"');
@@ -349,7 +349,7 @@ namespace sgcl::slog::detail {
         b.commit(size_t(k));
     }
 
-    inline void put_int(Buf& b, int64_t v) noexcept {
+    SGCL_INLINE_HOT void put_int(Buf& b, int64_t v) noexcept {
         if (v < 0) {
             b.put('-');
             put_uint(b, uint64_t(0) - uint64_t(v));
@@ -603,7 +603,7 @@ namespace sgcl::slog::detail {
         year = int(int64_t(yoe) + era * 400 + (month <= 2));
     }
 
-    inline int64_t floor_div(int64_t a, int64_t b) noexcept {
+    SGCL_INLINE_HOT int64_t floor_div(int64_t a, int64_t b) noexcept {
         int64_t q = a / b;
         return (a % b != 0 && ((a < 0) != (b < 0))) ? q - 1 : q;
     }

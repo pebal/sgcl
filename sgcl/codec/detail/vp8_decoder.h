@@ -71,7 +71,7 @@ namespace sgcl::codec::detail::vp8 {
         }
 
         // A magnitude of n bits and its sign
-        int32_t signed_literal(unsigned n) noexcept {
+        SGCL_INLINE_HOT int32_t signed_literal(unsigned n) noexcept {
             const int32_t v = int32_t(literal(n));
             return bit(128) ? -v : v;
         }
@@ -85,11 +85,11 @@ namespace sgcl::codec::detail::vp8 {
             return -i;
         }
 
-        bool eof() const noexcept {
+        SGCL_INLINE_HOT bool eof() const noexcept {
             return _eof;
         }
 
-        bool bad_start() const noexcept {
+        SGCL_INLINE_HOT bool bad_start() const noexcept {
             return _bad_start;
         }
 
@@ -150,7 +150,7 @@ namespace sgcl::codec::detail::vp8 {
     inline constexpr const uint8_t* Pcats[6] = {Pcat1, Pcat2, Pcat3, Pcat4, Pcat5, Pcat6};
     inline constexpr int CatBase[6] = {5, 7, 11, 19, 35, 67};
 
-    inline uint8_t clamp255(int v) noexcept {
+    SGCL_INLINE_HOT uint8_t clamp255(int v) noexcept {
         return uint8_t(v < 0 ? 0 : v > 255 ? 255 : v);
     }
 
@@ -242,15 +242,15 @@ namespace sgcl::codec::detail::vp8 {
 
 #if defined(SGCL_CODEC_NEON)
     namespace idct4 {
-        inline int32x4_t mul_s1(int32x4_t x) noexcept {   // x·S1 >> 16
+        SGCL_INLINE_HOT int32x4_t mul_s1(int32x4_t x) noexcept {   // x·S1 >> 16
             return vaddq_s32(x, vshrq_n_s32(vmulq_n_s32(x, S1m), 16));
         }
 
-        inline int32x4_t mul_c1(int32x4_t x) noexcept {   // x + x·C1 >> 16
+        SGCL_INLINE_HOT int32x4_t mul_c1(int32x4_t x) noexcept {   // x + x·C1 >> 16
             return vaddq_s32(x, vshrq_n_s32(vmulq_n_s32(x, C1), 16));
         }
 
-        inline void transpose(int32x4_t& a, int32x4_t& b, int32x4_t& c, int32x4_t& d) noexcept {
+        SGCL_INLINE_HOT void transpose(int32x4_t& a, int32x4_t& b, int32x4_t& c, int32x4_t& d) noexcept {
             const int32x4x2_t ab = vtrnq_s32(a, b), cd = vtrnq_s32(c, d);
             a = vcombine_s32(vget_low_s32(ab.val[0]), vget_low_s32(cd.val[0]));
             b = vcombine_s32(vget_low_s32(ab.val[1]), vget_low_s32(cd.val[1]));
@@ -319,11 +319,11 @@ namespace sgcl::codec::detail::vp8 {
             return _mm_add_epi32(mul32(xh, kk), _mm_srai_epi32(mul32(xl, kk), 16));
         }
 
-        inline __m128i mul_s1(__m128i x) noexcept {
+        SGCL_INLINE_HOT __m128i mul_s1(__m128i x) noexcept {
             return _mm_add_epi32(x, mulhi(x, S1m));
         }
 
-        inline __m128i mul_c1(__m128i x) noexcept {
+        SGCL_INLINE_HOT __m128i mul_c1(__m128i x) noexcept {
             return _mm_add_epi32(x, mulhi(x, C1));
         }
 
@@ -389,7 +389,7 @@ namespace sgcl::codec::detail::vp8 {
 #endif
 #endif
 
-    inline void inverse_dct_add(const int16_t* in, uint8_t* dst, ptrdiff_t stride) noexcept {
+    SGCL_INLINE_HOT void inverse_dct_add(const int16_t* in, uint8_t* dst, ptrdiff_t stride) noexcept {
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         if (inverse_dct_add_vector(in, dst, stride)) {
             return;
@@ -466,15 +466,15 @@ namespace sgcl::codec::detail::vp8 {
 
     // The loop filter's arithmetic (RFC 6386 §15.2, §15.3)
     namespace filter {
-        inline int c8(int v) noexcept {
+        SGCL_INLINE_HOT int c8(int v) noexcept {
             return v < -128 ? -128 : v > 127 ? 127 : v;
         }
 
-        inline int u2s(uint8_t v) noexcept {
+        SGCL_INLINE_HOT int u2s(uint8_t v) noexcept {
             return int(v) - 128;
         }
 
-        inline uint8_t s2u(int v) noexcept {
+        SGCL_INLINE_HOT uint8_t s2u(int v) noexcept {
             return uint8_t(c8(v) + 128);
         }
 
@@ -489,18 +489,18 @@ namespace sgcl::codec::detail::vp8 {
             return a;
         }
 
-        inline bool simple_yes(const uint8_t* q, ptrdiff_t step, int edge) noexcept {
+        SGCL_INLINE_HOT bool simple_yes(const uint8_t* q, ptrdiff_t step, int edge) noexcept {
             return std::abs(q[-step] - q[0]) * 2 + std::abs(q[-2 * step] - q[step]) / 2 <= edge;
         }
 
-        inline bool normal_yes(const uint8_t* q, ptrdiff_t step, int interior, int edge) noexcept {
+        SGCL_INLINE_HOT bool normal_yes(const uint8_t* q, ptrdiff_t step, int interior, int edge) noexcept {
             const int p3 = q[-4 * step], p2 = q[-3 * step], p1 = q[-2 * step], p0 = q[-step];
             const int q0 = q[0], q1 = q[step], q2 = q[2 * step], q3 = q[3 * step];
             return std::abs(p0 - q0) * 2 + std::abs(p1 - q1) / 2 <= edge && std::abs(p3 - p2) <= interior && std::abs(p2 - p1) <= interior &&
                    std::abs(p1 - p0) <= interior && std::abs(q3 - q2) <= interior && std::abs(q2 - q1) <= interior && std::abs(q1 - q0) <= interior;
         }
 
-        inline bool hev(const uint8_t* q, ptrdiff_t step, int threshold) noexcept {
+        SGCL_INLINE_HOT bool hev(const uint8_t* q, ptrdiff_t step, int threshold) noexcept {
             return std::abs(q[-2 * step] - q[-step]) > threshold || std::abs(q[step] - q[0]) > threshold;
         }
 
@@ -570,81 +570,81 @@ namespace sgcl::codec::detail::vp8 {
         using U8 = uint8x16_t;
         using S8 = int8x16_t;
 
-        inline U8 dup(int v) noexcept {
+        SGCL_INLINE_HOT U8 dup(int v) noexcept {
             return vdupq_n_u8(uint8_t(v));
         }
 
-        inline S8 flip(U8 x) noexcept {
+        SGCL_INLINE_HOT S8 flip(U8 x) noexcept {
             return vreinterpretq_s8_u8(veorq_u8(x, vdupq_n_u8(0x80)));
         }
 
-        inline U8 unflip(S8 x) noexcept {
+        SGCL_INLINE_HOT U8 unflip(S8 x) noexcept {
             return veorq_u8(vreinterpretq_u8_s8(x), vdupq_n_u8(0x80));
         }
 
-        inline U8 abd(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 abd(U8 a, U8 b) noexcept {
             return vabdq_u8(a, b);
         }
 
-        inline U8 le(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 le(U8 a, U8 b) noexcept {
             return vcleq_u8(a, b);
         }
 
-        inline U8 gt(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 gt(U8 a, U8 b) noexcept {
             return vcgtq_u8(a, b);
         }
 
-        inline U8 both(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 both(U8 a, U8 b) noexcept {
             return vandq_u8(a, b);
         }
 
-        inline U8 either(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 either(U8 a, U8 b) noexcept {
             return vorrq_u8(a, b);
         }
 
-        inline S8 sdup(int v) noexcept {
+        SGCL_INLINE_HOT S8 sdup(int v) noexcept {
             return vdupq_n_s8(int8_t(v));
         }
 
-        inline U8 but_not(U8 a, U8 b) noexcept {   // a and not b
+        SGCL_INLINE_HOT U8 but_not(U8 a, U8 b) noexcept {   // a and not b
             return vbicq_u8(a, b);
         }
 
-        inline U8 select(U8 mask, U8 yes, U8 no) noexcept {
+        SGCL_INLINE_HOT U8 select(U8 mask, U8 yes, U8 no) noexcept {
             return vbslq_u8(mask, yes, no);
         }
 
-        inline S8 sadd(S8 a, S8 b) noexcept {
+        SGCL_INLINE_HOT S8 sadd(S8 a, S8 b) noexcept {
             return vqaddq_s8(a, b);
         }
 
-        inline S8 ssub(S8 a, S8 b) noexcept {
+        SGCL_INLINE_HOT S8 ssub(S8 a, S8 b) noexcept {
             return vqsubq_s8(a, b);
         }
 
-        inline S8 shr3(S8 a) noexcept {
+        SGCL_INLINE_HOT S8 shr3(S8 a) noexcept {
             return vshrq_n_s8(a, 3);
         }
 
-        inline S8 half_up(S8 a) noexcept {   // (a + 1) >> 1
+        SGCL_INLINE_HOT S8 half_up(S8 a) noexcept {   // (a + 1) >> 1
             return vrshrq_n_s8(a, 1);
         }
 
-        inline U8 sadd_u(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 sadd_u(U8 a, U8 b) noexcept {
             return vqaddq_u8(a, b);
         }
 
-        inline U8 half_u(U8 a) noexcept {
+        SGCL_INLINE_HOT U8 half_u(U8 a) noexcept {
             return vshrq_n_u8(a, 1);
         }
 
-        inline S8 sand(S8 a, U8 mask) noexcept {
+        SGCL_INLINE_HOT S8 sand(S8 a, U8 mask) noexcept {
             return vreinterpretq_s8_u8(vandq_u8(vreinterpretq_u8_s8(a), mask));
         }
 
         // c8((k·w + 63) >> 7)
         template<int K>
-        inline S8 tap(S8 w) noexcept {
+        SGCL_INLINE_HOT S8 tap(S8 w) noexcept {
             const int16x8_t lo = vshrq_n_s16(vmlaq_n_s16(vdupq_n_s16(63), vmovl_s8(vget_low_s8(w)), K), 7);
             const int16x8_t hi = vshrq_n_s16(vmlaq_n_s16(vdupq_n_s16(63), vmovl_s8(vget_high_s8(w)), K), 7);
             return vcombine_s8(vqmovn_s16(lo), vqmovn_s16(hi));
@@ -706,11 +706,11 @@ namespace sgcl::codec::detail::vp8 {
             }
         }
 
-        inline U8 load(const uint8_t* p, const uint8_t* p2) noexcept {
+        SGCL_INLINE_HOT U8 load(const uint8_t* p, const uint8_t* p2) noexcept {
             return p2 ? vcombine_u8(vld1_u8(p), vld1_u8(p2)) : vld1q_u8(p);
         }
 
-        inline void store(uint8_t* p, uint8_t* p2, U8 v) noexcept {
+        SGCL_INLINE_HOT void store(uint8_t* p, uint8_t* p2, U8 v) noexcept {
             if (p2) {
                 vst1_u8(p, vget_low_u8(v));
                 vst1_u8(p2, vget_high_u8(v));
@@ -722,89 +722,89 @@ namespace sgcl::codec::detail::vp8 {
         using U8 = __m128i;
         using S8 = __m128i;
 
-        inline U8 dup(int v) noexcept {
+        SGCL_INLINE_HOT U8 dup(int v) noexcept {
             return _mm_set1_epi8(char(v));
         }
 
-        inline S8 flip(U8 x) noexcept {
+        SGCL_INLINE_HOT S8 flip(U8 x) noexcept {
             return _mm_xor_si128(x, _mm_set1_epi8(char(0x80)));
         }
 
-        inline U8 unflip(S8 x) noexcept {
+        SGCL_INLINE_HOT U8 unflip(S8 x) noexcept {
             return _mm_xor_si128(x, _mm_set1_epi8(char(0x80)));
         }
 
-        inline U8 abd(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 abd(U8 a, U8 b) noexcept {
             return _mm_or_si128(_mm_subs_epu8(a, b), _mm_subs_epu8(b, a));
         }
 
-        inline U8 le(U8 a, U8 b) noexcept {   // a <= b, unsigned
+        SGCL_INLINE_HOT U8 le(U8 a, U8 b) noexcept {   // a <= b, unsigned
             return _mm_cmpeq_epi8(_mm_subs_epu8(a, b), _mm_setzero_si128());
         }
 
-        inline U8 gt(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 gt(U8 a, U8 b) noexcept {
             return _mm_xor_si128(le(a, b), _mm_set1_epi8(char(0xFF)));
         }
 
-        inline U8 both(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 both(U8 a, U8 b) noexcept {
             return _mm_and_si128(a, b);
         }
 
-        inline U8 either(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 either(U8 a, U8 b) noexcept {
             return _mm_or_si128(a, b);
         }
 
-        inline S8 sdup(int v) noexcept {
+        SGCL_INLINE_HOT S8 sdup(int v) noexcept {
             return _mm_set1_epi8(char(v));
         }
 
-        inline U8 but_not(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 but_not(U8 a, U8 b) noexcept {
             return _mm_andnot_si128(b, a);
         }
 
-        inline U8 select(U8 mask, U8 yes, U8 no) noexcept {
+        SGCL_INLINE_HOT U8 select(U8 mask, U8 yes, U8 no) noexcept {
             return _mm_or_si128(_mm_and_si128(mask, yes), _mm_andnot_si128(mask, no));
         }
 
-        inline S8 sadd(S8 a, S8 b) noexcept {
+        SGCL_INLINE_HOT S8 sadd(S8 a, S8 b) noexcept {
             return _mm_adds_epi8(a, b);
         }
 
-        inline S8 ssub(S8 a, S8 b) noexcept {
+        SGCL_INLINE_HOT S8 ssub(S8 a, S8 b) noexcept {
             return _mm_subs_epi8(a, b);
         }
 
         // arithmetic shifts of bytes through 16-bit lanes (the byte in the
         // high half, shifted down 8 more)
         template<int N>
-        inline S8 sar(S8 a) noexcept {
+        SGCL_INLINE_HOT S8 sar(S8 a) noexcept {
             const __m128i lo = _mm_srai_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), 8 + N);
             const __m128i hi = _mm_srai_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), 8 + N);
             return _mm_packs_epi16(lo, hi);
         }
 
-        inline S8 shr3(S8 a) noexcept {
+        SGCL_INLINE_HOT S8 shr3(S8 a) noexcept {
             return sar<3>(a);
         }
 
-        inline S8 half_up(S8 a) noexcept {   // (a + 1) >> 1 on a within ±16
+        SGCL_INLINE_HOT S8 half_up(S8 a) noexcept {   // (a + 1) >> 1 on a within ±16
             return sar<1>(_mm_add_epi8(a, _mm_set1_epi8(1)));
         }
 
-        inline U8 sadd_u(U8 a, U8 b) noexcept {
+        SGCL_INLINE_HOT U8 sadd_u(U8 a, U8 b) noexcept {
             return _mm_adds_epu8(a, b);
         }
 
-        inline U8 half_u(U8 a) noexcept {
+        SGCL_INLINE_HOT U8 half_u(U8 a) noexcept {
             return _mm_and_si128(_mm_srli_epi16(a, 1), _mm_set1_epi8(0x7F));
         }
 
-        inline S8 sand(S8 a, U8 mask) noexcept {
+        SGCL_INLINE_HOT S8 sand(S8 a, U8 mask) noexcept {
             return _mm_and_si128(a, mask);
         }
 
         template<int K>
-        inline S8 tap(S8 w) noexcept {
+        SGCL_INLINE_HOT S8 tap(S8 w) noexcept {
             const __m128i k = _mm_set1_epi16(K), r = _mm_set1_epi16(63);
             const __m128i lo = _mm_srai_epi16(_mm_add_epi16(_mm_mullo_epi16(_mm_srai_epi16(_mm_unpacklo_epi8(w, w), 8), k), r), 7);
             const __m128i hi = _mm_srai_epi16(_mm_add_epi16(_mm_mullo_epi16(_mm_srai_epi16(_mm_unpackhi_epi8(w, w), 8), k), r), 7);
@@ -859,12 +859,12 @@ namespace sgcl::codec::detail::vp8 {
             }
         }
 
-        inline U8 load(const uint8_t* p, const uint8_t* p2) noexcept {
+        SGCL_INLINE_HOT U8 load(const uint8_t* p, const uint8_t* p2) noexcept {
             return p2 ? _mm_unpacklo_epi64(_mm_loadl_epi64(reinterpret_cast<const __m128i*>(p)), _mm_loadl_epi64(reinterpret_cast<const __m128i*>(p2)))
                       : _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));
         }
 
-        inline void store(uint8_t* p, uint8_t* p2, U8 v) noexcept {
+        SGCL_INLINE_HOT void store(uint8_t* p, uint8_t* p2, U8 v) noexcept {
             if (p2) {
                 _mm_storel_epi64(reinterpret_cast<__m128i*>(p), v);
                 _mm_storel_epi64(reinterpret_cast<__m128i*>(p2), _mm_srli_si128(v, 8));
@@ -879,7 +879,7 @@ namespace sgcl::codec::detail::vp8 {
         enum Kind { Simple, Subblock, Macroblock };
 
         // c8(c8(p1 - q1)·outer + 3 (q0 - p0)) as saturating steps
-        inline S8 value(S8 p1, S8 p0, S8 q0, S8 q1, U8 outer) noexcept {
+        SGCL_INLINE_HOT S8 value(S8 p1, S8 p0, S8 q0, S8 q1, U8 outer) noexcept {
             const S8 d = ssub(q0, p0);
             S8 a = sand(ssub(p1, q1), outer);
             a = sadd(a, d);
@@ -938,7 +938,7 @@ namespace sgcl::codec::detail::vp8 {
         // An edge down a column (step 1 across it): 16 rows from p, or 8
         // from p and 8 from p2 (U and V); p the first pixel after the edge
         template<Kind K>
-        inline void vertical_edge(uint8_t* p, uint8_t* p2, ptrdiff_t stride, int limit, int interior, int hev_threshold) noexcept {
+        SGCL_INLINE_HOT void vertical_edge(uint8_t* p, uint8_t* p2, ptrdiff_t stride, int limit, int interior, int hev_threshold) noexcept {
             U8 c[8];
             transpose_in(p - 4, p2 ? p2 - 4 : nullptr, stride, c);
             edge<K>(c, limit, interior, hev_threshold);
@@ -970,7 +970,7 @@ namespace sgcl::codec::detail::vp8 {
         // header checked (key frame, version 0..3, shown, the start code, a
         // size of neither side 0), then everything decoded. False with the
         // error; `at` the offset of the chunk, for its messages
-        bool decode(const uint8_t* data, size_t size, uint64_t at, optional<error>& err) noexcept {
+        SGCL_INLINE_HOT bool decode(const uint8_t* data, size_t size, uint64_t at, optional<error>& err) noexcept {
             _at = at;
             _beyond_encoders = false;
             _damage = Damage::none;
@@ -986,7 +986,7 @@ namespace sgcl::codec::detail::vp8 {
         // libwebp's paths (C, NEON's saturating 16 bits, SSE2's wrapping
         // ones) and Go (32-bit products) each give pixels of their own;
         // within it they and the module agree. For the tests
-        bool beyond_encoders() const noexcept {
+        SGCL_INLINE_HOT bool beyond_encoders() const noexcept {
             return _beyond_encoders;
         }
 
@@ -994,7 +994,7 @@ namespace sgcl::codec::detail::vp8 {
 
         // Why the last decode failed, when a partition was invalid (read
         // past its end, or a start no encoder writes); none otherwise
-        Damage damage() const noexcept {
+        SGCL_INLINE_HOT Damage damage() const noexcept {
             return _damage;
         }
 
@@ -1016,31 +1016,31 @@ namespace sgcl::codec::detail::vp8 {
             return width && height;
         }
 
-        uint32_t width() const noexcept {
+        SGCL_INLINE_HOT uint32_t width() const noexcept {
             return _width;
         }
 
-        uint32_t height() const noexcept {
+        SGCL_INLINE_HOT uint32_t height() const noexcept {
             return _height;
         }
 
-        const uint8_t* y() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* y() const noexcept {
             return _y.data();
         }
 
-        const uint8_t* u() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* u() const noexcept {
             return _u.data();
         }
 
-        const uint8_t* v() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* v() const noexcept {
             return _v.data();
         }
 
-        size_t y_stride() const noexcept {
+        SGCL_INLINE_HOT size_t y_stride() const noexcept {
             return size_t(_mbw) * 16;
         }
 
-        size_t uv_stride() const noexcept {
+        SGCL_INLINE_HOT size_t uv_stride() const noexcept {
             return size_t(_mbw) * 8;
         }
 
@@ -1502,7 +1502,7 @@ namespace sgcl::codec::detail::vp8 {
         // One macroblock predicted and its residue added, in the planes
         // A block's residue added by what it holds (a zero block adds
         // nothing), its coefficients zero again after
-        static void _add_residue(int16_t* c, uint8_t kind, uint8_t* dst, ptrdiff_t stride) noexcept {
+        SGCL_INLINE_HOT static void _add_residue(int16_t* c, uint8_t kind, uint8_t* dst, ptrdiff_t stride) noexcept {
             if (kind == BlockFull) {
                 inverse_dct_add(c, dst, stride);
                 std::memset(c, 0, 16 * sizeof(int16_t));
@@ -1590,7 +1590,7 @@ namespace sgcl::codec::detail::vp8 {
         // level first too, which gives another level when the segment's is
         // past 0..63 and the deltas bring it back (valid data; found with
         // files made so, tests/codec/webp.cpp)
-        int _filter_level(const MbInfo& m) const noexcept {
+        SGCL_INLINE_HOT int _filter_level(const MbInfo& m) const noexcept {
             int level = _level;
             if (_segmentation) {
                 level = _seg_absolute ? _seg_filter[m.segment] : level + _seg_filter[m.segment];

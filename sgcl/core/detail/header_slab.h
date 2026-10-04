@@ -23,7 +23,7 @@ namespace sgcl::detail {
         static constexpr size_t Alignment = config::cache_line_size;
         static constexpr size_t BlockSize = 0x10000;
 
-        explicit HeaderSlab(size_t size) noexcept
+        SGCL_INLINE_HOT explicit HeaderSlab(size_t size) noexcept
         : _size((size + Alignment - 1) & ~(Alignment - 1)) {
         }
 

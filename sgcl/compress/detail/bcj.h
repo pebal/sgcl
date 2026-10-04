@@ -55,7 +55,7 @@ namespace sgcl::compress::detail {
             std::memset(_history, 0, sizeof(_history));
         }
 
-        SimpleKind kind() const noexcept {
+        SGCL_INLINE_HOT SimpleKind kind() const noexcept {
             return _kind;
         }
 
@@ -96,21 +96,21 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        static uint32_t _le32(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT static uint32_t _le32(const uint8_t* p) noexcept {
             uint32_t v;
             std::memcpy(&v, p, 4);
             return v;
         }
 
-        static void _put_le32(uint8_t* p, uint32_t v) noexcept {
+        SGCL_INLINE_HOT static void _put_le32(uint8_t* p, uint32_t v) noexcept {
             std::memcpy(p, &v, 4);
         }
 
-        static uint32_t _be32(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT static uint32_t _be32(const uint8_t* p) noexcept {
             return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3];
         }
 
-        static void _put_be32(uint8_t* p, uint32_t v) noexcept {
+        SGCL_INLINE_HOT static void _put_be32(uint8_t* p, uint32_t v) noexcept {
             p[0] = uint8_t(v >> 24);
             p[1] = uint8_t(v >> 16);
             p[2] = uint8_t(v >> 8);
@@ -119,7 +119,7 @@ namespace sgcl::compress::detail {
 
         // An address `rel` bytes on from pc, or back: encoding adds the
         // position, decoding takes it away
-        uint32_t _shift(uint32_t v, uint32_t pc) const noexcept {
+        SGCL_INLINE_HOT uint32_t _shift(uint32_t v, uint32_t pc) const noexcept {
             return _encoder ? v + pc : v - pc;
         }
 
@@ -477,17 +477,17 @@ namespace sgcl::compress::detail {
     public:
         static constexpr size_t Capacity = size_t(64) << 10;
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             _stages.clear();
             _begin = _end = 0;
             std::fill(std::begin(_mark), std::end(_mark), 0);
         }
 
-        void add(const SimpleFilter& f) noexcept {
+        SGCL_INLINE_HOT void add(const SimpleFilter& f) noexcept {
             _stages.push_back(f);
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _stages.empty();
         }
 
@@ -507,17 +507,17 @@ namespace sgcl::compress::detail {
             return Capacity - _end;
         }
 
-        void push(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void push(const uint8_t* p, size_t n) noexcept {
             sgcl::detail::copy_bytes(_buffer.data() + _end, p, n);
             _end += n;
         }
 
         // Where the next bytes go, n of them written there: push without a copy
-        uint8_t* tail() noexcept {
+        SGCL_INLINE_HOT uint8_t* tail() noexcept {
             return _buffer.data() + _end;
         }
 
-        void pushed(size_t n) noexcept {
+        SGCL_INLINE_HOT void pushed(size_t n) noexcept {
             _end += n;
         }
 
@@ -533,20 +533,20 @@ namespace sgcl::compress::detail {
             }
         }
 
-        const uint8_t* ready() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* ready() const noexcept {
             return _buffer.data() + _begin;
         }
 
-        size_t ready_size() const noexcept {
+        SGCL_INLINE_HOT size_t ready_size() const noexcept {
             return _last() - _begin;
         }
 
-        void take(size_t n) noexcept {
+        SGCL_INLINE_HOT void take(size_t n) noexcept {
             _begin += n;
         }
 
         // Nothing held
-        bool drained() const noexcept {
+        SGCL_INLINE_HOT bool drained() const noexcept {
             return _begin == _end;
         }
 
@@ -558,7 +558,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        size_t _last() const noexcept {
+        SGCL_INLINE_HOT size_t _last() const noexcept {
             return _stages.empty() ? _end : _mark[_stages.size() - 1];
         }
 

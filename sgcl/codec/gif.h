@@ -35,7 +35,7 @@ namespace sgcl::codec {
             bool reading = false;   // in a read of the stream; still set after one that threw
 
             template<class Source>
-            GifFrames(const slice<const byte>& d, const Source& source, const decode_options& o) noexcept
+            SGCL_INLINE_HOT GifFrames(const slice<const byte>& d, const Source& source, const decode_options& o) noexcept
             : data(d), input(source), options(o), decoder(input, options) {
             }
 
@@ -130,27 +130,27 @@ namespace sgcl::codec {
     class gif {
     public:
         // The first frame, the file in memory read in place
-        static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+        SGCL_INLINE_HOT static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
             detail::MemoryInput in(data);
             return detail::gif_first(in, o);
         }
 
         // The first frame, from a stream read as far as it goes
-        static expected<image, error> decode(const io::reader& in, const decode_options& o = {}) {
+        SGCL_INLINE_HOT static expected<image, error> decode(const io::reader& in, const decode_options& o = {}) {
             detail::ReaderInput source(in);
             return detail::gif_first(source, o);
         }
 
         // Every frame, read one by one as next() asks. The bytes are held
         // while the frames live (a slice of unmanaged memory must outlive them)
-        static expected<codec::frames, error> frames(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+        SGCL_INLINE_HOT static expected<codec::frames, error> frames(const slice<const byte>& data, const decode_options& o = {}) noexcept {
 
             return detail::gif_frames<detail::MemoryInput>(data, data, o);
         }
 
         // Every frame from a stream, read as next() asks: memory the canvas
         // and a block of the stream, not the file
-        static expected<codec::frames, error> frames(const io::reader& in, const decode_options& o = {}) {
+        SGCL_INLINE_HOT static expected<codec::frames, error> frames(const io::reader& in, const decode_options& o = {}) {
             return detail::gif_frames<detail::ReaderInput>(slice<const byte>(), in, o);
         }
     };

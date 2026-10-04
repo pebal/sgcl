@@ -373,40 +373,40 @@ namespace sgcl::detail {
 
         RbIterator() noexcept = default;
 
-        explicit RbIterator(RbNodeBase* node) noexcept
+        SGCL_INLINE_HOT explicit RbIterator(RbNodeBase* node) noexcept
         : _node(node) {
         }
 
         template<bool C = Const, std::enable_if_t<C, int> = 0>
-        RbIterator(const RbIterator<V, false>& other) noexcept
+        SGCL_INLINE_HOT RbIterator(const RbIterator<V, false>& other) noexcept
         : _node(other._node) {
         }
 
-        reference operator*() const noexcept {
+        SGCL_INLINE_HOT reference operator*() const noexcept {
             return static_cast<RbNode<V>*>(_node)->slot.value;
         }
 
-        pointer operator->() const noexcept {
+        SGCL_INLINE_HOT pointer operator->() const noexcept {
             return std::addressof(**this);
         }
 
-        RbIterator& operator++() noexcept {
+        SGCL_INLINE_HOT RbIterator& operator++() noexcept {
             _node = rb_increment(_node);
             return *this;
         }
 
-        RbIterator operator++(int) noexcept {
+        SGCL_INLINE_HOT RbIterator operator++(int) noexcept {
             RbIterator tmp = *this;
             ++(*this);
             return tmp;
         }
 
-        RbIterator& operator--() noexcept {
+        SGCL_INLINE_HOT RbIterator& operator--() noexcept {
             _node = rb_decrement(_node);
             return *this;
         }
 
-        RbIterator operator--(int) noexcept {
+        SGCL_INLINE_HOT RbIterator operator--(int) noexcept {
             RbIterator tmp = *this;
             --(*this);
             return tmp;
@@ -415,7 +415,7 @@ namespace sgcl::detail {
     private:
         RbNodeBase* _node = nullptr;
 
-        friend bool operator==(const RbIterator& lhs, const RbIterator& rhs) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const RbIterator& lhs, const RbIterator& rhs) noexcept {
             return lhs._node == rhs._node;
         }
 
@@ -430,12 +430,12 @@ namespace sgcl::detail {
     public:
         NodeHandleBase() noexcept = default;
 
-        NodeHandleBase(NodeHandleBase&& other) noexcept
+        SGCL_INLINE_HOT NodeHandleBase(NodeHandleBase&& other) noexcept
         : _node(other._node) {
             other._node = nullptr;
         }
 
-        NodeHandleBase& operator=(NodeHandleBase&& other) noexcept {
+        SGCL_INLINE_HOT NodeHandleBase& operator=(NodeHandleBase&& other) noexcept {
             if (this != &other) {
                 _destroy();
                 _node = other._node;
@@ -444,24 +444,24 @@ namespace sgcl::detail {
             return *this;
         }
 
-        ~NodeHandleBase() {
+        SGCL_INLINE_HOT ~NodeHandleBase() {
             _destroy();
         }
 
-        [[nodiscard]] bool empty() const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool empty() const noexcept {
             return !_node;
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _node != nullptr;
         }
 
     protected:
-        explicit NodeHandleBase(RbNodeBase* node) noexcept
+        SGCL_INLINE_HOT explicit NodeHandleBase(RbNodeBase* node) noexcept
         : _node(node) {
         }
 
-        V& _value() const noexcept {
+        SGCL_INLINE_HOT V& _value() const noexcept {
             return static_cast<RbNode<V>*>(_node.get())->slot.value;
         }
 
@@ -469,7 +469,7 @@ namespace sgcl::detail {
         // to any more, holds a node that is garbage of the same sweep: the
         // sweep destroys that element itself (it may have already), so the
         // node is touched only while it is alive (README: The rules, 5).
-        void _destroy() noexcept {
+        SGCL_INLINE_HOT void _destroy() noexcept {
             if (auto n = _node.if_alive()) {
                 static_cast<RbNode<V>*>(n.get())->slot.destroy();
             }
@@ -494,24 +494,24 @@ namespace sgcl::detail {
 
         // Writable, as in std: the node is out of any tree, so its key may
         // change before it goes back in.
-        key_type& key() const noexcept {
+        SGCL_INLINE_HOT key_type& key() const noexcept {
             return const_cast<key_type&>(this->_value().first);
         }
 
-        mapped_type& mapped() const noexcept {
+        SGCL_INLINE_HOT mapped_type& mapped() const noexcept {
             return this->_value().second;
         }
 
-        void swap(MapNodeHandle& other) noexcept {
+        SGCL_INLINE_HOT void swap(MapNodeHandle& other) noexcept {
             this->_node.swap(other._node);
         }
 
-        friend void swap(MapNodeHandle& lhs, MapNodeHandle& rhs) noexcept {
+        SGCL_INLINE_HOT friend void swap(MapNodeHandle& lhs, MapNodeHandle& rhs) noexcept {
             lhs.swap(rhs);
         }
 
     private:
-        explicit MapNodeHandle(RbNodeBase* node) noexcept
+        SGCL_INLINE_HOT explicit MapNodeHandle(RbNodeBase* node) noexcept
         : Base(node) {
         }
 
@@ -528,20 +528,20 @@ namespace sgcl::detail {
 
         SetNodeHandle() noexcept = default;
 
-        value_type& value() const noexcept {
+        SGCL_INLINE_HOT value_type& value() const noexcept {
             return this->_value();
         }
 
-        void swap(SetNodeHandle& other) noexcept {
+        SGCL_INLINE_HOT void swap(SetNodeHandle& other) noexcept {
             this->_node.swap(other._node);
         }
 
-        friend void swap(SetNodeHandle& lhs, SetNodeHandle& rhs) noexcept {
+        SGCL_INLINE_HOT friend void swap(SetNodeHandle& lhs, SetNodeHandle& rhs) noexcept {
             lhs.swap(rhs);
         }
 
     private:
-        explicit SetNodeHandle(RbNodeBase* node) noexcept
+        SGCL_INLINE_HOT explicit SetNodeHandle(RbNodeBase* node) noexcept
         : Base(node) {
         }
 
@@ -560,14 +560,14 @@ namespace sgcl::detail {
     public:
         using value_type = std::pair<const Key, T>;
 
-        bool operator()(const value_type& lhs, const value_type& rhs) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const value_type& lhs, const value_type& rhs) const noexcept {
             return comp(lhs.first, rhs.first);
         }
 
     protected:
         Compare comp;
 
-        MapValueCompare(Compare c) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
+        SGCL_INLINE_HOT MapValueCompare(Compare c) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
         : comp(c) {
         }
 
@@ -585,7 +585,7 @@ namespace sgcl::detail {
         static constexpr bool const_iterators = false;
 
         template<class P>
-        static const auto& key(const P& p) noexcept {
+        SGCL_INLINE_HOT static const auto& key(const P& p) noexcept {
             return p.first;
         }
     };
@@ -601,7 +601,7 @@ namespace sgcl::detail {
         static constexpr bool const_iterators = true;
 
         template<class K>
-        static const K& key(const K& k) noexcept {
+        SGCL_INLINE_HOT static const K& key(const K& k) noexcept {
             return k;
         }
     };
@@ -646,30 +646,30 @@ namespace sgcl::detail {
         };
 
     public:
-        RbTree() noexcept(std::is_nothrow_default_constructible_v<key_compare>)
+        SGCL_INLINE_HOT RbTree() noexcept(std::is_nothrow_default_constructible_v<key_compare>)
         : _comp() {
         }
 
-        explicit RbTree(const key_compare& comp) noexcept(std::is_nothrow_copy_constructible_v<key_compare>)
+        SGCL_INLINE_HOT explicit RbTree(const key_compare& comp) noexcept(std::is_nothrow_copy_constructible_v<key_compare>)
         : _comp(comp) {
         }
 
         template<std::input_iterator InputIt>
-        RbTree(InputIt first, InputIt last, const key_compare& comp = key_compare())
+        SGCL_INLINE_HOT RbTree(InputIt first, InputIt last, const key_compare& comp = key_compare())
         : _comp(comp) {
             _guarded_insert(first, last);
         }
 
-        RbTree(std::initializer_list<value_type> ilist, const key_compare& comp = key_compare())
+        SGCL_INLINE_HOT RbTree(std::initializer_list<value_type> ilist, const key_compare& comp = key_compare())
         : RbTree(ilist.begin(), ilist.end(), comp) {
         }
 
-        RbTree(const RbTree& other)
+        SGCL_INLINE_HOT RbTree(const RbTree& other)
         : _comp(other._comp) {
             _copy_from(other);
         }
 
-        RbTree(RbTree&& other) noexcept(std::is_nothrow_move_constructible_v<key_compare>)
+        SGCL_INLINE_HOT RbTree(RbTree&& other) noexcept(std::is_nothrow_move_constructible_v<key_compare>)
         : _header(other._header)
         , _size(other._size)
         , _comp(std::move(other._comp)) {
@@ -677,13 +677,13 @@ namespace sgcl::detail {
             other._size = 0;
         }
 
-        ~RbTree() {
+        SGCL_INLINE_HOT ~RbTree() {
             if (!sweeping) {
                 clear();
             }
         }
 
-        RbTree& operator=(const RbTree& other) {
+        SGCL_INLINE_HOT RbTree& operator=(const RbTree& other) {
             if (this != &other) {
                 key_compare comp = other._comp;
                 clear();
@@ -705,77 +705,77 @@ namespace sgcl::detail {
             return *this;
         }
 
-        RbTree& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT RbTree& operator=(std::initializer_list<value_type> ilist) {
             clear();
             insert(ilist.begin(), ilist.end());
             return *this;
         }
 
-        key_compare key_comp() const noexcept(std::is_nothrow_copy_constructible_v<key_compare>) {
+        SGCL_INLINE_HOT key_compare key_comp() const noexcept(std::is_nothrow_copy_constructible_v<key_compare>) {
             return _comp;
         }
 
-        value_compare value_comp() const noexcept(std::is_nothrow_copy_constructible_v<key_compare>) {
+        SGCL_INLINE_HOT value_compare value_comp() const noexcept(std::is_nothrow_copy_constructible_v<key_compare>) {
             return value_compare(_comp);
         }
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_leftmost());
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_leftmost());
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(_hdr());
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator(_hdr());
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        reverse_iterator rbegin() noexcept {
+        SGCL_INLINE_HOT reverse_iterator rbegin() noexcept {
             return reverse_iterator(end());
         }
 
-        const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(end());
         }
 
-        const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        reverse_iterator rend() noexcept {
+        SGCL_INLINE_HOT reverse_iterator rend() noexcept {
             return reverse_iterator(begin());
         }
 
-        const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(begin());
         }
 
-        const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
-        [[nodiscard]] bool empty() const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _size;
         }
 
-        size_type max_size() const noexcept {
+        SGCL_INLINE_HOT size_type max_size() const noexcept {
             return std::numeric_limits<difference_type>::max();
         }
 
@@ -790,19 +790,19 @@ namespace sgcl::detail {
             }
         }
 
-        insert_result insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
+        SGCL_INLINE_HOT insert_result insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _insert(value);
         }
 
-        insert_result insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
+        SGCL_INLINE_HOT insert_result insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _insert(std::move(value));
         }
 
-        iterator insert(const_iterator hint, const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
+        SGCL_INLINE_HOT iterator insert(const_iterator hint, const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _insert_hint(hint._node, value);
         }
 
-        iterator insert(const_iterator hint, value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
+        SGCL_INLINE_HOT iterator insert(const_iterator hint, value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _insert_hint(hint._node, std::move(value));
         }
 
@@ -829,7 +829,7 @@ namespace sgcl::detail {
             }
         }
 
-        void insert(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT void insert(std::initializer_list<value_type> ilist) {
             insert(ilist.begin(), ilist.end());
         }
 
@@ -902,21 +902,21 @@ namespace sgcl::detail {
         }
 
         template<class... A>
-        iterator emplace_hint(const_iterator hint, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A&&...>) {
+        SGCL_INLINE_HOT iterator emplace_hint(const_iterator hint, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A&&...>) {
             _ensure_header();
             return _emplace_hint(hint._node, std::forward<A>(a)...);
         }
 
         // The node is held by _erase_node while it is unlinked and cleared;
         // next stays linked, so the tree roots it.
-        iterator erase(const_iterator pos) noexcept {
+        SGCL_INLINE_HOT iterator erase(const_iterator pos) noexcept {
             NodeBase* n = pos._node;
             NodeBase* next = rb_increment(n);
             _erase_node(n);
             return iterator(next);
         }
 
-        iterator erase(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
+        SGCL_INLINE_HOT iterator erase(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
             return erase(const_iterator(pos));
         }
 
@@ -931,7 +931,7 @@ namespace sgcl::detail {
             return iterator(last._node);
         }
 
-        size_type erase(const key_type& key) noexcept {
+        SGCL_INLINE_HOT size_type erase(const key_type& key) noexcept {
             return _erase_key(key);
         }
 
@@ -939,11 +939,11 @@ namespace sgcl::detail {
         // the lookups (C++23's); an iterator is never taken for a key
         template<class K> requires TransparentCompare<key_compare>
             && (!std::is_convertible_v<K&&, iterator>) && (!std::is_convertible_v<K&&, const_iterator>)
-        size_type erase(K&& key) noexcept(_nothrow_compare<std::remove_cvref_t<K>>()) {
+        SGCL_INLINE_HOT size_type erase(K&& key) noexcept(_nothrow_compare<std::remove_cvref_t<K>>()) {
             return _erase_key(key);
         }
 
-        void swap(RbTree& other) noexcept(std::is_nothrow_swappable_v<key_compare>) {
+        SGCL_INLINE_HOT void swap(RbTree& other) noexcept(std::is_nothrow_swappable_v<key_compare>) {
             _header.swap(other._header);
             std::swap(_size, other._size);
             using std::swap;
@@ -959,17 +959,17 @@ namespace sgcl::detail {
             return node_type(n);
         }
 
-        node_type extract(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
+        SGCL_INLINE_HOT node_type extract(iterator pos) noexcept requires (!std::is_same_v<iterator, const_iterator>) {
             return extract(const_iterator(pos));
         }
 
-        node_type extract(const key_type& key) noexcept {
+        SGCL_INLINE_HOT node_type extract(const key_type& key) noexcept {
             return _extract_key(key);
         }
 
         template<class K> requires TransparentCompare<key_compare>
             && (!std::is_convertible_v<K&&, iterator>) && (!std::is_convertible_v<K&&, const_iterator>)
-        node_type extract(K&& key) noexcept(_nothrow_compare<std::remove_cvref_t<K>>()) {
+        SGCL_INLINE_HOT node_type extract(K&& key) noexcept(_nothrow_compare<std::remove_cvref_t<K>>()) {
             return _extract_key(key);
         }
 
@@ -1002,101 +1002,101 @@ namespace sgcl::detail {
         }
 
         template<class Traits2>
-        void merge(RbTree<Traits2>&& source) noexcept requires (std::is_same_v<typename Traits2::key_type, key_type> && std::is_same_v<typename Traits2::value_type, value_type>) {
+        SGCL_INLINE_HOT void merge(RbTree<Traits2>&& source) noexcept requires (std::is_same_v<typename Traits2::key_type, key_type> && std::is_same_v<typename Traits2::value_type, value_type>) {
             merge(source);
         }
 
-        size_type count(const key_type& key) const noexcept {
+        SGCL_INLINE_HOT size_type count(const key_type& key) const noexcept {
             return _count(key);
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        size_type count(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT size_type count(const K& key) const noexcept(_nothrow_compare<K>()) {
             return _count(key);
         }
 
-        iterator find(const key_type& key) noexcept {
+        SGCL_INLINE_HOT iterator find(const key_type& key) noexcept {
             return iterator(_find(key));
         }
 
-        const_iterator find(const key_type& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator find(const key_type& key) const noexcept {
             return const_iterator(_find(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        iterator find(const K& key) noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT iterator find(const K& key) noexcept(_nothrow_compare<K>()) {
             return iterator(_find(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        const_iterator find(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT const_iterator find(const K& key) const noexcept(_nothrow_compare<K>()) {
             return const_iterator(_find(key));
         }
 
-        bool contains(const key_type& key) const noexcept {
+        SGCL_INLINE_HOT bool contains(const key_type& key) const noexcept {
             return _header && _find(key) != _hdr();
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        bool contains(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT bool contains(const K& key) const noexcept(_nothrow_compare<K>()) {
             return _header && _find(key) != _hdr();
         }
 
-        std::pair<iterator, iterator> equal_range(const key_type& key) noexcept {
+        SGCL_INLINE_HOT std::pair<iterator, iterator> equal_range(const key_type& key) noexcept {
             auto [first, last] = _equal_range(key);
             return {iterator(first), iterator(last)};
         }
 
-        std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const noexcept {
+        SGCL_INLINE_HOT std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const noexcept {
             auto [first, last] = _equal_range(key);
             return {const_iterator(first), const_iterator(last)};
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        std::pair<iterator, iterator> equal_range(const K& key) noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT std::pair<iterator, iterator> equal_range(const K& key) noexcept(_nothrow_compare<K>()) {
             auto [first, last] = _equal_range(key);
             return {iterator(first), iterator(last)};
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        std::pair<const_iterator, const_iterator> equal_range(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT std::pair<const_iterator, const_iterator> equal_range(const K& key) const noexcept(_nothrow_compare<K>()) {
             auto [first, last] = _equal_range(key);
             return {const_iterator(first), const_iterator(last)};
         }
 
-        iterator lower_bound(const key_type& key) noexcept {
+        SGCL_INLINE_HOT iterator lower_bound(const key_type& key) noexcept {
             return iterator(_lower_bound(key));
         }
 
-        const_iterator lower_bound(const key_type& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator lower_bound(const key_type& key) const noexcept {
             return const_iterator(_lower_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        iterator lower_bound(const K& key) noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT iterator lower_bound(const K& key) noexcept(_nothrow_compare<K>()) {
             return iterator(_lower_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        const_iterator lower_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT const_iterator lower_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             return const_iterator(_lower_bound(key));
         }
 
-        iterator upper_bound(const key_type& key) noexcept {
+        SGCL_INLINE_HOT iterator upper_bound(const key_type& key) noexcept {
             return iterator(_upper_bound(key));
         }
 
-        const_iterator upper_bound(const key_type& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator upper_bound(const key_type& key) const noexcept {
             return const_iterator(_upper_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        iterator upper_bound(const K& key) noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT iterator upper_bound(const K& key) noexcept(_nothrow_compare<K>()) {
             return iterator(_upper_bound(key));
         }
 
         template<class K> requires TransparentCompare<key_compare>
-        const_iterator upper_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT const_iterator upper_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             return const_iterator(_upper_bound(key));
         }
 
@@ -1159,7 +1159,7 @@ namespace sgcl::detail {
         // key type (the containers' static_asserts); a transparent one with
         // another type is as noexcept as its calls with it
         template<class K>
-        static constexpr bool _nothrow_compare() noexcept {
+        SGCL_INLINE_HOT static constexpr bool _nothrow_compare() noexcept {
             if constexpr(std::is_same_v<K, key_type>) {
                 return true;
             } else {
@@ -1167,39 +1167,39 @@ namespace sgcl::detail {
             }
         }
 
-        NodeBase* _hdr() const noexcept {
+        SGCL_INLINE_HOT NodeBase* _hdr() const noexcept {
             return _header.get();
         }
 
-        NodeBase* _root() const noexcept {
+        SGCL_INLINE_HOT NodeBase* _root() const noexcept {
             return _hdr()->parent.get();
         }
 
-        NodeBase* _leftmost() const noexcept {
+        SGCL_INLINE_HOT NodeBase* _leftmost() const noexcept {
             return _header ? _hdr()->left.get() : nullptr;
         }
 
-        NodeBase* _rightmost() const noexcept {
+        SGCL_INLINE_HOT NodeBase* _rightmost() const noexcept {
             return _header ? _hdr()->right.get() : nullptr;
         }
 
-        static Node* _node(NodeBase* n) noexcept {
+        SGCL_INLINE_HOT static Node* _node(NodeBase* n) noexcept {
             return static_cast<Node*>(n);
         }
 
         // The node an iterator stands on, and the key of a node
-        static NodeBase* _raw(const const_iterator& it) noexcept {
+        SGCL_INLINE_HOT static NodeBase* _raw(const const_iterator& it) noexcept {
             return it._node;
         }
 
-        static const key_type& _key(NodeBase* n) noexcept {
+        SGCL_INLINE_HOT static const key_type& _key(NodeBase* n) noexcept {
             return Traits::key(_node(n)->slot.value);
         }
 
         // The header node, made on the first insertion (an empty tree
         // holds nothing): red, so that it is never taken for a black node
         // by the rebalancing, its extremes itself
-        void _ensure_header() noexcept {
+        SGCL_INLINE_HOT void _ensure_header() noexcept {
             if (!_header) {
                 _header = make_tracked<NodeBase>();
                 NodeBase* h = _hdr();
@@ -1211,7 +1211,7 @@ namespace sgcl::detail {
 
         // What insert returns: the iterator alone (a multi tree), or with
         // whether the node was inserted
-        static insert_result _result(iterator it, bool inserted) noexcept {
+        SGCL_INLINE_HOT static insert_result _result(iterator it, bool inserted) noexcept {
             if constexpr (Multi) {
                 return it;
             } else {
@@ -1304,7 +1304,7 @@ namespace sgcl::detail {
         }
 
         // The links of a node taken out nulled: a dead node holds nothing
-        static void _unlink(NodeBase* n) noexcept {
+        SGCL_INLINE_HOT static void _unlink(NodeBase* n) noexcept {
             n->parent = nullptr;
             n->left = nullptr;
             n->right = nullptr;
@@ -1312,7 +1312,7 @@ namespace sgcl::detail {
 
         // One node out of the tree and its element destroyed; the node
         // itself is the collector's
-        void _erase_node(NodeBase* n) noexcept {
+        SGCL_INLINE_HOT void _erase_node(NodeBase* n) noexcept {
             Anchor keep(n);   // rooted while unlinked and cleared
             rb_rebalance_for_erase(n, _hdr());
             _unlink(n);
@@ -1321,7 +1321,7 @@ namespace sgcl::detail {
         }
 
         // A new node at its position
-        void _link(const InsertPos& pos, NodeBase* n) noexcept {
+        SGCL_INLINE_HOT void _link(const InsertPos& pos, NodeBase* n) noexcept {
             rb_insert_and_rebalance(pos.left, n, pos.parent, _hdr());
             ++_size;
         }
@@ -1345,7 +1345,7 @@ namespace sgcl::detail {
         // the key (with the hint tried first, for the hinted forms), a node
         // made and linked unless an equivalent key exists in a unique tree
         template<class Arg>
-        insert_result _insert(Arg&& value) noexcept(std::is_nothrow_constructible_v<value_type, Arg&&>) {
+        SGCL_INLINE_HOT insert_result _insert(Arg&& value) noexcept(std::is_nothrow_constructible_v<value_type, Arg&&>) {
             _ensure_header();
             InsertPos pos = _pos(Traits::key(value));
             if constexpr (!Multi) {
@@ -1357,7 +1357,7 @@ namespace sgcl::detail {
         }
 
         template<class Arg>
-        iterator _insert_hint(NodeBase* hint, Arg&& value) noexcept(std::is_nothrow_constructible_v<value_type, Arg&&>) {
+        SGCL_INLINE_HOT iterator _insert_hint(NodeBase* hint, Arg&& value) noexcept(std::is_nothrow_constructible_v<value_type, Arg&&>) {
             _ensure_header();
             InsertPos pos = _hint_pos(hint, Traits::key(value));
             if (pos.existing) {
@@ -1407,7 +1407,7 @@ namespace sgcl::detail {
 
         // The first element equivalent to the key, as find gives it
         template<class K>
-        node_type _extract_key(const K& key) noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT node_type _extract_key(const K& key) noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return node_type();
             }
@@ -1419,7 +1419,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        InsertPos _pos(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT InsertPos _pos(const K& key) const noexcept(_nothrow_compare<K>()) {
             if constexpr (Multi) {
                 return _equal_pos(key);
             } else {
@@ -1428,7 +1428,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        InsertPos _hint_pos(NodeBase* hint, const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT InsertPos _hint_pos(NodeBase* hint, const K& key) const noexcept(_nothrow_compare<K>()) {
             if constexpr (Multi) {
                 return _equal_hint_pos(hint, key);
             } else {
@@ -1596,7 +1596,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _lower_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT NodeBase* _lower_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return nullptr;
             }
@@ -1604,7 +1604,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _upper_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT NodeBase* _upper_bound(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return nullptr;
             }
@@ -1612,7 +1612,7 @@ namespace sgcl::detail {
         }
 
         template<class K>
-        NodeBase* _find(const K& key) const noexcept(_nothrow_compare<K>()) {
+        SGCL_INLINE_HOT NodeBase* _find(const K& key) const noexcept(_nothrow_compare<K>()) {
             if (!_header) {
                 return nullptr;
             }

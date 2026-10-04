@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 #include <atomic>
 #include <cstddef>
 #include <iostream>
@@ -27,7 +29,7 @@ namespace sgcl::detail {
 
     inline std::atomic<DiagnosticSink> diagnostic_sink = {nullptr};
 
-    inline void diagnostic_line(int level, const std::string& line) noexcept {
+    SGCL_INLINE_HOT void diagnostic_line(int level, const std::string& line) noexcept {
         if (auto sink = diagnostic_sink.load(std::memory_order_acquire)) {
             sink(level, line.data(), line.size());
             return;
@@ -36,7 +38,7 @@ namespace sgcl::detail {
     }
 
     // The id of the calling thread as std::cout writes it
-    inline std::string diagnostic_thread_id() {
+    SGCL_INLINE_HOT std::string diagnostic_thread_id() {
         std::ostringstream s;
         s << std::this_thread::get_id();
         return s.str();

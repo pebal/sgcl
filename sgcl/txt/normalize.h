@@ -63,11 +63,11 @@ namespace sgcl::txt {
         inline constexpr unsigned HangulNCount = HangulVCount * HangulTCount;
         inline constexpr unsigned HangulSCount = HangulLCount * HangulNCount;
 
-        constexpr bool is_hangul_syllable(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_hangul_syllable(char32_t c) noexcept {
             return c >= HangulSBase && c < HangulSBase + HangulSCount;
         }
 
-        constexpr uint8_t ccc_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr uint8_t ccc_fn(char32_t c) noexcept {
             return c < 0x300 ? 0 : uint8_t(value_of(c, normalize_tables::CombiningClass));
         }
 
@@ -75,7 +75,7 @@ namespace sgcl::txt {
         // combining class is zero: three in the whole of Unicode, whose
         // decomposition begins with a mark. The generator asserts that
         // these three are the only ones.
-        constexpr bool joins_sequence(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool joins_sequence(char32_t c) noexcept {
             return c == 0x0F73 || c == 0x0F75 || c == 0x0F81;
         }
 
@@ -106,7 +106,7 @@ namespace sgcl::txt {
         // search.h answered with the position of the mark the ordering
         // put first, which in a text that begins with marks is not the
         // first byte.
-        constexpr bool opens_sequence(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool opens_sequence(char32_t c) noexcept {
             return ccc_fn(c) == 0 && !joins_sequence(c);
         }
 
@@ -115,32 +115,32 @@ namespace sgcl::txt {
         // C1 controls are in every form without a table; the bound is
         // asserted where the tables are generated, and it is not the
         // U+0300 of the combining class — e and acute compose below it
-        constexpr unsigned quick_check(char32_t c, unsigned form) noexcept {
+        SGCL_INLINE_HOT constexpr unsigned quick_check(char32_t c, unsigned form) noexcept {
             return c < 0xA0 ? QuickCheckYes : (value_of(c, normalize_tables::QuickCheck) >> (2 * form)) & 3;
         }
 
         // The tag as the two numbers the tables are indexed by: which
         // quick check column, and whether the compatibility mappings
         // take part
-        constexpr unsigned form_index(nfc_t) noexcept { return 0; }
-        constexpr unsigned form_index(nfd_t) noexcept { return 1; }
-        constexpr unsigned form_index(nfkc_t) noexcept { return 2; }
-        constexpr unsigned form_index(nfkd_t) noexcept { return 3; }
+        SGCL_INLINE_HOT constexpr unsigned form_index(nfc_t) noexcept { return 0; }
+        SGCL_INLINE_HOT constexpr unsigned form_index(nfd_t) noexcept { return 1; }
+        SGCL_INLINE_HOT constexpr unsigned form_index(nfkc_t) noexcept { return 2; }
+        SGCL_INLINE_HOT constexpr unsigned form_index(nfkd_t) noexcept { return 3; }
 
-        constexpr bool composes(nfc_t) noexcept { return true; }
-        constexpr bool composes(nfd_t) noexcept { return false; }
-        constexpr bool composes(nfkc_t) noexcept { return true; }
-        constexpr bool composes(nfkd_t) noexcept { return false; }
+        SGCL_INLINE_HOT constexpr bool composes(nfc_t) noexcept { return true; }
+        SGCL_INLINE_HOT constexpr bool composes(nfd_t) noexcept { return false; }
+        SGCL_INLINE_HOT constexpr bool composes(nfkc_t) noexcept { return true; }
+        SGCL_INLINE_HOT constexpr bool composes(nfkd_t) noexcept { return false; }
 
-        constexpr bool compatible(nfc_t) noexcept { return false; }
-        constexpr bool compatible(nfd_t) noexcept { return false; }
-        constexpr bool compatible(nfkc_t) noexcept { return true; }
-        constexpr bool compatible(nfkd_t) noexcept { return true; }
+        SGCL_INLINE_HOT constexpr bool compatible(nfc_t) noexcept { return false; }
+        SGCL_INLINE_HOT constexpr bool compatible(nfd_t) noexcept { return false; }
+        SGCL_INLINE_HOT constexpr bool compatible(nfkc_t) noexcept { return true; }
+        SGCL_INLINE_HOT constexpr bool compatible(nfkd_t) noexcept { return true; }
 
         // What a and b compose to, or zero. The Hangul cases are the
         // arithmetic ones: a leading jamo and a vowel make a syllable,
         // and a syllable without a final takes one
-        constexpr char32_t compose_pair(char32_t a, char32_t b) noexcept {
+        SGCL_INLINE_HOT constexpr char32_t compose_pair(char32_t a, char32_t b) noexcept {
             if (a >= HangulLBase && a < HangulLBase + HangulLCount
                 && b >= HangulVBase && b < HangulVBase + HangulVCount) {
                 return HangulSBase + ((a - HangulLBase) * HangulVCount + (b - HangulVBase)) * HangulTCount;
@@ -435,7 +435,7 @@ namespace sgcl::txt {
     // One code point taken apart as far as it goes, canonically. A value
     // that is no code point (a surrogate, one past U+10FFFF) is the
     // replacement character, as a text of the module writes one
-    inline string decompose(char32_t c) noexcept {
+    SGCL_INLINE_HOT string decompose(char32_t c) noexcept {
         detail::lent<detail::code_points> out;
         detail::decompose_into<false>(*out, utf8::valid(c) ? c : utf8::replacement);
         detail::canonical_order(*out);

@@ -118,7 +118,7 @@ namespace sgcl::crypto::detail {
 
     // The set of PrintableString, and the two characters outside it that
     // certificates hold in one: '*' (wildcards) and '&'
-    inline bool printable_char(unsigned char b) noexcept {
+    SGCL_INLINE_HOT bool printable_char(unsigned char b) noexcept {
         return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || (b >= '\'' && b <= ')') || (b >= '+' && b <= '/')
             || b == ' ' || b == ':' || b == '=' || b == '?' || b == '*' || b == '&';
     }
@@ -226,50 +226,50 @@ namespace sgcl::crypto::x509 {
 
         name() = default;
 
-        const vector<attribute>& attributes() const noexcept {
+        SGCL_INLINE_HOT const vector<attribute>& attributes() const noexcept {
             return _attributes;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _attributes.empty();
         }
 
         // CN, the last one where there are more, as Go's CommonName
-        string common_name() const noexcept {
+        SGCL_INLINE_HOT string common_name() const noexcept {
             return _last("2.5.4.3");
         }
 
         // SERIALNUMBER (2.5.4.5), the last one
-        string serial_number() const noexcept {
+        SGCL_INLINE_HOT string serial_number() const noexcept {
             return _last("2.5.4.5");
         }
 
-        vector<string> country() const noexcept {
+        SGCL_INLINE_HOT vector<string> country() const noexcept {
             return _all("2.5.4.6");
         }
 
-        vector<string> organization() const noexcept {
+        SGCL_INLINE_HOT vector<string> organization() const noexcept {
             return _all("2.5.4.10");
         }
 
-        vector<string> organizational_unit() const noexcept {
+        SGCL_INLINE_HOT vector<string> organizational_unit() const noexcept {
             return _all("2.5.4.11");
         }
 
-        vector<string> locality() const noexcept {
+        SGCL_INLINE_HOT vector<string> locality() const noexcept {
             return _all("2.5.4.7");
         }
 
         // ST, the state or province
-        vector<string> province() const noexcept {
+        SGCL_INLINE_HOT vector<string> province() const noexcept {
             return _all("2.5.4.8");
         }
 
-        vector<string> street_address() const noexcept {
+        SGCL_INLINE_HOT vector<string> street_address() const noexcept {
             return _all("2.5.4.9");
         }
 
-        vector<string> postal_code() const noexcept {
+        SGCL_INLINE_HOT vector<string> postal_code() const noexcept {
             return _all("2.5.4.17");
         }
 
@@ -428,7 +428,7 @@ namespace sgcl::crypto::x509 {
         // here is one every common parser reads. INTEGER, BOOLEAN, OCTET
         // STRING, OBJECT IDENTIFIER, the times and every tag outside the
         // universal class are not
-        inline bool other_value_type(unsigned char tag) noexcept {
+        SGCL_INLINE_HOT bool other_value_type(unsigned char tag) noexcept {
             switch (tag) {
                 case 0x03: case 0x07: case 0x08: case 0x09: case 0x0b: case 0x0d: case 0x0e: case 0x0f:
                 case 0x30: case 0x1c: case 0x1d: case 0x1f:

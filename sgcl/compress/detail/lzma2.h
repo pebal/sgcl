@@ -28,7 +28,7 @@ namespace sgcl::compress::detail {
 
     // The dictionary a properties byte of LZMA2 stands for (2 or 3 times a
     // power of two, 4 KiB to 3 GiB, and 40 for 4 GiB - 1); false past 40
-    inline bool lzma2_dictionary(uint8_t b, uint32_t& size) noexcept {
+    SGCL_INLINE_HOT bool lzma2_dictionary(uint8_t b, uint32_t& size) noexcept {
         if (b > 40) {
             return false;
         }
@@ -65,7 +65,7 @@ namespace sgcl::compress::detail {
         }
 
         // Input bytes taken so far
-        uint64_t taken() const noexcept {
+        SGCL_INLINE_HOT uint64_t taken() const noexcept {
             return _taken;
         }
 
@@ -246,21 +246,21 @@ namespace sgcl::compress::detail {
     // decode). Settings with lc + lp past 4 are the caller's to refuse.
     class Lzma2Encoder {
     public:
-        explicit Lzma2Encoder(const LzmaEncoderSettings& s) noexcept
+        SGCL_INLINE_HOT explicit Lzma2Encoder(const LzmaEncoderSettings& s) noexcept
         : _lzma(s)
         , _props(s.props) {
             _lzma.chunked();
         }
 
-        uint32_t dictionary() const noexcept {
+        SGCL_INLINE_HOT uint32_t dictionary() const noexcept {
             return _lzma.dictionary();
         }
 
-        void attach(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void attach(const uint8_t* p, size_t n) noexcept {
             _lzma.attach(p, n);
         }
 
-        size_t append(const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT size_t append(const uint8_t* p, size_t n) noexcept {
             return _lzma.append(p, n);
         }
 
@@ -285,7 +285,7 @@ namespace sgcl::compress::detail {
         }
 
         // The end of the data, after run(true)
-        void finish(std::vector<uint8_t>& out) noexcept {
+        SGCL_INLINE_HOT void finish(std::vector<uint8_t>& out) noexcept {
             out.push_back(0);
         }
 

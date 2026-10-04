@@ -52,19 +52,19 @@ namespace sgcl::async {
             PromiseBase& operator=(const PromiseBase&) = delete;
 
             // Whether the value or the exception is in
-            bool done() const noexcept {
+            SGCL_INLINE_HOT bool done() const noexcept {
                 return _done.closed();
             }
 
             // A case of a select: f() once the promise is done
             template<class F>
-            auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+            SGCL_INLINE_HOT auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
                 return _done.on_receive(std::move(f));
             }
 
         protected:
             // The claim of the one setter: true for the first
-            bool _claim() noexcept {
+            SGCL_INLINE_HOT bool _claim() noexcept {
                 int e = Pending;
                 bool first = _state.compare_exchange_strong(e, Claimed, std::memory_order_acq_rel, std::memory_order_acquire);
                 assert(first && "a promise is set once");
@@ -72,12 +72,12 @@ namespace sgcl::async {
             }
 
             // The value or the exception is stored: the waiters woken
-            void _publish() {
+            SGCL_INLINE_HOT void _publish() {
                 _done.close();
             }
 
             // The thread's wait of wait() and result()
-            void _block() {
+            SGCL_INLINE_HOT void _block() {
                 assert(!detail::on_worker() && "wait() blocks the worker: co_await the promise from a task");
                 (void)_done.receive().wait();
             }
@@ -85,30 +85,30 @@ namespace sgcl::async {
             // The awaitable's wait: the channel's, with nothing returned
             class await_op {
             public:
-                bool await_ready() {
+                SGCL_INLINE_HOT bool await_ready() {
                     return _op.await_ready();
                 }
 
                 template<class P>
-                bool await_suspend(std::coroutine_handle<P> h) {
+                SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                     return _op.await_suspend(h);
                 }
 
-                void await_resume() {
+                SGCL_INLINE_HOT void await_resume() {
                     _op.await_resume();
                 }
 
             private:
                 friend class PromiseBase;
 
-                explicit await_op(ChannelState<void>& ch) noexcept
+                SGCL_INLINE_HOT explicit await_op(ChannelState<void>& ch) noexcept
                 : _op(ch.receive()) {
                 }
 
                 decltype(std::declval<ChannelState<void>&>().receive()) _op;
             };
 
-            await_op _await() noexcept {
+            SGCL_INLINE_HOT await_op _await() noexcept {
                 return await_op(_done);
             }
 
@@ -123,7 +123,7 @@ namespace sgcl::async {
         public:
             // the channel's lists linked: once, by the code that made the
             // state, right after make_tracked (ChannelState::link)
-            void link() noexcept {
+            SGCL_INLINE_HOT void link() noexcept {
                 _done.link();
             }
         };
@@ -139,15 +139,15 @@ namespace sgcl::async {
             PromiseState() noexcept = default;
 
             // The value in, the waiters woken; the first setter only
-            void set_value(const T& v) {
+            SGCL_INLINE_HOT void set_value(const T& v) {
                 _set(T(v));
             }
 
-            void set_value(T&& v) {
+            SGCL_INLINE_HOT void set_value(T&& v) {
                 _set(T(std::move(v)));
             }
 
-            void set_exception(std::exception_ptr e) {
+            SGCL_INLINE_HOT void set_exception(std::exception_ptr e) {
                 assert(e && "a promise is set with an exception, never with a null exception_ptr: result() would have neither");
                 if (_claim()) {
                     _error = std::move(e);
@@ -159,7 +159,7 @@ namespace sgcl::async {
             // for first, on this thread, when the promise is not done yet (as
             // wait() does); a reference into the promise, so that the value
             // has one home whoever reads it (a lone reader may move it out)
-            T& result() {
+            SGCL_INLINE_HOT T& result() {
                 if (!done()) {
                     _block();
                 }
@@ -172,7 +172,7 @@ namespace sgcl::async {
             // Waits for the set, on this thread, and gives the value, or
             // rethrows what was set as the exception. Not from a task on a
             // worker (co_await it there)
-            T& wait() {
+            SGCL_INLINE_HOT T& wait() {
                 _block();
                 return result();
             }
@@ -181,16 +181,16 @@ namespace sgcl::async {
             // thread held, then the value or the exception
             class awaiter {
             public:
-                bool await_ready() {
+                SGCL_INLINE_HOT bool await_ready() {
                     return _op.await_ready();
                 }
 
                 template<class P>
-                bool await_suspend(std::coroutine_handle<P> h) {
+                SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                     return _op.await_suspend(h);
                 }
 
-                T& await_resume() {
+                SGCL_INLINE_HOT T& await_resume() {
                     _op.await_resume();
                     return _p->result();
                 }
@@ -198,7 +198,7 @@ namespace sgcl::async {
             private:
                 friend class PromiseState;
 
-                explicit awaiter(PromiseState& p) noexcept
+                SGCL_INLINE_HOT explicit awaiter(PromiseState& p) noexcept
                 : _p(&p)
                 , _op(p._await()) {
                 }
@@ -207,7 +207,7 @@ namespace sgcl::async {
                 await_op _op;
             };
 
-            awaiter operator co_await() noexcept {
+            SGCL_INLINE_HOT awaiter operator co_await() noexcept {
                 return awaiter(*this);
             }
 
@@ -235,13 +235,13 @@ namespace sgcl::async {
 
             PromiseState() noexcept = default;
 
-            void set_value() {
+            SGCL_INLINE_HOT void set_value() {
                 if (_claim()) {
                     _publish();
                 }
             }
 
-            void set_exception(std::exception_ptr e) {
+            SGCL_INLINE_HOT void set_exception(std::exception_ptr e) {
                 assert(e && "a promise is set with an exception, never with a null exception_ptr: result() would have neither");
                 if (_claim()) {
                     _error = std::move(e);
@@ -251,7 +251,7 @@ namespace sgcl::async {
 
             // Rethrows what was set as the exception, if anything: waited for
             // first, on this thread, when the promise is not done yet
-            void result() {
+            SGCL_INLINE_HOT void result() {
                 if (!done()) {
                     _block();
                 }
@@ -262,23 +262,23 @@ namespace sgcl::async {
 
             // Waits for the set, on this thread, and rethrows what was set as
             // the exception; not from a task on a worker
-            void wait() {
+            SGCL_INLINE_HOT void wait() {
                 _block();
                 result();
             }
 
             class awaiter {
             public:
-                bool await_ready() {
+                SGCL_INLINE_HOT bool await_ready() {
                     return _op.await_ready();
                 }
 
                 template<class P>
-                bool await_suspend(std::coroutine_handle<P> h) {
+                SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                     return _op.await_suspend(h);
                 }
 
-                void await_resume() {
+                SGCL_INLINE_HOT void await_resume() {
                     _op.await_resume();
                     _p->result();
                 }
@@ -286,7 +286,7 @@ namespace sgcl::async {
             private:
                 friend class PromiseState;
 
-                explicit awaiter(PromiseState& p) noexcept
+                SGCL_INLINE_HOT explicit awaiter(PromiseState& p) noexcept
                 : _p(&p)
                 , _op(p._await()) {
                 }
@@ -295,7 +295,7 @@ namespace sgcl::async {
                 await_op _op;
             };
 
-            awaiter operator co_await() noexcept {
+            SGCL_INLINE_HOT awaiter operator co_await() noexcept {
                 return awaiter(*this);
             }
         };
@@ -315,7 +315,7 @@ namespace sgcl::async {
         using value_type = T;
         using awaiter = typename State::awaiter;
 
-        promise() noexcept
+        SGCL_INLINE_HOT promise() noexcept
         : _s(make_tracked<State>()) {
             _s->link();   // before the state is given to anyone
         }
@@ -326,38 +326,38 @@ namespace sgcl::async {
         promise& operator=(promise&&) noexcept = default;
 
         // The value in, the waiters woken; the first setter only
-        void set_value(const T& v) const {
+        SGCL_INLINE_HOT void set_value(const T& v) const {
             _s->set_value(v);
         }
 
-        void set_value(T&& v) const {
+        SGCL_INLINE_HOT void set_value(T&& v) const {
             _s->set_value(std::move(v));
         }
 
-        void set_exception(std::exception_ptr e) const {
+        SGCL_INLINE_HOT void set_exception(std::exception_ptr e) const {
             _s->set_exception(std::move(e));
         }
 
         // Whether the value or the exception is in
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return _s->done();
         }
 
         // A case of a select: f() once the promise is done
         template<class F>
-        auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_done(std::move(f));
         }
 
         // The value, waited for first when the promise is not done; a
         // reference into the state, the value's one home
-        T& result() const {
+        SGCL_INLINE_HOT T& result() const {
             return _s->result();
         }
 
         // Waits for the set, on this thread (not from a task on a worker:
         // co_await it there), and gives the value or rethrows
-        T& wait() const {
+        SGCL_INLINE_HOT T& wait() const {
             return _s->wait();
         }
 
@@ -366,7 +366,7 @@ namespace sgcl::async {
         }
 
         // The same promise: the same state
-        friend bool operator==(const promise& a, const promise& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const promise& a, const promise& b) noexcept {
             return a._s == b._s;
         }
 
@@ -374,15 +374,15 @@ namespace sgcl::async {
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        promise(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        SGCL_INLINE_HOT promise(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<State>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<State>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<State>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _handle_word() const noexcept {
             return _s;
         }
 
@@ -398,7 +398,7 @@ namespace sgcl::async {
         using value_type = void;
         using awaiter = State::awaiter;
 
-        promise() noexcept
+        SGCL_INLINE_HOT promise() noexcept
         : _s(make_tracked<State>()) {
             _s->link();   // before the state is given to anyone
         }
@@ -408,28 +408,28 @@ namespace sgcl::async {
         promise& operator=(const promise&) noexcept = default;
         promise& operator=(promise&&) noexcept = default;
 
-        void set_value() const {
+        SGCL_INLINE_HOT void set_value() const {
             _s->set_value();
         }
 
-        void set_exception(std::exception_ptr e) const {
+        SGCL_INLINE_HOT void set_exception(std::exception_ptr e) const {
             _s->set_exception(std::move(e));
         }
 
-        bool done() const noexcept {
+        SGCL_INLINE_HOT bool done() const noexcept {
             return _s->done();
         }
 
         template<class F>
-        auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_done(std::move(f));
         }
 
-        void result() const {
+        SGCL_INLINE_HOT void result() const {
             _s->result();
         }
 
-        void wait() const {
+        SGCL_INLINE_HOT void wait() const {
             _s->wait();
         }
 
@@ -437,7 +437,7 @@ namespace sgcl::async {
             return _s->operator co_await();
         }
 
-        friend bool operator==(const promise& a, const promise& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const promise& a, const promise& b) noexcept {
             return a._s == b._s;
         }
 
@@ -445,15 +445,15 @@ namespace sgcl::async {
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        promise(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        SGCL_INLINE_HOT promise(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<State>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<State>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<State>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _handle_word() const noexcept {
             return _s;
         }
 

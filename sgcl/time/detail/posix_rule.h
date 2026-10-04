@@ -53,7 +53,7 @@ namespace sgcl::time::detail {
 
     class posix_reader {
     public:
-        explicit posix_reader(std::string_view text) noexcept
+        SGCL_INLINE_HOT explicit posix_reader(std::string_view text) noexcept
         : _s(text) {
         }
 
@@ -119,11 +119,11 @@ namespace sgcl::time::detail {
             return unexpected(error(message, at));
         }
 
-        static bool _alpha(char c) noexcept {
+        SGCL_INLINE_HOT static bool _alpha(char c) noexcept {
             return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
         }
 
-        static bool _digit(char c) noexcept {
+        SGCL_INLINE_HOT static bool _digit(char c) noexcept {
             return c >= '0' && c <= '9';
         }
 
@@ -238,7 +238,7 @@ namespace sgcl::time::detail {
         }
 
         // /time, hours -167 to 167 (RFC 9636's extension); none: 02:00
-        bool _time(int32_t& out) noexcept {
+        SGCL_INLINE_HOT bool _time(int32_t& out) noexcept {
             if (_i < _s.size() && _s[_i] == '/') {
                 ++_i;
                 return _offset(out, 167);
@@ -250,7 +250,7 @@ namespace sgcl::time::detail {
         size_t _i = 0;
     };
 
-    inline expected<posix_rule, error> read_posix(std::string_view text) noexcept {
+    SGCL_INLINE_HOT expected<posix_rule, error> read_posix(std::string_view text) noexcept {
         return posix_reader(text).read();
     }
 
@@ -286,7 +286,7 @@ namespace sgcl::time::detail {
 
     // (of a posix_rule, or of anything with its fields of numbers)
     template<class Rule>
-    posix_year posix_changes(const Rule& r, int64_t year) noexcept {
+    SGCL_INLINE_HOT posix_year posix_changes(const Rule& r, int64_t year) noexcept {
         return {posix_day(r.start, year) * 86400 + r.start_time - r.std_offset,
                 posix_day(r.end, year) * 86400 + r.end_time - r.dst_offset};
     }

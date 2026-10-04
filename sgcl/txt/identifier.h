@@ -81,14 +81,14 @@ namespace sgcl::txt {
         // XID_Continue, and they are exactly the ones that would break
         // that way. Taking them out is what lets a compiler compare two
         // names in a normal form and a linker carry one.
-        constexpr bool xid_start_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool xid_start_fn(char32_t c) noexcept {
             if (c < 0x80) {
                 return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z');
             }
             return in_set(c, identifier_tables::XidStart);
         }
 
-        constexpr bool xid_continue_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool xid_continue_fn(char32_t c) noexcept {
             if (c < 0x80) {
                 return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z')
                        || (c >= U'0' && c <= U'9') || c == U'_';
@@ -96,11 +96,11 @@ namespace sgcl::txt {
             return in_set(c, identifier_tables::XidContinue);
         }
 
-        constexpr joining_type joining_type_of_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr joining_type joining_type_of_fn(char32_t c) noexcept {
             return joining_type(value_of(c, identifier_tables::JoiningType));
         }
 
-        constexpr identifier_status identifier_status_of_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr identifier_status identifier_status_of_fn(char32_t c) noexcept {
             return in_set(c, identifier_tables::IdentifierAllowed) ? identifier_status::allowed
                                                                    : identifier_status::restricted;
         }
@@ -108,7 +108,7 @@ namespace sgcl::txt {
         // A code point the file names carries a set of the eleven
         // values; one it does not name is Not_Character, which is the
         // empty set and the value the table answers with zero
-        constexpr identifier_type identifier_type_of_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr identifier_type identifier_type_of_fn(char32_t c) noexcept {
             return identifier_type(value_of(c, identifier_tables::IdentifierType));
         }
 
@@ -118,11 +118,11 @@ namespace sgcl::txt {
         // asked for, and still refusing a char and an int
         template<bool (*F)(char32_t)>
         struct identifier_fn {
-            constexpr bool operator()(char32_t c) const noexcept {
+            SGCL_INLINE_HOT constexpr bool operator()(char32_t c) const noexcept {
                 return F(c);
             }
 
-            constexpr bool operator()(char32_t c, program_syntax_t) const noexcept {
+            SGCL_INLINE_HOT constexpr bool operator()(char32_t c, program_syntax_t) const noexcept {
                 return F(c) || c == U'$' || c == U'_';
             }
 
@@ -140,7 +140,7 @@ namespace sgcl::txt {
         //
         // A joiner is allowed after a virama — a mark of combining class
         // 9, the sign that kills the vowel of the consonant before it.
-        constexpr bool after_virama(std::string_view text, size_t at) noexcept {
+        SGCL_INLINE_HOT constexpr bool after_virama(std::string_view text, size_t at) noexcept {
             if (at == 0) {
                 return false;
             }
@@ -181,7 +181,7 @@ namespace sgcl::txt {
             return false;
         }
 
-        constexpr bool joiner_in_context(std::string_view text, size_t at, size_t after, char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool joiner_in_context(std::string_view text, size_t at, size_t after, char32_t c) noexcept {
             if (after_virama(text, at)) {
                 return true;
             }
@@ -379,11 +379,11 @@ namespace sgcl::txt {
     // followed by continues, with rule R1a for the two joiners. An empty
     // text is not one. Nothing here says the name is a good idea — for
     // that, ask restriction_level_of below.
-    inline bool is_identifier(const string& text) noexcept {
+    SGCL_INLINE_HOT bool is_identifier(const string& text) noexcept {
         return detail::identifier_text<false>(text.view());
     }
 
-    inline bool is_identifier(const string& text, program_syntax_t) noexcept {
+    SGCL_INLINE_HOT bool is_identifier(const string& text, program_syntax_t) noexcept {
         return detail::identifier_text<true>(text.view());
     }
 
@@ -427,7 +427,7 @@ namespace sgcl::txt {
     // code points does, and what is left is NFC, which the quick check
     // properties of the normalization answer. Only a "maybe" from those
     // costs the fold.
-    inline bool is_nfkc_casefolded(const string& text) {
+    SGCL_INLINE_HOT bool is_nfkc_casefolded(const string& text) {
         bool maybe = false;
         if (!detail::nfkc_casefold_quick(text.view(), maybe)) {
             return false;
@@ -507,7 +507,7 @@ namespace sgcl::txt {
     // "m" is in the table, "1" for "l" is, "paypa1" against "paypal" is
     // caught; "paypaI-inc" against "paypal" is not, being a different
     // name rather than the same one written differently)
-    inline bool is_confusable(const string& a, const string& b) {
+    SGCL_INLINE_HOT bool is_confusable(const string& a, const string& b) {
         return a == b || skeleton(a) == skeleton(b);
     }
 
@@ -523,7 +523,7 @@ namespace sgcl::txt {
     // here as belonging to all of them. That makes the answer more
     // generous than the specification's, never less, so a text this
     // calls single script may be two by Script_Extensions.
-    inline bool is_single_script(const string& text) noexcept {
+    SGCL_INLINE_HOT bool is_single_script(const string& text) noexcept {
         script scripts[detail::scripts_held];
         bool more = false;
         size_t count = detail::scripts_of_text(text.view(), scripts, detail::scripts_held, more);
@@ -586,11 +586,11 @@ namespace sgcl::txt {
     }
 
     // The two rungs a caller asks for by name
-    inline bool is_highly_restrictive(const string& text) noexcept {
+    SGCL_INLINE_HOT bool is_highly_restrictive(const string& text) noexcept {
         return restriction_level_of(text) <= restriction_level::highly_restrictive;
     }
 
-    inline bool is_moderately_restrictive(const string& text) noexcept {
+    SGCL_INLINE_HOT bool is_moderately_restrictive(const string& text) noexcept {
         return restriction_level_of(text) <= restriction_level::moderately_restrictive;
     }
 }

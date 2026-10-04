@@ -50,7 +50,7 @@ namespace sgcl::async {
         // (mach_continuous_time on macOS, about a hundred nanoseconds, which
         // the spins read at every round, some sixty rounds in 20 us). The
         // time spun is the same; the program's timeouts stay on sgcl::clock
-        inline uint64_t spin_until() noexcept {
+        SGCL_INLINE_HOT uint64_t spin_until() noexcept {
             return cpu_ticks() + ticks_of_microseconds(worker_spin_us.load(std::memory_order_relaxed));
         }
 
@@ -112,7 +112,7 @@ namespace sgcl::async {
         struct ExecutorQueue {
             using Frame = tracked_ptr<FrameWord>;
 
-            explicit ExecutorQueue(bool strand) noexcept
+            SGCL_INLINE_HOT explicit ExecutorQueue(bool strand) noexcept
             : _stub(_make_stub())
             , _head(_stub)
             , strand(strand)
@@ -120,7 +120,7 @@ namespace sgcl::async {
             }
 
             // A frame made ready on this executor
-            void push(Frame frame, bool next) {
+            SGCL_INLINE_HOT void push(Frame frame, bool next) {
                 _push(frame.get());
                 if (strand) {
                     if (pending.fetch_add(1, std::memory_order_acq_rel) == 0) {
@@ -134,14 +134,14 @@ namespace sgcl::async {
 
             // An executor: stop() called; the thread parked on the queue
             // woken to see it
-            void stop() noexcept {
+            SGCL_INLINE_HOT void stop() noexcept {
                 stopping.store(true, std::memory_order_seq_cst);
                 _wake();
             }
 
             // A strand: the run of one of its frames ended; the next one
             // to the workers, if any is queued
-            void run_ended() {
+            SGCL_INLINE_HOT void run_ended() {
                 if (pending.fetch_sub(1, std::memory_order_acq_rel) > 1) {
                     _dispatch(false);
                 }
@@ -225,12 +225,12 @@ namespace sgcl::async {
             std::atomic<size_t> pending = {0};     // a strand: the frames queued, plus the one running
 
         private:
-            static FrameLink& _link(FrameWord* frame) noexcept {
+            SGCL_INLINE_HOT static FrameLink& _link(FrameWord* frame) noexcept {
                 return frame_header(frame).next;
             }
 
             // A frame of the queue's own: a header and nothing else
-            static Frame _make_stub() noexcept {
+            SGCL_INLINE_HOT static Frame _make_stub() noexcept {
                 auto words = Maker<FrameWord[]>::make_tracked_data(FrameHeaderWords).release();
                 return unique_ptr<FrameWord>(UniquePtr<FrameWord>(words));
             }
@@ -238,7 +238,7 @@ namespace sgcl::async {
             // The frame at the tail. The exchange is seq_cst, as is the
             // park's look at the tail after its store to `_parked`: one of
             // the two sees the other (_wake)
-            void _push(FrameWord* frame) noexcept {
+            SGCL_INLINE_HOT void _push(FrameWord* frame) noexcept {
                 _link(frame) = nullptr;
                 auto prev = _tail.exchange(frame, std::memory_order_seq_cst);
                 _link(prev).store(frame, std::memory_order_release);
@@ -246,7 +246,7 @@ namespace sgcl::async {
 
             // Nothing queued, and no push under way: the stub alone, at
             // both ends
-            bool _empty() const noexcept {
+            SGCL_INLINE_HOT bool _empty() const noexcept {
                 auto stub = _stub.get();
                 return _head.get() == stub && _tail.load(std::memory_order_seq_cst) == stub;
             }
@@ -272,7 +272,7 @@ namespace sgcl::async {
             // A push or a stop: the thread woken if it is parked. The load
             // spares a push the exchange when nobody sleeps, which is the
             // rule while the thread runs or spins
-            void _wake() noexcept {
+            SGCL_INLINE_HOT void _wake() noexcept {
                 if (_parked.load(std::memory_order_seq_cst) && _parked.exchange(0, std::memory_order_acq_rel)) {
                     _parked.notify_one();
                 }
@@ -352,11 +352,11 @@ namespace sgcl::async {
 
         class QuietWakes {
         public:
-            QuietWakes() noexcept {
+            SGCL_INLINE_HOT QuietWakes() noexcept {
                 ++quiet_wakes;
             }
 
-            ~QuietWakes() {
+            SGCL_INLINE_HOT ~QuietWakes() {
                 --quiet_wakes;
             }
 
@@ -370,17 +370,29 @@ namespace sgcl::async {
 
             // A worker's queues, a managed object: the ring, its head
             // (thieves and the owner, a compare-exchange) and tail (the
-            // owner, a store), and the next slot (the owner alone)
+            // owner, a store), and the next slot (the owner alone).
+            // The words every looking worker reads (head and tail, in each
+            // round over all the rings) a line apart from the ones the
+            // owner writes on every hand-over (next) and from the ring:
+            // on one line, each look pulled the owner's line away and its
+            // next write waited for it back, and where the lines fell
+            // depended on where the object did (a rendezvous between four
+            // tasks 360 or 250 ns per item from one build to the next, a
+            // word added to this struct enough to move it: DESIGN 454).
+            // Padding rather than alignas, as in concurrent::queue: the
+            // fields lie a line apart wherever the object starts
             struct Local {
                 static constexpr uint32_t Size = 256;
                 static constexpr uint32_t ClearBatch = 16;   // the slots taken nulled this many at a time (_clear_taken)
 
                 std::atomic<uint32_t> head = {0};
                 std::atomic<uint32_t> tail = {0};
+                unsigned char _pad0[config::cache_line_size - 2 * sizeof(std::atomic<uint32_t>)] = {};
+                Frame next;
                 std::atomic<uint32_t> park = {0};   // the worker's own wake word: 1 = woken with the credit of a looking worker
                 uint32_t cleared = 0;               // the owner's: every slot below this index nulled since it was taken
                 uintptr_t stack_floor = 0;          // the lowest address the worker's stack may be cleared to (_clear_dead_stack)
-                Frame next;
+                unsigned char _pad1[config::cache_line_size - sizeof(Frame) - 2 * sizeof(uint32_t) - sizeof(uintptr_t)] = {};
                 Frame slots[Size];
             };
 
@@ -401,13 +413,14 @@ namespace sgcl::async {
 #define SGCL_WORKER_STACK_CLEAR 65536
 #endif
 #endif
+            static constexpr uint32_t NextChain = 61;   // the hand-overs a worker runs in a row before its ring gets a turn (_run), as the global queue gets one every 61 runs
             static constexpr size_t StackClearOnIdle = SGCL_WORKER_STACK_CLEAR;   // the dead stack a worker clears before looking for work: the frames of a task's last run, with what it called (a page; the tests clear 64 KB before their checks, config::stack_clear_size); the blocking pool's threads and the timers' thread clear as much before they park (clear_dead_stack, below)
 
             struct Global {
                 concurrent::queue<Frame> ready;
             };
 
-            ~Scheduler() {
+            SGCL_INLINE_HOT ~Scheduler() {
                 stop();
             }
 
@@ -447,7 +460,7 @@ namespace sgcl::async {
             // call), as in a QuietWakes scope: a start of the workers that
             // fails is let go of, the frame queued for the next start
             template<bool Quiet = false>
-            void enqueue(Frame frame, bool next) {
+            SGCL_INLINE_HOT void enqueue(Frame frame, bool next) {
                 if (auto executor = frame_header(frame.get()).executor.get()) {
                     if constexpr (Quiet) {
                         QuietWakes quiet;   // a strand's push may hand its head to the workers
@@ -488,13 +501,13 @@ namespace sgcl::async {
                 _wake_one_if_none_looking();
             }
 
-            static bool on_worker() noexcept {
+            SGCL_INLINE_HOT static bool on_worker() noexcept {
                 return _local != nullptr;
             }
 
             // The calling worker's index (0 .. MaxWorkers - 1), or MaxWorkers
             // on any other thread: the timers' shard of a thread (timer.h)
-            static unsigned worker_index() noexcept {
+            SGCL_INLINE_HOT static unsigned worker_index() noexcept {
                 return _local ? _index : MaxWorkers;
             }
 
@@ -532,7 +545,7 @@ namespace sgcl::async {
                 }
             }
 
-            unsigned workers() {
+            SGCL_INLINE_HOT unsigned workers() {
                 if (!_running.load(std::memory_order_acquire)) [[unlikely]] {
                     _start();
                 }
@@ -652,7 +665,7 @@ namespace sgcl::async {
             // The queues, made once and kept across stops (stop): what was
             // pushed while the workers were away runs at the next start.
             // Under _lifecycle
-            void _make_queues() {
+            SGCL_INLINE_HOT void _make_queues() {
                 if (!_global) {
                     _global = make_tracked<Global>();
                     _locals.reserve(MaxWorkers);   // never reallocated: a thread that enqueues reads _locals[i] of a sleeper's bit without the lock
@@ -727,7 +740,7 @@ namespace sgcl::async {
                 _gate.notify_all();
             }
 
-            static void _resume(const Frame& frame) {
+            SGCL_INLINE_HOT static void _resume(const Frame& frame) {
                 resume_frame(frame);   // the frame held by the caller's local while the coroutine runs (by reference down from there: a tracked_ptr copied is a barrier and a registration check each)
             }
 
@@ -752,13 +765,25 @@ namespace sgcl::async {
                 Local& local = *_local;
                 local.stack_floor = detail::current_thread().stack_begin() + config::stack_guard_margin;
                 uint32_t tick = 0;
+                uint32_t chain = 0;   // frames run from `next` in a row
                 for (;;) {
                     if (local.next) {
-                        Frame f = local.next;   // a move of a tracked_ptr is a copy: taken, then cleared
+                        // A chain of hand-overs (a ping-pong over a channel,
+                        // a loop of co_await) would hold this worker for as
+                        // long as it goes on, and the frames of its ring and
+                        // the global queue would wait for its end: with one
+                        // worker, forever. Every NextChain-th the frame goes
+                        // to the end of the ring instead, behind the others
+                        if (++chain < NextChain) {
+                            Frame f = local.next;   // a move of a tracked_ptr is a copy: taken, then cleared
+                            local.next = nullptr;
+                            _resume(std::move(f));
+                            continue;
+                        }
+                        _push_local(local, local.next);
                         local.next = nullptr;
-                        _resume(std::move(f));
-                        continue;
                     }
+                    chain = 0;
                     // the global queue every so often, so that its tasks are
                     // not starved by a busy ring
                     if (++tick % 61 == 0) {
@@ -850,7 +875,7 @@ namespace sgcl::async {
             // would then fall on the new frame, so the taken ones below the
             // head are nulled first when the fill reaches them (end is at
             // most head + Size), and in batches of ClearBatch otherwise
-            static void _clear_before_push(Local& local, uint32_t head, uint32_t end) noexcept {
+            SGCL_INLINE_HOT static void _clear_before_push(Local& local, uint32_t head, uint32_t end) noexcept {
                 if (end - local.cleared > Local::Size || head - local.cleared >= Local::ClearBatch) {
                     _clear_taken(local, head);
                 }
@@ -1052,11 +1077,11 @@ namespace sgcl::async {
             }
 
             // A wake by stop() carries no credit; one by an enqueue does
-            bool _spinning_credit_taken() const noexcept {
+            SGCL_INLINE_HOT bool _spinning_credit_taken() const noexcept {
                 return !_stop.load(std::memory_order_acquire);
             }
 
-            static bool _has_work(const Local& local) noexcept {
+            SGCL_INLINE_HOT static bool _has_work(const Local& local) noexcept {
                 return local.head.load(std::memory_order_acquire) != local.tail.load(std::memory_order_acquire);
             }
 
@@ -1147,7 +1172,7 @@ namespace sgcl::async {
         }
 
         // The floor of clear_dead_stack for the calling thread
-        inline uintptr_t dead_stack_floor() noexcept {
+        SGCL_INLINE_HOT uintptr_t dead_stack_floor() noexcept {
             return detail::current_thread().stack_begin() + config::stack_guard_margin;
         }
 
@@ -1217,13 +1242,13 @@ namespace sgcl::async {
             // The frame made ready, as enqueue(frame, false) makes it (to
             // the end of the queues): gathered, or on its executor's queue
             // at once
-            void add(tracked_ptr<FrameWord> frame) {
+            SGCL_INLINE_HOT void add(tracked_ptr<FrameWord> frame) {
                 scheduler_instance()._gather(*this, frame);
             }
 
             // What was gathered, to the scheduler; what follows is
             // gathered anew
-            void flush() {
+            SGCL_INLINE_HOT void flush() {
                 if (_n) {
                     _flush();
                 }
@@ -1241,11 +1266,11 @@ namespace sgcl::async {
             // made and let go of at every walk, most of which wake nobody
             // (a broadcast's commit with every subscriber busy), cost
             // more than the batch saves on a small one
-            Frame* _frames() noexcept {
+            SGCL_INLINE_HOT Frame* _frames() noexcept {
                 return std::launder(reinterpret_cast<Frame*>(_storage));
             }
 
-            void _add(Frame& frame) {
+            SGCL_INLINE_HOT void _add(Frame& frame) {
                 if (_n == Capacity) {
                     _flush();
                 }
@@ -1277,7 +1302,7 @@ namespace sgcl::async {
         // handing over: the wake through the kernel takes microseconds,
         // and the worker it brings finds the frames on the queues when it
         // looks, rather than being asked for only once the walk is done
-        inline void Scheduler::_gather(WakeBatch& batch, Frame& frame) {
+        SGCL_INLINE_HOT void Scheduler::_gather(WakeBatch& batch, Frame& frame) {
             if (auto executor = frame_header(frame.get()).executor.get()) {
                 executor->push(std::move(frame), false);
                 return;
@@ -1336,15 +1361,15 @@ namespace sgcl::async {
         inline std::atomic<void (*)()> scheduler_stop_hook2 = {nullptr};
         inline std::atomic<void (*)()> scheduler_stop_hook3 = {nullptr};
 
-        inline void enqueue(tracked_ptr<FrameWord> frame, bool next) {
+        SGCL_INLINE_HOT void enqueue(tracked_ptr<FrameWord> frame, bool next) {
             scheduler_instance().enqueue(std::move(frame), next);
         }
 
-        inline void enqueue_quiet(tracked_ptr<FrameWord> frame, bool next) noexcept {
+        SGCL_INLINE_HOT void enqueue_quiet(tracked_ptr<FrameWord> frame, bool next) noexcept {
             scheduler_instance().enqueue<true>(std::move(frame), next);
         }
 
-        inline bool on_worker() noexcept {
+        SGCL_INLINE_HOT bool on_worker() noexcept {
             return Scheduler::on_worker();
         }
     }
@@ -1355,7 +1380,7 @@ namespace sgcl::async {
         // from the environment (read once, at the first start), else
         // config::workers; 0 in any of them the hardware concurrency; at
         // most 64. The first call makes the scheduler
-        static unsigned workers() {
+        SGCL_INLINE_HOT static unsigned workers() {
             return detail::scheduler_instance().workers();
         }
 
@@ -1366,7 +1391,7 @@ namespace sgcl::async {
         // and started again with the new number, the queues kept. Not
         // from a task (it joins the workers); a program sets it at a
         // quiet moment
-        static void set_workers(unsigned n) {
+        SGCL_INLINE_HOT static void set_workers(unsigned n) {
             detail::scheduler_instance().set_workers(n);
         }
 
@@ -1375,32 +1400,32 @@ namespace sgcl::async {
         // wake), over SGCL_WORKER_SPIN_US and
         // config::worker_spin_microseconds; applies at once, workers
         // running or not
-        static void set_worker_spin(duration d) noexcept {
+        SGCL_INLINE_HOT static void set_worker_spin(duration d) noexcept {
             const auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::nanoseconds(d)).count();
             detail::worker_spin_set.store(true, std::memory_order_relaxed);
             detail::worker_spin_us.store(us < 0 ? 0u : unsigned(std::min<long long>(us, 0xFFFFFFFFll)), std::memory_order_relaxed);
         }
 
-        static duration worker_spin() noexcept {
+        SGCL_INLINE_HOT static duration worker_spin() noexcept {
             return std::chrono::microseconds(detail::worker_spin_us.load(std::memory_order_relaxed));
         }
 
         // Whether the calling thread is one of the workers
-        static bool on_worker() noexcept {
+        SGCL_INLINE_HOT static bool on_worker() noexcept {
             return detail::Scheduler::on_worker();
         }
 
         // The queues as they are
         using statistics = detail::Scheduler::Statistics;
 
-        static statistics get_statistics() {
+        SGCL_INLINE_HOT static statistics get_statistics() {
             return detail::scheduler_instance().statistics();
         }
 
         // Joins the workers and lets go of the queue: for a program that
         // wants its threads gone at a point of its own (the end of the
         // program does it); the next spawn starts the scheduler again
-        static void stop() {
+        SGCL_INLINE_HOT static void stop() {
             if (auto hook = detail::scheduler_stop_hook.load(std::memory_order_acquire)) {
                 hook();
             }
@@ -1417,16 +1442,16 @@ namespace sgcl::async {
     // `co_await sgcl::async::yield()`: the task goes to the back of the queue and
     // the worker takes the next ready one
     struct [[nodiscard]] yield {
-        bool await_ready() const noexcept {
+        SGCL_INLINE_HOT bool await_ready() const noexcept {
             return false;
         }
 
         template<class P>
-        void await_suspend(std::coroutine_handle<P> h) {
+        SGCL_INLINE_HOT void await_suspend(std::coroutine_handle<P> h) {
             detail::enqueue(detail::frame_of(h), false);
         }
 
-        void await_resume() const noexcept {
+        SGCL_INLINE_HOT void await_resume() const noexcept {
         }
     };
 }

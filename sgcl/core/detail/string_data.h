@@ -35,7 +35,7 @@ namespace sgcl::detail {
 
     // The header, the characters and the terminator written into the bytes
     template<class CharT>
-    inline void string_fill(unsigned char* bytes, std::basic_string_view<CharT> s) noexcept {
+    SGCL_INLINE_HOT void string_fill(unsigned char* bytes, std::basic_string_view<CharT> s) noexcept {
         ::new(bytes) StringHeader{(uint32_t)s.size(), {0}};
         copy_bytes(bytes + sizeof(StringHeader), s.data(), s.size() * sizeof(CharT));
         std::memset(bytes + sizeof(StringHeader) + s.size() * sizeof(CharT), 0, sizeof(CharT));
@@ -100,19 +100,19 @@ namespace sgcl::detail {
     // statistics and the type's traits (IsStringStorage: is_string).
     constexpr size_t StringClassCount = StringSmallClasses + StringLargeClasses;
 
-    constexpr size_t string_class_bytes(size_t c) noexcept {
+    SGCL_INLINE_HOT constexpr size_t string_class_bytes(size_t c) noexcept {
         return c < StringSmallClasses ? (c + 1) * 4 : string_large_class(c - StringSmallClasses);
     }
 
     template<size_t Bytes>
-    constexpr TypeConstants string_class_constants_of() noexcept {
+    SGCL_INLINE_HOT constexpr TypeConstants string_class_constants_of() noexcept {
         using Info = TypeInfo<StringSlot<Bytes>>;
         static_assert(Info::Allocator::IsPoolAllocator::value && !Info::MayContainTracked);
         return Metadata::constants_of<StringSlot<Bytes>>();
     }
 
     template<size_t... Is>
-    constexpr std::array<TypeConstants, sizeof...(Is)> string_class_constants_of(std::index_sequence<Is...>) noexcept {
+    SGCL_INLINE_HOT constexpr std::array<TypeConstants, sizeof...(Is)> string_class_constants_of(std::index_sequence<Is...>) noexcept {
         return {string_class_constants_of<string_class_bytes(Is)>()...};
     }
 
@@ -130,7 +130,7 @@ namespace sgcl::detail {
         alignas(config::cache_line_size) inline static constinit std::atomic<unsigned> slots[StringClassCount] = {};
         alignas(config::cache_line_size) inline static constinit std::atomic<Metadata*> metadata[StringClassCount] = {};
 
-        static Metadata& metadata_of(unsigned c) noexcept {
+        SGCL_INLINE_HOT static Metadata& metadata_of(unsigned c) noexcept {
             return Metadata::of_pool(metadata[c], string_class_constants[c]);
         }
 
@@ -175,7 +175,7 @@ namespace sgcl::detail {
         }
 
         template<class CharT>
-        static Slot make_buffer(std::basic_string_view<CharT> s, size_t bytes) noexcept {
+        SGCL_INLINE_HOT static Slot make_buffer(std::basic_string_view<CharT> s, size_t bytes) noexcept {
             unique_ptr<StringByte> buffer(Maker<StringByte[]>::make_tracked_data(bytes));
             string_fill(reinterpret_cast<unsigned char*>(buffer.get()), s);
             return Slot(std::move(buffer));
@@ -236,7 +236,7 @@ namespace sgcl::detail {
         // same rules as make_bounded: none is the empty string, less than
         // half the bound a copy of the exact class)
         template<class CharT>
-        static Slot make_unfilled(size_t bound, CharT*& chars) {
+        SGCL_INLINE_HOT static Slot make_unfilled(size_t bound, CharT*& chars) {
             if (bound == 0 || bound > UINT32_MAX) {
                 throw length_error("sgcl::basic_string");
             }
@@ -271,7 +271,7 @@ namespace sgcl::detail {
         // The same for exactly `n` characters: `fill(CharT* chars)` writes
         // all of them
         template<class CharT, class Fill>
-        static Word make_filled(size_t n, Fill&& fill) {
+        SGCL_INLINE_HOT static Word make_filled(size_t n, Fill&& fill) {
             return make_bounded<CharT>(n, [&](CharT* chars) {
                 fill(chars);
                 return n;

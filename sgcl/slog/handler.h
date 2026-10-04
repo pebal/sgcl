@@ -80,7 +80,7 @@ namespace sgcl::slog {
         template<class T>
         struct HandlerBox {
             template<class U>
-            explicit HandlerBox(U&& u) noexcept(std::is_nothrow_constructible_v<T, U&&>)
+            SGCL_INLINE_HOT explicit HandlerBox(U&& u) noexcept(std::is_nothrow_constructible_v<T, U&&>)
             : value(std::forward<U>(u)) {
             }
 
@@ -97,7 +97,7 @@ namespace sgcl::slog {
         // temporary or a handle of the library into its box can, the
         // copy being the program's
         template<class H>
-        constexpr bool nothrow_handler() noexcept {
+        SGCL_INLINE_HOT constexpr bool nothrow_handler() noexcept {
             using S = std::remove_cvref_t<H>;
             if constexpr (IsTracked<S> || (std::is_lvalue_reference_v<H&&> && !IsHandlerHandle<S>)) {
                 return true;
@@ -144,15 +144,15 @@ namespace sgcl::slog {
             }
         }
 
-        void handle(const record& r) const {
+        SGCL_INLINE_HOT void handle(const record& r) const {
             _table->handle(_object, r);
         }
 
-        bool enabled(slog::level l) const {
+        SGCL_INLINE_HOT bool enabled(slog::level l) const {
             return _table->enabled(_object, l);
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return _table != &detail::EmptyHandlerTable;
         }
 

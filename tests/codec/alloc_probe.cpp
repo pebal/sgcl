@@ -9,6 +9,7 @@
 // must not grow with the rows: an image of 16 rows and one of 1024 cost
 // the same, in plain memory and in managed objects (the image's two).
 #include "png_builder.h"
+#include "tests/source_root.h"
 #include "webp_builder.h"
 
 #include <cstdlib>
@@ -571,7 +572,7 @@ TEST(CodecAllocProbe_Tests, WebpClaimedSizesAllocateWhatComes) {
         EXPECT_LT(largest, size_t(1) << 23) << c.what << " (frames)";
     }
     // the fuzzer's file itself
-    std::ifstream in(std::filesystem::path(__FILE__).parent_path() / "fuzz/seeds/webp_decode/regress_anmf_alph_size.webp", std::ios::binary);
+    std::ifstream in(source_root() / "tests/codec/fuzz/seeds/webp_decode/regress_anmf_alph_size.webp", std::ios::binary);
     std::stringstream ss;
     ss << in.rdbuf();
     const std::string seed = ss.str();

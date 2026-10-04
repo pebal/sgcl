@@ -24,11 +24,11 @@ namespace sgcl::txt {
     using detail::script;
 
     namespace detail {
-        constexpr category category_of_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr category category_of_fn(char32_t c) noexcept {
             return category(value_of(c, property_tables::Category));
         }
 
-        constexpr bool is_category(char32_t c, category lo, category hi) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_category(char32_t c, category lo, category hi) noexcept {
             auto v = category_of_fn(c);
             return v >= lo && v <= hi;
         }
@@ -36,37 +36,37 @@ namespace sgcl::txt {
         // The letters: Lu, Ll, Lt, Lm, Lo — Go's unicode.IsLetter. Not the
         // Alphabetic property, which also holds Nl and the marks that
         // spell a vowel, and would make is_alpha true of a combining sign
-        constexpr bool is_alpha_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_alpha_fn(char32_t c) noexcept {
             if (c < 0x80) {
                 return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z');
             }
             return is_category(c, category::uppercase_letter, category::other_letter);
         }
 
-        constexpr bool is_digit_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_digit_fn(char32_t c) noexcept {
             if (c < 0x80) {
                 return c >= U'0' && c <= U'9';
             }
             return category_of_fn(c) == category::decimal_number;
         }
 
-        constexpr bool is_alnum_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_alnum_fn(char32_t c) noexcept {
             return is_alpha_fn(c) || is_digit_fn(c);
         }
 
-        constexpr bool is_punct_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_punct_fn(char32_t c) noexcept {
             return is_category(c, category::connector_punctuation, category::other_punctuation);
         }
 
-        constexpr bool is_mark_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_mark_fn(char32_t c) noexcept {
             return is_category(c, category::nonspacing_mark, category::enclosing_mark);
         }
 
-        constexpr bool is_control_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_control_fn(char32_t c) noexcept {
             return c < 0x20 || (c >= 0x7F && c <= 0x9F);
         }
 
-        constexpr bool is_format_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_format_fn(char32_t c) noexcept {
             return category_of_fn(c) == category::format;
         }
 
@@ -74,18 +74,18 @@ namespace sgcl::txt {
         // the space: what Go's unicode.IsPrint holds, so that a printable
         // code point is one a terminal can show without a surprise. The
         // other separators, the controls and the unassigned are not
-        constexpr bool is_printable_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_printable_fn(char32_t c) noexcept {
             if (c == U' ') {
                 return true;
             }
             return is_category(c, category::uppercase_letter, category::other_symbol);
         }
 
-        constexpr bool is_emoji_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_emoji_fn(char32_t c) noexcept {
             return c >= 0xA9 && in_set(c, property_tables::ExtendedPictographic);
         }
 
-        constexpr int numeric_value_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr int numeric_value_fn(char32_t c) noexcept {
             if (c < 0x80) {
                 return c >= U'0' && c <= U'9' ? int(c - U'0') : -1;
             }
@@ -93,7 +93,7 @@ namespace sgcl::txt {
             return r.ok ? int(r.value + (c - r.lo)) : -1;
         }
 
-        constexpr script script_of_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr script script_of_fn(char32_t c) noexcept {
             return script(value_of(c, property_tables::Script));
         }
 
@@ -102,7 +102,7 @@ namespace sgcl::txt {
         // the rest is one. Class A (ambiguous: the Greek and Cyrillic
         // letters of the East Asian fonts) is one, as it is everywhere
         // outside a CJK locale
-        constexpr size_t columns_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr size_t columns_fn(char32_t c) noexcept {
             if (c < 0x300) {
                 return c < 0x20 || (c >= 0x7F && c <= 0x9F) ? 0 : 1;
             }
@@ -171,19 +171,19 @@ namespace sgcl::txt {
         // Each such function has the pair io's write_text has: an
         // overload for the array and a template of the pointer
         template<size_t N>
-        slice<const char> c_text(const char (&text)[N]) noexcept {
+        SGCL_INLINE_HOT slice<const char> c_text(const char (&text)[N]) noexcept {
             const char* nul = std::char_traits<char>::find(text, N, '\0');
             return slice<const char>(text, nul ? size_t(nul - text) : N);
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        slice<const char> c_text(P text) noexcept {
+        SGCL_INLINE_HOT slice<const char> c_text(P text) noexcept {
             return text ? slice<const char>(text, std::char_traits<char>::length(text)) : slice<const char>();
         }
 
         template<class T>
-        string c_string(const T& text) {
+        SGCL_INLINE_HOT string c_string(const T& text) {
             auto t = c_text(text);
             return string(t.data(), t.size());
         }
@@ -192,17 +192,17 @@ namespace sgcl::txt {
         // runes, which a code_point_fn could not carry, since it refuses
         // everything that is not a char32_t
         struct columns_of {
-            constexpr size_t operator()(char32_t c) const noexcept {
+            SGCL_INLINE_HOT constexpr size_t operator()(char32_t c) const noexcept {
                 return columns_fn(c);
             }
 
             // Not constexpr, these two: a slice and a string hold a
             // tracked pointer, so neither is a literal type
-            size_t operator()(const slice<const char>& text) const noexcept {
+            SGCL_INLINE_HOT size_t operator()(const slice<const char>& text) const noexcept {
                 return _sum({text.data(), text.size()});
             }
 
-            size_t operator()(const string& text) const noexcept {
+            SGCL_INLINE_HOT size_t operator()(const string& text) const noexcept {
                 return _sum(text.view());
             }
 
@@ -212,14 +212,14 @@ namespace sgcl::txt {
             // first NUL or its end, a pointer up to its NUL (c_text above,
             // written again here to stay constexpr)
             template<size_t N>
-            constexpr size_t operator()(const char (&text)[N]) const noexcept {
+            SGCL_INLINE_HOT constexpr size_t operator()(const char (&text)[N]) const noexcept {
                 const char* nul = std::char_traits<char>::find(text, N, '\0');
                 return _sum(std::string_view(text, nul ? size_t(nul - text) : N));
             }
 
             template<class P>
             requires std::same_as<P, const char*> || std::same_as<P, char*>
-            constexpr size_t operator()(P text) const noexcept {
+            SGCL_INLINE_HOT constexpr size_t operator()(P text) const noexcept {
                 return text ? _sum(text) : 0;
             }
 
@@ -237,7 +237,7 @@ namespace sgcl::txt {
             size_t operator()(T) const = delete;
 
         private:
-            static constexpr size_t _sum(std::string_view text) noexcept {
+            SGCL_INLINE_HOT static constexpr size_t _sum(std::string_view text) noexcept {
                 return columns_of_text(text);
             }
         };

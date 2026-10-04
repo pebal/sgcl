@@ -31,7 +31,7 @@ namespace sgcl::async {
             // At zero the round is over: its channel closed from the start,
             // so that on_done serves a group that never counted up (the
             // first add opens a new round, as every later one does)
-            WaitGroupState() noexcept   // the close of a channel just made wakes nobody
+            SGCL_INLINE_HOT WaitGroupState() noexcept   // the close of a channel just made wakes nobody
             : _round(detail::make_linked_state<void>()) {
                 _round.load(std::memory_order_relaxed)->close();
             }
@@ -58,21 +58,21 @@ namespace sgcl::async {
             // The round is read before the count is taken off: once the count
             // is zero wait() may have returned and the group may be gone, so
             // the last done() touches nothing of it after its decrement
-            void done() {
+            SGCL_INLINE_HOT void done() {
                 tracked_ptr<detail::ChannelState<void>> round = _round.load(std::memory_order_acquire);
                 if (_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
                     round->close();
                 }
             }
 
-            long count() const noexcept {
+            SGCL_INLINE_HOT long count() const noexcept {
                 return _count.load(std::memory_order_acquire);
             }
 
             // A case of a select: f() when the count is zero (the channel of
             // the current round, closed at zero)
             template<class F>
-            auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
+            SGCL_INLINE_HOT auto on_done(F f) noexcept(std::is_nothrow_move_constructible_v<F>) {
                 return _round.load(std::memory_order_acquire)->on_receive(std::move(f));
             }
 
@@ -80,12 +80,12 @@ namespace sgcl::async {
             // as a task is waited for
             // noexcept: nobody sends on a round's channel, the count reaching
             // zero closes it (mutex.h: MutexState::lock)
-            void wait() noexcept {
+            SGCL_INLINE_HOT void wait() noexcept {
                 assert(!detail::on_worker() && "wait() blocks the worker: co_await the group from a task");
                 _wait();
             }
 
-            auto operator co_await() noexcept {
+            SGCL_INLINE_HOT auto operator co_await() noexcept {
                 return detail::either([this] { return _co_wait(); }, [this] { _wait(); });
             }
 
@@ -123,7 +123,7 @@ namespace sgcl::async {
     // constructor; there is no empty group.
     class wait_group {
     public:
-        wait_group() noexcept
+        SGCL_INLINE_HOT wait_group() noexcept
         : _s(make_tracked<detail::WaitGroupState>()) {
         }
 
@@ -132,27 +132,27 @@ namespace sgcl::async {
         wait_group& operator=(const wait_group&) noexcept = default;
         wait_group& operator=(wait_group&&) noexcept = default;
 
-        void add(long n = 1) const {
+        SGCL_INLINE_HOT void add(long n = 1) const {
             _s->add(n);
         }
 
-        void done() const {
+        SGCL_INLINE_HOT void done() const {
             _s->done();
         }
 
-        long count() const noexcept {
+        SGCL_INLINE_HOT long count() const noexcept {
             return _s->count();
         }
 
         // A case of a select: f() when the count is zero
         template<class F>
-        auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_done(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->on_done(std::move(f));
         }
 
         // Waits for zero: `g.wait()` on a thread, `co_await g` in a task,
         // as a task is waited for
-        void wait() const noexcept {
+        SGCL_INLINE_HOT void wait() const noexcept {
             _s->wait();
         }
 
@@ -161,7 +161,7 @@ namespace sgcl::async {
         }
 
         // The same group: the same state
-        friend bool operator==(const wait_group& a, const wait_group& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const wait_group& a, const wait_group& b) noexcept {
             return a._s == b._s;
         }
 
@@ -169,15 +169,15 @@ namespace sgcl::async {
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        wait_group(sgcl::detail::FromWord, const tracked_ptr<detail::WaitGroupState>& w) noexcept
+        SGCL_INLINE_HOT wait_group(sgcl::detail::FromWord, const tracked_ptr<detail::WaitGroupState>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<detail::WaitGroupState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::WaitGroupState>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<detail::WaitGroupState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::WaitGroupState>& _handle_word() const noexcept {
             return _s;
         }
 

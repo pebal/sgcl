@@ -55,7 +55,7 @@ namespace sgcl {
             // queue and its function will not be called; the entry leaves
             // the queue with the next drain(). True when the entry was
             // still pending (not drained, not cancelled before).
-            bool cancel() noexcept {
+            SGCL_INLINE_HOT bool cancel() noexcept {
                 auto cell = _cell.get();
                 if (!cell) {
                     return false;
@@ -66,23 +66,23 @@ namespace sgcl {
 
             // The collector has found the object unreachable: its function
             // waits for drain() (or was called, or the entry was cancelled)
-            bool expired() const noexcept {
+            SGCL_INLINE_HOT bool expired() const noexcept {
                 auto cell = _cell.get();
                 return cell && (cell->flags.load(std::memory_order_acquire) & detail::WeakCell::Expired);
             }
 
             // A weak pointer to the object, sharing the entry's cell: an
             // ordinary weak_ptr (lock(), expired()), holding nothing
-            weak_type weak() const noexcept {
+            SGCL_INLINE_HOT weak_type weak() const noexcept {
                 return weak_type(_cell);
             }
 
-            explicit operator bool() const noexcept {
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return _cell.get() != nullptr;
             }
 
         private:
-            explicit entry(const tracked_ptr<detail::WeakCell>& cell) noexcept
+            SGCL_INLINE_HOT explicit entry(const tracked_ptr<detail::WeakCell>& cell) noexcept
             : _cell(cell) {
             }
 
@@ -153,11 +153,11 @@ namespace sgcl {
 
         // The entries not drained yet, expired or not (a cancelled one
         // counts until the next drain)
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _entries.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _entries.empty();
         }
 
@@ -172,13 +172,13 @@ namespace sgcl {
             _threshold = 16;
         }
 
-        ~expiry_queue() {
+        SGCL_INLINE_HOT ~expiry_queue() {
             clear();
         }
 
         // A move takes the entries over with the count of the automatic
         // drain; the source is left empty, as after clear()
-        expiry_queue(expiry_queue&& other) noexcept
+        SGCL_INLINE_HOT expiry_queue(expiry_queue&& other) noexcept
         : _entries(std::move(other._entries))
         , _watched(other._watched)
         , _threshold(other._threshold) {
@@ -215,7 +215,7 @@ namespace sgcl {
         // The cell is an ordinary weak cell from now on: its target is no
         // longer kept for the queue. Returns the flags as they were: the
         // Drained among them says a cancel() got there first.
-        static unsigned _release(detail::WeakCell* cell) noexcept {
+        SGCL_INLINE_HOT static unsigned _release(detail::WeakCell* cell) noexcept {
             return cell->flags.fetch_or(detail::WeakCell::Drained, std::memory_order_acq_rel);
         }
 

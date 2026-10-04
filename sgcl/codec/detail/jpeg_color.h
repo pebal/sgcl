@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
 #include "simd.h"
 
 #include <array>
@@ -92,12 +93,12 @@ namespace sgcl::codec::detail {
             return i;
         }
 #elif defined(SGCL_CODEC_SSE2)
-        inline __m128i load8(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT __m128i load8(const uint8_t* p) noexcept {
             return _mm_unpacklo_epi8(_mm_loadl_epi64(reinterpret_cast<const __m128i*>(p)), _mm_setzero_si128());
         }
 
         // even and odd outputs of eight samples interleaved and stored
-        inline void store_pairs(uint8_t* out, __m128i even, __m128i odd) noexcept {
+        SGCL_INLINE_HOT void store_pairs(uint8_t* out, __m128i even, __m128i odd) noexcept {
             const __m128i e = _mm_packus_epi16(even, even), o = _mm_packus_epi16(odd, odd);
             _mm_storeu_si128(reinterpret_cast<__m128i*>(out), _mm_unpacklo_epi8(e, o));
         }
@@ -121,11 +122,11 @@ namespace sgcl::codec::detail {
 
         // 2× across and 2× down: the plain roads, which the compiler turns
         // into vector code itself (hand-written vectors measured slower)
-        inline void h2(const uint8_t* in, uint8_t* out, size_t n) noexcept {
+        SGCL_INLINE_HOT void h2(const uint8_t* in, uint8_t* out, size_t n) noexcept {
             h2_plain(in, out, n);
         }
 
-        inline void v2(const uint8_t* row, const uint8_t* near, bool lower, uint8_t* out, size_t n) noexcept {
+        SGCL_INLINE_HOT void v2(const uint8_t* row, const uint8_t* near, bool lower, uint8_t* out, size_t n) noexcept {
             v2_plain(row, near, lower, out, n);
         }
 
@@ -169,7 +170,7 @@ namespace sgcl::codec::detail {
     struct YccTables {
         std::array<int, 256> cr_r, cb_b, cr_g, cb_g;
 
-        static constexpr int64_t fix(double x) noexcept {
+        SGCL_INLINE_HOT static constexpr int64_t fix(double x) noexcept {
             return int64_t(x * 65536 + 0.5);
         }
 
@@ -190,7 +191,7 @@ namespace sgcl::codec::detail {
         return t;
     }
 
-    inline uint8_t clamp255(int v) noexcept {
+    SGCL_INLINE_HOT uint8_t clamp255(int v) noexcept {
         return uint8_t(v < 0 ? 0 : v > 255 ? 255 : v);
     }
 
@@ -260,7 +261,7 @@ namespace sgcl::codec::detail {
         }
 
         // xb·kb + xr·kr, plus 32768, shifted down 16: PMADDWD on the pairs
-        inline __m128i term2(__m128i xb, int16_t kb, __m128i xr, int16_t kr) noexcept {
+        SGCL_INLINE_HOT __m128i term2(__m128i xb, int16_t kb, __m128i xr, int16_t kr) noexcept {
             const __m128i k = _mm_set1_epi32(int(uint16_t(kb)) | int(uint32_t(uint16_t(kr)) << 16));
             const __m128i half = _mm_set1_epi32(32768);
             const __m128i lo = _mm_srai_epi32(_mm_add_epi32(_mm_madd_epi16(_mm_unpacklo_epi16(xb, xr), k), half), 16);
@@ -300,7 +301,7 @@ namespace sgcl::codec::detail {
     }
 #endif
 
-    inline void ycc_to_rgb(const uint8_t* y, const uint8_t* cb, const uint8_t* cr, uint8_t* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void ycc_to_rgb(const uint8_t* y, const uint8_t* cb, const uint8_t* cr, uint8_t* out, size_t n) noexcept {
         size_t done = 0;
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         done = ycc_to_rgb_vector(y, cb, cr, out, n);
@@ -318,7 +319,7 @@ namespace sgcl::codec::detail {
     // (19595 = fix(0.299) and so on; each row of weights sums to 65536 or
     // to 0, so every sum lies within 0..2^24 and every result in 0..255).
     namespace rgb_ycc {
-        constexpr int64_t fix(double x) noexcept {
+        SGCL_INLINE_HOT constexpr int64_t fix(double x) noexcept {
             return int64_t(x * 65536 + 0.5);
         }
 
@@ -349,7 +350,7 @@ namespace sgcl::codec::detail {
             uint16x4_t y, cb, cr;
         };
 
-        inline Quarter quarter(uint16x4_t r, uint16x4_t g, uint16x4_t b, uint32x4_t centre) noexcept {
+        SGCL_INLINE_HOT Quarter quarter(uint16x4_t r, uint16x4_t g, uint16x4_t b, uint32x4_t centre) noexcept {
             return {vrshrn_n_u32(vmlal_n_u16(vmlal_n_u16(vmull_n_u16(r, uint16_t(YR)), g, uint16_t(YG)), b, uint16_t(YB)), 16),
                     vshrn_n_u32(vmlsl_n_u16(vmlsl_n_u16(vmlal_n_u16(centre, b, uint16_t(Half)), r, uint16_t(CbR)), g, uint16_t(CbG)), 16),
                     vshrn_n_u32(vmlsl_n_u16(vmlsl_n_u16(vmlal_n_u16(centre, r, uint16_t(Half)), g, uint16_t(CrG)), b, uint16_t(CrB)), 16)};
@@ -396,20 +397,20 @@ namespace sgcl::codec::detail {
     namespace rgb_ycc {
         // Four pixels from 16 bytes as 32-bit lanes R | G << 8 | B << 16
         // (the fourth byte the next pixel's)
-        inline __m128i pixels4(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT __m128i pixels4(const uint8_t* p) noexcept {
             const __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));
             const __m128i a = _mm_unpacklo_epi32(v, _mm_srli_si128(v, 3));
             const __m128i b = _mm_unpacklo_epi32(_mm_srli_si128(v, 6), _mm_srli_si128(v, 9));
             return _mm_unpacklo_epi64(a, b);
         }
 
-        inline __m128i pair(int16_t a, int16_t b) noexcept {
+        SGCL_INLINE_HOT __m128i pair(int16_t a, int16_t b) noexcept {
             return _mm_set1_epi32(int(uint16_t(a)) | int(uint32_t(uint16_t(b)) << 16));
         }
 
         // x·a + y·b + z·c + w·d on the pairs (x, y) and (z, w), plus the
         // constant, shifted down 16, eight lanes of 16 bits
-        inline __m128i sum(__m128i x, __m128i y, int16_t a, int16_t b, __m128i z, __m128i w, int16_t c, int16_t d, int32_t k) noexcept {
+        SGCL_INLINE_HOT __m128i sum(__m128i x, __m128i y, int16_t a, int16_t b, __m128i z, __m128i w, int16_t c, int16_t d, int32_t k) noexcept {
             const __m128i kk = _mm_set1_epi32(k);
             const __m128i lo = _mm_add_epi32(_mm_add_epi32(_mm_madd_epi16(_mm_unpacklo_epi16(x, y), pair(a, b)),
                                                            _mm_madd_epi16(_mm_unpacklo_epi16(z, w), pair(c, d))),
@@ -468,7 +469,7 @@ namespace sgcl::codec::detail {
 #endif
 
     // rgb: n pixels of three bytes; y, cb, cr: n samples each
-    inline void rgb_to_ycc(const uint8_t* rgb, uint8_t* y, uint8_t* cb, uint8_t* cr, size_t n) noexcept {
+    SGCL_INLINE_HOT void rgb_to_ycc(const uint8_t* rgb, uint8_t* y, uint8_t* cb, uint8_t* cr, size_t n) noexcept {
         size_t done = 0;
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
         done = rgb_to_ycc_vector(rgb, y, cb, cr, n);
@@ -520,7 +521,7 @@ namespace sgcl::codec::detail {
         }
 #elif defined(SGCL_CODEC_SSE2)
         // the sums of the byte pairs of 16 bytes, eight lanes of 16 bits
-        inline __m128i pairs(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT __m128i pairs(const uint8_t* p) noexcept {
             const __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));
             return _mm_add_epi16(_mm_and_si128(v, _mm_set1_epi16(0xFF)), _mm_srli_epi16(v, 8));
         }
@@ -546,7 +547,7 @@ namespace sgcl::codec::detail {
         }
 #endif
 
-        inline void h2v1(const uint8_t* a, uint8_t* out, size_t n) noexcept {
+        SGCL_INLINE_HOT void h2v1(const uint8_t* a, uint8_t* out, size_t n) noexcept {
             size_t done = 0;
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
             done = h2v1_vector(a, out, n);
@@ -555,7 +556,7 @@ namespace sgcl::codec::detail {
             h2v1_plain(a + 2 * done, out + done, n - done);
         }
 
-        inline void h2v2(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n) noexcept {
+        SGCL_INLINE_HOT void h2v2(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n) noexcept {
             size_t done = 0;
 #if defined(SGCL_CODEC_NEON) || defined(SGCL_CODEC_SSE2)
             done = h2v2_vector(a, b, out, n);

@@ -33,7 +33,7 @@ namespace sgcl::detail {
     enum class Region : unsigned char { Word, Tracked, Data };
 
     template<class T>
-    constexpr Region region_of() noexcept {
+    SGCL_INLINE_HOT constexpr Region region_of() noexcept {
         if (IsPointerWord<T>) {
             return Region::Word;
         }

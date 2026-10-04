@@ -29,7 +29,7 @@
 // tells a bad leading byte from the rest. oaep_decode reads every byte and
 // folds every check into one mask, with no branch before the end.
 namespace sgcl::crypto::detail::rsa_pad {
-    inline slice<const byte> view(const unsigned char* p, size_t n) noexcept {
+    SGCL_INLINE_HOT slice<const byte> view(const unsigned char* p, size_t n) noexcept {
         return slice<const byte>(reinterpret_cast<const byte*>(p), n);
     }
 

@@ -128,7 +128,7 @@ namespace sgcl::encoding::detail {
     }
 
     template<class Codec>
-    expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const char* p, size_t n) {
+    SGCL_INLINE_HOT expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const char* p, size_t n) {
         if (out.size() < c.decode_bound(p, n)) {
             throw length_error("sgcl: the buffer is smaller than the most the text decodes to");
         }
@@ -136,7 +136,7 @@ namespace sgcl::encoding::detail {
     }
 
     template<class Codec>
-    expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const string& text) {
+    SGCL_INLINE_HOT expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const string& text) {
         return decode_to(c, out, text.data(), text.size());
     }
 
@@ -157,7 +157,7 @@ namespace sgcl::encoding::detail {
         using io::mixin::writer<CodecWriter<Codec>>::write;
         using io::mixin::writer<CodecWriter<Codec>>::async_write;
 
-        CodecWriter(const Codec& codec, const io::writer& out) noexcept
+        SGCL_INLINE_HOT CodecWriter(const Codec& codec, const io::writer& out) noexcept
         : _codec(codec), _out(out), _block(make_tracked<CodecBlock>()) {
         }
 
@@ -240,16 +240,16 @@ namespace sgcl::encoding::detail {
             co_return expected<void, io::error>();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _closed;
         }
 
     private:
-        char* _chars() const noexcept {
+        SGCL_INLINE_HOT char* _chars() const noexcept {
             return reinterpret_cast<char*>(_block->data());
         }
 
-        slice<const byte> _chunk(size_t n) const noexcept {
+        SGCL_INLINE_HOT slice<const byte> _chunk(size_t n) const noexcept {
             return slice<const byte>(_block, _block->data(), n);
         }
 
@@ -279,7 +279,7 @@ namespace sgcl::encoding::detail {
             return size_t(o - _chars());
         }
 
-        size_t _final() noexcept {
+        SGCL_INLINE_HOT size_t _final() noexcept {
             char* o = _chars();
             _codec.encode_final(_carry, _carried, o);
             _carried = 0;
@@ -308,7 +308,7 @@ namespace sgcl::encoding::detail {
     class CodecReader
     : public io::mixin::reader<CodecReader<Codec>> {
     public:
-        CodecReader(const Codec& codec, const io::reader& in) noexcept
+        SGCL_INLINE_HOT CodecReader(const Codec& codec, const io::reader& in) noexcept
         : _codec(codec), _in(in), _block(make_tracked<CodecBlock>()) {
         }
 
@@ -337,16 +337,16 @@ namespace sgcl::encoding::detail {
         }
 
         // Where the text went wrong, or why the reader under it failed
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
     private:
-        const char* _chars() const noexcept {
+        SGCL_INLINE_HOT const char* _chars() const noexcept {
             return reinterpret_cast<const char*>(_block->data());
         }
 
-        slice<byte> _room() const noexcept {
+        SGCL_INLINE_HOT slice<byte> _room() const noexcept {
             return slice<byte>(_block, _block->data(), _block->size());
         }
 
@@ -354,7 +354,7 @@ namespace sgcl::encoding::detail {
             return io::detail::fail(to_io_error(*_error, _codec.name()));
         }
 
-        size_t _hand_out(const slice<byte>& buffer) noexcept {
+        SGCL_INLINE_HOT size_t _hand_out(const slice<byte>& buffer) noexcept {
             size_t n = std::min(buffer.size(), size_t(_pending_end - _pending_begin));
             copy_bytes(buffer.data(), _pending + _pending_begin, n);
             _pending_begin += uint8_t(n);
@@ -415,7 +415,7 @@ namespace sgcl::encoding::detail {
             return nullopt;
         }
 
-        void _received(const expected<size_t, io::error>& r) noexcept {
+        SGCL_INLINE_HOT void _received(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _state.offset);
             } else if (*r == 0) {
@@ -447,7 +447,7 @@ namespace sgcl::encoding::detail {
     // dumper_to (base64.h, base32.h, hex.h, ascii85.h)
     struct CodecAccess {
         template<class H, class S>
-        static H make(S&& state) noexcept {
+        SGCL_INLINE_HOT static H make(S&& state) noexcept {
             return H(CodecMade{}, std::forward<S>(state));   // the state as make_tracked gave it: held from here on
         }
     };
@@ -470,35 +470,35 @@ namespace sgcl::encoding::detail {
 
         WriterHandle() noexcept = default;
 
-        expected<size_t, io::error> write(const slice<const byte>& data) const {
+        SGCL_INLINE_HOT expected<size_t, io::error> write(const slice<const byte>& data) const {
             return _get().write(data);
         }
 
-        async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const noexcept {
             return _get().async_write(data);
         }
 
         // The rest written (the last group, the short line), the writer
         // underneath left open; a write after it is errc::closed
-        expected<void, io::error> close() const {
+        SGCL_INLINE_HOT expected<void, io::error> close() const {
             return _get().close();
         }
 
-        async::task<expected<void, io::error>> async_close() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_close() const noexcept {
             return _get().async_close();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _get().is_closed();
         }
 
         // Whether this handle holds a stream
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_s;
         }
 
         // The same stream: the same state
-        friend bool operator==(const Derived& a, const Derived& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const Derived& a, const Derived& b) noexcept {
             return a._s == b._s;
         }
 
@@ -507,29 +507,29 @@ namespace sgcl::encoding::detail {
         friend struct sgcl::detail::HandleWord;
         friend struct CodecAccess;
 
-        WriterHandle(CodecMade, tracked_ptr<State> s) noexcept
+        SGCL_INLINE_HOT WriterHandle(CodecMade, tracked_ptr<State> s) noexcept
         : _s(std::move(s)) {
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
-        WriterHandle(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        SGCL_INLINE_HOT WriterHandle(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<State>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<State>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<State>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _handle_word() const noexcept {
             return _s;
         }
 
-        State& _get() const noexcept {
+        SGCL_INLINE_HOT State& _get() const noexcept {
             assert(_s && "an empty encoding stream: made by encoder_to or dumper_to");
             return *_s;
         }
 
-        const tracked_ptr<State>& _stream_state() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _stream_state() const noexcept {
             return _s;
         }
 
@@ -542,24 +542,24 @@ namespace sgcl::encoding::detail {
     public:
         ReaderHandle() noexcept = default;
 
-        expected<size_t, io::error> read(const slice<byte>& buffer) const {
+        SGCL_INLINE_HOT expected<size_t, io::error> read(const slice<byte>& buffer) const {
             return _get().read(buffer);
         }
 
-        async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const noexcept {
+        SGCL_INLINE_HOT async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const noexcept {
             return _get().async_read(buffer);
         }
 
         // Where the text went wrong, or why the reader under it failed
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _get().last_error();
         }
 
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_s;
         }
 
-        friend bool operator==(const Derived& a, const Derived& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const Derived& a, const Derived& b) noexcept {
             return a._s == b._s;
         }
 
@@ -568,28 +568,28 @@ namespace sgcl::encoding::detail {
         friend struct sgcl::detail::HandleWord;
         friend struct CodecAccess;
 
-        ReaderHandle(CodecMade, tracked_ptr<State> s) noexcept
+        SGCL_INLINE_HOT ReaderHandle(CodecMade, tracked_ptr<State> s) noexcept
         : _s(std::move(s)) {
         }
 
-        ReaderHandle(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        SGCL_INLINE_HOT ReaderHandle(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<State>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<State>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<State>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _handle_word() const noexcept {
             return _s;
         }
 
-        State& _get() const noexcept {
+        SGCL_INLINE_HOT State& _get() const noexcept {
             assert(_s && "an empty encoding stream: made by decoder_from");
             return *_s;
         }
 
-        const tracked_ptr<State>& _stream_state() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<State>& _stream_state() const noexcept {
             return _s;
         }
 

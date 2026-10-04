@@ -45,7 +45,7 @@ namespace sgcl::slog::detail {
     // waiter sleeps on the word (Drepper's three-state futex lock)
     class SlotLock {
     public:
-        void lock() noexcept {
+        SGCL_INLINE_HOT void lock() noexcept {
             uint32_t free = 0;
             if (_s.compare_exchange_strong(free, 1, std::memory_order_acquire, std::memory_order_relaxed)) [[likely]] {
                 return;
@@ -53,7 +53,7 @@ namespace sgcl::slog::detail {
             _contended();
         }
 
-        void unlock() noexcept {
+        SGCL_INLINE_HOT void unlock() noexcept {
             if (_s.exchange(0, std::memory_order_release) == 2) [[unlikely]] {
                 _s.notify_one();
             }
@@ -103,7 +103,7 @@ namespace sgcl::slog::detail {
     inline std::atomic<bool> collector_pending = {false};
     inline std::atomic<void (*)() noexcept> collector_drain = {nullptr};
 
-    inline void drain_collector_if_pending() noexcept {
+    SGCL_INLINE_HOT void drain_collector_if_pending() noexcept {
         if (collector_pending.load(std::memory_order_relaxed)) [[unlikely]] {
             if (auto drain = collector_drain.load(std::memory_order_acquire)) {
                 drain();
@@ -113,7 +113,7 @@ namespace sgcl::slog::detail {
 
     // What a worker does on its way to sleep: the collector's lines logged,
     // its batches written
-    inline void worker_idle(unsigned slot) {
+    SGCL_INLINE_HOT void worker_idle(unsigned slot) {
         drain_collector_if_pending();
         write_waiting(slot);
     }
@@ -142,7 +142,7 @@ namespace sgcl::slog::detail {
     // program's writer too: a slot left locked would stop every later
     // record of its worker
     struct SlotGuard {
-        explicit SlotGuard(Slot& s) noexcept
+        SGCL_INLINE_HOT explicit SlotGuard(Slot& s) noexcept
         : slot(s) {
             slot.lock.lock();
         }
@@ -150,7 +150,7 @@ namespace sgcl::slog::detail {
         SlotGuard(const SlotGuard&) = delete;
         SlotGuard& operator=(const SlotGuard&) = delete;
 
-        ~SlotGuard() {
+        SGCL_INLINE_HOT ~SlotGuard() {
             slot.lock.unlock();
         }
 
@@ -184,7 +184,7 @@ namespace sgcl::slog::detail {
 
         // A line, or a batch of lines, that could not be written: counted,
         // and said once on stderr
-        void failed(const io::error& e, uint64_t lines) {
+        SGCL_INLINE_HOT void failed(const io::error& e, uint64_t lines) {
             dropped.fetch_add(lines, std::memory_order_relaxed);
             if (!reported.exchange(true, std::memory_order_relaxed)) {
                 std::string text = "sgcl::slog: a write failed: " + io_error_text(e) + "\n";
@@ -192,7 +192,7 @@ namespace sgcl::slog::detail {
             }
         }
 
-        void write_now(const char* p, size_t n, uint64_t lines) {
+        SGCL_INLINE_HOT void write_now(const char* p, size_t n, uint64_t lines) {
             auto r = writer.write(slice<const byte>(reinterpret_cast<const byte*>(p), n));
             if (!r) [[unlikely]] {
                 failed(r.error(), lines);
@@ -201,7 +201,7 @@ namespace sgcl::slog::detail {
 
         // What a slot holds, written; under its lock. The lines go with
         // the write, also when the writer throws
-        void drain(Slot& s) {
+        SGCL_INLINE_HOT void drain(Slot& s) {
             if (s.n) {
                 size_t n = s.n;
                 uint32_t lines = s.records;
@@ -256,7 +256,7 @@ namespace sgcl::slog::detail {
             }
         }
 
-        void write(const tracked_ptr<Output>& self, const char* p, size_t n, slog::level l) {
+        SGCL_INLINE_HOT void write(const tracked_ptr<Output>& self, const char* p, size_t n, slog::level l) {
             if (buffered) {
                 batch(self, p, n, l);
             } else {

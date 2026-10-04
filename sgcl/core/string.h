@@ -69,7 +69,7 @@ namespace sgcl {
         // returned it, nothing else
         struct StringAccess {
             template<class S>
-            static S over(const tracked_ptr<const void>& word) noexcept {
+            SGCL_INLINE_HOT static S over(const tracked_ptr<const void>& word) noexcept {
                 return S(word);
             }
 
@@ -79,12 +79,12 @@ namespace sgcl {
             // character written once): the library's builders that know
             // their size, or a bound of it
             template<class S, class Fill>
-            static S filled(size_t n, Fill&& fill) {
+            SGCL_INLINE_HOT static S filled(size_t n, Fill&& fill) {
                 return S::_filled(n, std::forward<Fill>(fill));
             }
 
             template<class S, class Fill>
-            static S bounded(size_t bound, Fill&& fill) {
+            SGCL_INLINE_HOT static S bounded(size_t bound, Fill&& fill) {
                 return S::_bounded(bound, std::forward<Fill>(fill));
             }
 
@@ -99,7 +99,7 @@ namespace sgcl {
             };
 
             template<class S>
-            static Unfilled<S> unfilled(size_t bound) {
+            SGCL_INLINE_HOT static Unfilled<S> unfilled(size_t bound) {
                 Unfilled<S> u;
                 u.bound = bound;
                 if (bound) {
@@ -109,7 +109,7 @@ namespace sgcl {
             }
 
             template<class S>
-            static S finish(Unfilled<S>&& u, size_t used) noexcept {
+            SGCL_INLINE_HOT static S finish(Unfilled<S>&& u, size_t used) noexcept {
                 if (!u.bound) {
                     return S();
                 }
@@ -161,21 +161,21 @@ namespace sgcl {
         // pair, the array's overload is the better match, so an array
         // never decays into the pointer's strlen
         template<size_t N>
-        basic_string(const CharT (&s)[N])
+        SGCL_INLINE_HOT basic_string(const CharT (&s)[N])
         : basic_string(detail::array_text<CharT, Traits>(s)) {
         }
 
         template<class P>
         requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        basic_string(P s)
+        SGCL_INLINE_HOT basic_string(P s)
         : basic_string(view_type(s)) {
         }
 
-        basic_string(const CharT* s, size_type n)
+        SGCL_INLINE_HOT basic_string(const CharT* s, size_type n)
         : basic_string(view_type(s, n)) {
         }
 
-        basic_string(view_type s)
+        SGCL_INLINE_HOT basic_string(view_type s)
         : _word(s.empty() ? Word() : Maker::make(s)) {
         }
 
@@ -183,33 +183,33 @@ namespace sgcl {
         // std::string_view), as std::string does
         template<class V>
         requires std::is_convertible_v<const V&, view_type> && (!std::is_convertible_v<const V&, const CharT*>) && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
-        explicit basic_string(const V& v)
+        SGCL_INLINE_HOT explicit basic_string(const V& v)
         : basic_string(view_type(v)) {
         }
 
-        basic_string(size_type n, CharT c)
+        SGCL_INLINE_HOT basic_string(size_type n, CharT c)
         : _word(Maker::template make_filled<CharT>(n, [&](CharT* chars) { std::fill_n(chars, n, c); })) {
         }
 
         template<std::input_iterator It>
-        basic_string(It first, It last)
+        SGCL_INLINE_HOT basic_string(It first, It last)
         : basic_string(std::basic_string<CharT, Traits>(first, last)) {
         }
 
         // A forward range is counted first and written in place
         template<std::forward_iterator It>
-        basic_string(It first, It last)
+        SGCL_INLINE_HOT basic_string(It first, It last)
         : _word(Maker::template make_filled<CharT>(size_t(std::distance(first, last)), [&](CharT* chars) { std::copy(first, last, chars); })) {
         }
 
-        basic_string(std::initializer_list<CharT> il)
+        SGCL_INLINE_HOT basic_string(std::initializer_list<CharT> il)
         : basic_string(view_type(il.begin(), il.size())) {
         }
 
         // From a slice: the string's own object when the slice is the
         // whole of a string (no copy), a new string of the characters
         // otherwise
-        explicit basic_string(const slice_type& v)
+        SGCL_INLINE_HOT explicit basic_string(const slice_type& v)
         : _word(_whole_string(v) ? Word(static_pointer_cast<const void>(v.owner())) : (v.empty() ? Word() : Maker::make(v.view()))) {
         }
 
@@ -223,7 +223,7 @@ namespace sgcl {
         requires (sizeof(CharT) == 1) && std::is_convertible_v<const B&, slice<const byte>>
               && (!std::is_convertible_v<const B&, view_type>) && (!std::is_convertible_v<const B&, const CharT*>)
               && (!std::is_same_v<std::remove_cvref_t<B>, basic_string>) && (!std::is_same_v<std::remove_cvref_t<B>, slice_type>)
-        explicit basic_string(const B& bytes)
+        SGCL_INLINE_HOT explicit basic_string(const B& bytes)
         : basic_string(_bytes_view(slice<const byte>(bytes))) {
         }
 
@@ -234,96 +234,96 @@ namespace sgcl {
         basic_string& operator=(basic_string&&) noexcept = default;
 
         template<size_t N>
-        basic_string& operator=(const CharT (&s)[N]) {
+        SGCL_INLINE_HOT basic_string& operator=(const CharT (&s)[N]) {
             return *this = basic_string(s);
         }
 
         template<class P>
         requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        basic_string& operator=(P s) {
+        SGCL_INLINE_HOT basic_string& operator=(P s) {
             return *this = basic_string(s);
         }
 
-        basic_string& operator=(view_type s) {
+        SGCL_INLINE_HOT basic_string& operator=(view_type s) {
             return *this = basic_string(s);
         }
 
         template<class V>
         requires std::is_convertible_v<const V&, view_type> && (!std::is_convertible_v<const V&, const CharT*>) && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
-        basic_string& operator=(const V& v) {
+        SGCL_INLINE_HOT basic_string& operator=(const V& v) {
             return *this = basic_string(v);
         }
 
         // The characters, terminated; the empty string's are a terminator
-        const CharT* data() const noexcept {
+        SGCL_INLINE_HOT const CharT* data() const noexcept {
             return _word ? _chars() : &_empty;
         }
 
-        const CharT* c_str() const noexcept {
+        SGCL_INLINE_HOT const CharT* c_str() const noexcept {
             return data();
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _word ? _header()->size : 0;
         }
 
-        size_type length() const noexcept {
+        SGCL_INLINE_HOT size_type length() const noexcept {
             return size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return !_word;
         }
 
-        static constexpr size_type max_size() noexcept {
+        SGCL_INLINE_HOT static constexpr size_type max_size() noexcept {
             return UINT32_MAX;
         }
 
         // The string as a slice that holds the object (slice.h): the
         // whole of it, or the characters [pos, pos + n), shared, nothing
         // copied
-        slice_type as_slice() const noexcept {
+        SGCL_INLINE_HOT slice_type as_slice() const noexcept {
             return slice_type(_word, data(), data() + size());
         }
 
-        slice_type as_slice(size_type pos, size_type n = npos) const {
+        SGCL_INLINE_HOT slice_type as_slice(size_type pos, size_type n = npos) const {
             if (pos > size()) {
                 throw out_of_range("sgcl::basic_string::as_slice");
             }
             return slice_type(_word, data() + pos, data() + pos + std::min(n, size() - pos));
         }
 
-        operator slice_type() const noexcept {
+        SGCL_INLINE_HOT operator slice_type() const noexcept {
             return as_slice();
         }
 
-        const CharT& operator[](size_type i) const noexcept {
+        SGCL_INLINE_HOT const CharT& operator[](size_type i) const noexcept {
             assert(i <= size());
             return data()[i];
         }
 
-        const CharT& front() const noexcept {
+        SGCL_INLINE_HOT const CharT& front() const noexcept {
             assert(!empty());
             return data()[0];
         }
 
-        const CharT& back() const noexcept {
+        SGCL_INLINE_HOT const CharT& back() const noexcept {
             assert(!empty());
             return data()[size() - 1];
         }
 
-        const_iterator begin() const noexcept { return data(); }
-        const_iterator end() const noexcept { return data() + size(); }
-        const_iterator cbegin() const noexcept { return begin(); }
-        const_iterator cend() const noexcept { return end(); }
-        const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
-        const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
-        const_reverse_iterator crbegin() const noexcept { return rbegin(); }
-        const_reverse_iterator crend() const noexcept { return rend(); }
+        SGCL_INLINE_HOT const_iterator begin() const noexcept { return data(); }
+        SGCL_INLINE_HOT const_iterator end() const noexcept { return data() + size(); }
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept { return begin(); }
+        SGCL_INLINE_HOT const_iterator cend() const noexcept { return end(); }
+        SGCL_INLINE_HOT const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+        SGCL_INLINE_HOT const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept { return rend(); }
 
         // A new string of the characters [pos, pos + n): a copy, the
         // whole string when the range is the whole string
-        basic_string substr(size_type pos = 0, size_type n = npos) const {
+        SGCL_INLINE_HOT basic_string substr(size_type pos = 0, size_type n = npos) const {
             if (pos > size()) {
                 throw out_of_range("sgcl::basic_string::substr");
             }
@@ -343,32 +343,32 @@ namespace sgcl {
         // copied, `for (std::string_view piece : s.split(','))` allocates
         // nothing, and a container of strings is built from it when the
         // pieces are to be kept: `vector<string> parts(s.split(','))`.
-        pieces split(view_type sep, size_type max_parts = 0) const {
+        SGCL_INLINE_HOT pieces split(view_type sep, size_type max_parts = 0) const {
             return pieces(*this, sep, max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
         }
 
-        pieces split(CharT sep, size_type max_parts = 0) const noexcept {
+        SGCL_INLINE_HOT pieces split(CharT sep, size_type max_parts = 0) const noexcept {
             return pieces(*this, sep, max_parts);
         }
 
         template<size_t N>
-        pieces split(const CharT (&sep)[N], size_type max_parts = 0) const {
+        SGCL_INLINE_HOT pieces split(const CharT (&sep)[N], size_type max_parts = 0) const {
             return split(detail::array_text<CharT, Traits>(sep), max_parts);
         }
 
         template<class P>
         requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        pieces split(P sep, size_type max_parts = 0) const {
+        SGCL_INLINE_HOT pieces split(P sep, size_type max_parts = 0) const {
             return split(view_type(sep), max_parts);
         }
 
-        pieces split(const basic_string& sep, size_type max_parts = 0) const noexcept {
+        SGCL_INLINE_HOT pieces split(const basic_string& sep, size_type max_parts = 0) const noexcept {
             return pieces(*this, sep, max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
         }
 
         // A value that is no code point (a surrogate, past U+10FFFF) occurs
         // nowhere: the whole string is one piece
-        pieces split(char32_t sep, size_type max_parts = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT pieces split(char32_t sep, size_type max_parts = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
             return utf8::valid(sep) ? split(view_type(_encoded_of(sep)), max_parts) : pieces(*this, basic_string(), 1, pieces::Separator);
         }
 
@@ -378,7 +378,7 @@ namespace sgcl {
         // space, tab, newline and the rest of the C locale's six, and the
         // no-break, ideographic and other spaces, unicode::is_space), none
         // empty
-        pieces fields() const noexcept {
+        SGCL_INLINE_HOT pieces fields() const noexcept {
             return pieces(*this, basic_string(), 0, pieces::Fields);
         }
 
@@ -456,26 +456,26 @@ namespace sgcl {
 
         template<std::ranges::input_range R>
         requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-        static basic_string join(R&& parts, CharT sep) {
+        SGCL_INLINE_HOT static basic_string join(R&& parts, CharT sep) {
             return join(std::forward<R>(parts), view_type(&sep, 1));
         }
 
         template<std::ranges::input_range R, size_t N>
         requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-        static basic_string join(R&& parts, const CharT (&sep)[N]) {
+        SGCL_INLINE_HOT static basic_string join(R&& parts, const CharT (&sep)[N]) {
             return join(std::forward<R>(parts), detail::array_text<CharT, Traits>(sep));
         }
 
         template<std::ranges::input_range R, class P>
         requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
               && (std::same_as<P, const CharT*> || std::same_as<P, CharT*>)
-        static basic_string join(R&& parts, P sep) {
+        SGCL_INLINE_HOT static basic_string join(R&& parts, P sep) {
             return join(std::forward<R>(parts), view_type(sep));
         }
 
         template<std::ranges::input_range R>
         requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type> && (!std::same_as<CharT, char32_t>)
-        static basic_string join(R&& parts, char32_t sep) {
+        SGCL_INLINE_HOT static basic_string join(R&& parts, char32_t sep) {
             return join(std::forward<R>(parts), view_type(_encoded_of(sep)));
         }
 
@@ -489,7 +489,7 @@ namespace sgcl {
         // own) or of appending
         template<class... A>
         requires (sizeof...(A) > 0) && ((std::is_convertible_v<const A&, view_type> || std::is_same_v<A, CharT>) && ...)
-        static basic_string concat(const A&... pieces) {
+        SGCL_INLINE_HOT static basic_string concat(const A&... pieces) {
             const size_type total = (size_type(0) + ... + _piece(pieces).size());
             return _filled(total, [&](CharT* at) {
                 ((detail::copy_bytes(at, _piece(pieces).data(), _piece(pieces).size() * sizeof(CharT)), at += _piece(pieces).size()), ...);
@@ -500,12 +500,12 @@ namespace sgcl {
         // default, unicode::is_space; a set of code points as a
         // std::u32string_view, trim(U"«»")) at both ends, at the start, at
         // the end: the same object when there are none
-        basic_string trim() const noexcept {
+        SGCL_INLINE_HOT basic_string trim() const noexcept {
             auto from = this->_find_space(0, false);
             return from == npos ? basic_string() : _part(from, this->_end_without_spaces());
         }
 
-        basic_string trim(view_type chars) const noexcept {
+        SGCL_INLINE_HOT basic_string trim(view_type chars) const noexcept {
             auto v = this->view();
             auto from = v.find_first_not_of(chars);
             if (from == npos) {
@@ -516,11 +516,11 @@ namespace sgcl {
         }
 
         template<size_t N>
-        basic_string trim(const CharT (&chars)[N]) const noexcept {
+        SGCL_INLINE_HOT basic_string trim(const CharT (&chars)[N]) const noexcept {
             return trim(detail::array_text<CharT, Traits>(chars));
         }
 
-        basic_string trim(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT basic_string trim(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
             auto from = this->find_first_not_of(set);
             if (from == npos) {
                 return basic_string();
@@ -529,62 +529,62 @@ namespace sgcl {
             return _part(from, last + this->_width_at(last));
         }
 
-        basic_string trim_left() const noexcept {
+        SGCL_INLINE_HOT basic_string trim_left() const noexcept {
             auto from = this->_find_space(0, false);
             return from == npos ? basic_string() : _part(from, size());
         }
 
-        basic_string trim_left(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT basic_string trim_left(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
             auto from = this->find_first_not_of(set);
             return from == npos ? basic_string() : _part(from, size());
         }
 
-        basic_string trim_left(view_type chars) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_left(view_type chars) const noexcept {
             auto from = this->view().find_first_not_of(chars);
             return from == npos ? basic_string() : _part(from, size());
         }
 
         template<size_t N>
-        basic_string trim_left(const CharT (&chars)[N]) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_left(const CharT (&chars)[N]) const noexcept {
             return trim_left(detail::array_text<CharT, Traits>(chars));
         }
 
-        basic_string trim_right() const noexcept {
+        SGCL_INLINE_HOT basic_string trim_right() const noexcept {
             return _part(0, this->_end_without_spaces());
         }
 
-        basic_string trim_right(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT basic_string trim_right(std::u32string_view set) const noexcept requires (!std::same_as<CharT, char32_t>) {
             auto last = this->find_last_not_of(set);
             return last == npos ? basic_string() : _part(0, last + this->_width_at(last));
         }
 
-        basic_string trim_right(view_type chars) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_right(view_type chars) const noexcept {
             auto to = this->view().find_last_not_of(chars);
             return to == npos ? basic_string() : _part(0, to + 1);
         }
 
         template<size_t N>
-        basic_string trim_right(const CharT (&chars)[N]) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_right(const CharT (&chars)[N]) const noexcept {
             return trim_right(detail::array_text<CharT, Traits>(chars));
         }
 
         // Without `prefix` at the start (`suffix` at the end) when it is
         // there; the same object when it is not
-        basic_string trim_prefix(view_type prefix) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_prefix(view_type prefix) const noexcept {
             return this->starts_with(prefix) ? _part(prefix.size(), size()) : *this;
         }
 
-        basic_string trim_suffix(view_type suffix) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_suffix(view_type suffix) const noexcept {
             return this->ends_with(suffix) ? _part(0, size() - suffix.size()) : *this;
         }
 
         template<size_t N>
-        basic_string trim_prefix(const CharT (&prefix)[N]) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_prefix(const CharT (&prefix)[N]) const noexcept {
             return trim_prefix(detail::array_text<CharT, Traits>(prefix));
         }
 
         template<size_t N>
-        basic_string trim_suffix(const CharT (&suffix)[N]) const noexcept {
+        SGCL_INLINE_HOT basic_string trim_suffix(const CharT (&suffix)[N]) const noexcept {
             return trim_suffix(detail::array_text<CharT, Traits>(suffix));
         }
 
@@ -633,27 +633,27 @@ namespace sgcl {
 
         // An array on either side, or both, read to its end as well
         template<size_t N, size_t M>
-        basic_string replace(const CharT (&from)[N], const CharT (&to)[M], size_type count = 0) const {
+        SGCL_INLINE_HOT basic_string replace(const CharT (&from)[N], const CharT (&to)[M], size_type count = 0) const {
             return replace(detail::array_text<CharT, Traits>(from), detail::array_text<CharT, Traits>(to), count);
         }
 
         template<size_t N>
-        basic_string replace(const CharT (&from)[N], view_type to, size_type count = 0) const {
+        SGCL_INLINE_HOT basic_string replace(const CharT (&from)[N], view_type to, size_type count = 0) const {
             return replace(detail::array_text<CharT, Traits>(from), to, count);
         }
 
         template<size_t M>
-        basic_string replace(view_type from, const CharT (&to)[M], size_type count = 0) const {
+        SGCL_INLINE_HOT basic_string replace(view_type from, const CharT (&to)[M], size_type count = 0) const {
             return replace(from, detail::array_text<CharT, Traits>(to), count);
         }
 
-        basic_string replace(CharT from, CharT to, size_type count = 0) const {
+        SGCL_INLINE_HOT basic_string replace(CharT from, CharT to, size_type count = 0) const {
             return replace(view_type(&from, 1), view_type(&to, 1), count);
         }
 
         // A `from` that is no code point occurs nowhere (the same object); a
         // `to` that is none is written as U+FFFD, as utf8::encode writes it
-        basic_string replace(char32_t from, char32_t to, size_type count = 0) const requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT basic_string replace(char32_t from, char32_t to, size_type count = 0) const requires (!std::same_as<CharT, char32_t>) {
             if (!utf8::valid(from)) {
                 return *this;
             }
@@ -685,7 +685,7 @@ namespace sgcl {
         // case mapping (unicode::to_lower: one code point to one, "ŁÓDŹ"
         // to "łódź"; ß stays ß, no language's rules), the other characters
         // as they are; the same object when no letter changes
-        basic_string to_lower() const {
+        SGCL_INLINE_HOT basic_string to_lower() const {
             if constexpr (sizeof(CharT) == 1) {
                 if (utf8::all_ascii(this->_bytes())) {
                     return _ascii_cased('A', 'Z', 32);
@@ -694,7 +694,7 @@ namespace sgcl {
             return _cased<detail::unicode_tables::ToLower>();
         }
 
-        basic_string to_upper() const {
+        SGCL_INLINE_HOT basic_string to_upper() const {
             if constexpr (sizeof(CharT) == 1) {
                 if (utf8::all_ascii(this->_bytes())) {
                     return _ascii_cased('a', 'z', -32);
@@ -703,7 +703,7 @@ namespace sgcl {
             return _cased<detail::unicode_tables::ToUpper>();
         }
 
-        void swap(basic_string& o) noexcept {
+        SGCL_INLINE_HOT void swap(basic_string& o) noexcept {
             std::swap(_word, o._word);
         }
 
@@ -751,18 +751,18 @@ namespace sgcl {
         // string is for a string_view or a literal, so that a map keyed by
         // strings is searched with either and no string is made for the
         // search (std::hash<basic_string> is transparent, below)
-        static size_t hash_of(view_type s) noexcept {
+        SGCL_INLINE_HOT static size_t hash_of(view_type s) noexcept {
             return s.empty() ? HashMultiplier : (size_t)_fold(detail::hash_bytes(s.data(), s.size() * sizeof(CharT))) * HashMultiplier;
         }
 
         // The address of the string's object: its identity (two strings
         // made from the same characters are two objects); null when empty
-        const void* object() const noexcept {
+        SGCL_INLINE_HOT const void* object() const noexcept {
             return _word.get();
         }
 
     private:
-        detail::StringHeader* _header() const noexcept {
+        SGCL_INLINE_HOT detail::StringHeader* _header() const noexcept {
             return const_cast<detail::StringHeader*>(static_cast<const detail::StringHeader*>(_word.get()));
         }
 
@@ -770,17 +770,17 @@ namespace sgcl {
 
         // The keyed hash of the characters (detail/hash_bytes.h), folded to the 32
         // bits the header keeps; never 0
-        static uint32_t _fold(size_t h) noexcept {
+        SGCL_INLINE_HOT static uint32_t _fold(size_t h) noexcept {
             auto r = (uint32_t)(h ^ (h >> 32));
             return r ? r : 1;
         }
 
-        const CharT* _chars() const noexcept {
+        SGCL_INLINE_HOT const CharT* _chars() const noexcept {
             return reinterpret_cast<const CharT*>(static_cast<const unsigned char*>(_word.get()) + sizeof(detail::StringHeader));
         }
 
         // The characters [from, to): the same object for the whole string
-        basic_string _part(size_type from, size_type to) const noexcept {
+        SGCL_INLINE_HOT basic_string _part(size_type from, size_type to) const noexcept {
             return (from == 0 && to == size()) ? *this : basic_string(this->view().substr(from, to - from));
         }
 
@@ -946,13 +946,13 @@ namespace sgcl {
         }
 
         // A code point as the text it is split on or replaced: its units
-        static auto _encoded_of(char32_t c) noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT static auto _encoded_of(char32_t c) noexcept requires (!std::same_as<CharT, char32_t>) {
             return typename basic_string::_encoded(c);
         }
 
         // Whether the slice is the whole of a string: its owner a string
         // object holding exactly its characters
-        static bool _whole_string(const slice_type& v) noexcept {
+        SGCL_INLINE_HOT static bool _whole_string(const slice_type& v) noexcept {
             auto o = v.owner().get();
             if (!o) {
                 return false;
@@ -965,17 +965,17 @@ namespace sgcl {
 
         // A string over the word of its object (detail::StringAccess:
         // atomic.h, intern.h)
-        static view_type _bytes_view(const slice<const byte>& b) noexcept {
+        SGCL_INLINE_HOT static view_type _bytes_view(const slice<const byte>& b) noexcept {
             return view_type(reinterpret_cast<const CharT*>(b.data()), b.size());
         }
 
-        explicit basic_string(const tracked_ptr<const void>& w) noexcept
+        SGCL_INLINE_HOT explicit basic_string(const tracked_ptr<const void>& w) noexcept
         : _word(w) {
         }
 
         // A piece of concat as a view: a character as one of itself
         template<class A>
-        static view_type _piece(const A& a) noexcept {
+        SGCL_INLINE_HOT static view_type _piece(const A& a) noexcept {
             if constexpr(std::is_same_v<A, CharT>) {
                 return view_type(&a, 1);
             } else if constexpr(std::is_array_v<A>) {
@@ -1004,25 +1004,25 @@ namespace sgcl {
 
         // A string written in place (detail::StringAccess::filled, bounded)
         template<class Fill>
-        static basic_string _filled(size_type n, Fill&& fill) {
+        SGCL_INLINE_HOT static basic_string _filled(size_type n, Fill&& fill) {
             return basic_string(Maker::template make_filled<CharT>(n, std::forward<Fill>(fill)));
         }
 
         template<class Fill>
-        static basic_string _bounded(size_type bound, Fill&& fill) {
+        SGCL_INLINE_HOT static basic_string _bounded(size_type bound, Fill&& fill) {
             return basic_string(Maker::template make_bounded<CharT>(bound, std::forward<Fill>(fill)));
         }
 
         // The handle's word, for the atomics (detail/handle_word.h)
-        basic_string(detail::FromWord, const tracked_ptr<const void>& w) noexcept
+        SGCL_INLINE_HOT basic_string(detail::FromWord, const tracked_ptr<const void>& w) noexcept
         : _word(w) {
         }
 
-        Word& _handle_word() noexcept {
+        SGCL_INLINE_HOT Word& _handle_word() noexcept {
             return _word;
         }
 
-        const Word& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const Word& _handle_word() const noexcept {
             return _word;
         }
 
@@ -1060,26 +1060,26 @@ namespace sgcl {
 
             iterator() noexcept = default;
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 return _piece;
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return &_piece;
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 _advance();
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator tmp = *this;
                 ++(*this);
                 return tmp;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._done == b._done && (a._done || a._next == b._next);
             }
 
@@ -1090,7 +1090,7 @@ namespace sgcl {
             bool _done = true;         // past the last piece: the end
             value_type _piece;
 
-            iterator(const pieces* owner, size_type start) noexcept
+            SGCL_INLINE_HOT iterator(const pieces* owner, size_type start) noexcept
             : _owner(owner)
             , _next(start)
             , _done(false) {
@@ -1150,7 +1150,7 @@ namespace sgcl {
             }
 
             // Whether the piece to give out is the last one allowed
-            bool _last() const noexcept {
+            SGCL_INLINE_HOT bool _last() const noexcept {
                 return _owner->_max_parts && _count + 1 == _owner->_max_parts;
             }
 
@@ -1159,20 +1159,20 @@ namespace sgcl {
 
         using const_iterator = iterator;
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return _text.empty() ? end() : iterator(this, 0);
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return begin() == end();
         }
 
         // The string the pieces are of
-        const basic_string& text() const noexcept {
+        SGCL_INLINE_HOT const basic_string& text() const noexcept {
             return _text;
         }
 
@@ -1193,14 +1193,14 @@ namespace sgcl {
         size_type _max_parts;
         Mode _mode;
 
-        pieces(const basic_string& text, basic_string sep, size_type max_parts, Mode mode) noexcept
+        SGCL_INLINE_HOT pieces(const basic_string& text, basic_string sep, size_type max_parts, Mode mode) noexcept
         : _text(text)
         , _sep(std::move(sep))
         , _max_parts(max_parts)
         , _mode(mode) {
         }
 
-        pieces(const basic_string& text, view_type sep, size_type max_parts, Mode mode)
+        SGCL_INLINE_HOT pieces(const basic_string& text, view_type sep, size_type max_parts, Mode mode)
         : _text(text)
         , _max_parts(max_parts)
         , _mode(mode) {
@@ -1212,7 +1212,7 @@ namespace sgcl {
             }
         }
 
-        pieces(const basic_string& text, CharT sep, size_type max_parts) noexcept
+        SGCL_INLINE_HOT pieces(const basic_string& text, CharT sep, size_type max_parts) noexcept
         : _text(text)
         , _sep_chars{sep}
         , _sep_size(1)
@@ -1221,7 +1221,7 @@ namespace sgcl {
         }
 
         // The separator as a view: the characters kept inline, or the string
-        view_type _separator() const noexcept {
+        SGCL_INLINE_HOT view_type _separator() const noexcept {
             return _sep_size ? view_type(_sep_chars, _sep_size) : _sep.view();
         }
 
@@ -1236,36 +1236,36 @@ namespace sgcl {
     using string_slice = slice<const char>;   // a piece of a string that holds it (slice.h); the same for the other character types by slice<const CharT>
 
     template<class CharT, class Traits>
-    void swap(basic_string<CharT, Traits>& l, basic_string<CharT, Traits>& r) noexcept {
+    SGCL_INLINE_HOT void swap(basic_string<CharT, Traits>& l, basic_string<CharT, Traits>& r) noexcept {
         l.swap(r);
     }
 
     template<class CharT, class Traits>
-    bool operator==(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
+    SGCL_INLINE_HOT bool operator==(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
         return a._equals(b);
     }
 
     template<class CharT, class Traits>
-    std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
+    SGCL_INLINE_HOT std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
         return std::basic_string_view<CharT, Traits>(a) <=> std::basic_string_view<CharT, Traits>(b);
     }
 
     // A string against a slice of characters: by the characters (the
     // conversions of each to a std view would tie otherwise)
     template<class CharT, class Traits>
-    bool operator==(const basic_string<CharT, Traits>& a, const slice<const CharT>& b) noexcept {
+    SGCL_INLINE_HOT bool operator==(const basic_string<CharT, Traits>& a, const slice<const CharT>& b) noexcept {
         return a.view() == b.view();
     }
 
     template<class CharT, class Traits>
-    std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a, const slice<const CharT>& b) noexcept {
+    SGCL_INLINE_HOT std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a, const slice<const CharT>& b) noexcept {
         return a.view() <=> b.view();
     }
 
     // Concatenation: a new string of the two, built once
     namespace detail {
         template<class S, class CharT, class Traits>
-        S string_concat(std::basic_string_view<CharT, Traits> a, std::basic_string_view<CharT, Traits> b) {
+        SGCL_INLINE_HOT S string_concat(std::basic_string_view<CharT, Traits> a, std::basic_string_view<CharT, Traits> b) {
             return StringAccess::filled<S>(a.size() + b.size(), [&](CharT* chars) {
                 copy_bytes(chars, a.data(), a.size() * sizeof(CharT));
                 copy_bytes(chars + a.size(), b.data(), b.size() * sizeof(CharT));
@@ -1274,62 +1274,62 @@ namespace sgcl {
     }
 
     template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
     }
 
     template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, std::type_identity_t<std::basic_string_view<CharT, Traits>> b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, std::type_identity_t<std::basic_string_view<CharT, Traits>> b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), b);
     }
 
     template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(std::type_identity_t<std::basic_string_view<CharT, Traits>> a, const basic_string<CharT, Traits>& b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(std::type_identity_t<std::basic_string_view<CharT, Traits>> a, const basic_string<CharT, Traits>& b) {
         return detail::string_concat<basic_string<CharT, Traits>>(a, std::basic_string_view<CharT, Traits>(b));
     }
 
     // An array (a literal) up to its first NUL or its end; a pointer
     // (CharT* or const CharT*) up to its NUL
     template<class CharT, class Traits, size_t N>
-    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const CharT (&b)[N]) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const CharT (&b)[N]) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), detail::array_text<CharT, Traits>(b));
     }
 
     template<class CharT, class Traits, class P>
     requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, P b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, P b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
     }
 
     template<class CharT, class Traits, size_t N>
-    basic_string<CharT, Traits> operator+(const CharT (&a)[N], const basic_string<CharT, Traits>& b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(const CharT (&a)[N], const basic_string<CharT, Traits>& b) {
         return detail::string_concat<basic_string<CharT, Traits>>(detail::array_text<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
     }
 
     template<class CharT, class Traits, class P>
     requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-    basic_string<CharT, Traits> operator+(P a, const basic_string<CharT, Traits>& b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(P a, const basic_string<CharT, Traits>& b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
     }
 
     template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, CharT b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, CharT b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(&b, 1));
     }
 
     template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(CharT a, const basic_string<CharT, Traits>& b) {
+    SGCL_INLINE_HOT basic_string<CharT, Traits> operator+(CharT a, const basic_string<CharT, Traits>& b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(&a, 1), std::basic_string_view<CharT, Traits>(b));
     }
 
     template<class CharT, class Traits>
-    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const basic_string<CharT, Traits>& s) {
+    SGCL_INLINE_HOT std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const basic_string<CharT, Traits>& s) {
         return os << std::basic_string_view<CharT, Traits>(s);
     }
 
     template<class CharT, class Traits>
     requires detail::IsCharacter<CharT>
-    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const slice<const CharT>& v) {
+    SGCL_INLINE_HOT std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const slice<const CharT>& v) {
         return os << v.view();
     }
 
@@ -1337,15 +1337,15 @@ namespace sgcl {
     // for a bool; a char as a string of one
     template<class T>
     requires std::is_arithmetic_v<T> && (!std::is_same_v<T, bool>) && (!std::is_same_v<T, char>)
-    string to_string(T v) noexcept {
+    SGCL_INLINE_HOT string to_string(T v) noexcept {
         return string(std::to_string(v));
     }
 
-    inline string to_string(bool v) noexcept {
+    SGCL_INLINE_HOT string to_string(bool v) noexcept {
         return v ? "true" : "false";
     }
 
-    inline string to_string(char c) noexcept {
+    SGCL_INLINE_HOT string to_string(char c) noexcept {
         return string(1, c);
     }
 
@@ -1364,24 +1364,24 @@ namespace sgcl {
             out_of_range    // a number the type cannot hold
         };
 
-        constexpr number_error(reason r, size_t offset) noexcept
+        SGCL_INLINE_HOT constexpr number_error(reason r, size_t offset) noexcept
         : _reason(r)
         , _offset(offset) {
         }
 
-        constexpr std::errc code() const noexcept {
+        SGCL_INLINE_HOT constexpr std::errc code() const noexcept {
             return _reason == reason::out_of_range ? std::errc::result_out_of_range : std::errc::invalid_argument;
         }
 
-        constexpr reason why() const noexcept {
+        SGCL_INLINE_HOT constexpr reason why() const noexcept {
             return _reason;
         }
 
-        constexpr size_t offset() const noexcept {
+        SGCL_INLINE_HOT constexpr size_t offset() const noexcept {
             return _offset;
         }
 
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             switch (_reason) {
                 case reason::empty: return "an empty text";
                 case reason::not_a_number: return "not a number";
@@ -1423,7 +1423,7 @@ namespace sgcl {
     // any other reads no number (not_a_number).
     template<class T>
     requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
-    expected<T, number_error> parse(std::string_view text, int base = 10) noexcept {
+    SGCL_INLINE_HOT expected<T, number_error> parse(std::string_view text, int base = 10) noexcept {
         if (base < 2 || base > 36) {
             // no number is written in it: from_chars would read past its
             // tables (a precondition of the standard's, undefined behaviour)
@@ -1439,7 +1439,7 @@ namespace sgcl {
 
     template<class T>
     requires std::is_floating_point_v<T>
-    expected<T, number_error> parse(std::string_view text) noexcept {
+    SGCL_INLINE_HOT expected<T, number_error> parse(std::string_view text) noexcept {
         T value;
         auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
         if (ec != std::errc() || end != text.data() + text.size() || text.empty()) {
@@ -1450,7 +1450,7 @@ namespace sgcl {
 
     template<class T>
     requires std::is_same_v<T, bool>
-    expected<T, number_error> parse(std::string_view text) noexcept {
+    SGCL_INLINE_HOT expected<T, number_error> parse(std::string_view text) noexcept {
         if (text == "true") {
             return true;
         }
@@ -1471,22 +1471,22 @@ namespace std {
     struct hash<sgcl::basic_string<CharT, Traits>> {
         using is_transparent = void;
 
-        size_t operator()(const sgcl::basic_string<CharT, Traits>& s) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const sgcl::basic_string<CharT, Traits>& s) const noexcept {
             return s.hash();
         }
 
-        size_t operator()(std::basic_string_view<CharT, Traits> s) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(std::basic_string_view<CharT, Traits> s) const noexcept {
             return sgcl::basic_string<CharT, Traits>::hash_of(s);
         }
 
         template<size_t N>
-        size_t operator()(const CharT (&s)[N]) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const CharT (&s)[N]) const noexcept {
             return sgcl::basic_string<CharT, Traits>::hash_of(sgcl::detail::array_text<CharT, Traits>(s));
         }
 
         template<class P>
         requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_t operator()(P s) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(P s) const noexcept {
             return sgcl::basic_string<CharT, Traits>::hash_of(s);
         }
     };
@@ -1496,26 +1496,26 @@ namespace std {
     struct hash<sgcl::slice<const CharT>> {
         using is_transparent = void;
 
-        size_t operator()(const sgcl::slice<const CharT>& v) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const sgcl::slice<const CharT>& v) const noexcept {
             return sgcl::basic_string<CharT>::hash_of(v.view());
         }
 
-        size_t operator()(const sgcl::basic_string<CharT>& s) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const sgcl::basic_string<CharT>& s) const noexcept {
             return s.hash();
         }
 
-        size_t operator()(std::basic_string_view<CharT> s) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(std::basic_string_view<CharT> s) const noexcept {
             return sgcl::basic_string<CharT>::hash_of(s);
         }
 
         template<size_t N>
-        size_t operator()(const CharT (&s)[N]) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(const CharT (&s)[N]) const noexcept {
             return sgcl::basic_string<CharT>::hash_of(sgcl::detail::array_text<CharT, std::char_traits<CharT>>(s));
         }
 
         template<class P>
         requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_t operator()(P s) const noexcept {
+        SGCL_INLINE_HOT size_t operator()(P s) const noexcept {
             return sgcl::basic_string<CharT>::hash_of(s);
         }
     };
@@ -1526,7 +1526,7 @@ namespace std {
         using is_transparent = void;
 
         template<class A, class B>
-        bool operator()(const A& a, const B& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const A& a, const B& b) const noexcept {
             return a == b;
         }
     };
@@ -1537,7 +1537,7 @@ namespace std {
         using is_transparent = void;
 
         template<class A, class B>
-        bool operator()(const A& a, const B& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const A& a, const B& b) const noexcept {
             return a < b;
         }
     };
@@ -1547,7 +1547,7 @@ namespace std {
         using is_transparent = void;
 
         template<class A, class B>
-        bool operator()(const A& a, const B& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const A& a, const B& b) const noexcept {
             return a == b;
         }
     };
@@ -1557,7 +1557,7 @@ namespace std {
         using is_transparent = void;
 
         template<class A, class B>
-        bool operator()(const A& a, const B& b) const noexcept {
+        SGCL_INLINE_HOT bool operator()(const A& a, const B& b) const noexcept {
             return a < b;
         }
     };

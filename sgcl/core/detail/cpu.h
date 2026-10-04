@@ -45,6 +45,8 @@
 // and its `struct user` into every program (the rule for platform headers).
 // Elsewhere (MSVC, other systems until the platform step) every gate above
 // the minimum is false.
+#include "os.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -88,7 +90,7 @@ namespace sgcl::detail::cpu {
 #if defined(SGCL_CPU_ARM64)
     // One feature asked of the system: its name in sysctl on macOS, its bit
     // of AT_HWCAP on Linux; false anywhere else
-    inline bool query([[maybe_unused]] const char* apple_name, [[maybe_unused]] unsigned long hwcap_bits) noexcept {
+    SGCL_INLINE_HOT bool query([[maybe_unused]] const char* apple_name, [[maybe_unused]] unsigned long hwcap_bits) noexcept {
 #if defined(__APPLE__)
         int value = 0;
         size_t size = sizeof value;
@@ -141,7 +143,7 @@ namespace sgcl::detail::cpu {
         unsigned a = 0, b = 0, c = 0, d = 0;
     };
 
-    inline CpuidRegisters cpuid(unsigned leaf, unsigned subleaf = 0) noexcept {
+    SGCL_INLINE_HOT CpuidRegisters cpuid(unsigned leaf, unsigned subleaf = 0) noexcept {
         CpuidRegisters r;
         if (__get_cpuid_max(leaf & 0x80000000u, nullptr) >= leaf) {
             __cpuid_count(leaf, subleaf, r.a, r.b, r.c, r.d);
@@ -152,7 +154,7 @@ namespace sgcl::detail::cpu {
     // The register state the system saves on a switch (XCR0): bit 1 XMM,
     // 2 YMM, 5-7 the AVX-512 state; 0 when the system does not say
     // (OSXSAVE clear)
-    inline uint64_t saved_state() noexcept {
+    SGCL_INLINE_HOT uint64_t saved_state() noexcept {
         if (!(cpuid(1).c & (1u << 27))) {
             return 0;
         }

@@ -13,6 +13,7 @@
 // url and of the HTTP heads (their request-targets), cases of every refusal,
 // and ten thousand mutations of all of them.
 #include "tests/types.h"
+#include "tests/source_root.h"
 #include "sgcl/net/url.h"
 #include "tests/net/url_oracle.h"
 
@@ -98,7 +99,7 @@ TEST(NetUrlOrigin_Tests, TheFastPathIsTheParsersOrARefusal) {
             }
         }
     }
-    auto root = std::filesystem::path(__FILE__).parent_path();
+    auto root = source_root() / "tests/net";
     for (auto dir : {root / "fuzz" / "seeds" / "url"}) {
         if (std::filesystem::exists(dir)) {
             for (auto& e : std::filesystem::directory_iterator(dir)) {

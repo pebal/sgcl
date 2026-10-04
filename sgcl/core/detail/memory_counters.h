@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
 #include "../config.h"
 
 #include <atomic>
@@ -20,40 +21,40 @@ namespace sgcl::detail {
     // read-mostly line.
     class MemoryCounters {
     public:
-        inline static size_t add_alloc(size_t pages) noexcept {
+        SGCL_INLINE_HOT static size_t add_alloc(size_t pages) noexcept {
             auto total = _alloc.fetch_add(pages, std::memory_order_relaxed) + pages;
             return total - _alloc_at_cycle.load(std::memory_order_relaxed);
         }
-        inline static void add_free(size_t pages) noexcept {
+        SGCL_INLINE_HOT static void add_free(size_t pages) noexcept {
             _free.fetch_add(pages, std::memory_order_relaxed);
         }
-        inline static size_t alloc_since_cycle() noexcept {
+        SGCL_INLINE_HOT static size_t alloc_since_cycle() noexcept {
             return _alloc.load(std::memory_order_relaxed) - _alloc_at_cycle.load(std::memory_order_relaxed);
         }
-        inline static size_t free_since_cycle() noexcept {
+        SGCL_INLINE_HOT static size_t free_since_cycle() noexcept {
             return _free.load(std::memory_order_relaxed) - _free_at_cycle.load(std::memory_order_relaxed);
         }
         // pages allocated during the previous cycle (and the sleep after it)
-        inline static size_t last_alloc() noexcept {
+        SGCL_INLINE_HOT static size_t last_alloc() noexcept {
             return _last_alloc.load(std::memory_order_relaxed);
         }
-        inline static size_t live_pages() noexcept {
+        SGCL_INLINE_HOT static size_t live_pages() noexcept {
             return _alloc.load(std::memory_order_relaxed) - _free.load(std::memory_order_relaxed);
         }
-        inline static size_t live_bytes() noexcept {
+        SGCL_INLINE_HOT static size_t live_bytes() noexcept {
             return live_pages() * config::page_size;
         }
         // Pages in use when the last cycle ended, with its garbage swept:
         // the base of the wake rule. The pages in use right now include the
         // garbage waiting for the next sweep, and a rule measured against
         // them lets a backlog grow itself.
-        inline static size_t live_after_cycle() noexcept {
+        SGCL_INLINE_HOT static size_t live_after_cycle() noexcept {
             return _live_after_cycle.load(std::memory_order_relaxed);
         }
-        inline static void end_cycle() noexcept {
+        SGCL_INLINE_HOT static void end_cycle() noexcept {
             _live_after_cycle.store(live_pages(), std::memory_order_relaxed);
         }
-        inline static void begin_cycle() noexcept {
+        SGCL_INLINE_HOT static void begin_cycle() noexcept {
             auto alloc = _alloc.load(std::memory_order_relaxed);
             _last_alloc.store(alloc - _alloc_at_cycle.load(std::memory_order_relaxed), std::memory_order_relaxed);
             _alloc_at_cycle.store(alloc, std::memory_order_relaxed);

@@ -38,28 +38,28 @@ namespace sgcl::codec::detail {
         const uint8_t* end;
         optional<error> failure;   // never set: memory does not fail
 
-        explicit MemoryInput(const slice<const byte>& data) noexcept
+        SGCL_INLINE_HOT explicit MemoryInput(const slice<const byte>& data) noexcept
         : begin(reinterpret_cast<const uint8_t*>(data.data()))
         , at(begin)
         , end(begin + data.size()) {
         }
 
-        bool peek(size_t want, const uint8_t*& p, size_t& got) noexcept {
+        SGCL_INLINE_HOT bool peek(size_t want, const uint8_t*& p, size_t& got) noexcept {
             p = at;
             got = std::min<size_t>(want, size_t(end - at));
             return true;
         }
 
-        void consume(size_t n) noexcept {
+        SGCL_INLINE_HOT void consume(size_t n) noexcept {
             at += n;
         }
 
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return uint64_t(at - begin);
         }
 
         // The first bytes, for sniffing: what there is, up to n
-        slice<const byte> head(size_t n) noexcept {
+        SGCL_INLINE_HOT slice<const byte> head(size_t n) noexcept {
             return slice<const byte>(reinterpret_cast<const byte*>(at), std::min<size_t>(n, size_t(end - at)));
         }
     };
@@ -81,7 +81,7 @@ namespace sgcl::codec::detail {
         bool eof = false;
         optional<error> failure;
 
-        explicit ReaderInput(const io::reader& r) noexcept
+        SGCL_INLINE_HOT explicit ReaderInput(const io::reader& r) noexcept
         : in(r)
         , block(make_tracked<InputBlock>()) {
         }
@@ -99,11 +99,11 @@ namespace sgcl::codec::detail {
             return true;
         }
 
-        void consume(size_t n) noexcept {
+        SGCL_INLINE_HOT void consume(size_t n) noexcept {
             pos += n;
         }
 
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return base + pos;
         }
 
@@ -128,7 +128,7 @@ namespace sgcl::codec::detail {
         }
 
     private:
-        uint8_t* _data() noexcept {
+        SGCL_INLINE_HOT uint8_t* _data() noexcept {
             return reinterpret_cast<uint8_t*>(block->bytes);
         }
 

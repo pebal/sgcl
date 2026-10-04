@@ -49,11 +49,11 @@ namespace sgcl::detail {
     struct CellBlock {
         static constexpr unsigned Slots = config::l1_line_size / sizeof(void*);
 
-        static uintptr_t word(const uintptr_t& s) noexcept {
+        SGCL_INLINE_HOT static uintptr_t word(const uintptr_t& s) noexcept {
             return os::load_word(&s);   // written by other threads (the pointers, the allocator): a volatile read, as of any word the collector reads
         }
 
-        static bool is_free(const void* slot) noexcept {
+        SGCL_INLINE_HOT static bool is_free(const void* slot) noexcept {
             return word(*(const uintptr_t*)slot) == (uintptr_t)slot;
         }
 

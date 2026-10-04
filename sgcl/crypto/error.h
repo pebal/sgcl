@@ -101,41 +101,41 @@ namespace sgcl::crypto {
     public:
         error() = default;
 
-        explicit error(errc code) noexcept
+        SGCL_INLINE_HOT explicit error(errc code) noexcept
         : _code(code) {
         }
 
-        error(errc code, const string& detail) noexcept
+        SGCL_INLINE_HOT error(errc code, const string& detail) noexcept
         : _code(code), _detail(detail) {
         }
 
         // A chain that does not verify: errc::verification and why
-        error(x509::reason why, const string& detail) noexcept
+        SGCL_INLINE_HOT error(x509::reason why, const string& detail) noexcept
         : _code(errc::verification), _reason(why), _detail(detail) {
         }
 
         // The code at a byte of an encoded input
-        error(errc code, uint64_t offset) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset) noexcept
         : _code(code), _offset(offset) {
         }
 
-        error(errc code, uint64_t offset, const string& detail) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset, const string& detail) noexcept
         : _code(code), _offset(offset), _detail(detail) {
         }
 
-        errc code() const noexcept {
+        SGCL_INLINE_HOT errc code() const noexcept {
             return _code;
         }
 
         // Bytes from the start of the encoded input; 0 for data that is not
         // an encoding (a tag, a key's bytes)
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _offset;
         }
 
         // Why a certificate chain does not verify; x509::reason::none for
         // an error that is not errc::verification
-        x509::reason reason() const noexcept {
+        SGCL_INLINE_HOT x509::reason reason() const noexcept {
             return _reason;
         }
 
@@ -156,7 +156,7 @@ namespace sgcl::crypto {
             return string(m);
         }
 
-        friend bool operator==(const error& a, const error& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const error& a, const error& b) noexcept {
             return a._code == b._code && a._reason == b._reason && a._offset == b._offset && a._detail == b._detail;
         }
 

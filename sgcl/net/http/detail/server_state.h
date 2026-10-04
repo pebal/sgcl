@@ -62,7 +62,7 @@ namespace sgcl::net::http {
             function<void(const string&)> on_error;
             optional<slog::logger> access_log;   // a record per exchange, when set (server::access_log)
 
-            void report(const string& what) const {
+            SGCL_INLINE_HOT void report(const string& what) const {
                 if (on_error) {
                     on_error(what);
                 } else {
@@ -111,7 +111,7 @@ namespace sgcl::net::http {
             tracked_ptr<ServerConn> prev;
             tracked_ptr<ServerConn> next;
 
-            ServerConn(net::connection c, const async::stop_token& parent)
+            SGCL_INLINE_HOT ServerConn(net::connection c, const async::stop_token& parent)
             : c(std::move(c)), stop(parent) {
             }
         };
@@ -128,7 +128,7 @@ namespace sgcl::net::http {
             std::atomic<bool> shutting_down = {false};
             std::atomic<bool> closed = {false};
 
-            void link(const tracked_ptr<ServerConn>& n) noexcept {
+            SGCL_INLINE_HOT void link(const tracked_ptr<ServerConn>& n) noexcept {
                 std::lock_guard<std::mutex> g(lock);
                 n->next = connections;
                 if (connections) {
@@ -172,11 +172,11 @@ namespace sgcl::net::http {
             }
         };
 
-        inline time_point deadline_after(duration d) noexcept {
+        SGCL_INLINE_HOT time_point deadline_after(duration d) noexcept {
             return d > duration::zero() ? sgcl::clock::now() + d : time_point();
         }
 
-        inline time_point earlier(time_point a, time_point b) noexcept {
+        SGCL_INLINE_HOT time_point earlier(time_point a, time_point b) noexcept {
             if (a == time_point()) {
                 return b;
             }
@@ -203,7 +203,7 @@ namespace sgcl::net::http {
             return head_request ? h : h + body;
         }
 
-        inline std::string refusal(int code, std::string_view extra = {}) noexcept {
+        SGCL_INLINE_HOT std::string refusal(int code, std::string_view extra = {}) noexcept {
             return refusal(code, extra, false);
         }
 

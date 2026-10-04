@@ -46,53 +46,53 @@ namespace sgcl {
         // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
-        ordered_set& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT ordered_set& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
 
         // The order, from the newest element back to the oldest
-        const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(this->end());
         }
 
-        const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(this->begin());
         }
 
-        const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
         // The oldest and the newest element (the set not empty)
-        const value_type& front() const noexcept {
+        SGCL_INLINE_HOT const value_type& front() const noexcept {
             return *this->begin();
         }
 
-        const value_type& back() const noexcept {
+        SGCL_INLINE_HOT const value_type& back() const noexcept {
             return *std::prev(this->end());
         }
 
         // The element moved to the end (the start) of the order: as if
         // inserted last (first) from now on; the iterator stays valid
-        void to_back(const_iterator pos) noexcept {
+        SGCL_INLINE_HOT void to_back(const_iterator pos) noexcept {
             Base::_to_back(Base::_node_of(pos));
         }
 
-        void to_front(const_iterator pos) noexcept {
+        SGCL_INLINE_HOT void to_front(const_iterator pos) noexcept {
             Base::_to_front(Base::_node_of(pos));
         }
 
     private:
-        friend bool operator==(const ordered_set& lhs, const ordered_set& rhs) {
+        SGCL_INLINE_HOT friend bool operator==(const ordered_set& lhs, const ordered_set& rhs) {
             return lhs._equal_to(rhs);
         }
 
-        friend void swap(ordered_set& lhs, ordered_set& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+        SGCL_INLINE_HOT friend void swap(ordered_set& lhs, ordered_set& rhs) noexcept(noexcept(lhs.swap(rhs))) {
             lhs.swap(rhs);
         }
 
@@ -111,7 +111,7 @@ namespace sgcl {
         -> ordered_set<Key, Hash, KeyEqual>;
 
     template<class Key, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(ordered_set<Key, Hash, KeyEqual>& c, Pred pred) {
+    SGCL_INLINE_HOT size_t erase_if(ordered_set<Key, Hash, KeyEqual>& c, Pred pred) {
         return c._erase_if(pred);
     }
 }

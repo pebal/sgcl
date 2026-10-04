@@ -37,33 +37,33 @@ namespace sgcl::hash {
 
         // Going on from the CRC of what came before: crc.resume(v), where a
         // one-argument constructor elsewhere (xxh3, maphash) is a seed
-        static crc32 resume(uint32_t value) noexcept {
+        SGCL_INLINE_HOT static crc32 resume(uint32_t value) noexcept {
             crc32 h;
             h._register = ~value;
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _register = detail::crc_update<uint32_t, Polynomial>(_register, detail::bytes(data.data()), data.size());
         }
 
-        uint32_t value() const noexcept {
+        SGCL_INLINE_HOT uint32_t value() const noexcept {
             return ~_register;
         }
 
         // The CRC as bytes, the most significant first (Go's Sum). gzip and
         // zip store it the other way round, from value()
-        array<byte, 4> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 4> digest() const noexcept {
             return detail::big_endian<4>(value());
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _register = ~uint32_t(0);
         }
 
         // The CRC of A followed by B, from the CRC of A, the CRC of B and
         // the length of B in bytes
-        static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept {
+        SGCL_INLINE_HOT static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept {
             return detail::crc_combine<uint32_t, Polynomial>(first, second, second_length);
         }
 
@@ -82,29 +82,29 @@ namespace sgcl::hash {
 
         crc32c() noexcept = default;
 
-        static crc32c resume(uint32_t value) noexcept {
+        SGCL_INLINE_HOT static crc32c resume(uint32_t value) noexcept {
             crc32c h;
             h._register = ~value;
             return h;
         }
 
-        void update(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& data) noexcept {
             _register = detail::crc_update<uint32_t, Polynomial>(_register, detail::bytes(data.data()), data.size());
         }
 
-        uint32_t value() const noexcept {
+        SGCL_INLINE_HOT uint32_t value() const noexcept {
             return ~_register;
         }
 
-        array<byte, 4> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 4> digest() const noexcept {
             return detail::big_endian<4>(value());
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _register = ~uint32_t(0);
         }
 
-        static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept {
+        SGCL_INLINE_HOT static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept {
             return detail::crc_combine<uint32_t, Polynomial>(first, second, second_length);
         }
 

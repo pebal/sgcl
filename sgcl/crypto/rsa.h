@@ -85,14 +85,14 @@ namespace sgcl::crypto::detail {
         }
 
         template<class W>
-        static vector<byte> take(const W& w) noexcept {
+        SGCL_INLINE_HOT static vector<byte> take(const W& w) noexcept {
             const byte* p = reinterpret_cast<const byte*>(w.data());
             return vector<byte>(p, p + w.size());
         }
 
         // An INTEGER of k words
         template<class W>
-        static void put_words(W& w, const uint64_t* a, size_t k, unsigned char* tmp) noexcept {
+        SGCL_INLINE_HOT static void put_words(W& w, const uint64_t* a, size_t k, unsigned char* tmp) noexcept {
             bn::to_be(tmp, 8 * k, a, k);
             w.put_unsigned(tmp, 8 * k);
             secure_zero(tmp, 8 * k);
@@ -151,13 +151,13 @@ namespace sgcl::crypto::detail {
         // errc::invalid_key for an even modulus or an exponent that is
         // even or below 3; errc::unsupported for a modulus of fewer than
         // 1024 bits or more than 16384, an exponent above 2^31 - 1
-        static expected<RsaPublicKey, error> from_modulus(const slice<const byte>& n, uint64_t e) noexcept {
+        SGCL_INLINE_HOT static expected<RsaPublicKey, error> from_modulus(const slice<const byte>& n, uint64_t e) noexcept {
             return _make(detail::bytes(n.data()), n.size(), e, 0);
         }
 
         // An RSAPublicKey of PKCS #1 (RFC 8017 §A.1.1, "RSA PUBLIC KEY" in
         // PEM): SEQUENCE { modulus, publicExponent }
-        static expected<RsaPublicKey, error> from_pkcs1_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<RsaPublicKey, error> from_pkcs1_der(const slice<const byte>& der) noexcept {
             DerReader in(detail::bytes(der.data()), der.size());
             auto k = _read_pkcs1(in);
             if (k && !in.empty()) {
@@ -209,34 +209,34 @@ namespace sgcl::crypto::detail {
         }
 
         // The modulus's bits: 2048 for a 2048-bit key
-        size_t bits() const {
+        SGCL_INLINE_HOT size_t bits() const {
             _check();
             return _bits;
         }
 
         // The modulus's bytes: the length of a signature and of a
         // ciphertext
-        size_t size() const {
+        SGCL_INLINE_HOT size_t size() const {
             _check();
             return _size();
         }
 
         // n, big-endian, size() bytes
-        vector<byte> modulus() const {
+        SGCL_INLINE_HOT vector<byte> modulus() const {
             _check();
             vector<byte> out(_size());
             bn::to_be(detail::bytes(out.data()), _size(), _n.data(), _n.size());
             return out;
         }
 
-        uint64_t exponent() const {
+        SGCL_INLINE_HOT uint64_t exponent() const {
             _check();
             return _e;
         }
 
         // The RSAPublicKey of PKCS #1, as Go's x509.MarshalPKCS1PublicKey
         // writes it
-        vector<byte> to_pkcs1_der() const {
+        SGCL_INLINE_HOT vector<byte> to_pkcs1_der() const {
             _check();
             auto w = std::make_unique<DerWriter<Rsa::der_capacity>>();
             _write_pkcs1(*w);
@@ -290,7 +290,7 @@ namespace sgcl::crypto::detail {
         // makes, a salt as long as the digest, and every other length
         // verify). A digest of another length than id's is false, as for
         // verify_digest
-        [[nodiscard]] bool verify_digest_pss(hash_id id, const slice<const byte>& digest, const slice<const byte>& signature) const {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify_digest_pss(hash_id id, const slice<const byte>& digest, const slice<const byte>& signature) const {
             return _verify_pss(id, digest, signature, nullptr);
         }
 
@@ -299,7 +299,7 @@ namespace sgcl::crypto::detail {
         // digest's): a signature with a salt of any other length is false,
         // as is a length the key has no room for. What a certificate's
         // RSASSA-PSS-params ask
-        [[nodiscard]] bool verify_digest_pss(hash_id id, const slice<const byte>& digest, const slice<const byte>& signature, size_t salt_length) const {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify_digest_pss(hash_id id, const slice<const byte>& digest, const slice<const byte>& signature, size_t salt_length) const {
             return _verify_pss(id, digest, signature, &salt_length);
         }
 
@@ -307,21 +307,21 @@ namespace sgcl::crypto::detail {
         // and verify_digest_pss of its digest (the digest on the stack).
         // An id that is none of hash_id's is std::invalid_argument, as
         // digest_size(id) is
-        [[nodiscard]] bool verify(hash_id id, const slice<const byte>& message, const slice<const byte>& signature) const {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify(hash_id id, const slice<const byte>& message, const slice<const byte>& signature) const {
             return visit_hash(id, [&](auto t) {
                 auto d = decltype(t)::type::of(message);
                 return verify_digest(id, slice<const byte>(d.data(), d.size()), signature);
             });
         }
 
-        [[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message, const slice<const byte>& signature) const {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify_pss(hash_id id, const slice<const byte>& message, const slice<const byte>& signature) const {
             return visit_hash(id, [&](auto t) {
                 auto d = decltype(t)::type::of(message);
                 return _verify_pss(id, slice<const byte>(d.data(), d.size()), signature, nullptr);
             });
         }
 
-        [[nodiscard]] bool verify_pss(hash_id id, const slice<const byte>& message, const slice<const byte>& signature, size_t salt_length) const {
+        [[nodiscard]] SGCL_INLINE_HOT bool verify_pss(hash_id id, const slice<const byte>& message, const slice<const byte>& signature, size_t salt_length) const {
             return visit_hash(id, [&](auto t) {
                 auto d = decltype(t)::type::of(message);
                 return _verify_pss(id, slice<const byte>(d.data(), d.size()), signature, &salt_length);
@@ -334,31 +334,31 @@ namespace sgcl::crypto::detail {
         // bytes (size() - 2 hLen - 2: 190 for a 2048-bit key and SHA-256);
         // a longer one is std::invalid_argument. The message and the label
         // are bytes or text, which a slice of bytes takes both
-        vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message) const {
+        SGCL_INLINE_HOT vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message) const {
             return _encrypt(id, id, message, slice<const byte>());
         }
 
         // The same with a label, which the decryption must be given
-        vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message, const slice<const byte>& label) const {
+        SGCL_INLINE_HOT vector<byte> encrypt_oaep(hash_id id, const slice<const byte>& message, const slice<const byte>& label) const {
             return _encrypt(id, id, message, label);
         }
 
         // The same with MGF1 over another hash than the label's (Java's
         // "OAEPWithSHA-256AndMGF1Padding" is SHA-256 with MGF1 over SHA-1)
-        vector<byte> encrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& message, const slice<const byte>& label) const {
+        SGCL_INLINE_HOT vector<byte> encrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& message, const slice<const byte>& label) const {
             return _encrypt(id, mgf1, message, label);
         }
 
         // The longest message encrypt_oaep takes under id: size() - 2 hLen
         // - 2, or 0 when the key is too small for the hash at all
-        size_t max_oaep_message_size(hash_id id) const {
+        SGCL_INLINE_HOT size_t max_oaep_message_size(hash_id id) const {
             _check();
             return _max_oaep(id);
         }
 
         // The same modulus and exponent; a key moved from is
         // std::logic_error, as everywhere
-        friend bool operator==(const RsaPublicKey& a, const RsaPublicKey& b) {
+        SGCL_INLINE_HOT friend bool operator==(const RsaPublicKey& a, const RsaPublicKey& b) {
             a._check();
             b._check();
             return a._e == b._e && a._n == b._n;
@@ -375,26 +375,26 @@ namespace sgcl::crypto::detail {
 
         // A key moved from has no modulus (the vectors went with the move;
         // _bits and _e stay, so every public member checks first)
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             if (_n.empty()) {
                 moved_from("sgcl::crypto::rsa::public_key");
             }
         }
 
-        size_t _size() const noexcept {
+        SGCL_INLINE_HOT size_t _size() const noexcept {
             return (_bits + 7) / 8;
         }
 
-        size_t _max_oaep(hash_id id) const {
+        SGCL_INLINE_HOT size_t _max_oaep(hash_id id) const {
             size_t h = digest_size(id);
             return _size() >= 2 * h + 2 ? _size() - 2 * h - 2 : 0;
         }
 
-        bn::Modulus _mod() const noexcept {
+        SGCL_INLINE_HOT bn::Modulus _mod() const noexcept {
             return bn::Modulus{_n.data(), _rr.data(), nullptr, _m0inv, _n.size()};
         }
 
-        void _check_digest(hash_id id, const slice<const byte>& digest) const {
+        SGCL_INLINE_HOT void _check_digest(hash_id id, const slice<const byte>& digest) const {
             _check();
             if (digest.size() != digest_size(id)) {
                 throw invalid_argument("sgcl::crypto::rsa: the digest is not of the hash's length");
@@ -484,7 +484,7 @@ namespace sgcl::crypto::detail {
         }
 
         template<class W>
-        void _write_pkcs1(W& w) const noexcept {
+        SGCL_INLINE_HOT void _write_pkcs1(W& w) const noexcept {
             size_t mark = w.size();
             _write_numbers(w);
             w.wrap(der::sequence, mark);
@@ -544,7 +544,7 @@ namespace sgcl::crypto::detail {
             return salt_length ? rsa_pad::pss_verify(id, d, digest.size(), e, em_bits, *salt_length) : rsa_pad::pss_verify(id, d, digest.size(), e, em_bits);
         }
 
-        vector<byte> _encrypt(hash_id id, hash_id mgf, const slice<const byte>& message, const slice<const byte>& label) const {
+        SGCL_INLINE_HOT vector<byte> _encrypt(hash_id id, hash_id mgf, const slice<const byte>& message, const slice<const byte>& label) const {
             unsigned char seed[64];
             random::fill(slice<byte>(reinterpret_cast<byte*>(seed), digest_size(id)));
             vector<byte> out = _encrypt(id, mgf, message, label, seed);
@@ -607,7 +607,7 @@ namespace sgcl::crypto::detail {
         // unsupported). The key is checked whole: n = p q, qInv q = 1 mod
         // p, dP = d mod (p - 1) and e dP = 1 mod (p - 1), and the same for
         // q; a key that fails is errc::invalid_key
-        static expected<RsaPrivateKey, error> from_pkcs1_der(const slice<const byte>& der) noexcept {
+        SGCL_INLINE_HOT static expected<RsaPrivateKey, error> from_pkcs1_der(const slice<const byte>& der) noexcept {
             DerReader in(detail::bytes(der.data()), der.size());
             auto k = _read_pkcs1(in);
             if (k && !in.empty()) {
@@ -664,24 +664,24 @@ namespace sgcl::crypto::detail {
         RsaPrivateKey& operator=(const RsaPrivateKey&) = delete;
         ~RsaPrivateKey() = default;
 
-        RsaPrivateKey clone() const {
+        SGCL_INLINE_HOT RsaPrivateKey clone() const {
             _check();
             Words s(_s.size());
             bn::copy(s.data(), _s.data(), _s.size());
             return RsaPrivateKey(RsaPublicKey(_pub), std::move(s), _k);
         }
 
-        RsaPublicKey public_key() const {
+        SGCL_INLINE_HOT RsaPublicKey public_key() const {
             _check();
             return _pub;
         }
 
-        size_t bits() const {
+        SGCL_INLINE_HOT size_t bits() const {
             _check();
             return _pub._bits;
         }
 
-        size_t size() const {
+        SGCL_INLINE_HOT size_t size() const {
             _check();
             return _pub._size();
         }
@@ -725,14 +725,14 @@ namespace sgcl::crypto::detail {
         // m) is JWT's RS256, sign_pss(hash_id::sha256, m) its PS256. An id
         // that is none of hash_id's is std::invalid_argument, and so is a
         // key too small for the hash, as for the digest's forms
-        vector<byte> sign(hash_id id, const slice<const byte>& message) const {
+        SGCL_INLINE_HOT vector<byte> sign(hash_id id, const slice<const byte>& message) const {
             return visit_hash(id, [&](auto t) {
                 auto d = decltype(t)::type::of(message);
                 return sign_digest(id, slice<const byte>(d.data(), d.size()));
             });
         }
 
-        vector<byte> sign_pss(hash_id id, const slice<const byte>& message) const {
+        SGCL_INLINE_HOT vector<byte> sign_pss(hash_id id, const slice<const byte>& message) const {
             return visit_hash(id, [&](auto t) {
                 auto d = decltype(t)::type::of(message);
                 return sign_digest_pss(id, slice<const byte>(d.data(), d.size()));
@@ -748,17 +748,17 @@ namespace sgcl::crypto::detail {
         // needs (Manger, CRYPTO 2001). The message is the user's data, a
         // vector<byte> (decrypt_oaep_to, into the caller's buffer, for a key
         // unwrapped)
-        [[nodiscard]] expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const {
             return _decrypt(id, id, ciphertext, slice<const byte>());
         }
 
         // The same with the label (bytes or text) the encryption was given
-        [[nodiscard]] expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
             return _decrypt(id, id, ciphertext, label);
         }
 
         // The same with MGF1 over another hash than the label's
-        [[nodiscard]] expected<vector<byte>, error> decrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<vector<byte>, error> decrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
             return _decrypt(id, mgf1, ciphertext, label);
         }
 
@@ -769,22 +769,22 @@ namespace sgcl::crypto::detail {
         // which case out is not touched. out holds at least
         // max_oaep_message_size(id) bytes, else std::length_error, decided
         // before the decryption from the key and the hash alone
-        [[nodiscard]] expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, const slice<const byte>& ciphertext) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, const slice<const byte>& ciphertext) const {
             return _decrypt_to(out, id, id, ciphertext, slice<const byte>());
         }
 
-        [[nodiscard]] expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
             return _decrypt_to(out, id, id, ciphertext, label);
         }
 
-        [[nodiscard]] expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, hash_id mgf1, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, hash_id mgf1, const slice<const byte>& ciphertext, const slice<const byte>& label) const {
             return _decrypt_to(out, id, mgf1, ciphertext, label);
         }
 
         // The RSAPrivateKey of PKCS #1, as Go's x509.MarshalPKCS1PrivateKey
         // and OpenSSL write it; the bytes hold the secret: a secret_bytes,
         // never managed memory
-        secret_bytes to_pkcs1_der() const {
+        SGCL_INLINE_HOT secret_bytes to_pkcs1_der() const {
             _check();
             auto w = std::make_unique<DerWriter<Rsa::der_capacity>>();
             _write_pkcs1(*w);
@@ -810,7 +810,7 @@ namespace sgcl::crypto::detail {
         // its base64 decoded straight into a secret_bytes (encoding::pem
         // would put the DER in managed memory). Text around the block is
         // passed over; an encrypted key is errc::unsupported
-        static expected<RsaPrivateKey, error> from_pem(const slice<const byte>& text) noexcept {
+        SGCL_INLINE_HOT static expected<RsaPrivateKey, error> from_pem(const slice<const byte>& text) noexcept {
             auto p = detail::read_key_pem(text, "sgcl::crypto::rsa: ");
             if (!p) {
                 return unexpected<error>(p.error());
@@ -827,7 +827,7 @@ namespace sgcl::crypto::detail {
         // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
         // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
         // write it: a secret_bytes, never managed memory
-        secret_bytes to_pem() const {
+        SGCL_INLINE_HOT secret_bytes to_pem() const {
             return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
         }
 
@@ -839,36 +839,36 @@ namespace sgcl::crypto::detail {
         Words _s;        // d (kn), p, q, dP, dQ, qInv, p's R^2, R^3, q's R^2, R^3 (k each), p's and q's m0inv
         size_t _k = 0;   // words of p and of q: the larger's
 
-        RsaPrivateKey(RsaPublicKey&& pub, Words&& s, size_t k) noexcept
+        SGCL_INLINE_HOT RsaPrivateKey(RsaPublicKey&& pub, Words&& s, size_t k) noexcept
         : _pub(std::move(pub)), _s(std::move(s)), _k(k) {
         }
 
-        static size_t _layout(size_t kn, size_t k) noexcept {
+        SGCL_INLINE_HOT static size_t _layout(size_t kn, size_t k) noexcept {
             return kn + 9 * k + 2;
         }
 
         // the parts of the block
-        word* _d() const noexcept { return const_cast<word*>(_s.data()); }
-        word* _p() const noexcept { return _d() + _pub._n.size(); }
-        word* _q() const noexcept { return _p() + _k; }
-        word* _dp() const noexcept { return _p() + 2 * _k; }
-        word* _dq() const noexcept { return _p() + 3 * _k; }
-        word* _qinv() const noexcept { return _p() + 4 * _k; }
-        word* _p_rr() const noexcept { return _p() + 5 * _k; }
-        word* _p_rrr() const noexcept { return _p() + 6 * _k; }
-        word* _q_rr() const noexcept { return _p() + 7 * _k; }
-        word* _q_rrr() const noexcept { return _p() + 8 * _k; }
-        word* _m0() const noexcept { return _p() + 9 * _k; }
+        SGCL_INLINE_HOT word* _d() const noexcept { return const_cast<word*>(_s.data()); }
+        SGCL_INLINE_HOT word* _p() const noexcept { return _d() + _pub._n.size(); }
+        SGCL_INLINE_HOT word* _q() const noexcept { return _p() + _k; }
+        SGCL_INLINE_HOT word* _dp() const noexcept { return _p() + 2 * _k; }
+        SGCL_INLINE_HOT word* _dq() const noexcept { return _p() + 3 * _k; }
+        SGCL_INLINE_HOT word* _qinv() const noexcept { return _p() + 4 * _k; }
+        SGCL_INLINE_HOT word* _p_rr() const noexcept { return _p() + 5 * _k; }
+        SGCL_INLINE_HOT word* _p_rrr() const noexcept { return _p() + 6 * _k; }
+        SGCL_INLINE_HOT word* _q_rr() const noexcept { return _p() + 7 * _k; }
+        SGCL_INLINE_HOT word* _q_rrr() const noexcept { return _p() + 8 * _k; }
+        SGCL_INLINE_HOT word* _m0() const noexcept { return _p() + 9 * _k; }
 
-        bn::Modulus _pmod() const noexcept {
+        SGCL_INLINE_HOT bn::Modulus _pmod() const noexcept {
             return bn::Modulus{_p(), _p_rr(), _p_rrr(), _m0()[0], _k};
         }
 
-        bn::Modulus _qmod() const noexcept {
+        SGCL_INLINE_HOT bn::Modulus _qmod() const noexcept {
             return bn::Modulus{_q(), _q_rr(), _q_rrr(), _m0()[1], _k};
         }
 
-        void _check() const {
+        SGCL_INLINE_HOT void _check() const {
             if (!_s) {
                 moved_from("sgcl::crypto::rsa::private_key");
             }
@@ -1143,7 +1143,7 @@ namespace sgcl::crypto::detail {
             return out;
         }
 
-        vector<byte> _sign_pss(hash_id id, const slice<const byte>& digest, const unsigned char* salt, size_t slen) const {
+        SGCL_INLINE_HOT vector<byte> _sign_pss(hash_id id, const slice<const byte>& digest, const unsigned char* salt, size_t slen) const {
             size_t em_bits = _pub._bits - 1;
             size_t em_len = (em_bits + 7) / 8;
             std::vector<unsigned char> em(em_len);
@@ -1314,12 +1314,12 @@ namespace sgcl::crypto::detail {
     // words changed after its checks (a fault)
     struct RsaAccess {
         template<class R>
-        static vector<byte> sign_pss(const RsaPrivateKey<R>& key, hash_id id, const slice<const byte>& digest, const slice<const byte>& salt) {
+        SGCL_INLINE_HOT static vector<byte> sign_pss(const RsaPrivateKey<R>& key, hash_id id, const slice<const byte>& digest, const slice<const byte>& salt) {
             key._check();
             return key._sign_pss(id, digest, detail::bytes(salt.data()), salt.size());
         }
 
-        static vector<byte> encrypt_oaep(const RsaPublicKey& key, hash_id id, hash_id mgf, const slice<const byte>& message, const slice<const byte>& label, const slice<const byte>& seed) {
+        SGCL_INLINE_HOT static vector<byte> encrypt_oaep(const RsaPublicKey& key, hash_id id, hash_id mgf, const slice<const byte>& message, const slice<const byte>& label, const slice<const byte>& seed) {
             return key._encrypt(id, mgf, message, label, detail::bytes(seed.data()));
         }
 
@@ -1337,7 +1337,7 @@ namespace sgcl::crypto::detail {
 
         // The bit of dP flipped
         template<class R>
-        static void break_dp(RsaPrivateKey<R>& key, unsigned bit) noexcept {
+        SGCL_INLINE_HOT static void break_dp(RsaPrivateKey<R>& key, unsigned bit) noexcept {
             key._dp()[bit / 64] ^= uint64_t(1) << (bit % 64);
         }
     };

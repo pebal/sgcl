@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -30,7 +32,7 @@ namespace sgcl::crypto::detail::mlkem {
     // a mod q for a < 2^24 (a product of two reduced values is below
     // 3329² < 2^24): Barrett with m = ⌊2^36 / q⌋, the quotient off by at
     // most one below, which the masked subtraction corrects
-    constexpr uint16_t reduce(uint32_t a) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t reduce(uint32_t a) noexcept {
         constexpr uint64_t M = (uint64_t(1) << 36) / Q;
         uint32_t t = uint32_t((uint64_t(a) * M) >> 36);
         uint32_t r = a - t * Q;                              // [0, 2q)
@@ -39,19 +41,19 @@ namespace sgcl::crypto::detail::mlkem {
     }
 
     // a + b, a − b and a·b mod q, of reduced values
-    constexpr uint16_t add(uint16_t a, uint16_t b) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t add(uint16_t a, uint16_t b) noexcept {
         uint32_t r = uint32_t(a) + b;                        // [0, 2q)
         r -= Q & uint32_t(-int32_t((int32_t(Q - 1) - int32_t(r)) >> 31 & 1));
         return uint16_t(r);
     }
 
-    constexpr uint16_t sub(uint16_t a, uint16_t b) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t sub(uint16_t a, uint16_t b) noexcept {
         uint32_t r = uint32_t(a) + Q - b;                    // [1, 2q)
         r -= Q & uint32_t(-int32_t((int32_t(Q - 1) - int32_t(r)) >> 31 & 1));
         return uint16_t(r);
     }
 
-    constexpr uint16_t mul(uint16_t a, uint16_t b) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t mul(uint16_t a, uint16_t b) noexcept {
         return reduce(uint32_t(a) * b);
     }
 
@@ -176,7 +178,7 @@ namespace sgcl::crypto::detail::mlkem {
     }
 
     // Decompress_d (4.8): ⌈(q / 2^d)·y⌋, for y < 2^d
-    constexpr uint16_t decompress(uint16_t y, unsigned d) noexcept {
+    SGCL_INLINE_HOT constexpr uint16_t decompress(uint16_t y, unsigned d) noexcept {
         return uint16_t((uint32_t(y) * Q + (uint32_t(1) << (d - 1))) >> d);
     }
 

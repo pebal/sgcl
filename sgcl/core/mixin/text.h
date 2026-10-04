@@ -51,7 +51,7 @@ namespace sgcl::detail {
     // array filled to the brim, which has no NUL, not read past its end
     // (a pointer's strlen would go on into whatever follows it)
     template<class CharT, class Traits, size_t N>
-    constexpr std::basic_string_view<CharT, Traits> array_text(const CharT (&text)[N]) noexcept {
+    SGCL_INLINE_HOT constexpr std::basic_string_view<CharT, Traits> array_text(const CharT (&text)[N]) noexcept {
         const CharT* nul = Traits::find(text, N, CharT());
         return std::basic_string_view<CharT, Traits>(text, nul ? size_t(nul - text) : N);
     }
@@ -90,19 +90,19 @@ namespace sgcl::mixin {
 
         // The characters as a std view: what the algorithms run on, and
         // what a std interface takes
-        view_type view() const noexcept {
+        SGCL_INLINE_HOT view_type view() const noexcept {
             return view_type(_self().data(), _self().size());
         }
 
-        operator view_type() const noexcept {
+        SGCL_INLINE_HOT operator view_type() const noexcept {
             return view();
         }
 
-        size_type length() const noexcept {
+        SGCL_INLINE_HOT size_type length() const noexcept {
             return _self().size();
         }
 
-        const CharT& at(size_type i) const {
+        SGCL_INLINE_HOT const CharT& at(size_type i) const {
             if (i >= _self().size()) {
                 throw out_of_range("sgcl::text::at");   // a string's or a text slice's
             }
@@ -113,62 +113,62 @@ namespace sgcl::mixin {
         // its first NUL or its end, never past it; as a pointer (CharT* or
         // const CharT*, no other) up to its NUL: two overloads, so that an
         // array does not decay into the pointer's strlen
-        size_type copy(CharT* dest, size_type n, size_type pos = 0) const { return view().copy(dest, n, pos); }
-        int compare(view_type s) const noexcept { return view().compare(s); }
-        int compare(size_type pos, size_type n, view_type s) const { return view().compare(pos, n, s); }
-        int compare(size_type pos, size_type n, view_type s, size_type pos2, size_type n2) const { return view().compare(pos, n, s, pos2, n2); }
-        template<size_t N> int compare(size_type pos, size_type n, const CharT (&s)[N]) const { return view().compare(pos, n, _array(s)); }
-        template<size_t N> int compare(size_type pos, size_type n, const CharT (&s)[N], size_type pos2, size_type n2) const { return view().compare(pos, n, _array(s), pos2, n2); }
-        template<size_t N> int compare(const CharT (&s)[N]) const noexcept { return compare(_array(s)); }
+        SGCL_INLINE_HOT size_type copy(CharT* dest, size_type n, size_type pos = 0) const { return view().copy(dest, n, pos); }
+        SGCL_INLINE_HOT int compare(view_type s) const noexcept { return view().compare(s); }
+        SGCL_INLINE_HOT int compare(size_type pos, size_type n, view_type s) const { return view().compare(pos, n, s); }
+        SGCL_INLINE_HOT int compare(size_type pos, size_type n, view_type s, size_type pos2, size_type n2) const { return view().compare(pos, n, s, pos2, n2); }
+        template<size_t N> SGCL_INLINE_HOT int compare(size_type pos, size_type n, const CharT (&s)[N]) const { return view().compare(pos, n, _array(s)); }
+        template<size_t N> SGCL_INLINE_HOT int compare(size_type pos, size_type n, const CharT (&s)[N], size_type pos2, size_type n2) const { return view().compare(pos, n, _array(s), pos2, n2); }
+        template<size_t N> SGCL_INLINE_HOT int compare(const CharT (&s)[N]) const noexcept { return compare(_array(s)); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        int compare(P s) const noexcept { return view().compare(s); }
-        bool starts_with(view_type s) const noexcept { return view().starts_with(s); }
-        bool starts_with(CharT c) const noexcept { return view().starts_with(c); }
-        template<size_t N> bool starts_with(const CharT (&s)[N]) const noexcept { return starts_with(_array(s)); }
+        SGCL_INLINE_HOT int compare(P s) const noexcept { return view().compare(s); }
+        SGCL_INLINE_HOT bool starts_with(view_type s) const noexcept { return view().starts_with(s); }
+        SGCL_INLINE_HOT bool starts_with(CharT c) const noexcept { return view().starts_with(c); }
+        template<size_t N> SGCL_INLINE_HOT bool starts_with(const CharT (&s)[N]) const noexcept { return starts_with(_array(s)); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool starts_with(P s) const noexcept { return view().starts_with(s); }
-        bool ends_with(view_type s) const noexcept { return view().ends_with(s); }
-        bool ends_with(CharT c) const noexcept { return view().ends_with(c); }
-        template<size_t N> bool ends_with(const CharT (&s)[N]) const noexcept { return ends_with(_array(s)); }
+        SGCL_INLINE_HOT bool starts_with(P s) const noexcept { return view().starts_with(s); }
+        SGCL_INLINE_HOT bool ends_with(view_type s) const noexcept { return view().ends_with(s); }
+        SGCL_INLINE_HOT bool ends_with(CharT c) const noexcept { return view().ends_with(c); }
+        template<size_t N> SGCL_INLINE_HOT bool ends_with(const CharT (&s)[N]) const noexcept { return ends_with(_array(s)); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool ends_with(P s) const noexcept { return view().ends_with(s); }
-        bool contains(view_type s) const noexcept { return view().find(s) != npos; }
-        bool contains(CharT c) const noexcept { return view().find(c) != npos; }
-        template<size_t N> bool contains(const CharT (&s)[N]) const noexcept { return contains(_array(s)); }
+        SGCL_INLINE_HOT bool ends_with(P s) const noexcept { return view().ends_with(s); }
+        SGCL_INLINE_HOT bool contains(view_type s) const noexcept { return view().find(s) != npos; }
+        SGCL_INLINE_HOT bool contains(CharT c) const noexcept { return view().find(c) != npos; }
+        template<size_t N> SGCL_INLINE_HOT bool contains(const CharT (&s)[N]) const noexcept { return contains(_array(s)); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool contains(P s) const noexcept { return view().find(s) != npos; }
-        size_type find(view_type s, size_type pos = 0) const noexcept { return view().find(s, pos); }
-        size_type find(CharT c, size_type pos = 0) const noexcept { return view().find(c, pos); }
-        size_type find(const CharT* s, size_type pos, size_type n) const noexcept { return view().find(s, pos, n); }
-        template<size_t N> size_type find(const CharT (&s)[N], size_type pos = 0) const noexcept { return find(_array(s), pos); }
+        SGCL_INLINE_HOT bool contains(P s) const noexcept { return view().find(s) != npos; }
+        SGCL_INLINE_HOT size_type find(view_type s, size_type pos = 0) const noexcept { return view().find(s, pos); }
+        SGCL_INLINE_HOT size_type find(CharT c, size_type pos = 0) const noexcept { return view().find(c, pos); }
+        SGCL_INLINE_HOT size_type find(const CharT* s, size_type pos, size_type n) const noexcept { return view().find(s, pos, n); }
+        template<size_t N> SGCL_INLINE_HOT size_type find(const CharT (&s)[N], size_type pos = 0) const noexcept { return find(_array(s), pos); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find(P s, size_type pos = 0) const noexcept { return view().find(s, pos); }
-        size_type rfind(view_type s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
-        size_type rfind(CharT c, size_type pos = npos) const noexcept { return view().rfind(c, pos); }
-        size_type rfind(const CharT* s, size_type pos, size_type n) const noexcept { return view().rfind(s, pos, n); }
-        template<size_t N> size_type rfind(const CharT (&s)[N], size_type pos = npos) const noexcept { return rfind(_array(s), pos); }
+        SGCL_INLINE_HOT size_type find(P s, size_type pos = 0) const noexcept { return view().find(s, pos); }
+        SGCL_INLINE_HOT size_type rfind(view_type s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
+        SGCL_INLINE_HOT size_type rfind(CharT c, size_type pos = npos) const noexcept { return view().rfind(c, pos); }
+        SGCL_INLINE_HOT size_type rfind(const CharT* s, size_type pos, size_type n) const noexcept { return view().rfind(s, pos, n); }
+        template<size_t N> SGCL_INLINE_HOT size_type rfind(const CharT (&s)[N], size_type pos = npos) const noexcept { return rfind(_array(s), pos); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type rfind(P s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
-        size_type find_first_of(view_type s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
-        size_type find_first_of(CharT c, size_type pos = 0) const noexcept { return view().find_first_of(c, pos); }
-        template<size_t N> size_type find_first_of(const CharT (&s)[N], size_type pos = 0) const noexcept { return find_first_of(_array(s), pos); }
+        SGCL_INLINE_HOT size_type rfind(P s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
+        SGCL_INLINE_HOT size_type find_first_of(view_type s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_first_of(CharT c, size_type pos = 0) const noexcept { return view().find_first_of(c, pos); }
+        template<size_t N> SGCL_INLINE_HOT size_type find_first_of(const CharT (&s)[N], size_type pos = 0) const noexcept { return find_first_of(_array(s), pos); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find_first_of(P s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
-        size_type find_last_of(view_type s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
-        size_type find_last_of(CharT c, size_type pos = npos) const noexcept { return view().find_last_of(c, pos); }
-        template<size_t N> size_type find_last_of(const CharT (&s)[N], size_type pos = npos) const noexcept { return find_last_of(_array(s), pos); }
+        SGCL_INLINE_HOT size_type find_first_of(P s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_last_of(view_type s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_last_of(CharT c, size_type pos = npos) const noexcept { return view().find_last_of(c, pos); }
+        template<size_t N> SGCL_INLINE_HOT size_type find_last_of(const CharT (&s)[N], size_type pos = npos) const noexcept { return find_last_of(_array(s), pos); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find_last_of(P s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
-        size_type find_first_not_of(view_type s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
-        size_type find_first_not_of(CharT c, size_type pos = 0) const noexcept { return view().find_first_not_of(c, pos); }
-        template<size_t N> size_type find_first_not_of(const CharT (&s)[N], size_type pos = 0) const noexcept { return find_first_not_of(_array(s), pos); }
+        SGCL_INLINE_HOT size_type find_last_of(P s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_first_not_of(view_type s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_first_not_of(CharT c, size_type pos = 0) const noexcept { return view().find_first_not_of(c, pos); }
+        template<size_t N> SGCL_INLINE_HOT size_type find_first_not_of(const CharT (&s)[N], size_type pos = 0) const noexcept { return find_first_not_of(_array(s), pos); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find_first_not_of(P s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
-        size_type find_last_not_of(view_type s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
-        size_type find_last_not_of(CharT c, size_type pos = npos) const noexcept { return view().find_last_not_of(c, pos); }
-        template<size_t N> size_type find_last_not_of(const CharT (&s)[N], size_type pos = npos) const noexcept { return find_last_not_of(_array(s), pos); }
+        SGCL_INLINE_HOT size_type find_first_not_of(P s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_last_not_of(view_type s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_last_not_of(CharT c, size_type pos = npos) const noexcept { return view().find_last_not_of(c, pos); }
+        template<size_t N> SGCL_INLINE_HOT size_type find_last_not_of(const CharT (&s)[N], size_type pos = npos) const noexcept { return find_last_not_of(_array(s), pos); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        size_type find_last_not_of(P s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
+        SGCL_INLINE_HOT size_type find_last_not_of(P s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
 
         // The Unicode characters: the code points of a UTF-8 string
         // decoded as they are walked (sgcl::runes, a range over a slice
@@ -195,11 +195,11 @@ namespace sgcl::mixin {
             }
         }
 
-        pair<char32_t, size_type> decode(size_type pos) const noexcept requires (sizeof(CharT) == 1) {
+        SGCL_INLINE_HOT pair<char32_t, size_type> decode(size_type pos) const noexcept requires (sizeof(CharT) == 1) {
             return utf8::decode(_bytes(), pos);
         }
 
-        bool is_valid_utf8() const noexcept requires (sizeof(CharT) == 1) {
+        SGCL_INLINE_HOT bool is_valid_utf8() const noexcept requires (sizeof(CharT) == 1) {
             return utf8::valid(_bytes());
         }
 
@@ -209,37 +209,37 @@ namespace sgcl::mixin {
         // are these already. A value that is no code point (a surrogate,
         // past U+10FFFF) has no encoding and is in no such text: not the
         // U+FFFD it would be written as.
-        bool starts_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) && view().starts_with(_encoded(c)); }
-        bool ends_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) && view().ends_with(_encoded(c)); }
-        bool contains(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) && view().find(_encoded(c)) != npos; }
-        size_type find(char32_t c, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) ? view().find(_encoded(c), pos) : npos; }
-        size_type rfind(char32_t c, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) ? view().rfind(_encoded(c), pos) : npos; }
+        SGCL_INLINE_HOT bool starts_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) && view().starts_with(_encoded(c)); }
+        SGCL_INLINE_HOT bool ends_with(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) && view().ends_with(_encoded(c)); }
+        SGCL_INLINE_HOT bool contains(char32_t c) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) && view().find(_encoded(c)) != npos; }
+        SGCL_INLINE_HOT size_type find(char32_t c, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) ? view().find(_encoded(c), pos) : npos; }
+        SGCL_INLINE_HOT size_type rfind(char32_t c, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) { return utf8::valid(c) ? view().rfind(_encoded(c), pos) : npos; }
 
         // A set of characters as code points: the position of the first
         // (last) character of the text that is (is not) in the set, walked
         // by code points; a backward search from `pos` starts with the
         // code point that begins at or before it, a forward one with the
         // first that begins at or after it. A char32_t is a set of one.
-        size_type find_first_of(std::u32string_view set, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT size_type find_first_of(std::u32string_view set, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
             return _find_forward(_forward_start(pos), [&](char32_t c) { return set.find(c) != std::u32string_view::npos; });
         }
 
-        size_type find_first_not_of(std::u32string_view set, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT size_type find_first_not_of(std::u32string_view set, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) {
             return _find_forward(_forward_start(pos), [&](char32_t c) { return set.find(c) == std::u32string_view::npos; });
         }
 
-        size_type find_last_of(std::u32string_view set, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT size_type find_last_of(std::u32string_view set, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) {
             return _find_backward(pos, [&](char32_t c) { return set.find(c) != std::u32string_view::npos; });
         }
 
-        size_type find_last_not_of(std::u32string_view set, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT size_type find_last_not_of(std::u32string_view set, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) {
             return _find_backward(pos, [&](char32_t c) { return set.find(c) == std::u32string_view::npos; });
         }
 
-        size_type find_first_of(char32_t c, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_first_of(std::u32string_view(&c, 1), pos); }
-        size_type find_first_not_of(char32_t c, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_first_not_of(std::u32string_view(&c, 1), pos); }
-        size_type find_last_of(char32_t c, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_last_of(std::u32string_view(&c, 1), pos); }
-        size_type find_last_not_of(char32_t c, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_last_not_of(std::u32string_view(&c, 1), pos); }
+        SGCL_INLINE_HOT size_type find_first_of(char32_t c, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_first_of(std::u32string_view(&c, 1), pos); }
+        SGCL_INLINE_HOT size_type find_first_not_of(char32_t c, size_type pos = 0) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_first_not_of(std::u32string_view(&c, 1), pos); }
+        SGCL_INLINE_HOT size_type find_last_of(char32_t c, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_last_of(std::u32string_view(&c, 1), pos); }
+        SGCL_INLINE_HOT size_type find_last_not_of(char32_t c, size_type pos = npos) const noexcept requires (!std::same_as<CharT, char32_t>) { return find_last_not_of(std::u32string_view(&c, 1), pos); }
 
         // Whether the two texts are the same letters in either case: by
         // the simple case folding of each code point, Go's EqualFold
@@ -304,13 +304,13 @@ namespace sgcl::mixin {
         }
 
         template<size_t N>
-        bool equal_fold(const CharT (&s)[N]) const noexcept {
+        SGCL_INLINE_HOT bool equal_fold(const CharT (&s)[N]) const noexcept {
             return equal_fold(_array(s));
         }
 
         template<class P>
         requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        bool equal_fold(P s) const noexcept {
+        SGCL_INLINE_HOT bool equal_fold(P s) const noexcept {
             return equal_fold(view_type(s));
         }
 
@@ -329,23 +329,23 @@ namespace sgcl::mixin {
 
         // A std::string with the same characters: for the interfaces that
         // want one, and for building a new string
-        std::basic_string<CharT, Traits> str() const noexcept {
+        SGCL_INLINE_HOT std::basic_string<CharT, Traits> str() const noexcept {
             return std::basic_string<CharT, Traits>(_self().data(), _self().size());
         }
 
         // Comparisons with a std view or a literal, by the characters
         // (friends on Derived: an exact match on the object, so that a
         // literal does not also convert to Derived and tie)
-        friend bool operator==(const Derived& a, view_type s) noexcept { return a.view() == s; }
+        SGCL_INLINE_HOT friend bool operator==(const Derived& a, view_type s) noexcept { return a.view() == s; }
         template<size_t N>
-        friend bool operator==(const Derived& a, const CharT (&s)[N]) noexcept { return a.view() == _array(s); }
+        SGCL_INLINE_HOT friend bool operator==(const Derived& a, const CharT (&s)[N]) noexcept { return a.view() == _array(s); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        friend bool operator==(const Derived& a, P s) noexcept { return a.view() == view_type(s); }
-        friend std::strong_ordering operator<=>(const Derived& a, view_type s) noexcept { return a.view() <=> s; }
+        SGCL_INLINE_HOT friend bool operator==(const Derived& a, P s) noexcept { return a.view() == view_type(s); }
+        SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const Derived& a, view_type s) noexcept { return a.view() <=> s; }
         template<size_t N>
-        friend std::strong_ordering operator<=>(const Derived& a, const CharT (&s)[N]) noexcept { return a.view() <=> _array(s); }
+        SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const Derived& a, const CharT (&s)[N]) noexcept { return a.view() <=> _array(s); }
         template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
-        friend std::strong_ordering operator<=>(const Derived& a, P s) noexcept { return a.view() <=> view_type(s); }
+        SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const Derived& a, P s) noexcept { return a.view() <=> view_type(s); }
 
     protected:
         text() = default;
@@ -353,13 +353,13 @@ namespace sgcl::mixin {
 
         // An array of characters as a view: to its first NUL or its end
         template<size_t N>
-        static constexpr view_type _array(const CharT (&s)[N]) noexcept {
+        SGCL_INLINE_HOT static constexpr view_type _array(const CharT (&s)[N]) noexcept {
             return detail::array_text<CharT, Traits>(s);
         }
 
         // The characters as bytes, for the UTF-8 primitives (a char8_t
         // string is bytes too)
-        std::string_view _bytes() const noexcept requires (sizeof(CharT) == 1) {
+        SGCL_INLINE_HOT std::string_view _bytes() const noexcept requires (sizeof(CharT) == 1) {
             return std::string_view(reinterpret_cast<const char*>(_self().data()), _self().size());
         }
 
@@ -459,7 +459,7 @@ namespace sgcl::mixin {
         // The code point at i and the units it takes: a UTF-8 sequence, a
         // UTF-16 unit or surrogate pair, a unit of a 32-bit text;
         // {replacement, 1} for a unit that does not begin a valid one
-        pair<char32_t, size_type> _decode(size_type i) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT pair<char32_t, size_type> _decode(size_type i) const noexcept requires (!std::same_as<CharT, char32_t>) {
             if constexpr (sizeof(CharT) == 1) {
                 return utf8::decode(_bytes(), i);
             } else if constexpr (sizeof(CharT) == 2) {
@@ -499,7 +499,7 @@ namespace sgcl::mixin {
             return npos;
         }
 
-        static _covering_point _covering(view_type v, size_type i) noexcept requires (sizeof(CharT) == 2) {
+        SGCL_INLINE_HOT static _covering_point _covering(view_type v, size_type i) noexcept requires (sizeof(CharT) == 2) {
             if (_low(v[i]) && i > 0 && _high(v[i - 1])) {
                 return {_pair(v[i - 1], v[i]), i - 1, 2};
             }
@@ -510,7 +510,7 @@ namespace sgcl::mixin {
         }
 
         // The last code point of [0, end) and the units it takes
-        pair<char32_t, size_type> _decode_last(size_type end) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT pair<char32_t, size_type> _decode_last(size_type end) const noexcept requires (!std::same_as<CharT, char32_t>) {
             if constexpr (sizeof(CharT) == 1) {
                 return utf8::decode_last(_bytes(), end);
             } else if constexpr (sizeof(CharT) == 2) {
@@ -528,7 +528,7 @@ namespace sgcl::mixin {
         // code point that covers it when pos cuts one (a continuation byte,
         // the low half of a surrogate pair), so that no position inside a
         // code point is an answer
-        size_type _forward_start(size_type pos) const noexcept requires (!std::same_as<CharT, char32_t>) {
+        SGCL_INLINE_HOT size_type _forward_start(size_type pos) const noexcept requires (!std::same_as<CharT, char32_t>) {
             if (pos == 0 || pos >= _self().size()) {
                 return pos;
             }
@@ -559,7 +559,7 @@ namespace sgcl::mixin {
         }
 
         // The units of the code point at i: what split("") hands out
-        size_type _width_at(size_type i) const noexcept {
+        SGCL_INLINE_HOT size_type _width_at(size_type i) const noexcept {
             if constexpr (std::same_as<CharT, char32_t>) {
                 return 1;
             } else {
@@ -567,15 +567,15 @@ namespace sgcl::mixin {
             }
         }
 
-        static constexpr bool _high(CharT u) noexcept {
+        SGCL_INLINE_HOT static constexpr bool _high(CharT u) noexcept {
             return (char32_t(u) & 0xFFFFFC00u) == 0xD800u && sizeof(CharT) == 2;
         }
 
-        static constexpr bool _low(CharT u) noexcept {
+        SGCL_INLINE_HOT static constexpr bool _low(CharT u) noexcept {
             return (char32_t(u) & 0xFFFFFC00u) == 0xDC00u && sizeof(CharT) == 2;
         }
 
-        static constexpr char32_t _pair(CharT high, CharT low) noexcept {
+        SGCL_INLINE_HOT static constexpr char32_t _pair(CharT high, CharT low) noexcept {
             return 0x10000 + ((char32_t(high) - 0xD800) << 10) + (char32_t(low) - 0xDC00);
         }
 
@@ -584,8 +584,8 @@ namespace sgcl::mixin {
         // the expression that made it
         struct _encoded {
             std::conditional_t<sizeof(CharT) == 1, utf8::encoded, detail::WideEncoded<CharT>> e;
-            constexpr _encoded(char32_t c) noexcept : e(c) {}
-            operator view_type() const noexcept {
+            SGCL_INLINE_HOT constexpr _encoded(char32_t c) noexcept : e(c) {}
+            SGCL_INLINE_HOT operator view_type() const noexcept {
                 if constexpr (sizeof(CharT) == 1) {
                     return view_type(reinterpret_cast<const CharT*>(e.bytes), e.size);
                 } else {
@@ -595,7 +595,7 @@ namespace sgcl::mixin {
         };
 
     private:
-        const Derived& _self() const noexcept {
+        SGCL_INLINE_HOT const Derived& _self() const noexcept {
             return static_cast<const Derived&>(*this);
         }
     };

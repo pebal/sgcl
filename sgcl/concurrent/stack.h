@@ -44,7 +44,7 @@ namespace sgcl::concurrent {
     class stack {
         struct Node {
             template<class... A>
-            explicit Node(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
+            SGCL_INLINE_HOT explicit Node(std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::in_place, std::forward<A>(a)...) {
             }
 
@@ -60,11 +60,11 @@ namespace sgcl::concurrent {
         stack(const stack&) = delete;
         stack& operator=(const stack&) = delete;
 
-        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace(value);
         }
 
-        void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace(std::move(value));
         }
 
@@ -116,7 +116,7 @@ namespace sgcl::concurrent {
             }
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return !_head.load(std::memory_order_acquire);
         }
 

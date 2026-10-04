@@ -46,7 +46,7 @@ namespace sgcl::time {
     private:
         friend struct detail::layout_access;
 
-        constexpr explicit layout(uint8_t kind) noexcept
+        SGCL_INLINE_HOT constexpr explicit layout(uint8_t kind) noexcept
         : _kind(kind) {
         }
 
@@ -57,11 +57,11 @@ namespace sgcl::time {
         enum : uint8_t { Rfc3339, Rfc3339Nano, Http, Email, Iso8601 };
 
         struct layout_access {
-            static constexpr layout make(uint8_t kind) noexcept {
+            SGCL_INLINE_HOT static constexpr layout make(uint8_t kind) noexcept {
                 return layout(kind);
             }
 
-            static constexpr uint8_t kind(layout l) noexcept {
+            SGCL_INLINE_HOT static constexpr uint8_t kind(layout l) noexcept {
                 return l._kind;
             }
         };
@@ -179,7 +179,7 @@ namespace sgcl::time {
             }
         }
 
-        constexpr bool modified_ok(char modifier, char c) noexcept {
+        SGCL_INLINE_HOT constexpr bool modified_ok(char modifier, char c) noexcept {
             if (modifier == 'E') {
                 return c == 'c' || c == 'C' || c == 'x' || c == 'X' || c == 'y' || c == 'Y' || c == 'z';
             }
@@ -259,7 +259,7 @@ namespace sgcl::time {
         }
 
         // Two digits; a number past them (the hours of a long span) whole
-        inline void put_two(txt::format_sink& out, int64_t v) noexcept {
+        SGCL_INLINE_HOT void put_two(txt::format_sink& out, int64_t v) noexcept {
             if (v < 0 || v > 99) [[unlikely]] {
                 put_number(out, v, 2, '0');
                 return;
@@ -268,7 +268,7 @@ namespace sgcl::time {
             out.put(two, 2);
         }
 
-        inline void put_seconds(txt::format_sink& out, const moment& m) noexcept {
+        SGCL_INLINE_HOT void put_seconds(txt::format_sink& out, const moment& m) noexcept {
             put_two(out, m.second_of_day % 60);
             if (m.digits) {
                 out.put('.');
@@ -276,7 +276,7 @@ namespace sgcl::time {
             }
         }
 
-        inline void put_offset(txt::format_sink& out, int32_t offset, bool colon) noexcept {
+        SGCL_INLINE_HOT void put_offset(txt::format_sink& out, int32_t offset, bool colon) noexcept {
             out.put(offset < 0 ? '-' : '+');
             int32_t a = offset < 0 ? -offset : offset;
             put_two(out, a / 3600);
@@ -288,7 +288,7 @@ namespace sgcl::time {
 
         // The weeks of the year counted from its first Sunday (%U) or its
         // first Monday (%W), the days before them week 0
-        inline int week_of_year(const moment& m, bool monday) noexcept {
+        SGCL_INLINE_HOT int week_of_year(const moment& m, bool monday) noexcept {
             int wday = monday ? m.weekday - 1 : m.weekday % 7;   // days since the week's first day
             return (m.year_day - 1 + 7 - wday) / 7;
         }
@@ -472,7 +472,7 @@ namespace sgcl::time {
         // How the module's values are written by a format, for the writers
         // below and for txt::format
         struct layout_writer {
-            static void write(txt::format_sink& out, const datetime& t, layout format) noexcept {
+            SGCL_INLINE_HOT static void write(txt::format_sink& out, const datetime& t, layout format) noexcept {
                 uint8_t kind = detail::layout_access::kind(format);
                 if (kind == detail::Http) {
                     _write(out, t.utc(), kind);   // HTTP's dates are in UTC
@@ -554,11 +554,11 @@ namespace sgcl::time {
             // The moment of t handed to f (every zone's abbreviation is in its
             // data, a fixed offset's and UTC's their names)
             template<class F>
-            static void with_moment(const datetime& t, F&& f) noexcept(std::is_nothrow_invocable_v<F&, const detail::moment&>) {
+            SGCL_INLINE_HOT static void with_moment(const datetime& t, F&& f) noexcept(std::is_nothrow_invocable_v<F&, const detail::moment&>) {
                 f(moment_of(t));
             }
 
-            static detail::moment moment_of(const time::date& d) noexcept {
+            SGCL_INLINE_HOT static detail::moment moment_of(const time::date& d) noexcept {
                 detail::moment m;
                 detail::fill_date(m, d);
                 return m;
@@ -585,7 +585,7 @@ namespace sgcl::time {
         }
     }
 
-    inline string datetime::format(layout format) const noexcept {
+    SGCL_INLINE_HOT string datetime::format(layout format) const noexcept {
         return detail::written([&](txt::format_sink& out) noexcept { detail::layout_writer::write(out, *this, format); });
     }
 
@@ -598,7 +598,7 @@ namespace sgcl::time {
         return out;
     }
 
-    inline string date::format(const string& pattern) const noexcept {
+    SGCL_INLINE_HOT string date::format(const string& pattern) const noexcept {
         std::string_view p(pattern);
         detail::moment m = detail::layout_writer::moment_of(*this);
         return detail::written([&](txt::format_sink& sink) noexcept { detail::write_pattern(sink, p, m); });
@@ -614,19 +614,19 @@ namespace sgcl::time {
 namespace sgcl::txt {
     template<>
     struct formatter<time::datetime> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, true, true);
         }
 
-        static void write(format_sink& out, const time::datetime& t, const format_spec& spec, std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, const time::datetime& t, const format_spec& spec, std::string_view pattern) noexcept {
             detail::put_body_in_field(out, spec, [&](format_sink& to) {
                 if (!pattern.data()) {
                     time::detail::layout_writer::write(to, t, time::rfc3339_nano);
@@ -639,19 +639,19 @@ namespace sgcl::txt {
 
     template<>
     struct formatter<time::date> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, false, false);
         }
 
-        static void write(format_sink& out, const time::date& d, const format_spec& spec, std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, const time::date& d, const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::layout_writer::moment_of(d);
             detail::put_body_in_field(out, spec, [&](format_sink& to) {
                 time::detail::write_pattern(to, pattern.data() ? pattern : std::string_view("%F"), m);
@@ -663,11 +663,11 @@ namespace sgcl::txt {
     // ("Monday"); {:%a} "Mon", {:%A} "Monday", {:%u} 1, {:%w} 1
     template<>
     struct formatter<time::weekday> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
@@ -713,11 +713,11 @@ namespace sgcl::txt {
     // as a weekday's; {:%b} "Sep", {:%B} "September", {:%m} 09
     template<>
     struct formatter<time::month> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
@@ -785,15 +785,15 @@ namespace sgcl::time {
                 return fail(message, i);
             }
 
-            bool more() const noexcept {
+            SGCL_INLINE_HOT bool more() const noexcept {
                 return i < s.size();
             }
 
-            char peek() const noexcept {
+            SGCL_INLINE_HOT char peek() const noexcept {
                 return i < s.size() ? s[i] : '\0';
             }
 
-            bool eat(char c) noexcept {
+            SGCL_INLINE_HOT bool eat(char c) noexcept {
                 if (i < s.size() && s[i] == c) {
                     ++i;
                     return true;
@@ -801,15 +801,15 @@ namespace sgcl::time {
                 return false;
             }
 
-            static bool digit(char c) noexcept {
+            SGCL_INLINE_HOT static bool digit(char c) noexcept {
                 return c >= '0' && c <= '9';
             }
 
-            static char lower(char c) noexcept {
+            SGCL_INLINE_HOT static char lower(char c) noexcept {
                 return c >= 'A' && c <= 'Z' ? char(c + 32) : c;
             }
 
-            static bool letter(char c) noexcept {
+            SGCL_INLINE_HOT static bool letter(char c) noexcept {
                 return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
             }
 
@@ -882,7 +882,7 @@ namespace sgcl::time {
             }
 
             // These characters exactly, as they are
-            bool exact(std::string_view w, const char* message) noexcept {
+            SGCL_INLINE_HOT bool exact(std::string_view w, const char* message) noexcept {
                 if (s.substr(i, w.size()) != w) {
                     return fail(message);
                 }
@@ -890,7 +890,7 @@ namespace sgcl::time {
                 return true;
             }
 
-            bool expect(char c, const char* message) noexcept {
+            SGCL_INLINE_HOT bool expect(char c, const char* message) noexcept {
                 return eat(c) || fail(message);
             }
         };
@@ -1002,7 +1002,7 @@ namespace sgcl::time {
         }
 
         // hh:mm:ss, the time of day of HTTP
-        inline bool read_time_of_day(text_reader& r, read_fields& f) noexcept {
+        SGCL_INLINE_HOT bool read_time_of_day(text_reader& r, read_fields& f) noexcept {
             return r.number(2, f.hour, "an hour of two digits expected") && r.expect(':', "':' expected")
                 && r.number(2, f.minute, "a minute of two digits expected") && r.expect(':', "':' expected")
                 && r.number(2, f.second, "a second of two digits expected");
@@ -1010,7 +1010,7 @@ namespace sgcl::time {
 
         // A year of two digits as RFC 9110 reads one: the latest year
         // with those digits that is not more than 50 years ahead of now
-        inline int year_of_two_digits(int yy) noexcept {
+        SGCL_INLINE_HOT int year_of_two_digits(int yy) noexcept {
             int now = datetime::from_unix_nano(now_nanos(), time::zone::utc()).year();   // the year in UTC: no zone to read for it
             int y = now - now % 100 + yy;
             if (y > now + 50) {
@@ -1362,7 +1362,7 @@ namespace sgcl::time {
         // (%m and %b, %a and %u, a second %Y): a text that says two things
         // is refused, as std::chrono::parse refuses it
         template<class T>
-        bool set_once(text_reader& r, optional<T>& slot, T v, size_t at) noexcept {
+        SGCL_INLINE_HOT bool set_once(text_reader& r, optional<T>& slot, T v, size_t at) noexcept {
             if (slot && *slot != v) {
                 return r.fail("a field read twice with two values", at);
             }
@@ -1371,7 +1371,7 @@ namespace sgcl::time {
         }
 
         template<class T>
-        bool read_field(text_reader& r, int width, int least, int most, optional<T>& out, const char* message, bool sign = false) noexcept {
+        SGCL_INLINE_HOT bool read_field(text_reader& r, int width, int least, int most, optional<T>& out, const char* message, bool sign = false) noexcept {
             size_t from = r.i;
             int64_t v = 0;
             if (!read_number(r, width, sign, v, message)) {
@@ -1383,7 +1383,7 @@ namespace sgcl::time {
             return set_once(r, out, T(v), from);
         }
 
-        inline bool is_space(char c) noexcept {
+        SGCL_INLINE_HOT bool is_space(char c) noexcept {
             return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
         }
 
@@ -1753,7 +1753,7 @@ namespace sgcl::time {
         }
     }
 
-    inline datetime::datetime(const string& text, layout format)
+    SGCL_INLINE_HOT datetime::datetime(const string& text, layout format)
     : datetime(parse(text, format).value()) {
     }
 
@@ -1940,7 +1940,7 @@ namespace sgcl::txt {
     namespace detail {
         // The field of a value of <chrono>: its pattern written, or its
         // default one
-        inline void write_chrono(format_sink& out, const format_spec& spec, std::string_view pattern,
+        SGCL_INLINE_HOT void write_chrono(format_sink& out, const format_spec& spec, std::string_view pattern,
                                  std::string_view fallback, const time::detail::moment& m, std::string_view tail = {}) noexcept {
             put_body_in_field(out, spec, [&](format_sink& to) {
                 time::detail::write_pattern(to, pattern.data() ? pattern : fallback, m);
@@ -1956,19 +1956,19 @@ namespace sgcl::txt {
     template<class Rep, class Period>
     requires std::is_integral_v<Rep>
     struct formatter<std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<Rep, Period>>> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, true, true);
         }
 
-        static void write(format_sink& out, const std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<Rep, Period>>& t,
+        SGCL_INLINE_HOT static void write(format_sink& out, const std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<Rep, Period>>& t,
                           const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::moment_of_since(t.time_since_epoch(), true, true);
             m.has_zone = true;
@@ -1981,19 +1981,19 @@ namespace sgcl::txt {
     template<class Rep, class Period>
     requires std::is_integral_v<Rep>
     struct formatter<std::chrono::time_point<std::chrono::local_t, std::chrono::duration<Rep, Period>>> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, true, false);
         }
 
-        static void write(format_sink& out, const std::chrono::time_point<std::chrono::local_t, std::chrono::duration<Rep, Period>>& t,
+        SGCL_INLINE_HOT static void write(format_sink& out, const std::chrono::time_point<std::chrono::local_t, std::chrono::duration<Rep, Period>>& t,
                           const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::moment_of_since(t.time_since_epoch(), true, true);
             detail::write_chrono(out, spec, pattern, std::ratio_greater_equal_v<Period, std::ratio<86400>> ? "%F" : "%F %T", m);
@@ -2004,15 +2004,15 @@ namespace sgcl::txt {
     // is not
     template<>
     struct formatter<std::chrono::year_month_day> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, true, false, false);
         }
 
@@ -2041,15 +2041,15 @@ namespace sgcl::txt {
     // weekday of <chrono>: {} is %a ("Mon")
     template<>
     struct formatter<std::chrono::weekday> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return formatter<time::weekday>::takes_layout(pattern);
         }
 
@@ -2069,19 +2069,19 @@ namespace sgcl::txt {
     // hh_mm_ss: {} is %T, a '-' before a negative one
     template<class D>
     struct formatter<std::chrono::hh_mm_ss<D>> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, false, true, false);
         }
 
-        static void write(format_sink& out, const std::chrono::hh_mm_ss<D>& h, const format_spec& spec, std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static void write(format_sink& out, const std::chrono::hh_mm_ss<D>& h, const format_spec& spec, std::string_view pattern) noexcept {
             time::detail::moment m = time::detail::moment_of_since(h.to_duration() < D::zero() ? -h.to_duration() : h.to_duration(), false, true);
             m.second_of_day = int64_t(h.hours().count()) * 3600 + int64_t(h.minutes().count()) * 60 + int64_t(h.seconds().count());
             m.negative = h.is_negative();
@@ -2098,15 +2098,15 @@ namespace sgcl::txt {
     // is "1.2"), which libc++ does and nobody wants
     template<class Rep, class Period>
     struct formatter<std::chrono::duration<Rep, Period>> {
-        static constexpr bool takes(char type) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
             return !type;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return false;
         }
 
-        static constexpr bool takes_layout(std::string_view pattern) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_layout(std::string_view pattern) noexcept {
             return !pattern.data() || time::detail::pattern_ok(pattern, false, true, false, true);
         }
 
@@ -2209,7 +2209,7 @@ namespace sgcl::time {
         return datetime::from_unix_nano(int64_t(ns), z);
     }
 
-    inline expected<date, error> date::parse(const string& text, const string& pattern) noexcept {
+    SGCL_INLINE_HOT expected<date, error> date::parse(const string& text, const string& pattern) noexcept {
         detail::text_reader r{std::string_view(text)};
         detail::pattern_fields f;
         if (!detail::read_pattern(r, std::string_view(pattern), f, true)) {

@@ -10,11 +10,13 @@ The setup, the machine and how the timers are read are described with
 
 A [command](command/README.md) that starts `true` and waits for it, `command("true").run()`, on an Apple M-series core
 (`bench_io`, `benchmarks/go/exec`): the child is made with `posix_spawn` and its exit waited for on the reactor, where
-Go forks on macOS.
+Go forks on macOS. The SGCL column is from a run on 4 October 2026 at `-O3`, the best of three, in a clean environment (`env -i`; the
+shell of the earlier runs set `MallocNanoZone=0`, which turns macOS's nano allocator off); the Go column is from
+the earlier run, not run again.
 
 | Case | SGCL | Go |
 |---|---|---|
-| one child, started and waited for | 1.1 ms | 1.9 ms |
+| one child, started and waited for | 1.0 ms | 1.9 ms |
 | 32 children at once, per child | 0.4 ms | 0.8 ms |
 
 ## Errors as values

@@ -33,7 +33,7 @@ namespace sgcl::crypto::detail {
         GhashKey ghash;
     };
 
-    inline void gcm_setup(GcmKey& k, const unsigned char* key, size_t key_size) noexcept {
+    SGCL_INLINE_HOT void gcm_setup(GcmKey& k, const unsigned char* key, size_t key_size) noexcept {
         aes_setup(k.aes, key, key_size);
         unsigned char h[16] = {};
         aes_encrypt_block(k.aes, h, h);   // H = E(K, 0^128)
@@ -41,7 +41,7 @@ namespace sgcl::crypto::detail {
         secure_zero(h, sizeof h);
     }
 
-    inline Counter gcm_j0(const unsigned char* nonce) noexcept {
+    SGCL_INLINE_HOT Counter gcm_j0(const unsigned char* nonce) noexcept {
         return {load_be64(nonce), uint64_t(load_be32(nonce + 8)) << 32 | 1};
     }
 
@@ -121,7 +121,7 @@ namespace sgcl::crypto::detail {
 
     // The last bytes that do not fill a block: one block of keystream,
     // as much of it as there is text
-    inline void gcm_ctr_tail(const GcmKey& k, Counter c, const unsigned char* in, unsigned char* out, size_t n) noexcept {
+    SGCL_INLINE_HOT void gcm_ctr_tail(const GcmKey& k, Counter c, const unsigned char* in, unsigned char* out, size_t n) noexcept {
         unsigned char block[16] = {};
         sgcl::detail::copy_bytes(block, in, n);
         aes_ctr_blocks<true>(k.aes, c, block, block, 1);

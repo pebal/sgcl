@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../../core/detail/os.h"
+
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -24,7 +26,7 @@ namespace sgcl::math::detail {
     constexpr unsigned LimbBits = 64;
 
     // hi:lo = a * b
-    constexpr Limb mul_wide(Limb a, Limb b, Limb& lo) noexcept {
+    SGCL_INLINE_HOT constexpr Limb mul_wide(Limb a, Limb b, Limb& lo) noexcept {
         Wide p = Wide(a) * b;
         lo = Limb(p);
         return Limb(p >> 64);
@@ -92,7 +94,7 @@ namespace sgcl::math::detail {
         Limb inverse;
         unsigned shift; // how far the divisor given was shifted left
 
-        constexpr explicit Divisor(Limb divisor) noexcept
+        SGCL_INLINE_HOT constexpr explicit Divisor(Limb divisor) noexcept
         : d(divisor << std::countl_zero(divisor))
         , inverse(Limb(((Wide(~(divisor << std::countl_zero(divisor))) << 64) | ~Limb(0)) / (divisor << std::countl_zero(divisor))))
         , shift(unsigned(std::countl_zero(divisor))) {

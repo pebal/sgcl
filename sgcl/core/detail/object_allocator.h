@@ -22,7 +22,7 @@ namespace sgcl::detail {
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::false_type;
 
-        ObjectAllocator(std::atomic<Page*>& pages)
+        SGCL_INLINE_HOT ObjectAllocator(std::atomic<Page*>& pages)
         : ObjectAllocatorBase(pages) {
         }
 

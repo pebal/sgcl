@@ -36,15 +36,15 @@ namespace sgcl::txt {
     };
 
     namespace detail {
-        constexpr bidi bidi_of(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bidi bidi_of(char32_t c) noexcept {
             return bidi(value_of(c, bidi_tables::BidiClass));
         }
 
-        constexpr bool is_isolate_initiator(bidi t) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_isolate_initiator(bidi t) noexcept {
             return t == bidi::lri || t == bidi::rli || t == bidi::fsi;
         }
 
-        constexpr bool is_removed_by_x9(bidi t) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_removed_by_x9(bidi t) noexcept {
             return t == bidi::rle || t == bidi::lre || t == bidi::rlo || t == bidi::lro
                 || t == bidi::pdf || t == bidi::bn;
         }
@@ -71,7 +71,7 @@ namespace sgcl::txt {
         // own, an integral sign being drawn the other way round without
         // there being a second one to name it — so the set is asked and
         // not the mapping.
-        constexpr bool is_mirrored_fn(char32_t c) noexcept {
+        SGCL_INLINE_HOT constexpr bool is_mirrored_fn(char32_t c) noexcept {
             // The eight of ASCII — the three pairs of brackets and the
             // two angle signs — as two words rather than as the seven
             // steps of the bisection below, which is what most of a text
@@ -111,7 +111,7 @@ namespace sgcl::txt {
 
         // BD16 says two brackets are a pair when they are canonically the
         // same, so U+2329 pairs with U+3009 as well as with U+232A
-        inline char32_t bracket_canonical(char32_t c) noexcept {
+        SGCL_INLINE_HOT char32_t bracket_canonical(char32_t c) noexcept {
             auto d = decomposition_of(c, normalize_tables::CanonicalDecomposition);
             return d && d.size == 1 ? char32_t(d.units[0]) : c;
         }
@@ -264,33 +264,33 @@ namespace sgcl::txt {
             }
 
             // The level of the first paragraph
-            uint8_t level() const noexcept {
+            SGCL_INLINE_HOT uint8_t level() const noexcept {
                 return _level;
             }
 
             // The paragraphs, each with where its characters end in
             // order(), once that has been asked
-            const scratch_vector<bidi_paragraph>& paragraphs() const noexcept {
+            SGCL_INLINE_HOT const scratch_vector<bidi_paragraph>& paragraphs() const noexcept {
                 return _paragraphs;
             }
 
-            const scratch_vector<uint8_t>& levels() const noexcept {
+            SGCL_INLINE_HOT const scratch_vector<uint8_t>& levels() const noexcept {
                 return _levels;
             }
 
-            const scratch_vector<size_t>& positions() const noexcept {
+            SGCL_INLINE_HOT const scratch_vector<size_t>& positions() const noexcept {
                 return _at;
             }
 
-            const scratch_vector<char32_t>& points() const noexcept {
+            SGCL_INLINE_HOT const scratch_vector<char32_t>& points() const noexcept {
                 return _points;
             }
 
-            bool removed(size_t i) const noexcept {
+            SGCL_INLINE_HOT bool removed(size_t i) const noexcept {
                 return is_removed_by_x9(_initial[i]);
             }
 
-            size_t size() const noexcept {
+            SGCL_INLINE_HOT size_t size() const noexcept {
                 return _points.size();
             }
 
@@ -339,7 +339,7 @@ namespace sgcl::txt {
             // The CR of a CR LF, which is one separator and not two: an LF
             // made a paragraph of its own would run left to right whatever
             // the text around it did
-            bool _cr_lf(size_t i) const noexcept {
+            SGCL_INLINE_HOT bool _cr_lf(size_t i) const noexcept {
                 return _points[i] == U'\r' && i + 1 < _points.size() && _points[i + 1] == U'\n';
             }
 
@@ -695,12 +695,12 @@ namespace sgcl::txt {
                 }
             }
 
-            static constexpr bool _neutral(bidi t) noexcept {
+            SGCL_INLINE_HOT static constexpr bool _neutral(bidi t) noexcept {
                 return t == bidi::b || t == bidi::s || t == bidi::ws || t == bidi::on
                     || t == bidi::fsi || t == bidi::lri || t == bidi::rli || t == bidi::pdi;
             }
 
-            static constexpr bidi _strong_of(bidi t) noexcept {
+            SGCL_INLINE_HOT static constexpr bidi _strong_of(bidi t) noexcept {
                 return t == bidi::en || t == bidi::an ? bidi::r : t;
             }
 
@@ -872,7 +872,7 @@ namespace sgcl::txt {
 
     // Which way the paragraph runs, by its first strong character. A
     // paragraph of numbers and punctuation alone runs left to right.
-    inline direction paragraph_direction(const string& text) noexcept {
+    SGCL_INLINE_HOT direction paragraph_direction(const string& text) noexcept {
         detail::paragraph p(text.view(), direction::automatic);
         return p.level() % 2 ? direction::right_to_left : direction::left_to_right;
     }
@@ -880,7 +880,7 @@ namespace sgcl::txt {
     // The level of every code point of the text: even runs left to right,
     // odd right to left. What a renderer needs when it lays the text out
     // itself; bidi_runs is the same thing already cut into pieces.
-    inline vector<uint8_t> levels(const string& text, direction paragraph = direction::automatic) noexcept {
+    SGCL_INLINE_HOT vector<uint8_t> levels(const string& text, direction paragraph = direction::automatic) noexcept {
         detail::paragraph p(text.view(), paragraph);
         auto& levels = p.levels();
         return vector<uint8_t>(levels.begin(), levels.end());
@@ -950,7 +950,7 @@ namespace sgcl::txt {
     // A text with nothing to mirror comes back as the object it went in
     // as, which a shared and immutable string is worth holding on to.
     // Most texts are such texts: the first pass over it only asks.
-    inline string mirrored(const string& text, direction paragraph = direction::automatic) noexcept {
+    SGCL_INLINE_HOT string mirrored(const string& text, direction paragraph = direction::automatic) noexcept {
         detail::paragraph p(text.view(), paragraph);
         return detail::mirror_text(text, p.levels().data(), p.levels().size());
     }
@@ -960,7 +960,7 @@ namespace sgcl::txt {
     // there is no reason to work it out a second time. The levels are
     // one to a code point, as levels() gives them; a code point the
     // vector does not reach is left where it stands.
-    inline string mirrored(const string& text, const vector<uint8_t>& levels) noexcept {
+    SGCL_INLINE_HOT string mirrored(const string& text, const vector<uint8_t>& levels) noexcept {
         return detail::mirror_text(text, levels.data(), levels.size());
     }
 
@@ -991,7 +991,7 @@ namespace sgcl::txt {
             slice<const char> text;
             uint8_t level = 0;
 
-            bool right_to_left() const noexcept {
+            SGCL_INLINE_HOT bool right_to_left() const noexcept {
                 return level % 2 != 0;
             }
         };
@@ -1006,14 +1006,14 @@ namespace sgcl::txt {
         bidi_runs(const bidi_runs&) = default;
         bidi_runs& operator=(const bidi_runs&) = default;
 
-        bidi_runs(bidi_runs&& other) noexcept
+        SGCL_INLINE_HOT bidi_runs(bidi_runs&& other) noexcept
         : _text(other._text)
         , _runs(std::move(other._runs))
         , _level(other._level) {
             other._reset();
         }
 
-        bidi_runs& operator=(bidi_runs&& other) noexcept {
+        SGCL_INLINE_HOT bidi_runs& operator=(bidi_runs&& other) noexcept {
             if (this != &other) {
                 _text = other._text;
                 _runs = std::move(other._runs);
@@ -1023,7 +1023,7 @@ namespace sgcl::txt {
             return *this;
         }
 
-        explicit bidi_runs(const string& text, direction paragraph = direction::automatic) noexcept
+        SGCL_INLINE_HOT explicit bidi_runs(const string& text, direction paragraph = direction::automatic) noexcept
         : bidi_runs(text.as_slice(), paragraph) {
         }
 
@@ -1031,13 +1031,13 @@ namespace sgcl::txt {
         // would both take — as detail::c_text reads it, copied into a
         // string the runs hold
         template<size_t N>
-        explicit bidi_runs(const char (&text)[N], direction paragraph = direction::automatic)
+        SGCL_INLINE_HOT explicit bidi_runs(const char (&text)[N], direction paragraph = direction::automatic)
         : bidi_runs(detail::c_string(text).as_slice(), paragraph) {
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        explicit bidi_runs(P text, direction paragraph = direction::automatic)
+        SGCL_INLINE_HOT explicit bidi_runs(P text, direction paragraph = direction::automatic)
         : bidi_runs(detail::c_string(text).as_slice(), paragraph) {
         }
 
@@ -1088,33 +1088,33 @@ namespace sgcl::txt {
             }
         }
 
-        auto begin() const noexcept {
+        SGCL_INLINE_HOT auto begin() const noexcept {
             return _runs.begin();
         }
 
-        auto end() const noexcept {
+        SGCL_INLINE_HOT auto end() const noexcept {
             return _runs.end();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _runs.empty();
         }
 
-        size_type count() const noexcept {
+        SGCL_INLINE_HOT size_type count() const noexcept {
             return _runs.size();
         }
 
         // What the paragraph as a whole runs as
-        direction paragraph() const noexcept {
+        SGCL_INLINE_HOT direction paragraph() const noexcept {
             return _level % 2 ? direction::right_to_left : direction::left_to_right;
         }
 
-        const slice<const char>& text() const noexcept {
+        SGCL_INLINE_HOT const slice<const char>& text() const noexcept {
             return _text;
         }
 
     private:
-        void _reset() noexcept {
+        SGCL_INLINE_HOT void _reset() noexcept {
             _text = slice<const char>();
             _runs = vector<run>();
             _level = 0;

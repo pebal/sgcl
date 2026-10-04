@@ -177,28 +177,28 @@ namespace sgcl::crypto::x509 {
         // The whole certificate, its TBSCertificate (what the signature
         // covers), its issuer and subject names and its
         // SubjectPublicKeyInfo, as the bytes of the encoding
-        slice<const byte> raw() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> raw() const noexcept {
             return _d->raw.as_slice();
         }
 
-        slice<const byte> raw_tbs() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> raw_tbs() const noexcept {
             return _d->range(_d->tbs_at, _d->tbs_size);
         }
 
-        slice<const byte> raw_issuer() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> raw_issuer() const noexcept {
             return _d->range(_d->issuer_at, _d->issuer_size);
         }
 
-        slice<const byte> raw_subject() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> raw_subject() const noexcept {
             return _d->range(_d->subject_at, _d->subject_size);
         }
 
-        slice<const byte> raw_subject_public_key_info() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> raw_subject_public_key_info() const noexcept {
             return _d->range(_d->spki_at, _d->spki_size);
         }
 
         // 1, 2 or 3
-        int version() const noexcept {
+        SGCL_INLINE_HOT int version() const noexcept {
             return _d->version;
         }
 
@@ -206,15 +206,15 @@ namespace sgcl::crypto::x509 {
         // bytes, big-endian two's complement in the shortest form (a 00 in
         // front of a first byte of 80 or more; negative numbers, which
         // RFC 5280 forbids and a few old roots hold, start with a set bit)
-        const vector<byte>& serial_number() const noexcept {
+        SGCL_INLINE_HOT const vector<byte>& serial_number() const noexcept {
             return _d->serial;
         }
 
-        const name& issuer() const noexcept {
+        SGCL_INLINE_HOT const name& issuer() const noexcept {
             return _d->issuer;
         }
 
-        const name& subject() const noexcept {
+        SGCL_INLINE_HOT const name& subject() const noexcept {
             return _d->subject;
         }
 
@@ -222,47 +222,47 @@ namespace sgcl::crypto::x509 {
         // datetime's years (1678 to 2261: 99991231235959Z, "no expiry")
         // is the end of that range here; verification compares the times
         // as the certificate has them
-        time::datetime not_before() const noexcept {
+        SGCL_INLINE_HOT time::datetime not_before() const noexcept {
             return time::datetime::from_unix(_d->not_before, time::zone::utc());
         }
 
-        time::datetime not_after() const noexcept {
+        SGCL_INLINE_HOT time::datetime not_after() const noexcept {
             return time::datetime::from_unix(_d->not_after, time::zone::utc());
         }
 
-        const x509::public_key& public_key() const noexcept {
+        SGCL_INLINE_HOT const x509::public_key& public_key() const noexcept {
             return _d->key;
         }
 
-        x509::signature_algorithm signature_algorithm() const noexcept {
+        SGCL_INLINE_HOT x509::signature_algorithm signature_algorithm() const noexcept {
             return _d->sig_algorithm;
         }
 
         // The OID of the signature algorithm, "1.2.840.113549.1.1.11"
-        const string& signature_algorithm_oid() const noexcept {
+        SGCL_INLINE_HOT const string& signature_algorithm_oid() const noexcept {
             return _d->sig_algorithm_oid;
         }
 
-        const vector<byte>& signature() const noexcept {
+        SGCL_INLINE_HOT const vector<byte>& signature() const noexcept {
             return _d->signature;
         }
 
         // Every extension, in the order of the certificate
-        const vector<extension>& extensions() const noexcept {
+        SGCL_INLINE_HOT const vector<extension>& extensions() const noexcept {
             return _d->extensions;
         }
 
         // basicConstraints: whether there is one, its cA, its
         // pathLenConstraint (nullopt when absent)
-        bool has_basic_constraints() const noexcept {
+        SGCL_INLINE_HOT bool has_basic_constraints() const noexcept {
             return _d->basic_constraints_valid;
         }
 
-        bool is_ca() const noexcept {
+        SGCL_INLINE_HOT bool is_ca() const noexcept {
             return _d->is_ca;
         }
 
-        optional<int64_t> max_path_length() const noexcept {
+        SGCL_INLINE_HOT optional<int64_t> max_path_length() const noexcept {
             if (_d->max_path_len < 0) {
                 return nullopt;
             }
@@ -270,98 +270,98 @@ namespace sgcl::crypto::x509 {
         }
 
         // keyUsage: whether there is one, and its bits
-        bool has_key_usage() const noexcept {
+        SGCL_INLINE_HOT bool has_key_usage() const noexcept {
             return _d->has_key_usage;
         }
 
-        x509::key_usage key_usage() const noexcept {
+        SGCL_INLINE_HOT x509::key_usage key_usage() const noexcept {
             return x509::key_usage(_d->key_usage_bits);
         }
 
-        bool allows(x509::key_usage u) const noexcept {
+        SGCL_INLINE_HOT bool allows(x509::key_usage u) const noexcept {
             return (_d->key_usage_bits & uint16_t(u)) == uint16_t(u);
         }
 
         // extKeyUsage: the purposes known by name, and the OIDs of the rest
-        const vector<ext_key_usage>& ext_key_usages() const noexcept {
+        SGCL_INLINE_HOT const vector<ext_key_usage>& ext_key_usages() const noexcept {
             return _d->ext_key_usages;
         }
 
-        const vector<string>& unknown_ext_key_usages() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& unknown_ext_key_usages() const noexcept {
             return _d->unknown_ext_key_usages;
         }
 
         // subjectAltName, by kind
-        const vector<string>& dns_names() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& dns_names() const noexcept {
             return _d->dns_names;
         }
 
-        const vector<string>& email_addresses() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& email_addresses() const noexcept {
             return _d->email_addresses;
         }
 
-        const vector<ip_address>& ip_addresses() const noexcept {
+        SGCL_INLINE_HOT const vector<ip_address>& ip_addresses() const noexcept {
             return _d->ip_addresses;
         }
 
-        const vector<string>& uris() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& uris() const noexcept {
             return _d->uris;
         }
 
         // authorityKeyIdentifier's keyIdentifier, subjectKeyIdentifier
-        const vector<byte>& authority_key_id() const noexcept {
+        SGCL_INLINE_HOT const vector<byte>& authority_key_id() const noexcept {
             return _d->authority_key_id;
         }
 
-        const vector<byte>& subject_key_id() const noexcept {
+        SGCL_INLINE_HOT const vector<byte>& subject_key_id() const noexcept {
             return _d->subject_key_id;
         }
 
         // nameConstraints, by kind: the permitted and the excluded subtrees
-        bool has_name_constraints() const noexcept {
+        SGCL_INLINE_HOT bool has_name_constraints() const noexcept {
             return _d->has_name_constraints;
         }
 
-        const vector<string>& permitted_dns_domains() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& permitted_dns_domains() const noexcept {
             return _d->permitted_dns;
         }
 
-        const vector<string>& excluded_dns_domains() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& excluded_dns_domains() const noexcept {
             return _d->excluded_dns;
         }
 
-        const vector<ip_range>& permitted_ip_ranges() const noexcept {
+        SGCL_INLINE_HOT const vector<ip_range>& permitted_ip_ranges() const noexcept {
             return _d->permitted_ip;
         }
 
-        const vector<ip_range>& excluded_ip_ranges() const noexcept {
+        SGCL_INLINE_HOT const vector<ip_range>& excluded_ip_ranges() const noexcept {
             return _d->excluded_ip;
         }
 
-        const vector<string>& permitted_email_addresses() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& permitted_email_addresses() const noexcept {
             return _d->permitted_email;
         }
 
-        const vector<string>& excluded_email_addresses() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& excluded_email_addresses() const noexcept {
             return _d->excluded_email;
         }
 
-        const vector<string>& permitted_uri_domains() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& permitted_uri_domains() const noexcept {
             return _d->permitted_uri;
         }
 
-        const vector<string>& excluded_uri_domains() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& excluded_uri_domains() const noexcept {
             return _d->excluded_uri;
         }
 
         // certificatePolicies, as their OIDs
-        const vector<string>& policies() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& policies() const noexcept {
             return _d->policies;
         }
 
         // The OIDs of the critical extensions not handled here: a
         // certificate with one does not verify
-        const vector<string>& unhandled_critical_extensions() const noexcept {
+        SGCL_INLINE_HOT const vector<string>& unhandled_critical_extensions() const noexcept {
             return _d->unhandled_critical;
         }
 
@@ -371,7 +371,7 @@ namespace sgcl::crypto::x509 {
         // parent's key. errc::verification with not_a_ca,
         // missing_cert_sign, insecure_algorithm, unsupported_algorithm or
         // invalid_signature. Go's CheckSignatureFrom
-        [[nodiscard]] expected<void, error> check_signature_from(const certificate& parent) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT expected<void, error> check_signature_from(const certificate& parent) const noexcept {
             return detail::check_signature(*_d, *parent._d);
         }
 
@@ -381,7 +381,7 @@ namespace sgcl::crypto::x509 {
         // exactly one label; the common name never. A name written as an
         // IP address is refused: an address is verified by verify_ip.
         // errc::verification, reason hostname_mismatch
-        [[nodiscard]] expected<void, error> verify_hostname(const string& host) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT expected<void, error> verify_hostname(const string& host) const noexcept {
             return detail::check_hostname(*_d, host.view());
         }
 
@@ -390,7 +390,7 @@ namespace sgcl::crypto::x509 {
         // §4.2.1.6); a 16-byte IPv4-mapped address (::ffff:a.b.c.d) is
         // taken as its IPv4 address. Another length is
         // std::invalid_argument: the address is the program's
-        [[nodiscard]] expected<void, error> verify_ip(const slice<const byte>& ip) const {
+        [[nodiscard]] SGCL_INLINE_HOT expected<void, error> verify_ip(const slice<const byte>& ip) const {
             return detail::check_ip(*_d, detail::address_of(ip));
         }
 
@@ -410,7 +410,7 @@ namespace sgcl::crypto::x509 {
         [[nodiscard]] expected<x509::chain, error> verify(const verify_options& options) const;
 
         // The same bytes
-        friend bool operator==(const certificate& a, const certificate& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const certificate& a, const certificate& b) noexcept {
             return a._d == b._d || a._d->raw == b._d->raw;
         }
 
@@ -421,7 +421,7 @@ namespace sgcl::crypto::x509 {
 
         tracked_ptr<const detail::CertData> _d;
 
-        explicit certificate(tracked_ptr<const detail::CertData> d) noexcept
+        SGCL_INLINE_HOT explicit certificate(tracked_ptr<const detail::CertData> d) noexcept
         : _d(std::move(d)) {
         }
     };
@@ -444,7 +444,7 @@ namespace sgcl::crypto::x509 {
     // not
     class certificate_pool {
     public:
-        certificate_pool() noexcept
+        SGCL_INLINE_HOT certificate_pool() noexcept
         : _d(make_tracked<detail::PoolData>()) {
         }
 
@@ -465,7 +465,7 @@ namespace sgcl::crypto::x509 {
         // Every CERTIFICATE block of a PEM text that parses, as Go's
         // AppendCertsFromPEM: blocks of other types and certificates that
         // do not parse are passed over
-        static certificate_pool from_pem(const string& text) noexcept {
+        SGCL_INLINE_HOT static certificate_pool from_pem(const string& text) noexcept {
             certificate_pool p;
             p.append_pem(text);
             return p;
@@ -509,27 +509,27 @@ namespace sgcl::crypto::x509 {
             return n;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _d->certs.size();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _d->certs.empty();
         }
 
         // The certificates in the order they were added
-        const vector<certificate>& certificates() const noexcept {
+        SGCL_INLINE_HOT const vector<certificate>& certificates() const noexcept {
             return _d->certs;
         }
 
         // Whether the pool has this very certificate (the same bytes)
-        [[nodiscard]] bool contains(const certificate& c) const noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT bool contains(const certificate& c) const noexcept {
             auto d = sha256::of(c.raw());
             return _d->sums.count(std::string(reinterpret_cast<const char*>(d.data()), d.size())) != 0;
         }
 
         // A pool of its own with the same certificates
-        certificate_pool clone() const noexcept {
+        SGCL_INLINE_HOT certificate_pool clone() const noexcept {
             certificate_pool p;
             p._d->certs = _d->certs;
             p._d->by_subject = _d->by_subject;
@@ -543,7 +543,7 @@ namespace sgcl::crypto::x509 {
 
         tracked_ptr<detail::PoolData> _d;
 
-        explicit certificate_pool(tracked_ptr<detail::PoolData> d) noexcept
+        SGCL_INLINE_HOT explicit certificate_pool(tracked_ptr<detail::PoolData> d) noexcept
         : _d(std::move(d)) {
         }
     };
@@ -574,19 +574,19 @@ namespace sgcl::crypto::x509 {
 
     namespace detail {
         struct PoolAccess {
-            static const PoolData& data(const certificate_pool& p) noexcept {
+            SGCL_INLINE_HOT static const PoolData& data(const certificate_pool& p) noexcept {
                 return *p._d;
             }
 
-            static certificate_pool make(tracked_ptr<PoolData> d) noexcept {
+            SGCL_INLINE_HOT static certificate_pool make(tracked_ptr<PoolData> d) noexcept {
                 return certificate_pool(std::move(d));
             }
 
-            static const tracked_ptr<PoolData>& ptr(const certificate_pool& p) noexcept {
+            SGCL_INLINE_HOT static const tracked_ptr<PoolData>& ptr(const certificate_pool& p) noexcept {
                 return p._d;
             }
 
-            static const CertData& data(const certificate& c) noexcept {
+            SGCL_INLINE_HOT static const CertData& data(const certificate& c) noexcept {
                 return *c._d;
             }
         };
@@ -599,7 +599,7 @@ namespace sgcl::crypto::x509 {
             std::string error;
         };
 
-        inline void load_pem_file(certificate_pool& pool, const string& path, bool& found) {
+        SGCL_INLINE_HOT void load_pem_file(certificate_pool& pool, const string& path, bool& found) {
             auto bytes = io::read_file(path);
             if (!bytes) {
                 return;
@@ -684,7 +684,7 @@ namespace sgcl::crypto::x509 {
             static constexpr size_t max_intermediates = 10;
             static constexpr size_t max_signature_checks = 100;
 
-            ChainBuilder(const verify_options& o, const PoolData& roots, const PoolData& inter, int64_t now) noexcept
+            SGCL_INLINE_HOT ChainBuilder(const verify_options& o, const PoolData& roots, const PoolData& inter, int64_t now) noexcept
             : _o(o), _roots(roots), _inter(inter), _now(now) {
             }
 
@@ -741,7 +741,7 @@ namespace sgcl::crypto::x509 {
             optional<error> _eku;            // the key usage failure, reported after a constraint one
 
             // The checks of a whole chain
-            expected<void, error> _complete() noexcept {
+            SGCL_INLINE_HOT expected<void, error> _complete() noexcept {
                 ConstraintChecker nc;
                 if (auto r = nc.check(_data); !r) {
                     return r;
@@ -875,7 +875,7 @@ namespace sgcl::crypto::x509 {
         };
     }
 
-    inline expected<certificate_pool, error> certificate_pool::system() {
+    SGCL_INLINE_HOT expected<certificate_pool, error> certificate_pool::system() {
         const auto& s = detail::system_roots();
         if (!s.error.empty()) {
             return unexpected<error>(error(errc::unsupported, string("sgcl::crypto::x509: " + s.error)));
@@ -887,7 +887,7 @@ namespace sgcl::crypto::x509 {
         co_return co_await async::spawn_blocking([] { return system(); });
     }
 
-    inline expected<certificate_pool, io::error> certificate_pool::from_file(const string& path) {
+    SGCL_INLINE_HOT expected<certificate_pool, io::error> certificate_pool::from_file(const string& path) {
         auto bytes = io::read_file(path);
         if (!bytes) {
             return unexpected<io::error>(bytes.error());
@@ -900,7 +900,7 @@ namespace sgcl::crypto::x509 {
         co_return co_await async::spawn_blocking([path] { return from_file(path); });
     }
 
-    inline expected<x509::chain, error> certificate::verify() const {
+    SGCL_INLINE_HOT expected<x509::chain, error> certificate::verify() const {
         return verify(verify_options{});
     }
 

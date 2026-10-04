@@ -37,11 +37,11 @@ namespace sgcl::compress::detail {
 
     // The two ways the encoder puts bytes into its output: a std::vector
     // here, the stream's managed output beside its own type (stream.h)
-    inline void append_bytes(std::vector<uint8_t>& out, const uint8_t* p, size_t n) noexcept {
+    SGCL_INLINE_HOT void append_bytes(std::vector<uint8_t>& out, const uint8_t* p, size_t n) noexcept {
         out.insert(out.end(), p, p + n);
     }
 
-    inline void append_byte(std::vector<uint8_t>& out, uint8_t b) noexcept {
+    SGCL_INLINE_HOT void append_byte(std::vector<uint8_t>& out, uint8_t b) noexcept {
         out.push_back(b);
     }
 
@@ -49,7 +49,7 @@ namespace sgcl::compress::detail {
     template<class Out>
     class BitWriter {
     public:
-        explicit BitWriter(Out& out) noexcept
+        SGCL_INLINE_HOT explicit BitWriter(Out& out) noexcept
         : _out(out) {
         }
 
@@ -74,19 +74,19 @@ namespace sgcl::compress::detail {
             _bits = 0;
         }
 
-        Out& out() noexcept {
+        SGCL_INLINE_HOT Out& out() noexcept {
             return _out;
         }
 
-        uint32_t pending_bits() const noexcept {
+        SGCL_INLINE_HOT uint32_t pending_bits() const noexcept {
             return _count;
         }
 
-        uint64_t pending_value() const noexcept {
+        SGCL_INLINE_HOT uint64_t pending_value() const noexcept {
             return _bits;
         }
 
-        void restore(uint64_t bits, uint32_t count) noexcept {
+        SGCL_INLINE_HOT void restore(uint64_t bits, uint32_t count) noexcept {
             _bits = bits;
             _count = count;
         }
@@ -337,7 +337,7 @@ namespace sgcl::compress::detail {
 
         // level: 0 stores, 1..9, HuffmanOnly; the dictionary's last 32 KB
         // are the history the first matches may reach
-        explicit Deflater(int level, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0) noexcept
+        SGCL_INLINE_HOT explicit Deflater(int level, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0) noexcept
         : Deflater(level, false, dictionary, dictionary_size) {
         }
 
@@ -366,7 +366,7 @@ namespace sgcl::compress::detail {
         }
 
         // Back to the start with the same memory, and a dictionary again
-        void reset(const uint8_t* dictionary, size_t dictionary_size) noexcept {
+        SGCL_INLINE_HOT void reset(const uint8_t* dictionary, size_t dictionary_size) noexcept {
             reset();
             _seed(dictionary, dictionary_size);
         }
@@ -435,7 +435,7 @@ namespace sgcl::compress::detail {
         // more than a window past the last of the old one, so every entry
         // the old stream left is out of reach of every new match (cleared
         // only when the positions come near the rebase)
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _reset(0);
         }
 
@@ -533,23 +533,23 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        static uint32_t _load32(const uint8_t* q) noexcept {
+        SGCL_INLINE_HOT static uint32_t _load32(const uint8_t* q) noexcept {
             uint32_t v;
             std::memcpy(&v, q, 4);
             return v;
         }
 
-        static uint64_t _load64(const uint8_t* q) noexcept {
+        SGCL_INLINE_HOT static uint64_t _load64(const uint8_t* q) noexcept {
             uint64_t v;
             std::memcpy(&v, q, 8);
             return v;
         }
 
-        uint32_t _hash4(uint32_t v) const noexcept {
+        SGCL_INLINE_HOT uint32_t _hash4(uint32_t v) const noexcept {
             return (v * 0x9E3779B1u) >> (32 - _config.hash_bits);
         }
 
-        uint32_t _hash7(uint64_t v) const noexcept {
+        SGCL_INLINE_HOT uint32_t _hash7(uint64_t v) const noexcept {
             return uint32_t(((v << 8) * 0xCF1BBCDCB7A56463ull) >> (64 - _config.long_bits));
         }
 
@@ -680,13 +680,13 @@ namespace sgcl::compress::detail {
             return best;
         }
 
-        void _literal(uint8_t b) noexcept {
+        SGCL_INLINE_HOT void _literal(uint8_t b) noexcept {
             _lit.push_back(b);
             _dist.push_back(0);
             ++_lit_freq[b];
         }
 
-        void _match(uint32_t length, uint32_t distance) noexcept {
+        SGCL_INLINE_HOT void _match(uint32_t length, uint32_t distance) noexcept {
             uint32_t lc = length_code(length);
             _lit.push_back(uint16_t(253 + length));   // 256.. for 3..258: a value of 256 or more is a match
             _dist.push_back(uint16_t(distance));
@@ -824,7 +824,7 @@ namespace sgcl::compress::detail {
 
         // A block written out when the symbols fill it
         template<class Out>
-        void _full(Out& out) noexcept {
+        SGCL_INLINE_HOT void _full(Out& out) noexcept {
             if (_lit.size() >= MaxSymbols) {
                 auto w = _writer(out);
                 _flush_block(false, w);
@@ -859,14 +859,14 @@ namespace sgcl::compress::detail {
         }
 
         template<class Out>
-        BitWriter<Out> _writer(Out& out) noexcept {
+        SGCL_INLINE_HOT BitWriter<Out> _writer(Out& out) noexcept {
             BitWriter<Out> w(out);
             w.restore(_bits_value, _bits_count);
             return w;
         }
 
         template<class Out>
-        void _save(const BitWriter<Out>& w) noexcept {
+        SGCL_INLINE_HOT void _save(const BitWriter<Out>& w) noexcept {
             _bits_value = w.pending_value();
             _bits_count = w.pending_bits();
         }

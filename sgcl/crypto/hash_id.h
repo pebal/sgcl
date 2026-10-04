@@ -60,20 +60,20 @@ namespace sgcl::crypto {
     }
 
     // The length of the digest in bytes: 32 for hash_id::sha256
-    inline size_t digest_size(hash_id id) {
+    SGCL_INLINE_HOT size_t digest_size(hash_id id) {
         return detail::visit_hash(id, [](auto t) { return decltype(t)::type::digest_size; });
     }
 
     // The block of the digest in bytes (the rate, for SHA-3): 64 for
     // hash_id::sha256, what HMAC pads its key to
-    inline size_t block_size(hash_id id) {
+    SGCL_INLINE_HOT size_t block_size(hash_id id) {
         return detail::visit_hash(id, [](auto t) { return decltype(t)::type::block_size; });
     }
 
     // The digest of data (bytes or text, which a slice of bytes takes both)
     // by the algorithm id names: sha256::of(data) when id is
     // hash_id::sha256, as a vector of digest_size(id) bytes
-    inline vector<byte> digest(hash_id id, const slice<const byte>& data) {
+    SGCL_INLINE_HOT vector<byte> digest(hash_id id, const slice<const byte>& data) {
         return detail::visit_hash(id, [&](auto t) {
             typename decltype(t)::type h;
             h.update(data);
@@ -107,7 +107,7 @@ namespace sgcl::crypto {
     // in memory — as a vector of digest_size(id) bytes, or the error of the
     // open or of a read.
     // `digest_file(...)` on this thread, `co_await async_digest_file(...)` in a task
-    inline expected<vector<byte>, io::error> digest_file(hash_id id, const string& path) {
+    SGCL_INLINE_HOT expected<vector<byte>, io::error> digest_file(hash_id id, const string& path) {
         return detail::visit_hash(id, [&](auto t) -> expected<vector<byte>, io::error> {
             auto d = decltype(t)::type::of_file(path);
             if (!d) {
@@ -117,7 +117,7 @@ namespace sgcl::crypto {
         });
     }
 
-    inline async::task<expected<vector<byte>, io::error>> async_digest_file(hash_id id, const string& path) noexcept {
+    SGCL_INLINE_HOT async::task<expected<vector<byte>, io::error>> async_digest_file(hash_id id, const string& path) noexcept {
         return detail::co_digest_file(id, path);
     }
 }

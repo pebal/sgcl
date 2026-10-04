@@ -49,13 +49,13 @@ namespace sgcl::immutable {
         struct VectorBranch {
             tracked_ptr<void> children[32];
 
-            static unique_ptr<VectorBranch> make() noexcept {
+            SGCL_INLINE_HOT static unique_ptr<VectorBranch> make() noexcept {
                 return make_tracked<VectorBranch>();
             }
 
             // The copy: its words taken without the barrier, then, the
             // copy complete, the source shaded
-            static unique_ptr<VectorBranch> make(const VectorBranch& from) noexcept {
+            SGCL_INLINE_HOT static unique_ptr<VectorBranch> make(const VectorBranch& from) noexcept {
                 unique_ptr<VectorBranch> copy = make_tracked<VectorBranch>(from);
                 ((tracked_ptr<const VectorBranch>)&from).shade();
                 return copy;
@@ -208,89 +208,89 @@ namespace sgcl::immutable {
 
             // A dead iterator keeps no word that the conservative scan of
             // the stack could take for a root
-            ~const_iterator() noexcept {   // volatile, as tracked_ptr's: a store the compiler may not drop as dead
+            SGCL_INLINE_HOT ~const_iterator() noexcept {   // volatile, as tracked_ptr's: a store the compiler may not drop as dead
                 *(void* volatile*)&_vector = nullptr;
                 *(void* volatile*)&_leaf = nullptr;
             }
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 if (_index - _first >= _count) {
                     _vector->_leaf_of(_index, _leaf, _first, _count);
                 }
                 return _leaf[_index - _first];
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return std::addressof(**this);
             }
 
-            reference operator[](difference_type n) const noexcept {
+            SGCL_INLINE_HOT reference operator[](difference_type n) const noexcept {
                 return *(*this + n);
             }
 
-            const_iterator& operator++() noexcept {
+            SGCL_INLINE_HOT const_iterator& operator++() noexcept {
                 ++_index;
                 return *this;
             }
 
-            const_iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT const_iterator operator++(int) noexcept {
                 auto tmp = *this;
                 ++_index;
                 return tmp;
             }
 
-            const_iterator& operator--() noexcept {
+            SGCL_INLINE_HOT const_iterator& operator--() noexcept {
                 --_index;
                 return *this;
             }
 
-            const_iterator operator--(int) noexcept {
+            SGCL_INLINE_HOT const_iterator operator--(int) noexcept {
                 auto tmp = *this;
                 --_index;
                 return tmp;
             }
 
-            const_iterator& operator+=(difference_type n) noexcept {
+            SGCL_INLINE_HOT const_iterator& operator+=(difference_type n) noexcept {
                 _index += n;
                 return *this;
             }
 
-            const_iterator& operator-=(difference_type n) noexcept {
+            SGCL_INLINE_HOT const_iterator& operator-=(difference_type n) noexcept {
                 _index -= n;
                 return *this;
             }
 
-            friend const_iterator operator+(const_iterator it, difference_type n) noexcept {
+            SGCL_INLINE_HOT friend const_iterator operator+(const_iterator it, difference_type n) noexcept {
                 it._index += n;
                 return it;
             }
 
-            friend const_iterator operator+(difference_type n, const_iterator it) noexcept {
+            SGCL_INLINE_HOT friend const_iterator operator+(difference_type n, const_iterator it) noexcept {
                 it._index += n;
                 return it;
             }
 
-            friend const_iterator operator-(const_iterator it, difference_type n) noexcept {
+            SGCL_INLINE_HOT friend const_iterator operator-(const_iterator it, difference_type n) noexcept {
                 it._index -= n;
                 return it;
             }
 
-            friend difference_type operator-(const const_iterator& a, const const_iterator& b) noexcept {
+            SGCL_INLINE_HOT friend difference_type operator-(const const_iterator& a, const const_iterator& b) noexcept {
                 return difference_type(a._index) - difference_type(b._index);
             }
 
-            friend bool operator==(const const_iterator& a, const const_iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const const_iterator& a, const const_iterator& b) noexcept {
                 return a._index == b._index;
             }
 
-            friend std::strong_ordering operator<=>(const const_iterator& a, const const_iterator& b) noexcept {
+            SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const const_iterator& a, const const_iterator& b) noexcept {
                 return a._index <=> b._index;
             }
 
         private:
             friend class vector;
 
-            const_iterator(const vector* vector, size_t index) noexcept
+            SGCL_INLINE_HOT const_iterator(const vector* vector, size_t index) noexcept
             : _vector(vector)
             , _index(index) {
             }
@@ -324,7 +324,7 @@ namespace sgcl::immutable {
             }
         }
 
-        vector(std::initializer_list<T> ilist) noexcept(NothrowCopy)
+        SGCL_INLINE_HOT vector(std::initializer_list<T> ilist) noexcept(NothrowCopy)
         : vector(ilist.begin(), ilist.end()) {
         }
 
@@ -334,88 +334,88 @@ namespace sgcl::immutable {
         vector& operator=(vector&&) noexcept = default;
 
         // The elements
-        const_reference operator[](size_type i) const noexcept {
+        SGCL_INLINE_HOT const_reference operator[](size_type i) const noexcept {
             assert(i < _size);
             return _at(i);
         }
 
-        const_reference at(size_type i) const {
+        SGCL_INLINE_HOT const_reference at(size_type i) const {
             if (i >= _size) {
                 throw out_of_range("sgcl::immutable::vector::at");
             }
             return _at(i);
         }
 
-        const_reference front() const noexcept {
+        SGCL_INLINE_HOT const_reference front() const noexcept {
             assert(_size > 0);
             return _at(0);
         }
 
-        const_reference back() const noexcept {
+        SGCL_INLINE_HOT const_reference back() const noexcept {
             assert(_size > 0);
             return _tail->values[_tail_count() - 1];
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(this, 0);
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator(this, _size);
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(end());
         }
 
-        const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(begin());
         }
 
-        const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
         // The size
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _size;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
         // The height of the trie: how many branches a random access
         // walks, for the curious and the tests
-        unsigned depth() const noexcept {
+        SGCL_INLINE_HOT unsigned depth() const noexcept {
             return _root ? unsigned(_shift / Bits) : 0;
         }
 
         // The vector with `value` after its last element: the tail copied
         // with one more element (a full tail is first hung on the trie as
         // it is, along a copied path, and the new tail holds `value` alone)
-        vector push_back(const T& value) const noexcept(NothrowCopy) {
+        SGCL_INLINE_HOT vector push_back(const T& value) const noexcept(NothrowCopy) {
             return _push_back(value);
         }
 
-        vector push_back(T&& value) const noexcept(NothrowMake<T&&>) {
+        SGCL_INLINE_HOT vector push_back(T&& value) const noexcept(NothrowMake<T&&>) {
             return _push_back(std::move(value));
         }
 
         template<class... A>
-        vector emplace_back(A&&... a) const noexcept(NothrowMake<A...>) {
+        SGCL_INLINE_HOT vector emplace_back(A&&... a) const noexcept(NothrowMake<A...>) {
             return _push_back(std::forward<A>(a)...);
         }
 
@@ -445,11 +445,11 @@ namespace sgcl::immutable {
 
         // The vector with the element at `i` replaced: the path to its leaf
         // copied, log32(n) branches and the leaf, everything else shared
-        vector set(size_type i, const T& value) const {
+        SGCL_INLINE_HOT vector set(size_type i, const T& value) const {
             return _set(i, value);
         }
 
-        vector set(size_type i, T&& value) const {
+        SGCL_INLINE_HOT vector set(size_type i, T&& value) const {
             return _set(i, std::move(value));
         }
 
@@ -459,7 +459,7 @@ namespace sgcl::immutable {
         // path is copied, so f may read this vector
         template<class F>
         requires std::invocable<F&, const T&> && std::convertible_to<std::invoke_result_t<F&, const T&>, T>
-        vector update(size_type i, F f) const {
+        SGCL_INLINE_HOT vector update(size_type i, F f) const {
             if (i >= _size) {
                 throw out_of_range("sgcl::immutable::vector::update");
             }
@@ -467,19 +467,19 @@ namespace sgcl::immutable {
             return _set(i, std::move(value));
         }
 
-        friend bool operator==(const vector& a, const vector& b) requires req::equatable<T> {
+        SGCL_INLINE_HOT friend bool operator==(const vector& a, const vector& b) requires req::equatable<T> {
             if (a._root == b._root && a._tail == b._tail && a._size == b._size) {   // the same trie and tail: a version and its copy
                 return true;
             }
             return a._size == b._size && std::equal(a.begin(), a.end(), b.begin());
         }
 
-        friend bool operator!=(const vector& a, const vector& b) requires req::equatable<T> {
+        SGCL_INLINE_HOT friend bool operator!=(const vector& a, const vector& b) requires req::equatable<T> {
             return !(a == b);
         }
 
     private:
-        vector(size_t size, size_t shift, tracked_ptr<Branch> root, tracked_ptr<Leaf> tail) noexcept
+        SGCL_INLINE_HOT vector(size_t size, size_t shift, tracked_ptr<Branch> root, tracked_ptr<Leaf> tail) noexcept
         : _size(size)
         , _shift(shift)
         , _root(std::move(root))
@@ -487,15 +487,15 @@ namespace sgcl::immutable {
         }
 
         // Where the tail begins: every element from there on is in it
-        size_t _tail_offset() const noexcept {
+        SGCL_INLINE_HOT size_t _tail_offset() const noexcept {
             return _size < Width ? 0 : ((_size - 1) >> Bits) << Bits;
         }
 
-        uint32_t _tail_count() const noexcept {
+        SGCL_INLINE_HOT uint32_t _tail_count() const noexcept {
             return uint32_t(_size - _tail_offset());
         }
 
-        const T& _at(size_t i) const noexcept {
+        SGCL_INLINE_HOT const T& _at(size_t i) const noexcept {
             auto offset = _tail_offset();
             if (i >= offset) {
                 return _tail->values[i - offset];
@@ -532,7 +532,7 @@ namespace sgcl::immutable {
         // that an exception on the way destroys what was constructed. A
         // leaf of the trie, or a Tail for a tail that is not full
         template<class L = Leaf>
-        static unique_ptr<L> _make_leaf() noexcept {
+        SGCL_INLINE_HOT static unique_ptr<L> _make_leaf() noexcept {
             unique_ptr<L> leaf = make_tracked<L>();
             leaf->count = 0;
             return leaf;
@@ -540,7 +540,7 @@ namespace sgcl::immutable {
 
         // One more element constructed in a leaf, the count raised after
         template<class... A>
-        static void _append(Leaf& leaf, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT static void _append(Leaf& leaf, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
             ::new (static_cast<void*>(&leaf.values[leaf.count])) T(std::forward<A>(a)...);
             ++leaf.count;
         }
@@ -673,7 +673,7 @@ namespace sgcl::immutable {
         }
 
         template<class U>
-        vector _set(size_type i, U&& value) const {
+        SGCL_INLINE_HOT vector _set(size_type i, U&& value) const {
             if (i >= _size) {
                 throw out_of_range("sgcl::immutable::vector::set");
             }

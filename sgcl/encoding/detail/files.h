@@ -44,7 +44,7 @@ namespace sgcl::encoding::detail {
     }
 
     // The text into the file, made or written over, a new line after it
-    inline expected<void, error> save_text(const string& path, const string& text) {
+    SGCL_INLINE_HOT expected<void, error> save_text(const string& path, const string& text) {
         std::string all(text.data(), text.size());
         all += '\n';
         if (auto w = io::write_file(path, string(all)); !w) {

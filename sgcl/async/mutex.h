@@ -38,7 +38,7 @@ namespace sgcl::async {
         struct MutexState {
             // noexcept: a channel just made has nobody to wake, and a ring
             // of one is never too large
-            MutexState() noexcept
+            SGCL_INLINE_HOT MutexState() noexcept
             : ch(1) {
                 ch.try_send();
             }
@@ -47,7 +47,7 @@ namespace sgcl::async {
             // and puts the one permit in, before the state is given to
             // anyone (a MutexState that is a field of another object, a
             // shared_mutex's, is made as above)
-            explicit MutexState(ChannelLinked) noexcept
+            SGCL_INLINE_HOT explicit MutexState(ChannelLinked) noexcept
             : ch(ChannelLinked{}, 1) {
             }
 
@@ -58,15 +58,15 @@ namespace sgcl::async {
             // wake of a sender waiting on the channel (a wake may start
             // the workers), and this channel never has one: unlock is a
             // try_send, which never waits
-            void lock() noexcept {
+            SGCL_INLINE_HOT void lock() noexcept {
                 (void)ch.receive().wait();
             }
 
-            bool try_lock() noexcept {
+            SGCL_INLINE_HOT bool try_lock() noexcept {
                 return ch.try_receive();
             }
 
-            void unlock() {
+            SGCL_INLINE_HOT void unlock() {
                 ch.try_send();
             }
 
@@ -81,7 +81,7 @@ namespace sgcl::async {
     // by its constructor; there is no empty mutex.
     class mutex {
     public:
-        mutex() noexcept
+        SGCL_INLINE_HOT mutex() noexcept
         : _s(make_tracked<detail::MutexState>(detail::ChannelLinked{})) {
             _s->ch.link();   // before the state is given to anyone
             _s->ch.try_send();   // unlocked
@@ -94,26 +94,26 @@ namespace sgcl::async {
 
         // The standard's Lockable, blocking (std::lock_guard, std::unique_lock);
         // a task takes the mutex with `co_await m.scoped_lock()`
-        void lock() const noexcept {
+        SGCL_INLINE_HOT void lock() const noexcept {
             _s->lock();
         }
 
-        bool try_lock() const noexcept {
+        SGCL_INLINE_HOT bool try_lock() const noexcept {
             return _s->try_lock();
         }
 
-        void unlock() const {
+        SGCL_INLINE_HOT void unlock() const {
             _s->unlock();
         }
 
         // A case of a select: f() with the mutex locked
         template<class F>
-        auto on_lock(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
+        SGCL_INLINE_HOT auto on_lock(F f) const noexcept(std::is_nothrow_move_constructible_v<F>) {
             return _s->ch.on_receive(std::move(f));
         }
 
         // The same mutex: the same state
-        friend bool operator==(const mutex& a, const mutex& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const mutex& a, const mutex& b) noexcept {
             return a._s == b._s;
         }
 
@@ -156,7 +156,7 @@ namespace sgcl::async {
             // The mutex held: what a condition_variable lets go of and
             // takes back around its wait; nothing for an empty guard (moved
             // from or released), since there is no mutex without a state
-            optional<mutex> owner() const noexcept {
+            SGCL_INLINE_HOT optional<mutex> owner() const noexcept {
                 if (!_m) {
                     return nullopt;
                 }
@@ -166,7 +166,7 @@ namespace sgcl::async {
             // The mutex let go of by the guard, still locked: the caller
             // unlocks it (std::unique_lock::release); nothing for an empty
             // guard
-            optional<mutex> release() noexcept {
+            SGCL_INLINE_HOT optional<mutex> release() noexcept {
                 if (!_m) {
                     return nullopt;
                 }
@@ -191,16 +191,16 @@ namespace sgcl::async {
         // collector scans
         class scoped_lock_op {
         public:
-            bool await_ready() {
+            SGCL_INLINE_HOT bool await_ready() {
                 return _op.await_ready();
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
                 return _op.await_suspend(h);
             }
 
-            guard await_resume() {
+            SGCL_INLINE_HOT guard await_resume() {
                 _op.await_resume();
                 return guard(_m);
             }
@@ -208,7 +208,7 @@ namespace sgcl::async {
         private:
             friend class mutex;
 
-            explicit scoped_lock_op(detail::MutexState* m) noexcept
+            SGCL_INLINE_HOT explicit scoped_lock_op(detail::MutexState* m) noexcept
             : _m(m)
             , _op(m->ch.receive()) {
             }
@@ -219,7 +219,7 @@ namespace sgcl::async {
 
         // The lock held for a scope: `auto g = co_await m.scoped_lock();` in
         // a task, `auto g = m.scoped_lock().wait();` on a thread
-        auto scoped_lock() const noexcept {
+        SGCL_INLINE_HOT auto scoped_lock() const noexcept {
             return detail::make_operation([s = _s.get()](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
                     return scoped_lock_op(s);
@@ -234,22 +234,22 @@ namespace sgcl::async {
         friend class condition_variable;
         friend class shared_mutex;
 
-        explicit mutex(const tracked_ptr<detail::MutexState>& s) noexcept
+        SGCL_INLINE_HOT explicit mutex(const tracked_ptr<detail::MutexState>& s) noexcept
         : _s(s) {
         }
 
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        mutex(sgcl::detail::FromWord, const tracked_ptr<detail::MutexState>& w) noexcept
+        SGCL_INLINE_HOT mutex(sgcl::detail::FromWord, const tracked_ptr<detail::MutexState>& w) noexcept
         : _s(w) {
         }
 
-        tracked_ptr<detail::MutexState>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::MutexState>& _handle_word() noexcept {
             return _s;
         }
 
-        const tracked_ptr<detail::MutexState>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::MutexState>& _handle_word() const noexcept {
             return _s;
         }
 

@@ -83,28 +83,28 @@ namespace sgcl::codec {
         // The code at the offset; the detail, when given, is what
         // message() says in place of the code's own words ("png: CRC-32 of
         // chunk IHDR", "jpeg: arithmetic coding")
-        error(errc code, uint64_t offset) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset) noexcept
         : _code(code), _offset(offset) {
         }
 
-        error(errc code, uint64_t offset, const string& detail) noexcept
+        SGCL_INLINE_HOT error(errc code, uint64_t offset, const string& detail) noexcept
         : _code(code), _offset(offset), _detail(detail) {
         }
 
         // The source or the sink failed at the offset
-        error(const io::error& e, uint64_t offset) noexcept
+        SGCL_INLINE_HOT error(const io::error& e, uint64_t offset) noexcept
         : _code(errc::io), _offset(offset), _io(e) {
         }
 
         // Copied without a throw: the words and the stream's error are
         // shared, not copied (optional's own copy is not declared noexcept)
-        error(const error& o) noexcept
+        SGCL_INLINE_HOT error(const error& o) noexcept
         : _code(o._code), _offset(o._offset), _detail(o._detail), _io(o._io) {
         }
 
         error(error&&) noexcept = default;
 
-        error& operator=(const error& o) noexcept {
+        SGCL_INLINE_HOT error& operator=(const error& o) noexcept {
             _code = o._code;
             _offset = o._offset;
             _detail = o._detail;
@@ -114,16 +114,16 @@ namespace sgcl::codec {
 
         error& operator=(error&&) noexcept = default;
 
-        errc code() const noexcept {
+        SGCL_INLINE_HOT errc code() const noexcept {
             return _code;
         }
 
         // Bytes from the start of the input
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _offset;
         }
 
-        const optional<io::error>& io_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& io_error() const noexcept {
             return _io;
         }
 
@@ -150,7 +150,7 @@ namespace sgcl::codec {
             return string(m);
         }
 
-        friend bool operator==(const error& a, const error& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const error& a, const error& b) noexcept {
             return a._code == b._code && a._offset == b._offset && a._detail == b._detail && a._io == b._io;
         }
 

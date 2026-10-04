@@ -39,7 +39,7 @@ namespace sgcl::concurrent::detail {
         static constexpr bool carries_key = PairOfKey<P, Key>;
 
         template<class P>
-        static const auto& key(const P& p) noexcept {
+        SGCL_INLINE_HOT static const auto& key(const P& p) noexcept {
             return p.first;
         }
     };
@@ -55,7 +55,7 @@ namespace sgcl::concurrent::detail {
         static constexpr bool carries_key = std::is_same_v<P, Key>;
 
         template<class K>
-        static const K& key(const K& k) noexcept {
+        SGCL_INLINE_HOT static const K& key(const K& k) noexcept {
             return k;
         }
     };
@@ -88,14 +88,14 @@ namespace sgcl::concurrent::detail {
         // its height and whether it is a marker. A marker is a NodeBase of its own: linked after the node
         // it marks, at one level, holding what followed that node there.
         struct NodeBase {
-            explicit NodeBase(unsigned h) noexcept
+            SGCL_INLINE_HOT explicit NodeBase(unsigned h) noexcept
             : height(uint8_t(h))
             , marker(false) {
             }
 
             struct MarkerTag {};
 
-            NodeBase(MarkerTag, tracked_ptr<NodeBase> succ) noexcept
+            SGCL_INLINE_HOT NodeBase(MarkerTag, tracked_ptr<NodeBase> succ) noexcept
             : next(succ)
             , height(1)
             , marker(true) {
@@ -110,7 +110,7 @@ namespace sgcl::concurrent::detail {
 
         using Link = atomic<tracked_ptr<NodeBase>>;
 
-        static constexpr size_t _align_up(size_t n, size_t a) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t _align_up(size_t n, size_t a) noexcept {
             return (n + a - 1) & ~(a - 1);
         }
 
@@ -133,7 +133,7 @@ namespace sgcl::concurrent::detail {
         template<size_t H>
         struct Node : NodeBase {
             template<class... A>
-            explicit Node(A&&... a) noexcept(std::is_nothrow_constructible_v<Value, A...>)
+            SGCL_INLINE_HOT explicit Node(A&&... a) noexcept(std::is_nothrow_constructible_v<Value, A...>)
             : NodeBase(unsigned(H))
             , value(std::forward<A>(a)...) {
                 assert(reinterpret_cast<char*>(&value) - reinterpret_cast<char*>(this) == ptrdiff_t(ValueOffset));
@@ -149,7 +149,7 @@ namespace sgcl::concurrent::detail {
         // The sentinel: every level's list starts here; no element, its
         // place left so that the links sit where a node's do
         struct Head : NodeBase {
-            Head() noexcept
+            SGCL_INLINE_HOT Head() noexcept
             : NodeBase(unsigned(MaxHeight)) {
                 assert(reinterpret_cast<char*>(&up[0]) - reinterpret_cast<char*>(this) == ptrdiff_t(LinkOffset));
             }
@@ -158,17 +158,17 @@ namespace sgcl::concurrent::detail {
             Link up[MaxHeight - 1];
         };
 
-        static Link& _link(NodeBase* node, size_t level) noexcept {
+        SGCL_INLINE_HOT static Link& _link(NodeBase* node, size_t level) noexcept {
             assert(level < node->height);
             return level == 0 ? node->next : reinterpret_cast<Link*>(reinterpret_cast<char*>(node) + LinkOffset)[level - 1];
         }
 
-        static value_type& _value(NodeBase* node) noexcept {
+        SGCL_INLINE_HOT static value_type& _value(NodeBase* node) noexcept {
             assert(!node->marker);
             return *reinterpret_cast<value_type*>(reinterpret_cast<char*>(node) + ValueOffset);
         }
 
-        static const Key& _key(NodeBase* node) noexcept {
+        SGCL_INLINE_HOT static const Key& _key(NodeBase* node) noexcept {
             return Traits::key(_value(node));
         }
 
@@ -209,37 +209,37 @@ namespace sgcl::concurrent::detail {
 
             Iterator() noexcept = default;
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 return _value(_node.get());
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return &_value(_node.get());
             }
 
-            Iterator& operator++() noexcept {
+            SGCL_INLINE_HOT Iterator& operator++() noexcept {
                 _node = _next_live(_node.get());
                 return *this;
             }
 
-            Iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT Iterator operator++(int) noexcept {
                 Iterator it = *this;
                 ++*this;
                 return it;
             }
 
-            operator Iterator<const SkipList::value_type>() const noexcept {
+            SGCL_INLINE_HOT operator Iterator<const SkipList::value_type>() const noexcept {
                 return Iterator<const SkipList::value_type>(_node);
             }
 
         private:
-            explicit Iterator(tracked_ptr<NodeBase> node) noexcept
+            SGCL_INLINE_HOT explicit Iterator(tracked_ptr<NodeBase> node) noexcept
             : _node(node) {
             }
 
             tracked_ptr<NodeBase> _node;
 
-            friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
                 return lhs._node.get() == rhs._node.get();
             }
 
@@ -251,11 +251,11 @@ namespace sgcl::concurrent::detail {
         using iterator = Iterator<std::conditional_t<Traits::const_iterators, const value_type, value_type>>;
         using const_iterator = Iterator<const value_type>;
 
-        SkipList() noexcept(std::is_nothrow_default_constructible_v<Compare> && std::is_nothrow_copy_constructible_v<Compare>)
+        SGCL_INLINE_HOT SkipList() noexcept(std::is_nothrow_default_constructible_v<Compare> && std::is_nothrow_copy_constructible_v<Compare>)
         : SkipList(Compare()) {
         }
 
-        explicit SkipList(const Compare& comp) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
+        SGCL_INLINE_HOT explicit SkipList(const Compare& comp) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
         : _head(make_tracked<Head>())
         , _comp(comp) {
         }
@@ -303,7 +303,7 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        SkipList(std::initializer_list<value_type> ilist, const Compare& comp = Compare())
+        SGCL_INLINE_HOT SkipList(std::initializer_list<value_type> ilist, const Compare& comp = Compare())
         : SkipList(ilist.begin(), ilist.end(), comp) {
         }
 
@@ -311,31 +311,31 @@ namespace sgcl::concurrent::detail {
         SkipList& operator=(const SkipList&) = delete;
 
         // Iteration: the elements in key order, weakly consistent
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_next_live(_head.get()));
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_next_live(_head.get()));
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(tracked_ptr<NodeBase>());
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator(tracked_ptr<NodeBase>());
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return !_next_live(_head.get());
         }
 
@@ -351,75 +351,75 @@ namespace sgcl::concurrent::detail {
         // Lookup: wait-free, the element as it was found. With a key of
         // another type the comparison takes (is_transparent: a string_view
         // for a string), no key is built for the search.
-        iterator find(const Key& key) noexcept {
+        SGCL_INLINE_HOT iterator find(const Key& key) noexcept {
             return iterator(_find_node(key));
         }
 
-        const_iterator find(const Key& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator find(const Key& key) const noexcept {
             return const_iterator(_find_node(key));
         }
 
-        bool contains(const Key& key) const noexcept {
+        SGCL_INLINE_HOT bool contains(const Key& key) const noexcept {
             return _find_node(key) != nullptr;
         }
 
-        size_type count(const Key& key) const noexcept {
+        SGCL_INLINE_HOT size_type count(const Key& key) const noexcept {
             return contains(key) ? 1 : 0;
         }
 
-        iterator lower_bound(const Key& key) noexcept {
+        SGCL_INLINE_HOT iterator lower_bound(const Key& key) noexcept {
             return iterator(_search(key));
         }
 
-        const_iterator lower_bound(const Key& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator lower_bound(const Key& key) const noexcept {
             return const_iterator(_search(key));
         }
 
-        iterator upper_bound(const Key& key) noexcept {
+        SGCL_INLINE_HOT iterator upper_bound(const Key& key) noexcept {
             return iterator(_upper_node(key));
         }
 
-        const_iterator upper_bound(const Key& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator upper_bound(const Key& key) const noexcept {
             return const_iterator(_upper_node(key));
         }
 
         template<class K> requires TransparentCompare<Compare>
-        iterator find(const K& key) noexcept {
+        SGCL_INLINE_HOT iterator find(const K& key) noexcept {
             return iterator(_find_node(key));
         }
 
         template<class K> requires TransparentCompare<Compare>
-        const_iterator find(const K& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator find(const K& key) const noexcept {
             return const_iterator(_find_node(key));
         }
 
         template<class K> requires TransparentCompare<Compare>
-        bool contains(const K& key) const noexcept {
+        SGCL_INLINE_HOT bool contains(const K& key) const noexcept {
             return _find_node(key) != nullptr;
         }
 
         template<class K> requires TransparentCompare<Compare>
-        size_type count(const K& key) const noexcept {
+        SGCL_INLINE_HOT size_type count(const K& key) const noexcept {
             return contains(key) ? 1 : 0;
         }
 
         template<class K> requires TransparentCompare<Compare>
-        iterator lower_bound(const K& key) noexcept {
+        SGCL_INLINE_HOT iterator lower_bound(const K& key) noexcept {
             return iterator(_search(key));
         }
 
         template<class K> requires TransparentCompare<Compare>
-        const_iterator lower_bound(const K& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator lower_bound(const K& key) const noexcept {
             return const_iterator(_search(key));
         }
 
         template<class K> requires TransparentCompare<Compare>
-        iterator upper_bound(const K& key) noexcept {
+        SGCL_INLINE_HOT iterator upper_bound(const K& key) noexcept {
             return iterator(_upper_node(key));
         }
 
         template<class K> requires TransparentCompare<Compare>
-        const_iterator upper_bound(const K& key) const noexcept {
+        SGCL_INLINE_HOT const_iterator upper_bound(const K& key) const noexcept {
             return const_iterator(_upper_node(key));
         }
 
@@ -430,17 +430,17 @@ namespace sgcl::concurrent::detail {
         // and builds the node only for an absent key, so that an argument
         // whose key is taken is left as it was, as std::map leaves it.
         template<class... A>
-        pair<iterator, bool> emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
+        SGCL_INLINE_HOT pair<iterator, bool> emplace(A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             unsigned h = _height();
             tracked_ptr<NodeBase> node = _make_node(h, std::forward<A>(a)...);
             return _insert(node, h);
         }
 
-        pair<iterator, bool> insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(const value_type& value) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             return _insert_value(value);
         }
 
-        pair<iterator, bool> insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(value_type&& value) noexcept(std::is_nothrow_move_constructible_v<value_type>) {
             return _insert_value(std::move(value));
         }
 
@@ -451,7 +451,7 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        void insert(std::initializer_list<value_type> ilist) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
+        SGCL_INLINE_HOT void insert(std::initializer_list<value_type> ilist) noexcept(std::is_nothrow_copy_constructible_v<value_type>) {
             insert(ilist.begin(), ilist.end());
         }
 
@@ -460,17 +460,17 @@ namespace sgcl::concurrent::detail {
         // node is marked at each of its levels, the bottom one last (the
         // linearization point: one thread wins it), then unlinked by a
         // search.
-        size_type erase(const Key& key) noexcept {
+        SGCL_INLINE_HOT size_type erase(const Key& key) noexcept {
             return _erase_key(key);
         }
 
         template<class K> requires TransparentCompare<Compare>
             && (!std::is_convertible_v<const K&, const_iterator>)
-        size_type erase(const K& key) noexcept {
+        SGCL_INLINE_HOT size_type erase(const K& key) noexcept {
             return _erase_key(key);
         }
 
-        iterator erase(const_iterator pos) noexcept {
+        SGCL_INLINE_HOT iterator erase(const_iterator pos) noexcept {
             tracked_ptr<NodeBase> node(pos._node);
             _erase(node);
             return iterator(_next_live(node.get()));
@@ -483,7 +483,7 @@ namespace sgcl::concurrent::detail {
             }
         }
 
-        key_compare key_comp() const noexcept(std::is_nothrow_copy_constructible_v<Compare>) {
+        SGCL_INLINE_HOT key_compare key_comp() const noexcept(std::is_nothrow_copy_constructible_v<Compare>) {
             return _comp;
         }
 
@@ -492,7 +492,7 @@ namespace sgcl::concurrent::detail {
         // a quarter of that, and so on (a xorshift64 of the thread's own),
         // and never more than one above the levels in use, as Java does
         // it, so that the top levels are not one node long
-        unsigned _height() noexcept {
+        SGCL_INLINE_HOT unsigned _height() noexcept {
             return _height(_top.load(std::memory_order_relaxed));
         }
 
@@ -521,7 +521,7 @@ namespace sgcl::concurrent::detail {
         // A node of height h, as a managed object of the type of that
         // height, built from the element's arguments
         template<size_t H = 1, class... A>
-        static tracked_ptr<NodeBase> _make_node(unsigned h, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
+        SGCL_INLINE_HOT static tracked_ptr<NodeBase> _make_node(unsigned h, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             if constexpr (H < MaxHeight) {
                 if (h != H) {
                     return _make_node<H + 1>(h, std::forward<A>(a)...);
@@ -530,7 +530,7 @@ namespace sgcl::concurrent::detail {
             return make_tracked<Node<H>>(std::forward<A>(a)...);
         }
 
-        static tracked_ptr<NodeBase> _make_marker(tracked_ptr<NodeBase> succ) noexcept {
+        SGCL_INLINE_HOT static tracked_ptr<NodeBase> _make_marker(tracked_ptr<NodeBase> succ) noexcept {
             return make_tracked<NodeBase>(typename NodeBase::MarkerTag(), succ);
         }
 
@@ -568,13 +568,13 @@ namespace sgcl::concurrent::detail {
         // The node with the key, null when there is none; the node after
         // the key's place
         template<class K>
-        tracked_ptr<NodeBase> _find_node(const K& key) const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<NodeBase> _find_node(const K& key) const noexcept {
             tracked_ptr<NodeBase> node = _search(key);
             return node && !_comp(key, _key(node.get())) ? node : tracked_ptr<NodeBase>();
         }
 
         template<class K>
-        tracked_ptr<NodeBase> _upper_node(const K& key) const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<NodeBase> _upper_node(const K& key) const noexcept {
             tracked_ptr<NodeBase> node = _search(key);
             if (node && !_comp(key, _key(node.get()))) {
                 node = _next_live(node.get());
@@ -720,7 +720,7 @@ namespace sgcl::concurrent::detail {
         // is built into a node first, as by emplace, since the key is
         // known only once the element is
         template<class P>
-        pair<iterator, bool> _insert_value(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
+        SGCL_INLINE_HOT pair<iterator, bool> _insert_value(P&& value) noexcept(std::is_nothrow_constructible_v<value_type, P&&>) {
             if constexpr (Traits::template carries_key<std::remove_cvref_t<P>>) {
                 return _insert_absent(Traits::key(value), [&](unsigned h) { return _make_node(h, std::forward<P>(value)); });
             } else {

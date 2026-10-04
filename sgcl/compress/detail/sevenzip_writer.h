@@ -44,12 +44,12 @@ namespace sgcl::compress::detail {
             SimpleKind kind = SimpleKind::x86;
             uint32_t distance = 0;   // Delta's
 
-            friend bool operator==(const FilterChoice& a, const FilterChoice& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const FilterChoice& a, const FilterChoice& b) noexcept {
                 return a.on == b.on && (!a.on || (a.kind == b.kind && a.distance == b.distance));
             }
         };
 
-        inline uint32_t le16(const uint8_t* p) noexcept {
+        SGCL_INLINE_HOT uint32_t le16(const uint8_t* p) noexcept {
             return uint32_t(p[0]) | uint32_t(p[1]) << 8;
         }
 
@@ -163,11 +163,11 @@ namespace sgcl::compress::detail {
             uint64_t time[3] = {0, 0, 0};                // FILETIME
         };
 
-        inline uint64_t filetime_of_unix_nano(int64_t ns) noexcept {
+        SGCL_INLINE_HOT uint64_t filetime_of_unix_nano(int64_t ns) noexcept {
             return uint64_t(ns / 100 + 116444736000000000LL);
         }
 
-        inline uint64_t filetime_now() noexcept {
+        SGCL_INLINE_HOT uint64_t filetime_now() noexcept {
             auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             return filetime_of_unix_nano(ns);
         }
@@ -245,7 +245,7 @@ namespace sgcl::compress::detail {
         // writer, its memory kept from folder to folder
         class FolderEncoder {
         public:
-            FolderEncoder(Method m, int level) noexcept
+            SGCL_INLINE_HOT FolderEncoder(Method m, int level) noexcept
             : _method(m), _level(level) {
                 if (m == Method::lzma || m == Method::lzma2) {
                     _settings = LzmaEncoderSettings::of(level, false);
@@ -258,16 +258,16 @@ namespace sgcl::compress::detail {
             // With a password: every folder encrypted, 7zAES the coder of
             // its packed stream; one salt a writer (one key), a fresh IV a
             // folder
-            void encrypt(crypto::secret<32> key, const uint8_t* salt) noexcept {
+            SGCL_INLINE_HOT void encrypt(crypto::secret<32> key, const uint8_t* salt) noexcept {
                 _key = std::make_unique<crypto::secret<32>>(std::move(key));
                 std::memcpy(_salt, salt, 16);
             }
 
-            const crypto::secret<32>* key() const noexcept {
+            SGCL_INLINE_HOT const crypto::secret<32>* key() const noexcept {
                 return _key.get();
             }
 
-            const uint8_t* salt() const noexcept {
+            SGCL_INLINE_HOT const uint8_t* salt() const noexcept {
                 return _salt;
             }
 
@@ -320,7 +320,7 @@ namespace sgcl::compress::detail {
                 _unpacked = 0;
             }
 
-            uint64_t unpacked() const noexcept {
+            SGCL_INLINE_HOT uint64_t unpacked() const noexcept {
                 return _unpacked;
             }
 
@@ -430,7 +430,7 @@ namespace sgcl::compress::detail {
 
             // Each coder's output, as coders() lists them: the encrypted
             // coder's (unpadded), the data's
-            std::vector<uint64_t> coder_sizes() const noexcept {
+            SGCL_INLINE_HOT std::vector<uint64_t> coder_sizes() const noexcept {
                 std::vector<uint64_t> s;
                 if (_key) {
                     s.push_back(_coded);
@@ -445,7 +445,7 @@ namespace sgcl::compress::detail {
             // The solid block 7-Zip uses for these settings: 128 times the
             // dictionary (LZMA, LZMA2) or 16 times the model's memory
             // (PPMd), within 16 MiB .. 4 GiB; 16 MiB for Deflate and Copy
-            uint64_t solid_block() const noexcept {
+            SGCL_INLINE_HOT uint64_t solid_block() const noexcept {
                 uint64_t lo = uint64_t(16) << 20, hi = uint64_t(4) << 30;
                 uint64_t v = lo;
                 if (_method == Method::lzma || _method == Method::lzma2) {
@@ -459,7 +459,7 @@ namespace sgcl::compress::detail {
         private:
             // Where the coder's bytes of this call start in out; the bytes
             // held from the last call (short of a block) put back before them
-            size_t _begin(std::vector<uint8_t>& out) noexcept {
+            SGCL_INLINE_HOT size_t _begin(std::vector<uint8_t>& out) noexcept {
                 size_t base = out.size();
                 _carried = _held;
                 if (_cbc && _held) {

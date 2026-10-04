@@ -16,7 +16,7 @@ namespace sgcl::detail {
     // element type (page_info.h: array_metadata).
     struct ArrayMetadata {
         template<class T>
-        ArrayMetadata(T*) noexcept
+        SGCL_INLINE_HOT ArrayMetadata(T*) noexcept
         : child_pointers(TypeInfo<T>::child_pointers())
         , type_info(typeid(T[]))
         , object_size(TypeInfo<T>::ObjectSize) {

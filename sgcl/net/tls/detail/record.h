@@ -52,13 +52,13 @@ namespace sgcl::net::tls::detail {
 
         static inline std::atomic<void (*)(const void*, size_t, Kind)> released{nullptr};
 
-        static void on_install(Cipher c, const Secret& s) noexcept {
+        SGCL_INLINE_HOT static void on_install(Cipher c, const Secret& s) noexcept {
             if (auto f = installed.load(std::memory_order_acquire)) {
                 f(c, s);
             }
         }
 
-        static void on_release(const void* p, size_t n, Kind k) noexcept {
+        SGCL_INLINE_HOT static void on_release(const void* p, size_t n, Kind k) noexcept {
             if (auto f = released.load(std::memory_order_acquire)) {
                 f(p, n, k);
             }
@@ -69,27 +69,27 @@ namespace sgcl::net::tls::detail {
     // block when it grows, the whole block when it dies
     class SecureBuffer {
     public:
-        explicit SecureBuffer(size_t capacity) noexcept
+        SGCL_INLINE_HOT explicit SecureBuffer(size_t capacity) noexcept
         : _data(new uint8_t[capacity]()), _capacity(capacity) {
         }
 
         SecureBuffer(const SecureBuffer&) = delete;
         SecureBuffer& operator=(const SecureBuffer&) = delete;
 
-        ~SecureBuffer() {
+        SGCL_INLINE_HOT ~SecureBuffer() {
             crypto::detail::secure_zero(_data.get(), _capacity);
             ZeroingProbe::on_release(_data.get(), _capacity, ZeroingProbe::buffer);
         }
 
-        uint8_t* data() noexcept {
+        SGCL_INLINE_HOT uint8_t* data() noexcept {
             return _data.get();
         }
 
-        const uint8_t* data() const noexcept {
+        SGCL_INLINE_HOT const uint8_t* data() const noexcept {
             return _data.get();
         }
 
-        size_t capacity() const noexcept {
+        SGCL_INLINE_HOT size_t capacity() const noexcept {
             return _capacity;
         }
 
@@ -132,13 +132,13 @@ namespace sgcl::net::tls::detail {
         RecordProtection(const RecordProtection&) = delete;
         RecordProtection& operator=(const RecordProtection&) = delete;
 
-        ~RecordProtection() {
+        SGCL_INLINE_HOT ~RecordProtection() {
             _drop_keys();
         }
 
         // The keys of a traffic secret (§7.3) for the cipher suite; the
         // secret is kept for update()
-        void install(Cipher cipher, const Secret& traffic_secret) noexcept {
+        SGCL_INLINE_HOT void install(Cipher cipher, const Secret& traffic_secret) noexcept {
             _cipher = cipher;
             _hash = hash_of(cipher);
             std::memcpy(_secret.bytes, traffic_secret.bytes, sizeof _secret.bytes);
@@ -146,21 +146,21 @@ namespace sgcl::net::tls::detail {
             _derive();
         }
 
-        bool installed() const noexcept {
+        SGCL_INLINE_HOT bool installed() const noexcept {
             return _installed;
         }
 
-        Cipher cipher() const noexcept {
+        SGCL_INLINE_HOT Cipher cipher() const noexcept {
             return _cipher;
         }
 
-        uint64_t sequence() const noexcept {
+        SGCL_INLINE_HOT uint64_t sequence() const noexcept {
             return _sequence;
         }
 
         // The next traffic secret and its keys (§7.2), after a KeyUpdate
         // sent or received
-        void update() {
+        SGCL_INLINE_HOT void update() {
             if (!_installed) {
                 throw std::logic_error("sgcl::net::tls: a key update with no keys installed");
             }
@@ -172,7 +172,7 @@ namespace sgcl::net::tls::detail {
         // writes should send a KeyUpdate: 2^24 records under AES-GCM (the
         // RFC's bound is 2^24.5 full-size records), 2^48 under
         // ChaCha20-Poly1305 (whose bound is past the sequence number)
-        bool needs_update() const noexcept {
+        SGCL_INLINE_HOT bool needs_update() const noexcept {
             if (!_installed) {
                 return false;
             }
@@ -182,7 +182,7 @@ namespace sgcl::net::tls::detail {
 
         // The bytes a record of the type with n bytes of content and the
         // padding takes
-        size_t sealed_size(ContentType type, size_t n, size_t padding = 0) const noexcept {
+        SGCL_INLINE_HOT size_t sealed_size(ContentType type, size_t n, size_t padding = 0) const noexcept {
             return _installed && type != ContentType::change_cipher_spec ? HeaderSize + n + 1 + padding + TagSize : HeaderSize + n;
         }
 
@@ -336,21 +336,21 @@ namespace sgcl::net::tls::detail {
             return Opened{inner, bytes_of(out, n)};
         }
 
-        [[nodiscard]] expected<Opened, Alert> open(uint8_t* record, size_t size) noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT expected<Opened, Alert> open(uint8_t* record, size_t size) noexcept {
             return open(record, size, record + HeaderSize);
         }
 
         // Compatibility mode (§D.4): a change_cipher_spec record is dropped
         // while this is on (after the first ClientHello is sent or
         // received, until the peer's Finished), refused otherwise
-        void accept_ccs(bool on) noexcept {
+        SGCL_INLINE_HOT void accept_ccs(bool on) noexcept {
             _ccs_accepted = on;
         }
 
         // 0-RTT refused (§4.2.10): a protected record that does not open is
         // dropped, up to `limit` bytes of such records in all; the first
         // record that opens ends it
-        void skip_undecryptable(size_t limit) noexcept {
+        SGCL_INLINE_HOT void skip_undecryptable(size_t limit) noexcept {
             _skipping = true;
             _skip_left = limit;
         }
@@ -385,7 +385,7 @@ namespace sgcl::net::tls::detail {
             ZeroingProbe::on_install(_cipher, _secret);
         }
 
-        void _drop_keys() noexcept {
+        SGCL_INLINE_HOT void _drop_keys() noexcept {
             _gcm.reset();
             _chacha.reset();
             crypto::detail::secure_zero(_iv, sizeof _iv);
@@ -399,7 +399,7 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        static void _header(uint8_t* out, ContentType type, uint16_t version, size_t length) noexcept {
+        SGCL_INLINE_HOT static void _header(uint8_t* out, ContentType type, uint16_t version, size_t length) noexcept {
             out[0] = uint8_t(type);
             out[1] = uint8_t(version >> 8);
             out[2] = uint8_t(version);
@@ -407,7 +407,7 @@ namespace sgcl::net::tls::detail {
             out[4] = uint8_t(length);
         }
 
-        expected<Opened, Alert> _failed(size_t length) noexcept {
+        SGCL_INLINE_HOT expected<Opened, Alert> _failed(size_t length) noexcept {
             if (_skipping && length <= _skip_left) {
                 _skip_left -= length;
                 return Opened{};
@@ -430,7 +430,7 @@ namespace sgcl::net::tls::detail {
         static constexpr size_t Large = 2 * MaxRecord;
         static constexpr size_t Kept = 64;
 
-        static uint8_t* take(size_t size) noexcept {
+        SGCL_INLINE_HOT static uint8_t* take(size_t size) noexcept {
             auto& list = _list(size);
             if (!list.empty()) {
                 uint8_t* p = list.back();
@@ -441,7 +441,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // The first `used` bytes zeroed (what was ever written), then kept
-        static void give(uint8_t* p, size_t size, size_t used) noexcept {
+        SGCL_INLINE_HOT static void give(uint8_t* p, size_t size, size_t used) noexcept {
             crypto::detail::secure_zero(p, used);
             ZeroingProbe::on_release(p, size, ZeroingProbe::record_block);
             auto& list = _list(size);
@@ -494,7 +494,7 @@ namespace sgcl::net::tls::detail {
         RecordFramer(const RecordFramer&) = delete;
         RecordFramer& operator=(const RecordFramer&) = delete;
 
-        ~RecordFramer() {
+        SGCL_INLINE_HOT ~RecordFramer() {
             _give();
         }
 
@@ -530,7 +530,7 @@ namespace sgcl::net::tls::detail {
             return room_of(_data + _end, _cap - _end);
         }
 
-        void commit(size_t n) noexcept {
+        SGCL_INLINE_HOT void commit(size_t n) noexcept {
             assert(_data && n <= _cap - _end);
             _end += n;
             _written = _end > _written ? _end : _written;
@@ -561,20 +561,20 @@ namespace sgcl::net::tls::detail {
 
         // Done with the record next() gave; the block goes back when nothing
         // else is held
-        void consume() noexcept {
+        SGCL_INLINE_HOT void consume() noexcept {
             _drop();
             release();
         }
 
         // The block given back when it holds nothing (after a read that
         // brought nothing, say)
-        void release() noexcept {
+        SGCL_INLINE_HOT void release() noexcept {
             if (_data && _start == _end && _taken == 0) {
                 _give();
             }
         }
 
-        size_t buffered() const noexcept {
+        SGCL_INLINE_HOT size_t buffered() const noexcept {
             return _end - _start - _taken;
         }
 
@@ -586,7 +586,7 @@ namespace sgcl::net::tls::detail {
         size_t _taken = 0;
         size_t _written = 0;   // the bytes of the block ever written: what is zeroed when it goes back
 
-        void _drop() noexcept {
+        SGCL_INLINE_HOT void _drop() noexcept {
             if (_taken > 0) {
                 crypto::detail::secure_zero(_data + _start, _taken);
                 _start += _taken;
@@ -605,7 +605,7 @@ namespace sgcl::net::tls::detail {
             _end = _written = rest;
         }
 
-        void _give() noexcept {
+        SGCL_INLINE_HOT void _give() noexcept {
             if (_data) {
                 RecordBlocks::give(_data, _cap, _written);
                 _data = nullptr;
@@ -691,7 +691,7 @@ namespace sgcl::net::tls::detail {
 
         // The keys of the direction change (§5.1): nothing may be left of a
         // message read under the old ones, whole or in part
-        [[nodiscard]] expected<void, Alert> on_key_change() noexcept {
+        [[nodiscard]] SGCL_INLINE_HOT expected<void, Alert> on_key_change() noexcept {
             _drop();
             if (_end > _start) {
                 return unexpected(record_alert(AlertDescription::unexpected_message, "a handshake message not aligned with a change of keys"));
@@ -700,7 +700,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // Whether a message, whole or in part, waits
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _end - _start == _taken;
         }
 
@@ -711,7 +711,7 @@ namespace sgcl::net::tls::detail {
         size_t _taken = 0;
         Epoch _epoch = Epoch::initial;
 
-        void _drop() noexcept {
+        SGCL_INLINE_HOT void _drop() noexcept {
             if (_taken > 0) {
                 crypto::detail::secure_zero(_buffer->data() + _start, _taken);
                 _start += _taken;

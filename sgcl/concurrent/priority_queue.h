@@ -70,7 +70,7 @@ namespace sgcl::concurrent {
         // The heap's order: the greatest of the heap is the least by
         // Compare, and of two equal the one pushed first
         struct Order {
-            bool operator()(const Entry& a, const Entry& b) const noexcept {
+            SGCL_INLINE_HOT bool operator()(const Entry& a, const Entry& b) const noexcept {
                 if (comp(b.value, a.value)) {
                     return true;
                 }
@@ -88,11 +88,11 @@ namespace sgcl::concurrent {
         using value_compare = Compare;
         using size_type = size_t;
 
-        priority_queue() noexcept(std::is_nothrow_default_constructible_v<Compare> && std::is_nothrow_copy_constructible_v<Compare>)
+        SGCL_INLINE_HOT priority_queue() noexcept(std::is_nothrow_default_constructible_v<Compare> && std::is_nothrow_copy_constructible_v<Compare>)
         : priority_queue(Compare()) {
         }
 
-        explicit priority_queue(const Compare& comp) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
+        SGCL_INLINE_HOT explicit priority_queue(const Compare& comp) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
         : _order{comp} {
         }
 
@@ -104,18 +104,18 @@ namespace sgcl::concurrent {
             }
         }
 
-        priority_queue(std::initializer_list<T> ilist, const Compare& comp = Compare())
+        SGCL_INLINE_HOT priority_queue(std::initializer_list<T> ilist, const Compare& comp = Compare())
         : priority_queue(ilist.begin(), ilist.end(), comp) {
         }
 
         priority_queue(const priority_queue&) = delete;
         priority_queue& operator=(const priority_queue&) = delete;
 
-        void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T> && NothrowMoves) {
+        SGCL_INLINE_HOT void push(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T> && NothrowMoves) {
             emplace(value);
         }
 
-        void push(T&& value) noexcept(NothrowMoves) {
+        SGCL_INLINE_HOT void push(T&& value) noexcept(NothrowMoves) {
             emplace(std::move(value));
         }
 
@@ -169,7 +169,7 @@ namespace sgcl::concurrent {
         }
 
         // A copy of the least element, or nothing when the queue is empty
-        optional<T> try_top() const noexcept(std::is_nothrow_copy_constructible_v<T>) requires std::is_copy_constructible_v<T> {
+        SGCL_INLINE_HOT optional<T> try_top() const noexcept(std::is_nothrow_copy_constructible_v<T>) requires std::is_copy_constructible_v<T> {
             Guard guard(_lock);
             if (_heap.empty()) {
                 return nullopt;
@@ -178,22 +178,22 @@ namespace sgcl::concurrent {
         }
 
         // The number of elements as of the last push or pop completed
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _count.load(std::memory_order_relaxed) == 0;
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _count.load(std::memory_order_relaxed);
         }
 
         // Every element destroyed
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             Guard guard(_lock);
             _heap.clear();
             _count.store(0, std::memory_order_relaxed);
         }
 
-        value_compare value_comp() const noexcept(std::is_nothrow_copy_constructible_v<Compare>) {
+        SGCL_INLINE_HOT value_compare value_comp() const noexcept(std::is_nothrow_copy_constructible_v<Compare>) {
             return _order.comp;
         }
 
@@ -226,7 +226,7 @@ namespace sgcl::concurrent {
                 }
             }
 
-            void unlock() noexcept {
+            SGCL_INLINE_HOT void unlock() noexcept {
                 if (word.exchange(0, std::memory_order_release) == 2) {
                     word.notify_one();
                 }
@@ -237,8 +237,8 @@ namespace sgcl::concurrent {
 
         struct Guard {
             Lock& lock;
-            explicit Guard(Lock& l) noexcept : lock(l) { lock.lock(); }
-            ~Guard() { lock.unlock(); }
+            SGCL_INLINE_HOT explicit Guard(Lock& l) noexcept : lock(l) { lock.lock(); }
+            SGCL_INLINE_HOT ~Guard() { lock.unlock(); }
         };
 
         // The element at the back of the heap sifted up to its place: the

@@ -36,7 +36,7 @@ namespace sgcl::crypto::detail {
         uint64_t length;
         uint32_t used;
 
-        void init(const word* iv) noexcept {
+        SGCL_INLINE_HOT void init(const word* iv) noexcept {
             std::memcpy(state, iv, sizeof state);
             length = 0;
             used = 0;

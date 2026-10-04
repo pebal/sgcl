@@ -46,12 +46,12 @@ namespace sgcl::math::detail {
     // (mul_scratch); a debug build checks it is enough.
     class Arena {
     public:
-        Arena(Limb* p, size_t n) noexcept
+        SGCL_INLINE_HOT Arena(Limb* p, size_t n) noexcept
         : _p(p)
         , _left(n) {
         }
 
-        Limb* take(size_t n) noexcept {
+        SGCL_INLINE_HOT Limb* take(size_t n) noexcept {
             assert(n <= _left);
             Limb* r = _p;
             _p += n;
@@ -337,7 +337,7 @@ namespace sgcl::math::detail {
 
     // r = a · b for an >= bn, r of an + bn limbs, all written, neither a
     // nor b; the road chosen by the shorter length
-    inline void mul_rec(Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn, Arena arena) noexcept {
+    SGCL_INLINE_HOT void mul_rec(Limb* r, const Limb* a, size_t an, const Limb* b, size_t bn, Arena arena) noexcept {
         assert(an >= bn);
         if (bn < std::max<size_t>(thresholds.karatsuba, 2)) {
             mul_basecase(r, a, an, b, bn);
@@ -350,7 +350,7 @@ namespace sgcl::math::detail {
         }
     }
 
-    inline void sqr_rec(Limb* r, const Limb* a, size_t n, Arena arena) noexcept {
+    SGCL_INLINE_HOT void sqr_rec(Limb* r, const Limb* a, size_t n, Arena arena) noexcept {
         if (n < std::max<size_t>(thresholds.square_karatsuba, 2)) {
             sqr_basecase(r, a, n);
         } else if (n < std::max<size_t>(thresholds.square_toom3, 3)) {
@@ -380,7 +380,7 @@ namespace sgcl::math::detail {
     }
 
     // The working memory mul above wants for operands of these lengths
-    inline size_t mul_scratch(size_t an, size_t bn) noexcept {
+    SGCL_INLINE_HOT size_t mul_scratch(size_t an, size_t bn) noexcept {
         size_t longer = std::max(an, bn);
         size_t shorter = std::min(an, bn);
         return mul_scratch(std::min(longer, 2 * shorter));

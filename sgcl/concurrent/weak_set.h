@@ -38,22 +38,22 @@ namespace sgcl::concurrent {
 
         weak_set() = default;
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(_table.begin(), _table.end());
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             return iterator(_table.end(), _table.end());
         }
 
-        iterator find(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT iterator find(const key_pointer& object) noexcept {
             return object ? iterator(_table.find(object), _table.end()) : end();
         }
 
         // The object added, unless it is in the set: its entry and
         // whether it was added; of two threads adding the same object
         // exactly one gets true. A null pointer is not an object.
-        pair<iterator, bool> insert(const key_pointer& object) noexcept {
+        SGCL_INLINE_HOT pair<iterator, bool> insert(const key_pointer& object) noexcept {
             assert(object && "a weak_set has no entry for a null pointer");
             auto [it, inserted] = _table._insert_absent(object, [&] {   // one search: the node, with its weak cell, made only when the object has no entry
                 return _table._make_node(this->_key(object));
@@ -64,7 +64,7 @@ namespace sgcl::concurrent {
             return {iterator(it, _table.end()), inserted};
         }
 
-        iterator erase(iterator pos) noexcept {
+        SGCL_INLINE_HOT iterator erase(iterator pos) noexcept {
             return iterator(_table.erase(pos.inner()), _table.end());
         }
 

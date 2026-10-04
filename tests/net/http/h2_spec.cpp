@@ -9,6 +9,7 @@
 // the tests are skipped. Each run is bounded by h2spec's own timeout per
 // case (-o 2) and by `timeout` around it.
 #include "tests/types.h"
+#include "tests/source_root.h"
 #include "sgcl/net/http/http.h"
 
 #include <cstdio>
@@ -23,7 +24,7 @@ using namespace sgcl;
 
 namespace {
     std::string testdata(const std::string& name) {
-        return (std::filesystem::path(__FILE__).parent_path().parent_path() / "tls_testdata" / name).string();
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     std::string slurp(const std::string& path) {

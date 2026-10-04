@@ -16,6 +16,7 @@
 // connection by reference: a tracked handle is never copied into a
 // std::thread's state.
 #include "tests/types.h"
+#include "tests/source_root.h"
 
 #include "sgcl/net/tls.h"
 
@@ -35,8 +36,7 @@ namespace {
     using bytes_t = std::vector<uint8_t>;
 
     std::string testdata(const std::string& name) {
-        std::string f = __FILE__;
-        return f.substr(0, f.rfind('/')) + "/tls_testdata/" + name;
+        return (source_root() / "tests/net/tls_testdata" / name).string();
     }
 
     std::string slurp(const std::string& path) {

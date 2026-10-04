@@ -76,7 +76,7 @@ namespace sgcl::math {
     // past a million) and a sentence saying so
     class parse_error {
     public:
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _offset;
         }
 
@@ -114,7 +114,7 @@ namespace sgcl::math {
             exponent_out_of_range
         };
 
-        parse_error(Reason reason, size_t offset, int base) noexcept
+        SGCL_INLINE_HOT parse_error(Reason reason, size_t offset, int base) noexcept
         : _offset(offset)
         , _base(base)
         , _reason(reason) {
@@ -147,7 +147,7 @@ namespace sgcl::math {
 
     public:
         // Zero
-        big_integer() noexcept
+        SGCL_INLINE_HOT big_integer() noexcept
         : _value(0) {
         }
 
@@ -201,7 +201,7 @@ namespace sgcl::math {
         // bad_expected_access<parse_error> with parse's message. Input is
         // parsed; a text the program itself wrote is constructed
         // (DESIGN 234)
-        explicit big_integer(const string& text, int base = 10)
+        SGCL_INLINE_HOT explicit big_integer(const string& text, int base = 10)
         : big_integer(parse(text, base).value()) {
         }
 
@@ -212,13 +212,13 @@ namespace sgcl::math {
         // A copy shares the object and marks it shared; a move hands it on
         // and leaves zero behind, so that one value only ever holds an
         // object it may change (the class comment)
-        big_integer(const big_integer& other) noexcept
+        SGCL_INLINE_HOT big_integer(const big_integer& other) noexcept
         : _limbs(other._limbs)
         , _value(other._value) {
             other._share();
         }
 
-        big_integer(big_integer&& other) noexcept
+        SGCL_INLINE_HOT big_integer(big_integer&& other) noexcept
         : _limbs(std::move(other._limbs))
         , _value(other._value) {
             if (_limbs) {
@@ -227,7 +227,7 @@ namespace sgcl::math {
             }
         }
 
-        big_integer& operator=(const big_integer& other) noexcept {
+        SGCL_INLINE_HOT big_integer& operator=(const big_integer& other) noexcept {
             if (this != &other) {
                 _limbs = other._limbs;
                 _value = other._value;
@@ -236,7 +236,7 @@ namespace sgcl::math {
             return *this;
         }
 
-        big_integer& operator=(big_integer&& other) noexcept {
+        SGCL_INLINE_HOT big_integer& operator=(big_integer&& other) noexcept {
             if (this != &other) {
                 _limbs = std::move(other._limbs);
                 _value = other._value;
@@ -251,7 +251,7 @@ namespace sgcl::math {
         // Arithmetic, as int's but for overflow, which does not happen: /
         // cuts towards zero and % takes the sign of the dividend, as in
         // C++; a division by zero is domain_error
-        friend big_integer operator+(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend big_integer operator+(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs && !b._limbs) {
                 int64_t r;
                 if (!__builtin_add_overflow(a._value, b._value, &r)) {
@@ -262,7 +262,7 @@ namespace sgcl::math {
             return _add(a, b, false);
         }
 
-        friend big_integer operator-(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend big_integer operator-(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs && !b._limbs) {
                 int64_t r;
                 if (!__builtin_sub_overflow(a._value, b._value, &r)) {
@@ -273,7 +273,7 @@ namespace sgcl::math {
             return _add(a, b, true);
         }
 
-        friend big_integer operator*(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend big_integer operator*(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs && !b._limbs) {
                 int64_t r;
                 if (!__builtin_mul_overflow(a._value, b._value, &r)) {
@@ -284,19 +284,19 @@ namespace sgcl::math {
             return _mul(a, b);
         }
 
-        friend big_integer operator/(const big_integer& a, const big_integer& b) {
+        SGCL_INLINE_HOT friend big_integer operator/(const big_integer& a, const big_integer& b) {
             big_integer q;
             _divide(a, b, &q, nullptr);
             return q;
         }
 
-        friend big_integer operator%(const big_integer& a, const big_integer& b) {
+        SGCL_INLINE_HOT friend big_integer operator%(const big_integer& a, const big_integer& b) {
             big_integer r;
             _divide(a, b, nullptr, &r);
             return r;
         }
 
-        big_integer operator-() const noexcept {
+        SGCL_INLINE_HOT big_integer operator-() const noexcept {
             if (!_limbs) {
                 if (_value == INT64_MIN) {
                     return _of_unsigned(uint64_t(1) << 63, false);
@@ -310,50 +310,50 @@ namespace sgcl::math {
             return big_integer(_limbs, -_value);
         }
 
-        big_integer& operator+=(const big_integer& b) noexcept {
+        SGCL_INLINE_HOT big_integer& operator+=(const big_integer& b) noexcept {
             if (!_add_in_place(b, false)) {
                 *this = *this + b;
             }
             return *this;
         }
 
-        big_integer& operator-=(const big_integer& b) noexcept {
+        SGCL_INLINE_HOT big_integer& operator-=(const big_integer& b) noexcept {
             if (!_add_in_place(b, true)) {
                 *this = *this - b;
             }
             return *this;
         }
 
-        big_integer& operator*=(const big_integer& b) noexcept {
+        SGCL_INLINE_HOT big_integer& operator*=(const big_integer& b) noexcept {
             if (!_mul_in_place(b)) {
                 *this = *this * b;
             }
             return *this;
         }
 
-        big_integer& operator/=(const big_integer& b) {
+        SGCL_INLINE_HOT big_integer& operator/=(const big_integer& b) {
             return *this = *this / b;
         }
 
-        big_integer& operator%=(const big_integer& b) {
+        SGCL_INLINE_HOT big_integer& operator%=(const big_integer& b) {
             return *this = *this % b;
         }
 
-        big_integer& operator++() noexcept {
+        SGCL_INLINE_HOT big_integer& operator++() noexcept {
             return *this = *this + 1;
         }
 
-        big_integer& operator--() noexcept {
+        SGCL_INLINE_HOT big_integer& operator--() noexcept {
             return *this = *this - 1;
         }
 
-        big_integer operator++(int) noexcept {
+        SGCL_INLINE_HOT big_integer operator++(int) noexcept {
             big_integer old = *this;
             ++*this;
             return old;
         }
 
-        big_integer operator--(int) noexcept {
+        SGCL_INLINE_HOT big_integer operator--(int) noexcept {
             big_integer old = *this;
             --*this;
             return old;
@@ -362,28 +362,28 @@ namespace sgcl::math {
         // The bits as two's complement stretching without end to the left,
         // as in Go and Python: -1 is all ones, ~a is -a - 1, and & | ^ of
         // negative numbers answer what they would on an int wide enough
-        friend big_integer operator&(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend big_integer operator&(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs && !b._limbs) {
                 return big_integer(a._value & b._value);
             }
             return _bitwise(a, b, std::bit_and<Limb>());
         }
 
-        friend big_integer operator|(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend big_integer operator|(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs && !b._limbs) {
                 return big_integer(a._value | b._value);
             }
             return _bitwise(a, b, std::bit_or<Limb>());
         }
 
-        friend big_integer operator^(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend big_integer operator^(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs && !b._limbs) {
                 return big_integer(a._value ^ b._value);
             }
             return _bitwise(a, b, std::bit_xor<Limb>());
         }
 
-        big_integer operator~() const noexcept {
+        SGCL_INLINE_HOT big_integer operator~() const noexcept {
             if (!_limbs) {
                 return big_integer(~_value);
             }
@@ -397,7 +397,7 @@ namespace sgcl::math {
         // count of an unsigned type is never negative, however large
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-        friend big_integer operator<<(const big_integer& a, T bits) {
+        SGCL_INLINE_HOT friend big_integer operator<<(const big_integer& a, T bits) {
             return _shift_left(a, _count(bits));
         }
 
@@ -405,38 +405,38 @@ namespace sgcl::math {
         // shift of an int does): -1 >> 100 is -1; the count as for <<
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-        friend big_integer operator>>(const big_integer& a, T bits) noexcept(std::is_unsigned_v<T>) {
+        SGCL_INLINE_HOT friend big_integer operator>>(const big_integer& a, T bits) noexcept(std::is_unsigned_v<T>) {
             return _shift_right(a, _count(bits));
         }
 
-        big_integer& operator&=(const big_integer& b) noexcept {
+        SGCL_INLINE_HOT big_integer& operator&=(const big_integer& b) noexcept {
             return *this = *this & b;
         }
 
-        big_integer& operator|=(const big_integer& b) noexcept {
+        SGCL_INLINE_HOT big_integer& operator|=(const big_integer& b) noexcept {
             return *this = *this | b;
         }
 
-        big_integer& operator^=(const big_integer& b) noexcept {
+        SGCL_INLINE_HOT big_integer& operator^=(const big_integer& b) noexcept {
             return *this = *this ^ b;
         }
 
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-        big_integer& operator<<=(T bits) {
+        SGCL_INLINE_HOT big_integer& operator<<=(T bits) {
             return *this = *this << bits;
         }
 
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>) && (sizeof(T) <= 8)
-        big_integer& operator>>=(T bits) noexcept(std::is_unsigned_v<T>) {
+        SGCL_INLINE_HOT big_integer& operator>>=(T bits) noexcept(std::is_unsigned_v<T>) {
             return *this = *this >> bits;
         }
 
         // The order of the numbers. With a whole number of the language on
         // either side no big_integer is made for it, so a < 10 and a == 0 cost
         // a comparison of words
-        friend bool operator==(const big_integer& a, const big_integer& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const big_integer& a, const big_integer& b) noexcept {
             if (!a._limbs || !b._limbs) {
                 return !a._limbs && !b._limbs && a._value == b._value;
             }
@@ -472,7 +472,7 @@ namespace sgcl::math {
 
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        friend bool operator==(const big_integer& a, T b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const big_integer& a, T b) noexcept {
             if constexpr (sizeof(T) <= 8) {
                 __int128 v;
                 return a._as_wide(v) && v == __int128(b);
@@ -483,7 +483,7 @@ namespace sgcl::math {
 
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        friend std::strong_ordering operator<=>(const big_integer& a, T b) noexcept {
+        SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const big_integer& a, T b) noexcept {
             if constexpr (sizeof(T) <= 8) {
                 __int128 v;
                 if (a._as_wide(v)) {
@@ -496,19 +496,19 @@ namespace sgcl::math {
         }
 
         // -1, 0 or 1
-        int sign() const noexcept {
+        SGCL_INLINE_HOT int sign() const noexcept {
             if (!_limbs) {
                 return (_value > 0) - (_value < 0);
             }
             return _value > 0 ? 1 : -1;
         }
 
-        big_integer abs() const noexcept {
+        SGCL_INLINE_HOT big_integer abs() const noexcept {
             return sign() < 0 ? -*this : *this;
         }
 
         // The quotient and the remainder of one division: {a / d, a % d}
-        pair<big_integer, big_integer> div_rem(const big_integer& d) const {
+        SGCL_INLINE_HOT pair<big_integer, big_integer> div_rem(const big_integer& d) const {
             big_integer q;
             big_integer r;
             _divide(*this, d, &q, &r);
@@ -518,7 +518,7 @@ namespace sgcl::math {
         // The remainder in [0, |m|), whatever the signs — the one modular
         // arithmetic wants (Go's Mod, Java's mod); m == 0 is
         // domain_error
-        big_integer mod(const big_integer& m) const {
+        SGCL_INLINE_HOT big_integer mod(const big_integer& m) const {
             big_integer r = *this % m;
             if (r.sign() < 0) {
                 r += m.abs();
@@ -582,7 +582,7 @@ namespace sgcl::math {
 
         // The bits of the magnitude, as Go's BitLen: 0 for zero, 8 for 255
         // and for -255
-        size_t bit_length() const noexcept {
+        SGCL_INLINE_HOT size_t bit_length() const noexcept {
             size_t n;
             Limb room;
             const Limb* p = _magnitude(room, n);
@@ -591,7 +591,7 @@ namespace sgcl::math {
 
         // How many zero bits are below the lowest one (of the magnitude,
         // which for this question is the two's complement too); 0 for zero
-        size_t trailing_zeros() const noexcept {
+        SGCL_INLINE_HOT size_t trailing_zeros() const noexcept {
             size_t n;
             Limb room;
             const Limb* p = _magnitude(room, n);
@@ -628,7 +628,7 @@ namespace sgcl::math {
         // The digits in the base (2 to 36, small letters), with a minus in
         // front of a negative number; a base outside that is
         // invalid_argument
-        string to_string(int base = 10) const {
+        SGCL_INLINE_HOT string to_string(int base = 10) const {
             _check_base(base);
             std::string out;
             _append(out, base);
@@ -643,7 +643,7 @@ namespace sgcl::math {
         // The magnitude as bytes, most significant first, as short as it
         // goes (no bytes for zero); the sign is not written — two's
         // complement for ASN.1 is the business of encoding
-        vector<byte> to_bytes() const noexcept {
+        SGCL_INLINE_HOT vector<byte> to_bytes() const noexcept {
             return to_bytes((bit_length() + 7) / 8);
         }
 
@@ -667,14 +667,14 @@ namespace sgcl::math {
         }
 
         // The value, when it fits
-        optional<int64_t> to_int64() const noexcept {
+        SGCL_INLINE_HOT optional<int64_t> to_int64() const noexcept {
             if (!_limbs) {
                 return _value;
             }
             return nullopt;
         }
 
-        optional<uint64_t> to_uint64() const noexcept {
+        SGCL_INLINE_HOT optional<uint64_t> to_uint64() const noexcept {
             if (!_limbs) {
                 if (_value < 0) {
                     return nullopt;
@@ -694,35 +694,35 @@ namespace sgcl::math {
 
     private:
         // A small value, in the second word; the object stays null
-        explicit big_integer(int64_t v, std::true_type) noexcept
+        SGCL_INLINE_HOT explicit big_integer(int64_t v, std::true_type) noexcept
         : _value(v) {
         }
 
-        big_integer(Word limbs, int64_t signed_size) noexcept
+        SGCL_INLINE_HOT big_integer(Word limbs, int64_t signed_size) noexcept
         : _limbs(std::move(limbs))
         , _value(signed_size) {
         }
 
         // The limbs of a large value, past the object's word of flags, and
         // how many there are
-        const Limb* _data() const noexcept {
+        SGCL_INLINE_HOT const Limb* _data() const noexcept {
             return static_cast<const Limb*>(_limbs.get()) + 1;
         }
 
         // The object's word of flags (detail::LimbShared), written by
         // copies of a value that is itself only read, hence atomic
-        std::atomic_ref<Limb> _flags() const noexcept {
+        SGCL_INLINE_HOT std::atomic_ref<Limb> _flags() const noexcept {
             return std::atomic_ref<Limb>(*const_cast<Limb*>(static_cast<const Limb*>(_limbs.get())));
         }
 
-        void _share() const noexcept {
+        SGCL_INLINE_HOT void _share() const noexcept {
             if (_limbs && !(_flags().load(std::memory_order_relaxed) & detail::LimbShared)) {
                 _flags().fetch_or(detail::LimbShared, std::memory_order_relaxed);
             }
         }
 
         // The limbs to write in place: a large value no other has seen
-        Limb* _own_data() noexcept {
+        SGCL_INLINE_HOT Limb* _own_data() noexcept {
             if (!_limbs || (_flags().load(std::memory_order_relaxed) & detail::LimbShared)) {
                 return nullptr;
             }
@@ -733,7 +733,7 @@ namespace sgcl::math {
         // present length, never more than it was made with (a class holds
         // every length up to itself, and a value only grows in place
         // within its room)
-        size_t _capacity() const noexcept {
+        SGCL_INLINE_HOT size_t _capacity() const noexcept {
             return detail::LimbMaker::capacity(_size() + 1) - 1;
         }
 
@@ -760,17 +760,17 @@ namespace sgcl::math {
         bool _add_in_place(const big_integer& b, bool negate_b) noexcept;
         bool _mul_in_place(const big_integer& b) noexcept;
 
-        size_t _size() const noexcept {
+        SGCL_INLINE_HOT size_t _size() const noexcept {
             return size_t(_value < 0 ? -_value : _value);
         }
 
-        Limb _limb(size_t i) const noexcept {
+        SGCL_INLINE_HOT Limb _limb(size_t i) const noexcept {
             return _data()[i];
         }
 
         // The magnitude as limbs: its own for a large value, `room` holding
         // the one limb of a small one (none for zero)
-        const Limb* _magnitude(Limb& room, size_t& n) const noexcept {
+        SGCL_INLINE_HOT const Limb* _magnitude(Limb& room, size_t& n) const noexcept {
             if (_limbs) {
                 n = _size();
                 return _data();
@@ -798,7 +798,7 @@ namespace sgcl::math {
             return false;
         }
 
-        static void _check_base(int base) {
+        SGCL_INLINE_HOT static void _check_base(int base) {
             if (base < 2 || base > 36) {
                 throw invalid_argument("sgcl::math::big_integer: a base outside 2 to 36");
             }
@@ -807,7 +807,7 @@ namespace sgcl::math {
         static big_integer _of_unsigned(uint64_t m, bool negative) noexcept;
         static big_integer _of_wide(unsigned __int128 m, bool negative) noexcept;
 
-        static big_integer _of_signed_wide(__int128 v) noexcept {
+        SGCL_INLINE_HOT static big_integer _of_signed_wide(__int128 v) noexcept {
             bool negative = v < 0;
             return _of_wide(negative ? ~(unsigned __int128)v + 1 : (unsigned __int128)v, negative);
         }
@@ -825,7 +825,7 @@ namespace sgcl::math {
         // A count of bits as an unsigned value; a negative one is an error
         // of the program
         template<class T>
-        static uint64_t _count(T bits) noexcept(std::is_unsigned_v<T>) {
+        SGCL_INLINE_HOT static uint64_t _count(T bits) noexcept(std::is_unsigned_v<T>) {
             if constexpr (std::is_signed_v<T>) {
                 if (bits < 0) {
                     throw domain_error("sgcl::math::big_integer: a shift by a negative count");
@@ -868,20 +868,20 @@ namespace sgcl::math {
         class Result {
         public:
             // An object for n limbs and its word of flags, not shared
-            explicit Result(size_t n) noexcept
+            SGCL_INLINE_HOT explicit Result(size_t n) noexcept
             : _slot(LimbMaker::make(n + 1))
             , _p(static_cast<Limb*>(_slot.get()) + 1) {
                 _p[-1] = 0;
             }
 
-            Limb* data() noexcept {
+            SGCL_INLINE_HOT Limb* data() noexcept {
                 return _p;
             }
 
             // The value of the first n limbs with the sign: small when it
             // fits (the object dropped for the collector), the object's
             // word otherwise
-            big_integer finish(size_t n, bool negative) noexcept {
+            SGCL_INLINE_HOT big_integer finish(size_t n, bool negative) noexcept {
                 n = normalized(_p, n);
                 if (n <= 1) {
                     Limb m = n ? _p[0] : 0;
@@ -904,7 +904,7 @@ namespace sgcl::math {
         // code outside the class (random's bounded draw of a big_integer, the
         // number theory of the stages to come)
         struct BigIntAccess {
-            static const Limb* magnitude(const big_integer& a, Limb& room, size_t& n) noexcept {
+            SGCL_INLINE_HOT static const Limb* magnitude(const big_integer& a, Limb& room, size_t& n) noexcept {
                 return a._magnitude(room, n);
             }
 
@@ -932,7 +932,7 @@ namespace sgcl::math {
         constexpr size_t MaxLimbs = size_t(1) << 46;
     }
 
-    inline big_integer big_integer::_of_unsigned(uint64_t m, bool negative) noexcept {
+    SGCL_INLINE_HOT big_integer big_integer::_of_unsigned(uint64_t m, bool negative) noexcept {
         if (m <= uint64_t(INT64_MAX)) {
             return big_integer(negative ? -int64_t(m) : int64_t(m), std::true_type{});
         }
@@ -944,7 +944,7 @@ namespace sgcl::math {
         return r.finish(1, negative);
     }
 
-    inline big_integer big_integer::_of_wide(unsigned __int128 m, bool negative) noexcept {
+    SGCL_INLINE_HOT big_integer big_integer::_of_wide(unsigned __int128 m, bool negative) noexcept {
         if (!(m >> 64)) {
             return _of_unsigned(uint64_t(m), negative);
         }
@@ -1496,7 +1496,7 @@ namespace sgcl::math {
         return x;
     }
 
-    inline big_integer big_integer::sqrt() const {
+    SGCL_INLINE_HOT big_integer big_integer::sqrt() const {
         if (sign() < 0) {
             throw domain_error("sgcl::math::big_integer::sqrt: the square root of a negative number");
         }
@@ -1524,7 +1524,7 @@ namespace sgcl::math {
         return r.finish(n, false);
     }
 
-    inline big_integer big_integer::lcm(const big_integer& other) const noexcept {
+    SGCL_INLINE_HOT big_integer big_integer::lcm(const big_integer& other) const noexcept {
         if (sign() == 0 || other.sign() == 0) {
             return 0;
         }
@@ -1724,12 +1724,12 @@ namespace sgcl::math {
         // (2^52 bits, MaxLimbs), bits a lower bound of its length: what
         // factorial and binomial refuse before anything is computed, as pow
         // refuses its own
-        inline bool past_longest(double bits) noexcept {
+        SGCL_INLINE_HOT bool past_longest(double bits) noexcept {
             return bits > double(64 * MaxLimbs);
         }
     }
 
-    inline big_integer big_integer::factorial(int64_t n) {
+    SGCL_INLINE_HOT big_integer big_integer::factorial(int64_t n) {
         if (n < 0) {
             throw domain_error("sgcl::math::big_integer::factorial: a negative number");
         }
@@ -1872,7 +1872,7 @@ namespace sgcl::math {
     }
 
     template<char... C>
-    big_integer literals::operator""_big() noexcept {
+    SGCL_INLINE_HOT big_integer literals::operator""_big() noexcept {
         return detail::Literal<C...>::make();
     }
 
@@ -1976,19 +1976,19 @@ namespace sgcl::math {
 // is compiled; the writing is format_value's, above
 template<>
 struct sgcl::txt::formatter<sgcl::math::big_integer> {
-    static constexpr bool takes(char type) noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
         return !type || type == 'd' || type == 'b' || type == 'B' || type == 'o'
             || type == 'x' || type == 'X';
     }
 
-    static constexpr bool takes_precision() noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
         return false;
     }
 };
 
 template<>
 struct std::hash<sgcl::math::big_integer> {
-    size_t operator()(const sgcl::math::big_integer& v) const noexcept {
+    SGCL_INLINE_HOT size_t operator()(const sgcl::math::big_integer& v) const noexcept {
         return v._hash();
     }
 };

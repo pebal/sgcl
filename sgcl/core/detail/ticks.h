@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -41,7 +43,7 @@
 // time (the CPU baseline of the library).
 namespace sgcl::detail {
     namespace ticks_detail {
-        inline uint64_t steady_nanoseconds() noexcept {
+        SGCL_INLINE_HOT uint64_t steady_nanoseconds() noexcept {
             return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         }
 
@@ -119,12 +121,12 @@ namespace sgcl::detail {
 #endif
     }
 
-    inline double ticks_per_microsecond() noexcept {
+    SGCL_INLINE_HOT double ticks_per_microsecond() noexcept {
         return double(ticks_per_second()) / 1e6;
     }
 
     // The ticks of `us` microseconds, without rounding a fractional rate
-    inline uint64_t ticks_of_microseconds(uint64_t us) noexcept {
+    SGCL_INLINE_HOT uint64_t ticks_of_microseconds(uint64_t us) noexcept {
         const uint64_t rate = ticks_per_second();
         return rate / 1000000 * us + rate % 1000000 * us / 1000000;
     }

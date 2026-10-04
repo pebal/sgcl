@@ -130,7 +130,7 @@ namespace sgcl {
             using pointer = U*;
             using reference = U&;
 
-            Iterator() noexcept
+            SGCL_INLINE_HOT Iterator() noexcept
             : _map(nullptr)
             , _index(0)
             , _elem(nullptr) {
@@ -143,24 +143,24 @@ namespace sgcl {
             // collector scans the stack conservatively, and a temporary
             // left behind in a frame would count as a root until the word
             // is overwritten.
-            ~Iterator() noexcept {
+            SGCL_INLINE_HOT ~Iterator() noexcept {
                 _map = nullptr;
                 _elem = nullptr;
             }
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 return *_elem;
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return _elem;
             }
 
-            reference operator[](difference_type n) const noexcept {
+            SGCL_INLINE_HOT reference operator[](difference_type n) const noexcept {
                 return *_elem_at(_index + n);
             }
 
-            Iterator& operator++() noexcept {
+            SGCL_INLINE_HOT Iterator& operator++() noexcept {
                 ++_index;
                 if (_index % BlockSize) {
                     ++_elem;
@@ -170,13 +170,13 @@ namespace sgcl {
                 return *this;
             }
 
-            Iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT Iterator operator++(int) noexcept {
                 Iterator tmp = *this;
                 ++*this;
                 return tmp;
             }
 
-            Iterator& operator--() noexcept {
+            SGCL_INLINE_HOT Iterator& operator--() noexcept {
                 if (_index % BlockSize) {
                     --_elem;
                 } else {
@@ -186,41 +186,41 @@ namespace sgcl {
                 return *this;
             }
 
-            Iterator operator--(int) noexcept {
+            SGCL_INLINE_HOT Iterator operator--(int) noexcept {
                 Iterator tmp = *this;
                 --*this;
                 return tmp;
             }
 
-            Iterator& operator+=(difference_type n) noexcept {
+            SGCL_INLINE_HOT Iterator& operator+=(difference_type n) noexcept {
                 _index += n;
                 _elem = _elem_at(_index);
                 return *this;
             }
 
-            Iterator& operator-=(difference_type n) noexcept {
+            SGCL_INLINE_HOT Iterator& operator-=(difference_type n) noexcept {
                 _index -= n;
                 _elem = _elem_at(_index);
                 return *this;
             }
 
-            Iterator operator+(difference_type n) const noexcept {
+            SGCL_INLINE_HOT Iterator operator+(difference_type n) const noexcept {
                 return Iterator(_map, _index + n);
             }
 
-            Iterator operator-(difference_type n) const noexcept {
+            SGCL_INLINE_HOT Iterator operator-(difference_type n) const noexcept {
                 return Iterator(_map, _index - n);
             }
 
-            friend Iterator operator+(difference_type n, const Iterator& i) noexcept {
+            SGCL_INLINE_HOT friend Iterator operator+(difference_type n, const Iterator& i) noexcept {
                 return i + n;
             }
 
-            difference_type operator-(const Iterator& other) const noexcept {
+            SGCL_INLINE_HOT difference_type operator-(const Iterator& other) const noexcept {
                 return difference_type(_index) - difference_type(other._index);
             }
 
-            operator Iterator<const value_type>() const noexcept {
+            SGCL_INLINE_HOT operator Iterator<const value_type>() const noexcept {
                 return Iterator<const value_type>(_map, _index, _elem);
             }
 
@@ -228,13 +228,13 @@ namespace sgcl {
             // Without a map (an empty deque that never held anything) the
             // iterator is the end, whatever the index: begin() + 0,
             // `it += 0` and the like read no entry (_block below)
-            Iterator(BlockPtr* map, size_t index) noexcept
+            SGCL_INLINE_HOT Iterator(BlockPtr* map, size_t index) noexcept
             : _map(map)
             , _index(index)
             , _elem(_elem_at(index)) {
             }
 
-            Iterator(BlockPtr* map, size_t index, value_type* elem) noexcept
+            SGCL_INLINE_HOT Iterator(BlockPtr* map, size_t index, value_type* elem) noexcept
             : _map(map)
             , _index(index)
             , _elem(elem) {
@@ -244,14 +244,14 @@ namespace sgcl {
             // plain load of the map; null when the block is not allocated,
             // which is the end at a block boundary, and when there is no
             // map at all (the end of a deque that never held anything).
-            value_type* _block(size_t index) const noexcept {
+            SGCL_INLINE_HOT value_type* _block(size_t index) const noexcept {
                 return _map ? reinterpret_cast<value_type*>(_map[index / BlockSize].get()) : nullptr;
             }
 
             // The slot `index`, or null for an end whose block is not
             // there: no arithmetic on a null block (the end's _elem is
             // null, compared by index and never dereferenced)
-            value_type* _elem_at(size_t index) const noexcept {
+            SGCL_INLINE_HOT value_type* _elem_at(size_t index) const noexcept {
                 value_type* b = _block(index);
                 return b ? b + index % BlockSize : nullptr;
             }
@@ -260,11 +260,11 @@ namespace sgcl {
             size_t _index;
             value_type* _elem;
 
-            friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
                 return lhs._index == rhs._index;
             }
 
-            friend std::strong_ordering operator<=>(const Iterator& lhs, const Iterator& rhs) noexcept {
+            SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const Iterator& lhs, const Iterator& rhs) noexcept {
                 return lhs._index <=> rhs._index;
             }
 
@@ -285,7 +285,7 @@ namespace sgcl {
         using reverse_iterator = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-        deque() noexcept
+        SGCL_INLINE_HOT deque() noexcept
         : _map_size(0)
         , _start(0)
         , _size(0) {
@@ -330,19 +330,19 @@ namespace sgcl {
         // container is copied by its own constructor, not this one
         template<std::ranges::input_range R>
         requires (!std::is_same_v<std::remove_cvref_t<R>, deque>) && std::is_constructible_v<T, std::ranges::range_reference_t<R>>
-        explicit deque(R&& r)
+        SGCL_INLINE_HOT explicit deque(R&& r)
         : deque(std::ranges::begin(r), std::ranges::end(r)) {
         }
 
-        deque(std::initializer_list<T> ilist)
+        SGCL_INLINE_HOT deque(std::initializer_list<T> ilist)
         : deque(ilist.begin(), ilist.end()) {
         }
 
-        deque(const deque& other)
+        SGCL_INLINE_HOT deque(const deque& other)
         : deque(other.begin(), other.end()) {
         }
 
-        deque(deque&& other) noexcept
+        SGCL_INLINE_HOT deque(deque&& other) noexcept
         : _map(std::move(other._map))
         , _map_size(other._map_size)
         , _start(other._start)
@@ -357,13 +357,13 @@ namespace sgcl {
         // sweep (_destroy_all): its blocks are garbage of the same sweep,
         // possibly destroyed already, and destroy the elements they still
         // hold themselves.
-        ~deque() {
+        SGCL_INLINE_HOT ~deque() {
             if (_map) {
                 _destroy_all();
             }
         }
 
-        deque& operator=(const deque& other) {
+        SGCL_INLINE_HOT deque& operator=(const deque& other) {
             if (this != &other) {
                 assign(other.begin(), other.end());
             }
@@ -385,7 +385,7 @@ namespace sgcl {
             return *this;
         }
 
-        deque& operator=(std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT deque& operator=(std::initializer_list<T> ilist) {
             assign(ilist);
             return *this;
         }
@@ -418,115 +418,115 @@ namespace sgcl {
             }
         }
 
-        void assign(std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT void assign(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
         }
 
-        reference at(size_type pos) {
+        SGCL_INLINE_HOT reference at(size_type pos) {
             if (pos >= _size) {
                 throw out_of_range("sgcl::deque::at");
             }
             return _value(pos);
         }
 
-        const_reference at(size_type pos) const {
+        SGCL_INLINE_HOT const_reference at(size_type pos) const {
             if (pos >= _size) {
                 throw out_of_range("sgcl::deque::at");
             }
             return _value(pos);
         }
 
-        reference operator[](size_type pos) noexcept {
+        SGCL_INLINE_HOT reference operator[](size_type pos) noexcept {
             return _value(pos);
         }
 
-        const_reference operator[](size_type pos) const noexcept {
+        SGCL_INLINE_HOT const_reference operator[](size_type pos) const noexcept {
             return _value(pos);
         }
 
-        reference front() noexcept {
+        SGCL_INLINE_HOT reference front() noexcept {
             return _value(0);
         }
 
-        const_reference front() const noexcept {
+        SGCL_INLINE_HOT const_reference front() const noexcept {
             return _value(0);
         }
 
-        reference back() noexcept {
+        SGCL_INLINE_HOT reference back() noexcept {
             return _value(_size - 1);
         }
 
-        const_reference back() const noexcept {
+        SGCL_INLINE_HOT const_reference back() const noexcept {
             return _value(_size - 1);
         }
 
-        iterator begin() noexcept {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             auto map = _map.get_plain();
             return map ? iterator(map, _start) : iterator();
         }
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             auto map = _map.get_plain();
             return map ? const_iterator(map, _start) : const_iterator();
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        iterator end() noexcept {
+        SGCL_INLINE_HOT iterator end() noexcept {
             auto map = _map.get_plain();
             return map ? iterator(map, _start + _size) : iterator();
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             auto map = _map.get_plain();
             return map ? const_iterator(map, _start + _size) : const_iterator();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        reverse_iterator rbegin() noexcept {
+        SGCL_INLINE_HOT reverse_iterator rbegin() noexcept {
             return reverse_iterator(end());
         }
 
-        const_reverse_iterator rbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rbegin() const noexcept {
             return const_reverse_iterator(end());
         }
 
-        const_reverse_iterator crbegin() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept {
             return rbegin();
         }
 
-        reverse_iterator rend() noexcept {
+        SGCL_INLINE_HOT reverse_iterator rend() noexcept {
             return reverse_iterator(begin());
         }
 
-        const_reverse_iterator rend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator rend() const noexcept {
             return const_reverse_iterator(begin());
         }
 
-        const_reverse_iterator crend() const noexcept {
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept {
             return rend();
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _size;
         }
 
-        size_type max_size() const noexcept {
+        SGCL_INLINE_HOT size_type max_size() const noexcept {
             return std::numeric_limits<difference_type>::max();
         }
 
         // Replaces the map by one holding exactly the blocks in use: the
         // spare blocks go.
-        void shrink_to_fit() noexcept {
+        SGCL_INLINE_HOT void shrink_to_fit() noexcept {
             if (!_size) {
                 clear();
                 return;
@@ -537,7 +537,7 @@ namespace sgcl {
             }
         }
 
-        void clear() noexcept {
+        SGCL_INLINE_HOT void clear() noexcept {
             if (_map) {
                 _destroy_all();
             }
@@ -547,11 +547,11 @@ namespace sgcl {
             _size = 0;
         }
 
-        iterator insert(const_iterator pos, const T& value) noexcept(_nothrow_insert<const T&>()) {
+        SGCL_INLINE_HOT iterator insert(const_iterator pos, const T& value) noexcept(_nothrow_insert<const T&>()) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, T&& value) noexcept(_nothrow_insert<T&&>()) {
+        SGCL_INLINE_HOT iterator insert(const_iterator pos, T&& value) noexcept(_nothrow_insert<T&&>()) {
             return emplace(pos, std::move(value));
         }
 
@@ -618,7 +618,7 @@ namespace sgcl {
             }
         }
 
-        iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
+        SGCL_INLINE_HOT iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
             return insert(pos, ilist.begin(), ilist.end());
         }
 
@@ -651,7 +651,7 @@ namespace sgcl {
         // erase(end()) is a no-op that forms no iterator past the end: with
         // one element per block that would read the map entry past the
         // null one
-        iterator erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>) {
+        SGCL_INLINE_HOT iterator erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>) {
             return pos == cend() ? end() : erase(pos, pos + 1);
         }
 
@@ -675,11 +675,11 @@ namespace sgcl {
             return begin() + index;
         }
 
-        void push_back(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT void push_back(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_back(value);
         }
 
-        void push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_back(std::move(value));
         }
 
@@ -724,11 +724,11 @@ namespace sgcl {
             }
         }
 
-        void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
+        SGCL_INLINE_HOT void push_front(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>) {
             emplace_front(value);
         }
 
-        void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT void push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) {
             emplace_front(std::move(value));
         }
 
@@ -798,7 +798,7 @@ namespace sgcl {
             }
         }
 
-        void swap(deque& other) noexcept {
+        SGCL_INLINE_HOT void swap(deque& other) noexcept {
             _map.swap(other._map);
             std::swap(_map_size, other._map_size);
             std::swap(_start, other._start);
@@ -813,7 +813,7 @@ namespace sgcl {
 
         // The map and the blocks are this thread's own (tracked_ptr.h:
         // get_plain): plain loads, which the compiler may keep in a loop
-        T& _elem(size_type i) const noexcept {
+        SGCL_INLINE_HOT T& _elem(size_type i) const noexcept {
             auto index = _start + i;
             return _map.get_plain()[index / BlockSize].get_plain()->elems[index % BlockSize];
         }
@@ -836,17 +836,17 @@ namespace sgcl {
             return false;
         }
 
-        T& _value(size_type i) const noexcept {
+        SGCL_INLINE_HOT T& _value(size_type i) const noexcept {
             return _elem(i);
         }
 
-        static T& _value(T& e) noexcept {
+        SGCL_INLINE_HOT static T& _value(T& e) noexcept {
             return e;
         }
 
         // The blocks the elements occupy, and the spare ones at either end
         // of the map
-        size_t _used_blocks() const noexcept {
+        SGCL_INLINE_HOT size_t _used_blocks() const noexcept {
             return _size ? (_start + _size - 1) / BlockSize - _start / BlockSize + 1 : 0;
         }
 
@@ -854,17 +854,17 @@ namespace sgcl {
         // use and just after the last one (out of the map's range when
         // there is no room for one). For an empty deque, at its block
         // boundary, the one after is the block of the boundary itself.
-        size_t _front_spare() const noexcept {
+        SGCL_INLINE_HOT size_t _front_spare() const noexcept {
             return _start / BlockSize - 1;
         }
 
-        size_t _back_spare() const noexcept {
+        SGCL_INLINE_HOT size_t _back_spare() const noexcept {
             return (_start + _size + BlockSize - 1) / BlockSize;
         }
 
         // A block let go of (its elements destroyed already): the map's
         // word nulled, the block is the collector's
-        void _drop_block(size_t block) noexcept {
+        SGCL_INLINE_HOT void _drop_block(size_t block) noexcept {
             if (block < _map_size) {
                 _map.get_plain()[block] = nullptr;
             }
@@ -872,7 +872,7 @@ namespace sgcl {
 
         // The deque is empty, its last element was in `block`: that block
         // and the spares go, and the deque starts at a block boundary.
-        void _drop_all_blocks(size_t block) noexcept {
+        SGCL_INLINE_HOT void _drop_all_blocks(size_t block) noexcept {
             auto map = _map.get_plain();
             if (block >= 1) {
                 map[block - 1] = nullptr;
@@ -943,7 +943,7 @@ namespace sgcl {
         // element moved out by construction, the others shifted by
         // assignment
         template<class... A>
-        static constexpr bool _nothrow_insert() noexcept {
+        SGCL_INLINE_HOT static constexpr bool _nothrow_insert() noexcept {
             return std::is_nothrow_constructible_v<T, A...> && std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>;
         }
 
@@ -995,14 +995,14 @@ namespace sgcl {
         // Room for one more block at the back: the blocks in use are
         // recentred in the map when it is at most half full, else in a map
         // twice as large.
-        void _grow_back() noexcept {
+        SGCL_INLINE_HOT void _grow_back() noexcept {
             auto used = _used_blocks();
             auto count = _map_size >= 2 * (used + 1) ? _map_size : std::max(2 * _map_size, used + 3);
             _reallocate_map(count, (count - used) / 2);
         }
 
         // The map regrown or re-centred so that a block fits at that end
-        void _grow_front() noexcept {
+        SGCL_INLINE_HOT void _grow_front() noexcept {
             auto used = _used_blocks();
             auto count = _map_size >= 2 * (used + 1) ? _map_size : std::max(2 * _map_size, used + 3);
             _reallocate_map(count, (count - used + 1) / 2);
@@ -1010,7 +1010,7 @@ namespace sgcl {
 
         // A count of elements more than max_size() allows, beside `held`:
         // length_error before anything is built, as std's
-        void _check_size(size_type count, size_type held = 0) const {
+        SGCL_INLINE_HOT void _check_size(size_type count, size_type held = 0) const {
             if (count > max_size() - held) {
                 throw length_error("sgcl::deque");
             }
@@ -1077,12 +1077,12 @@ namespace sgcl {
     };
 
     template<class T>
-    inline void swap(deque<T>& lhs, deque<T>& rhs) noexcept {
+    SGCL_INLINE_HOT void swap(deque<T>& lhs, deque<T>& rhs) noexcept {
         lhs.swap(rhs);
     }
 
     template<class T, class Pred>
-    inline typename deque<T>::size_type erase_if(deque<T>& c, Pred pred) {
+    SGCL_INLINE_HOT typename deque<T>::size_type erase_if(deque<T>& c, Pred pred) {
         auto it = std::remove_if(c.begin(), c.end(), pred);
         auto removed = c.end() - it;
         c.erase(it, c.end());

@@ -84,11 +84,11 @@ namespace sgcl::crypto::detail::rsa_keygen {
         uint64_t s = 0;
         uint64_t mu = 0;
 
-        explicit SmallModulus(uint64_t v = 3) noexcept
+        SGCL_INLINE_HOT explicit SmallModulus(uint64_t v = 3) noexcept
         : s(v), mu(uint64_t(~uint64_t(0) / v)) {
         }
 
-        uint64_t reduce(uint64_t x) const noexcept {
+        SGCL_INLINE_HOT uint64_t reduce(uint64_t x) const noexcept {
             uint64_t q = uint64_t((wide(x) * mu) >> 64);
             uint64_t r = x - q * s;
             uint64_t over = ct_bit_mask(uint64_t(((wide(r) - s) >> 64) & 1) ^ 1);
@@ -136,7 +136,7 @@ namespace sgcl::crypto::detail::rsa_keygen {
             return ok;
         }
 
-        const SmallModulus& e() const noexcept {
+        SGCL_INLINE_HOT const SmallModulus& e() const noexcept {
             return _mods[small_prime_count];
         }
 

@@ -39,7 +39,7 @@ namespace sgcl::math {
     class rational {
     public:
         // Zero
-        rational() noexcept
+        SGCL_INLINE_HOT rational() noexcept
         : _denominator(1) {
         }
 
@@ -47,20 +47,20 @@ namespace sgcl::math {
         // nothing for a value int64_t holds, as big_integer)
         template<std::integral T>
         requires (!std::is_same_v<std::remove_cv_t<T>, bool>)
-        rational(T value) noexcept
+        SGCL_INLINE_HOT rational(T value) noexcept
         : _numerator(value)
         , _denominator(1) {
         }
 
         // n/1, implicitly
-        rational(big_integer value) noexcept
+        SGCL_INLINE_HOT rational(big_integer value) noexcept
         : _numerator(std::move(value))
         , _denominator(1) {
         }
 
         // numerator/denominator in lowest terms, the sign on the numerator;
         // a denominator of zero is domain_error
-        rational(big_integer numerator, big_integer denominator)
+        SGCL_INLINE_HOT rational(big_integer numerator, big_integer denominator)
         : _numerator(std::move(numerator))
         , _denominator(std::move(denominator)) {
             if (_denominator.sign() == 0) {
@@ -97,7 +97,7 @@ namespace sgcl::math {
         // bad_expected_access<parse_error> with parse's message. Input is
         // parsed; a text the program itself wrote is constructed
         // (DESIGN 234)
-        explicit rational(const string& text)
+        SGCL_INLINE_HOT explicit rational(const string& text)
         : rational(parse(text).value()) {
         }
 
@@ -108,35 +108,35 @@ namespace sgcl::math {
         rational(const rational&) noexcept = default;
         rational& operator=(const rational&) noexcept = default;
 
-        rational(rational&& other) noexcept
+        SGCL_INLINE_HOT rational(rational&& other) noexcept
         : rational(static_cast<const rational&>(other)) {
         }
 
-        rational& operator=(rational&& other) noexcept {
+        SGCL_INLINE_HOT rational& operator=(rational&& other) noexcept {
             return *this = static_cast<const rational&>(other);
         }
 
         // The numerator, with the sign, and the denominator, above zero
         // and with no factor in common with it
-        const big_integer& numerator() const noexcept {
+        SGCL_INLINE_HOT const big_integer& numerator() const noexcept {
             return _numerator;
         }
 
-        const big_integer& denominator() const noexcept {
+        SGCL_INLINE_HOT const big_integer& denominator() const noexcept {
             return _denominator;
         }
 
-        friend rational operator+(const rational& a, const rational& b) noexcept {
+        SGCL_INLINE_HOT friend rational operator+(const rational& a, const rational& b) noexcept {
             return _add(a, b, false);
         }
 
-        friend rational operator-(const rational& a, const rational& b) noexcept {
+        SGCL_INLINE_HOT friend rational operator-(const rational& a, const rational& b) noexcept {
             return _add(a, b, true);
         }
 
         // (a/b)·(c/d) with gcd(a, d) and gcd(c, b) taken out first, so the
         // product is in lowest terms without a gcd of the products
-        friend rational operator*(const rational& a, const rational& b) noexcept {
+        SGCL_INLINE_HOT friend rational operator*(const rational& a, const rational& b) noexcept {
             if (a._denominator == 1 && b._denominator == 1) {
                 return rational(a._numerator * b._numerator, Reduced{});
             }
@@ -147,37 +147,37 @@ namespace sgcl::math {
         }
 
         // A division by zero is domain_error
-        friend rational operator/(const rational& a, const rational& b) {
+        SGCL_INLINE_HOT friend rational operator/(const rational& a, const rational& b) {
             return a * b.inverse();
         }
 
-        rational operator-() const noexcept {
+        SGCL_INLINE_HOT rational operator-() const noexcept {
             return rational(Reduced{}, -_numerator, _denominator);
         }
 
-        rational& operator+=(const rational& b) noexcept {
+        SGCL_INLINE_HOT rational& operator+=(const rational& b) noexcept {
             return *this = *this + b;
         }
 
-        rational& operator-=(const rational& b) noexcept {
+        SGCL_INLINE_HOT rational& operator-=(const rational& b) noexcept {
             return *this = *this - b;
         }
 
-        rational& operator*=(const rational& b) noexcept {
+        SGCL_INLINE_HOT rational& operator*=(const rational& b) noexcept {
             return *this = *this * b;
         }
 
-        rational& operator/=(const rational& b) {
+        SGCL_INLINE_HOT rational& operator/=(const rational& b) {
             return *this = *this / b;
         }
 
         // Lowest terms make equality a comparison of the parts
-        friend bool operator==(const rational& a, const rational& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const rational& a, const rational& b) noexcept {
             return a._numerator == b._numerator && a._denominator == b._denominator;
         }
 
         // a/b against c/d as a·d against c·b (the denominators above zero)
-        friend std::strong_ordering operator<=>(const rational& a, const rational& b) noexcept {
+        SGCL_INLINE_HOT friend std::strong_ordering operator<=>(const rational& a, const rational& b) noexcept {
             int sa = a._numerator.sign();
             int sb = b._numerator.sign();
             if (sa != sb) {
@@ -189,12 +189,12 @@ namespace sgcl::math {
             return a._numerator * b._denominator <=> b._numerator * a._denominator;
         }
 
-        rational abs() const noexcept {
+        SGCL_INLINE_HOT rational abs() const noexcept {
             return _numerator.sign() < 0 ? -*this : *this;
         }
 
         // 1/x; the inverse of zero is domain_error
-        rational inverse() const {
+        SGCL_INLINE_HOT rational inverse() const {
             if (_numerator.sign() == 0) {
                 throw domain_error("sgcl::math::rational::inverse: the inverse of zero");
             }
@@ -224,12 +224,12 @@ namespace sgcl::math {
         }
 
         // The largest whole number not above, and the smallest not below
-        big_integer floor() const noexcept {
+        SGCL_INLINE_HOT big_integer floor() const noexcept {
             auto [q, r] = _numerator.div_rem(_denominator);
             return r.sign() < 0 ? q - 1 : q;
         }
 
-        big_integer ceil() const noexcept {
+        SGCL_INLINE_HOT big_integer ceil() const noexcept {
             auto [q, r] = _numerator.div_rem(_denominator);
             return r.sign() > 0 ? q + 1 : q;
         }
@@ -268,12 +268,12 @@ namespace sgcl::math {
         struct Reduced {};
 
         // The parts already in lowest terms, the denominator above zero
-        rational(Reduced, big_integer numerator, big_integer denominator) noexcept
+        SGCL_INLINE_HOT rational(Reduced, big_integer numerator, big_integer denominator) noexcept
         : _numerator(std::move(numerator))
         , _denominator(std::move(denominator)) {
         }
 
-        rational(big_integer whole, Reduced) noexcept
+        SGCL_INLINE_HOT rational(big_integer whole, Reduced) noexcept
         : _numerator(std::move(whole))
         , _denominator(1) {
         }
@@ -325,7 +325,7 @@ namespace sgcl::math {
             return rational(Reduced{}, t / h, bg * (d / h));
         }
 
-        size_t _hash() const noexcept {
+        SGCL_INLINE_HOT size_t _hash() const noexcept {
             std::hash<big_integer> h;
             size_t x = h(_numerator);
             return x ^ (h(_denominator) + 0x9e3779b97f4a7c15ull + (x << 6) + (x >> 2));
@@ -588,7 +588,7 @@ namespace sgcl::math {
         txt::detail::put_padded(out, {text.data(), text.size()}, spec, {head, head_size}, '>');
     }
 
-    inline std::ostream& operator<<(std::ostream& os, const rational& v) {
+    SGCL_INLINE_HOT std::ostream& operator<<(std::ostream& os, const rational& v) {
         auto s = v.to_string();
         return os << std::string_view(s.data(), s.size());
     }
@@ -598,18 +598,18 @@ namespace sgcl::math {
 // is compiled; the writing is format_value's, above
 template<>
 struct sgcl::txt::formatter<sgcl::math::rational> {
-    static constexpr bool takes(char type) noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes(char type) noexcept {
         return !type || type == 'f';
     }
 
-    static constexpr bool takes_precision() noexcept {
+    SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
         return true;
     }
 };
 
 template<>
 struct std::hash<sgcl::math::rational> {
-    size_t operator()(const sgcl::math::rational& v) const noexcept {
+    SGCL_INLINE_HOT size_t operator()(const sgcl::math::rational& v) const noexcept {
         return v._hash();
     }
 };

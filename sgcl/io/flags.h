@@ -53,7 +53,7 @@ namespace sgcl::io {
             { T::parse(s) };
         };
 
-        inline const char* go_number_reason(GoNumber r) noexcept {
+        SGCL_INLINE_HOT const char* go_number_reason(GoNumber r) noexcept {
             return r == GoNumber::range ? "value out of range" : "parse error";
         }
 
@@ -193,7 +193,7 @@ namespace sgcl::io {
     public:
         flags() noexcept = default;
 
-        explicit flags(const string& description) noexcept
+        SGCL_INLINE_HOT explicit flags(const string& description) noexcept
         : _description(description) {
         }
 
@@ -204,13 +204,13 @@ namespace sgcl::io {
         // std::invalid_argument, and so is a name added twice (Go panics)
         template<class T>
             requires detail::FlagValue<T>
-        void add(const string& name, T& target, const string& help) {
+        SGCL_INLINE_HOT void add(const string& name, T& target, const string& help) {
             _add(name, target, help);
         }
 
         // The arguments after the flags, into the vector, in order; the
         // usage lists them last, as "name..."
-        void positional(const string& name, vector<string>& target, const string& help) noexcept {
+        SGCL_INLINE_HOT void positional(const string& name, vector<string>& target, const string& help) noexcept {
             _positional(name, target, help);
         }
 
@@ -259,7 +259,7 @@ namespace sgcl::io {
         // The usage parse prints: "Usage of <program>:", the description,
         // then the flags as Go's PrintDefaults writes them, and the
         // positional arguments last
-        string usage() const noexcept {
+        SGCL_INLINE_HOT string usage() const noexcept {
             auto a = io::args();
             return string(_usage(a.empty() ? std::string("program") : std::string(a[0].data(), a[0].size())));
         }
@@ -290,7 +290,7 @@ namespace sgcl::io {
             _last = node;
         }
 
-        void _positional(const string& name, vector<string>& target, const string& help) noexcept {
+        SGCL_INLINE_HOT void _positional(const string& name, vector<string>& target, const string& help) noexcept {
             _pos_name = name;
             _pos_help = help;
             _pos_target = &target;

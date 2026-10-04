@@ -26,7 +26,7 @@ double run_sgcl(int threads, long n) {
     auto t0 = bench::Clock::now();
     for (int t = 0; t < threads; ++t) {
         ws.emplace_back([&] {
-            sgcl::tracked_ptr<T> keep;
+            sgcl::unique_ptr<T> keep;
             for (long i = 0; i < n; ++i) {
                 keep = sgcl::make_tracked<T>();
             }

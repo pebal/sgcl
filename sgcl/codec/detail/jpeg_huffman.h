@@ -151,7 +151,7 @@ namespace sgcl::codec::detail {
         };
 
         // The typical table of that class and number (0 or 1) into t
-        inline bool build(HuffmanTable& t, bool dc, unsigned number) noexcept {
+        SGCL_INLINE_HOT bool build(HuffmanTable& t, bool dc, unsigned number) noexcept {
             if (dc) {
                 return t.build(number == 0 ? DcLuminanceBits : DcChrominanceBits, DcValues, true);
             }

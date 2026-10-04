@@ -150,7 +150,7 @@ namespace sgcl::net::tls {
 
     // The alert of a tls error, this side's or the peer's; nullopt for
     // another error and for a chain that did not verify
-    inline optional<alert> alert_of(const io::error& e) noexcept {
+    SGCL_INLINE_HOT optional<alert> alert_of(const io::error& e) noexcept {
         if (e.code().category() != category() || (e.code().value() >= 512 && e.code().value() < 1024)) {
             return nullopt;
         }
@@ -158,12 +158,12 @@ namespace sgcl::net::tls {
     }
 
     // Whether the error is an alert the peer sent
-    inline bool is_remote(const io::error& e) noexcept {
+    SGCL_INLINE_HOT bool is_remote(const io::error& e) noexcept {
         return e.code().category() == category() && e.code().value() >= 256 && (e.code().value() < 512 || e.code().value() >= 1024);
     }
 
     // Why the server's chain did not verify, for an error that says so
-    inline optional<crypto::x509::reason> certificate_reason(const io::error& e) noexcept {
+    SGCL_INLINE_HOT optional<crypto::x509::reason> certificate_reason(const io::error& e) noexcept {
         if (e.code().category() != category() || e.code().value() < 512 || e.code().value() >= 1024) {
             return nullopt;
         }

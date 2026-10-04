@@ -44,14 +44,14 @@ namespace sgcl {
         // The value made in place from its arguments
         template<class... A>
         requires std::is_constructible_v<T, A...>
-        explicit rooted(std::in_place_t, A&&... a) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, A...>)
+        SGCL_INLINE_HOT explicit rooted(std::in_place_t, A&&... a) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, A...>)
         : _p(make_tracked<T>(std::forward<A>(a)...)) {
         }
 
         // The value copied or moved in
         template<class U = T>
         requires NotRooted<U> && std::is_constructible_v<T, U&&>
-        rooted(U&& value) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, U>)
+        SGCL_INLINE_HOT rooted(U&& value) noexcept(detail::MakerBase::nothrow_constructible<std::remove_cv_t<T>, U>)
         : _p(make_tracked<T>(std::forward<U>(value))) {
         }
 
@@ -61,26 +61,26 @@ namespace sgcl {
         rooted& operator=(rooted&&) noexcept = default;
         ~rooted() noexcept = default;
 
-        T* get() const noexcept {
+        SGCL_INLINE_HOT T* get() const noexcept {
             return _p.get();
         }
 
-        T& operator*() const noexcept {
+        SGCL_INLINE_HOT T& operator*() const noexcept {
             assert(_p && "a rooted moved from holds nothing");
             return *_p;
         }
 
-        T* operator->() const noexcept {
+        SGCL_INLINE_HOT T* operator->() const noexcept {
             assert(_p && "a rooted moved from holds nothing");
             return _p.get();
         }
 
         // The object as a tracked_ptr, for code that lives where one may
-        tracked_ptr<T> ptr() const noexcept {
+        SGCL_INLINE_HOT tracked_ptr<T> ptr() const noexcept {
             return _p.ptr();
         }
 
-        void swap(rooted& o) noexcept {
+        SGCL_INLINE_HOT void swap(rooted& o) noexcept {
             _p.swap(o._p);
         }
 
@@ -92,7 +92,7 @@ namespace sgcl {
     rooted(T) -> rooted<T>;
 
     template<class T>
-    void swap(rooted<T>& a, rooted<T>& b) noexcept {
+    SGCL_INLINE_HOT void swap(rooted<T>& a, rooted<T>& b) noexcept {
         a.swap(b);
     }
 }

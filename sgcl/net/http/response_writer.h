@@ -130,11 +130,11 @@ namespace sgcl::net::http {
             const http::headers& fields;
             optional<uint64_t> length;
 
-            ResponseFields(int status, const http::headers& fields, optional<uint64_t> length) noexcept
+            SGCL_INLINE_HOT ResponseFields(int status, const http::headers& fields, optional<uint64_t> length) noexcept
             : status(status), fields(fields), length(length) {
             }
 
-            static bool connection_field(std::string_view n) noexcept {
+            SGCL_INLINE_HOT static bool connection_field(std::string_view n) noexcept {
                 return iequal(n, "connection") || iequal(n, "keep-alive") || iequal(n, "proxy-connection") || iequal(n, "transfer-encoding") ||
                        iequal(n, "upgrade") || iequal(n, "content-length");
             }
@@ -200,14 +200,14 @@ namespace sgcl::net::http {
             uint64_t file_n = 0;
             bool has_file = false;
 
-            static bool bodiless(int status) noexcept {
+            SGCL_INLINE_HOT static bool bodiless(int status) noexcept {
                 return (status >= 100 && status < 200) || status == 204 || status == 304;
             }
 
             // The bytes of the body the handler gave: what went by flushes,
             // what is buffered and a file kept for sendfile; none for HEAD
             // and a status without a body (the access log's `bytes`)
-            uint64_t body_bytes() const noexcept {
+            SGCL_INLINE_HOT uint64_t body_bytes() const noexcept {
                 if (head_request || bodiless(status)) {
                     return 0;
                 }
@@ -353,7 +353,7 @@ namespace sgcl::net::http {
             }
 
             // The handler's Content-Length, when it gave one that is a number
-            optional<uint64_t> handler_length() const noexcept {
+            SGCL_INLINE_HOT optional<uint64_t> handler_length() const noexcept {
                 optional<uint64_t> cl;
                 if (!HeadersAccess::count(fields, "content-length") || !content_length(fields, cl)) {
                     return nullopt;
@@ -470,7 +470,7 @@ namespace sgcl::net::http {
 
             // The pieces as one write begun without a frame; the body's
             // blocks back to the pool when it is done
-            optional<async::task<expected<void, io::error>>> _write_parts(const vector<slice<const byte>>& parts, expected<void, io::error>& now) {
+            SGCL_INLINE_HOT optional<async::task<expected<void, io::error>>> _write_parts(const vector<slice<const byte>>& parts, expected<void, io::error>& now) {
                 auto s = net::detail::ConnectionAccess::impl(wire->connection()).start_write_parts(parts);
                 if (s.rest) {
                     return _sent_parts(tracked_ptr<WriterImpl>(this), std::move(*s.rest));
@@ -486,7 +486,7 @@ namespace sgcl::net::http {
                 co_return self->sent_result(r);
             }
 
-            expected<void, io::error> sent_result(const expected<size_t, io::error>& r) noexcept {
+            SGCL_INLINE_HOT expected<void, io::error> sent_result(const expected<size_t, io::error>& r) noexcept {
                 if (!r) {
                     failed = r.error();
                     close_after = true;
@@ -507,7 +507,7 @@ namespace sgcl::net::http {
             // another control (a user's text splitting the response) is the
             // writer's first error, kept and given back by every flush
             // after it, and nothing of the head is sent
-            bool fields_writable() {
+            SGCL_INLINE_HOT bool fields_writable() {
                 if (auto e = invalid_field(fields)) {
                     if (!failed) {
                         failed = io::error(std::make_error_code(std::errc::invalid_argument), "response", *e);
@@ -609,7 +609,7 @@ namespace sgcl::net::http {
 
             // --- HTTP/2 ---------------------------------------------------------
 
-            expected<void, io::error> _h2_head(optional<uint64_t> length, bool end_stream) {
+            SGCL_INLINE_HOT expected<void, io::error> _h2_head(optional<uint64_t> length, bool end_stream) {
                 ResponseFields block(status, fields, bodiless(status) ? nullopt : length);
                 auto r = h2->owner->send_headers(h2->id, block, end_stream);
                 head_sent = true;
@@ -756,7 +756,7 @@ namespace sgcl::net::http {
     public:
         // 200 unless set; 100 to 199 are not the handler's (invalid_argument),
         // nor anything outside 200 to 999; after the head has gone, ignored
-        response_writer& set_status(int code) {
+        SGCL_INLINE_HOT response_writer& set_status(int code) {
             if (code < 200 || code > 999) {
                 throw invalid_argument("http::response_writer: a status is 200 to 999");
             }
@@ -767,34 +767,34 @@ namespace sgcl::net::http {
             return *this;
         }
 
-        int status() const noexcept {
+        SGCL_INLINE_HOT int status() const noexcept {
             return _impl->status;
         }
 
-        response_writer& set_header(const string& name, const string& value) noexcept {
+        SGCL_INLINE_HOT response_writer& set_header(const string& name, const string& value) noexcept {
             _impl->fields.set(name, value);
             return *this;
         }
 
-        response_writer& add_header(const string& name, const string& value) noexcept {
+        SGCL_INLINE_HOT response_writer& add_header(const string& name, const string& value) noexcept {
             _impl->fields.add(name, value);
             return *this;
         }
 
         // A Set-Cookie field added (one per cookie: several cookies are
         // several fields)
-        response_writer& add_cookie(const cookie& c) {
+        SGCL_INLINE_HOT response_writer& add_cookie(const cookie& c) {
             _impl->fields.add("Set-Cookie", c.to_string());
             return *this;
         }
 
         // The fields of the response; changed after the head has gone, they
         // go nowhere
-        http::headers& headers() const noexcept {
+        SGCL_INLINE_HOT http::headers& headers() const noexcept {
             return _impl->fields;
         }
 
-        response_writer& write(const string& text) noexcept {
+        SGCL_INLINE_HOT response_writer& write(const string& text) noexcept {
             if (_impl->ended) {
                 return *this;   // the response has gone: a writer kept past it writes nowhere
             }
@@ -804,7 +804,7 @@ namespace sgcl::net::http {
             return *this;
         }
 
-        response_writer& write(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT response_writer& write(const slice<const byte>& data) noexcept {
             if (_impl->ended) {
                 return *this;
             }
@@ -822,7 +822,7 @@ namespace sgcl::net::http {
         // where they lie), and its length is the Content-Length; else its
         // bytes are taken as write(bytes) takes them. Only the body:
         // Content-Type and the rest are the handler's
-        response_writer& write(const io::file& f) {
+        SGCL_INLINE_HOT response_writer& write(const io::file& f) {
             if (!_impl->ended) {
                 _impl->write_file(f);
             }
@@ -832,7 +832,7 @@ namespace sgcl::net::http {
         // A literal, a character array, a std::string_view: as a string
         // (an exact match, else the conversions to a string and to bytes tie)
         template<sgcl::detail::TextArgument T>
-        response_writer& write(const T& text) noexcept {
+        SGCL_INLINE_HOT response_writer& write(const T& text) noexcept {
             return write(slice<const byte>(text));
         }
 
@@ -841,17 +841,17 @@ namespace sgcl::net::http {
         // w.async_flush()`; flush() blocks a thread (a response written from
         // one of the program's threads, never a worker). After the
         // response has ended (or been hijacked): io::errc::closed
-        expected<void, io::error> flush() const {
+        SGCL_INLINE_HOT expected<void, io::error> flush() const {
             return _co_flush(_impl).wait();
         }
 
-        async::task<expected<void, io::error>> async_flush() const noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_flush() const noexcept {
             return _co_flush(_impl);
         }
 
         // The status with its reason as text/plain ("404 Not Found" gives
         // "Not Found\n"), what was buffered dropped: Go's http.Error
-        void error(int code) {
+        SGCL_INLINE_HOT void error(int code) {
             error(code, reason(code));
         }
 
@@ -873,7 +873,7 @@ namespace sgcl::net::http {
         }
 
         // A redirect: the status (302 unless given; a 3xx) and Location as given
-        void redirect(const string& location, int code = status::found) {
+        SGCL_INLINE_HOT void redirect(const string& location, int code = status::found) {
             if (code < 300 || code > 399) {
                 throw invalid_argument("http::response_writer: a redirect's status is 3xx");
             }
@@ -886,7 +886,7 @@ namespace sgcl::net::http {
         // (the bytes the server had read past this request first). The
         // server sends nothing more on it and does not close it. Only
         // before the head has gone: io::errc::closed after.
-        expected<pair<net::connection, io::reader>, io::error> hijack() noexcept {
+        SGCL_INLINE_HOT expected<pair<net::connection, io::reader>, io::error> hijack() noexcept {
             if (_impl->h2) {
                 // an HTTP/2 stream is not a connection (Go: no Hijacker in HTTP/2)
                 return io::detail::fail(io::error(std::make_error_code(std::errc::operation_not_supported), "hijack", "HTTP/2 response"));
@@ -900,14 +900,14 @@ namespace sgcl::net::http {
         }
 
         // Whether the head has gone (a flush was made)
-        bool header_sent() const noexcept {
+        SGCL_INLINE_HOT bool header_sent() const noexcept {
             return _impl->head_sent;
         }
 
     private:
         friend struct detail::WriterAccess;
 
-        explicit response_writer(const tracked_ptr<detail::WriterImpl>& impl) noexcept
+        SGCL_INLINE_HOT explicit response_writer(const tracked_ptr<detail::WriterImpl>& impl) noexcept
         : _impl(impl) {
         }
 
@@ -923,7 +923,7 @@ namespace sgcl::net::http {
 
     namespace detail {
         struct WriterAccess {
-            static response_writer make(const tracked_ptr<WriterImpl>& impl) noexcept {
+            SGCL_INLINE_HOT static response_writer make(const tracked_ptr<WriterImpl>& impl) noexcept {
                 return response_writer(impl);
             }
         };

@@ -38,15 +38,15 @@ namespace sgcl::net::tls::detail {
 
     inline constexpr size_t MaxHashSize = 48;
 
-    constexpr size_t hash_size(Hash h) noexcept {
+    SGCL_INLINE_HOT constexpr size_t hash_size(Hash h) noexcept {
         return h == Hash::sha256 ? 32 : 48;
     }
 
-    inline slice<const byte> bytes_of(const void* p, size_t n) noexcept {
+    SGCL_INLINE_HOT slice<const byte> bytes_of(const void* p, size_t n) noexcept {
         return slice<const byte>(reinterpret_cast<const byte*>(p), n);
     }
 
-    inline slice<byte> room_of(void* p, size_t n) noexcept {
+    SGCL_INLINE_HOT slice<byte> room_of(void* p, size_t n) noexcept {
         return slice<byte>(reinterpret_cast<byte*>(p), n);
     }
 
@@ -60,11 +60,11 @@ namespace sgcl::net::tls::detail {
         Secret(const Secret&) = delete;
         Secret& operator=(const Secret&) = delete;
 
-        Secret(Secret&& other) noexcept {
+        SGCL_INLINE_HOT Secret(Secret&& other) noexcept {
             *this = std::move(other);
         }
 
-        Secret& operator=(Secret&& other) noexcept {
+        SGCL_INLINE_HOT Secret& operator=(Secret&& other) noexcept {
             if (this != &other) {
                 std::memcpy(bytes, other.bytes, sizeof bytes);
                 size = other.size;
@@ -73,20 +73,20 @@ namespace sgcl::net::tls::detail {
             return *this;
         }
 
-        ~Secret() {
+        SGCL_INLINE_HOT ~Secret() {
             wipe();
         }
 
-        void wipe() noexcept {
+        SGCL_INLINE_HOT void wipe() noexcept {
             crypto::detail::secure_zero(bytes, sizeof bytes);
             size = 0;
         }
 
-        slice<const byte> view() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> view() const noexcept {
             return bytes_of(bytes, size);
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return size == 0;
         }
     };
@@ -115,7 +115,7 @@ namespace sgcl::net::tls::detail {
         crypto::hkdf<H>::expand_to(out, secret, bytes_of(info, n));
     }
 
-    inline void expand_label(Hash h, const slice<byte>& out, const slice<const byte>& secret, const char* label, const slice<const byte>& context) noexcept {
+    SGCL_INLINE_HOT void expand_label(Hash h, const slice<byte>& out, const slice<const byte>& secret, const char* label, const slice<const byte>& context) noexcept {
         if (h == Hash::sha256) {
             expand_label_with<crypto::sha256>(out, secret, label, context);
         } else {
@@ -140,19 +140,19 @@ namespace sgcl::net::tls::detail {
     // far, read at any point without ending it
     class Transcript {
     public:
-        explicit Transcript(Hash h) noexcept
+        SGCL_INLINE_HOT explicit Transcript(Hash h) noexcept
         : _hash(h) {
         }
 
-        Hash hash() const noexcept {
+        SGCL_INLINE_HOT Hash hash() const noexcept {
             return _hash;
         }
 
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return hash_size(_hash);
         }
 
-        void update(const slice<const byte>& message) noexcept {
+        SGCL_INLINE_HOT void update(const slice<const byte>& message) noexcept {
             if (_hash == Hash::sha256) {
                 _sha256.update(message);
             } else {
@@ -161,7 +161,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // The hash of what came so far, into out (size() bytes)
-        void value_to(uint8_t* out) const noexcept {
+        SGCL_INLINE_HOT void value_to(uint8_t* out) const noexcept {
             if (_hash == Hash::sha256) {
                 auto v = _sha256.value();
                 std::memcpy(out, v.data(), 32);
@@ -180,13 +180,13 @@ namespace sgcl::net::tls::detail {
     // Derive-Secret(secret, label, messages) = HKDF-Expand-Label(secret,
     // label, Transcript-Hash(messages), Hash.length), the transcript hash
     // given
-    inline void derive_secret(Hash h, Secret& out, const Secret& secret, const char* label, const slice<const byte>& transcript_hash) noexcept {
+    SGCL_INLINE_HOT void derive_secret(Hash h, Secret& out, const Secret& secret, const char* label, const slice<const byte>& transcript_hash) noexcept {
         out.size = uint8_t(hash_size(h));
         expand_label(h, room_of(out.bytes, out.size), secret.view(), label, transcript_hash);
     }
 
     // The hash of nothing, the context of Derive-Secret(., "derived", "")
-    inline void empty_hash(Hash h, uint8_t* out) noexcept {
+    SGCL_INLINE_HOT void empty_hash(Hash h, uint8_t* out) noexcept {
         Transcript t(h);
         t.value_to(out);
     }
@@ -202,7 +202,7 @@ namespace sgcl::net::tls::detail {
         TrafficKeys(const TrafficKeys&) = delete;
         TrafficKeys& operator=(const TrafficKeys&) = delete;
 
-        ~TrafficKeys() {
+        SGCL_INLINE_HOT ~TrafficKeys() {
             crypto::detail::secure_zero(key, sizeof key);
             crypto::detail::secure_zero(iv, sizeof iv);
         }
@@ -210,7 +210,7 @@ namespace sgcl::net::tls::detail {
 
     // key = HKDF-Expand-Label(secret, "key", "", key_size), iv =
     // HKDF-Expand-Label(secret, "iv", "", 12)
-    inline void traffic_keys(Hash h, TrafficKeys& out, const Secret& secret, size_t key_size) noexcept {
+    SGCL_INLINE_HOT void traffic_keys(Hash h, TrafficKeys& out, const Secret& secret, size_t key_size) noexcept {
         assert(key_size <= sizeof out.key);
         out.key_size = uint8_t(key_size);
         expand_label(h, room_of(out.key, key_size), secret.view(), "key", slice<const byte>());
@@ -219,7 +219,7 @@ namespace sgcl::net::tls::detail {
 
     // application_traffic_secret_N+1 = HKDF-Expand-Label(secret_N, "traffic
     // upd", "", Hash.length), in place (§7.2): the old secret gone
-    inline void update_traffic_secret(Hash h, Secret& secret) noexcept {
+    SGCL_INLINE_HOT void update_traffic_secret(Hash h, Secret& secret) noexcept {
         Secret next;
         next.size = uint8_t(hash_size(h));
         expand_label(h, room_of(next.bytes, next.size), secret.view(), "traffic upd", slice<const byte>());
@@ -251,17 +251,17 @@ namespace sgcl::net::tls::detail {
     // each zeroing what the next no longer needs
     class KeySchedule {
     public:
-        explicit KeySchedule(Hash h) noexcept
+        SGCL_INLINE_HOT explicit KeySchedule(Hash h) noexcept
         : _hash(h) {
             uint8_t zeros[MaxHashSize] = {};
             extract(_hash, _early, slice<const byte>(), bytes_of(zeros, hash_size(_hash)));
         }
 
-        Hash hash() const noexcept {
+        SGCL_INLINE_HOT Hash hash() const noexcept {
             return _hash;
         }
 
-        size_t hash_length() const noexcept {
+        SGCL_INLINE_HOT size_t hash_length() const noexcept {
             return hash_size(_hash);
         }
 
@@ -296,7 +296,7 @@ namespace sgcl::net::tls::detail {
         // The handshake's traffic secrets and the master secret gone, once
         // both Finished are through (no resumption in v1: the resumption
         // master secret is never made)
-        void finish_handshake() noexcept {
+        SGCL_INLINE_HOT void finish_handshake() noexcept {
             client_handshake_traffic.wipe();
             server_handshake_traffic.wipe();
             _master.wipe();
@@ -307,20 +307,20 @@ namespace sgcl::net::tls::detail {
         Secret exporter_master;
 
         // For the tests: the chain's own secrets while they live
-        const Secret& early_secret() const noexcept {
+        SGCL_INLINE_HOT const Secret& early_secret() const noexcept {
             return _early;
         }
 
-        const Secret& handshake_secret() const noexcept {
+        SGCL_INLINE_HOT const Secret& handshake_secret() const noexcept {
             return _handshake;
         }
 
-        const Secret& master_secret() const noexcept {
+        SGCL_INLINE_HOT const Secret& master_secret() const noexcept {
             return _master;
         }
 
     private:
-        void _derived(Secret& out, const Secret& from) noexcept {
+        SGCL_INLINE_HOT void _derived(Secret& out, const Secret& from) noexcept {
             uint8_t empty[MaxHashSize];
             empty_hash(_hash, empty);
             derive_secret(_hash, out, from, "derived", bytes_of(empty, hash_size(_hash)));

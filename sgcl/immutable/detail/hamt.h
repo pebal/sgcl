@@ -83,26 +83,26 @@ namespace sgcl::immutable::detail {
         };
 
         // A subtrie
-        explicit HamtEntry(const tracked_ptr<HamtHead>& subtrie) noexcept
+        SGCL_INLINE_HOT explicit HamtEntry(const tracked_ptr<HamtHead>& subtrie) noexcept
         : link(subtrie) {
         }
 
         // A copy of `from`, an entry of an immutable node: the link
         // without the barrier (the node it came from is shaded once by
         // the copying helper), the element as any copy
-        HamtEntry(const HamtEntry& from, barrier::off_t) noexcept(std::is_nothrow_copy_constructible_v<V>)
+        SGCL_INLINE_HOT HamtEntry(const HamtEntry& from, barrier::off_t) noexcept(std::is_nothrow_copy_constructible_v<V>)
         : link(from.link, barrier::off) {
         }
 
         template<class... A>
-        HamtEntry(const HamtEntry& from, barrier::off_t, std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
+        SGCL_INLINE_HOT HamtEntry(const HamtEntry& from, barrier::off_t, std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
         : link(from.link, barrier::off)
         , value(std::forward<A>(a)...) {
         }
 
         // An element built from a..., with its chain
         template<class... A>
-        HamtEntry(const tracked_ptr<HamtHead>& chain, std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
+        SGCL_INLINE_HOT HamtEntry(const tracked_ptr<HamtHead>& chain, std::in_place_t, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
         : link(chain)
         , value(std::forward<A>(a)...) {
         }
@@ -111,7 +111,7 @@ namespace sgcl::immutable::detail {
         HamtEntry& operator=(const HamtEntry&) = delete;
 
         // The link only: the value, if any, is destroyed by the node
-        ~HamtEntry() {
+        SGCL_INLINE_HOT ~HamtEntry() {
         }
     };
 
@@ -130,7 +130,7 @@ namespace sgcl::immutable::detail {
             HamtEntry<V> entries[N];
         };
 
-        static unique_ptr<HamtNode> make() noexcept {
+        SGCL_INLINE_HOT static unique_ptr<HamtNode> make() noexcept {
             return make_tracked<HamtNode>();
         }
 
@@ -168,7 +168,7 @@ namespace sgcl::immutable::detail {
         tracked_ptr<HamtChain> next;
 
         template<class... A>
-        explicit HamtChain(const tracked_ptr<HamtChain>& next, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
+        SGCL_INLINE_HOT explicit HamtChain(const tracked_ptr<HamtChain>& next, A&&... a) noexcept(std::is_nothrow_constructible_v<V, A...>)
         : value(std::forward<A>(a)...)
         , next(next) {
         }
@@ -189,7 +189,7 @@ namespace sgcl::immutable::detail {
     }
 
     template<class V>
-    inline const HamtEntry<V>* hamt_entries(const HamtHead* node) noexcept {
+    SGCL_INLINE_HOT const HamtEntry<V>* hamt_entries(const HamtHead* node) noexcept {
         return hamt_entries<V>(const_cast<HamtHead*>(node));
     }
 
@@ -234,11 +234,11 @@ namespace sgcl::immutable::detail {
             *(void* volatile*)&_chain = nullptr;
         }
 
-        reference operator*() const noexcept {
+        SGCL_INLINE_HOT reference operator*() const noexcept {
             return _chain ? _chain->value : _entry->value;
         }
 
-        pointer operator->() const noexcept {
+        SGCL_INLINE_HOT pointer operator->() const noexcept {
             return std::addressof(**this);
         }
 
@@ -257,13 +257,13 @@ namespace sgcl::immutable::detail {
             return *this;
         }
 
-        HamtIterator operator++(int) noexcept {
+        SGCL_INLINE_HOT HamtIterator operator++(int) noexcept {
             auto tmp = *this;
             ++*this;
             return tmp;
         }
 
-        friend bool operator==(const HamtIterator& a, const HamtIterator& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const HamtIterator& a, const HamtIterator& b) noexcept {
             return a._entry == b._entry && a._chain == b._chain;
         }
 
@@ -346,7 +346,7 @@ namespace sgcl::immutable::detail {
 
         Hamt() = default;
 
-        Hamt(const hasher& hash, const key_equal& equal)
+        SGCL_INLINE_HOT Hamt(const hasher& hash, const key_equal& equal)
         : _hash(hash)
         , _equal(equal) {
         }
@@ -407,35 +407,35 @@ namespace sgcl::immutable::detail {
         Hamt& operator=(const Hamt&) noexcept = default;
         Hamt& operator=(Hamt&&) noexcept = default;
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_root.get());
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator();
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _size;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
-        hasher hash_function() const {
+        SGCL_INLINE_HOT hasher hash_function() const {
             return _hash;
         }
 
-        key_equal key_eq() const {
+        SGCL_INLINE_HOT key_equal key_eq() const {
             return _equal;
         }
 
@@ -471,7 +471,7 @@ namespace sgcl::immutable::detail {
         }
 
         template<class K>
-        bool contains(const K& key) const noexcept(NothrowLookup<K>) {
+        SGCL_INLINE_HOT bool contains(const K& key) const noexcept(NothrowLookup<K>) {
             return find(key) != nullptr;
         }
 
@@ -584,7 +584,7 @@ namespace sgcl::immutable::detail {
         // The element under the key taken out in place; false when it
         // was not there (and nothing copied)
         template<class K>
-        bool erase_in_place(const K& key) noexcept(NothrowLookup<K> && NothrowCopy) {
+        SGCL_INLINE_HOT bool erase_in_place(const K& key) noexcept(NothrowLookup<K> && NothrowCopy) {
             if (!find(key)) {
                 return false;
             }
@@ -597,7 +597,7 @@ namespace sgcl::immutable::detail {
         // from the root as far as they reach. The owned nodes are the
         // root's side of the trie, each one's parent owned before it,
         // so the walk visits them and the heads of their children only.
-        void disown() noexcept {
+        SGCL_INLINE_HOT void disown() noexcept {
             if (_root) {
                 _disown(*_root);
             }
@@ -630,16 +630,16 @@ namespace sgcl::immutable::detail {
         static constexpr unsigned Bits = 5;
         static constexpr unsigned MaxShift = sizeof(size_t) * 8 - 1;
 
-        static uint32_t _bit(size_t hash, unsigned shift) noexcept {
+        SGCL_INLINE_HOT static uint32_t _bit(size_t hash, unsigned shift) noexcept {
             assert(shift <= MaxShift);
             return uint32_t(1) << ((hash >> shift) & 31);
         }
 
-        static unsigned _position(uint32_t bitmap, uint32_t bit) noexcept {
+        SGCL_INLINE_HOT static unsigned _position(uint32_t bitmap, uint32_t bit) noexcept {
             return std::popcount(bitmap & (bit - 1));
         }
 
-        static const Chain* _chain(const HamtHead* link) noexcept {
+        SGCL_INLINE_HOT static const Chain* _chain(const HamtHead* link) noexcept {
             return static_cast<const Chain*>(link);
         }
 
@@ -706,7 +706,7 @@ namespace sgcl::immutable::detail {
 
         // A node with room for `count` entries: the smallest size that holds them
         template<unsigned N>
-        static Node _allocate() noexcept {
+        SGCL_INLINE_HOT static Node _allocate() noexcept {
             return HamtNode<value_type, N>::make();
         }
 
@@ -742,12 +742,12 @@ namespace sgcl::immutable::detail {
 
         // An entry constructed in its storage: a subtrie, or an element
         // built from a... with its chain
-        static void _subtrie(Entry* at, const Link& sub) noexcept {
+        SGCL_INLINE_HOT static void _subtrie(Entry* at, const Link& sub) noexcept {
             ::new (static_cast<void*>(at)) Entry(sub);
         }
 
         template<class... A>
-        static void _element(Entry* at, const Link& chain, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
+        SGCL_INLINE_HOT static void _element(Entry* at, const Link& chain, A&&... a) noexcept(std::is_nothrow_constructible_v<value_type, A...>) {
             ::new (static_cast<void*>(at)) Entry(chain, std::in_place, std::forward<A>(a)...);
         }
 
@@ -759,14 +759,14 @@ namespace sgcl::immutable::detail {
         // link the copy took unshaded — one barrier for the node in place
         // of one per entry. The node is held by the version being copied
         // throughout.
-        static void _shade(const HamtHead& node) noexcept {
+        SGCL_INLINE_HOT static void _shade(const HamtHead& node) noexcept {
             ((tracked_ptr<const HamtHead>)&node).shade();
         }
 
         // The entry of slot `bit` of `node`, whose entries are `from`,
         // copied into `at`: the link unshaded, the element as any copy;
         // the node shaded once by the copying helper, after the copy
-        static void _copy(Entry* at, const HamtHead& node, const Entry* from, uint32_t bit) noexcept(NothrowCopy) {
+        SGCL_INLINE_HOT static void _copy(Entry* at, const HamtHead& node, const Entry* from, uint32_t bit) noexcept(NothrowCopy) {
             auto& entry = from[_position(node.bitmap, bit)];
             if (node.subtries & bit) {
                 ::new (static_cast<void*>(at)) Entry(entry, barrier::off);
@@ -1006,7 +1006,7 @@ namespace sgcl::immutable::detail {
         // destroyed (its words null): the link stored through the barrier
         // like any store, so that the marking, wherever it is in the node,
         // loses nothing it holds; the element moved
-        static void _relocate(Entry* at, Entry& from, bool element) noexcept {
+        SGCL_INLINE_HOT static void _relocate(Entry* at, Entry& from, bool element) noexcept {
             if (element) {
                 ::new (static_cast<void*>(at)) Entry(from.link, std::in_place, std::move(from.value));
                 from.value.~value_type();
@@ -1036,7 +1036,7 @@ namespace sgcl::immutable::detail {
 
         // A node made for this trie by a helper that copies, put in the
         // place of the one at `link`
-        static void _put_owned(Link& link, Node node) noexcept {
+        SGCL_INLINE_HOT static void _put_owned(Link& link, Node node) noexcept {
             node->owned = 1;
             link = std::move(node);
         }

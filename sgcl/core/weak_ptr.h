@@ -37,18 +37,18 @@ namespace sgcl {
         // convert to a base or to void (below)
         constexpr weak_ptr() noexcept = default;
 
-        constexpr weak_ptr(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT constexpr weak_ptr(std::nullptr_t) noexcept {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr(const tracked_ptr<U>& p) noexcept
+        SGCL_INLINE_HOT weak_ptr(const tracked_ptr<U>& p) noexcept
         : _cell(_make_cell(static_cast<element_type*>(p.get()))) {
         }
 
         // From a root_ptr: the root's conversion to its tracked_ptr is one
         // the template above cannot deduce through
         template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
-        weak_ptr(const root_ptr<U>& r) noexcept
+        SGCL_INLINE_HOT weak_ptr(const root_ptr<U>& r) noexcept
         : weak_ptr(r.ptr()) {
         }
 
@@ -62,7 +62,7 @@ namespace sgcl {
         // conversion would be a hidden lock(). Convert the locked pointer,
         // weak_ptr<Base>(w.lock()), or make the weak_ptr from a tracked_ptr.
         template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
-        weak_ptr(const weak_ptr<U>& w) noexcept
+        SGCL_INLINE_HOT weak_ptr(const weak_ptr<U>& w) noexcept
         : _cell(w._cell) {
         }
 
@@ -70,18 +70,18 @@ namespace sgcl {
         weak_ptr& operator=(weak_ptr&&) noexcept = default;
 
         template<class U, std::enable_if_t<std::is_same_v<std::remove_cv_t<U>, std::remove_cv_t<T>> && std::is_convertible_v<U*, T*>, int> = 0>
-        weak_ptr& operator=(const weak_ptr<U>& w) noexcept {
+        SGCL_INLINE_HOT weak_ptr& operator=(const weak_ptr<U>& w) noexcept {
             _cell = w._cell;
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr& operator=(const tracked_ptr<U>& p) noexcept {
+        SGCL_INLINE_HOT weak_ptr& operator=(const tracked_ptr<U>& p) noexcept {
             _cell = _make_cell(static_cast<element_type*>(p.get()));
             return *this;
         }
 
-        weak_ptr& operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT weak_ptr& operator=(std::nullptr_t) noexcept {
             _cell = nullptr;
             return *this;
         }
@@ -115,22 +115,22 @@ namespace sgcl {
         // The cell has been cleared, or there is none: lock() would be null
         // (the other way round is not guaranteed: an object found
         // unreachable stays in the cell until the cycle clears it).
-        bool expired() const noexcept {
+        SGCL_INLINE_HOT bool expired() const noexcept {
             auto cell = _cell.get();
             return !cell || !cell->target.load(std::memory_order_acquire);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _cell = nullptr;
         }
 
-        void swap(weak_ptr& w) noexcept {
+        SGCL_INLINE_HOT void swap(weak_ptr& w) noexcept {
             _cell.swap(w._cell);
         }
 
     private:
         // The cell, constructed before its slot is published (maker.h)
-        static tracked_ptr<detail::WeakCell> _make_cell(element_type* p, unsigned flags = 0) noexcept {
+        SGCL_INLINE_HOT static tracked_ptr<detail::WeakCell> _make_cell(element_type* p, unsigned flags = 0) noexcept {
             if (!p) {
                 return {};
             }
@@ -139,7 +139,7 @@ namespace sgcl {
         }
 
         // A weak_ptr over a cell made with flags (expiry_queue.h)
-        explicit weak_ptr(const tracked_ptr<detail::WeakCell>& cell) noexcept
+        SGCL_INLINE_HOT explicit weak_ptr(const tracked_ptr<detail::WeakCell>& cell) noexcept
         : _cell(cell) {
         }
 
@@ -151,7 +151,7 @@ namespace sgcl {
     };
 
     template<class T>
-    void swap(weak_ptr<T>& l, weak_ptr<T>& r) noexcept {
+    SGCL_INLINE_HOT void swap(weak_ptr<T>& l, weak_ptr<T>& r) noexcept {
         l.swap(r);
     }
 

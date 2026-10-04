@@ -145,20 +145,20 @@ namespace sgcl::codec::detail {
     namespace unfilter_vector {
         using Vector = uint8x8_t;
 
-        inline Vector v8(uint64_t x) noexcept {
+        SGCL_INLINE_HOT Vector v8(uint64_t x) noexcept {
             return vcreate_u8(x);
         }
 
-        inline uint64_t bits(Vector v) noexcept {
+        SGCL_INLINE_HOT uint64_t bits(Vector v) noexcept {
             return vget_lane_u64(vreinterpret_u64_u8(v), 0);
         }
 
-        inline Vector add(Vector x, Vector y) noexcept {
+        SGCL_INLINE_HOT Vector add(Vector x, Vector y) noexcept {
             return vadd_u8(x, y);
         }
 
         // floor((a + b) / 2), which VHADD is
-        inline Vector average(Vector a, Vector b) noexcept {
+        SGCL_INLINE_HOT Vector average(Vector a, Vector b) noexcept {
             return vhadd_u8(a, b);
         }
 
@@ -178,24 +178,24 @@ namespace sgcl::codec::detail {
     namespace unfilter_vector {
         using Vector = __m128i;
 
-        inline Vector v8(uint64_t x) noexcept {
+        SGCL_INLINE_HOT Vector v8(uint64_t x) noexcept {
             return _mm_cvtsi64_si128(int64_t(x));
         }
 
-        inline uint64_t bits(Vector v) noexcept {
+        SGCL_INLINE_HOT uint64_t bits(Vector v) noexcept {
             return uint64_t(_mm_cvtsi128_si64(v));
         }
 
-        inline Vector add(Vector x, Vector y) noexcept {
+        SGCL_INLINE_HOT Vector add(Vector x, Vector y) noexcept {
             return _mm_add_epi8(x, y);
         }
 
         // floor((a + b) / 2): PAVGB rounds up, the odd sums' bit taken back
-        inline Vector average(Vector a, Vector b) noexcept {
+        SGCL_INLINE_HOT Vector average(Vector a, Vector b) noexcept {
             return _mm_sub_epi8(_mm_avg_epu8(a, b), _mm_and_si128(_mm_xor_si128(a, b), _mm_set1_epi8(1)));
         }
 
-        inline __m128i abs16(__m128i x) noexcept {
+        SGCL_INLINE_HOT __m128i abs16(__m128i x) noexcept {
             return _mm_max_epi16(x, _mm_sub_epi16(_mm_setzero_si128(), x));
         }
 
@@ -250,7 +250,7 @@ namespace sgcl::codec::detail {
 
     // The row after its first pixel, a whole pixel a step; returns where
     // it stopped. bpp: 3, 4, 6 or 8
-    inline size_t unfilter_row_vector(uint8_t type, const uint8_t* raw, const uint8_t* prior, uint8_t* out, size_t n, unsigned bpp) noexcept {
+    SGCL_INLINE_HOT size_t unfilter_row_vector(uint8_t type, const uint8_t* raw, const uint8_t* prior, uint8_t* out, size_t n, unsigned bpp) noexcept {
         switch (bpp) {
             case 3: return unfilter_vector::row<3>(type, raw, prior, out, n);
             case 4: return unfilter_vector::row<4>(type, raw, prior, out, n);

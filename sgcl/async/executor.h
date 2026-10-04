@@ -60,7 +60,7 @@ namespace sgcl::async {
     // local of main, a global, a member).
     class executor {
     public:
-        executor() noexcept
+        SGCL_INLINE_HOT executor() noexcept
         : _q(make_tracked<detail::ExecutorQueue>(false)) {
         }
 
@@ -72,7 +72,7 @@ namespace sgcl::async {
         // noexcept, as run_until and poll: an executor's own frames are
         // resumed (resume_frame), and nothing leaves a task's resume but
         // into its promise; the queue's pop and take cannot throw
-        void run() noexcept {
+        SGCL_INLINE_HOT void run() noexcept {
             _loop([] { return false; });
         }
 
@@ -105,13 +105,13 @@ namespace sgcl::async {
         // The loop until the task is done, and its result (or what it
         // threw): the main function's idiom, `return main.run(program());`
         template<class T>
-        T run(task<T> t) {
+        SGCL_INLINE_HOT T run(task<T> t) {
             run_until(t);
             assert(t.done() && "the executor was stopped before the task ended");
             return std::move(t.result());
         }
 
-        void run(task<> t) {
+        SGCL_INLINE_HOT void run(task<> t) {
             run_until(t);
             assert(t.done() && "the executor was stopped before the task ended");
             t.result();
@@ -144,12 +144,12 @@ namespace sgcl::async {
         // run() returns, after the frame it is resuming; from any thread
         // (a task on the executor, a signal handler's thread, the program's
         // last line). The tasks stay queued for the next run() or poll()
-        void stop() noexcept {
+        SGCL_INLINE_HOT void stop() noexcept {
             _q->stop();
         }
 
         // Whether a run() or a poll() is in progress
-        bool running() const noexcept {
+        SGCL_INLINE_HOT bool running() const noexcept {
             return _q->running.load(std::memory_order_acquire);
         }
 
@@ -158,25 +158,25 @@ namespace sgcl::async {
         // object dropped lets the task run on unread; go() for a task
         // nobody waits for)
         template<class T>
-        [[nodiscard]] task<T> spawn(task<T> t) {
+        [[nodiscard]] SGCL_INLINE_HOT task<T> spawn(task<T> t) {
             [[maybe_unused]] bool first = t._start(_q.ptr());
             assert(first && "a task is spawned once");
             return t;
         }
 
         template<class T>
-        void go(task<T> t) {
+        SGCL_INLINE_HOT void go(task<T> t) {
             spawn(std::move(t)).detach();
         }
 
         // The same for a coroutine function with captures (sgcl::async::spawn)
         template<detail::TaskFactory F>
-        [[nodiscard]] auto spawn(F f) {
+        [[nodiscard]] SGCL_INLINE_HOT auto spawn(F f) {
             return spawn(detail::task_of(std::move(f)));
         }
 
         template<detail::TaskFactory F>
-        void go(F f) {
+        SGCL_INLINE_HOT void go(F f) {
             spawn(detail::task_of(std::move(f))).detach();
         }
 
@@ -208,7 +208,7 @@ namespace sgcl::async {
         struct done_awaiter {
             task<T>& t;
 
-            bool await_ready() const noexcept {
+            SGCL_INLINE_HOT bool await_ready() const noexcept {
                 return t.done();
             }
 
@@ -217,13 +217,13 @@ namespace sgcl::async {
             // push on the executor's queue, which starts no worker and
             // cannot throw
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) noexcept {
+            SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) noexcept {
                 auto frame = detail::frame_of(h);
                 t._start(detail::frame_header(frame.get()).executor);   // not started yet: here
                 return t._promise().await(h, std::move(frame));
             }
 
-            void await_resume() const noexcept {
+            SGCL_INLINE_HOT void await_resume() const noexcept {
             }
         };
 
@@ -257,7 +257,7 @@ namespace sgcl::async {
     // count, and nothing while nothing is queued.
     class strand {
     public:
-        strand() noexcept
+        SGCL_INLINE_HOT strand() noexcept
         : _q(make_tracked<detail::ExecutorQueue>(true)) {
         }
 
@@ -267,30 +267,30 @@ namespace sgcl::async {
         // A task started on this strand: queued here, run by a worker in
         // its turn
         template<class T>
-        [[nodiscard]] task<T> spawn(task<T> t) {
+        [[nodiscard]] SGCL_INLINE_HOT task<T> spawn(task<T> t) {
             [[maybe_unused]] bool first = t._start(_q.ptr());
             assert(first && "a task is spawned once");
             return t;
         }
 
         template<class T>
-        void go(task<T> t) {
+        SGCL_INLINE_HOT void go(task<T> t) {
             spawn(std::move(t)).detach();
         }
 
         // The same for a coroutine function with captures (sgcl::async::spawn)
         template<detail::TaskFactory F>
-        [[nodiscard]] auto spawn(F f) {
+        [[nodiscard]] SGCL_INLINE_HOT auto spawn(F f) {
             return spawn(detail::task_of(std::move(f)));
         }
 
         template<detail::TaskFactory F>
-        void go(F f) {
+        SGCL_INLINE_HOT void go(F f) {
             spawn(detail::task_of(std::move(f))).detach();
         }
 
         // Whether a task of the strand runs or is queued at this moment
-        bool busy() const noexcept {
+        SGCL_INLINE_HOT bool busy() const noexcept {
             return _q->pending.load(std::memory_order_acquire) != 0;
         }
 
@@ -306,15 +306,15 @@ namespace sgcl::async {
     // worker and no executor (a task resumed by hand) as from a worker
     class [[nodiscard]] on {
     public:
-        explicit on(executor& ex) noexcept
+        SGCL_INLINE_HOT explicit on(executor& ex) noexcept
         : _q(ex._q.ptr()) {
         }
 
-        explicit on(strand& s) noexcept
+        SGCL_INLINE_HOT explicit on(strand& s) noexcept
         : _q(s._q.ptr()) {
         }
 
-        bool await_ready() const noexcept {
+        SGCL_INLINE_HOT bool await_ready() const noexcept {
             return false;
         }
 
@@ -333,7 +333,7 @@ namespace sgcl::async {
             return true;
         }
 
-        void await_resume() const noexcept {
+        SGCL_INLINE_HOT void await_resume() const noexcept {
         }
 
     private:
@@ -344,7 +344,7 @@ namespace sgcl::async {
     // workers, from the next line; at once when it is on a worker with no
     // executor. A task that left the main thread for a computation
     struct [[nodiscard]] on_workers {
-        bool await_ready() const noexcept {
+        SGCL_INLINE_HOT bool await_ready() const noexcept {
             return false;
         }
 
@@ -360,29 +360,29 @@ namespace sgcl::async {
             return true;
         }
 
-        void await_resume() const noexcept {
+        SGCL_INLINE_HOT void await_resume() const noexcept {
         }
     };
 
     // The task started on the executor or the strand, for
     // `auto t = spawn(f(), ex);` and `go(f(), ex);`
     template<class T, class Executor>
-    [[nodiscard]] task<T> spawn(task<T> t, Executor& ex) {
+    [[nodiscard]] SGCL_INLINE_HOT task<T> spawn(task<T> t, Executor& ex) {
         return ex.spawn(std::move(t));
     }
 
     template<class T, class Executor>
-    void go(task<T> t, Executor& ex) {
+    SGCL_INLINE_HOT void go(task<T> t, Executor& ex) {
         ex.go(std::move(t));
     }
 
     template<detail::TaskFactory F, class Executor>
-    [[nodiscard]] auto spawn(F f, Executor& ex) {
+    [[nodiscard]] SGCL_INLINE_HOT auto spawn(F f, Executor& ex) {
         return ex.spawn(std::move(f));
     }
 
     template<detail::TaskFactory F, class Executor>
-    void go(F f, Executor& ex) {
+    SGCL_INLINE_HOT void go(F f, Executor& ex) {
         ex.go(std::move(f));
     }
 }

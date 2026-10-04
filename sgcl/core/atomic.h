@@ -41,30 +41,30 @@ namespace sgcl {
         // The constructors and assignments of std::atomic: from a value, a
         // null, or a unique_ptr (whose object leaves the unique state on
         // the way in)
-        atomic() noexcept {}
+        SGCL_INLINE_HOT atomic() noexcept {}
 
-        atomic(std::nullptr_t) noexcept
+        SGCL_INLINE_HOT atomic(std::nullptr_t) noexcept
         : _val(nullptr) {
         }
 
-        atomic(unique_ptr<T>&& p) noexcept
+        SGCL_INLINE_HOT atomic(unique_ptr<T>&& p) noexcept
         : _val(std::move(p)) {
         }
 
-        atomic(value_type p) noexcept
+        SGCL_INLINE_HOT atomic(value_type p) noexcept
         : _val(p) {
         }
 
-        std::nullptr_t operator=(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT std::nullptr_t operator=(std::nullptr_t) noexcept {
             this->store(nullptr);
             return nullptr;
         }
 
-        void operator=(unique_ptr<T>&& p) noexcept {
+        SGCL_INLINE_HOT void operator=(unique_ptr<T>&& p) noexcept {
             this->store(std::move(p));
         }
 
-        value_type operator=(value_type p) noexcept {
+        SGCL_INLINE_HOT value_type operator=(value_type p) noexcept {
             this->store(p);
             return p;
         }
@@ -72,11 +72,11 @@ namespace sgcl {
     private:
         friend detail::AtomicWord<atomic, T>;
 
-        detail::Pointer& _ptr() noexcept {
+        SGCL_INLINE_HOT detail::Pointer& _ptr() noexcept {
             return *_val._ptr();
         }
 
-        const detail::Pointer& _ptr() const noexcept {
+        SGCL_INLINE_HOT const detail::Pointer& _ptr() const noexcept {
             return *_val._ptr();
         }
 
@@ -122,33 +122,33 @@ namespace sgcl {
         // nothing (an empty string, a file that is none, a channel)
         atomic() noexcept(std::is_nothrow_default_constructible_v<H>) = default;
 
-        atomic(const H& h) noexcept
+        SGCL_INLINE_HOT atomic(const H& h) noexcept
         : _val(h) {
         }
 
-        H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
             return _handle(Base::load(m));
         }
 
-        operator H() const noexcept {
+        SGCL_INLINE_HOT operator H() const noexcept {
             return load();
         }
 
-        void store(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT void store(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             Base::store(_word(h), m);
         }
 
-        H operator=(const H& h) noexcept {
+        SGCL_INLINE_HOT H operator=(const H& h) noexcept {
             store(h);
             return h;
         }
 
         // The handle exchanged in, and the one that was there
-        H exchange(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT H exchange(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             return _handle(Base::exchange(_word(h), m));
         }
 
-        bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_strong(e, _word(desired), m);
             if (!done) {
@@ -157,7 +157,7 @@ namespace sgcl {
             return done;
         }
 
-        bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_strong(e, _word(desired), s, f);
             if (!done) {
@@ -166,7 +166,7 @@ namespace sgcl {
             return done;
         }
 
-        bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_weak(e, _word(desired), m);
             if (!done) {
@@ -175,7 +175,7 @@ namespace sgcl {
             return done;
         }
 
-        bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
+        SGCL_INLINE_HOT bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
             Word e = _word(expected);
             bool done = Base::compare_exchange_weak(e, _word(desired), s, f);
             if (!done) {
@@ -184,7 +184,7 @@ namespace sgcl {
             return done;
         }
 
-        void wait(const H& h, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        SGCL_INLINE_HOT void wait(const H& h, std::memory_order m = std::memory_order_seq_cst) const noexcept {
             Base::wait(_word(h), m);
         }
 
@@ -192,19 +192,19 @@ namespace sgcl {
         friend Base;
 
         // the word of a handle as the atomic's word, and back
-        static Word _word(const H& h) noexcept {
+        SGCL_INLINE_HOT static Word _word(const H& h) noexcept {
             return const_pointer_cast<State>(detail::HandleWord::word(h));
         }
 
-        static H _handle(const Word& w) noexcept {
+        SGCL_INLINE_HOT static H _handle(const Word& w) noexcept {
             return detail::HandleWord::make<H>(detail::HandleWordOf<H>(w));
         }
 
-        detail::Pointer& _ptr() noexcept {
+        SGCL_INLINE_HOT detail::Pointer& _ptr() noexcept {
             return *detail::HandleWord::word(_val)._ptr();
         }
 
-        const detail::Pointer& _ptr() const noexcept {
+        SGCL_INLINE_HOT const detail::Pointer& _ptr() const noexcept {
             return *detail::HandleWord::word(_val)._ptr();
         }
 

@@ -82,22 +82,22 @@ namespace sgcl::detail {
         // The pointer word constructed in the storage's word
         template<class T, bool Copyable, Extra X>
         struct WordOps {
-            static void copy(ValueStorage& to, const ValueStorage& from) {
+            SGCL_INLINE_HOT static void copy(ValueStorage& to, const ValueStorage& from) {
                 if constexpr(Copyable) {
                     ::new(to._word) T(*static_cast<const T*>(get(from)));
                     to._manager = from._manager;
                 }
             }
-            static void move(ValueStorage& to, ValueStorage& from) noexcept {
+            SGCL_INLINE_HOT static void move(ValueStorage& to, ValueStorage& from) noexcept {
                 ::new(to._word) T(std::move(*static_cast<T*>(get(from))));
                 to._manager = from._manager;
                 destroy(from);
             }
-            static void destroy(ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static void destroy(ValueStorage& s) noexcept {
                 static_cast<T*>(get(s))->~T();   // leaves null in the word
                 s._manager = nullptr;
             }
-            static void* get(const ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static void* get(const ValueStorage& s) noexcept {
                 return const_cast<unsigned char*>(s._word);
             }
             static constexpr Manager manager = {typeid(T), Copyable ? copy : nullptr, move, destroy, get, X};
@@ -106,22 +106,22 @@ namespace sgcl::detail {
         // The value in the buffer
         template<class T, bool Copyable, Extra X>
         struct InlineOps {
-            static void copy(ValueStorage& to, const ValueStorage& from) {
+            SGCL_INLINE_HOT static void copy(ValueStorage& to, const ValueStorage& from) {
                 if constexpr(Copyable) {
                     ::new(to._buffer) T(*static_cast<const T*>(get(from)));
                     to._manager = from._manager;
                 }
             }
-            static void move(ValueStorage& to, ValueStorage& from) noexcept {
+            SGCL_INLINE_HOT static void move(ValueStorage& to, ValueStorage& from) noexcept {
                 ::new(to._buffer) T(std::move(*static_cast<T*>(get(from))));
                 to._manager = from._manager;
                 destroy(from);
             }
-            static void destroy(ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static void destroy(ValueStorage& s) noexcept {
                 static_cast<T*>(get(s))->~T();
                 s._manager = nullptr;
             }
-            static void* get(const ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static void* get(const ValueStorage& s) noexcept {
                 return const_cast<unsigned char*>(s._buffer);
             }
             static constexpr Manager manager = {typeid(T), Copyable ? copy : nullptr, move, destroy, get, X};
@@ -134,7 +134,7 @@ namespace sgcl::detail {
             using Node = Slot<T>;
             using NodePtr = tracked_ptr<Node>;
 
-            static NodePtr& node(const ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static NodePtr& node(const ValueStorage& s) noexcept {
                 return *const_cast<NodePtr*>(reinterpret_cast<const NodePtr*>(s._word));
             }
             // The node made and the value constructed in it first, the
@@ -143,26 +143,26 @@ namespace sgcl::detail {
             // let go by its unique_ptr (the slot's destructor skips the
             // value that was never made: slot.h)
             template<class... A>
-            static T& make(ValueStorage& s, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+            SGCL_INLINE_HOT static T& make(ValueStorage& s, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
                 static_assert(sizeof(detail::Array<sizeof(Node)>) <= detail::PageDataSize, "a value larger than a page is not supported");
                 auto node = make_tracked<Node>();
                 T& v = node->construct(std::forward<A>(a)...);
                 ::new(s._word) NodePtr(std::move(node));
                 return v;
             }
-            static void copy(ValueStorage& to, const ValueStorage& from) {
+            SGCL_INLINE_HOT static void copy(ValueStorage& to, const ValueStorage& from) {
                 if constexpr(Copyable) {
                     make(to, *static_cast<const T*>(get(from)));
                     to._manager = from._manager;
                 }
             }
-            static void move(ValueStorage& to, ValueStorage& from) noexcept {
+            SGCL_INLINE_HOT static void move(ValueStorage& to, ValueStorage& from) noexcept {
                 ::new(to._word) NodePtr(std::move(node(from)));
                 to._manager = from._manager;
                 node(from).~NodePtr();   // the moved-from pointer: null
                 from._manager = nullptr;
             }
-            static void destroy(ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static void destroy(ValueStorage& s) noexcept {
                 // The value now, the node to the collector. Not in a sweep:
                 // the storage dying inside a dying managed object has a
                 // node that is garbage of the same sweep, whose slot
@@ -175,7 +175,7 @@ namespace sgcl::detail {
                 node(s).~NodePtr();
                 s._manager = nullptr;
             }
-            static void* get(const ValueStorage& s) noexcept {
+            SGCL_INLINE_HOT static void* get(const ValueStorage& s) noexcept {
                 return &node(s)->value;
             }
             static constexpr Manager manager = {typeid(T), Copyable ? copy : nullptr, move, destroy, get, X};
@@ -186,19 +186,19 @@ namespace sgcl::detail {
 
         ValueStorage() noexcept = default;
 
-        ValueStorage(const ValueStorage& o) {
+        SGCL_INLINE_HOT ValueStorage(const ValueStorage& o) {
             if (o._manager) {
                 o._manager->copy(*this, o);
             }
         }
 
-        ValueStorage(ValueStorage&& o) noexcept {
+        SGCL_INLINE_HOT ValueStorage(ValueStorage&& o) noexcept {
             if (o._manager) {
                 o._manager->move(*this, o);
             }
         }
 
-        ~ValueStorage() noexcept {
+        SGCL_INLINE_HOT ~ValueStorage() noexcept {
             _reset();
         }
 
@@ -225,17 +225,17 @@ namespace sgcl::detail {
         // The value of type T held here, without the manager: for an
         // invoker that knows T
         template<class T>
-        static T* _value(const ValueStorage& s) noexcept {
+        SGCL_INLINE_HOT static T* _value(const ValueStorage& s) noexcept {
             return static_cast<T*>(Ops<T, false, Extra{}>::get(s));
         }
 
-        void _reset() noexcept {
+        SGCL_INLINE_HOT void _reset() noexcept {
             if (_manager) {
                 _manager->destroy(*this);
             }
         }
 
-        void _swap(ValueStorage& o) noexcept {
+        SGCL_INLINE_HOT void _swap(ValueStorage& o) noexcept {
             if (this == &o) {
                 return;
             }
@@ -248,7 +248,7 @@ namespace sgcl::detail {
             }
         }
 
-        void* _get() const noexcept {
+        SGCL_INLINE_HOT void* _get() const noexcept {
             return _manager->get(*this);
         }
 

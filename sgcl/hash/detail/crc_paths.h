@@ -14,7 +14,7 @@ namespace sgcl::hash::detail {
     // arm64's folding and CRC instructions behind cpu::crypto(), x86-64's
     // folding behind cpu::aes() from 128 bytes up, slicing by eight elsewhere
     template<class T, T Poly>
-    inline T crc_update(T reg, const unsigned char* p, size_t n) noexcept {
+    SGCL_INLINE_HOT T crc_update(T reg, const unsigned char* p, size_t n) noexcept {
 #if defined(SGCL_HASH_ARM64)
         if (sgcl::detail::cpu::crypto()) {
             if constexpr (sizeof(T) == 4) {

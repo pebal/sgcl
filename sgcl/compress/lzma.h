@@ -41,7 +41,7 @@ namespace sgcl::compress {
 
         static constexpr size_t HeaderSize = 13;
 
-        static vector<byte> compress(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const slice<const byte>& data) noexcept {
             return compress(data, options{});
         }
 
@@ -64,11 +64,11 @@ namespace sgcl::compress {
             return detail::to_vector(out.data(), out.size());
         }
 
-        static vector<byte> compress(const string& text) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text) noexcept {
             return compress(io::detail::bytes_of(text), options{});
         }
 
-        static vector<byte> compress(const string& text, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text, const options& o) {
             return compress(io::detail::bytes_of(text), o);
         }
 
@@ -76,16 +76,16 @@ namespace sgcl::compress {
         // bytes as the string's overload takes them (an exact match, else
         // the two conversions, to a string and to bytes, tie)
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text) noexcept {
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text) noexcept {
             return compress(slice<const byte>(text), options{});
         }
 
         template<sgcl::detail::TextArgument T>
-        static vector<byte> compress(const T& text, const options& o) {
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text, const options& o) {
             return compress(slice<const byte>(text), o);
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
             return decompress(data, limits{});
         }
 
@@ -162,7 +162,7 @@ namespace sgcl::compress {
 
         static constexpr uint32_t MaxDictionary = uint32_t(3) << 29;
 
-        static void _header(std::vector<uint8_t>& out, const detail::LzmaProperties& props, uint32_t dictionary, uint64_t size) noexcept {
+        SGCL_INLINE_HOT static void _header(std::vector<uint8_t>& out, const detail::LzmaProperties& props, uint32_t dictionary, uint64_t size) noexcept {
             out.push_back(props.to_byte());
             detail::put_le32(out, dictionary);
             detail::put_le32(out, uint32_t(size));
@@ -171,7 +171,7 @@ namespace sgcl::compress {
 
         // What the decoder needs besides its output: the literal
         // probabilities, and the dictionary when it is a window of its own
-        static uint64_t _memory(const detail::LzmaProperties& props, uint64_t size) noexcept {
+        SGCL_INLINE_HOT static uint64_t _memory(const detail::LzmaProperties& props, uint64_t size) noexcept {
             uint64_t dictionary = std::max(props.dictionary, detail::lzma_model::DictionaryMin);
             return std::min(dictionary, size) + uint64_t(props.literal_probs()) * 2 + sizeof(detail::LzmaDecoder);
         }
@@ -212,11 +212,11 @@ namespace sgcl::compress {
         using io::mixin::writer<lzma::writer>::write;
         using io::mixin::writer<lzma::writer>::async_write;
 
-        explicit writer(const io::writer& out) noexcept
+        SGCL_INLINE_HOT explicit writer(const io::writer& out) noexcept
         : writer(out, options{}) {
         }
 
-        writer(const io::writer& out, const options& o) noexcept
+        SGCL_INLINE_HOT writer(const io::writer& out, const options& o) noexcept
         : _out(out) {
             auto s = lzma::_settings(o);
             if (s) {
@@ -233,7 +233,7 @@ namespace sgcl::compress {
         // The other left closed, its stream and its encoder gone with the
         // move (its options kept): its writes give io::errc::closed, its
         // close does nothing, and a reset gives it a new stream
-        writer(writer&& o) noexcept
+        SGCL_INLINE_HOT writer(writer&& o) noexcept
         : _out(std::move(o._out))
         , _settings(o._settings)
         , _encoder(std::move(o._encoder))
@@ -250,7 +250,7 @@ namespace sgcl::compress {
             o._closed = true;
         }
 
-        writer& operator=(writer&& o) noexcept {
+        SGCL_INLINE_HOT writer& operator=(writer&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
@@ -339,12 +339,12 @@ namespace sgcl::compress {
             co_return expected<void, io::error>();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _closed;
         }
 
         // The first failure, kept
-        const optional<io::error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& last_error() const noexcept {
             return _error;
         }
 
@@ -441,11 +441,11 @@ namespace sgcl::compress {
     class lzma::reader final
     : public io::mixin::reader<lzma::reader> {
     public:
-        explicit reader(const io::reader& in) noexcept
+        SGCL_INLINE_HOT explicit reader(const io::reader& in) noexcept
         : reader(in, limits{}) {
         }
 
-        reader(const io::reader& in, const limits& l) noexcept
+        SGCL_INLINE_HOT reader(const io::reader& in, const limits& l) noexcept
         : _in(in)
         , _limits(l)
         , _decoder(std::make_unique<detail::LzmaDecoder>())
@@ -484,7 +484,7 @@ namespace sgcl::compress {
             o._error = detail::moved_from_error("lzma");
         }
 
-        reader& operator=(reader&& o) noexcept {
+        SGCL_INLINE_HOT reader& operator=(reader&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
@@ -534,15 +534,15 @@ namespace sgcl::compress {
         }
 
         // Closes in, as buffered_reader's close does
-        expected<void, io::error> close() {
+        SGCL_INLINE_HOT expected<void, io::error> close() {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
@@ -569,7 +569,7 @@ namespace sgcl::compress {
         static constexpr size_t Chunk = size_t(256) << 10;   // decoded before a hand-out, at most
         static constexpr size_t YieldEvery = size_t(64) << 10;
 
-        size_t _hand_out(const slice<byte>& out) noexcept {
+        SGCL_INLINE_HOT size_t _hand_out(const slice<byte>& out) noexcept {
             size_t n = std::min(out.size(), _pos - _from);
             if (n) {
                 detail::copy_out(out.data(), _window.get() + _from, n);
@@ -631,7 +631,7 @@ namespace sgcl::compress {
         }
 
         // room for more input: what is left moved to the front
-        size_t _make_room() noexcept {
+        SGCL_INLINE_HOT size_t _make_room() noexcept {
             if (_in_begin) {
                 sgcl::detail::move_bytes(_input.get(), _input.get() + _in_begin, _in_end - _in_begin);
                 _consumed += _in_begin;
@@ -641,7 +641,7 @@ namespace sgcl::compress {
             return InputBytes - _in_end;
         }
 
-        optional<io::error> _fill() {
+        SGCL_INLINE_HOT optional<io::error> _fill() {
             size_t room = _make_room();
             auto r = _in.read(slice<byte>(reinterpret_cast<byte*>(_input.get() + _in_end), room));
             return _took(r, r ? *r : 0);
@@ -661,7 +661,7 @@ namespace sgcl::compress {
             co_return _took(r, r ? *r : 0);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r, size_t n) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _took(const expected<size_t, io::error>& r, size_t n) noexcept {
             if (!r) {
                 _error = error(r.error(), _started ? HeaderSize + _decoder->taken() : _consumed + _in_end);
                 return r.error();

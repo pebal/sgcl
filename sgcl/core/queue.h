@@ -30,75 +30,75 @@ namespace sgcl {
         using reference = typename Container::reference;
         using const_reference = typename Container::const_reference;
 
-        queue() noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_move_constructible_v<Container>)
+        SGCL_INLINE_HOT queue() noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_move_constructible_v<Container>)
         : queue(Container()) {
         }
 
-        explicit queue(const Container& cont) noexcept(std::is_nothrow_copy_constructible_v<Container>)
+        SGCL_INLINE_HOT explicit queue(const Container& cont) noexcept(std::is_nothrow_copy_constructible_v<Container>)
         : c(cont) {
         }
 
-        explicit queue(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>)
+        SGCL_INLINE_HOT explicit queue(Container&& cont) noexcept(std::is_nothrow_move_constructible_v<Container>)
         : c(std::move(cont)) {
         }
 
         template<std::input_iterator InputIt>
-        queue(InputIt first, InputIt last)
+        SGCL_INLINE_HOT queue(InputIt first, InputIt last)
         : c(first, last) {
         }
 
-        reference front() noexcept(noexcept(c.front())) {
+        SGCL_INLINE_HOT reference front() noexcept(noexcept(c.front())) {
             return c.front();
         }
 
-        const_reference front() const noexcept(noexcept(c.front())) {
+        SGCL_INLINE_HOT const_reference front() const noexcept(noexcept(c.front())) {
             return c.front();
         }
 
-        reference back() noexcept(noexcept(c.back())) {
+        SGCL_INLINE_HOT reference back() noexcept(noexcept(c.back())) {
             return c.back();
         }
 
-        const_reference back() const noexcept(noexcept(c.back())) {
+        SGCL_INLINE_HOT const_reference back() const noexcept(noexcept(c.back())) {
             return c.back();
         }
 
-        bool empty() const noexcept(noexcept(c.empty())) {
+        SGCL_INLINE_HOT bool empty() const noexcept(noexcept(c.empty())) {
             return c.empty();
         }
 
-        size_type size() const noexcept(noexcept(c.size())) {
+        SGCL_INLINE_HOT size_type size() const noexcept(noexcept(c.size())) {
             return c.size();
         }
 
-        void push(const value_type& value) noexcept(noexcept(c.push_back(value))) {
+        SGCL_INLINE_HOT void push(const value_type& value) noexcept(noexcept(c.push_back(value))) {
             c.push_back(value);
         }
 
-        void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value)))) {
+        SGCL_INLINE_HOT void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value)))) {
             c.push_back(std::move(value));
         }
 
         template<class... A>
-        decltype(auto) emplace(A&&... a) noexcept(noexcept(c.emplace_back(std::forward<A>(a)...))) {
+        SGCL_INLINE_HOT decltype(auto) emplace(A&&... a) noexcept(noexcept(c.emplace_back(std::forward<A>(a)...))) {
             return c.emplace_back(std::forward<A>(a)...);
         }
 
-        void pop() noexcept(noexcept(c.pop_front())) {
+        SGCL_INLINE_HOT void pop() noexcept(noexcept(c.pop_front())) {
             c.pop_front();
         }
 
-        void swap(queue& other) noexcept(std::is_nothrow_swappable_v<Container>) {
+        SGCL_INLINE_HOT void swap(queue& other) noexcept(std::is_nothrow_swappable_v<Container>) {
             using std::swap;
             swap(c, other.c);
         }
 
         // As the container compares, and only where it does
-        friend bool operator==(const queue& lhs, const queue& rhs) requires std::equality_comparable<Container> {
+        SGCL_INLINE_HOT friend bool operator==(const queue& lhs, const queue& rhs) requires std::equality_comparable<Container> {
             return lhs.c == rhs.c;
         }
 
-        friend auto operator<=>(const queue& lhs, const queue& rhs) requires std::three_way_comparable<Container> {
+        SGCL_INLINE_HOT friend auto operator<=>(const queue& lhs, const queue& rhs) requires std::three_way_comparable<Container> {
             return lhs.c <=> rhs.c;
         }
 
@@ -107,7 +107,7 @@ namespace sgcl {
     };
 
     template<class T, class Container>
-    inline void swap(queue<T, Container>& lhs, queue<T, Container>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    SGCL_INLINE_HOT void swap(queue<T, Container>& lhs, queue<T, Container>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 
@@ -124,37 +124,37 @@ namespace sgcl {
         static_assert(detail::nothrow_function_object<Compare, const value_type&, const value_type&>, "sgcl::priority_queue: Compare must be noexcept");
 
         // An empty container is a heap already: nothing is moved
-        priority_queue() noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_default_constructible_v<Compare>)
+        SGCL_INLINE_HOT priority_queue() noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_default_constructible_v<Compare>)
         : c()
         , comp() {
         }
 
-        explicit priority_queue(const Compare& compare) noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_copy_constructible_v<Compare>)
+        SGCL_INLINE_HOT explicit priority_queue(const Compare& compare) noexcept(std::is_nothrow_default_constructible_v<Container> && std::is_nothrow_copy_constructible_v<Compare>)
         : c()
         , comp(compare) {
         }
 
-        priority_queue(const Compare& compare, const Container& cont) noexcept(_nothrow_made_of<const Container&>())
+        SGCL_INLINE_HOT priority_queue(const Compare& compare, const Container& cont) noexcept(_nothrow_made_of<const Container&>())
         : c(cont)
         , comp(compare) {
             std::make_heap(c.begin(), c.end(), comp);
         }
 
-        priority_queue(const Compare& compare, Container&& cont) noexcept(_nothrow_made_of<Container&&>())
+        SGCL_INLINE_HOT priority_queue(const Compare& compare, Container&& cont) noexcept(_nothrow_made_of<Container&&>())
         : c(std::move(cont))
         , comp(compare) {
             std::make_heap(c.begin(), c.end(), comp);
         }
 
         template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& compare = Compare())
+        SGCL_INLINE_HOT priority_queue(InputIt first, InputIt last, const Compare& compare = Compare())
         : c(first, last)
         , comp(compare) {
             std::make_heap(c.begin(), c.end(), comp);
         }
 
         template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& compare, const Container& cont)
+        SGCL_INLINE_HOT priority_queue(InputIt first, InputIt last, const Compare& compare, const Container& cont)
         : c(cont)
         , comp(compare) {
             c.insert(c.end(), first, last);
@@ -162,47 +162,47 @@ namespace sgcl {
         }
 
         template<std::input_iterator InputIt>
-        priority_queue(InputIt first, InputIt last, const Compare& compare, Container&& cont)
+        SGCL_INLINE_HOT priority_queue(InputIt first, InputIt last, const Compare& compare, Container&& cont)
         : c(std::move(cont))
         , comp(compare) {
             c.insert(c.end(), first, last);
             std::make_heap(c.begin(), c.end(), comp);
         }
 
-        const_reference top() const noexcept(noexcept(c.front())) {
+        SGCL_INLINE_HOT const_reference top() const noexcept(noexcept(c.front())) {
             return c.front();
         }
 
-        bool empty() const noexcept(noexcept(c.empty())) {
+        SGCL_INLINE_HOT bool empty() const noexcept(noexcept(c.empty())) {
             return c.empty();
         }
 
-        size_type size() const noexcept(noexcept(c.size())) {
+        SGCL_INLINE_HOT size_type size() const noexcept(noexcept(c.size())) {
             return c.size();
         }
 
-        void push(const value_type& value) noexcept(noexcept(c.push_back(value)) && _nothrow_heap()) {
+        SGCL_INLINE_HOT void push(const value_type& value) noexcept(noexcept(c.push_back(value)) && _nothrow_heap()) {
             c.push_back(value);
             std::push_heap(c.begin(), c.end(), comp);
         }
 
-        void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value))) && _nothrow_heap()) {
+        SGCL_INLINE_HOT void push(value_type&& value) noexcept(noexcept(c.push_back(std::move(value))) && _nothrow_heap()) {
             c.push_back(std::move(value));
             std::push_heap(c.begin(), c.end(), comp);
         }
 
         template<class... A>
-        void emplace(A&&... a) noexcept(noexcept(c.emplace_back(std::forward<A>(a)...)) && _nothrow_heap()) {
+        SGCL_INLINE_HOT void emplace(A&&... a) noexcept(noexcept(c.emplace_back(std::forward<A>(a)...)) && _nothrow_heap()) {
             c.emplace_back(std::forward<A>(a)...);
             std::push_heap(c.begin(), c.end(), comp);
         }
 
-        void pop() noexcept(noexcept(c.pop_back()) && _nothrow_heap()) {
+        SGCL_INLINE_HOT void pop() noexcept(noexcept(c.pop_back()) && _nothrow_heap()) {
             std::pop_heap(c.begin(), c.end(), comp);
             c.pop_back();
         }
 
-        void swap(priority_queue& other) noexcept(std::is_nothrow_swappable_v<Container> && std::is_nothrow_swappable_v<Compare>) {
+        SGCL_INLINE_HOT void swap(priority_queue& other) noexcept(std::is_nothrow_swappable_v<Container> && std::is_nothrow_swappable_v<Compare>) {
             using std::swap;
             swap(c, other.c);
             swap(comp, other.comp);
@@ -213,20 +213,20 @@ namespace sgcl {
         Compare comp;
 
         // The heap's steps move the elements (the comparator is noexcept)
-        static constexpr bool _nothrow_heap() noexcept {
+        SGCL_INLINE_HOT static constexpr bool _nothrow_heap() noexcept {
             return std::is_nothrow_move_constructible_v<value_type> && std::is_nothrow_move_assignable_v<value_type>;
         }
 
         // A queue made of a container: the container copied or moved in,
         // the comparator copied, and the heap made of the elements
         template<class C>
-        static constexpr bool _nothrow_made_of() noexcept {
+        SGCL_INLINE_HOT static constexpr bool _nothrow_made_of() noexcept {
             return std::is_nothrow_constructible_v<Container, C> && std::is_nothrow_copy_constructible_v<Compare> && _nothrow_heap();
         }
     };
 
     template<class T, class Container, class Compare>
-    inline void swap(priority_queue<T, Container, Compare>& lhs, priority_queue<T, Container, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    SGCL_INLINE_HOT void swap(priority_queue<T, Container, Compare>& lhs, priority_queue<T, Container, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 

@@ -45,12 +45,12 @@ namespace sgcl::txt {
             }
         }
 
-        constexpr bool holds(char c) const noexcept {
+        SGCL_INLINE_HOT constexpr bool holds(char c) const noexcept {
             auto b = uint8_t(c);
             return b < 0x80 && ((_bits[b >> 6] >> (b & 63)) & 1) != 0;
         }
 
-        constexpr percent_set operator|(const percent_set& other) const noexcept {
+        SGCL_INLINE_HOT constexpr percent_set operator|(const percent_set& other) const noexcept {
             percent_set out;
             out._bits[0] = _bits[0] | other._bits[0];
             out._bits[1] = _bits[1] | other._bits[1];
@@ -62,7 +62,7 @@ namespace sgcl::txt {
         // own down from everything — "the query set and also the
         // question mark" — so both directions are here and each family
         // is written the way its own specification writes it
-        constexpr percent_set operator-(const percent_set& other) const noexcept {
+        SGCL_INLINE_HOT constexpr percent_set operator-(const percent_set& other) const noexcept {
             percent_set out;
             out._bits[0] = _bits[0] & ~other._bits[0];
             out._bits[1] = _bits[1] & ~other._bits[1];

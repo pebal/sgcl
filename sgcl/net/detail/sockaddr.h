@@ -24,15 +24,15 @@ namespace sgcl::net::detail {
         sockaddr_storage storage = {};
         socklen_t size = sizeof(sockaddr_storage);
 
-        sockaddr* get() noexcept {
+        SGCL_INLINE_HOT sockaddr* get() noexcept {
             return reinterpret_cast<sockaddr*>(&storage);
         }
 
-        const sockaddr* get() const noexcept {
+        SGCL_INLINE_HOT const sockaddr* get() const noexcept {
             return reinterpret_cast<const sockaddr*>(&storage);
         }
 
-        int family() const noexcept {
+        SGCL_INLINE_HOT int family() const noexcept {
             return storage.ss_family;
         }
     };
@@ -149,7 +149,7 @@ namespace sgcl::net::detail {
     }
 
     // The endpoint the socket is bound to (getsockname); empty for a unix socket
-    inline endpoint local_of(int fd) noexcept {
+    SGCL_INLINE_HOT endpoint local_of(int fd) noexcept {
         SockAddr a;
         if (::getsockname(fd, a.get(), &a.size) != 0) {
             return endpoint();
@@ -157,7 +157,7 @@ namespace sgcl::net::detail {
         return from_sockaddr(a.get());
     }
 
-    inline endpoint remote_of(int fd) noexcept {
+    SGCL_INLINE_HOT endpoint remote_of(int fd) noexcept {
         SockAddr a;
         if (::getpeername(fd, a.get(), &a.size) != 0) {
             return endpoint();

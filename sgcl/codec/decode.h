@@ -86,7 +86,7 @@ namespace sgcl::codec {
     // Every frame of an animation (GIF, WebP; a still WebP is one frame),
     // told by its signature, read as next() asks; the bytes held while
     // the frames live. Another format is errc::unsupported
-    inline expected<codec::frames, error> decode_frames(const slice<const byte>& data, const decode_options& o = {}) noexcept {
+    SGCL_INLINE_HOT expected<codec::frames, error> decode_frames(const slice<const byte>& data, const decode_options& o = {}) noexcept {
 
         auto f = sniff(data);
         if (f == format::gif) {

@@ -33,7 +33,7 @@ namespace sgcl::hash {
         struct Sip {
             uint64_t v0, v1, v2, v3;
 
-            Sip(uint64_t k0, uint64_t k1) noexcept
+            SGCL_INLINE_HOT Sip(uint64_t k0, uint64_t k1) noexcept
             : v0(k0 ^ 0x736f6d6570736575ull)   // "somepseudorandomlygeneratedbytes"
             , v1(k1 ^ 0x646f72616e646f6dull)
             , v2(k0 ^ 0x6c7967656e657261ull)
@@ -57,7 +57,7 @@ namespace sgcl::hash {
                 v2 = rotate_left(v2, 32);
             }
 
-            void word(uint64_t m) noexcept {
+            SGCL_INLINE_HOT void word(uint64_t m) noexcept {
                 v3 ^= m;
                 round();
                 round();
@@ -107,7 +107,7 @@ namespace sgcl::hash {
 
         // The key, 16 bytes, read as two little-endian words as the
         // reference implementation reads it
-        explicit siphash(const array<byte, 16>& key) noexcept
+        SGCL_INLINE_HOT explicit siphash(const array<byte, 16>& key) noexcept
         : _k0(detail::load_le64(detail::bytes(key.data())))
         , _k1(detail::load_le64(detail::bytes(key.data() + 8)))
         , _state(_k0, _k1) {
@@ -135,17 +135,17 @@ namespace sgcl::hash {
             _filled = unsigned(n - whole);
         }
 
-        uint64_t value() const noexcept {
+        SGCL_INLINE_HOT uint64_t value() const noexcept {
             detail::Sip s = _state;
             return s.finish(_length << 56 | _tail);
         }
 
-        array<byte, 8> digest() const noexcept {
+        SGCL_INLINE_HOT array<byte, 8> digest() const noexcept {
             return detail::big_endian<8>(value());
         }
 
         // As new, with the same key
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _state = detail::Sip(_k0, _k1);
             _length = 0;
             _tail = 0;
@@ -161,7 +161,7 @@ namespace sgcl::hash {
         unsigned _filled = 0;   // how many
 
         // the one-shot form of() calls: `siphash::of(data, key)`
-        static uint64_t _of(const slice<const byte>& data, const array<byte, 16>& key) noexcept {
+        SGCL_INLINE_HOT static uint64_t _of(const slice<const byte>& data, const array<byte, 16>& key) noexcept {
             return detail::siphash(detail::bytes(data.data()), data.size(), detail::load_le64(detail::bytes(key.data())),
                                    detail::load_le64(detail::bytes(key.data() + 8)));
         }

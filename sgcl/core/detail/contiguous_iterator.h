@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 #include <compare>
 #include <cstddef>
 #include <iterator>
@@ -23,11 +25,11 @@ namespace sgcl::detail {
         using difference_type = ptrdiff_t;
         using pointer = U*;
 
-        constexpr ContiguousIterator() noexcept
+        SGCL_INLINE_HOT constexpr ContiguousIterator() noexcept
         : _ptr(nullptr) {
         }
 
-        constexpr explicit ContiguousIterator(pointer ptr) noexcept
+        SGCL_INLINE_HOT constexpr explicit ContiguousIterator(pointer ptr) noexcept
         : _ptr(ptr) {
         }
 
@@ -39,79 +41,79 @@ namespace sgcl::detail {
         // a frame would count as a root until the word is overwritten.
         // Constexpr, as everything here: the iterator is a literal type,
         // so that array<T, N>'s members run in constant evaluation.
-        constexpr ~ContiguousIterator() noexcept {
+        SGCL_INLINE_HOT constexpr ~ContiguousIterator() noexcept {
             _ptr = nullptr;
         }
 
-        constexpr reference operator*() const noexcept {
+        SGCL_INLINE_HOT constexpr reference operator*() const noexcept {
             return *_ptr;
         }
 
-        constexpr pointer operator->() const noexcept {
+        SGCL_INLINE_HOT constexpr pointer operator->() const noexcept {
             return _ptr;
         }
 
-        constexpr reference operator[](difference_type n) const noexcept {
+        SGCL_INLINE_HOT constexpr reference operator[](difference_type n) const noexcept {
             return _ptr[n];
         }
 
-        constexpr ContiguousIterator& operator++() noexcept {
+        SGCL_INLINE_HOT constexpr ContiguousIterator& operator++() noexcept {
             ++_ptr;
             return *this;
         }
 
-        constexpr ContiguousIterator operator++(int) noexcept {
+        SGCL_INLINE_HOT constexpr ContiguousIterator operator++(int) noexcept {
             ContiguousIterator tmp = *this;
             ++_ptr;
             return tmp;
         }
 
-        constexpr ContiguousIterator& operator--() noexcept {
+        SGCL_INLINE_HOT constexpr ContiguousIterator& operator--() noexcept {
             --_ptr;
             return *this;
         }
 
-        constexpr ContiguousIterator operator--(int) noexcept {
+        SGCL_INLINE_HOT constexpr ContiguousIterator operator--(int) noexcept {
             ContiguousIterator tmp = *this;
             --_ptr;
             return tmp;
         }
 
-        constexpr ContiguousIterator& operator+=(difference_type n) noexcept {
+        SGCL_INLINE_HOT constexpr ContiguousIterator& operator+=(difference_type n) noexcept {
             _ptr += n;
             return *this;
         }
 
-        constexpr ContiguousIterator& operator-=(difference_type n) noexcept {
+        SGCL_INLINE_HOT constexpr ContiguousIterator& operator-=(difference_type n) noexcept {
             _ptr -= n;
             return *this;
         }
 
-        constexpr friend ContiguousIterator operator+(ContiguousIterator i, difference_type n) noexcept {
+        SGCL_INLINE_HOT constexpr friend ContiguousIterator operator+(ContiguousIterator i, difference_type n) noexcept {
             return ContiguousIterator(i._ptr + n);
         }
 
-        constexpr friend ContiguousIterator operator+(difference_type n, ContiguousIterator i) noexcept {
+        SGCL_INLINE_HOT constexpr friend ContiguousIterator operator+(difference_type n, ContiguousIterator i) noexcept {
             return ContiguousIterator(i._ptr + n);
         }
 
-        constexpr friend ContiguousIterator operator-(ContiguousIterator i, difference_type n) noexcept {
+        SGCL_INLINE_HOT constexpr friend ContiguousIterator operator-(ContiguousIterator i, difference_type n) noexcept {
             return ContiguousIterator(i._ptr - n);
         }
 
-        constexpr friend difference_type operator-(const ContiguousIterator& l, const ContiguousIterator& r) noexcept {
+        SGCL_INLINE_HOT constexpr friend difference_type operator-(const ContiguousIterator& l, const ContiguousIterator& r) noexcept {
             return l._ptr - r._ptr;
         }
 
-        constexpr friend bool operator==(const ContiguousIterator& l, const ContiguousIterator& r) noexcept {
+        SGCL_INLINE_HOT constexpr friend bool operator==(const ContiguousIterator& l, const ContiguousIterator& r) noexcept {
             return l._ptr == r._ptr;
         }
 
-        constexpr friend std::strong_ordering operator<=>(const ContiguousIterator& l, const ContiguousIterator& r) noexcept {
+        SGCL_INLINE_HOT constexpr friend std::strong_ordering operator<=>(const ContiguousIterator& l, const ContiguousIterator& r) noexcept {
             return std::compare_three_way{}(l._ptr, r._ptr);
         }
 
-        constexpr operator ContiguousIterator<const U>() const noexcept requires (!std::is_const_v<U>) {
+        SGCL_INLINE_HOT constexpr operator ContiguousIterator<const U>() const noexcept requires (!std::is_const_v<U>) {
             return ContiguousIterator<const U>(_ptr);
         }
 

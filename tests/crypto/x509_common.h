@@ -13,6 +13,7 @@
 #pragma once
 
 #include "ecc_common.h"
+#include "tests/source_root.h"
 
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -42,8 +43,7 @@ namespace x509_test {
 
     // Where the data files are: next to this header
     inline std::string data_dir() {
-        std::string f = __FILE__;
-        return f.substr(0, f.rfind('/')) + "/data/x509";
+        return (source_root() / "tests/crypto/data/x509").string();
     }
 
     inline std::string read_file(const std::string& path) {

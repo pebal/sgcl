@@ -80,14 +80,16 @@ TEST(ConcurrentQueue_Test, NodesAndObjectsReclaimed) {
     EXPECT_EQ(collector::get_live_object_count(), before + 201u);   // the dummy, 100 nodes, 100 Baz
     off_frame([&] {
         tracked_ptr<Baz> kept;
-        for (int i = 0; i < 100; ++i) {
-            auto v = q.try_pop();
-            ASSERT_TRUE(v);
-            EXPECT_EQ((*v)->value, i);
-            if (i == 0) {
-                kept = *v;
+        off_frame([&] {   // the pops in a frame of their own: inlined, try_pop's locals would stay in this one
+            for (int i = 0; i < 100; ++i) {
+                auto v = q.try_pop();
+                ASSERT_TRUE(v);
+                EXPECT_EQ((*v)->value, i);
+                if (i == 0) {
+                    kept = *v;
+                }
             }
-        }
+        });
         EXPECT_TRUE(q.empty());
         EXPECT_EQ(collector::get_live_object_count(), before + 2u);   // the last node as the dummy, the Baz still held
     });

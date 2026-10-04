@@ -108,7 +108,7 @@ namespace sgcl::hash::detail {
 
     // The final mixes: of XXH64 (for the shortest inputs), of XXH3, and the
     // stronger one of the 4–8 path
-    inline uint64_t xxh64_avalanche(uint64_t h) noexcept {
+    SGCL_INLINE_HOT uint64_t xxh64_avalanche(uint64_t h) noexcept {
         h ^= h >> 33;
         h *= Xxh64Prime2;
         h ^= h >> 29;
@@ -116,13 +116,13 @@ namespace sgcl::hash::detail {
         return h ^ (h >> 32);
     }
 
-    inline uint64_t xxh3_avalanche(uint64_t h) noexcept {
+    SGCL_INLINE_HOT uint64_t xxh3_avalanche(uint64_t h) noexcept {
         h ^= h >> 37;
         h *= Xxh3MixPrime1;
         return h ^ (h >> 32);
     }
 
-    inline uint64_t xxh3_rrmxmx(uint64_t h, uint64_t length) noexcept {
+    SGCL_INLINE_HOT uint64_t xxh3_rrmxmx(uint64_t h, uint64_t length) noexcept {
         h ^= rotate_left(h, 49) ^ rotate_left(h, 24);
         h *= Xxh3MixPrime2;
         h ^= (h >> 35) + length;
@@ -132,7 +132,7 @@ namespace sgcl::hash::detail {
 
     // Sixteen bytes and sixteen of the secret, the seed on both secret
     // words, folded into one word by one product
-    inline uint64_t xxh3_mix16(const unsigned char* p, const unsigned char* s, uint64_t seed) noexcept {
+    SGCL_INLINE_HOT uint64_t xxh3_mix16(const unsigned char* p, const unsigned char* s, uint64_t seed) noexcept {
         return fold_product(load_le64(p) ^ (load_le64(s) + seed), load_le64(p + 8) ^ (load_le64(s + 8) - seed));
     }
 
@@ -194,7 +194,7 @@ namespace sgcl::hash::detail {
 
     // Two pieces of 16 into a 128-bit accumulator: each half takes the mix
     // of one piece and the sum of the other's two words
-    inline void xxh3_mix32(Wide& acc, const unsigned char* a, const unsigned char* b, const unsigned char* s, uint64_t seed) noexcept {
+    SGCL_INLINE_HOT void xxh3_mix32(Wide& acc, const unsigned char* a, const unsigned char* b, const unsigned char* s, uint64_t seed) noexcept {
         acc.low += xxh3_mix16(a, s, seed);
         acc.low ^= load_le64(b) + load_le64(b + 8);
         acc.high += xxh3_mix16(b, s + 16, seed);
@@ -447,17 +447,17 @@ namespace sgcl::hash::detail {
             return xxh3_avalanche(h);
         }
 
-        uint64_t result64(const unsigned char* secret, uint64_t n) const noexcept {
+        SGCL_INLINE_HOT uint64_t result64(const unsigned char* secret, uint64_t n) const noexcept {
             return merge(secret + Xxh3MergeAt, n * Xxh64Prime1);
         }
 
-        Wide result128(const unsigned char* secret, uint64_t n) const noexcept {
+        SGCL_INLINE_HOT Wide result128(const unsigned char* secret, uint64_t n) const noexcept {
             return {merge(secret + Xxh3MergeAt, n * Xxh64Prime1), merge(secret + Xxh3MergeHighAt, ~(n * Xxh64Prime2))};
         }
     };
 
     // The lanes after all of an input longer than 240 bytes
-    inline Xxh3Lanes xxh3_long(const unsigned char* p, size_t n, const unsigned char* secret) noexcept {
+    SGCL_INLINE_HOT Xxh3Lanes xxh3_long(const unsigned char* p, size_t n, const unsigned char* secret) noexcept {
         Xxh3Lanes lanes;
         const size_t whole = (n - 1) / Xxh3StripeSize;   // the stripes with a byte after them
         lanes.stripes(p, whole, 0, secret);
@@ -467,7 +467,7 @@ namespace sgcl::hash::detail {
 
     // The secret an input longer than 240 bytes reads: the default for a
     // seed of 0, else the seed's, made into `room`
-    inline const unsigned char* xxh3_secret(uint64_t seed, unsigned char (&room)[Xxh3SecretSize]) noexcept {
+    SGCL_INLINE_HOT const unsigned char* xxh3_secret(uint64_t seed, unsigned char (&room)[Xxh3SecretSize]) noexcept {
         if (seed == 0) {
             return Xxh3Secret;
         }
@@ -477,14 +477,14 @@ namespace sgcl::hash::detail {
 
     // The same with the seed's secret made already (maphash keeps its
     // process's)
-    inline uint64_t xxh3_64(const unsigned char* p, size_t n, uint64_t seed, const unsigned char* secret) noexcept {
+    SGCL_INLINE_HOT uint64_t xxh3_64(const unsigned char* p, size_t n, uint64_t seed, const unsigned char* secret) noexcept {
         if (n <= Xxh3ShortLimit) {
             return xxh3_64_short(p, n, seed);
         }
         return xxh3_long(p, n, secret).result64(secret, n);
     }
 
-    inline uint64_t xxh3_64(const unsigned char* p, size_t n, uint64_t seed) noexcept {
+    SGCL_INLINE_HOT uint64_t xxh3_64(const unsigned char* p, size_t n, uint64_t seed) noexcept {
         if (n <= Xxh3ShortLimit) {
             return xxh3_64_short(p, n, seed);
         }
@@ -493,7 +493,7 @@ namespace sgcl::hash::detail {
         return xxh3_long(p, n, secret).result64(secret, n);
     }
 
-    inline Wide xxh3_128(const unsigned char* p, size_t n, uint64_t seed) noexcept {
+    SGCL_INLINE_HOT Wide xxh3_128(const unsigned char* p, size_t n, uint64_t seed) noexcept {
         if (n <= Xxh3ShortLimit) {
             return xxh3_128_short(p, n, seed);
         }
@@ -508,7 +508,7 @@ namespace sgcl::hash::detail {
     public:
         Xxh3Stream() noexcept = default;
 
-        explicit Xxh3Stream(uint64_t seed) noexcept
+        SGCL_INLINE_HOT explicit Xxh3Stream(uint64_t seed) noexcept
         : _seed(seed) {
         }
 
@@ -541,7 +541,7 @@ namespace sgcl::hash::detail {
             _buffered = n;
         }
 
-        uint64_t value64() const noexcept {
+        SGCL_INLINE_HOT uint64_t value64() const noexcept {
             if (_total <= Xxh3ShortLimit) {
                 return xxh3_64_short(_buffer, _buffered, _seed);
             }
@@ -550,7 +550,7 @@ namespace sgcl::hash::detail {
             return _finish(secret).result64(secret, _total);
         }
 
-        Wide value128() const noexcept {
+        SGCL_INLINE_HOT Wide value128() const noexcept {
             if (_total <= Xxh3ShortLimit) {
                 return xxh3_128_short(_buffer, _buffered, _seed);
             }
@@ -559,7 +559,7 @@ namespace sgcl::hash::detail {
             return _finish(secret).result128(secret, _total);
         }
 
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             *this = Xxh3Stream(_seed);
         }
 
@@ -584,7 +584,7 @@ namespace sgcl::hash::detail {
         }
 
         // The seed's secret, made once, when the first stripe is taken
-        const unsigned char* _secret_for_lanes() noexcept {
+        SGCL_INLINE_HOT const unsigned char* _secret_for_lanes() noexcept {
             if (_seed == 0) {
                 return Xxh3Secret;
             }
@@ -597,7 +597,7 @@ namespace sgcl::hash::detail {
 
         // The same for a result, which may come before any stripe was taken
         // (241–256 bytes, all in the buffer)
-        const unsigned char* _secret_for_result(unsigned char (&room)[Xxh3SecretSize]) const noexcept {
+        SGCL_INLINE_HOT const unsigned char* _secret_for_result(unsigned char (&room)[Xxh3SecretSize]) const noexcept {
             if (_seed == 0) {
                 return Xxh3Secret;
             }

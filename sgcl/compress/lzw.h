@@ -27,7 +27,7 @@ namespace sgcl::compress::detail {
     inline constexpr uint32_t LzwMaxWidth = 12;
     inline constexpr uint32_t LzwCodes = 1u << LzwMaxWidth;
 
-    inline void lzw_check_width(int literal_width) {
+    SGCL_INLINE_HOT void lzw_check_width(int literal_width) {
         if (literal_width < 2 || literal_width > 8) {
             throw std::invalid_argument("compress::lzw: literal width outside 2..8");
         }
@@ -58,7 +58,7 @@ namespace sgcl::compress::detail {
             }
         }
 
-        void flush(std::vector<uint8_t>& out) noexcept {
+        SGCL_INLINE_HOT void flush(std::vector<uint8_t>& out) noexcept {
             if (count) {
                 out.push_back(msb ? uint8_t(bits << (8 - count)) : uint8_t(bits));
             }
@@ -78,7 +78,7 @@ namespace sgcl::compress::detail {
     // next code with.
     class LzwEncoder {
     public:
-        LzwEncoder(bool msb, int literal_width) noexcept
+        SGCL_INLINE_HOT LzwEncoder(bool msb, int literal_width) noexcept
         : _clear(1u << literal_width)
         , _literal_width(uint32_t(literal_width))
         , _slots(std::make_unique<uint32_t[]>(Slots)) {
@@ -121,7 +121,7 @@ namespace sgcl::compress::detail {
 
         // A new stream with the same settings: the table cleared, nothing
         // of the old stream's string or bits kept
-        void reset() noexcept {
+        SGCL_INLINE_HOT void reset() noexcept {
             _current = None;
             _started = false;
             _out.bits = 0;
@@ -163,7 +163,7 @@ namespace sgcl::compress::detail {
             return true;
         }
 
-        void _start_over() noexcept {
+        SGCL_INLINE_HOT void _start_over() noexcept {
             _width = _literal_width + 1;
             _next = _clear + 2;
             std::memset(_slots.get(), 0, Slots * sizeof(uint32_t));
@@ -212,7 +212,7 @@ namespace sgcl::compress::detail {
         errc error = errc::corrupt;
         const char* error_text = nullptr;
 
-        LzwDecoder(bool msb, int literal_width) noexcept
+        SGCL_INLINE_HOT LzwDecoder(bool msb, int literal_width) noexcept
         : _msb(msb)
         , _clear(1u << literal_width)
         , _literal_width(uint32_t(literal_width)) {
@@ -236,7 +236,7 @@ namespace sgcl::compress::detail {
             error_text = nullptr;
         }
 
-        uint64_t offset() const noexcept {
+        SGCL_INLINE_HOT uint64_t offset() const noexcept {
             return _pulled - _count / 8;
         }
 
@@ -309,14 +309,14 @@ namespace sgcl::compress::detail {
     private:
         static constexpr uint32_t None = UINT32_MAX;
 
-        void _take() noexcept {
+        SGCL_INLINE_HOT void _take() noexcept {
             _count -= _width;
             if (!_msb) {
                 _bits >>= _width;
             }
         }
 
-        void _start_over() noexcept {
+        SGCL_INLINE_HOT void _start_over() noexcept {
             _width = _literal_width + 1;
             _next = _clear + 2;
             _previous = None;
@@ -381,7 +381,7 @@ namespace sgcl::compress {
             return detail::to_vector(out.data(), out.size());
         }
 
-        static expected<vector<byte>, error> decompress(const slice<const byte>& data, order o, int literal_width) {
+        SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data, order o, int literal_width) {
             return decompress(data, o, literal_width, limits{});
         }
 
@@ -430,7 +430,7 @@ namespace sgcl::compress {
 
     public:
 
-        writer(const io::writer& out, order o, int literal_width)
+        SGCL_INLINE_HOT writer(const io::writer& out, order o, int literal_width)
         : _out(out)
         , _encoder((detail::lzw_check_width(literal_width), std::make_unique<detail::LzwEncoder>(o == order::msb, literal_width)))
         , _order(o)
@@ -444,7 +444,7 @@ namespace sgcl::compress {
         // move (its order and width kept): its writes give
         // io::errc::closed, its close does nothing, and a reset gives it a
         // new stream
-        writer(writer&& o) noexcept
+        SGCL_INLINE_HOT writer(writer&& o) noexcept
         : _out(std::move(o._out))
         , _encoder(std::move(o._encoder))
         , _pending(std::move(o._pending))
@@ -460,7 +460,7 @@ namespace sgcl::compress {
             o._closed = true;
         }
 
-        writer& operator=(writer&& o) noexcept {
+        SGCL_INLINE_HOT writer& operator=(writer&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
@@ -540,12 +540,12 @@ namespace sgcl::compress {
             co_return expected<void, io::error>();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _closed;
         }
 
         // The first failure (of out, or a byte past the literal width), kept
-        const optional<io::error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<io::error>& last_error() const noexcept {
             return _error;
         }
 
@@ -565,7 +565,7 @@ namespace sgcl::compress {
         }
 
     private:
-        optional<io::error> _check(const char* op) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _check(const char* op) noexcept {
             if (_error) {
                 return _error;
             }
@@ -631,7 +631,7 @@ namespace sgcl::compress {
 
     public:
 
-        reader(const io::reader& in, order o, int literal_width)
+        SGCL_INLINE_HOT reader(const io::reader& in, order o, int literal_width)
         : _in(in)
         , _decoder((detail::lzw_check_width(literal_width), std::make_unique<detail::LzwDecoder>(o == order::msb, literal_width)))
         , _input(InputBytes)
@@ -670,7 +670,7 @@ namespace sgcl::compress {
             o._error = detail::moved_from_error("lzw");
         }
 
-        reader& operator=(reader&& o) noexcept {
+        SGCL_INLINE_HOT reader& operator=(reader&& o) noexcept {
             return detail::move_into(*this, std::move(o));
         }
 
@@ -721,15 +721,15 @@ namespace sgcl::compress {
         }
 
         // Closes in, as buffered_reader's close does
-        expected<void, io::error> close() {
+        SGCL_INLINE_HOT expected<void, io::error> close() {
             return _in.close();
         }
 
-        async::task<expected<void, io::error>> async_close() noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_close() noexcept {
             return _in.async_close();
         }
 
-        const optional<error>& last_error() const noexcept {
+        SGCL_INLINE_HOT const optional<error>& last_error() const noexcept {
             return _error;
         }
 
@@ -752,7 +752,7 @@ namespace sgcl::compress {
         }
 
     private:
-        size_t _hand_out(const slice<byte>& out) noexcept {
+        SGCL_INLINE_HOT size_t _hand_out(const slice<byte>& out) noexcept {
             size_t n = std::min(out.size(), _pos - _from);
             if (n) {
                 sgcl::detail::copy_bytes(out.data(), _output.data() + _from, n);
@@ -785,7 +785,7 @@ namespace sgcl::compress {
         }
 
         // The decoder takes every byte it is given before it asks for more
-        optional<io::error> _fill() {
+        SGCL_INLINE_HOT optional<io::error> _fill() {
             _in_begin = _in_end = 0;
             auto r = _in.read(_input.room(0, _input.size()));
             return _took(r);
@@ -798,7 +798,7 @@ namespace sgcl::compress {
             co_return _took(r);
         }
 
-        optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _took(const expected<size_t, io::error>& r) noexcept {
             if (!r) {
                 _error = error(r.error(), _decoder->offset());
                 return r.error();

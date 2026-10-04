@@ -192,37 +192,37 @@ namespace sgcl {
         static constexpr size_type npos = size_type(-1);
 
         // Empty, no owner
-        slice() noexcept
+        SGCL_INLINE_HOT slice() noexcept
         : _object(nullptr, detail::unregistered) {
         }
 
         // The elements [first, last) or [first, first + n) of unmanaged
         // memory: no owner
-        slice(T* first, T* last) noexcept
+        SGCL_INLINE_HOT slice(T* first, T* last) noexcept
         : _object(nullptr, detail::unregistered)
         , _begin(first)
         , _end(last) {
         }
 
-        slice(T* first, size_type n) noexcept
+        SGCL_INLINE_HOT slice(T* first, size_type n) noexcept
         : slice(first, first + n) {
         }
 
         // The elements [first, last) of the managed object `owner`, which
         // the slice holds
-        slice(const tracked_ptr<const void>& owner, T* first, T* last) noexcept
+        SGCL_INLINE_HOT slice(const tracked_ptr<const void>& owner, T* first, T* last) noexcept
         : _object(owner)
         , _begin(first)
         , _end(last) {
             assert(_within_owner() && "the elements of a slice lie in its owner");
         }
 
-        slice(const tracked_ptr<const void>& owner, T* first, size_type n) noexcept
+        SGCL_INLINE_HOT slice(const tracked_ptr<const void>& owner, T* first, size_type n) noexcept
         : slice(owner, first, first + n) {
         }
 
         // From the std containers and views: no owner
-        slice(std::span<T> s) noexcept
+        SGCL_INLINE_HOT slice(std::span<T> s) noexcept
         : slice(s.data(), s.data() + s.size()) {
         }
 
@@ -231,37 +231,37 @@ namespace sgcl {
         // mixin::text reads one, so that "ab" is two characters and not the
         // terminator too
         template<size_t N>
-        slice(T (&a)[N]) noexcept
+        SGCL_INLINE_HOT slice(T (&a)[N]) noexcept
         : slice(a, a + _array_length(a)) {
         }
 
         template<class U, size_t N>
         requires std::is_convertible_v<U (*)[], T (*)[]>
-        slice(std::array<U, N>& a) noexcept
+        SGCL_INLINE_HOT slice(std::array<U, N>& a) noexcept
         : slice(a.data(), a.data() + N) {
         }
 
         template<class U, size_t N>
         requires std::is_convertible_v<const U (*)[], T (*)[]>
-        slice(const std::array<U, N>& a) noexcept
+        SGCL_INLINE_HOT slice(const std::array<U, N>& a) noexcept
         : slice(a.data(), a.data() + N) {
         }
 
         template<class U, class A>
         requires std::is_convertible_v<U (*)[], T (*)[]>
-        slice(std::vector<U, A>& v) noexcept
+        SGCL_INLINE_HOT slice(std::vector<U, A>& v) noexcept
         : slice(v.data(), v.data() + v.size()) {
         }
 
         template<class U, class A>
         requires std::is_convertible_v<const U (*)[], T (*)[]>
-        slice(const std::vector<U, A>& v) noexcept
+        SGCL_INLINE_HOT slice(const std::vector<U, A>& v) noexcept
         : slice(v.data(), v.data() + v.size()) {
         }
 
         template<class Traits>
         requires std::is_convertible_v<const std::remove_const_t<T> (*)[], T (*)[]>
-        slice(std::basic_string_view<std::remove_const_t<T>, Traits> s) noexcept
+        SGCL_INLINE_HOT slice(std::basic_string_view<std::remove_const_t<T>, Traits> s) noexcept
         : slice(s.data(), s.data() + s.size()) {
         }
 
@@ -269,7 +269,7 @@ namespace sgcl {
         // const from a mutable), the owner carried over
         template<class U>
         requires (!std::is_same_v<U, T>) && std::is_convertible_v<U (*)[], T (*)[]>
-        slice(const slice<U>& o) noexcept
+        SGCL_INLINE_HOT slice(const slice<U>& o) noexcept
         : slice(o.owner(), o.data(), o.data() + o.size()) {
         }
 
@@ -283,55 +283,55 @@ namespace sgcl {
         // all of it
         template<class U>
         requires std::is_same_v<T, const byte> && std::is_same_v<std::remove_const_t<U>, char>
-        slice(const slice<U>& text) noexcept
+        SGCL_INLINE_HOT slice(const slice<U>& text) noexcept
         : slice(text.owner(), reinterpret_cast<const byte*>(text.data()), reinterpret_cast<const byte*>(text.data() + text.size()), Unchecked{}) {
         }
 
         template<class Traits>
         requires std::is_same_v<T, const byte>
-        slice(const basic_string<char, Traits>& text) noexcept
+        SGCL_INLINE_HOT slice(const basic_string<char, Traits>& text) noexcept
         : slice(text.as_slice()) {
         }
 
         template<class Traits>
         requires std::is_same_v<T, const byte>
-        slice(std::basic_string_view<char, Traits> text) noexcept
+        SGCL_INLINE_HOT slice(std::basic_string_view<char, Traits> text) noexcept
         : slice(reinterpret_cast<const byte*>(text.data()), text.size()) {
         }
 
         template<size_t N>
         requires std::is_same_v<T, const byte>
-        slice(const char (&text)[N]) noexcept
+        SGCL_INLINE_HOT slice(const char (&text)[N]) noexcept
         : slice(reinterpret_cast<const byte*>(text), _up_to_nul(text, N)) {
         }
 
         template<size_t N>
         requires std::is_same_v<T, const byte>
-        slice(const unsigned char (&data)[N]) noexcept
+        SGCL_INLINE_HOT slice(const unsigned char (&data)[N]) noexcept
         : slice(reinterpret_cast<const byte*>(data), N) {
         }
 
         template<size_t N>
         requires std::is_same_v<T, const byte>
-        slice(const std::array<unsigned char, N>& data) noexcept
+        SGCL_INLINE_HOT slice(const std::array<unsigned char, N>& data) noexcept
         : slice(reinterpret_cast<const byte*>(data.data()), N) {
         }
 
         // The copy: a null owner without the registration, an owner
         // through tracked_ptr's copy (the registration, the barrier)
-        slice(const slice& o) noexcept
+        SGCL_INLINE_HOT slice(const slice& o) noexcept
         : _object(o._object ? tracked_ptr<const void>(o._object) : tracked_ptr<const void>(nullptr, detail::unregistered))
         , _begin(o._begin)
         , _end(o._end) {
         }
 
-        slice(slice&& o) noexcept
+        SGCL_INLINE_HOT slice(slice&& o) noexcept
         : slice(static_cast<const slice&>(o)) {
         }
 
         // The assignment: a non-null owner arriving on this stack has the
         // thread registered first, as a constructor would
-        slice& operator=(const slice& o) noexcept {
+        SGCL_INLINE_HOT slice& operator=(const slice& o) noexcept {
             if (o._object) {
                 detail::ensure_thread_registered();
             }
@@ -341,7 +341,7 @@ namespace sgcl {
             return *this;
         }
 
-        slice& operator=(slice&& o) noexcept {
+        SGCL_INLINE_HOT slice& operator=(slice&& o) noexcept {
             return *this = static_cast<const slice&>(o);
         }
 
@@ -350,106 +350,106 @@ namespace sgcl {
         // and traces it, so a dead slice's begin and end, left as they
         // were in a container's slot, would keep the object they point
         // into alive (an interior address within its first page)
-        ~slice() noexcept {
+        SGCL_INLINE_HOT ~slice() noexcept {
             *(T* volatile*)&_begin = nullptr;
             *(T* volatile*)&_end = nullptr;
         }
 
         // The object the elements lie in, null for unmanaged memory
-        const tracked_ptr<const void>& owner() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<const void>& owner() const noexcept {
             return _object;
         }
 
-        bool owned() const noexcept {
+        SGCL_INLINE_HOT bool owned() const noexcept {
             return _object != nullptr;
         }
 
-        T* data() const noexcept {
+        SGCL_INLINE_HOT T* data() const noexcept {
             return _begin;
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return size_type(_end - _begin);
         }
 
-        size_type size_bytes() const noexcept {
+        SGCL_INLINE_HOT size_type size_bytes() const noexcept {
             return size() * sizeof(T);
         }
 
         // Itself: what every container with a buffer answers, so that
         // generic code asks one question
-        slice as_slice() const noexcept {
+        SGCL_INLINE_HOT slice as_slice() const noexcept {
             return *this;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _begin == _end;
         }
 
-        T& operator[](size_type i) const noexcept {
+        SGCL_INLINE_HOT T& operator[](size_type i) const noexcept {
             assert(i < size());
             return _begin[i];
         }
 
-        T& front() const noexcept {
+        SGCL_INLINE_HOT T& front() const noexcept {
             assert(!empty());
             return *_begin;
         }
 
-        T& back() const noexcept {
+        SGCL_INLINE_HOT T& back() const noexcept {
             assert(!empty());
             return _end[-1];
         }
 
-        iterator begin() const noexcept { return _begin; }
-        iterator end() const noexcept { return _end; }
-        const_iterator cbegin() const noexcept { return _begin; }
-        const_iterator cend() const noexcept { return _end; }
-        reverse_iterator rbegin() const noexcept { return reverse_iterator(_end); }
-        reverse_iterator rend() const noexcept { return reverse_iterator(_begin); }
-        const_reverse_iterator crbegin() const noexcept { return rbegin(); }
-        const_reverse_iterator crend() const noexcept { return rend(); }
+        SGCL_INLINE_HOT iterator begin() const noexcept { return _begin; }
+        SGCL_INLINE_HOT iterator end() const noexcept { return _end; }
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept { return _begin; }
+        SGCL_INLINE_HOT const_iterator cend() const noexcept { return _end; }
+        SGCL_INLINE_HOT reverse_iterator rbegin() const noexcept { return reverse_iterator(_end); }
+        SGCL_INLINE_HOT reverse_iterator rend() const noexcept { return reverse_iterator(_begin); }
+        SGCL_INLINE_HOT const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+        SGCL_INLINE_HOT const_reverse_iterator crend() const noexcept { return rend(); }
 
         // The elements [pos, pos + n) as a slice of the same owner;
         // std::span's names for the same
-        slice subslice(size_type pos, size_type n = npos) const {
+        SGCL_INLINE_HOT slice subslice(size_type pos, size_type n = npos) const {
             if (pos > size()) {
                 throw out_of_range("sgcl::slice::subslice");
             }
             return slice(_object, _begin + pos, _begin + pos + std::min(n, size() - pos), Unchecked{});
         }
 
-        slice subspan(size_type pos, size_type n = npos) const {
+        SGCL_INLINE_HOT slice subspan(size_type pos, size_type n = npos) const {
             return subslice(pos, n);
         }
 
-        slice first(size_type n) const noexcept {
+        SGCL_INLINE_HOT slice first(size_type n) const noexcept {
             assert(n <= size());
             return slice(_object, _begin, _begin + n, Unchecked{});
         }
 
-        slice last(size_type n) const noexcept {
+        SGCL_INLINE_HOT slice last(size_type n) const noexcept {
             assert(n <= size());
             return slice(_object, _end - n, _end, Unchecked{});
         }
 
         // The slice narrowed in place, as std::string_view's
-        void remove_prefix(size_type n) noexcept {
+        SGCL_INLINE_HOT void remove_prefix(size_type n) noexcept {
             assert(n <= size());
             _begin += n;
         }
 
-        void remove_suffix(size_type n) noexcept {
+        SGCL_INLINE_HOT void remove_suffix(size_type n) noexcept {
             assert(n <= size());
             _end -= n;
         }
 
         // For a std interface: the range without the owner
-        operator std::span<T>() const noexcept {
+        SGCL_INLINE_HOT operator std::span<T>() const noexcept {
             return std::span<T>(_begin, _end);
         }
 
-        void swap(slice& o) noexcept {
+        SGCL_INLINE_HOT void swap(slice& o) noexcept {
             slice t = *this;
             *this = o;
             o = t;
@@ -459,7 +459,7 @@ namespace sgcl {
         // `chars` (white space by default) at both ends, at the start, at
         // the end; without a prefix or a suffix when it is there — each
         // a slice of the same owner, nothing copied
-        slice trim() const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim() const noexcept requires detail::IsCharacter<value_type> {
             auto from = this->_find_space(0, false);
             if (from == npos) {
                 return slice(_object, _begin, _begin, Unchecked{});
@@ -467,7 +467,7 @@ namespace sgcl {
             return slice(_object, _begin + from, _begin + this->_end_without_spaces(), Unchecked{});
         }
 
-        slice trim(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
             auto v = this->view();
             auto from = v.find_first_not_of(chars);
             if (from == npos) {
@@ -477,27 +477,27 @@ namespace sgcl {
             return slice(_object, _begin + from, _begin + to, Unchecked{});
         }
 
-        slice trim_left() const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim_left() const noexcept requires detail::IsCharacter<value_type> {
             auto from = this->_find_space(0, false);
             return from == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin + from, _end, Unchecked{});
         }
 
-        slice trim_left(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim_left(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
             auto from = this->view().find_first_not_of(chars);
             return from == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin + from, _end, Unchecked{});
         }
 
-        slice trim_right() const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim_right() const noexcept requires detail::IsCharacter<value_type> {
             return slice(_object, _begin, _begin + this->_end_without_spaces(), Unchecked{});
         }
 
-        slice trim_right(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim_right(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
             auto to = this->view().find_last_not_of(chars);
             return to == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin, _begin + to + 1, Unchecked{});
         }
 
         // The characters to trim as code points: trim(U"«»")
-        slice trim(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
+        SGCL_INLINE_HOT slice trim(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             auto from = this->find_first_not_of(set);
             if (from == npos) {
                 return slice(_object, _begin, _begin, Unchecked{});
@@ -506,47 +506,47 @@ namespace sgcl {
             return slice(_object, _begin + from, _begin + last + this->_width_at(last), Unchecked{});
         }
 
-        slice trim_left(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
+        SGCL_INLINE_HOT slice trim_left(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             auto from = this->find_first_not_of(set);
             return from == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin + from, _end, Unchecked{});
         }
 
-        slice trim_right(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
+        SGCL_INLINE_HOT slice trim_right(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             auto last = this->find_last_not_of(set);
             return last == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin, _begin + last + this->_width_at(last), Unchecked{});
         }
 
-        slice trim_prefix(detail::TextView<T> prefix) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim_prefix(detail::TextView<T> prefix) const noexcept requires detail::IsCharacter<value_type> {
             return this->starts_with(prefix) ? slice(_object, _begin + prefix.size(), _end, Unchecked{}) : *this;
         }
 
-        slice trim_suffix(detail::TextView<T> suffix) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice trim_suffix(detail::TextView<T> suffix) const noexcept requires detail::IsCharacter<value_type> {
             return this->ends_with(suffix) ? slice(_object, _begin, _end - suffix.size(), Unchecked{}) : *this;
         }
 
         // substr: std::string_view's name for subslice, on text
-        slice substr(size_type pos = 0, size_type n = npos) const requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT slice substr(size_type pos = 0, size_type n = npos) const requires detail::IsCharacter<value_type> {
             return subslice(pos, n);
         }
 
         // contains: a name in two bases (mixin::text's, of a substring or a
         // character; mixin::enumerable's, of an element) is ambiguous, so the
         // slice says which — the text's for text, the element's otherwise
-        bool contains(detail::TextView<T> s) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT bool contains(detail::TextView<T> s) const noexcept requires detail::IsCharacter<value_type> {
             return detail::SliceBase<T, slice>::contains(s);
         }
 
-        bool contains(value_type c) const noexcept requires detail::IsCharacter<value_type> {
+        SGCL_INLINE_HOT bool contains(value_type c) const noexcept requires detail::IsCharacter<value_type> {
             return detail::SliceBase<T, slice>::contains(c);
         }
 
-        bool contains(char32_t c) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
+        SGCL_INLINE_HOT bool contains(char32_t c) const noexcept requires (detail::IsCharacter<value_type> && !std::is_same_v<value_type, char32_t>) {
             return detail::SliceBase<T, slice>::contains(c);
         }
 
         bool contains(std::same_as<int> auto) const requires detail::IsCharacter<value_type> = delete;   // 'ż' is an int: write U'ż' (a template: slice<int> has contains(int) already)
 
-        bool contains(const auto& value) const requires (!detail::IsCharacter<value_type>) && detail::EquatableElements<slice> {
+        SGCL_INLINE_HOT bool contains(const auto& value) const requires (!detail::IsCharacter<value_type>) && detail::EquatableElements<slice> {
             return mixin::enumerable<slice>::contains(value);
         }
 
@@ -557,7 +557,7 @@ namespace sgcl {
         // the managed object `owner`, which keeps that memory alive for as
         // long as it lives (detail::OutsideOwner: a mapped region, io's
         // mapping and shared_memory); the slice holds it
-        slice(const tracked_ptr<const void>& owner, T* first, T* last, detail::OutsideOwner) noexcept
+        SGCL_INLINE_HOT slice(const tracked_ptr<const void>& owner, T* first, T* last, detail::OutsideOwner) noexcept
         : slice(owner, first, last, Unchecked{}) {
             assert((!owner || detail::note_outside_owner(detail::Page::metadata_of(owner.get()).type_info)) && "the owner's type noted");
         }
@@ -566,7 +566,7 @@ namespace sgcl {
         friend class io::shared_memory;
 
         template<size_t N>
-        static constexpr size_t _array_length(T (&a)[N]) noexcept {
+        SGCL_INLINE_HOT static constexpr size_t _array_length(T (&a)[N]) noexcept {
             if constexpr (std::is_const_v<T> && detail::IsCharacter<value_type>) {
                 const value_type* nul = std::char_traits<value_type>::find(a, N, value_type());
                 return nul ? size_t(nul - a) : N;
@@ -576,12 +576,12 @@ namespace sgcl {
         }
 
         // The characters of an array before its first NUL, all n without one
-        static size_t _up_to_nul(const char* text, size_t n) noexcept {
+        SGCL_INLINE_HOT static size_t _up_to_nul(const char* text, size_t n) noexcept {
             const char* nul = std::char_traits<char>::find(text, n, '\0');
             return nul ? size_t(nul - text) : n;
         }
 
-        slice(const tracked_ptr<const void>& owner, T* first, T* last, Unchecked) noexcept
+        SGCL_INLINE_HOT slice(const tracked_ptr<const void>& owner, T* first, T* last, Unchecked) noexcept
         : _object(owner ? tracked_ptr<const void>(owner) : tracked_ptr<const void>(nullptr, detail::unregistered))
         , _begin(first)
         , _end(last) {
@@ -635,13 +635,13 @@ namespace sgcl {
 
     // The bytes of a slice, as std::as_bytes
     template<class T>
-    slice<const byte> as_bytes(const slice<T>& s) noexcept {
+    SGCL_INLINE_HOT slice<const byte> as_bytes(const slice<T>& s) noexcept {
         return slice<const byte>(s.owner(), reinterpret_cast<const byte*>(s.data()), s.size_bytes());
     }
 
     template<class T>
     requires (!std::is_const_v<T>)
-    slice<byte> as_writable_bytes(const slice<T>& s) noexcept {
+    SGCL_INLINE_HOT slice<byte> as_writable_bytes(const slice<T>& s) noexcept {
         return slice<byte>(s.owner(), reinterpret_cast<byte*>(s.data()), s.size_bytes());
     }
 
@@ -671,45 +671,45 @@ namespace sgcl {
 
             iterator() noexcept = default;
 
-            char32_t operator*() const noexcept {
+            SGCL_INLINE_HOT char32_t operator*() const noexcept {
                 return _c;
             }
 
-            iterator& operator++() noexcept {
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
                 _pos += _n;
                 _decode();
                 return *this;
             }
 
-            iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT iterator operator++(int) noexcept {
                 iterator t = *this;
                 ++*this;
                 return t;
             }
 
-            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const iterator& a, const iterator& b) noexcept {
                 return a._pos == b._pos;
             }
 
             // The byte position of the code point in the text, and its width in bytes
-            size_t pos() const noexcept {
+            SGCL_INLINE_HOT size_t pos() const noexcept {
                 return _pos;
             }
 
-            size_t width() const noexcept {
+            SGCL_INLINE_HOT size_t width() const noexcept {
                 return _n;
             }
 
         private:
             friend class runes;
 
-            iterator(std::string_view text, size_t pos) noexcept
+            SGCL_INLINE_HOT iterator(std::string_view text, size_t pos) noexcept
             : _text(text)
             , _pos(pos) {
                 _decode();
             }
 
-            void _decode() noexcept {
+            SGCL_INLINE_HOT void _decode() noexcept {
                 auto [c, n] = utf8::decode(_text, _pos);
                 _c = c;
                 _n = n;
@@ -725,29 +725,29 @@ namespace sgcl {
 
         runes() noexcept = default;
 
-        explicit runes(const slice<const char>& text) noexcept
+        SGCL_INLINE_HOT explicit runes(const slice<const char>& text) noexcept
         : _text(text) {
         }
 
-        iterator begin() const noexcept {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return iterator(_text.view(), 0);
         }
 
-        iterator end() const noexcept {
+        SGCL_INLINE_HOT iterator end() const noexcept {
             return iterator(_text.view(), _text.size());
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _text.empty();
         }
 
         // The code points: walked and counted, not stored
-        size_type count() const noexcept {
+        SGCL_INLINE_HOT size_type count() const noexcept {
             return utf8::count(_text.view());
         }
 
         // The text the range walks
-        const slice<const char>& text() const noexcept {
+        SGCL_INLINE_HOT const slice<const char>& text() const noexcept {
             return _text;
         }
 
@@ -760,7 +760,7 @@ namespace sgcl {
 // are complete; a string's as_slice() and a slice's as_slice() hand the
 // text over with its object
 template<class Derived, class CharT, class Traits>
-sgcl::runes sgcl::mixin::text<Derived, CharT, Traits>::runes() const noexcept requires (sizeof(CharT) == 1) {
+SGCL_INLINE_HOT sgcl::runes sgcl::mixin::text<Derived, CharT, Traits>::runes() const noexcept requires (sizeof(CharT) == 1) {
     auto s = _self().as_slice();
     return sgcl::runes(sgcl::slice<const char>(s.owner(), reinterpret_cast<const char*>(s.data()), s.size()));
 }

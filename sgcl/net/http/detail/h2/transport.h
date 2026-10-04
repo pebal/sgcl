@@ -39,7 +39,7 @@
 // the head) are timers on its stream: past one, the stream is reset
 // (CANCEL) and its reader gets ETIMEDOUT; the connection lives.
 namespace sgcl::net::http::detail::h2 {
-    inline int64_t client_clock_ns() noexcept {
+    SGCL_INLINE_HOT int64_t client_clock_ns() noexcept {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(sgcl::clock::now().time_since_epoch()).count();
     }
 
@@ -73,7 +73,7 @@ namespace sgcl::net::http::detail::h2 {
         tracked_ptr<async::detail::Timer> deadline;
         tracked_ptr<async::detail::Timer> head_deadline;
 
-        explicit ClientStream(tracked_ptr<StreamOwner> owner) noexcept
+        SGCL_INLINE_HOT explicit ClientStream(tracked_ptr<StreamOwner> owner) noexcept
         : StreamState(0, std::move(owner)), headed(1) {
         }
 
@@ -97,13 +97,13 @@ namespace sgcl::net::http::detail::h2 {
 
     class ClientH2 final : public StreamOwner {
     public:
-        ClientH2(net::connection c, const TransportSettings& s) noexcept
+        SGCL_INLINE_HOT ClientH2(net::connection c, const TransportSettings& s) noexcept
         : _c(std::move(c)), _idle_timeout(s.idle_timeout), _m(*this, s.machine), _wake(1) {
             _last_active = client_clock_ns();
         }
 
         // Called once, when the connection leaves service (its pool forgets it)
-        void set_on_closed(function<void()> f) noexcept {
+        SGCL_INLINE_HOT void set_on_closed(function<void()> f) noexcept {
             _on_closed = std::move(f);
         }
 
@@ -111,7 +111,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // A place for one request (a stream it will open); false when the
         // connection takes no more (going away, closed, its streams full)
-        bool reserve() noexcept {
+        SGCL_INLINE_HOT bool reserve() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             if (_closed || !_m.can_open() || _m.open_streams() + _reserved >= _m.stream_limit()) {
                 return false;
@@ -120,7 +120,7 @@ namespace sgcl::net::http::detail::h2 {
             return true;
         }
 
-        void unreserve() noexcept {
+        SGCL_INLINE_HOT void unreserve() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             if (_reserved) {
                 --_reserved;
@@ -129,13 +129,13 @@ namespace sgcl::net::http::detail::h2 {
 
         // The server's limit of streams, once its SETTINGS came (0 before):
         // a second connection to the origin starts from it, not from 100
-        uint32_t learned_limit() noexcept {
+        SGCL_INLINE_HOT uint32_t learned_limit() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _m.peer_settings_received() ? _m.stream_limit() : 0;
         }
 
         // Whether the connection may take requests at all (not going away)
-        bool usable() noexcept {
+        SGCL_INLINE_HOT bool usable() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return !_closed && !_m.goaway_received() && !_m.failed();
         }
@@ -170,7 +170,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // What became of a request's stream (open while nothing yet)
-        ClientStream::Fate fate_of(const tracked_ptr<ClientStream>& st) noexcept {
+        SGCL_INLINE_HOT ClientStream::Fate fate_of(const tracked_ptr<ClientStream>& st) noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return st->fate;
         }
@@ -181,7 +181,7 @@ namespace sgcl::net::http::detail::h2 {
         // does): a cancelled one waits in the timers' heap until it is
         // swept, and one that held the stream would keep it, and through
         // it the connection, alive until then
-        void arm(const tracked_ptr<ClientStream>& st, time_point deadline, time_point head_deadline) {
+        SGCL_INLINE_HOT void arm(const tracked_ptr<ClientStream>& st, time_point deadline, time_point head_deadline) {
             weak_ptr<void> target = tracked_ptr<void>(st);
             if (deadline != time_point()) {
                 st->deadline = async::detail::add_weak_timer(deadline, target, &ClientH2::_expire);
@@ -291,7 +291,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) {
+        SGCL_INLINE_HOT void on_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) {
             if (auto st = _find(id)) {
                 if (st->head_request) {
                     // HEAD: a body's bytes are not the response's (§8.1), given back
@@ -328,7 +328,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_unprocessed(uint32_t id) {
+        SGCL_INLINE_HOT void on_unprocessed(uint32_t id) {
             if (auto st = _find(id)) {
                 _streams.erase(id);
                 st->fate = ClientStream::Fate::unprocessed;
@@ -347,11 +347,11 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        void on_goaway(uint32_t, ErrorCode) noexcept {
+        SGCL_INLINE_HOT void on_goaway(uint32_t, ErrorCode) noexcept {
             _going_away = true;
         }
 
-        void on_ping_ack(const uint8_t*) noexcept {
+        SGCL_INLINE_HOT void on_ping_ack(const uint8_t*) noexcept {
         }
 
         // --- StreamOwner ---------------------------------------------------------
@@ -388,7 +388,7 @@ namespace sgcl::net::http::detail::h2 {
         // request's string or vector, never changed), which it holds until
         // the write that takes it is done. A short piece is copied, as
         // send_data copies
-        async::task<expected<void, io::error>> send_data_held(uint32_t id, slice<const byte> data, bool end_stream) noexcept {
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> send_data_held(uint32_t id, slice<const byte> data, bool end_stream) noexcept {
             return _send_data(tracked_ptr<ClientH2>(this), id, std::move(data), end_stream, true);
         }
 
@@ -484,7 +484,7 @@ namespace sgcl::net::http::detail::h2 {
             }
         }
 
-        size_t streams() noexcept {
+        SGCL_INLINE_HOT size_t streams() noexcept {
             std::lock_guard<std::mutex> g(_lock);
             return _streams.size();
         }
@@ -513,12 +513,12 @@ namespace sgcl::net::http::detail::h2 {
         bool _going_away = false;
         bool _write_closed = false;          // the pump's
 
-        tracked_ptr<ClientStream> _find(uint32_t id) noexcept {
+        SGCL_INLINE_HOT tracked_ptr<ClientStream> _find(uint32_t id) noexcept {
             auto it = _streams.find(id);
             return it == _streams.end() ? tracked_ptr<ClientStream>() : it->second;
         }
 
-        void _kick() {
+        SGCL_INLINE_HOT void _kick() {
             _wake.try_send();
         }
 
@@ -541,19 +541,19 @@ namespace sgcl::net::http::detail::h2 {
 
         // Both sides ended: the machine has let the stream go, so does the
         // table (the Body keeps the state for its reader)
-        void _forget_if_done(const tracked_ptr<ClientStream>& st) noexcept {
+        SGCL_INLINE_HOT void _forget_if_done(const tracked_ptr<ClientStream>& st) noexcept {
             if (st->remote_ended && st->sent_all) {
                 _streams.erase(st->id);
             }
         }
 
-        void _remote_end(const tracked_ptr<ClientStream>& st) {
+        SGCL_INLINE_HOT void _remote_end(const tracked_ptr<ClientStream>& st) {
             st->add(nullptr, 0, true);
             st->remote_ended = true;
             _forget_if_done(st);
         }
 
-        void _local_end(uint32_t id) noexcept {
+        SGCL_INLINE_HOT void _local_end(uint32_t id) noexcept {
             if (auto st = _find(id)) {
                 st->sent_all = true;
                 _forget_if_done(st);
@@ -561,7 +561,7 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         // The timer's thread: the whole exchange's deadline passed
-        static void _expire(void* p) {
+        SGCL_INLINE_HOT static void _expire(void* p) {
             auto st = static_cast<ClientStream*>(p);
             st->expired.store(true);
             st->owner->reset(st->id, ErrorCode::cancel);
@@ -726,7 +726,7 @@ namespace sgcl::net::http::detail::h2 {
         // (serve.h): asleep, it keeps nothing of it alive, and a connection
         // that has ended is garbage at once, not a tick later (with its
         // TLS state, its buffers, the pool it points to)
-        static int64_t _tick_period(duration idle_timeout) noexcept {
+        SGCL_INLINE_HOT static int64_t _tick_period(duration idle_timeout) noexcept {
             int64_t period = 1'000'000'000;
             if (idle_timeout > duration::zero()) {
                 period = std::min(period, std::max<int64_t>(10'000'000, idle_timeout.nanoseconds() / 4));

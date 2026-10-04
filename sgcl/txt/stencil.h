@@ -125,10 +125,10 @@ namespace sgcl::txt {
         // to: {{ missing }} writes nothing rather than stopping
         value() noexcept = default;
 
-        value(std::nullptr_t) noexcept {
+        SGCL_INLINE_HOT value(std::nullptr_t) noexcept {
         }
 
-        value(bool v) noexcept
+        SGCL_INLINE_HOT value(bool v) noexcept
         : _held(v) {
         }
 
@@ -140,7 +140,7 @@ namespace sgcl::txt {
         requires std::integral<T> && (!std::same_as<std::remove_cv_t<T>, bool>)
                  && (!std::same_as<std::remove_cv_t<T>, char>)
                  && (!std::same_as<std::remove_cv_t<T>, char32_t>)
-        value(T v) noexcept
+        SGCL_INLINE_HOT value(T v) noexcept
         : _held(static_cast<long long>(v)) {
             if constexpr (std::is_unsigned_v<T> && sizeof(T) >= sizeof(long long)) {
                 if (v > T(std::numeric_limits<long long>::max())) {
@@ -151,32 +151,32 @@ namespace sgcl::txt {
 
         template<class T>
         requires std::floating_point<T>
-        value(T v) noexcept
+        SGCL_INLINE_HOT value(T v) noexcept
         : _held(static_cast<double>(v)) {
         }
 
-        value(const string& v) noexcept
+        SGCL_INLINE_HOT value(const string& v) noexcept
         : _held(v) {
         }
 
-        value(string&& v) noexcept
+        SGCL_INLINE_HOT value(string&& v) noexcept
         : _held(std::move(v)) {
         }
 
         // A C text: an array up to its first NUL or its end, a pointer up
         // to its NUL (detail::c_text)
         template<size_t N>
-        value(const char (&v)[N])
+        SGCL_INLINE_HOT value(const char (&v)[N])
         : _held(detail::c_string(v)) {
         }
 
         template<class P>
         requires std::same_as<P, const char*> || std::same_as<P, char*>
-        value(P v)
+        SGCL_INLINE_HOT value(P v)
         : _held(detail::c_string(v)) {
         }
 
-        value(const slice<const char>& v)
+        SGCL_INLINE_HOT value(const slice<const char>& v)
         : _held(string(v)) {
         }
 
@@ -199,11 +199,11 @@ namespace sgcl::txt {
         value(char) = delete;
         value(char32_t) = delete;
 
-        value_kind kind() const noexcept {
+        SGCL_INLINE_HOT value_kind kind() const noexcept {
             return value_kind(_held.index());
         }
 
-        bool is_none() const noexcept {
+        SGCL_INLINE_HOT bool is_none() const noexcept {
             return kind() == value_kind::none;
         }
 
@@ -228,7 +228,7 @@ namespace sgcl::txt {
         // take the empty road rather than a wrong one
         size_t size() const noexcept;
 
-        const string* text() const noexcept {
+        SGCL_INLINE_HOT const string* text() const noexcept {
             return get_if<string>(&_held);
         }
 
@@ -274,11 +274,11 @@ namespace sgcl::txt {
 
             value_list() = default;
 
-            explicit value_list(std::initializer_list<value> il) noexcept
+            SGCL_INLINE_HOT explicit value_list(std::initializer_list<value> il) noexcept
             : items(il) {
             }
 
-            explicit value_list(const vector<value>& v) noexcept
+            SGCL_INLINE_HOT explicit value_list(const vector<value>& v) noexcept
             : items(v) {
             }
         };
@@ -309,15 +309,15 @@ namespace sgcl::txt {
     public:
         // An empty list, not nothing: a list made with no elements is
         // still a list, which a template walks as one
-        list() noexcept
+        SGCL_INLINE_HOT list() noexcept
         : value(std::initializer_list<value>{}) {
         }
 
-        list(std::initializer_list<value> items) noexcept
+        SGCL_INLINE_HOT list(std::initializer_list<value> items) noexcept
         : value(items) {
         }
 
-        explicit list(const vector<value>& items) noexcept
+        SGCL_INLINE_HOT explicit list(const vector<value>& items) noexcept
         : value(items) {
         }
     };
@@ -340,7 +340,7 @@ namespace sgcl::txt {
     //--------------------------------------------------------------------
     class stencil_error {
     public:
-        stencil_error(size_t offset, size_t line, size_t column, const char* reason) noexcept
+        SGCL_INLINE_HOT stencil_error(size_t offset, size_t line, size_t column, const char* reason) noexcept
         : _offset(offset)
         , _line(line)
         , _column(column)
@@ -348,20 +348,20 @@ namespace sgcl::txt {
         }
 
         // The byte the reading stopped on
-        size_t offset() const noexcept {
+        SGCL_INLINE_HOT size_t offset() const noexcept {
             return _offset;
         }
 
-        size_t line() const noexcept {
+        SGCL_INLINE_HOT size_t line() const noexcept {
             return _line;
         }
 
-        size_t column() const noexcept {
+        SGCL_INLINE_HOT size_t column() const noexcept {
             return _column;
         }
 
         // Why, in a few words
-        string message() const noexcept {
+        SGCL_INLINE_HOT string message() const noexcept {
             return string(_reason);
         }
 
@@ -412,11 +412,11 @@ namespace sgcl::txt {
         // clock will be right on most pages and wrong on some, and the
         // some are not the ones anybody tests. Nothing else in a render
         // depends on it.
-        void add(const string& name, stencil_function fn) noexcept {
+        SGCL_INLINE_HOT void add(const string& name, stencil_function fn) noexcept {
             _named.insert_or_assign(name, std::move(fn));
         }
 
-        const stencil_function* find(const string& name) const noexcept {
+        SGCL_INLINE_HOT const stencil_function* find(const string& name) const noexcept {
             auto i = _named.find(name);
             return i == _named.end() ? nullptr : &i->second;
         }
@@ -526,7 +526,7 @@ namespace sgcl::txt {
         // error: where and why the reading stopped. (The built-in
         // functions are copied without a throw, so nothing here throws;
         // a table of the program's is copied with its callables'.)
-        static expected<stencil, stencil_error> parse(const string& source) noexcept {
+        SGCL_INLINE_HOT static expected<stencil, stencil_error> parse(const string& source) noexcept {
             return parse(source, stencil_functions::builtin());
         }
 
@@ -541,18 +541,18 @@ namespace sgcl::txt {
         // with parse's message. A source read from outside (a file, a
         // setting) is parsed; one the program itself wrote is constructed
         // (DESIGN 234). The functions it calls are copied, as by parse
-        explicit stencil(const string& source)
+        SGCL_INLINE_HOT explicit stencil(const string& source)
         : stencil(parse(source).value()) {
         }
 
-        explicit stencil(const string& source, const stencil_functions& functions)
+        SGCL_INLINE_HOT explicit stencil(const string& source, const stencil_functions& functions)
         : stencil(parse(source, functions).value()) {
         }
 
         // Whether a source is a template at all, with nothing kept. For
         // a program that reads a directory of them at startup and wants
         // to say which one is broken before it needs any of them.
-        static bool parses(const string& source) noexcept {
+        SGCL_INLINE_HOT static bool parses(const string& source) noexcept {
             return parse(source).has_value();
         }
 
@@ -567,11 +567,11 @@ namespace sgcl::txt {
         // How many steps the source came to — nothing a program needs,
         // and what a test asks to know that a page of text is one step
         // and not four hundred
-        size_t steps() const noexcept {
+        SGCL_INLINE_HOT size_t steps() const noexcept {
             return _steps.size();
         }
 
-        const string& source() const noexcept {
+        SGCL_INLINE_HOT const string& source() const noexcept {
             return _source;
         }
 
@@ -626,24 +626,24 @@ namespace sgcl::txt {
 // structs they point at were
 //------------------------------------------------------------------------------
 namespace sgcl::txt {
-    inline value::value(std::initializer_list<value> items) noexcept
+    SGCL_INLINE_HOT value::value(std::initializer_list<value> items) noexcept
     : _held(make_tracked<detail::value_list>(items)) {
     }
 
-    inline value::value(const vector<value>& items) noexcept
+    SGCL_INLINE_HOT value::value(const vector<value>& items) noexcept
     : _held(make_tracked<detail::value_list>(items)) {
     }
 
-    inline void value::_become_object() noexcept {
+    SGCL_INLINE_HOT void value::_become_object() noexcept {
         _held = make_tracked<detail::value_object>();
     }
 
-    inline detail::value_object* value::_as_object() noexcept {
+    SGCL_INLINE_HOT detail::value_object* value::_as_object() noexcept {
         auto o = get_if<tracked_ptr<detail::value_object>>(&_held);
         return o ? o->get() : nullptr;
     }
 
-    inline object::object() noexcept {
+    SGCL_INLINE_HOT object::object() noexcept {
         _become_object();
     }
 
@@ -655,13 +655,13 @@ namespace sgcl::txt {
         }
     }
 
-    inline void object::set(const string& name, const value& v) noexcept {
+    SGCL_INLINE_HOT void object::set(const string& name, const value& v) noexcept {
         if (auto o = _as_object()) {
             o->fields.insert_or_assign(name, v);
         }
     }
 
-    inline size_t value::size() const noexcept {
+    SGCL_INLINE_HOT size_t value::size() const noexcept {
         if (auto l = get_if<tracked_ptr<detail::value_list>>(&_held)) {
             return (*l) ? (*l)->items.size() : 0;
         }
@@ -687,7 +687,7 @@ namespace sgcl::txt {
         return false;
     }
 
-    inline const value* value::find(const string& name) const noexcept {
+    SGCL_INLINE_HOT const value* value::find(const string& name) const noexcept {
         auto o = get_if<tracked_ptr<detail::value_object>>(&_held);
         if (!o || !*o) {
             return nullptr;
@@ -696,7 +696,7 @@ namespace sgcl::txt {
         return i == (*o)->fields.end() ? nullptr : &i->second;
     }
 
-    inline const value* value::at(size_t index) const noexcept {
+    SGCL_INLINE_HOT const value* value::at(size_t index) const noexcept {
         auto l = get_if<tracked_ptr<detail::value_list>>(&_held);
         if (!l || !*l || index >= (*l)->items.size()) {
             return nullptr;
@@ -795,15 +795,15 @@ namespace sgcl::txt {
         inline thread_local const void* value_path[MaxValueDepth + 1] = {};
 
         struct value_step {
-            explicit value_step(const void* held) noexcept
+            SGCL_INLINE_HOT explicit value_step(const void* held) noexcept
             : _ok(_enter(held)) {
             }
 
-            ~value_step() {
+            SGCL_INLINE_HOT ~value_step() {
                 --value_depth;
             }
 
-            explicit operator bool() const noexcept {
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return _ok;
             }
 
@@ -839,19 +839,19 @@ namespace sgcl::txt {
     // is what a test and a line of a log want.
     template<>
     struct formatter<value> {
-        static constexpr bool takes(char) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes(char) noexcept {
             return true;
         }
 
-        static constexpr bool takes_precision() noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_precision() noexcept {
             return true;
         }
 
-        static constexpr bool takes_nested(std::string_view) noexcept {
+        SGCL_INLINE_HOT static constexpr bool takes_nested(std::string_view) noexcept {
             return true;
         }
 
-        static void write(format_sink& out, const value& v, const format_spec& spec,
+        SGCL_INLINE_HOT static void write(format_sink& out, const value& v, const format_spec& spec,
                           std::string_view nested) noexcept {
             v.write(out, spec, nested);
         }
@@ -1140,7 +1140,7 @@ namespace sgcl::txt {
             size_t depth = 0;
 
             // The program, built, copied into the template at its size
-            void finish() noexcept {
+            SGCL_INLINE_HOT void finish() noexcept {
                 out._steps = vector<detail::stencil_step>(steps.begin(), steps.end());
                 out._exprs = vector<detail::stencil_expr>(exprs.begin(), exprs.end());
                 out._stages = vector<detail::stencil_stage>(stages.begin(), stages.end());
@@ -1163,7 +1163,7 @@ namespace sgcl::txt {
                 return false;
             }
 
-            static bool is_space(char c) noexcept {
+            SGCL_INLINE_HOT static bool is_space(char c) noexcept {
                 return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
             }
 
@@ -1173,12 +1173,12 @@ namespace sgcl::txt {
             // that may hold anything cannot be told from the syntax around
             // it, and a mapping whose keys are sentences is reached through
             // the data and not through a path.
-            static bool is_name_char(char c) noexcept {
+            SGCL_INLINE_HOT static bool is_name_char(char c) noexcept {
                 return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
                     || (c >= '0' && c <= '9') || c == '_';
             }
 
-            void emit(detail::stencil_op op, uint32_t a, uint32_t b) noexcept {
+            SGCL_INLINE_HOT void emit(detail::stencil_op op, uint32_t a, uint32_t b) noexcept {
                 detail::stencil_step s;
                 s.op = op;
                 s.a = a;
@@ -1186,7 +1186,7 @@ namespace sgcl::txt {
                 steps.push_back(s);
             }
 
-            size_t here() const noexcept {
+            SGCL_INLINE_HOT size_t here() const noexcept {
                 return steps.size();
             }
 
@@ -1461,7 +1461,7 @@ namespace sgcl::txt {
             // {{end}} being read as the keyword and being read as a path
             // called "end": what follows it is a brace, not a space, and
             // only `to` knows that the action stops there.
-            bool word_at(size_t at, size_t to, std::string_view word) const noexcept {
+            SGCL_INLINE_HOT bool word_at(size_t at, size_t to, std::string_view word) const noexcept {
                 if (to - at < word.size()) {
                     return false;
                 }
@@ -1721,7 +1721,7 @@ namespace sgcl::txt {
         };
     }
 
-    inline expected<stencil, stencil_error> stencil::parse(const string& source,
+    SGCL_INLINE_HOT expected<stencil, stencil_error> stencil::parse(const string& source,
                                                            const stencil_functions& functions) {
         detail::StencilParser parser{source, source.view(), functions, stencil()};
         parser.out._source = source;
@@ -1745,17 +1745,17 @@ namespace sgcl::txt {
     //--------------------------------------------------------------------
     namespace detail {
         struct value_reach {
-            static const value_list* list_of(const value& v) noexcept {
+            SGCL_INLINE_HOT static const value_list* list_of(const value& v) noexcept {
                 auto l = get_if<tracked_ptr<value_list>>(&v._held);
                 return l ? l->get() : nullptr;
             }
 
-            static const value_object* object_of(const value& v) noexcept {
+            SGCL_INLINE_HOT static const value_object* object_of(const value& v) noexcept {
                 auto o = get_if<tracked_ptr<value_object>>(&v._held);
                 return o ? o->get() : nullptr;
             }
 
-            static value_object* object_of(value& v) noexcept {
+            SGCL_INLINE_HOT static value_object* object_of(value& v) noexcept {
                 auto o = get_if<tracked_ptr<value_object>>(&v._held);
                 return o ? o->get() : nullptr;
             }
@@ -2047,13 +2047,13 @@ namespace sgcl::txt {
         }
     }
 
-    inline size_t stencil::render_to(const slice<char>& buffer, const value& data) const {
+    SGCL_INLINE_HOT size_t stencil::render_to(const slice<char>& buffer, const value& data) const {
         growing_sink out(growing_sink::lent, buffer.data(), buffer.size());
         _run(out, data);
         return out.size();
     }
 
-    inline string stencil::render(const value& data) const {
+    SGCL_INLINE_HOT string stencil::render(const value& data) const {
         // The room a short page takes is on the stack, so a line of text
         // with two values in it is written once and allocates only for
         // the string it hands back.

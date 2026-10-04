@@ -52,7 +52,7 @@ namespace sgcl::io {
         mapping() noexcept = default;
 
         // The mapped bytes, read only; empty once closed
-        slice<const byte> data() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> data() const noexcept {
             auto& r = _get();
             if (r.size() == 0) {
                 return {};
@@ -63,7 +63,7 @@ namespace sgcl::io {
         // The mapped bytes to write into: a mapping made writable (a
         // contract violation on one read only, an empty slice without the
         // debug check); empty once closed
-        slice<byte> writable_data() const noexcept {
+        SGCL_INLINE_HOT slice<byte> writable_data() const noexcept {
             auto& r = _get();
             assert(r.writable() && "writable_data() of a read-only io::mapping");
             if (!r.writable() || r.size() == 0) {
@@ -73,45 +73,45 @@ namespace sgcl::io {
         }
 
         // The length of the range, 0 once closed
-        size_t size() const noexcept {
+        SGCL_INLINE_HOT size_t size() const noexcept {
             return _get().size();
         }
 
         // A writable shared mapping's writes given to the file and waited
         // for (msync MS_SYNC); nothing to do for any other mapping
-        expected<void, error> flush() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> flush() const noexcept {
             return _get().flush();
         }
 
         // The file given back now, the mapping's range left as zeros for a
         // slice taken before; data() is empty after it. The destructor
         // unmaps a mapping nobody closed
-        expected<void, error> close() const noexcept {
+        SGCL_INLINE_HOT expected<void, error> close() const noexcept {
             return _get().close();
         }
 
-        bool is_closed() const noexcept {
+        SGCL_INLINE_HOT bool is_closed() const noexcept {
             return _get().closed();
         }
 
         // Whether this handle holds a mapping
-        explicit operator bool() const noexcept {
+        SGCL_INLINE_HOT explicit operator bool() const noexcept {
             return (bool)_region;
         }
 
         // The same mapping: the same region
-        friend bool operator==(const mapping& a, const mapping& b) noexcept {
+        SGCL_INLINE_HOT friend bool operator==(const mapping& a, const mapping& b) noexcept {
             return a._region == b._region;
         }
 
     private:
         friend struct detail::MappingAccess;
 
-        explicit mapping(tracked_ptr<detail::MappedRegion> region) noexcept
+        SGCL_INLINE_HOT explicit mapping(tracked_ptr<detail::MappedRegion> region) noexcept
         : _region(std::move(region)) {
         }
 
-        detail::MappedRegion& _get() const noexcept {
+        SGCL_INLINE_HOT detail::MappedRegion& _get() const noexcept {
             assert(_region && "an empty io::mapping");
             return *_region;
         }
@@ -119,15 +119,15 @@ namespace sgcl::io {
         // The handle's word, for the atomics (core/detail/handle_word.h)
         friend struct sgcl::detail::HandleWord;
 
-        mapping(sgcl::detail::FromWord, const tracked_ptr<detail::MappedRegion>& w) noexcept
+        SGCL_INLINE_HOT mapping(sgcl::detail::FromWord, const tracked_ptr<detail::MappedRegion>& w) noexcept
         : _region(w) {
         }
 
-        tracked_ptr<detail::MappedRegion>& _handle_word() noexcept {
+        SGCL_INLINE_HOT tracked_ptr<detail::MappedRegion>& _handle_word() noexcept {
             return _region;
         }
 
-        const tracked_ptr<detail::MappedRegion>& _handle_word() const noexcept {
+        SGCL_INLINE_HOT const tracked_ptr<detail::MappedRegion>& _handle_word() const noexcept {
             return _region;
         }
 
@@ -137,7 +137,7 @@ namespace sgcl::io {
     namespace detail {
         // The handle made over a region, for io::map
         struct MappingAccess {
-            static mapping make(tracked_ptr<MappedRegion> region) noexcept {
+            SGCL_INLINE_HOT static mapping make(tracked_ptr<MappedRegion> region) noexcept {
                 return mapping(std::move(region));
             }
         };
@@ -145,7 +145,7 @@ namespace sgcl::io {
         // The range [offset, offset + length) of a file of `file_size`
         // bytes, length 0 for the rest: its length, or an error for a
         // range past the end
-        inline expected<uint64_t, error> map_range(uint64_t file_size, const map_options& o, const string& name) noexcept {
+        SGCL_INLINE_HOT expected<uint64_t, error> map_range(uint64_t file_size, const map_options& o, const string& name) noexcept {
             uint64_t length = o.length ? o.length : (o.offset <= file_size ? file_size - o.offset : 0);
             if (o.offset > file_size || length > file_size - o.offset) {
                 return fail(error(error_code(EINVAL, std::generic_category()), "map", name));   // a range past the end: an error, the file never extended
@@ -271,7 +271,7 @@ namespace sgcl::io {
     }
 
     // The whole file at `path`, read only
-    inline expected<mapping, error> map(const string& path) noexcept {
+    SGCL_INLINE_HOT expected<mapping, error> map(const string& path) noexcept {
         return map(path, map_options{});
     }
 

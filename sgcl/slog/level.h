@@ -73,7 +73,7 @@ namespace sgcl::slog {
         struct Access;
 
         struct LevelVarState {
-            explicit LevelVarState(level l) noexcept
+            SGCL_INLINE_HOT explicit LevelVarState(level l) noexcept
             : value(int8_t(l)) {
             }
 
@@ -89,15 +89,15 @@ namespace sgcl::slog {
     // the level before).
     class level_var {
     public:
-        explicit level_var(level l = level::info) noexcept
+        SGCL_INLINE_HOT explicit level_var(level l = level::info) noexcept
         : _s(make_tracked<detail::LevelVarState>(l)) {
         }
 
-        void set(level l) const noexcept {
+        SGCL_INLINE_HOT void set(level l) const noexcept {
             _s->value.store(int8_t(l), std::memory_order_relaxed);
         }
 
-        level get() const noexcept {
+        SGCL_INLINE_HOT level get() const noexcept {
             return level(_s->value.load(std::memory_order_relaxed));
         }
 

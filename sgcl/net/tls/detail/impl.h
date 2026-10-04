@@ -57,16 +57,16 @@ namespace sgcl::net::tls::detail {
         NoZeroAllocator() noexcept = default;
 
         template<class U>
-        NoZeroAllocator(const NoZeroAllocator<U>&) noexcept {
+        SGCL_INLINE_HOT NoZeroAllocator(const NoZeroAllocator<U>&) noexcept {
         }
 
         template<class U>
-        void construct(U* p) noexcept {
+        SGCL_INLINE_HOT void construct(U* p) noexcept {
             ::new (static_cast<void*>(p)) U;
         }
 
         template<class U, class... A>
-        void construct(U* p, A&&... a) noexcept(std::is_nothrow_constructible_v<U, A...>) {
+        SGCL_INLINE_HOT void construct(U* p, A&&... a) noexcept(std::is_nothrow_constructible_v<U, A...>) {
             ::new (static_cast<void*>(p)) U(std::forward<A>(a)...);
         }
     };
@@ -75,7 +75,7 @@ namespace sgcl::net::tls::detail {
 
     class TlsImpl final : public net::detail::ConnImpl {
     public:
-        TlsImpl(const net::connection& transport, const ClientSettings& settings) noexcept
+        SGCL_INLINE_HOT TlsImpl(const net::connection& transport, const ClientSettings& settings) noexcept
         : _transport(transport)
         , _b(new Block()) {
             _hs.emplace(settings, Entropy(), Clock());
@@ -83,14 +83,14 @@ namespace sgcl::net::tls::detail {
 
         // The server's side; `keep` holds what the identities' keys live in
         // (the machine signs through pointers into them)
-        TlsImpl(const net::connection& transport, const ServerSettings& settings, const vector<tracked_ptr<const void>>& keep) noexcept
+        SGCL_INLINE_HOT TlsImpl(const net::connection& transport, const ServerSettings& settings, const vector<tracked_ptr<const void>>& keep) noexcept
         : _transport(transport)
         , _b(new Block())
         , _keep(keep) {
             _server.emplace(settings, Entropy());
         }
 
-        bool is_server() const noexcept {
+        SGCL_INLINE_HOT bool is_server() const noexcept {
             return (bool)_server;
         }
 
@@ -98,7 +98,7 @@ namespace sgcl::net::tls::detail {
 
         // Done before the handle is given out; `deadline` bounds the whole
         // of it (the transport's deadlines are set to it, then removed)
-        expected<void, io::error> handshake(time_point deadline) {
+        SGCL_INLINE_HOT expected<void, io::error> handshake(time_point deadline) {
             _transport.set_deadline(deadline);
             auto r = _block_handshake();
             _transport.set_deadline(time_point());
@@ -113,11 +113,11 @@ namespace sgcl::net::tls::detail {
         }
 
         // The client's result (is_server() false) and the server's
-        const ClientResult& result() const noexcept {
+        SGCL_INLINE_HOT const ClientResult& result() const noexcept {
             return _hs->result();
         }
 
-        const ServerResult& server_result() const noexcept {
+        SGCL_INLINE_HOT const ServerResult& server_result() const noexcept {
             return _server->result();
         }
 
@@ -531,7 +531,7 @@ namespace sgcl::net::tls::detail {
             uint8_t* plain = nullptr;               // a record's plaintext not yet read: a large block of RecordBlocks while held
             size_t plain_at = 0, plain_end = 0;
 
-            ~Block() {
+            SGCL_INLINE_HOT ~Block() {
                 crypto::detail::secure_zero(out.data(), out.size());
                 if (plain) {
                     RecordBlocks::give(plain, RecordBlocks::Large, plain_end);
@@ -550,7 +550,7 @@ namespace sgcl::net::tls::detail {
         // The block goes after its destructor has zeroed what it held; the
         // zeroing probe (record.h) sees its memory then, before it is freed
         struct BlockRelease {
-            void operator()(Block* b) const noexcept {
+            SGCL_INLINE_HOT void operator()(Block* b) const noexcept {
                 b->~Block();
                 ZeroingProbe::on_release(b, sizeof(Block), ZeroingProbe::connection_block);
                 ::operator delete(static_cast<void*>(b));
@@ -646,7 +646,7 @@ namespace sgcl::net::tls::detail {
 
         // The client's first flight; nothing for a server, which waits for
         // the ClientHello (and takes a change_cipher_spec only after it)
-        optional<io::error> _start() {
+        SGCL_INLINE_HOT optional<io::error> _start() {
             if (_server) {
                 return nullopt;
             }
@@ -655,15 +655,15 @@ namespace sgcl::net::tls::detail {
             return _broken;
         }
 
-        bool _established() const noexcept {
+        SGCL_INLINE_HOT bool _established() const noexcept {
             return _server ? _server->established() : _hs->established();
         }
 
-        const Step& _feed_machine(const slice<const byte>& m) {
+        SGCL_INLINE_HOT const Step& _feed_machine(const slice<const byte>& m) {
             return _server ? _server->feed(m) : _hs->feed(m);
         }
 
-        void _on_alert(const Alert& a) noexcept {
+        SGCL_INLINE_HOT void _on_alert(const Alert& a) noexcept {
             if (_server) {
                 _server->on_record_alert(a);
             } else {
@@ -671,15 +671,15 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        crypto::x509::reason _verify_reason() const noexcept {
+        SGCL_INLINE_HOT crypto::x509::reason _verify_reason() const noexcept {
             return _server ? crypto::x509::reason::none : _hs->verify_reason();
         }
 
-        slice<const byte> _pending_out() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> _pending_out() const noexcept {
             return bytes_of(_b->out.data(), _b->out.size());
         }
 
-        void _drop_out() noexcept {
+        SGCL_INLINE_HOT void _drop_out() noexcept {
             crypto::detail::secure_zero(_b->out.data(), _b->out.size());
             std::vector<uint8_t>().swap(_b->out);   // the handshake's flights: nothing kept after them
         }
@@ -832,7 +832,7 @@ namespace sgcl::net::tls::detail {
 
         // --- reading, without I/O -------------------------------------------------
 
-        optional<io::error> _took(size_t n) noexcept {
+        SGCL_INLINE_HOT optional<io::error> _took(size_t n) noexcept {
             if (n == 0) {
                 if (_b->framer.buffered() > 0) {
                     return io::error(io::errc::unexpected_eof, "read", describe());
@@ -1017,15 +1017,15 @@ namespace sgcl::net::tls::detail {
         // takes it: whole in a write that waits, in part in one that tries,
         // the tail then kept for whichever write comes next.
 
-        net::detail::ConnImpl& _t() const noexcept {
+        SGCL_INLINE_HOT net::detail::ConnImpl& _t() const noexcept {
             return net::detail::ConnectionAccess::impl(_transport);
         }
 
-        bool _wants() const noexcept {
+        SGCL_INLINE_HOT bool _wants() const noexcept {
             return _want_key_update.load(std::memory_order_acquire) || _want_alert.load(std::memory_order_acquire) != NoAlert;
         }
 
-        optional<io::error> _writable() noexcept {
+        SGCL_INLINE_HOT optional<io::error> _writable() noexcept {
             if (_broken) {
                 return _broken;
             }
@@ -1035,15 +1035,15 @@ namespace sgcl::net::tls::detail {
             return nullopt;
         }
 
-        size_t _unsent_size() const noexcept {
+        SGCL_INLINE_HOT size_t _unsent_size() const noexcept {
             return _b->queue.size() - _b->queue_sent;
         }
 
-        slice<const byte> _unsent() const noexcept {
+        SGCL_INLINE_HOT slice<const byte> _unsent() const noexcept {
             return bytes_of(_b->queue.data() + _b->queue_sent, _unsent_size());
         }
 
-        void _sent(size_t n) noexcept {
+        SGCL_INLINE_HOT void _sent(size_t n) noexcept {
             _b->queue_sent += n;
             if (_b->queue_sent == _b->queue.size()) {
                 _b->queue.clear();
@@ -1053,7 +1053,7 @@ namespace sgcl::net::tls::detail {
 
         // At a write's end: a large write's room not kept for the
         // connection's life (the queue holds a small response's records)
-        void _trim() noexcept {
+        SGCL_INLINE_HOT void _trim() noexcept {
             if (!_unsent_size() && _b->queue.capacity() > RecordBlocks::Small) {
                 // the room of a large write back to the thread, for the
                 // next large write of any of its connections (a malloc
@@ -1071,7 +1071,7 @@ namespace sgcl::net::tls::detail {
         // Room for `more` bytes past what the queue holds, and for `want`
         // when it is empty (a batch of records: taken at once, not grown
         // into by doubling): the thread's spare room when it has enough
-        void _room(size_t more, size_t want = 0) noexcept {
+        SGCL_INLINE_HOT void _room(size_t more, size_t want = 0) noexcept {
             auto& q = _b->queue;
             if (q.empty() && q.capacity() < more) {
                 want = std::max(want, more);
@@ -1092,7 +1092,7 @@ namespace sgcl::net::tls::detail {
             return spare;
         }
 
-        void _append(ContentType type, const uint8_t* p, size_t n) noexcept {
+        SGCL_INLINE_HOT void _append(ContentType type, const uint8_t* p, size_t n) noexcept {
             _room(_b->write.sealed_size(type, n));
             auto& q = _b->queue;
             size_t at = q.size();
@@ -1100,7 +1100,7 @@ namespace sgcl::net::tls::detail {
             _b->write.seal(type, bytes_of(p, n), q.data() + at);
         }
 
-        void _append_key_update() noexcept {
+        SGCL_INLINE_HOT void _append_key_update() noexcept {
             const uint8_t ku[5] = {uint8_t(HandshakeType::key_update), 0, 0, 1, 0};
             _append(ContentType::handshake, ku, 5);
             _b->write.update();
@@ -1122,14 +1122,14 @@ namespace sgcl::net::tls::detail {
             }
         }
 
-        size_t _record_limit() const noexcept {
+        SGCL_INLINE_HOT size_t _record_limit() const noexcept {
             uint16_t l = _server ? 0 : _hs->result().record_size_limit;   // a server answers no record_size_limit in v1
             return l ? std::min(MaxPlaintext, size_t(l) - 1) : MaxPlaintext;
         }
 
         // One record of data from `from` (a KeyUpdate first when the keys
         // near their limit, §5.5): the plaintext taken
-        size_t _seal_record(const slice<const byte>& data, size_t from) noexcept {
+        SGCL_INLINE_HOT size_t _seal_record(const slice<const byte>& data, size_t from) noexcept {
             if (_b->write.needs_update()) {
                 _append_key_update();
             }
@@ -1172,7 +1172,7 @@ namespace sgcl::net::tls::detail {
 
         // The plaintext of a write of pieces a write that tried has sealed
         // already: its record starts at `from` of the same pieces
-        size_t _skip_sealed_parts(const byte* first, size_t from) noexcept {
+        SGCL_INLINE_HOT size_t _skip_sealed_parts(const byte* first, size_t from) noexcept {
             size_t n = _sealed_size && first == _sealed_at && from == _sealed_from ? _sealed_size : 0;
             _sealed_at = nullptr;
             _sealed_size = 0;
@@ -1181,14 +1181,14 @@ namespace sgcl::net::tls::detail {
         }
 
         // The plaintext of this data a write that tried has sealed already
-        size_t _skip_sealed(const slice<const byte>& data) noexcept {
+        SGCL_INLINE_HOT size_t _skip_sealed(const slice<const byte>& data) noexcept {
             size_t n = _sealed_size && data.data() == _sealed_at && data.size() >= _sealed_size ? _sealed_size : 0;
             _sealed_at = nullptr;
             _sealed_size = 0;
             return n;
         }
 
-        bool _queue_close_notify() noexcept {
+        SGCL_INLINE_HOT bool _queue_close_notify() noexcept {
             if (_write_closed || _broken || !_b->write.installed()) {
                 return false;
             }
@@ -1210,7 +1210,7 @@ namespace sgcl::net::tls::detail {
         }
 
         // What the transport takes now; true when nothing is left
-        expected<bool, io::error> _flush_try() {
+        SGCL_INLINE_HOT expected<bool, io::error> _flush_try() {
             if (!_unsent_size()) {
                 return true;
             }

@@ -230,7 +230,7 @@ namespace sgcl::detail {
 
         // The word at the cursor into the hot fields: its bits, the address
         // of its first slot, its states
-        void _load_word() noexcept {
+        SGCL_INLINE_HOT void _load_word() noexcept {
             _free_word = _free_bits[_cursor];
             _word_base = _current_page->data + (uintptr_t)_cursor * Page::FlagBitCount * _object_size;
             _word_states = _current_page->states() + (size_t)_cursor * Page::FlagBitCount;

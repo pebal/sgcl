@@ -37,7 +37,7 @@ namespace sgcl::immutable {
             tracked_ptr<ListCell> next;
 
             template<class... A>
-            static unique_ptr<ListCell> make(const tracked_ptr<ListCell>& next, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
+            SGCL_INLINE_HOT static unique_ptr<ListCell> make(const tracked_ptr<ListCell>& next, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>) {
                 return make_tracked<ListCell>(next, std::forward<A>(a)...);
             }
 
@@ -45,7 +45,7 @@ namespace sgcl::immutable {
             friend class sgcl::detail::MakerBase;
 
             template<class... A>
-            explicit ListCell(const tracked_ptr<ListCell>& n, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
+            SGCL_INLINE_HOT explicit ListCell(const tracked_ptr<ListCell>& n, A&&... a) noexcept(std::is_nothrow_constructible_v<T, A...>)
             : value(std::forward<A>(a)...)
             , next(n) {
             }
@@ -119,33 +119,33 @@ namespace sgcl::immutable {
 
             const_iterator() noexcept = default;
 
-            reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const noexcept {
                 return _cell->value;
             }
 
-            pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const noexcept {
                 return &_cell->value;
             }
 
-            const_iterator& operator++() noexcept {
+            SGCL_INLINE_HOT const_iterator& operator++() noexcept {
                 _cell = _cell->next.get();
                 return *this;
             }
 
-            const_iterator operator++(int) noexcept {
+            SGCL_INLINE_HOT const_iterator operator++(int) noexcept {
                 auto t = *this;
                 ++*this;
                 return t;
             }
 
-            friend bool operator==(const const_iterator& a, const const_iterator& b) noexcept {
+            SGCL_INLINE_HOT friend bool operator==(const const_iterator& a, const const_iterator& b) noexcept {
                 return a._cell == b._cell;
             }
 
         private:
             friend class list;
 
-            explicit const_iterator(const Cell* cell) noexcept
+            SGCL_INLINE_HOT explicit const_iterator(const Cell* cell) noexcept
             : _cell(cell) {
             }
 
@@ -174,7 +174,7 @@ namespace sgcl::immutable {
             }
         }
 
-        list(std::initializer_list<T> ilist) noexcept(NothrowCopy)
+        SGCL_INLINE_HOT list(std::initializer_list<T> ilist) noexcept(NothrowCopy)
         : list(ilist.begin(), ilist.end()) {
         }
 
@@ -182,7 +182,7 @@ namespace sgcl::immutable {
         // containers take one): a list is copied by its own constructor
         template<std::ranges::input_range R>
         requires (!std::is_same_v<std::remove_cvref_t<R>, list>) && std::is_constructible_v<T, std::ranges::range_reference_t<R>>
-        explicit list(R&& r) noexcept(noexcept(std::ranges::begin(r)) && noexcept(std::ranges::end(r)) && NothrowRange<std::ranges::iterator_t<R>>)
+        SGCL_INLINE_HOT explicit list(R&& r) noexcept(noexcept(std::ranges::begin(r)) && noexcept(std::ranges::end(r)) && NothrowRange<std::ranges::iterator_t<R>>)
         : list(std::ranges::begin(r), std::ranges::end(r)) {
         }
 
@@ -191,53 +191,53 @@ namespace sgcl::immutable {
         list& operator=(const list&) noexcept = default;
         list& operator=(list&&) noexcept = default;
 
-        const_iterator begin() const noexcept {
+        SGCL_INLINE_HOT const_iterator begin() const noexcept {
             return const_iterator(_head.get());
         }
 
-        const_iterator end() const noexcept {
+        SGCL_INLINE_HOT const_iterator end() const noexcept {
             return const_iterator();
         }
 
-        const_iterator cbegin() const noexcept {
+        SGCL_INLINE_HOT const_iterator cbegin() const noexcept {
             return begin();
         }
 
-        const_iterator cend() const noexcept {
+        SGCL_INLINE_HOT const_iterator cend() const noexcept {
             return end();
         }
 
-        size_type size() const noexcept {
+        SGCL_INLINE_HOT size_type size() const noexcept {
             return _size;
         }
 
-        bool empty() const noexcept {
+        SGCL_INLINE_HOT bool empty() const noexcept {
             return _size == 0;
         }
 
         // The first element: undefined on an empty list, as front() of any sequence
-        const_reference front() const noexcept {
+        SGCL_INLINE_HOT const_reference front() const noexcept {
             assert(!empty());
             return _head->value;
         }
 
         // The list with value in front: a new cell, the rest shared
-        list push_front(const T& value) const noexcept(NothrowCopy) {
+        SGCL_INLINE_HOT list push_front(const T& value) const noexcept(NothrowCopy) {
             return list(_size + 1, Cell::make(_head, value));
         }
 
-        list push_front(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>) {
+        SGCL_INLINE_HOT list push_front(T&& value) const noexcept(std::is_nothrow_move_constructible_v<T>) {
             return list(_size + 1, Cell::make(_head, std::move(value)));
         }
 
         template<class... A>
-        list emplace_front(A&&... a) const noexcept(std::is_nothrow_constructible_v<T, A...>) {
+        SGCL_INLINE_HOT list emplace_front(A&&... a) const noexcept(std::is_nothrow_constructible_v<T, A...>) {
             return list(_size + 1, Cell::make(_head, std::forward<A>(a)...));
         }
 
         // The list without its first element: the rest of the chain, no
         // allocation; undefined on an empty list
-        list pop_front() const noexcept {
+        SGCL_INLINE_HOT list pop_front() const noexcept {
             assert(!empty());
             return list(_size - 1, _head->next);
         }
@@ -253,26 +253,26 @@ namespace sgcl::immutable {
 
         // Comparison by the elements, in order; a version and its copy
         // are equal by their chain
-        friend bool operator==(const list& a, const list& b) requires req::equatable<T> {
+        SGCL_INLINE_HOT friend bool operator==(const list& a, const list& b) requires req::equatable<T> {
             if (a._head == b._head) {
                 return true;
             }
             return a._size == b._size && std::equal(a.begin(), a.end(), b.begin());
         }
 
-        friend bool operator!=(const list& a, const list& b) requires req::equatable<T> {
+        SGCL_INLINE_HOT friend bool operator!=(const list& a, const list& b) requires req::equatable<T> {
             return !(a == b);
         }
 
     private:
-        list(size_t size, tracked_ptr<Cell> head) noexcept
+        SGCL_INLINE_HOT list(size_t size, tracked_ptr<Cell> head) noexcept
         : _size(size)
         , _head(std::move(head)) {
         }
 
         // A cell in front, on a list nobody else holds (one being built)
         template<class U>
-        void _push(U&& value) noexcept(std::is_nothrow_constructible_v<T, U&&>) {
+        SGCL_INLINE_HOT void _push(U&& value) noexcept(std::is_nothrow_constructible_v<T, U&&>) {
             _head = Cell::make(_head, std::forward<U>(value));
             ++_size;
         }

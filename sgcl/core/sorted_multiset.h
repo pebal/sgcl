@@ -41,11 +41,11 @@ namespace sgcl {
         // O(1), in place of mixin::enumerable's walk (hidden, the overloads with
         // a comparator too: the container orders by its own comparator)
 
-        const value_type& min() const noexcept {
+        SGCL_INLINE_HOT const value_type& min() const noexcept {
             return *this->begin();
         }
 
-        const value_type& max() const noexcept {
+        SGCL_INLINE_HOT const value_type& max() const noexcept {
             return *this->rbegin();
         }
 
@@ -55,7 +55,7 @@ namespace sgcl {
         sorted_multiset& operator=(const sorted_multiset&) = default;
         sorted_multiset& operator=(sorted_multiset&&) = default;
 
-        sorted_multiset& operator=(std::initializer_list<value_type> ilist) {
+        SGCL_INLINE_HOT sorted_multiset& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
@@ -68,7 +68,7 @@ namespace sgcl {
     sorted_multiset(std::initializer_list<Key>, Compare = Compare()) -> sorted_multiset<Key, Compare>;
 
     template<class Key, class Compare>
-    void swap(sorted_multiset<Key, Compare>& lhs, sorted_multiset<Key, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    SGCL_INLINE_HOT void swap(sorted_multiset<Key, Compare>& lhs, sorted_multiset<Key, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 

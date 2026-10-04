@@ -151,7 +151,7 @@ namespace sgcl::net::http {
             w.write(*file);
         }
 
-        inline server file_server(const string& directory) noexcept {
+        SGCL_INLINE_HOT server file_server(const string& directory) noexcept {
             server srv;
             srv.route("GET /{path...}", [directory](request req, response_writer w) {
                 serve_file(directory, req, w);
@@ -192,11 +192,11 @@ namespace sgcl::net::http {
     // Last-Modified and 304 for If-Modified-Since, the file sent by
     // sendfile. From a thread of the program; a task writes `co_await
     // net::http::async_serve(address, directory)`
-    inline expected<void, io::error> serve(const string& address, const string& directory) {
+    SGCL_INLINE_HOT expected<void, io::error> serve(const string& address, const string& directory) {
         return detail::file_server(directory).serve(address);
     }
 
-    inline async::task<expected<void, io::error>> async_serve(string address, string directory) noexcept {
+    SGCL_INLINE_HOT async::task<expected<void, io::error>> async_serve(string address, string directory) noexcept {
         return detail::file_server(directory).async_serve(address);
     }
 
@@ -209,7 +209,7 @@ namespace sgcl::net::http {
     // A file that cannot be read, or a key that is not the certificate's,
     // is the error, before anything listens
     template<class H>
-    expected<void, io::error> serve_tls(const string& address, const string& certificate_file, const string& key_file, H handler) {
+    SGCL_INLINE_HOT expected<void, io::error> serve_tls(const string& address, const string& certificate_file, const string& key_file, H handler) {
         auto cfg = detail::tls_from_files(certificate_file, key_file);
         if (!cfg) {
             return unexpected(cfg.error());
