@@ -286,8 +286,8 @@ namespace sgcl {
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
         SGCL_INLINE_HOT deque() noexcept
-        : _map_size(0)
-        , _start(0)
+        : _start(0)
+        , _map_size(0)
         , _size(0) {
         }
 
@@ -344,8 +344,8 @@ namespace sgcl {
 
         SGCL_INLINE_HOT deque(deque&& other) noexcept
         : _map(std::move(other._map))
-        , _map_size(other._map_size)
         , _start(other._start)
+        , _map_size(other._map_size)
         , _size(other._size) {
             other._map = nullptr;
             other._map_size = 0;
@@ -807,8 +807,13 @@ namespace sgcl {
 
     private:
         tracked_ptr<BlockPtr> _map;   // the root
-        size_t _map_size;   // entries in the map, not counting the null one past them
+        // _start and _size apart: push_front changes both, and next to each
+        // other clang's SLP vectorizer made the two one 16-byte load, add and
+        // store, which cannot take the 8-byte store of _start a push_back had
+        // just made from the store buffer and waited for it (push_back and
+        // push_front in turn 2.9 -> 3.6 ns, 2.0 apart: DESIGN 458)
         size_t _start;      // slot index of the first element, at most _map_size * BlockSize
+        size_t _map_size;   // entries in the map, not counting the null one past them
         size_t _size;
 
         // The map and the blocks are this thread's own (tracked_ptr.h:

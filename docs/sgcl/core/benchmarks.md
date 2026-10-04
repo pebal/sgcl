@@ -13,7 +13,7 @@ The node containers cost what `std`'s do or less, the sorted map is level with `
 |---|---|---|---|---|---|---|
 | vector push_back | 2.0 | 1.4 | 8.8 MB | 8.0 MB | 22 MB | 22 MB |
 | vector of pointers, copy and walk | 2.6 | 8.1 (`shared_ptr`) | 16.4 MB | 31.3 MB | 32 MB | 68 MB |
-| deque push both ends | 3.6 | 1.3 | 8.9 MB | 7.7 MB | 15 MB | 14 MB |
+| deque push both ends | 2.0 | 1.3 | 8.9 MB | 7.7 MB | 15 MB | 14 MB |
 | list push_back / iterate | 17.1 / 1.9 | 20.9 / 1.7 | 23.0 MB | 30.5 MB | 31 MB | 37 MB |
 | list erase every other | 19.6 | 21.5 | 23.0 MB | 15.3 MB | 31 MB | 37 MB |
 | forward_list push_front | 13.6 | 16.9 | 15.3 MB | 15.3 MB | 23 MB | 21 MB |

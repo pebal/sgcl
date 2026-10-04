@@ -240,6 +240,15 @@ namespace sgcl::txt {
                     out.push_back(c | ((c - U'A' < 26) << 5));
                     return;
                 }
+                wide(out, c);
+            }
+
+            // The rest out of line: inline, its bisections made the step
+            // of the mapping too large to be inlined into the loop over
+            // the text, and every ASCII point paid the frame they need
+            // (a prepared fold over 64 KB 296 -> 340 us, DESIGN 455)
+            template<class Points>
+            SGCL_NOINLINE static void wide(Points& out, char32_t c) noexcept {
                 if (auto d = full_of(c, case_tables::FullFold)) {
                     append(out, d);
                 } else {

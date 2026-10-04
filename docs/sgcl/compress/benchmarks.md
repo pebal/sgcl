@@ -68,7 +68,7 @@ The same benchmark, against liblzma 5.8.4 (`lzma_stream_decoder` and `lzma_easy_
 |---|---|---|
 | decompress text (the library's headers, 8.8 MB) | 224 | 183 |
 | decompress a program (a test binary, 32 MB) | 747 | 446 |
-| decompress random bytes (4 MB, stored chunks) | 9 430 | 1 009 |
+| decompress random bytes (4 MB, stored chunks) | 22 500 | 1 009 |
 | compress text, level 0 | 66.1 (16.54%) | 55.7 (17.22%) |
 | compress text, level 6 | 5.19 (12.554%) | 5.40 (12.529%) |
 | compress text, level 9 | 5.14 (12.553%) | 5.33 (12.529%) |

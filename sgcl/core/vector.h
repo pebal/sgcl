@@ -25,6 +25,10 @@
 #include <ranges>
 
 namespace sgcl {
+    namespace detail {
+        struct VectorOverwrite;
+    }
+
     // std::vector over a managed buffer. The object is three words: a
     // tracked pointer to the first element, and copies of the size and
     // the capacity (below, _size); the buffer's header (detail::ArrayBase,
@@ -587,6 +591,26 @@ namespace sgcl {
             }
         }
 
+        // resize without the value-initialization of the new elements, for
+        // the library's own buffers that it writes in full before anyone
+        // sees them (detail::VectorOverwrite): a decoder's output sized
+        // ahead of the decoding paid a zeroing pass for bytes it was about
+        // to write (xz over 4 MB of stored chunks 21 500 -> 9 700 MB/s,
+        // DESIGN 459). Only for the types a zero fill would value-initialize:
+        // the new elements are what the buffer held
+        void _resize_for_overwrite(size_type count) {
+            static_assert(_zero_is_value(), "only for trivial types without tracked pointers");
+            if (count <= size()) {
+                resize(count);
+                return;
+            }
+            if (count > capacity()) {
+                _check_size(count);
+                _grow(count);
+            }
+            _size = count;
+        }
+
         SGCL_INLINE_HOT void resize(size_type count, const value_type& value) {
             auto s = size();
             if (count < s) {
@@ -607,6 +631,8 @@ namespace sgcl {
         }
 
     private:
+        friend struct detail::VectorOverwrite;
+
         using Header = detail::ArrayBase;
 
         // Three words: the count, the first element and the capacity. The
@@ -1013,6 +1039,18 @@ namespace sgcl {
 
     template<std::input_iterator InputIt>
     vector(InputIt, InputIt) -> vector<std::iter_value_t<InputIt>>;
+
+    namespace detail {
+        // The library's access to vector::_resize_for_overwrite: the new
+        // elements left as the buffer holds them, every one written by the
+        // caller before the vector leaves its hands
+        struct VectorOverwrite {
+            template<class T>
+            SGCL_INLINE_HOT static void resize(vector<T>& v, typename vector<T>::size_type count) {
+                v._resize_for_overwrite(count);
+            }
+        };
+    }
 
     // unique_ptr owns its object and needs no tracing: a plain std::vector.
     template<typename T>

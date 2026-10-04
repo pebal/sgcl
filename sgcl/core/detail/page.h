@@ -438,13 +438,19 @@ namespace sgcl::detail {
             return is_unique_state(state.load(std::memory_order_acquire));
         }
 
-        // The header is two 64-byte lines. The first holds what the mutators
-        // read on every barrier (data, multiplier) and the flags they write
-        // (state_updated, card, object_created, owned, on_empty_list); the
-        // second what the collector writes while it works (its lists, the
-        // page's marks). The states follow at config::cache_line_size, on lines of
-        // their own, so that a collector's write to the header never
-        // invalidates the line a barrier is storing a state into.
+        // The header is three lines of config::cache_line_size, one per
+        // writer. The first holds what every barrier reads, on any thread
+        // (data, multiplier, state_updated, which it stores once per cycle at
+        // most), and the flags written once per page (owned, on_empty_list);
+        // the second what the collector writes while it works (its lists, the
+        // page's marks); the third object_created, which the allocating thread
+        // stores on every allocation. On the first line, that store and
+        // another thread's barriers on objects of the page took the line from
+        // each other per object (a producer allocating and a consumer
+        // receiving through spsc_queue: 33 -> 57 ns per element, DESIGN 456).
+        // The states follow at sizeof(Page), on lines of their own, so that a
+        // collector's write to the header never invalidates the line a
+        // barrier is storing a state into.
         Metadata* const metadata;
         const uintptr_t data;
         const uint64_t multiplier;
@@ -456,7 +462,6 @@ namespace sgcl::detail {
         const bool is_root_holder;   // a page of SharedHolders or of blocks of cells: a word naming one is data (metadata.h)
         Flags* const flags_ptr;
         size_t page_count = 1;   // > 1 for objects larger than a page
-        std::atomic_bool object_created = {false};
         std::atomic_bool state_updated = {false};
         std::atomic_bool on_empty_list = {false};
         // true while a pool allocator hands out slots from the page: then only
@@ -501,7 +506,7 @@ namespace sgcl::detail {
         }
 
         // slots freed by the collector since the page was last handed out
-        alignas(64) uint32_t unused_counter_gc = {0};   // at most the objects of one page: 65536 for one-byte objects, which a 16-bit counter wrapped to 0, and the page was never released
+        alignas(config::cache_line_size) uint32_t unused_counter_gc = {0};   // at most the objects of one page: 65536 for one-byte objects, which a 16-bit counter wrapped to 0, and the page was never released
         // The marking's listing of the page: 0 not listed, Listed (for the
         // pass, by the roots), else the number of the marking thread that
         // holds it (collector.h: Marker::id, _mark_page)
@@ -522,6 +527,12 @@ namespace sgcl::detail {
         std::atomic_bool unused_occur = {true};
         Page* next_empty = {nullptr};   // the lists of empty pages: a type's, then its allocators' buffer
         Page* next = {nullptr};         // the list a thread publishes its new pages on (thread.h: Data::pages)
+
+        // Raised by every allocation from the page (object_pool_allocator_base.h,
+        // object_allocator.h), lowered by the registration (collector.h:
+        // _register_page): a line of its own, away from the barriers' and
+        // the collector's
+        alignas(config::cache_line_size) std::atomic_bool object_created = {false};
     };
-    static_assert(sizeof(Page) == config::cache_line_size, "the page header is one line of config::cache_line_size; the states follow it");
+    static_assert(sizeof(Page) == 3 * config::cache_line_size, "the page header is three lines of config::cache_line_size; the states follow it");
 }

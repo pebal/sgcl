@@ -55,9 +55,9 @@ and kept here rather than on the class pages.
 - [channel](channel/README.md): a send and a receive on one thread are 30 ns with the count of each list of waiters kept
   beside it, against 60 without the count ([the concurrent benchmarks](../concurrent/benchmarks.md)).
 - [broadcast](broadcast/README.md), with `benchmarks/compare.sh` (`bcast`, one sender thread of a million values, every
-  subscriber receiving them all): 105 ns per value with one thread subscriber, 578 with four, 1.5 µs with sixteen,
+  subscriber receiving them all): 105 ns per value with one thread subscriber, 552 with four, 1.5 µs with sixteen,
   and 164 µs with sixty-four, more threads than the machine's cores, where the ones without a core park in the
-  kernel and are woken one by one; with task subscribers 0.12, 0.75, 4.0 and 1.8 µs, the sender's walk handing the
+  kernel and are woken one by one; with task subscribers 0.12, 0.75, 3.4 and 1.8 µs, the sender's walk handing the
   tasks it wakes to the scheduler's queues together and one worker woken for them. Go's idiom, a channel per
   subscriber and a goroutine on each: 46 ns, 199, 1249 and 13.5 µs (the table with the three columns is on
   [the concurrent benchmarks page](../concurrent/benchmarks.md#the-single-producer-queue-and-the-cache)). Before,

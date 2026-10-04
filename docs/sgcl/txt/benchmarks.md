@@ -220,12 +220,12 @@ the occurrences maps the text again for each of them and is quadratic; the range
 
 | A text of 64 KB, every occurrence found | A call at a time | A range |
 |---|---|---|
-| `find_fold` / `fold_matches`, 878 of them | 193 ms | **0.32 ms** |
+| `find_fold` / `fold_matches`, 878 of them | 205 ms | **0.26 ms** |
 | `find_normalized` / `normalized_matches`, 1747 | 524 ms | **0.34 ms** |
 
-At 256 KB, where the shape shows itself properly, it is 3.10 s against 1.29 ms and 8.64 s against 1.41 ms. Four
+At 256 KB, where the shape shows itself properly, it is 3.10 s against 1.08 ms and 8.64 s against 1.41 ms. Four
 times the text costs sixteen times as much one way and four times the other. Over sixty-four kilobytes the mapping
-of a text is some three hundred microseconds and a search through the mapped text some thirty
+of a text is some two hundred and thirty microseconds and a search through the mapped text some thirty
 ([folded_text](folded_text/README.md)).
 
 ## Collation

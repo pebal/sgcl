@@ -147,7 +147,7 @@ namespace sgcl::compress {
             uint64_t guess = std::min<uint64_t>(std::max<uint64_t>(uint64_t(n) * 8, uint64_t(1) << 16), uint64_t(256) << 20);
             size_t capacity = size_t(std::min<uint64_t>(guess, ceiling));
             vector<byte> result;
-            result.resize(capacity + slack);
+            detail::VectorOverwrite::resize(result, capacity + slack);   // every byte written before it is returned: resize(total) below
             auto out = [&]() noexcept {
                 return reinterpret_cast<uint8_t*>(result.data());
             };
@@ -214,7 +214,7 @@ namespace sgcl::compress {
                             return fail(errc::too_large, at + dec->taken(), "xz: decompressed data past the limit");
                         }
                         capacity = size_t(std::min<uint64_t>({uint64_t(capacity) * 2, ceiling, uint64_t(SIZE_MAX) - slack}));
-                        result.resize(capacity + slack);
+                        detail::VectorOverwrite::resize(result, capacity + slack);
                     }
                     uint64_t compressed = dec->taken();
                     if ((h.compressed != UINT64_MAX && h.compressed != compressed) || (h.uncompressed != UINT64_MAX && h.uncompressed != pos)) {
